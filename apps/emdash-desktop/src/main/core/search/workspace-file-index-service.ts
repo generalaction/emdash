@@ -1,7 +1,11 @@
-import type { FsError } from '@emdash/core/files';
-import type { Result } from '@emdash/shared';
-import type { FileExclusionPredicate } from '@main/core/files/runtime-process/client';
+import { filesContract } from '@emdash/core/files';
+import {
+  nativeFilePath,
+  runFilesJob,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
+import { nativePathFromHost, portablePath } from '@shared/core/runtime/paths';
 import { collectWithBudget } from './collect-with-budget';
 import { createSearchIndexExclusion } from './search-index-exclusions';
 import {
@@ -15,19 +19,8 @@ const DEFAULT_MAX_FILES = 50_000;
 const DEFAULT_REINDEX_TIMEOUT_MS = 30_000;
 const DEFAULT_SEARCH_REFRESH_INTERVAL_MS = 15_000;
 
-type EnumerationOptions = {
-  exclude?: FileExclusionPredicate;
-  includeSymlinkFiles?: boolean;
-};
-
-export type WorkspaceFileEnumerator = (
-  rootPath: string,
-  options?: EnumerationOptions
-) => Result<AsyncIterable<string>, FsError>;
-
 export type WorkspaceFileIndexSource = {
-  rootPath: string;
-  enumerate: WorkspaceFileEnumerator;
+  files: FilesClientScope;
 };
 
 export type WorkspaceFileIndexServiceOptions = {
@@ -56,7 +49,9 @@ export class WorkspaceFileIndexService {
   async onWorkspaceActivated(workspaceId: string, source: WorkspaceFileIndexSource): Promise<void> {
     this.activeSources.set(workspaceId, source);
     const meta = this.store.getMeta(workspaceId);
-    if (meta && meta.rootPath !== source.rootPath) this.store.deleteIndex(workspaceId);
+    if (meta && meta.rootPath !== nativePathFromHost(source.files.root)) {
+      this.store.deleteIndex(workspaceId);
+    }
     await this.reindex(workspaceId);
   }
 
@@ -95,19 +90,29 @@ export class WorkspaceFileIndexService {
         this.pendingReindex.delete(workspaceId);
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
-        const exclude = createSearchIndexExclusion(source.rootPath);
-        const enumeration = source.enumerate(source.rootPath, { exclude });
+        const startTime = this.now();
+        const rootPath = nativePathFromHost(source.files.root);
+        const exclude = createSearchIndexExclusion(rootPath);
+        const enumeration = await runFilesJob(
+          filesContract.fs.enumerate,
+          source.files.client.fs.enumerate,
+          { root: source.files.root, relative: portablePath('') }
+        );
         if (!enumeration.success) {
-          log.warn('WorkspaceFileIndexService: enumerate failed to start', {
+          log.warn('WorkspaceFileIndexService: enumerate failed', {
             workspaceId,
             error: enumeration.error,
           });
           return;
         }
-        const result = await collectWithBudget(filterExcluded(enumeration.data, exclude), {
+        const paths = enumeration.data.paths
+          .map((relative) => nativeFilePath(source.files, relative))
+          .filter((absolute) => !exclude(absolute));
+        const result = await collectWithBudget(paths, {
           maxFiles: this.maxFiles,
           timeoutMs: this.reindexTimeoutMs,
           now: this.options.now,
+          startTime,
         });
         if (this.activeSources.get(workspaceId) !== source) {
           this.pendingReindex.add(workspaceId);
@@ -116,7 +121,7 @@ export class WorkspaceFileIndexService {
         this.store.transaction(() => {
           this.store.syncRows(workspaceId, result.paths);
           this.store.recordMeta(workspaceId, {
-            rootPath: source.rootPath,
+            rootPath,
             status: result.truncated ? 'truncated' : 'complete',
             fileCount: result.paths.length,
             truncateReason: result.truncateReason ?? null,
@@ -152,15 +157,6 @@ export class WorkspaceFileIndexService {
 
   private now(): number {
     return this.options.now?.() ?? Date.now();
-  }
-}
-
-async function* filterExcluded(
-  entries: AsyncIterable<string>,
-  exclude: FileExclusionPredicate
-): AsyncIterable<string> {
-  for await (const entry of entries) {
-    if (!exclude(entry)) yield entry;
   }
 }
 

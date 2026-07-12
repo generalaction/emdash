@@ -4,7 +4,7 @@ import { collectWithBudget } from './collect-with-budget';
 describe('collectWithBudget', () => {
   it('collects all paths when no budget is exceeded', async () => {
     await expect(
-      collectWithBudget(paths(['a.ts', 'b.ts']), {
+      collectWithBudget(['a.ts', 'b.ts'], {
         maxFiles: 10,
         timeoutMs: 1_000,
         now: () => 0,
@@ -41,6 +41,21 @@ describe('collectWithBudget', () => {
       })
     ).resolves.toEqual({
       paths: ['a.ts'],
+      truncated: true,
+      truncateReason: 'timeBudget',
+    });
+  });
+
+  it('includes work performed before collection in the time budget', async () => {
+    await expect(
+      collectWithBudget(['a.ts'], {
+        maxFiles: 10,
+        timeoutMs: 30,
+        now: () => 31,
+        startTime: 0,
+      })
+    ).resolves.toEqual({
+      paths: [],
       truncated: true,
       truncateReason: 'timeBudget',
     });

@@ -1,17 +1,32 @@
+import { filesContract } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
-import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceFileEnumerator } from './workspace-file-index-service';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
+import type * as FilesRuntimeClientModule from '@main/core/files/runtime-process/client';
+import { portablePath } from '@shared/core/runtime/paths';
+import type { WorkspaceFileIndexSource } from './workspace-file-index-service';
 import type {
   FileHit,
   FileIndexMeta,
   IWorkspaceFileIndexStore,
 } from './workspace-file-index-store';
 
+const { runFilesJobMock } = vi.hoisted(() => ({ runFilesJobMock: vi.fn() }));
+
+vi.mock('@main/core/files/runtime-process/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof FilesRuntimeClientModule>()),
+  runFilesJob: runFilesJobMock,
+}));
+
 vi.mock('./workspace-file-index-store', () => ({
   WorkspaceFileIndexStore: class {},
 }));
 
 describe('WorkspaceFileIndexService', () => {
+  beforeEach(() => {
+    runFilesJobMock.mockReset();
+  });
+
   it('delegates initialization and inactive-workspace searches to the store', async () => {
     const store = new MemoryIndexStore();
     store.rows.set('workspace', ['/repo/src/index.ts']);
@@ -33,14 +48,18 @@ describe('WorkspaceFileIndexService', () => {
     store.meta.set('workspace', completeMeta('/repo', 1));
     store.rows.set('workspace', ['/repo/stale.ts']);
     const service = await createService(store);
+    const indexSource = source('/repo');
+    runFilesJobMock.mockResolvedValue(enumeration(['fresh.ts']));
 
-    await service.onWorkspaceActivated('workspace', {
-      rootPath: '/repo',
-      enumerate: enumerator(['/repo/fresh.ts']),
-    });
+    await service.onWorkspaceActivated('workspace', indexSource);
 
     expect(store.rows.get('workspace')).toEqual(['/repo/fresh.ts']);
     expect(store.meta.get('workspace')).toEqual(completeMeta('/repo', 1));
+    expect(runFilesJobMock).toHaveBeenCalledWith(
+      filesContract.fs.enumerate,
+      indexSource.files.client.fs.enumerate,
+      { root: indexSource.files.root, relative: '' }
+    );
   });
 
   it('deletes an index that belongs to an old workspace root', async () => {
@@ -48,11 +67,9 @@ describe('WorkspaceFileIndexService', () => {
     store.meta.set('workspace', completeMeta('/old-repo', 1));
     store.rows.set('workspace', ['/old-repo/stale.ts']);
     const service = await createService(store);
+    runFilesJobMock.mockResolvedValue(enumeration(['fresh.ts']));
 
-    await service.onWorkspaceActivated('workspace', {
-      rootPath: '/repo',
-      enumerate: enumerator(['/repo/fresh.ts']),
-    });
+    await service.onWorkspaceActivated('workspace', source('/repo'));
 
     expect(store.deletedIndexes).toEqual(['workspace']);
     expect(store.rows.get('workspace')).toEqual(['/repo/fresh.ts']);
@@ -62,11 +79,9 @@ describe('WorkspaceFileIndexService', () => {
   it('records a truncated index when enumeration exceeds the file cap', async () => {
     const store = new MemoryIndexStore();
     const service = await createService(store, { maxFiles: 2 });
+    runFilesJobMock.mockResolvedValue(enumeration(['a.ts', 'b.ts', 'c.ts']));
 
-    await service.onWorkspaceActivated('workspace', {
-      rootPath: '/repo',
-      enumerate: enumerator(['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
-    });
+    await service.onWorkspaceActivated('workspace', source('/repo'));
 
     expect(store.rows.get('workspace')).toEqual(['/repo/a.ts', '/repo/b.ts']);
     expect(store.meta.get('workspace')).toEqual({
@@ -77,16 +92,16 @@ describe('WorkspaceFileIndexService', () => {
     });
   });
 
-  it('leaves the existing index intact when enumeration cannot start', async () => {
+  it('leaves the existing index intact when enumeration fails', async () => {
     const store = new MemoryIndexStore();
     store.meta.set('workspace', completeMeta('/repo', 1));
     store.rows.set('workspace', ['/repo/existing.ts']);
     const service = await createService(store);
+    runFilesJobMock.mockResolvedValue(
+      err({ type: 'io', path: portablePath(''), message: 'enumeration failed' })
+    );
 
-    await service.onWorkspaceActivated('workspace', {
-      rootPath: '/repo',
-      enumerate: () => err({ type: 'io', path: '/repo', message: 'enumeration failed' } as const),
-    });
+    await service.onWorkspaceActivated('workspace', source('/repo'));
 
     expect(store.rows.get('workspace')).toEqual(['/repo/existing.ts']);
     expect(store.meta.get('workspace')).toEqual(completeMeta('/repo', 1));
@@ -94,15 +109,16 @@ describe('WorkspaceFileIndexService', () => {
 
   it('refreshes a live workspace on search without a Files changes stream', async () => {
     const store = new MemoryIndexStore();
-    const generations = [['/repo/first.ts'], ['/repo/first.ts', '/repo/second.ts']];
-    const enumerate = vi.fn(() => ok(iterate(generations.shift() ?? [])));
+    runFilesJobMock
+      .mockResolvedValueOnce(enumeration(['first.ts']))
+      .mockResolvedValueOnce(enumeration(['first.ts', 'second.ts']));
     let now = 0;
     const service = await createService(store, {
       searchRefreshIntervalMs: 1,
       now: () => now,
     });
 
-    await service.onWorkspaceActivated('workspace', { rootPath: '/repo', enumerate });
+    await service.onWorkspaceActivated('workspace', source('/repo'));
     expect(store.rows.get('workspace')).toEqual(['/repo/first.ts']);
 
     now = 1;
@@ -113,7 +129,7 @@ describe('WorkspaceFileIndexService', () => {
     expect(service.searchFiles('workspace', 'second')).toEqual([
       { path: '/repo/second.ts', filename: 'second.ts' },
     ]);
-    expect(enumerate).toHaveBeenCalledTimes(2);
+    expect(runFilesJobMock).toHaveBeenCalledTimes(2);
   });
 
   it('reindexes the newest source when a workspace root changes mid-scan', async () => {
@@ -121,16 +137,17 @@ describe('WorkspaceFileIndexService', () => {
     const started = deferred<void>();
     const release = deferred<void>();
     const service = await createService(store);
+    runFilesJobMock
+      .mockImplementationOnce(async () => {
+        started.resolve();
+        await release.promise;
+        return enumeration(['old.ts']);
+      })
+      .mockResolvedValueOnce(enumeration(['new.ts']));
 
-    const firstActivation = service.onWorkspaceActivated('workspace', {
-      rootPath: '/first',
-      enumerate: () => ok(blockedIteration('/first/old.ts', started, release)),
-    });
+    const firstActivation = service.onWorkspaceActivated('workspace', source('/first'));
     await started.promise;
-    await service.onWorkspaceActivated('workspace', {
-      rootPath: '/second',
-      enumerate: enumerator(['/second/new.ts']),
-    });
+    await service.onWorkspaceActivated('workspace', source('/second'));
     release.resolve();
     await firstActivation;
 
@@ -140,14 +157,14 @@ describe('WorkspaceFileIndexService', () => {
 
   it('does not refresh searches after the workspace is deactivated', async () => {
     const store = new MemoryIndexStore();
-    const enumerate = vi.fn(enumerator(['/repo/a.ts']));
     const service = await createService(store, { searchRefreshIntervalMs: 0 });
+    runFilesJobMock.mockResolvedValue(enumeration(['a.ts']));
 
-    await service.onWorkspaceActivated('workspace', { rootPath: '/repo', enumerate });
+    await service.onWorkspaceActivated('workspace', source('/repo'));
     service.onWorkspaceDeactivated('workspace');
     service.searchFiles('workspace', 'a');
 
-    expect(enumerate).toHaveBeenCalledTimes(1);
+    expect(runFilesJobMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -162,22 +179,14 @@ async function createService(store: MemoryIndexStore, options: ServiceOptions = 
   return new WorkspaceFileIndexService({ store, ...options });
 }
 
-function enumerator(paths: readonly string[]): WorkspaceFileEnumerator {
-  return () => ok(iterate(paths));
+function source(rootPath: string): WorkspaceFileIndexSource {
+  return {
+    files: filesClientScope({ fs: { enumerate: {} } } as never, rootPath),
+  };
 }
 
-async function* iterate(paths: readonly string[]): AsyncIterable<string> {
-  yield* paths;
-}
-
-async function* blockedIteration(
-  path: string,
-  started: ReturnType<typeof deferred<void>>,
-  release: ReturnType<typeof deferred<void>>
-): AsyncIterable<string> {
-  started.resolve();
-  await release.promise;
-  yield path;
+function enumeration(paths: readonly string[]) {
+  return ok({ paths: paths.map(portablePath) });
 }
 
 function deferred<T>() {

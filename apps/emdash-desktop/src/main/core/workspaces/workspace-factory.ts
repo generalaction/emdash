@@ -1,18 +1,8 @@
 import path from 'node:path';
-import { filesContract, type FsError } from '@emdash/core/files';
-import { err, ok, type Result } from '@emdash/shared';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import {
-  fileRelativePath,
-  filesClientScope,
-  fsErrorMessage,
-  nativeFilePath,
-  runFilesJob,
-  type FileExclusionPredicate,
-  type FilesClientScope,
-} from '@main/core/files/runtime-process/client';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
 import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
@@ -113,8 +103,7 @@ export function createWorkspaceFactory(
       workspace,
       onCreateSideEffect: (created) => {
         void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
-          rootPath: created.path,
-          enumerate: (root, options) => enumerateWorkspaceFiles(created.files, root, options),
+          files: created.files,
         });
         void runAutomaticScripts({
           workspace: created,
@@ -300,36 +289,4 @@ export async function resolveTaskEnv(
     tmuxEnabled: projectSettings.tmux ?? false,
     shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
   };
-}
-
-function enumerateWorkspaceFiles(
-  files: FilesClientScope,
-  rootPath: string,
-  options: { exclude?: FileExclusionPredicate; includeSymlinkFiles?: boolean } = {}
-): Result<AsyncIterable<string>, FsError> {
-  let relative;
-  try {
-    relative = fileRelativePath(files, rootPath);
-  } catch (error) {
-    return err({
-      type: 'invalid-path',
-      path: rootPath,
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  return ok(
-    (async function* () {
-      const result = await runFilesJob(filesContract.fs.enumerate, files.client.fs.enumerate, {
-        root: files.root,
-        relative,
-        options: { includeSymlinkFiles: options.includeSymlinkFiles },
-      });
-      if (!result.success) throw new Error(fsErrorMessage(result.error));
-      for (const item of result.data.paths) {
-        const absolute = nativeFilePath(files, item);
-        if (!options.exclude?.(absolute)) yield absolute;
-      }
-    })()
-  );
 }

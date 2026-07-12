@@ -4,6 +4,7 @@ export type CollectWithBudgetOptions = {
   maxFiles: number;
   timeoutMs: number;
   now?: () => number;
+  startTime?: number;
 };
 
 export type BudgetedFileCollection = {
@@ -13,11 +14,11 @@ export type BudgetedFileCollection = {
 };
 
 export async function collectWithBudget(
-  paths: AsyncIterable<string>,
+  paths: Iterable<string> | AsyncIterable<string>,
   options: CollectWithBudgetOptions
 ): Promise<BudgetedFileCollection> {
   const now = options.now ?? Date.now;
-  const startTime = now();
+  const startTime = options.startTime ?? now();
   const collected: string[] = [];
   let truncated = false;
   let truncateReason: FileIndexTruncateReason | undefined;
