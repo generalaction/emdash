@@ -3,6 +3,7 @@ import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { useNumberHotkeys } from '@renderer/lib/hooks/use-number-hotkeys';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -15,6 +16,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
+import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
@@ -69,6 +71,14 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
+  });
+
+  // Jump to the Nth task in visual sidebar order: pinned tasks first, then the
+  // project tree top to bottom (same source as Next/Previous Task).
+  useNumberHotkeys(getEffectiveHotkey('taskByNumber', keyboard), true, (index) => {
+    const entries = [...sidebarStore.pinnedSidebarEntries, ...sidebarStore.visibleTaskEntries];
+    const entry = entries[index];
+    if (entry) navigate('task', entry);
   });
 
   useHotkey(

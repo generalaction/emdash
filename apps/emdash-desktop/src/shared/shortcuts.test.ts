@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getDomTabNavigationDirection, getElectronTabNavigationDirection } from './shortcuts';
+import {
+  getDomTabNavigationDirection,
+  getElectronTabNavigationDirection,
+  getNumberHotkeys,
+} from './shortcuts';
 
 describe('tab navigation shortcuts', () => {
   it('recognizes DOM Control+Tab navigation', () => {
@@ -72,5 +76,36 @@ describe('tab navigation shortcuts', () => {
         meta: false,
       })
     ).toBeNull();
+  });
+});
+
+describe('getNumberHotkeys', () => {
+  it('expands a base hotkey into digits 1-9 with the same modifiers', () => {
+    expect(getNumberHotkeys('Control+1')).toEqual([
+      'Control+1',
+      'Control+2',
+      'Control+3',
+      'Control+4',
+      'Control+5',
+      'Control+6',
+      'Control+7',
+      'Control+8',
+      'Control+9',
+    ]);
+  });
+
+  it('keeps multiple modifiers and ignores which digit was recorded', () => {
+    expect(getNumberHotkeys('Mod+Shift+5')?.[0]).toBe('Mod+Shift+1');
+    expect(getNumberHotkeys('Mod+Shift+5')?.[8]).toBe('Mod+Shift+9');
+  });
+
+  it('expands a bare digit without modifiers', () => {
+    expect(getNumberHotkeys('3')).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  });
+
+  it('returns null when the base does not end in a digit 1-9', () => {
+    expect(getNumberHotkeys('Mod+K')).toBeNull();
+    expect(getNumberHotkeys('Control+0')).toBeNull();
+    expect(getNumberHotkeys('')).toBeNull();
   });
 });
