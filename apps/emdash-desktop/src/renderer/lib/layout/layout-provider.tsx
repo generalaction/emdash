@@ -15,6 +15,10 @@ export interface WorkspaceLayoutContextValue {
   syncLeftOpenFromPanel: () => void;
   setCollapsed: (side: 'left', collapsed: boolean) => void;
   toggleLeft: () => void;
+  toggleZenMode: (rightSidebar?: {
+    isCollapsed: boolean;
+    setCollapsed: (collapsed: boolean) => void;
+  }) => void;
 }
 
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
@@ -28,6 +32,11 @@ export function useWorkspaceLayoutService() {
   // programmatic collapse/expand is in flight (state-only concern, no resize
   // suppression needed because the ResizeObserver is now always trusted).
   const programmaticRef = useRef(false);
+  const zenModeSnapshotRef = useRef<{
+    leftOpen: boolean;
+    rightCollapsed?: boolean;
+    setRightCollapsed?: (collapsed: boolean) => void;
+  } | null>(null);
 
   const syncLeftOpenFromPanel = useCallback(() => {
     if (programmaticRef.current) return;
@@ -57,12 +66,36 @@ export function useWorkspaceLayoutService() {
     setCollapsed('left', isLeftOpen);
   }, [setCollapsed, isLeftOpen]);
 
+  const toggleZenMode = useCallback(
+    (rightSidebar?: { isCollapsed: boolean; setCollapsed: (collapsed: boolean) => void }) => {
+      const snapshot = zenModeSnapshotRef.current;
+      if (snapshot) {
+        setCollapsed('left', !snapshot.leftOpen);
+        if (snapshot.setRightCollapsed && snapshot.rightCollapsed !== undefined) {
+          snapshot.setRightCollapsed(snapshot.rightCollapsed);
+        }
+        zenModeSnapshotRef.current = null;
+        return;
+      }
+
+      zenModeSnapshotRef.current = {
+        leftOpen: isLeftOpen,
+        rightCollapsed: rightSidebar?.isCollapsed,
+        setRightCollapsed: rightSidebar?.setCollapsed,
+      };
+      setCollapsed('left', true);
+      rightSidebar?.setCollapsed(true);
+    },
+    [isLeftOpen, setCollapsed]
+  );
+
   return {
     leftPanelRef,
     syncLeftOpenFromPanel,
     isLeftOpen,
     setCollapsed,
     toggleLeft,
+    toggleZenMode,
   };
 }
 

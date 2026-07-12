@@ -3,7 +3,10 @@ import type { ViewId } from '@renderer/app/view-registry';
 import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { events } from '@renderer/lib/ipc';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import {
+  type WorkspaceLayoutContextValue,
+  useWorkspaceLayoutContext,
+} from '@renderer/lib/layout/layout-provider';
 import {
   type NavigateFnTyped,
   type NonSettingsViewId,
@@ -18,7 +21,7 @@ import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 export function BrowserAppShortcutEvents() {
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { setCollapsed, toggleLeft } = useWorkspaceLayoutContext();
+  const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -42,9 +45,9 @@ export function BrowserAppShortcutEvents() {
         currentView,
         lastNonSettingsView,
         navigate,
-        setCollapsed,
         showCommandPalette,
         toggleLeft,
+        toggleZenMode,
       });
     });
   }, [
@@ -53,9 +56,9 @@ export function BrowserAppShortcutEvents() {
     currentView,
     lastNonSettingsView,
     navigate,
-    setCollapsed,
     showCommandPalette,
     toggleLeft,
+    toggleZenMode,
   ]);
 
   return null;
@@ -69,13 +72,13 @@ function dispatchAppOnlyShortcut(
     currentView: ViewId;
     lastNonSettingsView: NonSettingsViewId;
     navigate: NavigateFnTyped;
-    setCollapsed: (side: 'left', collapsed: boolean) => void;
     showCommandPalette: (input: {
       projectId?: string;
       taskId?: string;
       workspaceId?: string;
     }) => void;
     toggleLeft: () => void;
+    toggleZenMode: WorkspaceLayoutContextValue['toggleZenMode'];
   }
 ): void {
   switch (shortcutKey) {
@@ -97,9 +100,19 @@ function dispatchAppOnlyShortcut(
       context.toggleLeft();
       break;
     case 'zenMode':
-      context.setCollapsed('left', true);
-      if (context.currentProjectId && context.currentTaskId) {
-        getTaskView(context.currentProjectId, context.currentTaskId)?.setSidebarCollapsed(true);
+      {
+        const taskView =
+          context.currentProjectId && context.currentTaskId
+            ? getTaskView(context.currentProjectId, context.currentTaskId)
+            : undefined;
+        context.toggleZenMode(
+          taskView
+            ? {
+                isCollapsed: taskView.isSidebarCollapsed,
+                setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
+              }
+            : undefined
+        );
       }
       break;
     case 'closeModal':

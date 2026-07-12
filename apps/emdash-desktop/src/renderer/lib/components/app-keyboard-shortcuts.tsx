@@ -18,7 +18,7 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { setCollapsed, toggleLeft } = useWorkspaceLayoutContext();
+  const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
@@ -71,10 +71,18 @@ export function AppKeyboardShortcuts() {
   useHotkey(
     getHotkeyRegistration('zenMode', keyboard),
     () => {
-      setCollapsed('left', true);
-      if (currentProjectId && currentTaskId) {
-        getTaskView(currentProjectId, currentTaskId)?.setSidebarCollapsed(true);
-      }
+      const taskView =
+        currentProjectId && currentTaskId
+          ? getTaskView(currentProjectId, currentTaskId)
+          : undefined;
+      toggleZenMode(
+        taskView
+          ? {
+              isCollapsed: taskView.isSidebarCollapsed,
+              setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
+            }
+          : undefined
+      );
     },
     { enabled: zenModeHotkey !== null }
   );
