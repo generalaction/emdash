@@ -142,7 +142,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                           <span className="flex flex-col truncate">
                             <span className="truncate">{row.label}</span>
                             {row.displayPath && (
-                              <span className="truncate font-sans text-xs text-foreground-muted">
+                              <span className="truncate font-mono text-xs text-foreground-muted">
                                 {row.displayPath}
                               </span>
                             )}

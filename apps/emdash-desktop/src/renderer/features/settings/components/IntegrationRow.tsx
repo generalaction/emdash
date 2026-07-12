@@ -193,7 +193,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
               <TooltipContent side="top">
                 <div className="max-w-[240px] space-y-1">
                   <div className="text-xs font-medium text-foreground">Copy install command</div>
-                  <code className="text-muted-foreground block truncate font-sans text-tiny">
+                  <code className="text-muted-foreground block truncate font-mono text-tiny">
                     {installCommand}
                   </code>
                 </div>

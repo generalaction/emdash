@@ -157,7 +157,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={() => commit()}
                   placeholder="e.g. --enable-all-github-mcp-tools"
-                  className="font-sans text-sm"
+                  className="font-mono text-sm"
                 />
               </Field>
             )}
@@ -177,7 +177,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                       <Input
                         value={entry.key}
                         placeholder="KEY"
-                        className="min-w-0 flex-1 font-sans text-sm"
+                        className="min-w-0 flex-1 font-mono text-sm"
                         onChange={(e) =>
                           field.handleChange(
                             field.state.value.map((v, idx) =>
@@ -198,7 +198,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                       <Input
                         value={entry.value}
                         placeholder="value"
-                        className="min-w-0 flex-1 font-sans text-sm"
+                        className="min-w-0 flex-1 font-mono text-sm"
                         onChange={(e) =>
                           field.handleChange(
                             field.state.value.map((v, idx) =>
