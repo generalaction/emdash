@@ -251,7 +251,7 @@ async function runNativeBrowserVerification(
   let evidence: LoopEvidenceRunPort | null = null;
   let activeSession: NativeBrowserVerificationSession | null = null;
   let nestedSession: NativeBrowserSessionHandle | null = null;
-  const sessionsToClose: NativeBrowserVerificationSession[] = [];
+  const leasesToClose: LoopBrowserLease[] = [];
   let evidenceStatus: LoopEvidenceRunStatus = 'failed';
   let finalSummary = 'Native browser verification failed';
   let command = 'ACP native browser verification';
@@ -324,8 +324,9 @@ async function runNativeBrowserVerification(
         browserStart.error.kind === 'cancelled' ? 'cancelled' : 'failed'
       );
     }
+    const initialCandidateLease = loopBrowserLeaseSchema.safeParse(browserStart.data?.lease);
+    if (initialCandidateLease.success) leasesToClose.push(initialCandidateLease.data);
     activeSession = validateInitialBrowserSession(browserStart.data, binding, ctx.loop);
-    sessionsToClose.push(activeSession);
 
     control.assertActive();
     const sessionPromise = dependencies.startVerificationSession({
@@ -521,7 +522,7 @@ async function runNativeBrowserVerification(
         const previousSession = activeSession;
         if (reconciled.data.kind === 'rotated') {
           const candidateLease = loopBrowserLeaseSchema.safeParse(reconciled.data.session?.lease);
-          if (candidateLease.success) sessionsToClose.push(reconciled.data.session);
+          if (candidateLease.success) leasesToClose.push(candidateLease.data);
         }
         activeSession = validateReconciledSession(
           reconciled.data,
@@ -591,7 +592,7 @@ async function runNativeBrowserVerification(
         : 'failed';
   const cleanupErrors = await closeBrowserSessions(
     dependencies.browser,
-    sessionsToClose,
+    leasesToClose,
     closeReason
   );
   if (cleanupErrors.length > 0) {
@@ -1235,19 +1236,19 @@ function sanitizeObservation(
 
 async function closeBrowserSessions(
   browser: NativeBrowserVerifierDependencies['browser'],
-  sessions: NativeBrowserVerificationSession[],
+  leases: LoopBrowserLease[],
   reason: 'completed' | 'failed' | 'cancelled'
 ): Promise<string[]> {
   const errors: string[] = [];
   const closed = new Set<string>();
-  for (const session of [...sessions].reverse()) {
-    const key = leaseKey(session.lease);
+  for (const lease of [...leases].reverse()) {
+    const key = leaseKey(lease);
     if (closed.has(key)) continue;
     closed.add(key);
     try {
-      const result = await browser.close(session.lease, reason);
+      const result = await browser.close(lease, reason);
       const parsed = loopBrowserClosedMessageSchema.safeParse(result);
-      if (!parsed.success || !sameLease(session.lease, parsed.data)) {
+      if (!parsed.success || !sameLease(lease, parsed.data)) {
         errors.push('Native browser cleanup returned the wrong lease identity');
       } else if (!parsed.data.partitionDataCleared || parsed.data.cleanupError) {
         errors.push(parsed.data.cleanupError ?? 'Native browser partition data was not cleared');

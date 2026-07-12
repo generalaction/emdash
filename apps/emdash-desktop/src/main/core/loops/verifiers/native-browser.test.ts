@@ -614,6 +614,25 @@ describe('native browser verifier', () => {
     const previewResult = await previewHarness.verifier.run(previewHarness.ctx);
     expect(previewResult.success).toBe(false);
     expect(previewHarness.startVerificationSession).not.toHaveBeenCalled();
+    expect(previewHarness.close).toHaveBeenCalledWith(
+      previewHarness.browserSession.lease,
+      'failed'
+    );
+  });
+
+  it('cleans a schema-valid started lease whose identity does not match the requested workspace', async () => {
+    const wrongIdentitySession = makeBrowserSession(LOCAL_TARGET);
+    wrongIdentitySession.lease = {
+      ...wrongIdentitySession.lease,
+      workspaceId: 'unrelated-workspace',
+    };
+    const harness = makeHarness({ browserSession: wrongIdentitySession });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success).toBe(false);
+    expect(harness.startVerificationSession).not.toHaveBeenCalled();
+    expect(harness.close).toHaveBeenCalledWith(wrongIdentitySession.lease, 'failed');
   });
 
   it('rejects criteria overflow before resolving any external authority', async () => {
