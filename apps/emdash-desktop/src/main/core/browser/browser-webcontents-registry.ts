@@ -21,7 +21,9 @@ import type { AppSettings } from '@shared/core/app-settings';
 import {
   browserAppShortcutChannel,
   numberShortcutChannel,
+  numberShortcutModifierChannel,
   tabNavigationShortcutChannel,
+  type NumberShortcutModifier,
 } from '@shared/events/appEvents';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import {
@@ -248,39 +250,42 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
+      const browserId = this.browserIdByWebContentsId.get(webContents.id);
+      const modifier = getNumberShortcutModifier(input.key);
+      if (browserId && modifier && (input.type === 'keyDown' || input.type === 'keyUp')) {
+        events.emit(numberShortcutModifierChannel, {
+          source: { kind: 'browser', browserId },
+          modifier,
+          held: input.type === 'keyDown',
+        });
+      }
+
       const tabNavigationDirection = getElectronTabNavigationDirection(input);
-      if (tabNavigationDirection) {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
-        if (browserId) {
-          event.preventDefault();
-          events.emit(tabNavigationShortcutChannel, {
-            source: { kind: 'browser', browserId },
-            direction: tabNavigationDirection,
-          });
-          return;
-        }
+      if (tabNavigationDirection && browserId) {
+        event.preventDefault();
+        events.emit(tabNavigationShortcutChannel, {
+          source: { kind: 'browser', browserId },
+          direction: tabNavigationDirection,
+        });
+        return;
       }
 
       const numberShortcuts = getBrowserNumberShortcuts(input, this.browserNumberBindings);
-      if (numberShortcuts.length > 0) {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
-        if (browserId) {
-          event.preventDefault();
-          for (const numberShortcut of numberShortcuts) {
-            events.emit(numberShortcutChannel, {
-              source: { kind: 'browser', browserId },
-              ...numberShortcut,
-            });
-          }
-          return;
+      if (numberShortcuts.length > 0 && browserId) {
+        event.preventDefault();
+        for (const numberShortcut of numberShortcuts) {
+          events.emit(numberShortcutChannel, {
+            source: { kind: 'browser', browserId },
+            ...numberShortcut,
+          });
         }
+        return;
       }
 
       const shortcutKey = getBrowserShortcutKey(input, this.browserShortcuts);
       if (shortcutKey === null) return;
 
       if (shortcutKey !== 'browserCopyUrl') {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (!browserId) return;
         event.preventDefault();
         events.emit(browserAppShortcutChannel, {
@@ -295,6 +300,16 @@ export class BrowserWebContentsRegistry {
       event.preventDefault();
       clipboard.writeText(normalized.url);
       events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
+    });
+
+    webContents.on('blur', () => {
+      const browserId = this.browserIdByWebContentsId.get(webContents.id);
+      if (!browserId) return;
+      events.emit(numberShortcutModifierChannel, {
+        source: { kind: 'browser', browserId },
+        modifier: null,
+        held: false,
+      });
     });
 
     webContents.on('context-menu', (event, params) => {
@@ -624,6 +639,21 @@ function parseShortcut(shortcut: string): {
 
 function normalizeInputKey(key: string): string {
   return key.toLowerCase();
+}
+
+function getNumberShortcutModifier(key: string): NumberShortcutModifier | null {
+  switch (normalizeInputKey(key)) {
+    case 'meta':
+      return 'Meta';
+    case 'control':
+      return 'Control';
+    case 'alt':
+      return 'Alt';
+    case 'shift':
+      return 'Shift';
+    default:
+      return null;
+  }
 }
 
 function clearWebviewSelection(webContents: WebContents): void {

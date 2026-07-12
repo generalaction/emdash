@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { events } from '@renderer/lib/ipc';
 import type { AppSettings } from '@shared/core/app-settings';
+import {
+  numberShortcutChannel,
+  numberShortcutModifierChannel,
+  type NumberShortcutModifier,
+} from '@shared/events/appEvents';
 import { isMacLike, type ShortcutSettingsKey } from '@shared/shortcuts';
 
-export type RevealModifier = 'Meta' | 'Control' | 'Alt' | 'Shift';
+export type RevealModifier = NumberShortcutModifier;
 
 /**
  * The modifier whose hold reveals number hints for a shortcut family: taken
@@ -37,10 +43,9 @@ export function getHotkeyRevealModifier(hotkey: string | null): RevealModifier |
 }
 
 /**
- * True while `key` has been held down for at least `delayMs`, until it is
- * released or the window blurs. Chord presses while held (e.g. the digit of a
- * number shortcut) do NOT reset the state, so hints stay visible across
- * consecutive jumps within one hold.
+ * True while `key` has been held down for at least `delayMs`. Hints hide as
+ * soon as another key is pressed, and reset when the modifier is released or
+ * the window blurs.
  */
 export function useModifierHeld(key: RevealModifier | null, delayMs = 250): boolean {
   const [held, setHeld] = useState(false);
@@ -48,18 +53,29 @@ export function useModifierHeld(key: RevealModifier | null, delayMs = 250): bool
   useEffect(() => {
     if (key === null) return;
     let timer: number | null = null;
-    const cancel = () => {
+    let modifierDown = false;
+    const hide = () => {
       if (timer !== null) {
         window.clearTimeout(timer);
         timer = null;
       }
       setHeld(false);
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      // timer doubles as the "this hold is already tracked" sentinel; it stays
-      // set after firing until keyup/blur cancels.
-      if (e.key !== key || e.repeat || timer !== null) return;
+    const cancel = () => {
+      modifierDown = false;
+      hide();
+    };
+    const start = () => {
+      if (modifierDown) return;
+      modifierDown = true;
       timer = window.setTimeout(() => setHeld(true), delayMs);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === key) {
+        if (!e.repeat) start();
+      } else if (modifierDown) {
+        hide();
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === key) cancel();
@@ -67,10 +83,23 @@ export function useModifierHeld(key: RevealModifier | null, delayMs = 250): bool
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('blur', cancel);
+    const stopForwardedModifier = events.on(numberShortcutModifierChannel, (event) => {
+      if (event.modifier === null) {
+        cancel();
+      } else if (event.modifier === key) {
+        if (event.held) start();
+        else cancel();
+      }
+    });
+    const stopForwardedShortcut = events.on(numberShortcutChannel, () => {
+      if (modifierDown) hide();
+    });
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', cancel);
+      stopForwardedModifier();
+      stopForwardedShortcut();
       if (timer !== null) window.clearTimeout(timer);
     };
   }, [key, delayMs]);

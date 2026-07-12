@@ -26,7 +26,9 @@ const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th']
 
 function taskByNumberShortcut(digit: number): AppShortcutDef {
   return {
-    defaultHotkey: `Mod+${digit}`,
+    // On Windows/Linux Mod is Ctrl, so Control+digit would collide with the
+    // tab shortcuts there.
+    defaultHotkey: () => (isMacLike() ? `Control+${digit}` : `Alt+${digit}`),
     label: `Jump to ${ORDINALS[digit - 1]} Task`,
     description: `Switch to the ${ORDINALS[digit - 1]} task in the sidebar, top to bottom.`,
     category: 'Task View',
@@ -37,9 +39,7 @@ function taskByNumberShortcut(digit: number): AppShortcutDef {
 
 function tabByNumberShortcut(digit: number): AppShortcutDef {
   return {
-    // On Windows/Linux Mod is Ctrl, so Control+digit would collide with the
-    // task shortcuts there.
-    defaultHotkey: () => (isMacLike() ? `Control+${digit}` : `Alt+${digit}`),
+    defaultHotkey: `Mod+${digit}`,
     label: `Jump to ${ORDINALS[digit - 1]} Tab`,
     description: `Switch to the ${ORDINALS[digit - 1]} tab in the pane, left to right.`,
     category: 'Tab Navigation',

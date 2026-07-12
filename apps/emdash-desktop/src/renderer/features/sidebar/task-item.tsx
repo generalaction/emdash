@@ -29,7 +29,7 @@ interface SidebarTaskItemProps {
   /** Pinned strip uses tighter padding than tasks nested under a project. */
   rowVariant?: 'underProject' | 'pinned';
   /** Full task-by-number hotkey (e.g. 'Mod+3'), shown while the modifier is held. */
-  numberHint?: string | null;
+  numberHint?: Hotkey | null;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
@@ -141,7 +141,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
               'group-data-[active=true]/row:from-background-tertiary-2'
             )}
           >
-            <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" />
+            <Shortcut hotkey={numberHint} variant="keycaps" />
           </div>
         )}
       </SidebarMenuRow>

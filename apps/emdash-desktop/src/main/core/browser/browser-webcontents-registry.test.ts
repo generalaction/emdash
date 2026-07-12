@@ -4,6 +4,7 @@ import { events } from '@main/lib/events';
 import {
   browserAppShortcutChannel,
   numberShortcutChannel,
+  numberShortcutModifierChannel,
   tabNavigationShortcutChannel,
 } from '@shared/events/appEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
@@ -260,15 +261,15 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
-    // Default tab family on macOS is Control+1-9; digit 3+ must forward too.
+    // Default tab family on macOS is Command+1-9; digit 3+ must forward too.
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: '3',
-      control: true,
+      control: false,
       shift: false,
       alt: false,
-      meta: false,
+      meta: true,
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -291,10 +292,10 @@ describe('BrowserWebContentsRegistry', () => {
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: '2',
-      control: false,
+      control: true,
       shift: false,
       alt: false,
-      meta: true,
+      meta: false,
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -330,17 +331,65 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     vi.mocked(events.emit).mockClear();
-    const metaEvent = { preventDefault: vi.fn() };
-    webContents.emitEvent('before-input-event', metaEvent, {
+    const controlEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', controlEvent, {
       type: 'keyDown',
       key: '2',
+      control: true,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+    expect(controlEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(numberShortcutChannel, expect.anything());
+  });
+
+  it('forwards modifier state while a browser webview has focus', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Meta',
       control: false,
       shift: false,
       alt: false,
       meta: true,
     });
-    expect(metaEvent.preventDefault).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(numberShortcutChannel, expect.anything());
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: 'Meta',
+      held: true,
+    });
+
+    vi.mocked(events.emit).mockClear();
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyUp',
+      key: 'Meta',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: 'Meta',
+      held: false,
+    });
+
+    vi.mocked(events.emit).mockClear();
+    webContents.emitEvent('blur');
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: null,
+      held: false,
+    });
   });
 
   it('emits app shortcuts from focused browser webContents', () => {

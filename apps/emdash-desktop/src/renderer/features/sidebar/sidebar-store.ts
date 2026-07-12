@@ -121,7 +121,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   /**
-   * Tasks in visual sidebar order — pinned first, then the visible project
+   * Tasks in visual sidebar order: pinned first, then the visible project
    * tree top to bottom. The single source of truth for task-by-number
    * shortcuts: digit N targets numberedTaskEntries[N - 1], and the
    * hold-to-reveal hint badges number the same list.

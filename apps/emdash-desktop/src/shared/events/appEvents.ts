@@ -45,6 +45,16 @@ export const numberShortcutChannel = defineEvent<{
   index: number;
 }>('number-shortcut:pressed');
 
+export type NumberShortcutModifier = 'Meta' | 'Control' | 'Alt' | 'Shift';
+
+/** Modifier state forwarded while an embedded browser webview owns keyboard focus. */
+export const numberShortcutModifierChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  /** Null clears held state when the webview loses focus. */
+  modifier: NumberShortcutModifier | null;
+  held: boolean;
+}>('number-shortcut:modifier');
+
 export const browserAppShortcutChannel = defineEvent<{
   source: { kind: 'browser'; browserId: string };
   shortcutKey: ShortcutSettingsKey;

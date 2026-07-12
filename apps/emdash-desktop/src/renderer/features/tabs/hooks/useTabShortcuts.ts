@@ -34,13 +34,13 @@ export interface UseTabShortcutsOptions {
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
- *   tabNext     (default Mod+Alt+ArrowRight)      — next tab
- *   tabPrev     (default Mod+Alt+ArrowLeft)       — previous tab
- *   Control+Tab / Control+Shift+Tab               — next / previous tab
- *   tabClose    (default Mod+W)                   — close active tab
- *   tabReopen   (default Mod+Shift+T)             — reopen most recently closed tab
- *   tabRename   (default Mod+Shift+R)             — rename active tab (when supported)
- *   tabByNumber (default Control+1–9 on macOS)    — jump to tab by position, left to right
+ *   tabNext     (default Mod+Alt+ArrowRight): next tab
+ *   tabPrev     (default Mod+Alt+ArrowLeft): previous tab
+ *   Control+Tab / Control+Shift+Tab: next / previous tab
+ *   tabClose    (default Mod+W): close active tab
+ *   tabReopen   (default Mod+Shift+T): reopen most recently closed tab
+ *   tabRename   (default Mod+Shift+R): rename active tab (when supported)
+ *   tabByNumber (default Mod+1-9): jump to tab by position, left to right
  *
  * Pass `focused: false` to disable shortcuts when the panel is not focused,
  * preventing conflicts when multiple tab panels are mounted simultaneously.

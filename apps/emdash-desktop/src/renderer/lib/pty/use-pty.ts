@@ -1,6 +1,7 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
+import { dispatchNumberHotkey } from '@renderer/lib/hooks/use-number-hotkeys';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
@@ -34,17 +35,6 @@ const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
   if (!getDomTabNavigationDirection(event)) return false;
-  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
-}
-
-/**
- * Modified digit presses (tab/task 1-9 and similar) must reach the app even
- * though xterm would otherwise consume them (Ctrl+2-8 map to control chars).
- */
-function dispatchTerminalNumberHotkey(event: KeyboardEvent): boolean {
-  if (event.type !== 'keydown') return false;
-  if (!/^[1-9]$/.test(event.key)) return false;
-  if (!event.ctrlKey && !event.metaKey && !event.altKey) return false;
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
@@ -403,7 +393,7 @@ export function usePty(
           return false;
         }
 
-        if (dispatchTerminalNumberHotkey(event)) {
+        if (dispatchNumberHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
