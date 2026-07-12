@@ -28,6 +28,14 @@ async function initRepo(dir: string): Promise<void> {
   await git(['commit', '--allow-empty', '-m', 'init'], { cwd: dir });
 }
 
+function deferred<T = void>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider {
   return {
     get: async () => ({ preservePatterns }),
@@ -175,6 +183,74 @@ describe('WorktreeService', () => {
   }
 
   describe('createWorktreeAtCommit', () => {
+    it('retains ambiguous ownership until an ignored late worktree add quiesces', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-held-add';
+      const targetPath = path.join(poolDir, branch);
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      let releaseAdd: (() => void) | undefined;
+      const addGate = new Promise<void>((resolve) => {
+        releaseAdd = resolve;
+      });
+      let markAddStarted: (() => void) | undefined;
+      const addStarted = new Promise<void>((resolve) => {
+        markAddStarted = resolve;
+      });
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: async (command, args = [], options) => {
+          if (args[0] === 'worktree' && args[1] === 'add') {
+            markAddStarted?.();
+            await addGate;
+            return delegate.exec(command, args, {
+              ...options,
+              signal: undefined,
+              timeout: 120_000,
+            });
+          }
+          return delegate.exec(command, args, options);
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const creating = service.createWorktreeAtCommit(commit, branch, {
+        deadlineAt: Date.now() + 50,
+        expectedTargetPath: targetPath,
+      });
+      await addStarted;
+
+      await expect(creating).resolves.toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(targetPath, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'worktree-remove-failed' } });
+
+      releaseAdd?.();
+      await service.waitForGeneratedWorktreeOperations(targetPath);
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(targetPath, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toEqual(ok({ removed: true }));
+      expect(fs.existsSync(targetPath)).toBe(false);
+    });
+
     it('rejects resolver drift against the frozen target before worktree mutation', async () => {
       const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
       const poolA = path.join(poolDir, 'a');
@@ -1163,6 +1239,140 @@ describe('WorktreeService', () => {
   });
 
   describe('copyPreservedFilesToWorktree', () => {
+    it('keeps held preserve settings quiescent before generated worktree removal', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-held-preserve-settings';
+      const settingsGate = deferred<Awaited<ReturnType<ProjectSettingsProvider['get']>>>();
+      const settingsStarted = deferred();
+      const controller = new AbortController();
+      const settings = makeSettings();
+      settings.get = () => {
+        settingsStarted.resolve();
+        return settingsGate.promise;
+      };
+      const service = makeService({ projectSettings: settings });
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected worktree');
+
+      const copying = service.copyPreservedFilesToWorktree(created.data, {
+        signal: controller.signal,
+      });
+      let settled = false;
+      void copying.then(() => {
+        settled = true;
+      });
+      await settingsStarted.promise;
+      controller.abort();
+      await Promise.resolve();
+
+      expect(settled).toBe(false);
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'worktree-remove-failed' } });
+
+      settingsGate.resolve({ preservePatterns: ['.env.local'] });
+      await expect(copying).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled' },
+      });
+      await service.waitForGeneratedWorktreeOperations(created.data);
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toEqual(ok({ removed: true }));
+    });
+
+    it('keeps held preserve glob enumeration quiescent before removal', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-held-preserve-glob';
+      const globGate = deferred();
+      const globStarted = deferred();
+      const controller = new AbortController();
+      const service = makeServiceWithFileSystemOverride(makeSettings(['.env.local']), {
+        glob: () =>
+          ok(
+            (async function* () {
+              globStarted.resolve();
+              await globGate.promise;
+              yield path.join(repoDir, '.env.local');
+            })()
+          ),
+      });
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected worktree');
+      const copying = service.copyPreservedFilesToWorktree(created.data, {
+        signal: controller.signal,
+      });
+
+      await globStarted.promise;
+      controller.abort();
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'worktree-remove-failed' } });
+      globGate.resolve();
+
+      await expect(copying).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled' },
+      });
+      expect(fs.existsSync(path.join(created.data, '.env.local'))).toBe(false);
+    });
+
+    it('waits a late preserve copy before cleanup removes every copied byte', async () => {
+      const source = path.join(repoDir, '.env.local');
+      fs.writeFileSync(source, 'SECRET=abc');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-held-preserve-copy';
+      const copyGate = deferred();
+      const copyStarted = deferred();
+      const controller = new AbortController();
+      const service = makeServiceWithFileSystemOverride(makeSettings(['.env.local']), {
+        copyFile: async (from, to) => {
+          copyStarted.resolve();
+          await copyGate.promise;
+          fs.copyFileSync(from, to);
+          return ok();
+        },
+      });
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected worktree');
+      const copying = service.copyPreservedFilesToWorktree(created.data, {
+        signal: controller.signal,
+      });
+
+      await copyStarted.promise;
+      controller.abort();
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'worktree-remove-failed' } });
+      copyGate.resolve();
+      await expect(copying).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled' },
+      });
+      await service.waitForGeneratedWorktreeOperations(created.data);
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toEqual(ok({ removed: true }));
+      expect(fs.existsSync(created.data)).toBe(false);
+    });
+
     it('resolves feature-version preserve rules after replay and copies only untracked files', async () => {
       fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
       fs.writeFileSync(path.join(repoDir, 'tracked.txt'), 'tracked');

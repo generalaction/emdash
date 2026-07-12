@@ -34,6 +34,8 @@ export type CreateWorktreeAtCommitError =
   | { type: 'worktree-setup-failed'; cause: SerializedError };
 
 export type CopyPreservedFilesError =
+  | { type: 'cancelled'; message: string }
+  | { type: 'deadline-exceeded'; message: string }
   | { type: 'invalid-generated-worktree'; message: string }
   | { type: 'preserve-config-unavailable'; message: string }
   | { type: 'preserve-glob-failed'; pattern: string; message: string }
@@ -61,7 +63,8 @@ class WorktreeOperationStopped extends Error {
     readonly failure: Extract<
       CreateWorktreeAtCommitError,
       { type: 'cancelled' | 'deadline-exceeded' }
-    >
+    >,
+    readonly mutationInFlight = false
   ) {
     super(failure.message);
   }
@@ -76,6 +79,7 @@ function fileErrorCause(error: { type?: string; message: string }): SerializedEr
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
+  private readonly generatedOperations = new Map<string, Set<Promise<unknown>>>();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
   private readonly ctx: IExecutionContext;
@@ -596,7 +600,11 @@ export class WorktreeService {
       }
       await this.gitForCreate(['worktree', 'prune'], control).catch(() => {});
       this.throwIfCreateStopped(control);
-      await this.gitForCreate(['worktree', 'add', '-b', branchName, targetPath, commit], control);
+      await this.gitMutationForCreate(
+        ['worktree', 'add', '-b', branchName, targetPath, commit],
+        targetPath,
+        control
+      );
       addReturned = true;
       this.throwIfCreateStopped(control);
       const attested = await this.attestGeneratedWorktreeAtLocation(
@@ -611,6 +619,12 @@ export class WorktreeService {
       return ok(targetPath);
     } catch (cause) {
       if (!addReturned) {
+        if (cause instanceof WorktreeOperationStopped && cause.mutationInFlight) {
+          return err({
+            type: 'worktree-rollback-incomplete',
+            message: 'Generated worktree creation remained in flight after its deadline.',
+          });
+        }
         const ambiguous = await this.hasGeneratedResources(targetPath, branchName);
         if (ambiguous) {
           return err({
@@ -899,6 +913,12 @@ export class WorktreeService {
     worktreePath: string,
     options: { expectedBranchName: string; expectedHead: string | null; requireClean?: boolean }
   ): Promise<Result<{ removed: boolean }, RemoveGeneratedWorktreeError>> {
+    if (this.generatedOperations.get(worktreePath)?.size) {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree still has an in-flight owned operation.',
+      });
+    }
     try {
       const location = await this.resolveGeneratedLocation(options.expectedBranchName);
       if (
@@ -965,6 +985,14 @@ export class WorktreeService {
     }
   }
 
+  async waitForGeneratedWorktreeOperations(worktreePath: string): Promise<void> {
+    while (true) {
+      const operations = Array.from(this.generatedOperations.get(worktreePath) ?? []);
+      if (operations.length === 0) return;
+      await Promise.allSettled(operations);
+    }
+  }
+
   private taskConfigFs(): IFileSystem | null {
     const opened = this.files.fileSystem();
     if (opened.success) return opened.data;
@@ -993,13 +1021,42 @@ export class WorktreeService {
 
   async copyPreservedFilesToWorktree(
     targetPath: string,
-    options: { strict?: boolean; generatedBranchName?: string } = {}
+    options: {
+      strict?: boolean;
+      generatedBranchName?: string;
+      signal?: AbortSignal;
+      deadlineAt?: number;
+    } = {}
   ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
+    const control = { signal: options.signal, deadlineAt: options.deadlineAt };
+    const operation = this.doCopyPreservedFilesToWorktree(targetPath, options).catch((cause) => {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      throw cause;
+    });
+    return this.trackGeneratedOperation(targetPath, operation);
+  }
+
+  private async doCopyPreservedFilesToWorktree(
+    targetPath: string,
+    options: {
+      strict?: boolean;
+      generatedBranchName?: string;
+      signal?: AbortSignal;
+      deadlineAt?: number;
+    }
+  ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
+    const control = { signal: options.signal, deadlineAt: options.deadlineAt };
+    this.throwIfCreateStopped(control);
     const strict = options.strict ?? true;
     if (strict) {
-      const attested = await this.attestGeneratedWorktree(targetPath, options.generatedBranchName);
+      const attested = await awaitWithWorktreeQuiescence(
+        this.attestGeneratedWorktree(targetPath, options.generatedBranchName),
+        control
+      );
       if (!attested.success) return err(attested.error);
     }
+    this.throwIfCreateStopped(control);
     const taskFs = this.taskConfigFs();
     if (!taskFs) {
       return err({
@@ -1010,17 +1067,24 @@ export class WorktreeService {
 
     const taskConfigPath = this.files.path.join(targetPath, '.emdash.json');
     if (strict) {
-      const validConfig = await this.validateFeatureConfig(taskFs, taskConfigPath);
+      const validConfig = await awaitWithWorktreeQuiescence(
+        this.validateFeatureConfig(taskFs, taskConfigPath),
+        control
+      );
       if (!validConfig.success) return validConfig;
     }
     let settings: Awaited<ReturnType<typeof getEffectiveTaskSettings>>;
     try {
-      settings = await getEffectiveTaskSettings({
-        projectSettings: this.projectSettings,
-        taskFs,
-        taskConfigPath,
-      });
-    } catch {
+      settings = await awaitWithWorktreeQuiescence(
+        getEffectiveTaskSettings({
+          projectSettings: this.projectSettings,
+          taskFs,
+          taskConfigPath,
+        }),
+        control
+      );
+    } catch (cause) {
+      if (stoppedWorktreeFailure(cause, control)) throw cause;
       return err({
         type: 'preserve-config-unavailable',
         message: 'Required preserve settings could not be resolved.',
@@ -1036,6 +1100,7 @@ export class WorktreeService {
     }
     const copied: string[] = [];
     for (const pattern of patterns) {
+      this.throwIfCreateStopped(control);
       if (!isSafePreservePattern(this.files.path, pattern)) {
         continue;
       }
@@ -1050,11 +1115,18 @@ export class WorktreeService {
       }
       let matchedSource = false;
       try {
-        for await (const absPath of matches.data) {
+        const iterator = matches.data[Symbol.asyncIterator]();
+        while (true) {
+          const next = await awaitWithWorktreeQuiescence(iterator.next(), control);
+          if (next.done) break;
+          const absPath = next.value;
           matchedSource = true;
-          const sourceContained = await isRealPathContained(this.files, this.repoPath, absPath, {
-            candidateMustExist: true,
-          });
+          const sourceContained = await awaitWithWorktreeQuiescence(
+            isRealPathContained(this.files, this.repoPath, absPath, {
+              candidateMustExist: true,
+            }),
+            control
+          );
           if (!sourceContained.success) {
             if (!strict) continue;
             return err({
@@ -1067,7 +1139,10 @@ export class WorktreeService {
 
           const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
           if (!relPath) continue;
-          const tracked = await this.inspectTrackedSourcePath(absPath);
+          const tracked = await awaitWithWorktreeQuiescence(
+            this.inspectTrackedSourcePath(absPath),
+            control
+          );
           if (!tracked.success) {
             if (!strict) continue;
             return err({
@@ -1077,7 +1152,7 @@ export class WorktreeService {
             });
           }
           if (tracked.data) continue;
-          const stat = await repoFs.data.stat(absPath);
+          const stat = await awaitWithWorktreeQuiescence(repoFs.data.stat(absPath), control);
           if (!stat.success) {
             if (!strict) continue;
             return err({
@@ -1089,7 +1164,10 @@ export class WorktreeService {
           if (stat.data.type !== 'file') continue;
           const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
           if (!destPath) continue;
-          const contained = await isRealPathContained(this.files, targetPath, destPath);
+          const contained = await awaitWithWorktreeQuiescence(
+            isRealPathContained(this.files, targetPath, destPath),
+            control
+          );
           if (!contained.success) {
             if (!strict) continue;
             return err({
@@ -1099,7 +1177,10 @@ export class WorktreeService {
             });
           }
           if (!contained.data) continue;
-          const copyResult = await repoFs.data.copyFile(absPath, destPath);
+          const copyResult = await awaitWithWorktreeQuiescence(
+            repoFs.data.copyFile(absPath, destPath),
+            control
+          );
           if (!copyResult.success) {
             if (!strict) continue;
             return err({
@@ -1110,7 +1191,8 @@ export class WorktreeService {
           }
           copied.push(relPath);
         }
-      } catch {
+      } catch (cause) {
+        if (stoppedWorktreeFailure(cause, control)) throw cause;
         if (!strict) continue;
         return err({
           type: 'preserve-source-failed',
@@ -1126,6 +1208,7 @@ export class WorktreeService {
         });
       }
     }
+    this.throwIfCreateStopped(control);
     return ok({ copied });
   }
 
@@ -1174,6 +1257,43 @@ export class WorktreeService {
       this.ctx.exec('git', args, { timeout, signal: control.signal }),
       control
     );
+  }
+
+  private async gitMutationForCreate(
+    args: string[],
+    targetPath: string,
+    control: CreateWorktreeOperationControl
+  ) {
+    this.throwIfCreateStopped(control);
+    const timeout =
+      control.deadlineAt === undefined
+        ? WORKTREE_GIT_TIMEOUT_MS
+        : Math.max(1, Math.min(WORKTREE_GIT_TIMEOUT_MS, control.deadlineAt - Date.now()));
+    const operation = this.trackGeneratedOperation(
+      targetPath,
+      this.ctx.exec('git', args, { timeout, signal: control.signal })
+    );
+    try {
+      return await awaitWithWorktreeControl(operation, control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) throw new WorktreeOperationStopped(stopped, true);
+      throw cause;
+    }
+  }
+
+  private trackGeneratedOperation<T>(targetPath: string, operation: Promise<T>): Promise<T> {
+    const operations = this.generatedOperations.get(targetPath) ?? new Set<Promise<unknown>>();
+    operations.add(operation);
+    this.generatedOperations.set(targetPath, operations);
+    const remove = () => {
+      operations.delete(operation);
+      if (operations.size === 0 && this.generatedOperations.get(targetPath) === operations) {
+        this.generatedOperations.delete(targetPath);
+      }
+    };
+    void operation.then(remove, remove);
+    return operation;
   }
 }
 
@@ -1316,6 +1436,23 @@ function awaitWithWorktreeControl<T>(
       (cause) => finish(() => reject(cause))
     );
   });
+}
+
+async function awaitWithWorktreeQuiescence<T>(
+  operation: Promise<T>,
+  control: CreateWorktreeOperationControl
+): Promise<T> {
+  try {
+    const value = await awaitWithWorktreeControl(operation, control);
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) throw new WorktreeOperationStopped(stopped);
+    return value;
+  } catch (cause) {
+    const stopped = stoppedWorktreeFailure(cause, control);
+    if (!stopped) throw cause;
+    await operation.catch(() => {});
+    throw new WorktreeOperationStopped(stopped);
+  }
 }
 
 /**
