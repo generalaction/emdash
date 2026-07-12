@@ -1,7 +1,10 @@
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import { spawnAcpWorkspaceRuntimeProcess } from './acp/host';
+import { createScope } from '@emdash/wire/util';
+import { createWireWorkerHost } from '@emdash/wire/worker';
+import { childProcessSpawner } from '@emdash/wire/worker/node';
+import { defineAcpWorkspaceRuntimeWorker } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,
@@ -47,9 +50,18 @@ async function main(): Promise<void> {
 
 async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
   if (config.serve.kind === 'socket') {
-    let acpRuntime: Awaited<ReturnType<typeof spawnAcpWorkspaceRuntimeProcess>> | null = null;
+    const scope = createScope({ label: 'workspace-server' });
+    const workerHost = createWireWorkerHost({
+      scope: scope.child('workers'),
+      processSpawner: childProcessSpawner(),
+    });
+    const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
+      socketPath: config.serve.path,
+    });
+    let acpClient: typeof acpWorker.client | undefined;
     try {
-      acpRuntime = await spawnAcpWorkspaceRuntimeProcess({ socketPath: config.serve.path });
+      await acpWorker.ready();
+      acpClient = acpWorker.client;
     } catch (error) {
       process.stderr.write(
         `workspace-server ACP runtime failed to start: ${
@@ -62,25 +74,24 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       workspaceWireContract,
       createWorkspaceWireController({
         appVersion: config.appVersion,
-        acp: acpRuntime?.client,
+        acp: acpClient,
       }),
       workspaceServerWireValidationPolicy()
     );
     const handle = await serveSocket(controller, { socketPath: config.serve.path });
+    scope.add(() => handle.dispose());
     const paths = daemonPaths(handle.socketPath);
     try {
       await writePidFile(paths.pidPath);
     } catch (error) {
-      await handle.dispose();
-      await acpRuntime?.dispose();
+      await scope.dispose();
       throw error;
     }
     process.stderr.write(`workspace-server wire socket listening at ${handle.socketPath}\n`);
     return {
       async dispose() {
-        await handle.dispose();
         await removePidFile(paths.pidPath);
-        await acpRuntime?.dispose();
+        await scope.dispose();
       },
     };
   }

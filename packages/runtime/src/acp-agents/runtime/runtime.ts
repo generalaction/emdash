@@ -29,6 +29,7 @@ import { acpErr } from '@emdash/core/acp';
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
+import { buildAgentClient } from '../agent-ports/agent-client';
 import { FsPort } from '../agent-ports/fs-port';
 import { AgentTerminalManager } from '../agent-ports/terminal-manager';
 import { TerminalPort } from '../agent-ports/terminal-port';
@@ -57,6 +58,10 @@ export class AcpRuntime {
       host: deps.host,
       agentHost: deps.agentHost,
       logger: deps.logger,
+      buildClient: (_agent, context) => {
+        if (!manager) throw new Error('AcpRuntime session manager not initialized');
+        return buildAgentClient(context, manager, { fs, terminals: terminalPort });
+      },
       onClosed: (key, exitCode) => manager?.onProcessClosed(key, exitCode),
     });
     manager = new SessionManager(deps, this.connections, this.terminals, {

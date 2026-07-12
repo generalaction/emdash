@@ -8,7 +8,7 @@ Only macOS and Linux remotes are in scope for this design.
 ```mermaid
 flowchart LR
   subgraph desktop [Desktop Main Process]
-    source["ManagedSource per connectionId"]
+    source["ResourceCache per connectionId"]
     reconnecting[reconnectingTransport]
     sshManager[SshConnectionManager]
     proxy[SshClientProxy]
@@ -44,14 +44,14 @@ and then spawns those CLIs locally on that host.
 
 ## Desktop Utility Shape
 
-The desktop should expose a managed source keyed by SSH `connectionId`. Each
+The desktop should expose a resource cache keyed by SSH `connectionId`. Each
 lease shares the same underlying workspace connection and keeps it warm for a
 short grace window across renderer reloads or transient feature detaches.
 
 ```ts
-const workspaces = createManagedSource({
+const workspaces = createResourceCache({
   key: (key: { connectionId: string }) => key.connectionId,
-  graceMs: 30_000,
+  idleTtlMs: 30_000,
   async create({ connectionId }, scope) {
     const transport = reconnectingTransport(async () => {
       const proxy = await sshConnections.connect(connectionId);
@@ -157,4 +157,4 @@ the production SSH transport.
 - `packages/wire/docs/api/serving.md`
 - `packages/wire/docs/api/transports.md`
 - `packages/wire/docs/runtime/lifecycle.md`
-- `packages/wire/docs/runtime/process-runtimes.md`
+- `packages/wire/docs/runtime/workers.md`

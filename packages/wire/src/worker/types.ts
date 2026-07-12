@@ -1,0 +1,115 @@
+import type { Unsubscribe } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
+import type { ContractClient } from '../api/client';
+import type { Controller } from '../api/controller';
+import type { Contract, ContractDefinitions } from '../api/define';
+import type { WireInstrumentation } from '../observability';
+import type { Clock, RetrySchedule } from '../scheduling';
+import type { Middleware } from '../util';
+import type { Scope } from '../util/scope';
+
+export type WorkerStdioStream = 'stdout' | 'stderr';
+
+export type ProcessExit = {
+  code: number | null;
+  signal?: string | null;
+};
+
+export type WorkerProcessSpec = {
+  entry: string;
+  args?: readonly string[];
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+};
+
+export interface WorkerProcess {
+  readonly pid: number | undefined;
+  send(message: unknown): void;
+  onMessage(cb: (message: unknown) => void): Unsubscribe;
+  onExit(cb: (exit: ProcessExit) => void): Unsubscribe;
+  onStdio(cb: (stream: WorkerStdioStream, chunk: string) => void): Unsubscribe;
+  kill(): void | Promise<void>;
+}
+
+export interface WorkerProcessSpawner {
+  spawn(spec: WorkerProcessSpec, scope: Scope): Promise<WorkerProcess>;
+}
+
+export type WorkerSupervision =
+  | {
+      restart: 'never';
+    }
+  | {
+      restart: 'on-failure';
+      schedule: RetrySchedule;
+    };
+
+export type WireWorkerState =
+  | { kind: 'idle' }
+  | { kind: 'starting'; generation: number; attempt: number }
+  | { kind: 'ready'; generation: number; attempt: number; pid?: number }
+  | { kind: 'restarting'; generation: number; attempt: number; lastExit: ProcessExit }
+  | { kind: 'failed'; attempts: number; error?: unknown; lastExit?: ProcessExit }
+  | { kind: 'stopping' }
+  | { kind: 'disposed' };
+
+export interface WireWorker<Defs extends ContractDefinitions> {
+  readonly name: string;
+  readonly contract: Contract<Defs>;
+  readonly client: ContractClient<Defs>;
+  readonly state: WireWorkerState;
+  ready(): Promise<void>;
+  stop(): Promise<void>;
+  restart(reason?: unknown): Promise<void>;
+  onStateChanged(cb: (state: WireWorkerState) => void): Unsubscribe;
+}
+
+export type WireWorkerDefinition<Defs extends ContractDefinitions> = {
+  name: string;
+  contract: Contract<Defs>;
+  process: () => WorkerProcessSpec;
+  supervision?: WorkerSupervision;
+  readyTimeoutMs?: number;
+  shutdownGraceMs?: number;
+  instrumentation?: WireInstrumentation;
+};
+
+export type WireWorkerHostOptions = {
+  scope: Scope;
+  processSpawner: WorkerProcessSpawner;
+  clock?: Clock;
+  logger?: Logger;
+  defaults?: {
+    readyTimeoutMs?: number;
+    shutdownGraceMs?: number;
+    supervision?: WorkerSupervision;
+  };
+};
+
+export interface WireWorkerHost {
+  readonly scope: Scope;
+  define<Defs extends ContractDefinitions>(
+    definition: WireWorkerDefinition<Defs>
+  ): WireWorker<Defs>;
+  get(name: string): WireWorker<ContractDefinitions> | undefined;
+  dispose(): Promise<void>;
+}
+
+export type WorkerParentPort = {
+  send(message: unknown): void;
+  onMessage(cb: (message: unknown) => void): Unsubscribe;
+  onDisconnect(cb: () => void): Unsubscribe;
+};
+
+export type ServeWireWorkerOptions = {
+  logger?: Logger;
+  instrumentation?: WireInstrumentation;
+  middleware?: readonly Middleware<Controller>[];
+  port?: WorkerParentPort;
+  exit?: (code: number) => void;
+};
+
+export type ServeWireWorkerContext = {
+  scope: Scope;
+  logger: Logger;
+};

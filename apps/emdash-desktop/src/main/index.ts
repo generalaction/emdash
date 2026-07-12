@@ -15,8 +15,6 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { acpAgentStatusBridge } from './core/acp/agent-status-bridge';
-import { initializeAcpRuntimeProcess } from './core/acp/controller';
-import { initializeAgentConfigRuntimeProcess } from './core/agent-config/controller';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
@@ -26,8 +24,6 @@ import { browserWebContentsRegistry } from './core/browser/browser-webcontents-r
 import { resetStaleAcpAgentStatuses } from './core/conversations/reset-stale-acp-agent-statuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
-import { initializeFilesRuntimeProcess } from './core/files/runtime-process/host';
-import { initializeGitRuntimeProcess } from './core/git/runtime-process/host';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
@@ -41,6 +37,12 @@ import { workspaceFileIndexService } from './core/search/workspace-file-index-se
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
+import {
+  acpWorker,
+  agentConfigWorker,
+  filesWorker,
+  gitWorker,
+} from './core/wire-workers/desktop-workers';
 import { initializeDatabase } from './db/initialize';
 import { events } from './lib/events';
 import {
@@ -157,16 +159,16 @@ void app.whenReady().then(async () => {
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
-  initializeAcpRuntimeProcess().catch((e) => {
+  acpWorker.ready().catch((e) => {
     log.error('Failed to start ACP runtime process:', e);
   });
-  initializeAgentConfigRuntimeProcess().catch((e) => {
+  agentConfigWorker.ready().catch((e) => {
     log.error('Failed to start agent-config runtime process:', e);
   });
-  initializeFilesRuntimeProcess().catch((e) => {
+  filesWorker.ready().catch((e) => {
     log.error('Failed to start Files runtime process:', e);
   });
-  initializeGitRuntimeProcess().catch((e) => {
+  gitWorker.ready().catch((e) => {
     log.error('Failed to start Git runtime process:', e);
   });
   acpAgentStatusBridge.initialize();

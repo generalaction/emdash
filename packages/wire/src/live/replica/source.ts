@@ -1,9 +1,9 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { ManagedSource } from '../../util/managed-source';
+import type { ResourceCache } from '../../util/resource-cache';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../protocol';
 
-export function managedLiveSource<K, T>(
-  source: ManagedSource<K, T>,
+export function resourceCachedLiveSource<K, T>(
+  source: ResourceCache<K, T>,
   key: K,
   getSource: (value: T) => LiveSource
 ): LiveSource {
@@ -34,3 +34,6 @@ export function managedLiveSource<K, T>(
     },
   };
 }
+
+/** @deprecated Use resourceCachedLiveSource. */
+export const managedLiveSource = resourceCachedLiveSource;

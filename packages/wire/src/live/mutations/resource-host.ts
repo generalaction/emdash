@@ -81,7 +81,7 @@ type ResourceHostBaseOptions<Group extends LiveModelDef, Resource> = Readonly<{
     name: ResourceMutationName<Group>,
     error: unknown
   ): ResourceMutationError<Group> | undefined;
-  dispose?(): void | Promise<void>;
+  dispose?(): Promise<void>;
 }>;
 
 export type ResourceLiveModelHostOptions<

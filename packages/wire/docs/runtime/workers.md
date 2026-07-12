@@ -1,139 +1,98 @@
 # Workers
 
-A worker is a supervised child process that serves a wire contract over the
-process IPC channel. The parent owns process lifecycle and reconnect behavior,
-while the child keeps normal wire setup visible: build a controller, optionally
-wrap it with `withValidation()`, and serve it with `serveWorkerProcess()`.
-
-Use workers when the child can rebuild authoritative state after restart and
-clients can recover through live snapshots, event-stream gaps, or domain replay.
+A worker is a named, process-hosted wire contract owned by a `WireWorkerHost`.
+The host registers logical workers, while each worker has one `WorkerSlot` that
+owns readiness, supervision, reconnects, graceful shutdown, and the stable typed
+client. Low-level spawners create exactly one process generation.
 
 ## Layers
 
 ```mermaid
 flowchart LR
-  ProcessHost["ProcessHost"] --> SpawnRuntime["spawnRuntime"]
-  SpawnRuntime --> SpawnWorker["spawnWorker"]
-  SpawnWorker --> LazyWorker["lazyWorker"]
-  ServeWorkerProcess["serveWorkerProcess"] --> Controller["Controller"]
-  Controller --> Contract["Wire Contract"]
+  App["Application composition"] --> Host["WireWorkerHost"]
+  Host --> Slot["WorkerSlot"]
+  Slot --> Link["WorkerLink"]
+  Slot --> Spawner["WorkerProcessSpawner"]
+  Spawner --> Process["WorkerProcess"]
+  Process --> Serve["serveWireWorker"]
+  Serve --> Controller["Controller"]
 ```
 
-- `ProcessHost` adapts Node `child_process.fork()`, Electron utility processes,
-  or tests to a supervised `ManagedProcess`.
-- `spawnRuntime()` adds the wire ready handshake, graceful shutdown signal, and
-  reconnect-aware typed client.
-- `spawnWorker()` adds worker defaults: supervision, scope ownership, lifecycle
-  logs, and runtime log forwarding.
-- `lazyWorker()` adds a retryable singleton around `spawnWorker()`.
-- `serveWorkerProcess()` is the child-side IPC bridge. Controller composition
-  stays explicit at the boot file.
+- `WireWorkerHost` is a registry and ownership boundary. Composition roots inject
+  a `WorkerProcessSpawner`, logger, clock, and defaults.
+- `WorkerSlot` is the only multi-generation state machine. It keeps one stable
+  connection/client while child processes restart underneath it.
+- `WorkerProcessSpawner` is platform-specific and creates one generation. Use
+  `@emdash/wire/worker/node` for Node child processes or
+  `@emdash/wire/worker/electron` for Electron utility processes.
+- `serveWireWorker()` is the child-side IPC bridge. Controller middleware such as
+  validation and logging is passed explicitly by the child boot file.
 
 ## Parent Side
 
-Worker entry paths are owned by the host build. Apps should register worker
-entries in a host-local manifest, feed that manifest into their build config, and
-pass the emitted path to `spawnWorker()`:
-
 ```ts
-import { spawnWorker } from '@emdash/wire/worker';
+import { createWireWorkerHost } from '@emdash/wire/worker';
+import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { createScope } from '@emdash/wire/util';
 import { api } from './contract';
 import { workerPath } from './worker-manifest';
 
 const scope = createScope({ label: 'main' });
-const worker = await spawnWorker({
-  name: 'counter',
-  contract: api,
-  entry: workerPath('counter'),
+const host = createWireWorkerHost({
   scope,
-  env: process.env,
+  processSpawner: childProcessSpawner(),
 });
 
-await worker.client.increment(undefined);
-await scope.dispose();
-```
-
-`spawnWorker()` creates a `worker:<name>` child scope. Disposing the returned
-handle disposes that scope; disposing any ancestor scope also tears down the
-worker. Logs use `scope.log`, so a caller that initialized the ambient logger
-gets the same logger and scope fields automatically.
-
-The default supervision policy is:
-
-```ts
-{ restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 }
-```
-
-Pass `host` to use something other than the default Node `childProcessHost()`.
-Pass `supervision` to override restart behavior.
-
-## Lifecycle Hooks
-
-`WorkerHandle.onRestarted(cb)` fires every time a supervised restart completes
-and the child sends its ready signal. Use it for recurring domain repair, such as
-replaying leases after a file-watch worker restarts.
-
-`WorkerHandle.whenExited` resolves only for terminal exits where supervision will
-not restart the child. It is useful for monitoring, health checks, and tests.
-
-## Lazy Workers
-
-Use `lazyWorker()` when the process should start on first use:
-
-```ts
-const worker = lazyWorker(
-  () => ({
-    name: 'indexer',
-    contract: indexerContract,
-    entry: workerPath('indexer'),
-    scope,
+const worker = host.define({
+  name: 'counter',
+  contract: api,
+  process: () => ({
+    entry: workerPath('counter'),
+    env: process.env,
   }),
-  {
-    onSpawned: (handle) => {
-      handle.onRestarted(() => markIndexStale());
-    },
-  }
-);
+});
 
-const handle = await worker.get();
-await handle.client.rebuild({ root });
-await worker.dispose();
+await worker.ready();
+const client = worker.client;
+await client.increment(undefined);
+await host.dispose();
 ```
 
-Concurrent `get()` calls share one pending spawn. If spawning fails, the pending
-promise is cleared so the next `get()` retries. `onSpawned` runs once per
-successful spawn, not on every supervised child restart.
+`worker.client` is available immediately and keeps the same identity across
+process restarts. `worker.ready()` starts the process and waits for the child
+ready signal. Calls fail fast while the worker is unavailable; Wire does not
+buffer requests during downtime.
+
+Startup and exposure are explicit composition-site decisions. For eager startup,
+run `worker.ready()` under an owning scope. For Electron windows, compose a
+forwarding controller and use `exposeWireToWindows()` with a `beforeOpen` hook
+that awaits `worker.ready()`.
 
 ## Child Side
 
-The child entry stays declarative:
-
 ```ts
 import { initProcessLogging } from '@emdash/shared/logger/node';
-import { createController, withValidation } from '@emdash/wire';
-import { serveWorkerProcess, workerValidatePolicy } from '@emdash/wire/util/process-runtime';
+import { createController, validation } from '@emdash/wire/api';
+import { serveWireWorker, workerValidatePolicy } from '@emdash/wire/worker';
 import { api } from './contract';
 
 const env = process.env;
 const logger = initProcessLogging({ name: 'counter-runtime', env });
 
-void serveWorkerProcess(
-  (scope) => {
-    const controller = createController(api, {
+void serveWireWorker(
+  ({ scope }) => {
+    scope.add(() => console.log('counter worker disposed'));
+    return createController(api, {
       increment: () => 1,
     });
-    scope.add(() => console.log('counter worker disposed'));
-    return withValidation(api, controller, workerValidatePolicy(env));
   },
-  { logger }
+  {
+    logger,
+    middleware: [validation(api, workerValidatePolicy(env))],
+  }
 );
 ```
 
-`serveWorkerProcess()` detects the parent IPC channel, serves wire messages,
-sends the ready signal after the controller is served, disposes the root scope on
-shutdown or parent disconnect, and exits. If initialization fails, it logs the
-failure and calls `exit(1)`.
-
-Tests can pass `port`, `exit`, and `logger` seams to run the child helper without
-forking a real process.
+The child helper resolves the parent IPC channel, serves wire messages, sends the
+ready signal after the controller is installed, disposes the child scope on
+shutdown/disconnect, and exits with code `1` if initialization fails.

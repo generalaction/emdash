@@ -63,14 +63,11 @@ const workspaceAliases = {
   '@emdash/shared/result': resolve('../../packages/shared/src/result/index.ts'),
   '@emdash/shared': resolve('../../packages/shared/src/index.ts'),
   '@emdash/wire/api': resolve('../../packages/wire/src/api/index.ts'),
-  '@emdash/wire/process/node': resolve('../../packages/wire/src/process/node/index.ts'),
-  '@emdash/wire/process': resolve('../../packages/wire/src/process/index.ts'),
   '@emdash/wire/testing': resolve('../../packages/wire/src/testing/index.ts'),
   '@emdash/wire/util/mobx': resolve('../../packages/wire/src/util/mobx/index.ts'),
-  '@emdash/wire/util/process-runtime': resolve(
-    '../../packages/wire/src/util/process-runtime/index.ts'
-  ),
   '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),
+  '@emdash/wire/worker/electron': resolve('../../packages/wire/src/worker/electron/index.ts'),
+  '@emdash/wire/worker/node': resolve('../../packages/wire/src/worker/node/index.ts'),
   '@emdash/wire/worker': resolve('../../packages/wire/src/worker/index.ts'),
   '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };

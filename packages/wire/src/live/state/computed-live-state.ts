@@ -1,4 +1,5 @@
 import { isDeepEqual, type Unsubscribe } from '@emdash/shared';
+import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
 import type { LiveCursor, LiveSource, LiveUpdate } from '../protocol';
 import { LiveState } from './server';
 
@@ -8,6 +9,7 @@ export type ComputedLiveStateOptions<T> = Readonly<{
   revalidateIntervalMs?: number;
   isEqual?: (left: T, right: T) => boolean;
   onError?: (error: unknown) => void;
+  clock?: Clock;
 }>;
 
 /**
@@ -27,11 +29,13 @@ export class ComputedLiveState<T> {
   private subscriberCount = 0;
   private inFlight: Promise<LiveCursor> | undefined;
   private queued: Promise<LiveCursor> | undefined;
-  private debounceTimer: ReturnType<typeof setTimeout> | undefined;
-  private revalidateTimer: ReturnType<typeof setTimeout> | undefined;
+  private debounceTimer: TimerHandle | undefined;
+  private revalidateTimer: TimerHandle | undefined;
+  private readonly clock: Clock;
 
   constructor(private readonly options: ComputedLiveStateOptions<T>) {
     this.isEqual = options.isEqual ?? isDeepEqual;
+    this.clock = options.clock ?? systemClock;
     this.source = {
       snapshot: async () => {
         await this.prepare();
@@ -145,12 +149,15 @@ export class ComputedLiveState<T> {
   private scheduleDebounced(): void {
     if (this.disposed) return;
     this.clearDebounce();
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = undefined;
-      if (!this.dirty || !this.observed || this.disposed) return;
-      this.refreshInBackground();
-    }, this.options.debounceMs ?? 0);
-    this.debounceTimer.unref?.();
+    this.debounceTimer = this.clock.schedule(
+      this.options.debounceMs ?? 0,
+      () => {
+        this.debounceTimer = undefined;
+        if (!this.dirty || !this.observed || this.disposed) return;
+        this.refreshInBackground();
+      },
+      { unref: true }
+    );
   }
 
   private refreshInBackground(): void {
@@ -160,25 +167,28 @@ export class ComputedLiveState<T> {
   private armRevalidation(): void {
     const interval = this.options.revalidateIntervalMs;
     if (!interval || !this.observed || this.disposed) return;
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
-    this.revalidateTimer = setTimeout(() => {
-      this.revalidateTimer = undefined;
-      if (!this.observed || this.disposed) return;
-      this.dirty = true;
-      this.refreshInBackground();
-    }, interval);
-    this.revalidateTimer.unref?.();
+    this.revalidateTimer?.dispose();
+    this.revalidateTimer = this.clock.schedule(
+      interval,
+      () => {
+        this.revalidateTimer = undefined;
+        if (!this.observed || this.disposed) return;
+        this.dirty = true;
+        this.refreshInBackground();
+      },
+      { unref: true }
+    );
   }
 
   private clearDebounce(): void {
     if (!this.debounceTimer) return;
-    clearTimeout(this.debounceTimer);
+    this.debounceTimer.dispose();
     this.debounceTimer = undefined;
   }
 
   private clearTimers(): void {
     this.clearDebounce();
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
+    this.revalidateTimer?.dispose();
     this.revalidateTimer = undefined;
   }
 

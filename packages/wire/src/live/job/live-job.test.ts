@@ -134,6 +134,38 @@ describe('LiveJob and LiveJobClient', () => {
     expect(err).toBeInstanceOf(LiveJobCancelledError);
   });
 
+  it('awaits cooperative handlers when disposed', async () => {
+    const started = deferred<void>();
+    const released = deferred<void>();
+    const events: string[] = [];
+    const server = new LiveJob<Input, Progress, Result, ErrorState>(
+      async (_input, ctx) => {
+        started.resolve();
+        ctx.signal.addEventListener('abort', () => events.push('aborted'), { once: true });
+        await released.promise;
+        events.push('handler settled');
+        return ok({ ok: true });
+      },
+      { toError }
+    );
+    const { jobId } = server.start({ name: 'dispose' });
+    const { client } = await attach(server, jobId);
+    const result = client.result.catch((err: unknown) => err);
+
+    await started.promise;
+    const dispose = server.dispose();
+    await Promise.resolve();
+    expect(events).toEqual(['aborted']);
+
+    released.resolve();
+    await dispose;
+    const err = await result;
+
+    expect(events).toEqual(['aborted', 'handler settled']);
+    expect(err).toBeInstanceOf(LiveJobCancelledError);
+    expect(server.source(jobId)).toBeUndefined();
+  });
+
   it('resyncs on sequence gaps without re-emitting already seen progress', async () => {
     let ctx: LiveJobContext<Progress> | undefined;
     const finish = deferred<Result>();
@@ -176,7 +208,12 @@ describe('LiveJob and LiveJobClient', () => {
       );
       const { jobId } = server.start({ name: 'evict' });
 
-      await Promise.resolve();
+      await vi.waitFor(() =>
+        expect(server.getState(jobId)).toMatchObject({
+          status: 'succeeded',
+          result: { ok: true },
+        })
+      );
       expect(server.getState(jobId)).toMatchObject({
         status: 'succeeded',
         result: { ok: true },
@@ -213,6 +250,7 @@ describe('LiveJob and LiveJobClient', () => {
       expect(jobId).toBe('job-1');
 
       await Promise.resolve();
+      await Promise.resolve();
       expect(server.getState(jobId)).toEqual({
         status: 'succeeded',
         startedAt: 100,
@@ -241,8 +279,13 @@ describe('LiveJob and LiveJobClient', () => {
     });
 
     const { jobId } = server.start({ name: 'listed' });
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() =>
+      expect(events).toContainEqual({
+        kind: 'changed',
+        entry: { jobId, status: 'succeeded', startedAt: 100, finishedAt: 100 },
+      })
+    );
+    await vi.waitFor(() => expect(events).toContainEqual({ kind: 'evicted', jobId }));
 
     expect(events).toEqual([
       {

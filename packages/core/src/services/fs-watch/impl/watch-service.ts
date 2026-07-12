@@ -1,5 +1,5 @@
 import { Emitter } from '@emdash/shared';
-import { createManagedSource, createScope, type Scope } from '@emdash/wire/util';
+import { createResourceCache, createScope, type Scope } from '@emdash/wire/util';
 import type { IWatchService, WatchEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
@@ -23,11 +23,11 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
   const consumers = new Set<Scope>();
   let disposed = false;
 
-  const channels = createManagedSource<WatchKey, WatchChannel>({
+  const channels = createResourceCache<WatchKey, WatchChannel>({
     key: watchKey,
     scope: serviceScope,
     label: 'channels',
-    graceMs: options.graceMs ?? 0,
+    idleTtlMs: options.graceMs ?? 0,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
       const events = new Emitter<WatchEvent[]>();

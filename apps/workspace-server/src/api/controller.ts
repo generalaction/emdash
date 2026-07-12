@@ -77,6 +77,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       },
       checkout: {
         model: unavailableLiveModel(workspaceWireContract.git.checkout.model),
+        content: unavailableLiveModel(workspaceWireContract.git.checkout.content),
         fileDiff: unavailableLiveModel(workspaceWireContract.git.checkout.fileDiff),
         getFileDiff: unavailableGitResult,
         getChangedFiles: unavailableGitResult,
@@ -98,11 +99,11 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       fs: {
         glob: {
           run: async (input) =>
-            err({ type: 'io' as const, path: input.rootPath, message: notImplementedMessage }),
+            err({ type: 'io' as const, path: input.options.cwd, message: notImplementedMessage }),
         },
         enumerate: {
           run: async (input) =>
-            err({ type: 'io' as const, path: input.path, message: notImplementedMessage }),
+            err({ type: 'io' as const, path: input.relative, message: notImplementedMessage }),
         },
       },
       tree: {

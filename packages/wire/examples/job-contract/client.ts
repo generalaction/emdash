@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   await cancellableLease.release();
   await jobs.dispose();
 
-  controller.dispose?.();
+  await controller.dispose?.();
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

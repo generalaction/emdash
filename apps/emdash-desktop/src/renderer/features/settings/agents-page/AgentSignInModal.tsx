@@ -73,7 +73,7 @@ export function AgentSignInModal({
     void AcpAuthLoginBinding.create({ providerId, methodId, terminal }).then(
       (binding) => {
         if (disposed) {
-          binding.dispose();
+          void binding.dispose();
           return;
         }
         bindingRef.current = binding;
@@ -90,7 +90,7 @@ export function AgentSignInModal({
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
       observer.disconnect();
       inputDisposable.dispose();
-      bindingRef.current?.dispose();
+      void bindingRef.current?.dispose();
       bindingRef.current = null;
       terminal.dispose();
     };
@@ -103,7 +103,7 @@ export function AgentSignInModal({
       () => binding.status.current(),
       (state) => {
         if (state.status.kind === 'authenticated') {
-          binding.dispose(false);
+          void binding.dispose(false);
           bindingRef.current = null;
           onSuccess();
           return;

@@ -4,9 +4,9 @@ import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
+import { acpClient, acpWorker } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
 import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
-import { initializeAcpRuntimeProcess } from './controller';
 
 type SessionSummaryList = Record<string, SessionSummary>;
 
@@ -14,7 +14,7 @@ const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 
 class AcpAgentStatusBridge {
   private readonly summaries = new Map<string, SessionSummary>();
-  private processExitUnsubscribe: Unsubscribe | null = null;
+  private workerStateUnsubscribe: Unsubscribe | null = null;
   private replica: ReplicaState<SessionSummaryList> | null = null;
   private attaching = false;
 
@@ -25,8 +25,8 @@ class AcpAgentStatusBridge {
   }
 
   dispose(): void {
-    this.processExitUnsubscribe?.();
-    this.processExitUnsubscribe = null;
+    this.workerStateUnsubscribe?.();
+    this.workerStateUnsubscribe = null;
     this.detach();
   }
 
@@ -35,9 +35,9 @@ class AcpAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-      const handle = await initializeAcpRuntimeProcess();
-      this.processExitUnsubscribe = handle.process.onExit((exit) => {
-        if (exit.willRestart) return;
+      await acpWorker.ready();
+      this.workerStateUnsubscribe = acpWorker.onStateChanged((state) => {
+        if (state.kind !== 'failed' && state.kind !== 'disposed') return;
         void this.resetAll().catch((error) => {
           log.warn('ACP agent status bridge failed to reset statuses on disconnect', {
             error: String(error),
@@ -46,7 +46,7 @@ class AcpAgentStatusBridge {
         this.detach();
       });
       const replica = new ReplicaState<SessionSummaryList>(
-        handle.client.sessions.state(undefined, 'list'),
+        acpClient.sessions.state(undefined, 'list'),
         {
           schema: sessionSummaryListSchema,
           onChange: (summaries) => void this.applySummaries(summaries),
@@ -61,8 +61,8 @@ class AcpAgentStatusBridge {
   }
 
   private detach(): void {
-    this.processExitUnsubscribe?.();
-    this.processExitUnsubscribe = null;
+    this.workerStateUnsubscribe?.();
+    this.workerStateUnsubscribe = null;
     const replica = this.replica;
     this.replica = null;
     if (replica) void replica.dispose();

@@ -1,5 +1,4 @@
 import type {
-  Client,
   CreateTerminalRequest,
   CreateTerminalResponse,
   LoadSessionRequest,
@@ -41,16 +40,16 @@ import { acpErr } from '@emdash/core/acp';
 import type { Lease, Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { acquireAsResult } from '@emdash/wire/util';
-import { buildAgentClient, type InboundRouter } from '../agent-ports/agent-client';
+import { acquireResourceAsResult } from '@emdash/wire/util';
+import type { InboundRouter } from '../agent-ports/agent-client';
 import type { FsPort } from '../agent-ports/fs-port';
 import type { AgentTerminalManager } from '../agent-ports/terminal-manager';
 import type { TerminalPort } from '../agent-ports/terminal-port';
 import {
   isAcpConnectionError,
-  makeAcpConnectionKey,
   type AcpConnectionEntry,
   type AcpConnectionContext,
+  type AcpConnectionKey,
   type AcpConnectionSource,
   type PooledAcpProcess,
 } from '../connection/source';
@@ -125,17 +124,14 @@ export class SessionManager implements InboundRouter {
       return acpErr.providerUnsupported(input.providerId);
     }
 
-    const processKey = makeAcpConnectionKey(input.providerId, input.workspaceId);
-    const acquire = await acquireAsResult(
+    const connectionKey: AcpConnectionKey = {
+      providerId: input.providerId,
+      workspaceId: input.workspaceId,
+      cwd: input.cwd,
+    };
+    const acquire = await acquireResourceAsResult(
       this.connections,
-      processKey,
-      {
-        providerId: input.providerId,
-        workspaceId: input.workspaceId,
-        cwd: input.cwd,
-        behavior: binding.behavior,
-        buildClient: (_agent, context): Client => buildAgentClient(context, this, this.ports),
-      },
+      connectionKey,
       isAcpConnectionError
     );
     if (!acquire.success) {
@@ -456,8 +452,12 @@ export class SessionManager implements InboundRouter {
       record.cell.processClosed(exitCode);
       this.removeRecord(record.input.conversationId, false);
       this.deleteSessionSummary(record.input.conversationId);
+      void this.connections.invalidate({
+        providerId: record.input.providerId,
+        workspaceId: record.input.workspaceId,
+        cwd: record.input.cwd,
+      });
     }
-    void this.connections.invalidate(processKey);
   }
 
   private createRecord(

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type Result } from '@emdash/shared';
-import { getAcpRuntimeClient } from '@main/core/acp/controller';
 import { getPlugin, isValidProviderId } from '@main/core/agents/plugin-registry';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { issueController } from '@main/core/issues/controller';
@@ -16,6 +15,7 @@ import {
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
+import { acpClient } from '@main/core/wire-workers/desktop-workers';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import type { Automation } from '@shared/core/automations/automation';
@@ -253,7 +253,6 @@ export async function executeTaskCreate(
         type: conversationType,
       });
       if (conversationType === 'acp') {
-        const acpClient = await getAcpRuntimeClient();
         const startResult = await acpClient.startSession({
           input: {
             conversationId,

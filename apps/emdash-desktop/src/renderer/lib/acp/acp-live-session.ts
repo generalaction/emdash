@@ -17,7 +17,14 @@ import {
 } from '@emdash/core/acp/client';
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
-import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
+import {
+  ReplicaLog,
+  ReplicaState,
+  TimeoutError,
+  runWithTimeout,
+  type BlobSource,
+  type LiveClientHandle,
+} from '@emdash/wire';
 import { createImmutableMobxStore, createMobxLogStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
 import {
@@ -90,7 +97,7 @@ export class AcpLiveSession {
     const client = await getAcpRuntimeClient();
     if (input) {
       const result = await withTimeout(
-        client.startSession({ input }),
+        (signal) => client.startSession({ input }, { signal }),
         'Timed out starting ACP session'
       );
       if (!result.success) {
@@ -265,18 +272,15 @@ function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>
   });
 }
 
-function withTimeout<T>(promise: Promise<T>, message: string, ms = 10_000): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(message)), ms);
-    promise.then(
-      (value) => {
-        window.clearTimeout(timeout);
-        resolve(value);
-      },
-      (error: unknown) => {
-        window.clearTimeout(timeout);
-        reject(error);
-      }
-    );
+function withTimeout<T>(
+  work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  message: string,
+  ms = 10_000
+): Promise<T> {
+  return runWithTimeout((signal) => (typeof work === 'function' ? work(signal) : work), {
+    timeoutMs: ms,
+  }).catch((error: unknown) => {
+    if (error instanceof TimeoutError) throw new Error(message);
+    throw error;
   });
 }

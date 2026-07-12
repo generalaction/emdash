@@ -13,6 +13,11 @@ interface HtmlRendererProps {
   filePath: string;
 }
 
+interface HtmlContentRendererProps {
+  filePath: string;
+  rawContent: string;
+}
+
 const LINK_INTERCEPT_MESSAGE_TYPE = 'emdash-html-link';
 
 const LINK_INTERCEPT_SCRIPT = `
@@ -36,15 +41,23 @@ const LINK_INTERCEPT_SCRIPT = `
  * The source/preview toggle lives in the FileContent container above this component.
  */
 export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
-  const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
-  const { pane } = usePaneContext();
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
   // populated — otherwise the preview can stick on stale content.
   void modelRegistry.bufferVersions.get(bufferUri);
   const rawContent = modelRegistry.getValue(bufferUri) ?? '';
+
+  return <HtmlContentRenderer filePath={filePath} rawContent={rawContent} />;
+});
+
+export const HtmlContentRenderer = observer(function HtmlContentRenderer({
+  filePath,
+  rawContent,
+}: HtmlContentRendererProps) {
+  const workspacePath = useWorkspace().path;
+  const { pane } = usePaneContext();
   const fileName = filePath.split('/').pop() ?? filePath;
 
   const [processedHtml, setProcessedHtml] = useState<string | null>(null);

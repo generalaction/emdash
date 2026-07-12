@@ -8,8 +8,9 @@ import type { Unsubscribe } from '@emdash/shared';
 import { client, connect, defineContract, isWireMessage, type WireTransport } from '@emdash/wire';
 import {
   RUNTIME_SHUTDOWN_SIGNAL,
-  type ProcessRuntimePort,
-} from '@emdash/wire/util/process-runtime';
+  isWorkerSignal,
+  type WorkerParentPort,
+} from '@emdash/wire/worker';
 import { describe, expect, it } from 'vitest';
 import { hostPath } from '../testing/paths';
 import { bootGitRuntimeProcess } from './boot';
@@ -71,7 +72,7 @@ function linkedPorts(): { parent: TestPort; child: TestPort } {
   return { parent, child };
 }
 
-class TestPort implements ProcessRuntimePort {
+class TestPort implements WorkerParentPort {
   peer?: TestPort;
   private readonly messageListeners = new Set<(message: unknown) => void>();
   private readonly disconnectListeners = new Set<() => void>();
@@ -93,7 +94,7 @@ class TestPort implements ProcessRuntimePort {
   }
 }
 
-function portTransport(port: ProcessRuntimePort): WireTransport {
+function portTransport(port: WorkerParentPort): WireTransport {
   return {
     post: (message) => port.send(message),
     onMessage: (cb) => port.onMessage((message) => isWireMessage(message) && cb(message)),
@@ -102,7 +103,7 @@ function portTransport(port: ProcessRuntimePort): WireTransport {
 }
 
 function waitForMessage(
-  port: ProcessRuntimePort,
+  port: WorkerParentPort,
   predicate: (message: unknown) => boolean
 ): Promise<void> {
   return new Promise((resolve) => {
@@ -115,10 +116,5 @@ function waitForMessage(
 }
 
 function isRuntimeSignal(message: unknown, event: string): boolean {
-  return (
-    typeof message === 'object' &&
-    message !== null &&
-    (message as { kind?: unknown }).kind === 'wire-runtime-signal' &&
-    (message as { event?: unknown }).event === event
-  );
+  return event === 'ready' && isWorkerSignal(message, 'ready');
 }

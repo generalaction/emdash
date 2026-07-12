@@ -129,28 +129,16 @@ const transport = reconnectingTransport(
 
 Messages posted while no inner transport is connected are queued. When an inner
 transport disconnects, listeners are notified and reconnection starts. The queue
-is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
+uses the shared bounded-buffer core with drop-oldest semantics;
+`maxQueuedMessages` defaults to `1000`. Blob-channel frames are never queued
+across reconnects because stale credit, chunks, or close frames cannot be safely
+replayed.
 
 `onReconnect` fires after a replacement inner transport is connected and queued
 messages are flushed. `Connection` listens for that signal and re-issues active
 `attach` requests; replicas refresh their snapshots after reattach.
 `close()` stops the retry loop, closes the current inner
 transport if present, and clears queued messages and listeners.
-
-## Process Transport
-
-`processTransport(process)` adapts a supervised `ManagedProcess` to
-`WireTransport`:
-
-```ts
-const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const contractClient = client(api, connect(processTransport(runtime)));
-```
-
-See [process host](../runtime/process-host.md).
-
-`close()` releases `ManagedProcess` message and exit subscriptions. It does not
-kill the process; process lifetime remains owned by the `ProcessHost`/`Scope`.
 
 ## Logging Transport
 
@@ -167,6 +155,15 @@ const transport = loggingTransport(pair.right, logger.child({ side: 'server' }),
 Use it for local debugging and integration diagnostics. For semantic request
 events, prefer instrumentation and `withLogging()`; see
 [observability](../observability.md).
+
+`reconnectingTransport()` accepts `clock` and `retrySchedule` options. The legacy
+`backoffMs` array is normalized to a repeat-last retry schedule. Closing the
+transport synchronously aborts pending reconnect sleeps and disposes late
+connections.
+
+Electron window exposure returns an async cleanup function. Await it when tearing
+down a runtime host so session hubs and controllers finish disposal before the
+worker or window bridge is replaced.
 
 `loggingTransport.close()` delegates to the wrapped transport, and
 `onReconnect()` is forwarded when the wrapped transport supports it.

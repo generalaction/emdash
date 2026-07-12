@@ -2,7 +2,7 @@ import type { Client } from '@agentclientprotocol/sdk';
 import type { AgentPluginHost, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { err, isErr, isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
-import { acquireAsResult } from '@emdash/wire/util';
+import { acquireResourceAsResult } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeAcpAgent, FakeAcpProcessHost, testPluginHost } from '../acp-test-support';
 import { createAcpConnectionSource, isAcpConnectionError, makeAcpConnectionKey } from './source';
@@ -14,13 +14,11 @@ function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   };
 }
 
-function acquireInput(agent: FakeAcpAgent, workspaceId = 'ws-1') {
+function connectionKey(workspaceId = 'ws-1') {
   return {
     providerId: 'claude',
     workspaceId,
     cwd: '/tmp/workspace',
-    behavior: makeBehavior(agent),
-    buildClient: vi.fn(() => ({}) as Client),
   };
 }
 
@@ -31,12 +29,14 @@ function waitForTeardown(): Promise<void> {
 function sourceDeps(
   host: FakeAcpProcessHost,
   onClosed = vi.fn(),
-  agentHost = testPluginHost({ acpBehavior: makeBehavior(new FakeAcpAgent()) })
+  agent = new FakeAcpAgent(),
+  agentHost = testPluginHost({ acpBehavior: makeBehavior(agent) })
 ) {
   return {
     host,
     agentHost,
     logger: noopLogger,
+    buildClient: vi.fn(() => ({}) as Client),
     onClosed,
   };
 }
@@ -45,11 +45,11 @@ describe('createAcpConnectionSource', () => {
   it('dedupes acquisitions by provider/workspace and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource(sourceDeps(host));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
+    const key = connectionKey();
 
-    const first = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
-    const second = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    const first = await acquireResourceAsResult(source, key, isAcpConnectionError);
+    const second = await acquireResourceAsResult(source, key, isAcpConnectionError);
 
     expect(isOk(first)).toBe(true);
     expect(isOk(second)).toBe(true);
@@ -69,20 +69,10 @@ describe('createAcpConnectionSource', () => {
   it('provisions separate workspaces independently', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource(sourceDeps(host));
+    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
 
-    await acquireAsResult(
-      source,
-      makeAcpConnectionKey('claude', 'ws-1'),
-      acquireInput(agent, 'ws-1'),
-      isAcpConnectionError
-    );
-    await acquireAsResult(
-      source,
-      makeAcpConnectionKey('claude', 'ws-2'),
-      acquireInput(agent, 'ws-2'),
-      isAcpConnectionError
-    );
+    await acquireResourceAsResult(source, connectionKey('ws-1'), isAcpConnectionError);
+    await acquireResourceAsResult(source, connectionKey('ws-2'), isAcpConnectionError);
 
     expect(host.allHandles).toHaveLength(2);
   });
@@ -91,13 +81,14 @@ describe('createAcpConnectionSource', () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
-    const source = createAcpConnectionSource(sourceDeps(host, onClosed));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
+    const key = connectionKey();
+    const routeKey = makeAcpConnectionKey('claude', 'ws-1');
 
-    await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    await acquireResourceAsResult(source, key, isAcpConnectionError);
     host.lastHandle.emitExit(7);
 
-    await vi.waitFor(() => expect(onClosed).toHaveBeenCalledWith(key, 7));
+    await vi.waitFor(() => expect(onClosed).toHaveBeenCalledWith(routeKey, 7));
     await source.invalidate(key);
     await waitForTeardown();
     expect(source.peek(key)).toBeUndefined();
@@ -106,10 +97,10 @@ describe('createAcpConnectionSource', () => {
   it('disposes all active pooled processes', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
-    const source = createAcpConnectionSource(sourceDeps(host));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
+    const key = connectionKey();
 
-    const acquired = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    const acquired = await acquireResourceAsResult(source, key, isAcpConnectionError);
     expect(isOk(acquired)).toBe(true);
     await source.dispose();
 
@@ -121,16 +112,17 @@ describe('createAcpConnectionSource', () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const agentHost = {
+      resolveAcp: vi.fn(() => ({ behavior: makeBehavior(agent) })),
       buildAcpSpawn: vi
         .fn()
         .mockResolvedValue(
           err({ type: 'cli-not-found', providerId: 'claude', message: 'missing cli' })
         ),
     } as unknown as AgentPluginHost;
-    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agentHost));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent, agentHost));
+    const key = connectionKey();
 
-    const result = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    const result = await acquireResourceAsResult(source, key, isAcpConnectionError);
 
     expect(isErr(result)).toBe(true);
     if (!isErr(result)) return;
@@ -144,10 +136,10 @@ describe('createAcpConnectionSource', () => {
     agent.initialize = vi.fn().mockRejectedValue(new Error('init failed'));
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
-    const source = createAcpConnectionSource(sourceDeps(host, onClosed));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
+    const key = connectionKey();
 
-    const result = await acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError);
+    const result = await acquireResourceAsResult(source, key, isAcpConnectionError);
 
     expect(isErr(result)).toBe(true);
     if (!isErr(result)) return;
@@ -162,12 +154,12 @@ describe('createAcpConnectionSource', () => {
     agent.initialize = vi.fn().mockRejectedValue(new Error('init failed'));
     const host = new FakeAcpProcessHost();
     const onClosed = vi.fn();
-    const source = createAcpConnectionSource(sourceDeps(host, onClosed));
-    const key = makeAcpConnectionKey('claude', 'ws-1');
+    const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
+    const key = connectionKey();
 
     const [first, second] = await Promise.all([
-      acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError),
-      acquireAsResult(source, key, acquireInput(agent), isAcpConnectionError),
+      acquireResourceAsResult(source, key, isAcpConnectionError),
+      acquireResourceAsResult(source, key, isAcpConnectionError),
     ]);
 
     expect(isErr(first)).toBe(true);

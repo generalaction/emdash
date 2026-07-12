@@ -8,6 +8,7 @@ import type {
   LiveSource,
   LiveUpdate,
 } from '../live/protocol';
+import { retry as retryOperation, retrySchedules } from '../scheduling';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,
@@ -53,6 +54,7 @@ import { WireError } from './protocol';
 import { encodeTopic } from './topics';
 
 export type MutationCallOptions = {
+  signal?: AbortSignal;
   mutationId?: string;
   retry?:
     | false
@@ -389,15 +391,15 @@ async function callMutationWithRetry(
   mutationId: string,
   options: MutationCallOptions
 ): Promise<unknown> {
-  const retry = normalizeRetry(options.retry);
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await connection.call(path, addMutationId(input, mutationId));
-    } catch (error) {
-      if (!shouldRetryMutation(error, attempt, retry.maxRetries)) throw error;
-      await delay(retry.delayMs);
+  const retryOptions = normalizeRetry(options.retry);
+  return await retryOperation(
+    () => connection.call(path, addMutationId(input, mutationId), { signal: options.signal }),
+    {
+      signal: options.signal,
+      schedule: retrySchedules.fixed(retryOptions.delayMs, retryOptions.maxRetries),
+      shouldRetry: shouldRetryMutation,
     }
-  }
+  );
 }
 
 function normalizeRetry(retry: MutationCallOptions['retry']): {
@@ -411,13 +413,8 @@ function normalizeRetry(retry: MutationCallOptions['retry']): {
   };
 }
 
-function shouldRetryMutation(error: unknown, attempt: number, maxRetries: number): boolean {
-  return error instanceof WireError && error.code === 'DISCONNECTED' && attempt < maxRetries;
-}
-
-function delay(ms: number): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function shouldRetryMutation(error: unknown): boolean {
+  return error instanceof WireError && error.code === 'DISCONNECTED';
 }
 
 function createRequestId(): string {

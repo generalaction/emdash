@@ -15,11 +15,11 @@
     "types": ["node"],
     "paths": {
       "@emdash/wire/api": ["../wire/src/api/index.ts"],
-      "@emdash/wire/process": ["../wire/src/process/index.ts"],
+      "@emdash/wire/scheduling": ["../wire/src/scheduling/index.ts"],
       "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
       "@emdash/wire/util": ["../wire/src/util/index.ts"],
-      "@emdash/wire/util/process-runtime": ["../wire/src/util/process-runtime/index.ts"],
       "@emdash/wire/worker": ["../wire/src/worker/index.ts"],
+      "@emdash/wire/worker/node": ["../wire/src/worker/node/index.ts"],
       "@emdash/wire": ["../wire/src/index.ts"]
     }
   },

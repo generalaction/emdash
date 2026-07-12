@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { deduplicateRequests, type Scope } from '@emdash/wire/util';
+import { compose, deduplicate, type Scope } from '@emdash/wire/util';
 import type { IExecutionContext } from '../../exec';
 import { buildDescriptorFromProvider } from '../../host-dependencies/descriptor-from-provider';
 import { HostDependencyManager, type Platform } from '../../host-dependencies/runtime';
@@ -91,10 +91,12 @@ export class AgentPluginHost {
       includeShellVar: true,
     });
     this.scope.add(() => this.invalidateSpawnContext());
-    this.checkAuthStatusOnce = deduplicateRequests(
-      (providerId: string) => this.checkAuthStatusUncached(providerId),
-      { key: (providerId) => providerId }
+    const checkAuthStatusOnce = compose(
+      async (providerId: string, _context: { signal?: AbortSignal }) =>
+        await this.checkAuthStatusUncached(providerId),
+      [deduplicate({ key: (providerId) => providerId })]
     );
+    this.checkAuthStatusOnce = (providerId) => checkAuthStatusOnce(providerId, {});
   }
 
   get fs(): PluginFs {

@@ -40,7 +40,7 @@ export async function serveSocket(
   return {
     socketPath,
     async dispose() {
-      hub.dispose();
+      await hub.dispose();
       await closeServer(server);
       await unlink(socketPath).catch(() => {});
     },

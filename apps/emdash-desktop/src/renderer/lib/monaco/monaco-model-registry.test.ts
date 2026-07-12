@@ -240,8 +240,8 @@ function createRuntime() {
   };
   cleanup = async () => {
     await registry.dispose();
-    filesWire.dispose();
-    gitWire.dispose();
+    await filesWire.dispose();
+    await gitWire.dispose();
   };
   return runtime;
 }

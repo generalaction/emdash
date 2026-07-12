@@ -5,9 +5,10 @@ import type { AgentConfigAuthError, AuthStatusModelState } from '@emdash/core/wo
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import type { LiveLog } from '@emdash/wire';
 import {
-  createManagedSource,
-  deduplicateRequests,
-  type ManagedSource,
+  createAsyncCache,
+  createResourceCache,
+  type AsyncCache,
+  type ResourceCache,
   type Scope,
 } from '@emdash/wire/util';
 import type { AgentInstallManager } from './install';
@@ -18,12 +19,7 @@ const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 30;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/i;
 
-type CacheEntry = {
-  status: AgentAuthStatus;
-  checkedAt: number;
-};
-
-type LoginContext = {
+type LoginKey = {
   providerId: string;
   methodId: string;
   generation: string;
@@ -38,17 +34,17 @@ type LoginSession = {
 
 type LoginLease = {
   generation: string;
+  key: LoginKey;
   lease: PendingLease<LoginSession>;
 };
 
 export class AgentAuthManager {
   private readonly scope: Scope;
-  private readonly cache = new Map<string, CacheEntry>();
+  private readonly statusCache: AsyncCache<string, AgentAuthStatus>;
   private readonly statusGenerations = new Map<string, number>();
   private readonly ptys: PtyRegistry;
-  private readonly loginSource: ManagedSource<string, LoginSession, LoginContext>;
+  private readonly loginSource: ResourceCache<LoginKey, LoginSession>;
   private readonly loginLeases = new Map<string, LoginLease>();
-  private readonly probeStatus: (providerId: string) => Promise<AgentAuthStatus>;
 
   constructor(
     private readonly deps: AgentConfigRuntimeDeps,
@@ -56,25 +52,33 @@ export class AgentAuthManager {
   ) {
     this.scope = deps.scope.child('auth');
     this.ptys = new PtyRegistry(deps.ptySpawner);
-    this.loginSource = createManagedSource<string, LoginSession, LoginContext>({
-      key: (providerId) => providerId,
+    this.loginSource = createResourceCache<LoginKey, LoginSession>({
+      key: loginKeyId,
       scope: this.scope,
       label: 'login-source',
-      create: (providerId, context, scope) => this.createLoginSession(providerId, context, scope),
-      onError: (error, providerId) => {
+      create: (key, scope) => this.createLoginSession(key, scope),
+      onError: (error, keyId) => {
         deps.logger.warn('AgentAuthManager: login PTY creation failed', {
+          key: keyId,
+          error: errorMessage(error),
+        });
+      },
+    });
+    this.statusCache = createAsyncCache({
+      key: (providerId: string) => providerId,
+      scope: this.scope,
+      label: 'auth-status',
+      ttlMs: CACHE_TTL_MS,
+      load: (providerId) => this.probeAndPublish(providerId),
+      onError: (error, providerId) => {
+        deps.logger.warn('AgentAuthManager: status probe failed', {
           providerId,
           error: errorMessage(error),
         });
       },
     });
-    this.probeStatus = deduplicateRequests(
-      (providerId: string) => this.probeAndUpdate(providerId),
-      { key: (providerId) => providerId }
-    );
     this.scope.add(() => {
       this.loginLeases.clear();
-      this.cache.clear();
       this.statusGenerations.clear();
     });
   }
@@ -83,12 +87,9 @@ export class AgentAuthManager {
     providerId: string,
     options: { refresh?: boolean } = {}
   ): Promise<AgentAuthStatus> {
-    if (!options.refresh) {
-      const cached = this.cache.get(providerId);
-      if (cached && Date.now() - cached.checkedAt < CACHE_TTL_MS) return cached.status;
-    }
-
-    return this.probeStatus(providerId);
+    return options.refresh
+      ? this.statusCache.refresh(providerId)
+      : this.statusCache.get(providerId);
   }
 
   markUnauthenticated(providerId: string, message?: string): AgentAuthStatus {
@@ -112,8 +113,9 @@ export class AgentAuthManager {
     if (!this.hasProvider(providerId)) return err({ type: 'unknown-provider', providerId });
     await this.releaseLogin(providerId, undefined, { force: true });
     const generation = randomUUID();
-    const lease = this.loginSource.acquire(providerId, { providerId, methodId, generation });
-    this.loginLeases.set(providerId, { generation, lease });
+    const key = { providerId, methodId, generation };
+    const lease = this.loginSource.acquire(key);
+    this.loginLeases.set(providerId, { generation, key, lease });
     try {
       await lease.ready();
       if (!this.isCurrentLogin(providerId, generation)) {
@@ -173,15 +175,12 @@ export class AgentAuthManager {
     return this.scope.dispose();
   }
 
-  private async createLoginSession(
-    providerId: string,
-    context: LoginContext,
-    scope: Scope
-  ): Promise<LoginSession> {
-    const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, context.methodId);
+  private async createLoginSession(key: LoginKey, scope: Scope): Promise<LoginSession> {
+    const { providerId, methodId, generation } = key;
+    const loginCommand = await this.deps.agentHost.buildLoginCommand(providerId, methodId);
     if (!loginCommand.success) throw new Error(agentConfigAuthErrorMessage(loginCommand.error));
     const { command, args, env } = loginCommand.data;
-    if (!this.isCurrentLogin(providerId, context.generation)) {
+    if (!this.isCurrentLogin(providerId, generation)) {
       throw new Error('Login was superseded while resolving the login command');
     }
     const startedAt = Date.now();
@@ -189,7 +188,7 @@ export class AgentAuthManager {
     this.publish(providerId, (current) => ({
       ...current,
       login: {
-        methodId: context.methodId,
+        methodId,
         startedAt,
         pendingUrl: null,
         exit: null,
@@ -208,16 +207,16 @@ export class AgentAuthManager {
       },
       {
         replaceExisting: false,
-        onData: (chunk) => this.detectUrl(providerId, context.generation, seenUrls, chunk),
+        onData: (chunk) => this.detectUrl(providerId, generation, seenUrls, chunk),
         onExit: (info) => {
-          void this.handleLoginExit(providerId, context.generation, info);
+          void this.handleLoginExit(providerId, generation, info);
         },
       }
     );
     scope.add(() => {
       if (this.ptys.get(providerId) === pty) this.ptys.dispose(providerId);
     });
-    return { providerId, generation: context.generation, pty, seenUrls };
+    return { providerId, generation, pty, seenUrls };
   }
 
   private async handleLoginExit(
@@ -246,19 +245,17 @@ export class AgentAuthManager {
     if (entry) {
       if (generation && entry.generation !== generation) return;
       this.loginLeases.delete(providerId);
-      if (options.force) await this.loginSource.invalidate(providerId);
+      if (options.force) await this.loginSource.invalidate(entry.key);
       await entry.lease.release();
       return;
     }
-
-    if (!generation || options.force) await this.loginSource.invalidate(providerId);
   }
 
-  private async probeAndUpdate(providerId: string): Promise<AgentAuthStatus> {
+  private async probeAndPublish(providerId: string): Promise<AgentAuthStatus> {
     const generation = this.nextStatusGeneration(providerId);
     const status = await this.probe(providerId);
     if (!this.scope.disposed && this.statusGenerations.get(providerId) === generation) {
-      this.updateStatus(providerId, status);
+      this.publishStatus(providerId, status);
     }
     return status;
   }
@@ -324,7 +321,11 @@ export class AgentAuthManager {
   }
 
   private updateStatus(providerId: string, status: AgentAuthStatus): void {
-    this.cache.set(providerId, { status, checkedAt: Date.now() });
+    this.statusCache.set(providerId, status);
+    this.publishStatus(providerId, status);
+  }
+
+  private publishStatus(providerId: string, status: AgentAuthStatus): void {
     this.publish(providerId, (current) => ({
       status,
       login: status.kind === 'authenticated' ? null : current.login,
@@ -345,7 +346,8 @@ export class AgentAuthManager {
   }
 
   private currentLogin(providerId: string): LoginSession | null {
-    const session = this.loginSource.peek(providerId);
+    const active = this.loginLeases.get(providerId);
+    const session = active ? this.loginSource.peek(active.key) : undefined;
     if (!session || !this.isCurrentLogin(providerId, session.generation)) return null;
     return session;
   }
@@ -367,6 +369,10 @@ function stripTrailingUrlPunctuation(url: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function loginKeyId(key: LoginKey): string {
+  return `${key.providerId}:${key.methodId}:${key.generation}`;
 }
 
 function agentConfigAuthErrorMessage(error: AgentConfigAuthError | AgentHostError): string {
