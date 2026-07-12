@@ -37,10 +37,11 @@ const retryHandoff: LoopPhaseRetryHandoff = {
 function baseProgress(): E2EDurableProgress {
   return {
     loopState: {
-      version: '1',
+      version: '2',
       baseCommit: BASE,
       expectedFeatureHead: CHECKPOINT,
       checkpointCommit: CHECKPOINT,
+      e2eAttemptsConsumed: 0,
       sessionAttempts: [],
       verification: null,
     },
@@ -310,6 +311,33 @@ describe('clean-room E2E durable progress reducer', () => {
     ).toBe(false);
   });
 
+  it('rejects targetless cleanup-failed authority and backward cleanup timestamps', () => {
+    const preparing = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'workspace',
+        verification: workspace('preparing'),
+      })
+    );
+
+    expect(
+      reduceE2EProgress(preparing, {
+        kind: 'workspace',
+        verification: workspace('cleanup-failed', {
+          target: undefined,
+          replayedThroughCommit: undefined,
+        }),
+      }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(preparing, {
+        kind: 'workspace',
+        verification: workspace('ready', {
+          cleanup: { status: 'pending', updatedAt: '2026-07-12T19:59:59.000Z' },
+        }),
+      }).success
+    ).toBe(false);
+  });
+
   it('changes replay authority only from running to integrating-fix and preserves it thereafter', () => {
     let progress = baseProgress();
     for (const status of ['preparing', 'ready', 'running'] as const) {
@@ -453,6 +481,12 @@ describe('clean-room E2E durable progress reducer', () => {
         next: startingAttempt({ finishedAt: NOW }),
       }).success
     ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempt',
+        next: startingAttempt({ target: { ...target, path: 'relative/workspace' } }),
+      }).success
+    ).toBe(false);
   });
 
   it('requires strict status fields and chronological attempt replacement', () => {
@@ -583,6 +617,47 @@ describe('clean-room E2E durable progress reducer', () => {
       reduceE2EProgress(terminal, {
         kind: 'workspace',
         verification: workspace('preparing'),
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects secret-bearing persistence fields and terminal clock rollback', () => {
+    const secretAttempt = baseProgress();
+    secretAttempt.loopState.sessionAttempts = [
+      runningAttempt({
+        status: 'failed',
+        finishedAt: NOW,
+        error: 'token=durable-secret',
+      }),
+    ];
+    expect(() => copyE2EDurableProgress(secretAttempt)).toThrow();
+
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'terminal',
+        checkpointCommit: CHECKPOINT,
+        handoff: null,
+        result: { status: 'failed', summary: 'token=terminal-secret', completedAt: NOW },
+      }).success
+    ).toBe(false);
+
+    const withHandoff = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'retry-handoffs',
+        checkpointCommit: CHECKPOINT,
+        retryHandoffs: [retryHandoff],
+      })
+    );
+    expect(
+      reduceE2EProgress(withHandoff, {
+        kind: 'terminal',
+        checkpointCommit: CHECKPOINT,
+        handoff: retryHandoff.handoff,
+        result: {
+          status: 'failed',
+          summary: 'Failed before the retained handoff existed.',
+          completedAt: '2026-07-12T19:59:59.000Z',
+        },
       }).success
     ).toBe(false);
   });

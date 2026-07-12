@@ -4,7 +4,7 @@ import { err, ok } from '@main/lib/result';
 import type {
   LoopSessionAttempt,
   LoopSessionTarget,
-  LoopState,
+  LoopStateV2,
 } from '@shared/core/loops/loop-state';
 import type { Loop, LoopConfigV2, LoopPhase, LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
@@ -66,10 +66,11 @@ export const loop: Loop = {
     verifiers: [],
   },
   state: {
-    version: '1',
+    version: '2',
     baseCommit: BASE_COMMIT,
     expectedFeatureHead: FEATURE_COMMIT,
     checkpointCommit: FEATURE_COMMIT,
+    e2eAttemptsConsumed: 0,
     sessionAttempts: [
       {
         attemptId: 'work-attempt-1',
@@ -234,9 +235,9 @@ export function loopWithConfig(overrides: Partial<LoopConfigV2>): Loop {
   return { ...loop, config: { ...loop.config, ...overrides } };
 }
 
-export function loopWithState(overrides: Partial<LoopState>): Loop {
-  if (!loop.state || loop.state.version !== '1') {
-    throw new Error('Expected a v1 Loop state test fixture.');
+export function loopWithState(overrides: Partial<LoopStateV2>): Loop {
+  if (!loop.state || loop.state.version !== '2') {
+    throw new Error('Expected a v2 Loop state test fixture.');
   }
   return { ...loop, state: { ...loop.state, ...overrides } };
 }

@@ -4,7 +4,8 @@ import { loopPhaseStateInputSchema } from '@shared/core/loops/loop-phase-state';
 import {
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   loopSessionTargetSchema,
-  loopStateV1Schema,
+  loopStateInputSchema,
+  loopStateV2Schema,
   type LoopSessionAttempt,
   type LoopSessionTarget,
 } from '@shared/core/loops/loop-state';
@@ -206,7 +207,7 @@ export function normalizeInput(
     return err({ type: 'invalid-input', message: 'Invalid Loop E2E authority.' });
   }
   const config = e2eLoopConfigSchema.safeParse(input.loop.config);
-  const state = loopStateV1Schema.safeParse(input.loop.state);
+  const state = loopStateInputSchema.safeParse(input.loop.state);
   const phaseCriteria = e2ePhaseCriteriaSchema.safeParse(input.phase.criteria);
   const criteria = e2eCriteriaSchema.safeParse(
     input.phase.criteria && typeof input.phase.criteria === 'object'
@@ -477,7 +478,7 @@ export function durableE2EVerificationRunIds(
 export function terminalPrecondition(
   input: NormalizedInput
 ): { type: string; message: string } | undefined {
-  const state = loopStateV1Schema.parse(input.loop.state);
+  const state = loopStateV2Schema.parse(input.loop.state);
   const phaseState =
     input.phase.state === null || input.phase.state === undefined
       ? null

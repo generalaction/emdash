@@ -31,6 +31,26 @@ function historicalAttempts(count: number): LoopSessionAttempt[] {
 }
 
 describe('clean-room E2E input authority', () => {
+  it('accepts canonical historical v1 state only through the explicit v2 upgrade path', () => {
+    if (!defaultInput.loop.state || defaultInput.loop.state.version !== '2') {
+      throw new Error('Expected the current Loop state fixture.');
+    }
+    const {
+      version: _version,
+      e2eAttemptsConsumed: _e2eAttemptsConsumed,
+      ...historicalState
+    } = defaultInput.loop.state;
+
+    const result = safeNormalizeInput({
+      ...defaultInput,
+      loop: { ...defaultInput.loop, state: { version: '1', ...historicalState } },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error(result.error.message);
+    expect(result.data.loop.state).toMatchObject({ version: '2', e2eAttemptsConsumed: 0 });
+  });
+
   it('rejects config values that parse only through normalization aliases', () => {
     const paddedModel = safeNormalizeInput({
       ...defaultInput,

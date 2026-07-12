@@ -320,6 +320,36 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
+  it('clears preparing authority only when creation explicitly proves quiescence', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce(
+      err({
+        message: 'Creation stopped before producing a workspace.',
+        quiescent: true,
+        recoveryRequired: false,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { stage: 'create', lastWorkspaceDestroyed: true },
+    });
+    const workspaceTransitions = vi
+      .mocked(harness.dependencies.progress.commit)
+      .mock.calls.map(([call]) => call.transition)
+      .filter((transition) => transition.kind === 'workspace');
+    expect(workspaceTransitions).toEqual([
+      expect.objectContaining({
+        kind: 'workspace',
+        verification: expect.objectContaining({ status: 'preparing' }),
+      }),
+      { kind: 'workspace', verification: null },
+    ]);
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'a malformed result',
@@ -350,6 +380,86 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     });
     expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['explicit recovery authority', { recoveryRequired: true }],
+    ['explicit non-quiescence authority', { quiescent: false }],
+  ] as const)('retains preparing authority when creation reports %s', async (_name, authority) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce(
+      err({ message: 'Creation may have crossed its effect boundary.', ...authority })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    const workspaceTransitions = vi
+      .mocked(harness.dependencies.progress.commit)
+      .mock.calls.map(([call]) => call.transition)
+      .filter((transition) => transition.kind === 'workspace');
+    expect(workspaceTransitions).toEqual([
+      expect.objectContaining({
+        kind: 'workspace',
+        verification: expect.objectContaining({ status: 'preparing' }),
+      }),
+    ]);
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['explicit recovery authority', { recoveryRequired: true }],
+    ['explicit non-quiescence authority', { quiescent: false }],
+  ] as const)(
+    'retains the ready workspace when acquisition reports %s',
+    async (_name, authority) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      vi.mocked(harness.dependencies.execution.acquire).mockResolvedValueOnce(
+        err({ message: 'Acquisition may have established a live execution.', ...authority })
+      );
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          stage: 'execution',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+          pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+        },
+      });
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    }
+  );
+
+  it('destroys a ready workspace when acquisition explicitly proves quiescence', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.execution.acquire).mockResolvedValueOnce(
+      err({
+        message: 'Acquisition rejected before establishing execution.',
+        quiescent: true,
+        recoveryRequired: false,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { stage: 'execution', lastWorkspaceDestroyed: true },
+    });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
 
   it.each([
@@ -611,7 +721,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
 
   it('rejects historical verification-run ID reuse before clean-room creation', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
-    if (!loop.state || loop.state.version !== '1') throw new Error('Expected Loop state fixture.');
+    if (!loop.state || loop.state.version !== '2') throw new Error('Expected Loop state fixture.');
     const historical = nestedAttempt({
       attemptId: 'historical-browser-attempt',
       conversationId: 'historical-browser-conversation',
@@ -1156,7 +1266,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       'a persisted starting session',
       loopWithState({
         sessionAttempts: [
-          ...(loop.state?.version === '1' ? loop.state.sessionAttempts : []),
+          ...(loop.state?.version === '2' ? loop.state.sessionAttempts : []),
           {
             attemptId: 'unresolved-starting-attempt',
             conversationId: 'unresolved-starting-conversation',
@@ -1175,7 +1285,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       'a persisted running session',
       loopWithState({
         sessionAttempts: [
-          ...(loop.state?.version === '1' ? loop.state.sessionAttempts : []),
+          ...(loop.state?.version === '2' ? loop.state.sessionAttempts : []),
           {
             attemptId: 'unresolved-running-attempt',
             conversationId: 'unresolved-running-conversation',

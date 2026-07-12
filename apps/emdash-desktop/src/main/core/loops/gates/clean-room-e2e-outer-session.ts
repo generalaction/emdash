@@ -9,6 +9,8 @@ import type { CleanRoomWorkspace } from '../clean-room/clean-room-workspace-serv
 import {
   copyEnvironment,
   copyTarget,
+  hasCanonicalAttemptFields,
+  sameTarget,
   stabilizePlainSuccess,
   validId,
 } from './clean-room-e2e-boundary';
@@ -50,6 +52,14 @@ type RequiredDependencies = Pick<
 
 type FailureFields = Pick<CleanRoomE2EGateError, 'attempt' | 'featureHead' | 'sessionAttempts'> &
   Partial<CleanRoomE2EGateError>;
+
+const MAX_REPORTED_START_IDENTITIES = 64;
+
+type ReservedSessionAuthorities = {
+  indexes: Map<string, number>;
+  persistenceError?: CleanRoomE2EGateError;
+  fullyRepresented: boolean;
+};
 
 export type OuterSessionBootstrapOperations = {
   dependencies: RequiredDependencies;
@@ -297,7 +307,9 @@ export async function bootstrapOuterSession(
     taskEnvironment: copyEnvironment(binding.taskEnvironment),
   };
   let stoppedSession: E2ESessionInfo | undefined;
-  let stoppedActualLedgerIndex: number | undefined;
+  let stoppedStartError: E2EGateDependencyError | undefined;
+  let stoppedAuthorities: ReservedSessionAuthorities | undefined;
+  let stoppedReportedComplete = true;
   const started = await operations.callControlled(
     input,
     'Fresh E2E session start',
@@ -320,7 +332,6 @@ export async function bootstrapOuterSession(
     async (operation) => {
       const settled = await operation;
       const identities = [expectedSession];
-      let actualStartingError: CleanRoomE2EGateError | undefined;
       if (settled.value.success) {
         stoppedSession = settled.value.data;
         if (
@@ -328,30 +339,38 @@ export async function bootstrapOuterSession(
           !sameSessionIdentity(stoppedSession, expectedSession)
         ) {
           identities.push(stoppedSession);
-          const reserved = await operations.reserveUnexpectedOuterAttempt(
-            input,
-            stoppedSession,
-            cleanRoom.target,
-            featureHead,
-            attempt,
-            startedAt,
-            sessionAttempts
-          );
-          stoppedActualLedgerIndex = reserved.index;
-          actualStartingError = reserved.error;
         }
+      } else {
+        stoppedStartError = settled.value.error;
+        const reported = reportedStartSessions(settled.value.error, expectedSession, featureHead);
+        stoppedReportedComplete = reported.complete;
+        identities.push(...reported.sessions);
       }
-      const cancellations = await operations.cancelAllSessions(
+      stoppedAuthorities = await reserveSessionAuthorities(
         identities,
+        expectedSession,
+        preallocatedLedgerIndex,
+        input,
         cleanRoom.target,
-        cancellationPromises
+        featureHead,
+        attempt,
+        startedAt,
+        sessionAttempts,
+        operations
       );
       const startingPersisted = await operations.retryUnexpectedStartingProgress(
         input,
         featureHead,
         attempt,
         sessionAttempts,
-        actualStartingError
+        stoppedAuthorities.persistenceError
+      );
+      const cancellations = await cancelSessionsConcurrently(
+        identities,
+        input,
+        cleanRoom.target,
+        cancellationPromises,
+        operations
       );
       if (!startingPersisted.success) {
         return err({
@@ -360,12 +379,13 @@ export async function bootstrapOuterSession(
         });
       }
       for (const cancellation of cancellations) {
-        const ledgerIndex = sameSessionIdentity(cancellation.session, expectedSession)
-          ? preallocatedLedgerIndex
-          : stoppedActualLedgerIndex;
+        const ledgerIndex = stoppedAuthorities.indexes.get(
+          sessionIdentityKey(cancellation.session)
+        );
+        if (ledgerIndex === undefined) continue;
         markOuterAttempt(
           sessionAttempts,
-          ledgerIndex ?? preallocatedLedgerIndex,
+          ledgerIndex,
           cancellation.result.success ? 'cancelled' : 'interrupted',
           safeDate(operations.dependencies.now),
           {
@@ -398,44 +418,60 @@ export async function bootstrapOuterSession(
             .join('; '),
         });
       }
+      if (
+        !stoppedAuthorities.fullyRepresented ||
+        !stoppedReportedComplete ||
+        stoppedStartError?.quiescent === false ||
+        stoppedStartError?.recoveryRequired === true
+      ) {
+        return err({
+          type: 'cleanup-failed',
+          message: 'Fresh E2E session start did not prove complete quiescent authority.',
+        });
+      }
       return ok();
     },
     (value) => stabilizeSessionStart(value, expectedSession)
   );
   if (!started.success) {
-    const identities = [expectedSession];
-    let lateStartingError: CleanRoomE2EGateError | undefined;
+    const authoritativeStartError = stoppedStartError ?? started.error;
+    const reported = reportedStartSessions(authoritativeStartError, expectedSession, featureHead);
+    const identities = [expectedSession, ...reported.sessions];
     if (
       stoppedSession &&
       hasUsableCancellationIdentity(stoppedSession) &&
       !sameSessionIdentity(stoppedSession, expectedSession)
     ) {
       identities.push(stoppedSession);
-      if (stoppedActualLedgerIndex === undefined) {
-        const reserved = await operations.reserveUnexpectedOuterAttempt(
-          input,
-          stoppedSession,
-          cleanRoom.target,
-          featureHead,
-          attempt,
-          startedAt,
-          sessionAttempts
-        );
-        stoppedActualLedgerIndex = reserved.index;
-        lateStartingError = reserved.error;
-      }
     }
-    const cancellations = await operations.cancelAllSessions(
-      identities,
-      cleanRoom.target,
-      cancellationPromises
-    );
+    const distinctIdentities = distinctSessions(identities);
+    const authorities =
+      stoppedAuthorities ??
+      (await reserveSessionAuthorities(
+        distinctIdentities,
+        expectedSession,
+        preallocatedLedgerIndex,
+        input,
+        cleanRoom.target,
+        featureHead,
+        attempt,
+        startedAt,
+        sessionAttempts,
+        operations
+      ));
     const lateStartingPersisted = await operations.retryUnexpectedStartingProgress(
       input,
       featureHead,
       attempt,
       sessionAttempts,
-      lateStartingError
+      authorities.persistenceError
+    );
+    const cancellations = await cancelSessionsConcurrently(
+      distinctIdentities,
+      input,
+      cleanRoom.target,
+      cancellationPromises,
+      operations
     );
     if (!lateStartingPersisted.success) {
       return err({
@@ -447,12 +483,11 @@ export async function bootstrapOuterSession(
     }
     const failedCancellation = cancellations.find((cancellation) => !cancellation.result.success);
     for (const cancellation of cancellations) {
-      const ledgerIndex = sameSessionIdentity(cancellation.session, expectedSession)
-        ? preallocatedLedgerIndex
-        : stoppedActualLedgerIndex;
+      const ledgerIndex = authorities.indexes.get(sessionIdentityKey(cancellation.session));
+      if (ledgerIndex === undefined) continue;
       markOuterAttempt(
         sessionAttempts,
-        ledgerIndex ?? preallocatedLedgerIndex,
+        ledgerIndex,
         cancellation.result.success
           ? started.error.type === 'cancelled'
             ? 'cancelled'
@@ -474,7 +509,12 @@ export async function bootstrapOuterSession(
       attempt,
       sessionAttempts
     );
-    if (failedCancellation || !terminalPersisted.success) {
+    const recoveryUnproven =
+      !authorities.fullyRepresented ||
+      !reported.complete ||
+      authoritativeStartError.quiescent === false ||
+      authoritativeStartError.recoveryRequired === true;
+    if (failedCancellation || !terminalPersisted.success || recoveryUnproven) {
       const failure = !terminalPersisted.success
         ? terminalPersisted.error
         : failedCancellation && !failedCancellation.result.success
@@ -486,7 +526,15 @@ export async function bootstrapOuterSession(
               attempt,
               sessionAttempts
             )
-          : undefined;
+          : recoveryUnproven
+            ? operations.failure(
+                input,
+                'cleanup-failed',
+                'quiescence',
+                'Fresh E2E session start did not prove complete quiescent authority.',
+                { featureHead, attempt, sessionAttempts }
+              )
+            : undefined;
       return err({
         ...(failure ??
           operations.failure(input, 'cleanup-failed', 'quiescence', 'Session cleanup failed.', {
@@ -542,73 +590,89 @@ export async function bootstrapOuterSession(
     if (usableReturnedIdentity && !sameSessionIdentity(session, expectedSession)) {
       identities.push(session);
     }
-    for (const identity of identities) {
-      const cancelled = await operations.cancelSession(
-        identity,
-        cleanRoom.target,
-        cancellationPromises
-      );
-      if (!cancelled.success) {
-        markOuterAttempt(
-          sessionAttempts,
-          preallocatedLedgerIndex,
-          'interrupted',
-          safeDate(operations.dependencies.now),
-          { error: cancelled.error.message }
-        );
-        await operations.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
-        return err(
-          operations.dependencyFailure(
-            input,
-            cancelled.error,
-            'quiescence',
-            featureHead,
-            attempt,
-            sessionAttempts,
-            {
-              verificationRunId,
-              recoveryRequired: true,
-              lastWorkspaceDestroyed: false,
-              pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
-            }
-          )
-        );
-      }
-    }
-    if (!usableReturnedIdentity) {
+    const authorities = await reserveSessionAuthorities(
+      identities,
+      expectedSession,
+      preallocatedLedgerIndex,
+      input,
+      cleanRoom.target,
+      featureHead,
+      attempt,
+      startedAt,
+      sessionAttempts,
+      operations
+    );
+    const startingPersisted = await operations.retryUnexpectedStartingProgress(
+      input,
+      featureHead,
+      attempt,
+      sessionAttempts,
+      authorities.persistenceError
+    );
+    const cancellations = await cancelSessionsConcurrently(
+      identities,
+      input,
+      cleanRoom.target,
+      cancellationPromises,
+      operations
+    );
+    const failedCancellation = cancellations.find(({ result }) => !result.success);
+    for (const cancellation of cancellations) {
+      const ledgerIndex = authorities.indexes.get(sessionIdentityKey(cancellation.session));
+      if (ledgerIndex === undefined) continue;
       markOuterAttempt(
         sessionAttempts,
-        preallocatedLedgerIndex,
-        'interrupted',
+        ledgerIndex,
+        cancellation.result.success ? 'cancelled' : 'interrupted',
         safeDate(operations.dependencies.now),
-        { error: 'Fresh E2E session returned no usable cancellation identity.' }
+        {
+          error: cancellation.result.success
+            ? 'Fresh E2E session returned invalid durable authority.'
+            : cancellation.result.error.message,
+        }
       );
-      await operations.syncSessionProgress(input, featureHead, attempt, sessionAttempts);
+    }
+    const terminalPersisted = await operations.syncSessionProgress(
+      input,
+      featureHead,
+      attempt,
+      sessionAttempts
+    );
+    if (
+      !usableReturnedIdentity ||
+      !authorities.fullyRepresented ||
+      !startingPersisted.success ||
+      !terminalPersisted.success ||
+      failedCancellation
+    ) {
+      const dependencyError =
+        failedCancellation && !failedCancellation.result.success
+          ? failedCancellation.result.error
+          : {
+              type: 'cleanup-failed',
+              message: !startingPersisted.success
+                ? startingPersisted.error.message
+                : !terminalPersisted.success
+                  ? terminalPersisted.error.message
+                  : 'Fresh E2E session did not retain complete cancellation authority.',
+            };
       return err(
-        operations.failure(
+        operations.dependencyFailure(
           input,
-          'session-authority-invalid',
+          dependencyError,
           'quiescence',
-          'Fresh E2E session returned no usable cancellation identity.',
+          featureHead,
+          attempt,
+          sessionAttempts,
           {
-            featureHead,
-            attempt,
             verificationRunId,
             recoveryRequired: true,
             lastWorkspaceDestroyed: false,
             pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
-            sessionAttempts,
           }
         )
       );
     }
-    markOuterAttempt(
-      sessionAttempts,
-      preallocatedLedgerIndex,
-      'failed',
-      safeDate(operations.dependencies.now),
-      { error: 'Fresh E2E session identity cannot be represented in the durable ledger.' }
-    );
     const cleanup = await operations.cleanup(
       input,
       cleanRoom,
@@ -638,37 +702,37 @@ export async function bootstrapOuterSession(
   if (!sessionError) sessionAttempts[preallocatedLedgerIndex] = outerAttempt;
   if (sessionError) {
     const returnedDifferentIdentity = !sameSessionIdentity(session, expectedSession);
-    const reserved = returnedDifferentIdentity
-      ? await operations.reserveUnexpectedOuterAttempt(
-          input,
-          session,
-          cleanRoom.target,
-          featureHead,
-          attempt,
-          startedAt,
-          sessionAttempts
-        )
-      : {};
-    const actualLedgerIndex = reserved.index;
     const identities = returnedDifferentIdentity ? [expectedSession, session] : [expectedSession];
-    let cancellationFailure: E2EGateDependencyError | undefined;
-    for (const identity of identities) {
-      const cancelled = await operations.cancelSession(
-        identity,
-        cleanRoom.target,
-        cancellationPromises
-      );
-      if (!cancelled.success && cancellationFailure === undefined) {
-        cancellationFailure = cancelled.error;
-      }
-    }
+    const authorities = await reserveSessionAuthorities(
+      identities,
+      expectedSession,
+      preallocatedLedgerIndex,
+      input,
+      cleanRoom.target,
+      featureHead,
+      attempt,
+      startedAt,
+      sessionAttempts,
+      operations
+    );
+    const actualLedgerIndex = returnedDifferentIdentity
+      ? authorities.indexes.get(sessionIdentityKey(session))
+      : undefined;
     const actualStartingPersisted = await operations.retryUnexpectedStartingProgress(
       input,
       featureHead,
       attempt,
       sessionAttempts,
-      reserved.error
+      authorities.persistenceError
     );
+    const cancellations = await cancelSessionsConcurrently(
+      identities,
+      input,
+      cleanRoom.target,
+      cancellationPromises,
+      operations
+    );
+    const cancellationFailure = cancellations.find(({ result }) => !result.success);
     if (!actualStartingPersisted.success) {
       return err({
         ...actualStartingPersisted.error,
@@ -677,7 +741,7 @@ export async function bootstrapOuterSession(
         pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
       });
     }
-    if (cancellationFailure) {
+    if (cancellationFailure || !authorities.fullyRepresented) {
       markOuterAttempt(
         sessionAttempts,
         outerLedgerIndex,
@@ -691,7 +755,12 @@ export async function bootstrapOuterSession(
           actualLedgerIndex,
           'interrupted',
           safeDate(operations.dependencies.now),
-          { error: cancellationFailure.message }
+          {
+            error:
+              cancellationFailure && !cancellationFailure.result.success
+                ? cancellationFailure.result.error.message
+                : 'Actual E2E session identity could not be represented durably.',
+          }
         );
       }
       const terminalPersisted = await operations.syncSessionProgress(
@@ -701,10 +770,19 @@ export async function bootstrapOuterSession(
         sessionAttempts
       );
       const failure = terminalPersisted.success
-        ? cancellationFailure
+        ? cancellationFailure && !cancellationFailure.result.success
+          ? cancellationFailure.result.error
+          : {
+              type: 'cleanup-failed',
+              message: 'Invalid E2E session did not retain complete durable authority.',
+            }
         : {
             type: 'cleanup-failed',
-            message: `${cancellationFailure.message}; ${terminalPersisted.error.message}`,
+            message: `${
+              cancellationFailure && !cancellationFailure.result.success
+                ? cancellationFailure.result.error.message
+                : 'Durable session authority was incomplete.'
+            }; ${terminalPersisted.error.message}`,
           };
       return err(
         operations.dependencyFailure(
@@ -841,4 +919,158 @@ export async function bootstrapOuterSession(
   }
 
   return ok(active);
+}
+
+function reportedStartSessions(
+  error: E2EGateDependencyError,
+  expected: E2ESessionInfo,
+  featureHead: string
+): { sessions: E2ESessionInfo[]; complete: boolean } {
+  let candidates: unknown;
+  try {
+    candidates = error.sessionAttempts;
+  } catch {
+    return { sessions: [], complete: false };
+  }
+  if (candidates === undefined) return { sessions: [], complete: true };
+  if (!Array.isArray(candidates) || candidates.length > MAX_REPORTED_START_IDENTITIES) {
+    return { sessions: [], complete: false };
+  }
+  const sessions: E2ESessionInfo[] = [];
+  let complete = true;
+  for (const candidate of candidates) {
+    try {
+      const parsed = loopSessionAttemptSchema.safeParse(candidate);
+      const candidateRecord =
+        candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+          ? (candidate as Record<string, unknown>)
+          : undefined;
+      const attemptId = candidateRecord?.attemptId;
+      const conversationId = candidateRecord?.conversationId;
+      if (
+        !parsed.success ||
+        !hasCanonicalAttemptFields(candidate, parsed.data) ||
+        parsed.data.purpose !== 'e2e' ||
+        parsed.data.phaseId !== expected.phaseId ||
+        parsed.data.verificationRunId !== expected.verificationRunId ||
+        parsed.data.checkpointBefore !== featureHead ||
+        !sameTarget(parsed.data.target, expected.target) ||
+        !validId(parsed.data.attemptId) ||
+        !validId(parsed.data.conversationId)
+      ) {
+        complete = false;
+        if (validId(attemptId) && validId(conversationId)) {
+          sessions.push({ ...expected, attemptId, conversationId });
+        }
+        continue;
+      }
+      sessions.push({
+        ...expected,
+        attemptId: parsed.data.attemptId,
+        conversationId: parsed.data.conversationId,
+      });
+    } catch {
+      complete = false;
+    }
+  }
+  return { sessions: distinctSessions(sessions), complete };
+}
+
+async function reserveSessionAuthorities(
+  sessions: readonly E2ESessionInfo[],
+  expected: E2ESessionInfo,
+  expectedLedgerIndex: number,
+  input: NormalizedInput,
+  target: LoopSessionTarget,
+  featureHead: string,
+  attempt: number,
+  startedAt: string,
+  sessionAttempts: LoopSessionAttempt[],
+  operations: OuterSessionBootstrapOperations
+): Promise<ReservedSessionAuthorities> {
+  const indexes = new Map<string, number>([[sessionIdentityKey(expected), expectedLedgerIndex]]);
+  let persistenceError: CleanRoomE2EGateError | undefined;
+  let fullyRepresented = true;
+  for (const session of distinctSessions(sessions)) {
+    const key = sessionIdentityKey(session);
+    if (indexes.has(key)) continue;
+    const collidesWithKnownAuthority = sessionIdentityCollidesWithKnownAuthority(
+      session,
+      input,
+      sessionAttempts
+    );
+    const reserved = await operations.reserveUnexpectedOuterAttempt(
+      input,
+      session,
+      target,
+      featureHead,
+      attempt,
+      startedAt,
+      sessionAttempts
+    );
+    if (reserved.index === undefined) {
+      if (!collidesWithKnownAuthority) fullyRepresented = false;
+    } else {
+      indexes.set(key, reserved.index);
+    }
+    persistenceError ??= reserved.error;
+  }
+  return { indexes, fullyRepresented, ...(persistenceError ? { persistenceError } : {}) };
+}
+
+function cancelSessionsConcurrently(
+  sessions: readonly E2ESessionInfo[],
+  input: NormalizedInput,
+  target: LoopSessionTarget,
+  cancellationPromises: E2ECancellationRegistry,
+  operations: OuterSessionBootstrapOperations
+): Promise<Array<{ session: E2ESessionInfo; result: Result<void, E2EGateDependencyError> }>> {
+  const pending = distinctSessions(sessions)
+    .filter((session) => !isExactHistoricalTerminalIdentity(session, input))
+    .map((session) => ({
+      session,
+      result: operations.cancelSession(session, target, cancellationPromises),
+    }));
+  return Promise.all(
+    pending.map(async ({ session, result }) => ({ session, result: await result }))
+  );
+}
+
+function sessionIdentityCollidesWithKnownAuthority(
+  session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
+  input: NormalizedInput,
+  attempts: readonly LoopSessionAttempt[]
+): boolean {
+  return [...input.previousSessionAttempts, ...attempts].some(
+    (attempt) =>
+      attempt.attemptId === session.attemptId || attempt.conversationId === session.conversationId
+  );
+}
+
+function isExactHistoricalTerminalIdentity(
+  session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
+  input: NormalizedInput
+): boolean {
+  return input.previousSessionAttempts.some(
+    (attempt) =>
+      attempt.attemptId === session.attemptId &&
+      attempt.conversationId === session.conversationId &&
+      ['completed', 'failed', 'cancelled', 'interrupted'].includes(attempt.status)
+  );
+}
+
+function distinctSessions(sessions: readonly E2ESessionInfo[]): E2ESessionInfo[] {
+  const seen = new Set<string>();
+  const result: E2ESessionInfo[] = [];
+  for (const session of sessions) {
+    const key = sessionIdentityKey(session);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(session);
+  }
+  return result;
+}
+
+function sessionIdentityKey(session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>): string {
+  return `${session.attemptId}\u0000${session.conversationId}`;
 }

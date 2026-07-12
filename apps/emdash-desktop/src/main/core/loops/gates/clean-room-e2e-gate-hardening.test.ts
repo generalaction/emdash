@@ -147,6 +147,62 @@ describe('CleanRoomE2EGate hardening', () => {
 
   it.each([
     [
+      'cyclic',
+      () => {
+        const sessionAttempts: unknown[] = [];
+        sessionAttempts.push(sessionAttempts);
+        return { message: 'Session start rejected.', quiescent: true, sessionAttempts };
+      },
+    ],
+    [
+      'oversized',
+      () => ({
+        message: 'Session start rejected.',
+        quiescent: true,
+        sessionAttempts: ['x'.repeat(2 * 1024 * 1024)],
+      }),
+    ],
+    [
+      'hostile',
+      () =>
+        Object.defineProperty(
+          { message: 'Session start rejected.', quiescent: true },
+          'sessionAttempts',
+          {
+            enumerable: true,
+            get: () => {
+              throw new Error('hostile reported session ledger');
+            },
+          }
+        ),
+    ],
+  ] as const)(
+    'retains the workspace when a start error supplies an unserializable %s session ledger',
+    async (_name, error) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      vi.mocked(harness.dependencies.session.startFreshE2ESession).mockResolvedValueOnce(
+        err(error() as never)
+      );
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'cleanup-failed',
+          stage: 'quiescence',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+        },
+      });
+      expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    [
       'array method',
       () =>
         new Proxy([] as unknown[], {
@@ -342,11 +398,15 @@ describe('CleanRoomE2EGate hardening', () => {
       ReturnType<CleanRoomE2EGateDependencies['session']['startFreshE2ESession']>
     >;
     const deferred = Promise.withResolvers<StartResult>();
+    const firstCancellation =
+      Promise.withResolvers<
+        Awaited<ReturnType<CleanRoomE2EGateDependencies['session']['cancelE2ESession']>>
+      >();
     vi.mocked(harness.dependencies.session.startFreshE2ESession).mockReturnValueOnce(
       deferred.promise
     );
     vi.mocked(harness.dependencies.session.cancelE2ESession)
-      .mockResolvedValueOnce(err({ message: 'expected identity cancellation failed' }))
+      .mockReturnValueOnce(firstCancellation.promise)
       .mockImplementationOnce(async (input) => ok({ ...input, quiescent: true as const }));
 
     const run = harness.gate.run({ ...defaultInput, signal: controller.signal });
@@ -363,6 +423,11 @@ describe('CleanRoomE2EGate hardening', () => {
       })
     );
 
+    await vi.waitFor(() =>
+      expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledTimes(2)
+    );
+    firstCancellation.resolve(err({ message: 'expected identity cancellation failed' }));
+
     const result = await run;
 
     expect(result).toMatchObject({
@@ -373,6 +438,129 @@ describe('CleanRoomE2EGate hardening', () => {
     expect(harness.dependencies.session.cancelE2ESession).toHaveBeenLastCalledWith(
       expect.objectContaining({ attemptId: 'late-actual-after-failure' })
     );
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('write-ahead records and concurrently cancels every reported start-failure identity', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const cancel = vi.mocked(harness.dependencies.session.cancelE2ESession);
+    const originalCancel = cancel.getMockImplementation()!;
+    const firstCancellation =
+      Promise.withResolvers<
+        Awaited<ReturnType<CleanRoomE2EGateDependencies['session']['cancelE2ESession']>>
+      >();
+    cancel.mockReturnValueOnce(firstCancellation.promise).mockImplementation(originalCancel);
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockImplementationOnce(
+      async (input) =>
+        err({
+          message: 'Start returned multiple live identities.',
+          quiescent: false,
+          recoveryRequired: true,
+          sessionAttempts: [
+            {
+              attemptId: 'reported-actual-attempt-1',
+              conversationId: 'reported-actual-conversation-1',
+              purpose: 'e2e',
+              phaseId: input.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              status: 'running',
+              checkpointBefore: FEATURE_COMMIT,
+              startedAt: '2026-07-12T01:02:02.000Z',
+            },
+            {
+              attemptId: 'reported-actual-attempt-2',
+              conversationId: 'reported-actual-conversation-2',
+              purpose: 'e2e',
+              phaseId: input.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              status: 'starting',
+              checkpointBefore: FEATURE_COMMIT,
+              startedAt: '2026-07-12T01:02:02.500Z',
+            },
+          ],
+        })
+    );
+
+    const run = harness.gate.run(defaultInput);
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(3));
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    const writeAheadIds = vi
+      .mocked(harness.dependencies.progress.commit)
+      .mock.calls.flatMap(([call]) =>
+        call.transition.kind === 'session-attempt' && call.transition.next.status === 'starting'
+          ? [call.transition.next.attemptId]
+          : []
+      );
+    expect(writeAheadIds).toEqual(
+      expect.arrayContaining(['reported-actual-attempt-1', 'reported-actual-attempt-2'])
+    );
+    const firstInput = cancel.mock.calls[0]![0];
+    firstCancellation.resolve(ok({ ...firstInput, quiescent: true }));
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'reported-actual-attempt-1',
+            status: 'failed',
+          }),
+          expect.objectContaining({
+            attemptId: 'reported-actual-attempt-2',
+            status: 'failed',
+          }),
+        ]),
+      },
+    });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('retains the workspace when start-failure session authority is present but unreadable', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockImplementationOnce(
+      async () => {
+        const error = Object.defineProperty(
+          {
+            message: 'Start failure returned hostile session authority.',
+            quiescent: true,
+            recoveryRequired: false,
+          },
+          'sessionAttempts',
+          {
+            enumerable: true,
+            get: () => {
+              throw new Error('unreadable session attempts');
+            },
+          }
+        );
+        return { success: false, error } as never;
+      }
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: 'e2e-attempt-1',
+        conversationId: 'e2e-conversation-1',
+      })
+    );
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 

@@ -104,8 +104,6 @@ export const loopStateV1Schema = z
     baseCommit: loopCommitSchema.nullable(),
     expectedFeatureHead: loopCommitSchema.nullable(),
     checkpointCommit: loopCommitSchema.nullable(),
-    /** Optional for backward-compatible reads; Lane E materializes it on the next workspace write. */
-    e2eAttemptsConsumed: z.number().int().nonnegative().max(64).optional(),
     sessionAttempts: z.array(loopSessionAttemptSchema).max(1024),
     verification: loopVerificationWorkspaceStateSchema.nullable(),
   })
@@ -133,7 +131,70 @@ export const loopStateV1Schema = z
     }
   });
 
-export const loopState = defineVersionedSchema().initial('1', loopStateV1Schema).build();
+export const loopStateV2Schema = z
+  .object({
+    version: z.literal('2'),
+    baseCommit: loopCommitSchema.nullable(),
+    expectedFeatureHead: loopCommitSchema.nullable(),
+    checkpointCommit: loopCommitSchema.nullable(),
+    /** Durable product-owned budget, charged before each clean-room E2E workspace is created. */
+    e2eAttemptsConsumed: z.number().int().nonnegative().max(CLEAN_ROOM_E2E_MAX_ATTEMPTS),
+    sessionAttempts: z.array(loopSessionAttemptSchema).max(1024),
+    verification: loopVerificationWorkspaceStateSchema.nullable(),
+  })
+  .strict()
+  .superRefine((state, ctx) => validateUniqueSessionIdentities(state.sessionAttempts, ctx));
+
+function validateUniqueSessionIdentities(
+  attempts: readonly z.infer<typeof loopSessionAttemptSchema>[],
+  ctx: z.RefinementCtx
+): void {
+  const attemptIds = new Set<string>();
+  const conversationIds = new Set<string>();
+  for (const [index, attempt] of attempts.entries()) {
+    if (attemptIds.has(attempt.attemptId)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sessionAttempts', index, 'attemptId'],
+        message: 'Session attempt IDs must be append-only and unique',
+      });
+    }
+    if (conversationIds.has(attempt.conversationId)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sessionAttempts', index, 'conversationId'],
+        message: 'Each fresh Loop session must have a unique conversation ID',
+      });
+    }
+    attemptIds.add(attempt.attemptId);
+    conversationIds.add(attempt.conversationId);
+  }
+}
+
+function upgradeLoopStateV1(
+  state: z.infer<typeof loopStateV1Schema>
+): z.infer<typeof loopStateV2Schema> {
+  return {
+    version: '2',
+    baseCommit: state.baseCommit,
+    expectedFeatureHead: state.expectedFeatureHead,
+    checkpointCommit: state.checkpointCommit,
+    e2eAttemptsConsumed: 0,
+    sessionAttempts: state.sessionAttempts,
+    verification: state.verification,
+  };
+}
+
+/** Strict boundary parser that accepts historical v1 state and returns current v2 authority. */
+export const loopStateInputSchema = z.union([
+  loopStateV2Schema,
+  loopStateV1Schema.transform(upgradeLoopStateV1),
+]);
+
+export const loopState = defineVersionedSchema()
+  .initial('1', loopStateV1Schema)
+  .version('2', loopStateV2Schema, upgradeLoopStateV1)
+  .build();
 export const loopStateSchema = loopState.schema;
 
 export type LoopMachine = z.infer<typeof loopMachineSchema>;
@@ -141,4 +202,7 @@ export type LoopSessionTarget = z.infer<typeof loopSessionTargetSchema>;
 export type LoopSessionPurpose = z.infer<typeof loopSessionPurposeSchema>;
 export type LoopSessionAttempt = z.infer<typeof loopSessionAttemptSchema>;
 export type LoopVerificationWorkspaceState = z.infer<typeof loopVerificationWorkspaceStateSchema>;
-export type LoopState = typeof loopState.Type;
+export type LoopStateV1 = z.infer<typeof loopStateV1Schema>;
+export type LoopStateV2 = typeof loopState.Type;
+/** Temporary boundary compatibility while historical v1 rows are upgraded on read. */
+export type LoopState = LoopStateV1 | LoopStateV2;

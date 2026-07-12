@@ -44,7 +44,7 @@ describe('CleanRoomE2EGate', () => {
         lastWorkspaceDestroyed: true,
         requiredTestsSummary: 'Full checks passed.',
         nativePreviewSummary: 'Native preview passed.',
-        stageResult: { status: 'passed' },
+        stageResult: { status: 'passed', completedAt: '2026-07-12T01:04:00.000Z' },
       },
     });
     expect(harness.calls).toEqual([
@@ -901,7 +901,7 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
 
-  it('cancels and cleans up when bounded prompt serialization rejects aggregate data', async () => {
+  it('rejects oversized aggregate prompt data before creating resources or sessions', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     const largeHandoff = {
       source: 'prior-phase',
@@ -921,12 +921,15 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'invalid-input', stage: 'prompt', lastWorkspaceDestroyed: true },
+      error: { type: 'invalid-input', stage: 'precondition', attempt: 0 },
     });
-    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.prerequisites.resolve).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.session.cancelE2ESession).not.toHaveBeenCalled();
     expect(harness.dependencies.session.sendE2EPrompt).not.toHaveBeenCalled();
-    expect(harness.calls).toContain('release:1');
-    expect(harness.calls).toContain('destroy:1');
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it('cancels the preallocated identity when session start rejects after an uncertain side effect', async () => {
@@ -972,6 +975,37 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.calls).toContain('release:1');
     expect(harness.calls).toContain('destroy:1');
   });
+
+  it.each([undefined, 'text/html'] as const)(
+    'fails closed when native screenshot evidence has MIME authority %s',
+    async (mimeType) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      mutateRequiredChecksOnce(harness, (checks) => ({
+        ...checks,
+        nativeEvidence: {
+          ...checks.nativeEvidence,
+          artifacts: [
+            {
+              artifactId: 'native-screenshot',
+              kind: 'screenshot',
+              ...(mimeType === undefined ? {} : { mimeType }),
+              byteLength: 128,
+              createdAt: '2026-07-12T01:03:30.000Z',
+            },
+          ],
+        },
+      }));
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'native-verifier-authority-invalid', stage: 'required-checks' },
+      });
+      expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+      expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+    }
+  );
 
   it('rejects a runtime non-string task environment value without throwing', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);

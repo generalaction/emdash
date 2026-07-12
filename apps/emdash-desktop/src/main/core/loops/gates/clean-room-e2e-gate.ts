@@ -6,6 +6,7 @@ import {
   loopArtifactReferenceSchema,
   loopStageResultSchema,
   type LoopArtifactReference,
+  type LoopPhaseHandoff,
   type LoopStageResult,
 } from '@shared/core/loops/loop-phase-state';
 import {
@@ -44,6 +45,7 @@ import {
   copyTarget,
   hasCanonicalAttemptFields,
   hasCanonicalAttemptTarget,
+  monotonicTimestamp,
   redactPersistedText,
   safeCopyPromptHandoffs,
   sameCriteria,
@@ -604,6 +606,16 @@ export class CleanRoomE2EGate {
     }
     let input = normalized.data;
     lifecycle.input = input;
+    const promptPreflightError = preflightAggregateE2EPrompt(input);
+    if (promptPreflightError) {
+      return err(
+        this.failure(input, 'invalid-input', 'precondition', promptPreflightError, {
+          featureHead: input.checkpointCommit,
+          attempt: 0,
+          sessionAttempts: [],
+        })
+      );
+    }
     const precondition = terminalPrecondition(input);
     if (precondition) {
       return err(
@@ -807,28 +819,21 @@ export class CleanRoomE2EGate {
           featureHead
         );
         const recoveryRequired =
+          created.error.recoveryRequired === true ||
+          created.error.quiescent === false ||
           created.error.type === 'untrusted-settlement' ||
           created.error.type === 'cleanup-failed' ||
           pendingCleanup !== undefined;
-        const createProgress = await this.commitWorkspaceProgress(
-          input,
-          recoveryRequired
-            ? verificationProgress({
-                verificationRunId,
-                attempt,
-                status: 'cleanup-failed',
-                baseCommit: input.baseCommit,
-                featureHead,
-                updatedAt: safeNow(this.dependencies.now),
-                cleanupStatus: 'failed',
-                cleanupError: created.error.message,
-              })
-            : null,
-          featureHead,
-          attempt,
-          sessionAttempts
-        );
-        if (!createProgress.success && !recoveryRequired) return createProgress;
+        if (!recoveryRequired) {
+          const createProgress = await this.commitWorkspaceProgress(
+            input,
+            null,
+            featureHead,
+            attempt,
+            sessionAttempts
+          );
+          if (!createProgress.success) return createProgress;
+        }
         return err(
           this.dependencyFailure(
             input,
@@ -841,7 +846,7 @@ export class CleanRoomE2EGate {
               verificationRunId,
               ...(recoveryRequired
                 ? { recoveryRequired: true, lastWorkspaceDestroyed: false }
-                : {}),
+                : { lastWorkspaceDestroyed: true }),
               ...(pendingCleanup
                 ? {
                     pendingCleanup,
@@ -932,7 +937,12 @@ export class CleanRoomE2EGate {
         stabilizeExecutionBinding
       );
       if (!acquired.success) {
-        if (acquired.error.type === 'untrusted-settlement') {
+        if (
+          acquired.error.type === 'untrusted-settlement' ||
+          acquired.error.type === 'cleanup-failed' ||
+          acquired.error.recoveryRequired === true ||
+          acquired.error.quiescent === false
+        ) {
           return err(
             this.dependencyFailure(
               input,
@@ -2524,19 +2534,28 @@ export class CleanRoomE2EGate {
     const intermediateFailures = result.success
       ? result.data.intermediateFailures
       : result.error.intermediateFailures;
+    const stageResult = monotonicTerminalStageResult(
+      result.success ? result.data.stageResult : result.error.stageResult,
+      attempts,
+      input.progress.current,
+      intermediateFailures.at(-1)?.handoff ?? null
+    );
+    const normalizedResult = result.success
+      ? ok({ ...result.data, stageResult })
+      : err({ ...result.error, stageResult });
     const committed = await this.commitProgress(
       input,
       {
         kind: 'terminal',
         checkpointCommit: featureHead,
         handoff: intermediateFailures.at(-1)?.handoff ?? null,
-        result: result.success ? result.data.stageResult : result.error.stageResult,
+        result: stageResult,
       },
       featureHead,
       result.success ? result.data.attempts : result.error.attempt,
       attempts
     );
-    if (committed.success) return result;
+    if (committed.success) return normalizedResult;
     return committed;
   }
 
@@ -2619,14 +2638,13 @@ export class CleanRoomE2EGate {
       result: Result<void, E2EGateDependencyError>;
     }>
   > {
-    const results = [];
-    for (const session of sessions) {
-      results.push({
-        session,
-        result: await this.cancelSession(session, authoritativeTarget, cancellationPromises),
-      });
-    }
-    return results;
+    const launched = sessions.map((session) => ({
+      session,
+      result: this.cancelSession(session, authoritativeTarget, cancellationPromises),
+    }));
+    return Promise.all(
+      launched.map(async ({ session, result }) => ({ session, result: await result }))
+    );
   }
 
   private cancelSession(
@@ -2798,22 +2816,25 @@ export class CleanRoomE2EGate {
       input,
       safeNow(this.dependencies.now)
     );
-    let actualLedgerIndex: number | undefined;
-    if (settlement.actual) {
+    const actualLedgerIndices: number[] = [];
+    for (const actual of settlement.actuals) {
       const {
         checkpointAfter: _checkpointAfter,
         error: _error,
         finishedAt: _finishedAt,
         status: _status,
         ...identity
-      } = settlement.actual;
-      actualLedgerIndex =
+      } = actual;
+      actualLedgerIndices.push(
         sessionAttempts.push(
           loopSessionAttemptSchema.parse({
             ...identity,
             status: 'starting',
           })
-        ) - 1;
+        ) - 1
+      );
+    }
+    if (actualLedgerIndices.length > 0) {
       const startingPersisted = await this.syncSessionProgress(
         input,
         featureHead,
@@ -2823,8 +2844,8 @@ export class CleanRoomE2EGate {
       if (!startingPersisted.success) return startingPersisted;
     }
     sessionAttempts[nestedLedgerIndex] = settlement.expected;
-    if (actualLedgerIndex !== undefined && settlement.actual) {
-      sessionAttempts[actualLedgerIndex] = settlement.actual;
+    for (const [index, actualLedgerIndex] of actualLedgerIndices.entries()) {
+      sessionAttempts[actualLedgerIndex] = settlement.actuals[index]!;
     }
     const terminalPersisted = await this.syncSessionProgress(
       input,
@@ -3286,6 +3307,58 @@ export class CleanRoomE2EGate {
   }
 }
 
+function monotonicTerminalStageResult(
+  result: LoopStageResult,
+  attempts: readonly LoopSessionAttempt[],
+  progress: E2EDurableProgress,
+  terminalHandoff: LoopPhaseHandoff | null
+): LoopStageResult {
+  const timestamps: Array<string | undefined> = [result.completedAt];
+  for (const attempt of progress.loopState.sessionAttempts) {
+    timestamps.push(attempt.startedAt, attempt.finishedAt);
+  }
+  for (const attempt of attempts) timestamps.push(attempt.startedAt, attempt.finishedAt);
+  const addHandoff = (handoff: LoopPhaseHandoff | null | undefined): void => {
+    if (!handoff) return;
+    timestamps.push(handoff.createdAt);
+    for (const artifact of handoff.artifacts) timestamps.push(artifact.createdAt);
+  };
+  addHandoff(progress.phaseState?.handoff);
+  for (const retry of progress.phaseState?.retryHandoffs ?? []) addHandoff(retry.handoff);
+  addHandoff(terminalHandoff);
+  return loopStageResultSchema.parse({
+    ...result,
+    completedAt: monotonicTimestamp(...timestamps),
+  });
+}
+
+function preflightAggregateE2EPrompt(input: NormalizedInput): string | undefined {
+  const worstCaseTarget: LoopSessionTarget = {
+    workspaceId: '<'.repeat(MAX_ID_LENGTH),
+    path: `/${'<'.repeat(4_095)}`,
+    machine:
+      input.featureTarget.machine.kind === 'local'
+        ? { kind: 'local' }
+        : { kind: 'ssh', connectionId: '<'.repeat(MAX_ID_LENGTH) },
+  };
+  try {
+    buildE2EPrompt({
+      goal: input.goal,
+      acceptanceCriteria: [...input.acceptanceCriteria],
+      baseCommit: input.baseCommit,
+      checkpointCommit: input.checkpointCommit,
+      handoffs: [...input.handoffs],
+      verificationRunId: '<'.repeat(MAX_ID_LENGTH),
+      verificationTarget: worstCaseTarget,
+      attempt: CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+      intermediateFailures: [...input.intermediateFailures],
+    });
+    return undefined;
+  } catch {
+    return 'Aggregate E2E prompt data exceeds the bounded pre-execution contract.';
+  }
+}
+
 function validateBinding(
   binding: E2EExecutionBinding,
   target: LoopSessionTarget,
@@ -3501,6 +3574,19 @@ function validateRequiredChecks(
     return {
       type: 'native-verifier-authority-invalid',
       message: 'Exactly one target-bound native verifier invocation is required.',
+    };
+  }
+  if (
+    checks.nativeEvidence.artifacts.some(
+      (artifact) =>
+        artifact.kind === 'screenshot' &&
+        artifact.mimeType !== 'image/png' &&
+        artifact.mimeType !== 'image/jpeg'
+    )
+  ) {
+    return {
+      type: 'native-verifier-authority-invalid',
+      message: 'Native screenshot evidence requires exact PNG or JPEG MIME authority.',
     };
   }
   if (checks.status === 'passed' && !checks.nativePreview.passed) {

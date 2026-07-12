@@ -4,7 +4,7 @@ import type { LoopPhaseState } from '@shared/core/loops/loop-phase-state';
 import type {
   LoopSessionAttempt,
   LoopSessionTarget,
-  LoopState,
+  LoopStateV2,
 } from '@shared/core/loops/loop-state';
 import type { Loop, LoopPhase, LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
@@ -39,11 +39,12 @@ const criteria: LoopPhaseCriterion[] = [
     status: 'pending',
   },
 ];
-const loopState: LoopState = {
-  version: '1',
+const loopState: LoopStateV2 = {
+  version: '2',
   baseCommit: BASE_COMMIT,
   expectedFeatureHead: CHECKPOINT_COMMIT,
   checkpointCommit: CHECKPOINT_COMMIT,
+  e2eAttemptsConsumed: 1,
   sessionAttempts: [
     {
       attemptId: 'browser-attempt-1',
@@ -305,9 +306,15 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
       expect(harness.validationVerifier.run).toHaveBeenCalledWith(
         expect.objectContaining({
           cwd: target.path,
-          executionTarget: runInput.executionTarget,
+          executionTarget: expect.objectContaining({
+            workspaceId: target.workspaceId,
+            path: target.path,
+            machine: target.machine,
+            taskEnv: taskEnvironment,
+          }),
           validationCommands,
           criteria,
+          signal: expect.any(AbortSignal),
         })
       );
       expect(harness.native.run).toHaveBeenCalledWith(
@@ -320,6 +327,7 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
           provider: 'codex',
           model: 'gpt-5.6-sol',
           checkpointCommit: CHECKPOINT_COMMIT,
+          signal: expect.any(AbortSignal),
         })
       );
     }
@@ -574,6 +582,241 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
     expect(oversizedResult).toMatchObject({ success: false });
     expect(criteriaHarness.resolveContext).not.toHaveBeenCalled();
   });
+
+  it('aborts validation at the deadline and settles before launching native effects', async () => {
+    const harness = makeHarness();
+    let validationSignal: AbortSignal | undefined;
+    vi.mocked(harness.validationVerifier.run).mockImplementationOnce(
+      async (ctx) =>
+        await new Promise((resolve) => {
+          validationSignal = ctx.signal;
+          const settle = () =>
+            resolve(
+              err({
+                kind: 'aborted',
+                verifierId: 'unit-tests',
+                message: 'Validation stopped.',
+                cwd: ctx.cwd,
+              })
+            );
+          ctx.signal?.addEventListener('abort', settle, { once: true });
+          if (ctx.signal?.aborted) settle();
+        })
+    );
+    const runInput = input();
+    runInput.deadlineAt = Date.now() + 100;
+    const startedAt = Date.now();
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(Date.now() - startedAt).toBeLessThan(1_500);
+    expect(validationSignal?.aborted).toBe(true);
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'required-checks-aborted',
+        quiescent: true,
+        recoveryRequired: false,
+      },
+    });
+    expect(harness.native.run).not.toHaveBeenCalled();
+  });
+
+  it('passes the deadline signal to native and retains its quiescent session identity', async () => {
+    let nativeSignal: AbortSignal | undefined;
+    const harness = makeHarness({
+      nativeRun: vi.fn<NativeBrowserE2EAttestationPort['run']>(
+        async (nativeInput) =>
+          await new Promise<Awaited<ReturnType<NativeBrowserE2EAttestationPort['run']>>>(
+            (resolve) => {
+              nativeSignal = nativeInput.signal;
+              const settle = () => resolve(ok(attestation('passed')));
+              nativeInput.signal?.addEventListener('abort', settle, { once: true });
+              if (nativeInput.signal?.aborted) settle();
+            }
+          )
+      ),
+    });
+    const runInput = input();
+    runInput.deadlineAt = Date.now() + 100;
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(nativeSignal?.aborted).toBe(true);
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'required-checks-aborted',
+        quiescent: true,
+        recoveryRequired: false,
+        sessionAttempts: [
+          expect.objectContaining({
+            attemptId: 'browser-attempt-1',
+            conversationId: 'browser-conversation-1',
+            status: 'completed',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('links and disposes the caller abort signal without launching later effects', async () => {
+    const controller = new AbortController();
+    const addListener = vi.spyOn(controller.signal, 'addEventListener');
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener');
+    const harness = makeHarness();
+    let derivedSignal: AbortSignal | undefined;
+    vi.mocked(harness.validationVerifier.run).mockImplementationOnce(async (ctx) => {
+      derivedSignal = ctx.signal;
+      controller.abort();
+      return err({
+        kind: 'aborted',
+        verifierId: 'unit-tests',
+        message: 'Caller stopped validation.',
+        cwd: ctx.cwd,
+      });
+    });
+    const runInput = input();
+    runInput.signal = controller.signal;
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(derivedSignal).toBeInstanceOf(AbortSignal);
+    expect(derivedSignal).not.toBe(controller.signal);
+    expect(derivedSignal?.aborted).toBe(true);
+    expect(result).toMatchObject({ success: false, error: { quiescent: true } });
+    expect(harness.native.run).not.toHaveBeenCalled();
+    expect(addListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
+  it('snapshots stateful request and durable-context getters exactly once', async () => {
+    const harness = makeHarness();
+    const runInput = input();
+    let requestModelReads = 0;
+    Object.defineProperty(runInput, 'model', {
+      configurable: true,
+      get() {
+        requestModelReads += 1;
+        return requestModelReads === 1 ? 'gpt-5.6-sol' : 'drifted-model';
+      },
+    });
+    const rawConfig = { ...loop.config };
+    let contextModelReads = 0;
+    Object.defineProperty(rawConfig, 'model', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        contextModelReads += 1;
+        return contextModelReads === 1 ? 'gpt-5.6-sol' : ' padded-model ';
+      },
+    });
+    harness.resolveContext.mockResolvedValueOnce(
+      ok({ loop: { ...loop, config: rawConfig as Loop['config'] }, phase })
+    );
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(result).toMatchObject({ success: true, data: { model: 'gpt-5.6-sol' } });
+    expect(requestModelReads).toBe(1);
+    expect(contextModelReads).toBe(1);
+    expect(harness.native.run).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'gpt-5.6-sol' })
+    );
+  });
+
+  it.each([
+    [
+      'a padded durable model',
+      { loop: { ...loop, config: { ...loop.config!, model: ' gpt-5.6-sol ' } }, phase },
+    ],
+    [
+      'an extra durable config key',
+      { loop: { ...loop, config: { ...loop.config!, unexpected: true } as never }, phase },
+    ],
+    [
+      'an extra durable criterion key',
+      {
+        loop,
+        phase: {
+          ...phase,
+          criteria: {
+            version: '1' as const,
+            criteria: [{ ...criteria[0]!, unexpected: true } as never],
+          },
+        },
+      },
+    ],
+  ])('rejects raw-canonical drift from %s before effects', async (_label, context) => {
+    const harness = makeHarness();
+    harness.resolveContext.mockResolvedValueOnce(ok(context as never));
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'required-checks-context-invalid' },
+    });
+    expect(harness.validationVerifier.run).not.toHaveBeenCalled();
+    expect(harness.native.run).not.toHaveBeenCalled();
+  });
+
+  it.each(['relative/loop-verify-1', '/tmp/loop/../loop-verify-1'])(
+    'rejects a relative or noncanonical target path %s before authority lookup',
+    async (targetPath) => {
+      const harness = makeHarness();
+      const runInput = input();
+      const driftedTarget = { ...target, path: targetPath };
+      const driftedEnvironment = Object.freeze({
+        ...taskEnvironment,
+        EMDASH_TASK_PATH: targetPath,
+      });
+      runInput.target = driftedTarget;
+      runInput.executionTarget = {
+        ...executionTarget(),
+        ...driftedTarget,
+        taskEnv: driftedEnvironment,
+      };
+      runInput.taskEnvironment = driftedEnvironment;
+
+      const result = await harness.adapter.run(runInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'required-checks-context-invalid' },
+      });
+      expect(harness.resolveContext).not.toHaveBeenCalled();
+      expect(harness.validationVerifier.run).not.toHaveBeenCalled();
+      expect(harness.native.run).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['image/png; token=secret', 'image//private/app-data/secret', 'text/plain'])(
+    'rejects unsafe or unapproved screenshot MIME metadata %s',
+    async (mimeType) => {
+      const raw = attestation('passed');
+      const harness = makeHarness({
+        nativeRun: vi.fn(async () =>
+          ok({
+            ...raw,
+            evidence: {
+              ...raw.evidence,
+              artifacts: [{ ...raw.evidence.artifacts[0]!, mimeType }],
+            },
+          } as never)
+        ),
+      });
+
+      const result = await harness.adapter.run(input());
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'native-browser-authority-invalid' },
+      });
+      expect(JSON.stringify(result)).not.toContain('token=secret');
+      expect(JSON.stringify(result)).not.toContain('/private/app-data');
+    }
+  );
 
   it('redacts absolute validation paths from returned summaries', async () => {
     const harness = makeHarness();

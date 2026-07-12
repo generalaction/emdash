@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import path from 'node:path';
 import { redactAll } from '@emdash/shared/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import {
@@ -10,7 +11,7 @@ import {
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
-  loopStateV1Schema,
+  loopStateV2Schema,
   type LoopSessionAttempt,
   type LoopSessionTarget,
   type LoopState,
@@ -45,6 +46,25 @@ const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_TASK_ENVIRONMENT_BYTES = 64 * 1024;
 const MAX_TASK_ENVIRONMENT_VALUE_LENGTH = 4_096;
 const MAX_STABLE_NATIVE_BYTES = 1024 * 1024;
+const MAX_STABLE_REQUEST_BYTES = 2 * 1024 * 1024;
+const APPROVED_ARTIFACT_MIME_TYPES = new Set([
+  'application/json',
+  'application/xml',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'text/markdown',
+  'text/plain',
+]);
+const APPROVED_ARTIFACT_MIME_TYPES_BY_KIND: Readonly<
+  Record<LoopArtifactReference['kind'], ReadonlySet<string>>
+> = {
+  'browser-diagnostics': new Set(['application/json', 'text/plain']),
+  'command-log': new Set(['text/plain']),
+  'diff-summary': new Set(['text/markdown', 'text/plain']),
+  screenshot: new Set(['image/jpeg', 'image/png', 'image/webp']),
+  'test-report': new Set(['application/json', 'application/xml', 'text/plain']),
+};
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
   'EMDASH_PORT',
@@ -81,12 +101,26 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
   }
 
   async run(
-    input: Parameters<E2ERequiredChecksPort['run']>[0]
+    rawInput: Parameters<E2ERequiredChecksPort['run']>[0]
   ): Promise<Result<E2ERequiredChecksResult, E2ERequiredChecksError>> {
-    if (!validRequestEnvelope(input)) {
+    const input = stabilizeRequest(rawInput);
+    if (!input || !validRequestEnvelope(input)) {
       return invalidContext();
     }
 
+    const control = createRunControl(input.signal, input.deadlineAt);
+    try {
+      if (controlStopped(control.signal, input.deadlineAt)) return stoppedBeforeNestedEffects();
+      return await this.runControlled(input, control.signal);
+    } finally {
+      control.dispose();
+    }
+  }
+
+  private async runControlled(
+    input: Parameters<E2ERequiredChecksPort['run']>[0],
+    signal: AbortSignal
+  ): Promise<Result<E2ERequiredChecksResult, E2ERequiredChecksError>> {
     let resolved: Awaited<ReturnType<typeof this.dependencies.resolveContext>>;
     try {
       resolved = await this.dependencies.resolveContext(input.authority);
@@ -97,24 +131,21 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
         true
       );
     }
-    let contextResolved: boolean;
-    try {
-      contextResolved = resolved.success === true;
-    } catch {
+    const stableResolution = stabilizeJson(resolved, MAX_STABLE_REQUEST_BYTES);
+    if (
+      !stableResolution ||
+      typeof stableResolution !== 'object' ||
+      Array.isArray(stableResolution)
+    ) {
       return requiredChecksError(
         'required-checks-context-unavailable',
         'Required-check authority returned unreadable settlement authority.',
         true
       );
     }
-    if (!contextResolved) {
-      let rawError: unknown;
-      try {
-        rawError = (resolved as { success: false; error: unknown }).error;
-      } catch {
-        rawError = undefined;
-      }
-      const stable = stabilizeJson(rawError, MAX_STABLE_NATIVE_BYTES);
+    const resolution = stableResolution as Record<string, unknown>;
+    if (resolution.success !== true) {
+      const stable = stabilizeJson(resolution.error, MAX_STABLE_NATIVE_BYTES);
       const error =
         stable && typeof stable === 'object' && !Array.isArray(stable)
           ? (stable as Record<string, unknown>)
@@ -136,16 +167,13 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
         attempts
       );
     }
-    let rawContext: unknown;
-    try {
-      rawContext = (resolved as { success: true; data: unknown }).data;
-    } catch {
-      rawContext = undefined;
-    }
+    if (controlStopped(signal, input.deadlineAt)) return stoppedBeforeNestedEffects();
+    const rawContext = resolution.data;
     const context = validateContext(rawContext as CleanRoomE2ERequiredChecksContext, input);
     if (!context.success) return context;
 
-    const validation = await runValidation(this.validationVerifier, context.data, input);
+    const validation = await runValidation(this.validationVerifier, context.data, input, signal);
+    if (controlStopped(signal, input.deadlineAt)) return stoppedBeforeNestedEffects();
     let native: Awaited<ReturnType<NativeBrowserE2EAttestationPort['run']>>;
     try {
       native = await this.dependencies.native.run({
@@ -161,7 +189,7 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
         model: input.model,
         checkpointCommit: input.checkpointCommit,
         criteria: input.criteria.map(copyCriterion),
-        signal: input.signal,
+        signal,
         ...(input.deadlineAt !== undefined ? { deadlineAt: input.deadlineAt } : {}),
       });
     } catch {
@@ -171,33 +199,40 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
         false
       );
     }
-    let nativeSucceeded: boolean;
-    try {
-      nativeSucceeded = native.success === true;
-    } catch {
+    const stableNativeSettlement = stabilizeJson(native, MAX_STABLE_NATIVE_BYTES);
+    if (
+      !stableNativeSettlement ||
+      typeof stableNativeSettlement !== 'object' ||
+      Array.isArray(stableNativeSettlement)
+    ) {
       return requiredChecksError(
         'native-browser-authority-invalid',
         'Native browser verification returned unreadable settlement authority.',
         false
       );
     }
-    if (!nativeSucceeded) {
-      let nativeError: unknown;
-      try {
-        nativeError = (native as { success: false; error: unknown }).error;
-      } catch {
-        nativeError = undefined;
-      }
-      return copyNativeError(nativeError);
+    const nativeSettlement = stableNativeSettlement as Record<string, unknown>;
+    if (typeof nativeSettlement.success !== 'boolean') {
+      return requiredChecksError(
+        'native-browser-authority-invalid',
+        'Native browser verification returned unreadable settlement authority.',
+        false
+      );
     }
-    let nativeData: unknown;
-    try {
-      nativeData = (native as { success: true; data: unknown }).data;
-    } catch {
-      nativeData = undefined;
+    if (nativeSettlement.success !== true) {
+      return copyNativeError(nativeSettlement.error);
     }
+    const nativeData = nativeSettlement.data;
     const exactNative = validateNativeAttestation(nativeData, input);
     if (!exactNative.success) return exactNative;
+    if (controlStopped(signal, input.deadlineAt)) {
+      return requiredChecksError(
+        'required-checks-aborted',
+        'Required checks stopped after native verification proved quiescence.',
+        true,
+        [exactNative.data.sessionAttempt]
+      );
+    }
 
     const status = validation.success ? exactNative.data.status : 'failed';
     const result: E2ERequiredChecksResult = {
@@ -240,6 +275,150 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
   }
 }
 
+function stabilizeRequest(
+  input: Parameters<E2ERequiredChecksPort['run']>[0]
+): Parameters<E2ERequiredChecksPort['run']>[0] | undefined {
+  try {
+    const {
+      authority: rawAuthority,
+      validationCommands: rawValidationCommands,
+      criteria: rawCriteria,
+      verificationRunId,
+      attempt,
+      sessionIdentity: rawSessionIdentity,
+      target: rawTarget,
+      executionTarget: rawExecutionTarget,
+      taskEnvironment: rawTaskEnvironment,
+      checkpointCommit,
+      provider,
+      model,
+      signal,
+      deadlineAt,
+    } = input;
+    const {
+      workspaceId: executionWorkspaceId,
+      path: executionPath,
+      machine: rawExecutionMachine,
+      executionContext,
+      taskEnv: rawExecutionTaskEnvironment,
+      dispose,
+    } = rawExecutionTarget;
+    const authority = stabilizeJson(rawAuthority, MAX_STABLE_REQUEST_BYTES);
+    const validationCommands = stabilizeJson(rawValidationCommands, MAX_STABLE_REQUEST_BYTES);
+    const criteria = stabilizeJson(rawCriteria, MAX_STABLE_REQUEST_BYTES);
+    const sessionIdentity = stabilizeJson(rawSessionIdentity, MAX_STABLE_REQUEST_BYTES);
+    const target = stabilizeJson(rawTarget, MAX_STABLE_REQUEST_BYTES);
+    const executionMachine = stabilizeJson(rawExecutionMachine, MAX_STABLE_REQUEST_BYTES);
+    const taskEnvironment = stabilizeJson(rawTaskEnvironment, MAX_STABLE_REQUEST_BYTES);
+    const executionTaskEnvironment = stabilizeJson(
+      rawExecutionTaskEnvironment,
+      MAX_STABLE_REQUEST_BYTES
+    );
+    if (
+      !authority ||
+      typeof authority !== 'object' ||
+      Array.isArray(authority) ||
+      !Array.isArray(validationCommands) ||
+      !Array.isArray(criteria) ||
+      !sessionIdentity ||
+      typeof sessionIdentity !== 'object' ||
+      Array.isArray(sessionIdentity) ||
+      !target ||
+      typeof target !== 'object' ||
+      Array.isArray(target) ||
+      !executionMachine ||
+      typeof executionMachine !== 'object' ||
+      Array.isArray(executionMachine) ||
+      !taskEnvironment ||
+      typeof taskEnvironment !== 'object' ||
+      Array.isArray(taskEnvironment) ||
+      !executionTaskEnvironment ||
+      typeof executionTaskEnvironment !== 'object' ||
+      Array.isArray(executionTaskEnvironment) ||
+      typeof dispose !== 'function'
+    ) {
+      return undefined;
+    }
+    const stableExecutionTarget = Object.freeze({
+      workspaceId: executionWorkspaceId,
+      path: executionPath,
+      machine: Object.freeze(executionMachine) as LoopSessionTarget['machine'],
+      executionContext,
+      taskEnv: Object.freeze(executionTaskEnvironment) as Readonly<Record<string, string>>,
+      dispose: () => Reflect.apply(dispose, rawExecutionTarget, []),
+    });
+    return {
+      authority: deepFreezeJson(authority) as Parameters<
+        E2ERequiredChecksPort['run']
+      >[0]['authority'],
+      validationCommands: Object.freeze([...validationCommands]) as readonly string[],
+      criteria: deepFreezeJson(criteria) as readonly LoopPhaseCriterion[],
+      verificationRunId,
+      attempt,
+      sessionIdentity: Object.freeze(sessionIdentity) as {
+        attemptId: string;
+        conversationId: string;
+      },
+      target: deepFreezeJson(target) as LoopSessionTarget,
+      executionTarget: stableExecutionTarget,
+      taskEnvironment: Object.freeze(taskEnvironment) as Readonly<Record<string, string>>,
+      checkpointCommit,
+      provider,
+      model,
+      ...(signal !== undefined ? { signal } : {}),
+      ...(deadlineAt !== undefined ? { deadlineAt } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function createRunControl(
+  parentSignal: AbortSignal | undefined,
+  deadlineAt: number | undefined
+): { signal: AbortSignal; dispose(): void } {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let listening = false;
+  const stop = () => controller.abort();
+  const armDeadline = () => {
+    if (deadlineAt === undefined || signalAborted(controller.signal)) return;
+    const remaining = deadlineAt - Date.now();
+    if (remaining <= 0) {
+      stop();
+      return;
+    }
+    timer = setTimeout(armDeadline, Math.min(remaining, 2_147_483_647));
+  };
+  if (parentSignal !== undefined) {
+    parentSignal.addEventListener('abort', stop, { once: true });
+    listening = true;
+    if (signalAborted(parentSignal)) stop();
+  }
+  armDeadline();
+  return {
+    signal: controller.signal,
+    dispose() {
+      if (timer !== undefined) clearTimeout(timer);
+      if (listening && parentSignal !== undefined) {
+        parentSignal.removeEventListener('abort', stop);
+      }
+    },
+  };
+}
+
+function stoppedBeforeNestedEffects(): Result<never, E2ERequiredChecksError> {
+  return requiredChecksError(
+    'required-checks-aborted',
+    'Required checks stopped before starting further nested effects.',
+    true
+  );
+}
+
+function controlStopped(signal: AbortSignal, deadlineAt: number | undefined): boolean {
+  return signalAborted(signal) || (deadlineAt !== undefined && Date.now() >= deadlineAt);
+}
+
 function validateContext(
   value: CleanRoomE2ERequiredChecksContext,
   input: Parameters<E2ERequiredChecksPort['run']>[0]
@@ -247,7 +426,7 @@ function validateContext(
   try {
     const config = newLoopConfigV2Schema.strict().safeParse(value.loop.config);
     const phaseCriteria = loopPhaseCriteriaV1Schema.strict().safeParse(value.phase.criteria);
-    const loopState = loopStateV1Schema.safeParse(value.loop.state);
+    const loopState = loopStateV2Schema.safeParse(value.loop.state);
     const phaseState =
       value.phase.state === null || value.phase.state === undefined
         ? null
@@ -264,16 +443,20 @@ function validateContext(
       value.phase.status !== 'reviewing' ||
       value.phase.conversationId !== input.authority.outerConversationId ||
       !config.success ||
+      !canonicalDeepEqual(value.loop.config, config.data) ||
       config.data.provider !== input.provider ||
       config.data.model !== input.model ||
       config.data.terminalGates.e2e !== true ||
       config.data.browserPreview.enabled !== true ||
       !sameStringArray(config.data.validationCommands, input.validationCommands) ||
       !phaseCriteria.success ||
+      !canonicalDeepEqual(value.phase.criteria, phaseCriteria.data) ||
       !sameCriteria(phaseCriteria.data.criteria, input.criteria) ||
       !loopState.success ||
+      !canonicalDeepEqual(value.loop.state, loopState.data) ||
       phaseState === null ||
       !phaseState.success ||
+      !canonicalDeepEqual(value.phase.state, phaseState.data) ||
       phaseState.data.result !== null ||
       !sameE2EDurableProgress(
         { loopState: loopState.data, phaseState: phaseState.data },
@@ -285,19 +468,21 @@ function validateContext(
     ) {
       return invalidContext();
     }
-    return ok({
-      loop: {
-        ...value.loop,
-        config: config.data,
-        state: loopState.data,
-      },
-      phase: {
-        ...value.phase,
-        conversationId: input.authority.outerConversationId,
-        criteria: phaseCriteria.data,
-        state: phaseState.data,
-      },
-    });
+    return ok(
+      deepFreezeJson({
+        loop: {
+          ...value.loop,
+          config: config.data,
+          state: loopState.data,
+        },
+        phase: {
+          ...value.phase,
+          conversationId: input.authority.outerConversationId,
+          criteria: phaseCriteria.data,
+          state: phaseState.data,
+        },
+      })
+    );
   } catch {
     return invalidContext();
   }
@@ -347,7 +532,8 @@ function validActiveVerificationContext(
 async function runValidation(
   verifier: LoopVerifier,
   context: CleanRoomE2ERequiredChecksContext,
-  input: Parameters<E2ERequiredChecksPort['run']>[0]
+  input: Parameters<E2ERequiredChecksPort['run']>[0],
+  signal: AbortSignal
 ): Promise<{ success: boolean; summary: string }> {
   try {
     const result = await verifier.run({
@@ -357,7 +543,7 @@ async function runValidation(
       executionTarget: input.executionTarget,
       validationCommands: [...input.validationCommands],
       criteria: input.criteria.map(copyCriterion),
-      signal: input.signal,
+      signal,
     });
     return result.success
       ? {
@@ -384,7 +570,23 @@ function validRequestEnvelope(input: Parameters<E2ERequiredChecksPort['run']>[0]
       path: input.executionTarget?.path,
       machine: input.executionTarget?.machine,
     });
+    const parsedCriteria = e2eCriteriaSchema.safeParse(input.criteria);
+    const progressLoopState = loopStateV2Schema.safeParse(input.authority.progress.loopState);
+    const progressPhaseState =
+      input.authority.progress.phaseState === null
+        ? null
+        : loopPhaseStateInputSchema.safeParse(input.authority.progress.phaseState);
     return (
+      hasExactKeys(input.authority, [
+        'loopId',
+        'outerConversationId',
+        'phaseId',
+        'progress',
+        'projectId',
+        'taskId',
+      ]) &&
+      hasExactKeys(input.authority.progress, ['loopState', 'phaseState']) &&
+      hasExactKeys(input.sessionIdentity, ['attemptId', 'conversationId']) &&
       validId(input.authority.loopId) &&
       validId(input.authority.projectId) &&
       validId(input.authority.taskId) &&
@@ -399,6 +601,7 @@ function validRequestEnvelope(input: Parameters<E2ERequiredChecksPort['run']>[0]
       input.sessionIdentity.conversationId !== input.authority.outerConversationId &&
       target.success &&
       sameExactTarget(input.target, target.data) &&
+      isCanonicalAbsolutePath(target.data.path) &&
       executionTarget.success &&
       sameExactTarget(
         {
@@ -408,10 +611,12 @@ function validRequestEnvelope(input: Parameters<E2ERequiredChecksPort['run']>[0]
         },
         executionTarget.data
       ) &&
+      isCanonicalAbsolutePath(executionTarget.data.path) &&
       sameTarget(target.data, executionTarget.data) &&
       sameStringRecord(input.executionTarget.taskEnv, input.taskEnvironment) &&
       validTrustedEnvironment(input.taskEnvironment, target.data) &&
       loopCommitSchema.safeParse(input.checkpointCommit).success &&
+      input.provider === 'codex' &&
       typeof input.model === 'string' &&
       input.model === input.model.trim() &&
       input.model.length > 0 &&
@@ -425,7 +630,13 @@ function validRequestEnvelope(input: Parameters<E2ERequiredChecksPort['run']>[0]
           command.length > 0 &&
           command.length <= 4_096
       ) &&
-      e2eCriteriaSchema.safeParse(input.criteria).success &&
+      parsedCriteria.success &&
+      canonicalDeepEqual(input.criteria, parsedCriteria.data) &&
+      progressLoopState.success &&
+      canonicalDeepEqual(input.authority.progress.loopState, progressLoopState.data) &&
+      progressPhaseState !== null &&
+      progressPhaseState.success &&
+      canonicalDeepEqual(input.authority.progress.phaseState, progressPhaseState.data) &&
       (input.signal === undefined || isAbortSignal(input.signal)) &&
       (input.signal === undefined || !signalAborted(input.signal)) &&
       (input.deadlineAt === undefined ||
@@ -532,18 +743,39 @@ function copyNativeError(error: unknown): Result<never, E2ERequiredChecksError> 
     );
   }
   const candidate = stable as Record<string, unknown>;
-  const attempts = Array.isArray(candidate.sessionAttempts)
-    ? candidate.sessionAttempts.slice(0, 3).flatMap((attempt) => {
-        const copied = canonicalAttempt(attempt);
-        return copied ? [copied] : [];
-      })
+  const expectedKeys = [
+    'message',
+    'quiescent',
+    'recoveryRequired',
+    ...(candidate.sessionAttempts === undefined ? [] : ['sessionAttempts']),
+    'type',
+  ];
+  const rawAttempts = candidate.sessionAttempts;
+  const attempts = Array.isArray(rawAttempts)
+    ? rawAttempts.map((attempt) => canonicalAttempt(attempt))
     : [];
-  const quiescent = candidate.quiescent === true && candidate.recoveryRequired !== true;
+  if (
+    !hasExactKeys(candidate, expectedKeys) ||
+    !validErrorType(candidate.type) ||
+    typeof candidate.message !== 'string' ||
+    typeof candidate.quiescent !== 'boolean' ||
+    typeof candidate.recoveryRequired !== 'boolean' ||
+    candidate.recoveryRequired === candidate.quiescent ||
+    (rawAttempts !== undefined &&
+      (!Array.isArray(rawAttempts) || rawAttempts.length > 3 || attempts.includes(undefined)))
+  ) {
+    return requiredChecksError(
+      'native-browser-authority-invalid',
+      'Native browser verification returned inconsistent recovery authority.',
+      false,
+      attempts.flatMap((attempt) => (attempt ? [attempt] : []))
+    );
+  }
   return requiredChecksError(
-    validErrorType(candidate.type) ? candidate.type : 'native-browser-rejected',
+    candidate.type,
     safeText(candidate.message, 'Native browser verification was rejected.'),
-    quiescent,
-    attempts
+    candidate.quiescent,
+    attempts as LoopSessionAttempt[]
   );
 }
 
@@ -603,6 +835,7 @@ function copyOpaqueArtifact(value: unknown): LoopArtifactReference | undefined {
       safeText(parsed.data.artifactId, 'opaque-artifact', 256) !== parsed.data.artifactId ||
       (parsed.data.label !== undefined &&
         safeText(parsed.data.label, 'Evidence artifact', 256) !== parsed.data.label) ||
+      !validArtifactMimeType(parsed.data) ||
       !validTimestamp(parsed.data.createdAt)
     ) {
       return undefined;
@@ -772,6 +1005,38 @@ function sameTarget(left: unknown, right: unknown): boolean {
   );
 }
 
+function isCanonicalAbsolutePath(value: string): boolean {
+  if (
+    value.length === 0 ||
+    value.length > 4_096 ||
+    value.includes('\0') ||
+    value !== value.trim()
+  ) {
+    return false;
+  }
+  const canonicalPosix =
+    path.posix.isAbsolute(value) &&
+    !value.includes('\\') &&
+    path.posix.normalize(value) === value &&
+    (value === '/' || !value.endsWith('/'));
+  const canonicalWindows =
+    path.win32.isAbsolute(value) &&
+    !value.includes('/') &&
+    path.win32.normalize(value) === value &&
+    (/^[A-Za-z]:\\$/u.test(value) || !value.endsWith('\\'));
+  return canonicalPosix || canonicalWindows;
+}
+
+function validArtifactMimeType(artifact: LoopArtifactReference): boolean {
+  const mimeType = artifact.mimeType;
+  return (
+    mimeType === undefined ||
+    (APPROVED_ARTIFACT_MIME_TYPES.has(mimeType) &&
+      APPROVED_ARTIFACT_MIME_TYPES_BY_KIND[artifact.kind].has(mimeType) &&
+      safeText(mimeType, 'application/octet-stream', 128) === mimeType)
+  );
+}
+
 function sameExactTarget(left: unknown, right: LoopSessionTarget): boolean {
   try {
     const parsed = loopSessionTargetSchema.safeParse(left);
@@ -805,6 +1070,12 @@ function canonicalDeepEqual(left: unknown, right: unknown): boolean {
         key === rightKeys[index] && canonicalDeepEqual(leftRecord[key], rightRecord[key])
     )
   );
+}
+
+function deepFreezeJson<T>(value: T): T {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreezeJson(child);
+  return Object.freeze(value);
 }
 
 function hasExactKeys(value: unknown, expected: readonly string[]): boolean {

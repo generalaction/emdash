@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { posix, win32 } from 'node:path';
 import { redactAll } from '@emdash/shared/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import {
@@ -41,6 +42,8 @@ const MAX_ID_LENGTH = 256;
 const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_ARTIFACTS = 64;
+const MAX_INPUT_BYTES = 2 * 1024 * 1024;
+const MAX_NATIVE_SESSION_ATTEMPTS = 64;
 const cookieAssignmentPattern =
   /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b[\\'"\s]*[:=][\s\S]*/giu;
 const posixAbsolutePathPattern = /(^|[\s("'=])\/(?:[^\s"'<>]|\\ )+/gmu;
@@ -165,12 +168,19 @@ type ExactSessionCapture = {
   authorityInvalid: boolean;
   startInvocations: number;
   startFailure: NativeBrowserE2EExactSessionError | null;
+  startFailureAuthorityComplete: boolean;
   knownSessions: KnownSession[];
+  recoveryDriver?: LoopSessionDriver;
 };
 
 type KnownSession = {
   session: NativeBrowserE2EExactSession;
   settlement: Promise<SessionSettlement> | null;
+};
+
+type CapturedExactSession = {
+  session: NativeBrowserE2EExactSession;
+  exactEcho: boolean;
 };
 
 type SessionSettlement = {
@@ -189,7 +199,14 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
   async run(
     input: NativeBrowserE2EAttestationInput
   ): Promise<Result<NativeBrowserE2EAttestation, NativeBrowserE2EAttestationError>> {
-    const validated = validateInput(input);
+    const snapshot = snapshotAttestationInput(input);
+    if (!snapshot) {
+      return attestationError(
+        'native-browser-input-invalid',
+        'Native browser attestation requires stable canonical clean-room authority.'
+      );
+    }
+    const validated = validateInput(snapshot);
     if (!validated.success) return validated;
 
     const exact = validated.data;
@@ -201,7 +218,11 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
       authorityInvalid: false,
       startInvocations: 0,
       startFailure: null,
+      startFailureAuthorityComplete: true,
       knownSessions: [],
+      ...(this.dependencies.outerSessionDriver
+        ? { recoveryDriver: this.dependencies.outerSessionDriver }
+        : {}),
     };
     let terminal: CapturedTerminal | null = null;
 
@@ -275,6 +296,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           });
         } catch {
           session.authorityInvalid = true;
+          session.startFailureAuthorityComplete = false;
           session.startFailure = {
             kind: 'execution-error',
             message: 'Exact native browser session start threw after receiving its authority.',
@@ -291,6 +313,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           startSucceeded = started.success === true;
         } catch {
           session.startFailure = unreadableStartFailure();
+          session.startFailureAuthorityComplete = false;
           session.authorityInvalid = true;
           return err({ kind: 'execution-error', message: session.startFailure.message });
         }
@@ -301,10 +324,15 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           } catch {
             rawFailure = undefined;
           }
-          const failure = stabilizeStartFailure(rawFailure);
-          session.startFailure = failure;
-          if (!failure.quiescent) session.authorityInvalid = true;
-          return err({ kind: failure.kind, message: failure.message });
+          const stabilized = stabilizeStartFailure(
+            rawFailure,
+            exact,
+            session.startedAt ?? safeNow(this.dependencies.now)
+          );
+          session.startFailure = stabilized.failure;
+          session.startFailureAuthorityComplete = stabilized.complete;
+          if (!stabilized.failure.quiescent) session.authorityInvalid = true;
+          return err({ kind: stabilized.failure.kind, message: stabilized.failure.message });
         }
         let rawSession: unknown;
         try {
@@ -312,15 +340,17 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         } catch {
           rawSession = undefined;
         }
-        const returnedSession = snapshotExactSession(rawSession, exact);
-        if (!returnedSession) {
+        const capturedSession = snapshotExactSession(rawSession, exact);
+        if (!capturedSession) {
           session.authorityInvalid = true;
+          session.startFailureAuthorityComplete = false;
           session.startFailure = unreadableStartFailure();
           return err({ kind: 'execution-error', message: session.startFailure.message });
         }
+        const returnedSession = capturedSession.session;
         const knownSession: KnownSession = { session: returnedSession, settlement: null };
         session.knownSessions.push(knownSession);
-        if (!exactSessionEchoes(rawSession, exact) || !isAcpSessionDriver(returnedSession.driver)) {
+        if (!capturedSession.exactEcho || !isAcpSessionDriver(returnedSession.driver)) {
           knownSession.settlement = settleKnownSession(
             returnedSession,
             exact,
@@ -481,6 +511,26 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
     }
 
     const summary = safeText(capturedTerminal.summary, defaultSummary(status));
+    const settled = await settleCapturedResources(
+      exact,
+      session,
+      evidenceRuns,
+      this.dependencies.now,
+      true
+    );
+    const exactSessionSettled = settled.sessionAttempts?.some(
+      (candidate) =>
+        candidate.attemptId === exact.sessionIdentity.attemptId &&
+        candidate.conversationId === exact.sessionIdentity.conversationId &&
+        candidate.status === 'cancelled'
+    );
+    if (!settled.quiescent || !exactSessionSettled) {
+      return attestationError(
+        'native-browser-quiescence-failed',
+        'Native browser ACP session did not prove exact terminal settlement.',
+        settled
+      );
+    }
     const sessionAttempt = buildTerminalAttempt(
       exact,
       session,
@@ -541,6 +591,83 @@ type ValidatedAttestationInput = Omit<NativeBrowserE2EAttestationInput, 'loop'> 
   loop: Omit<Loop, 'config'> & { config: NewLoopConfigV2 };
 };
 
+function snapshotAttestationInput(
+  input: NativeBrowserE2EAttestationInput
+): NativeBrowserE2EAttestationInput | undefined {
+  try {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+    const loop = input.loop;
+    const phase = input.phase;
+    const verificationRunId = input.verificationRunId;
+    const sessionIdentity = input.sessionIdentity;
+    const outerConversationId = input.outerConversationId;
+    const target = input.target;
+    const executionTarget = input.executionTarget;
+    const taskEnvironment = input.taskEnvironment;
+    const provider = input.provider;
+    const model = input.model;
+    const checkpointCommit = input.checkpointCommit;
+    const criteria = input.criteria;
+    const signal = input.signal;
+    const deadlineAt = input.deadlineAt;
+    if (!executionTarget || typeof executionTarget !== 'object') return undefined;
+    const workspaceId = executionTarget.workspaceId;
+    const executionPath = executionTarget.path;
+    const machine = executionTarget.machine;
+    const taskEnv = executionTarget.taskEnv;
+    const executionContext = executionTarget.executionContext;
+    const dispose = executionTarget.dispose;
+    if (
+      !executionContext ||
+      typeof executionContext !== 'object' ||
+      typeof dispose !== 'function'
+    ) {
+      return undefined;
+    }
+    const stable = stabilizeJson(
+      {
+        loop,
+        phase,
+        verificationRunId,
+        sessionIdentity,
+        outerConversationId,
+        target,
+        executionTarget: {
+          workspaceId,
+          path: executionPath,
+          machine,
+          taskEnv,
+        },
+        taskEnvironment,
+        provider,
+        model,
+        checkpointCommit,
+        criteria,
+        ...(deadlineAt !== undefined ? { deadlineAt } : {}),
+      },
+      MAX_INPUT_BYTES
+    );
+    if (!stable || typeof stable !== 'object' || Array.isArray(stable)) return undefined;
+    const captured = stable as Omit<
+      NativeBrowserE2EAttestationInput,
+      'executionTarget' | 'signal'
+    > & {
+      executionTarget: Pick<LoopExecutionTarget, 'workspaceId' | 'path' | 'machine' | 'taskEnv'>;
+    };
+    return {
+      ...captured,
+      executionTarget: {
+        ...captured.executionTarget,
+        executionContext,
+        dispose: () => dispose.call(executionTarget),
+      },
+      ...(signal !== undefined ? { signal } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function validateInput(
   input: NativeBrowserE2EAttestationInput
 ): Result<ValidatedAttestationInput, NativeBrowserE2EAttestationError> {
@@ -562,6 +689,7 @@ function validateInput(
       input.sessionIdentity.conversationId === input.outerConversationId ||
       !target.success ||
       !sameExactTarget(input.target, target.data) ||
+      !isCanonicalAbsolutePath(target.data.path) ||
       !sameExactTarget(
         {
           workspaceId: input.executionTarget.workspaceId,
@@ -572,6 +700,7 @@ function validateInput(
       ) ||
       !sameStringRecord(input.executionTarget.taskEnv, input.taskEnvironment) ||
       input.taskEnvironment.EMDASH_TASK_PATH !== target.data.path ||
+      !isCanonicalAbsolutePath(input.taskEnvironment.EMDASH_ROOT_PATH) ||
       !checkpoint.success ||
       typeof input.model !== 'string' ||
       input.model !== input.model.trim() ||
@@ -644,10 +773,14 @@ function wrapEvidenceRun(
     async writeScreenshot(input) {
       const stored = await run.writeScreenshot(input);
       if (artifacts.length < MAX_ARTIFACTS) {
+        const mimeType = safeScreenshotMimeType(stored.mimeType);
+        if (!mimeType) {
+          throw new TypeError('Native browser evidence returned invalid artifact metadata.');
+        }
         const artifact = loopArtifactReferenceSchema.safeParse({
           artifactId: stored.artifactId,
           kind: 'screenshot',
-          mimeType: stored.mimeType,
+          mimeType,
           byteLength: stored.byteLength,
           createdAt: safeNow(now),
         });
@@ -709,20 +842,20 @@ async function settleCapturedResources(
   cancelSessions: boolean
 ): Promise<AttestationErrorOptions> {
   const attempts: LoopSessionAttempt[] = [];
-  let quiescent = session.startFailure?.quiescent !== false;
-  for (const candidate of session.startFailure?.sessionAttempts ?? []) {
-    const copied = copyCanonicalAttempt(candidate);
-    if (copied) attempts.push(copied);
-  }
+  const recoveredStart = await settleStartFailureSessions(input, session, now);
+  let quiescent = recoveredStart.quiescent;
+  attempts.push(...recoveredStart.attempts);
   for (const known of session.knownSessions) {
     if (cancelSessions && known.settlement === null) {
       known.settlement = settleKnownSession(known.session, input, session.startedAt, now);
     }
-    if (known.settlement !== null) {
-      const settlement = await known.settlement;
-      quiescent &&= settlement.quiescent;
-      attempts.push(...settlement.attempts);
-    }
+  }
+  const knownSettlements = await Promise.all(
+    session.knownSessions.flatMap((known) => (known.settlement ? [known.settlement] : []))
+  );
+  for (const settlement of knownSettlements) {
+    quiescent &&= settlement.quiescent;
+    attempts.push(...settlement.attempts);
   }
   for (const captured of evidenceRuns) {
     if (captured.settled) continue;
@@ -760,6 +893,88 @@ async function settleCapturedResources(
     quiescent,
     sessionAttempts: deduplicateAttempts(attempts),
   };
+}
+
+async function settleStartFailureSessions(
+  input: NativeBrowserE2EAttestationInput,
+  session: ExactSessionCapture,
+  now: () => Date
+): Promise<SessionSettlement> {
+  const failure = session.startFailure;
+  if (!failure) return { quiescent: true, attempts: [] };
+  const reported = (failure.sessionAttempts ?? []).flatMap((candidate) => {
+    const copied = copyCanonicalAttempt(candidate);
+    return copied && attemptMatchesExactAuthority(copied, input) ? [copied] : [];
+  });
+  const terminal = reported.filter(isTerminalAttempt);
+  const unsettled = reported.filter((attempt) => !isTerminalAttempt(attempt));
+  if (failure.quiescent) {
+    return {
+      quiescent: session.startFailureAuthorityComplete && unsettled.length === 0,
+      attempts: terminal,
+    };
+  }
+
+  const startedAt = session.startedAt ?? safeNow(now);
+  const identities = distinctNativeRecoveryIdentities([
+    { ...input.sessionIdentity, startedAt },
+    ...unsettled.map((attempt) => ({
+      attemptId: attempt.attemptId,
+      conversationId: attempt.conversationId,
+      startedAt: attempt.startedAt,
+    })),
+  ]);
+  const cancellations = identities.map((identity) => ({
+    identity,
+    result: cancelNativeConversation(session.recoveryDriver, identity.conversationId),
+  }));
+  const settled = await Promise.all(
+    cancellations.map(async ({ identity, result }) => ({ identity, acknowledged: await result }))
+  );
+  const finishedAt = safeNow(now);
+  const recoveredAttempts = settled.flatMap(({ identity, acknowledged }) => {
+    const attempt = buildIdentityAttempt(
+      input,
+      identity,
+      acknowledged ? 'cancelled' : 'interrupted',
+      identity.startedAt,
+      finishedAt,
+      acknowledged ? undefined : 'Native browser session recovery was not acknowledged.'
+    );
+    return attempt ? [attempt] : [];
+  });
+  return {
+    quiescent:
+      session.startFailureAuthorityComplete &&
+      settled.length === identities.length &&
+      settled.every(({ acknowledged }) => acknowledged),
+    attempts: [...terminal, ...recoveredAttempts],
+  };
+}
+
+async function cancelNativeConversation(
+  driver: LoopSessionDriver | undefined,
+  conversationId: string
+): Promise<boolean> {
+  if (!driver || !isAcpSessionDriver(driver)) return false;
+  try {
+    const result = await driver.cancelPrompt(conversationId);
+    return result?.success === true;
+  } catch {
+    return false;
+  }
+}
+
+function distinctNativeRecoveryIdentities(
+  identities: readonly (NativeBrowserE2ESessionIdentity & { startedAt: string })[]
+): Array<NativeBrowserE2ESessionIdentity & { startedAt: string }> {
+  const seen = new Set<string>();
+  return identities.filter((identity) => {
+    const key = `${identity.attemptId}\u0000${identity.conversationId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function settleKnownSession(
@@ -931,12 +1146,18 @@ function copyTarget(target: LoopSessionTarget): LoopSessionTarget {
   return loopSessionTargetSchema.parse(target);
 }
 
-function exactSessionEchoes(value: unknown, input: NativeBrowserE2EAttestationInput): boolean {
+function snapshotExactSession(
+  value: unknown,
+  input: NativeBrowserE2EAttestationInput
+): CapturedExactSession | undefined {
   try {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-    const candidate = value as NativeBrowserE2EExactSession;
-    if (
-      !hasExactKeys(candidate, [
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const attemptId = readProperty(value, 'attemptId');
+    const conversationId = readProperty(value, 'conversationId');
+    if (!validId(attemptId) || !validId(conversationId)) return undefined;
+    let exactKeys = false;
+    try {
+      exactKeys = hasExactKeys(value, [
         'attemptId',
         'checkpointCommit',
         'conversationId',
@@ -949,63 +1170,64 @@ function exactSessionEchoes(value: unknown, input: NativeBrowserE2EAttestationIn
         'taskEnvironment',
         'title',
         'verificationRunId',
-      ]) ||
-      candidate.attemptId !== input.sessionIdentity.attemptId ||
-      candidate.conversationId !== input.sessionIdentity.conversationId ||
-      candidate.purpose !== 'browser-verification' ||
-      candidate.phaseId !== input.phase.id ||
-      candidate.verificationRunId !== input.verificationRunId ||
-      !sameExactTarget(candidate.target, input.target) ||
-      !sameExactStringRecord(candidate.taskEnvironment, input.taskEnvironment) ||
-      candidate.provider !== input.provider ||
-      candidate.model !== input.model ||
-      candidate.checkpointCommit !== input.checkpointCommit ||
-      typeof candidate.title !== 'string'
-    ) {
-      return false;
+      ]);
+    } catch {
+      exactKeys = false;
     }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function snapshotExactSession(
-  value: unknown,
-  input: NativeBrowserE2EAttestationInput
-): NativeBrowserE2EExactSession | undefined {
-  try {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-    const attemptId = readProperty(value, 'attemptId');
-    const conversationId = readProperty(value, 'conversationId');
-    if (!validId(attemptId) || !validId(conversationId)) return undefined;
     const title = readProperty(value, 'title');
+    const purpose = readProperty(value, 'purpose');
     const phaseId = readProperty(value, 'phaseId');
     const verificationRunId = readProperty(value, 'verificationRunId');
-    const target = loopSessionTargetSchema.safeParse(readProperty(value, 'target'));
-    const taskEnvironment = readProperty(value, 'taskEnvironment');
+    const rawTarget = readProperty(value, 'target');
+    const rawTaskEnvironment = readProperty(value, 'taskEnvironment');
     const provider = readProperty(value, 'provider');
     const model = readProperty(value, 'model');
     const checkpointCommit = readProperty(value, 'checkpointCommit');
     const driver = readProperty(value, 'driver');
+    const stableAuthority = stabilizeJson(
+      { target: rawTarget, taskEnvironment: rawTaskEnvironment },
+      512 * 1024
+    ) as { target?: unknown; taskEnvironment?: unknown } | undefined;
+    const rawStableTarget = stableAuthority?.target;
+    const rawStableEnvironment = stableAuthority?.taskEnvironment;
+    const target = loopSessionTargetSchema.safeParse(rawStableTarget);
+    const taskEnvironment =
+      rawStableEnvironment &&
+      typeof rawStableEnvironment === 'object' &&
+      !Array.isArray(rawStableEnvironment)
+        ? (rawStableEnvironment as Record<string, string>)
+        : undefined;
+    const exactEcho =
+      exactKeys &&
+      attemptId === input.sessionIdentity.attemptId &&
+      conversationId === input.sessionIdentity.conversationId &&
+      purpose === 'browser-verification' &&
+      phaseId === input.phase.id &&
+      verificationRunId === input.verificationRunId &&
+      sameExactTarget(rawStableTarget, input.target) &&
+      sameExactStringRecord(taskEnvironment, input.taskEnvironment) &&
+      provider === input.provider &&
+      model === input.model &&
+      checkpointCommit === input.checkpointCommit &&
+      typeof title === 'string';
     return {
-      attemptId,
-      conversationId,
-      title: typeof title === 'string' ? title : 'Native browser verification',
-      purpose: 'browser-verification',
-      phaseId: validId(phaseId) ? phaseId : input.phase.id,
-      verificationRunId: validId(verificationRunId) ? verificationRunId : input.verificationRunId,
-      target: copyTarget(target.success ? target.data : input.target),
-      taskEnvironment: Object.freeze(
-        taskEnvironment && typeof taskEnvironment === 'object' && !Array.isArray(taskEnvironment)
-          ? { ...(taskEnvironment as Record<string, string>) }
-          : { ...input.taskEnvironment }
-      ),
-      provider: provider === 'claude' ? 'claude' : provider === 'codex' ? 'codex' : input.provider,
-      model: typeof model === 'string' ? model : input.model,
-      checkpointCommit:
-        typeof checkpointCommit === 'string' ? checkpointCommit : input.checkpointCommit,
-      driver: driver as LoopSessionDriver,
+      exactEcho,
+      session: {
+        attemptId,
+        conversationId,
+        title: typeof title === 'string' ? title : 'Native browser verification',
+        purpose: 'browser-verification',
+        phaseId: validId(phaseId) ? phaseId : input.phase.id,
+        verificationRunId: validId(verificationRunId) ? verificationRunId : input.verificationRunId,
+        target: copyTarget(target.success ? target.data : input.target),
+        taskEnvironment: Object.freeze(taskEnvironment ?? { ...input.taskEnvironment }),
+        provider:
+          provider === 'claude' ? 'claude' : provider === 'codex' ? 'codex' : input.provider,
+        model: typeof model === 'string' ? model : input.model,
+        checkpointCommit:
+          typeof checkpointCommit === 'string' ? checkpointCommit : input.checkpointCommit,
+        driver: driver as LoopSessionDriver,
+      },
     };
   } catch {
     return undefined;
@@ -1029,37 +1251,98 @@ function unreadableStartFailure(): NativeBrowserE2EExactSessionError {
   };
 }
 
-function stabilizeStartFailure(value: unknown): NativeBrowserE2EExactSessionError {
+function stabilizeStartFailure(
+  value: unknown,
+  input: NativeBrowserE2EAttestationInput,
+  fallbackStartedAt: string
+): { failure: NativeBrowserE2EExactSessionError; complete: boolean } {
   try {
     const stable = stabilizeJson(value, 512 * 1024);
     if (!stable || typeof stable !== 'object' || Array.isArray(stable)) throw new TypeError();
     const candidate = stable as Record<string, unknown>;
-    const attempts = Array.isArray(candidate.sessionAttempts)
-      ? candidate.sessionAttempts.slice(0, 3).flatMap((attempt) => {
+    const rawAttempts = candidate.sessionAttempts;
+    let allAttemptsCanonical = true;
+    const attempts = Array.isArray(rawAttempts)
+      ? rawAttempts.slice(0, MAX_NATIVE_SESSION_ATTEMPTS - 1).flatMap((attempt) => {
           const copied = copyCanonicalAttempt(attempt);
-          return copied && isTerminalAttempt(copied) ? [copied] : [];
+          if (copied && attemptMatchesExactAuthority(copied, input)) return [copied];
+          allAttemptsCanonical = false;
+          const salvaged = salvageNativeStartAttempt(attempt, input, fallbackStartedAt);
+          return salvaged ? [salvaged] : [];
         })
       : [];
-    const quiescent = candidate.quiescent === true && candidate.recoveryRequired !== true;
+    const complete =
+      rawAttempts === undefined ||
+      (Array.isArray(rawAttempts) &&
+        rawAttempts.length < MAX_NATIVE_SESSION_ATTEMPTS &&
+        attempts.length === rawAttempts.length &&
+        allAttemptsCanonical);
+    const allReportedTerminal = attempts.every(isTerminalAttempt);
+    const quiescent =
+      complete &&
+      allReportedTerminal &&
+      candidate.quiescent === true &&
+      candidate.recoveryRequired !== true;
     return {
-      kind: validErrorType(candidate.kind) ? candidate.kind : 'execution-error',
-      message: safeText(
-        candidate.message,
-        quiescent
-          ? 'Exact native browser session start failed atomically.'
-          : 'Exact native browser session start did not prove failure atomicity.'
-      ),
-      quiescent,
-      recoveryRequired: !quiescent,
-      ...(attempts.length > 0 ? { sessionAttempts: attempts } : {}),
+      complete,
+      failure: {
+        kind: validErrorType(candidate.kind) ? candidate.kind : 'execution-error',
+        message: safeText(
+          candidate.message,
+          quiescent
+            ? 'Exact native browser session start failed atomically.'
+            : 'Exact native browser session start did not prove failure atomicity.'
+        ),
+        quiescent,
+        recoveryRequired: !quiescent,
+        ...(attempts.length > 0 ? { sessionAttempts: attempts } : {}),
+      },
     };
   } catch {
     return {
-      kind: 'execution-error',
-      message: 'Exact native browser session start returned unreadable failure authority.',
-      quiescent: false,
-      recoveryRequired: true,
+      complete: false,
+      failure: {
+        kind: 'execution-error',
+        message: 'Exact native browser session start returned unreadable failure authority.',
+        quiescent: false,
+        recoveryRequired: true,
+      },
     };
+  }
+}
+
+function salvageNativeStartAttempt(
+  value: unknown,
+  input: NativeBrowserE2EAttestationInput,
+  fallbackStartedAt: string
+): LoopSessionAttempt | undefined {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const candidate = value as Record<string, unknown>;
+    const attemptId = candidate.attemptId;
+    const conversationId = candidate.conversationId;
+    if (
+      !validId(attemptId) ||
+      !validId(conversationId) ||
+      conversationId === input.outerConversationId
+    ) {
+      return undefined;
+    }
+    const startedAt = validTimestamp(candidate.startedAt) ? candidate.startedAt : fallbackStartedAt;
+    const parsed = loopSessionAttemptSchema.safeParse({
+      attemptId,
+      conversationId,
+      purpose: 'browser-verification',
+      phaseId: input.phase.id,
+      verificationRunId: input.verificationRunId,
+      target: copyTarget(input.target),
+      status: 'starting',
+      checkpointBefore: input.checkpointCommit,
+      startedAt,
+    });
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -1094,7 +1377,7 @@ function deduplicateAttempts(attempts: readonly LoopSessionAttempt[]): LoopSessi
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(copied);
-    if (result.length >= 3) break;
+    if (result.length >= MAX_NATIVE_SESSION_ATTEMPTS) break;
   }
   return result;
 }
@@ -1104,6 +1387,33 @@ function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
     ['completed', 'failed', 'cancelled', 'interrupted'].includes(attempt.status) &&
     attempt.finishedAt !== undefined
   );
+}
+
+function attemptMatchesExactAuthority(
+  attempt: LoopSessionAttempt,
+  input: NativeBrowserE2EAttestationInput
+): boolean {
+  return (
+    attempt.purpose === 'browser-verification' &&
+    attempt.phaseId === input.phase.id &&
+    attempt.verificationRunId === input.verificationRunId &&
+    attempt.checkpointBefore === input.checkpointCommit &&
+    (attempt.checkpointAfter === undefined || attempt.checkpointAfter === input.checkpointCommit) &&
+    sameTarget(attempt.target, input.target)
+  );
+}
+
+function safeScreenshotMimeType(value: unknown): 'image/png' | 'image/jpeg' | undefined {
+  if (value !== 'image/png' && value !== 'image/jpeg') return undefined;
+  return safeText(value, 'invalid-mime', 128) === value ? value : undefined;
+}
+
+function isCanonicalAbsolutePath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value !== value.trim()) return false;
+  if (value.includes('\u0000')) return false;
+  if (posix.isAbsolute(value)) return posix.normalize(value) === value;
+  if (win32.isAbsolute(value)) return win32.normalize(value) === value;
+  return false;
 }
 
 function sameExactTarget(left: unknown, right: LoopSessionTarget): boolean {

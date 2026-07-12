@@ -377,9 +377,19 @@ export function normalizeDependencyResult<T>(
     const rawPendingCleanup = Reflect.has(dependencyError, 'pendingCleanup')
       ? dependencyError.pendingCleanup
       : undefined;
-    const rawSessionAttempts = Reflect.has(dependencyError, 'sessionAttempts')
-      ? dependencyError.sessionAttempts
-      : undefined;
+    let hasSessionAttempts = false;
+    let rawSessionAttempts: unknown;
+    try {
+      hasSessionAttempts = Reflect.has(dependencyError, 'sessionAttempts');
+      rawSessionAttempts = hasSessionAttempts
+        ? Reflect.get(dependencyError, 'sessionAttempts')
+        : undefined;
+    } catch {
+      // Preserve hostile property presence as explicit invalid authority. Downstream recovery must
+      // not confuse an unreadable reported ledger with an omitted ledger.
+      hasSessionAttempts = true;
+      rawSessionAttempts = undefined;
+    }
     const quiescent = dependencyError.quiescent;
     const recoveryRequired = dependencyError.recoveryRequired;
     if (typeof message !== 'string') throw new TypeError('Invalid error');
@@ -390,7 +400,7 @@ export function normalizeDependencyResult<T>(
       ...(typeof kind === 'string' ? { kind } : {}),
       message,
       ...(pendingCleanup !== undefined ? { pendingCleanup } : {}),
-      ...(sessionAttempts !== undefined ? { sessionAttempts } : {}),
+      ...(hasSessionAttempts ? { sessionAttempts: sessionAttempts ?? null } : {}),
       ...(typeof quiescent === 'boolean' ? { quiescent } : {}),
       ...(typeof recoveryRequired === 'boolean' ? { recoveryRequired } : {}),
     } as E2EGateDependencyError);

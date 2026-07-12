@@ -226,7 +226,7 @@ export function settlePreallocatedNestedAttempt(
 
 export type NestedAttemptSettlement = {
   expected: LoopSessionAttempt;
-  actual?: LoopSessionAttempt;
+  actuals: readonly LoopSessionAttempt[];
   ambiguousActual: boolean;
 };
 
@@ -244,7 +244,7 @@ export function collectNestedAttemptSettlement(
     throw new TypeError('Nested settlement requires its preallocated browser attempt.');
   }
   let expected: LoopSessionAttempt | undefined;
-  let actual: LoopSessionAttempt | undefined;
+  const actuals: LoopSessionAttempt[] = [];
   let ambiguousActual = false;
   try {
     const candidates =
@@ -252,6 +252,7 @@ export function collectNestedAttemptSettlement(
         ? (value as { sessionAttempts?: unknown }).sessionAttempts
         : undefined;
     if (Array.isArray(candidates)) {
+      if (candidates.length > 4) ambiguousActual = true;
       for (const candidate of candidates.slice(0, 4)) {
         const normalized = normalizeNestedAttemptCandidate(
           candidate,
@@ -294,11 +295,8 @@ export function collectNestedAttemptSettlement(
                 attempt.conversationId === normalized.conversationId)
           );
         if (collides) continue;
-        if (actual) {
-          ambiguousActual = true;
-          continue;
-        }
-        actual = normalized;
+        actuals.push(normalized);
+        ambiguousActual = actuals.length > 1;
       }
     }
   } catch {
@@ -313,7 +311,7 @@ export function collectNestedAttemptSettlement(
         finishedAt: monotonicTimestamp(starting.startedAt, settledAt),
         error: 'Nested verification returned no exact terminal evidence.',
       }),
-    ...(actual ? { actual } : {}),
+    actuals,
     ambiguousActual,
   };
 }

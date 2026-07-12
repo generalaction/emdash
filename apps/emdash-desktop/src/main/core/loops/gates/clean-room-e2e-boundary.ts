@@ -7,7 +7,9 @@ import {
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
+  loopStateInputSchema,
   loopStateV1Schema,
+  loopStateV2Schema,
   type LoopSessionAttempt,
   type LoopSessionTarget,
 } from '@shared/core/loops/loop-state';
@@ -328,8 +330,21 @@ export function hasCanonicalAttemptFields(candidate: unknown, parsed: LoopSessio
 export function hasCanonicalPersistedLoopState(value: unknown): boolean {
   try {
     if (!value || typeof value !== 'object') return false;
-    const parsedState = loopStateV1Schema.safeParse(value);
-    if (!parsedState.success || !sameCanonicalJsonShape(value, parsedState.data)) return false;
+    const rawVersion = (value as { version?: unknown }).version;
+    const rawState =
+      rawVersion === '1'
+        ? loopStateV1Schema.safeParse(value)
+        : rawVersion === '2'
+          ? loopStateV2Schema.safeParse(value)
+          : { success: false as const };
+    const parsedState = loopStateInputSchema.safeParse(value);
+    if (
+      !rawState.success ||
+      !parsedState.success ||
+      !sameCanonicalJsonShape(value, rawState.data)
+    ) {
+      return false;
+    }
     const state = value as {
       sessionAttempts?: unknown;
       verification?: unknown;

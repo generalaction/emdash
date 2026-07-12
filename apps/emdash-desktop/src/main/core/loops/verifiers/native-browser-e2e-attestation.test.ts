@@ -4,6 +4,7 @@ import { err, ok } from '@main/lib/result';
 import type { LoopPhaseState } from '@shared/core/loops/loop-phase-state';
 import type { LoopSessionTarget, LoopState } from '@shared/core/loops/loop-state';
 import type { Loop, LoopPhase, LoopPhaseCriterion } from '@shared/core/loops/loops';
+import type { LoopSessionDriver } from '../drivers/session-driver';
 import type { LoopEvidenceRunPort, LoopEvidenceScreenshot } from '../evidence/loop-evidence-store';
 import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
 import {
@@ -120,6 +121,16 @@ function input(): NativeBrowserE2EAttestationInput {
   };
 }
 
+function recoveryDriver(cancelPrompt: LoopSessionDriver['cancelPrompt']): LoopSessionDriver {
+  return {
+    kind: 'acp',
+    startPhaseSession: vi.fn(),
+    startVerificationSession: vi.fn(),
+    sendPrompt: vi.fn(),
+    cancelPrompt,
+  };
+}
+
 type ProductStatus = 'passed' | 'correctable' | 'failed';
 
 function makeHarness(
@@ -132,6 +143,7 @@ function makeHarness(
     cancelPrompt?: NativeBrowserE2EExactSession['driver']['cancelPrompt'];
     createVerifier?: NativeBrowserE2EAttestationDependencies['createVerifier'];
     now?: () => Date;
+    outerSessionDriver?: NativeBrowserE2EAttestationDependencies['outerSessionDriver'];
     startExactSession?: NativeBrowserE2EAttestationDependencies['startExactSession'];
   } = {}
 ): {
@@ -279,6 +291,7 @@ function makeHarness(
     evidenceStore: { beginRun: vi.fn(async () => evidenceRun) },
     createVerifier: options.createVerifier ?? createVerifier,
     now: options.now ?? (() => new Date('2026-07-12T01:02:03.000Z')),
+    ...(options.outerSessionDriver ? { outerSessionDriver: options.outerSessionDriver } : {}),
   };
   return {
     service: new NativeBrowserE2EAttestationService(dependencies),
@@ -359,6 +372,44 @@ describe('NativeBrowserE2EAttestationService', () => {
         checkpointCommit: CHECKPOINT_COMMIT,
       })
     );
+  });
+
+  it('stabilizes each raw exact-session success field once before authority validation', async () => {
+    let attemptIdReads = 0;
+    const cancelPrompt = vi.fn(async () => ok(undefined));
+    const harness = makeHarness('passed', {
+      startExactSession: vi.fn(async (startInput) => {
+        const returned = {
+          attemptId: startInput.sessionIdentity.attemptId,
+          conversationId: startInput.sessionIdentity.conversationId,
+          purpose: 'browser-verification' as const,
+          phaseId: startInput.phase.id,
+          title: 'Native E2E',
+          verificationRunId: startInput.verificationRunId,
+          target: startInput.target,
+          taskEnvironment: startInput.taskEnvironment,
+          provider: startInput.provider,
+          model: startInput.model,
+          checkpointCommit: startInput.checkpointCommit,
+          driver: recoveryDriver(cancelPrompt),
+        };
+        Object.defineProperty(returned, 'attemptId', {
+          enumerable: true,
+          get: () => {
+            attemptIdReads += 1;
+            if (attemptIdReads > 1) throw new Error('attemptId was read twice');
+            return startInput.sessionIdentity.attemptId;
+          },
+        });
+        return ok(returned);
+      }),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(result).toMatchObject({ success: true });
+    expect(attemptIdReads).toBe(1);
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
   });
 
   it('rejects a session that does not adopt the preallocated identity', async () => {
@@ -570,6 +621,228 @@ describe('NativeBrowserE2EAttestationService', () => {
       });
     }
   );
+
+  it('preserves and concurrently recovers every reported nonterminal exact-start identity', async () => {
+    const expectedCancellation = Promise.withResolvers<ReturnType<typeof ok<void>>>();
+    const actualCancellation = Promise.withResolvers<ReturnType<typeof ok<void>>>();
+    const cancelPrompt = vi.fn((conversationId: string) =>
+      conversationId === 'browser-conversation-1'
+        ? expectedCancellation.promise
+        : actualCancellation.promise
+    );
+    const harness = makeHarness('passed', {
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn<NativeBrowserE2EAttestationDependencies['startExactSession']>(
+        async (startInput) =>
+          err({
+            kind: 'create-failed',
+            message: 'Exact start returned recovery authority.',
+            quiescent: false,
+            recoveryRequired: true,
+            sessionAttempts: [
+              {
+                attemptId: 'actual-browser-attempt',
+                conversationId: 'actual-browser-conversation',
+                purpose: 'browser-verification',
+                phaseId: startInput.phase.id,
+                verificationRunId: startInput.verificationRunId,
+                target: startInput.target,
+                status: 'running',
+                checkpointBefore: startInput.checkpointCommit,
+                startedAt: '2026-07-12T01:02:02.000Z',
+              },
+            ],
+          })
+      ),
+    });
+    let returned = false;
+    const run = harness.service.run(input()).then((result) => {
+      returned = true;
+      return result;
+    });
+
+    await vi.waitFor(() => expect(cancelPrompt).toHaveBeenCalledTimes(2));
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
+    expect(cancelPrompt).toHaveBeenCalledWith('actual-browser-conversation');
+    expect(returned).toBe(false);
+    expectedCancellation.resolve(ok(undefined));
+    actualCancellation.resolve(ok(undefined));
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        quiescent: true,
+        recoveryRequired: false,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'browser-attempt-1',
+            status: 'cancelled',
+          }),
+          expect.objectContaining({
+            attemptId: 'actual-browser-attempt',
+            status: 'cancelled',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it('salvages cancellation authority from a malformed nonterminal start attempt', async () => {
+    const cancelPrompt = vi.fn(async () => ok(undefined));
+    const harness = makeHarness('passed', {
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn<NativeBrowserE2EAttestationDependencies['startExactSession']>(
+        async (startInput) =>
+          err({
+            kind: 'create-failed',
+            message: 'Exact start returned malformed recovery authority.',
+            quiescent: false,
+            recoveryRequired: true,
+            sessionAttempts: [
+              {
+                attemptId: 'salvaged-actual-attempt',
+                conversationId: 'salvaged-actual-conversation',
+                purpose: 'browser-verification',
+                phaseId: startInput.phase.id,
+                verificationRunId: startInput.verificationRunId,
+                target: startInput.target,
+                status: 'launching',
+                checkpointBefore: startInput.checkpointCommit,
+                startedAt: '2026-07-12T01:02:02.000Z',
+              } as never,
+            ],
+          })
+      ),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
+    expect(cancelPrompt).toHaveBeenCalledWith('salvaged-actual-conversation');
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        quiescent: false,
+        recoveryRequired: true,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'salvaged-actual-attempt',
+            status: 'cancelled',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it.each(['passed', 'correctable', 'failed'] as const)(
+    'waits for exact accepted-session quiescence before returning a typed %s outcome',
+    async (status) => {
+      const cancellation = Promise.withResolvers<ReturnType<typeof ok<void>>>();
+      const cancelPrompt = vi.fn(() => cancellation.promise);
+      const harness = makeHarness(status, { cancelPrompt });
+      let returned = false;
+      const run = harness.service.run(input()).then((result) => {
+        returned = true;
+        return result;
+      });
+
+      await vi.waitFor(() => expect(cancelPrompt).toHaveBeenCalledOnce());
+      expect(returned).toBe(false);
+      cancellation.resolve(ok(undefined));
+
+      await expect(run).resolves.toMatchObject({
+        success: true,
+        data: { status, quiescent: true },
+      });
+    }
+  );
+
+  it.each(['passed', 'correctable', 'failed'] as const)(
+    'rejects a typed %s outcome when accepted-session settlement is not acknowledged',
+    async (status) => {
+      const harness = makeHarness(status, {
+        cancelPrompt: vi.fn(async () =>
+          err({ kind: 'cancel-failed' as const, message: 'not settled' })
+        ),
+      });
+
+      const result = await harness.service.run(input());
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'native-browser-quiescence-failed',
+          quiescent: false,
+          recoveryRequired: true,
+          sessionAttempts: [expect.objectContaining({ status: 'interrupted' })],
+        },
+      });
+    }
+  );
+
+  it('snapshots every raw top-level input field once before validation or effects', async () => {
+    const harness = makeHarness('passed');
+    const raw = input();
+    let targetReads = 0;
+    const stateful = Object.defineProperty({ ...raw }, 'target', {
+      enumerable: true,
+      get: () => {
+        targetReads += 1;
+        if (targetReads > 1) throw new Error('target authority was read twice');
+        return target;
+      },
+    }) as NativeBrowserE2EAttestationInput;
+
+    const result = await harness.service.run(stateful);
+
+    expect(result).toMatchObject({ success: true });
+    expect(targetReads).toBe(1);
+  });
+
+  it.each(['relative/worktree', '/tmp/worktree/../escape'])(
+    'rejects noncanonical clean-room path %s before dependency effects',
+    async (path) => {
+      const harness = makeHarness('passed');
+      const runInput = input();
+      runInput.target = { ...target, path };
+      runInput.executionTarget = {
+        ...runInput.executionTarget,
+        path,
+        taskEnv: { ...taskEnvironment, EMDASH_TASK_PATH: path },
+      };
+      runInput.taskEnvironment = { ...taskEnvironment, EMDASH_TASK_PATH: path };
+
+      const result = await harness.service.run(runInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'native-browser-input-invalid', quiescent: true },
+      });
+      expect(harness.dependencies.resolveTrustedBinding).not.toHaveBeenCalled();
+      expect(harness.dependencies.startExactSession).not.toHaveBeenCalled();
+    }
+  );
+
+  it('rejects and redacts hostile screenshot MIME metadata', async () => {
+    const harness = makeHarness('passed');
+    vi.mocked(harness.evidenceRun.writeScreenshot).mockResolvedValueOnce({
+      artifactId: 'screenshot-1',
+      mimeType: 'image/png; token=secret /private/leak' as 'image/png',
+      byteLength: 128,
+      relativePath: 'screenshots/opaque.png',
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-browser-execution-error' },
+    });
+    expect(JSON.stringify(result)).not.toContain('secret');
+    expect(JSON.stringify(result)).not.toContain('/private/leak');
+  });
 
   it('rejects an expired deadline before any dependency effect', async () => {
     const harness = makeHarness('passed');

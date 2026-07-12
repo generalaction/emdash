@@ -1,8 +1,8 @@
+import { posix, win32 } from 'node:path';
 import { err, ok, type Result } from '@main/lib/result';
 import {
   loopPhaseHandoffSchema,
   loopPhaseRetryHandoffSchema,
-  loopPhaseStateInputSchema,
   loopPhaseStateV2Schema,
   loopStageResultSchema,
   type LoopPhaseHandoff,
@@ -15,13 +15,14 @@ import {
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
-  loopStateV1Schema,
+  loopStateV2Schema,
   loopVerificationWorkspaceStateSchema,
   type LoopSessionAttempt,
   type LoopSessionTarget,
-  type LoopState,
+  type LoopStateV2,
   type LoopVerificationWorkspaceState,
 } from '@shared/core/loops/loop-state';
+import { redactPersistedText, validTimestamp } from './clean-room-e2e-boundary';
 
 export type E2EProgressError = {
   type?: string;
@@ -30,7 +31,7 @@ export type E2EProgressError = {
 };
 
 export type E2EDurableProgress = {
-  loopState: LoopState;
+  loopState: LoopStateV2;
   phaseState: LoopPhaseState | null;
 };
 
@@ -79,14 +80,18 @@ export type E2EProgressPort = {
 };
 
 export function copyE2EDurableProgress(progress: E2EDurableProgress): E2EDurableProgress {
-  const loopState = loopStateV1Schema.parse(progress.loopState);
-  if (!hasCanonicalLoopState(progress.loopState, loopState)) {
+  const loopState = loopStateV2Schema.parse(progress.loopState);
+  if (!validLoopStatePersistenceBoundary(progress.loopState, loopState)) {
     throw new TypeError('Loop progress contains non-canonical persisted authority.');
+  }
+  const phaseState =
+    progress.phaseState === null ? null : loopPhaseStateV2Schema.parse(progress.phaseState);
+  if (!validPhaseStatePersistenceBoundary(progress.phaseState, phaseState)) {
+    throw new TypeError('Phase progress contains non-canonical persisted authority.');
   }
   return {
     loopState,
-    phaseState:
-      progress.phaseState === null ? null : loopPhaseStateInputSchema.parse(progress.phaseState),
+    phaseState,
   };
 }
 
@@ -109,10 +114,9 @@ export function reduceE2EProgress(
   transition: E2EProgressTransition
 ): Result<E2EDurableProgress, E2EProgressError> {
   try {
-    const copied = copyE2EDurableProgress(expected);
-    const validated = parseProgress(copied);
-    if (!validated.success) return validated;
-    const current = validated.data;
+    // copyE2EDurableProgress is already the strict persistence boundary. Avoid reparsing the
+    // complete append-only ledger before applying the one bounded transition.
+    const current = copyE2EDurableProgress(expected);
     switch (transition.kind) {
       case 'workspace': {
         const verification =
@@ -299,6 +303,13 @@ export function reduceE2EProgress(
         if (phaseState.result !== null) {
           return invalid('Terminal progress cannot overwrite an existing phase result.');
         }
+        const latestAuthorityTimestamp = latestDurableTimestamp(current, handoff);
+        if (
+          latestAuthorityTimestamp !== undefined &&
+          Date.parse(result.completedAt) < Date.parse(latestAuthorityTimestamp)
+        ) {
+          return invalid('Terminal completion time cannot precede durable lifecycle authority.');
+        }
         return parseProgress({
           loopState: current.loopState,
           phaseState: {
@@ -315,12 +326,17 @@ export function reduceE2EProgress(
 }
 
 function parseProgress(progress: E2EDurableProgress): Result<E2EDurableProgress, E2EProgressError> {
-  const loopState = loopStateV1Schema.safeParse(progress.loopState);
+  const loopState = loopStateV2Schema.safeParse(progress.loopState);
   const phaseState =
     progress.phaseState === null
       ? { success: true as const, data: null }
       : loopPhaseStateV2Schema.safeParse(progress.phaseState);
-  if (!loopState.success || !phaseState.success) {
+  if (
+    !loopState.success ||
+    !phaseState.success ||
+    !validLoopStatePersistenceBoundary(progress.loopState, loopState.data) ||
+    !validPhaseStatePersistenceBoundary(progress.phaseState, phaseState.data)
+  ) {
     return invalid('E2E progress transition produced invalid durable state.');
   }
   if (loopState.data.sessionAttempts.some((attempt) => !validAttemptState(attempt))) {
@@ -436,6 +452,9 @@ function validateWorkspaceTransition(
   ) {
     return 'An active workspace cannot be replaced by a different verification run.';
   }
+  if (Date.parse(next.cleanup.updatedAt) < Date.parse(previous.cleanup.updatedAt)) {
+    return 'Workspace cleanup time cannot move backward.';
+  }
   if (!validWorkspaceStatusTransition(previous.status, next.status)) {
     return 'Workspace lifecycle status cannot move backward or skip cleanup authority.';
   }
@@ -469,7 +488,7 @@ function consumedAttemptsAfterWorkspaceTransition(
 ): Result<number, E2EProgressError> {
   const previous = current.loopState.verification;
   const durableRuns = countDurableOuterE2ERuns(current.loopState.sessionAttempts);
-  const persisted = current.loopState.e2eAttemptsConsumed ?? 0;
+  const persisted = current.loopState.e2eAttemptsConsumed;
   if (previous === null) {
     if (next === null || next.status !== 'preparing') {
       return invalid('A new E2E budget charge requires one preparing workspace run.');
@@ -490,6 +509,38 @@ function countDurableOuterE2ERuns(attempts: readonly LoopSessionAttempt[]): numb
     runs.add(attempt.verificationRunId ?? `attempt:${attempt.attemptId}`);
   }
   return runs.size;
+}
+
+function latestDurableTimestamp(
+  current: E2EDurableProgress,
+  terminalHandoff: LoopPhaseHandoff | null
+): string | undefined {
+  const timestamps: string[] = [];
+  const add = (value: string | undefined): void => {
+    if (value !== undefined && validTimestamp(value)) timestamps.push(value);
+  };
+  for (const attempt of current.loopState.sessionAttempts) {
+    add(attempt.startedAt);
+    add(attempt.finishedAt);
+  }
+  if (current.loopState.verification) add(current.loopState.verification.cleanup.updatedAt);
+  if (current.phaseState?.handoff) addHandoffTimestamps(current.phaseState.handoff, add);
+  for (const retry of current.phaseState?.retryHandoffs ?? []) {
+    addHandoffTimestamps(retry.handoff, add);
+  }
+  if (terminalHandoff) addHandoffTimestamps(terminalHandoff, add);
+  return timestamps.reduce<string | undefined>((latest, value) => {
+    if (latest === undefined || Date.parse(value) > Date.parse(latest)) return value;
+    return latest;
+  }, undefined);
+}
+
+function addHandoffTimestamps(
+  handoff: LoopPhaseHandoff,
+  add: (value: string | undefined) => void
+): void {
+  add(handoff.createdAt);
+  for (const artifact of handoff.artifacts) add(artifact.createdAt);
 }
 
 function validWorkspaceShape(workspace: LoopVerificationWorkspaceState): boolean {
@@ -519,9 +570,10 @@ function validWorkspaceShape(workspace: LoopVerificationWorkspaceState): boolean
       );
     case 'cleanup-failed':
       return (
-        (workspace.target === undefined) === (workspace.replayedThroughCommit === undefined) &&
+        workspace.target !== undefined &&
+        workspace.replayedThroughCommit !== undefined &&
         workspace.cleanup.status === 'failed' &&
-        workspace.cleanup.error !== undefined
+        validCanonicalFreeText(workspace.cleanup.error)
       );
   }
 }
@@ -531,7 +583,7 @@ function validWorkspaceStatusTransition(
   next: LoopVerificationWorkspaceState['status']
 ): boolean {
   const allowed: Record<LoopVerificationWorkspaceState['status'], readonly string[]> = {
-    preparing: ['ready', 'cleanup-failed'],
+    preparing: ['ready'],
     ready: ['running', 'destroying'],
     running: ['running', 'integrating-fix', 'destroying'],
     'integrating-fix': ['destroying'],
@@ -611,44 +663,81 @@ function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
   );
 }
 
-function hasCanonicalLoopState(value: unknown, parsed: LoopState): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const raw = value as {
-    e2eAttemptsConsumed?: unknown;
-    sessionAttempts?: unknown;
-    verification?: unknown;
-  };
+function validLoopStatePersistenceBoundary(value: unknown, parsed: LoopStateV2): boolean {
+  if (!sameCanonicalJsonValue(value, parsed)) return false;
   if (
-    raw.e2eAttemptsConsumed !== parsed.e2eAttemptsConsumed ||
-    !Array.isArray(raw.sessionAttempts) ||
-    raw.sessionAttempts.length !== parsed.sessionAttempts.length ||
-    raw.sessionAttempts.some((attempt, index) =>
-      hasCanonicalAttemptFields(attempt, parsed.sessionAttempts[index]!) ? false : true
+    parsed.sessionAttempts.some(
+      (attempt) => !validAttemptState(attempt) || !validCanonicalTarget(attempt.target)
     )
   ) {
     return false;
   }
-  if (parsed.verification === null) return raw.verification === null;
-  if (!raw.verification || typeof raw.verification !== 'object') return false;
-  const verification = raw.verification as {
-    verificationRunId?: unknown;
-    target?: unknown;
-    cleanup?: unknown;
-  };
-  if (
-    !validCanonicalId(verification.verificationRunId) ||
-    (parsed.verification.target !== undefined &&
-      !hasCanonicalTarget(verification.target, parsed.verification.target)) ||
-    !verification.cleanup ||
-    typeof verification.cleanup !== 'object'
-  ) {
+  return (
+    parsed.verification === null ||
+    (validCanonicalId(parsed.verification.verificationRunId) &&
+      validWorkspaceShape(parsed.verification) &&
+      (parsed.verification.target === undefined ||
+        validCanonicalTarget(parsed.verification.target)))
+  );
+}
+
+function validPhaseStatePersistenceBoundary(
+  value: unknown,
+  parsed: LoopPhaseState | null
+): boolean {
+  return sameCanonicalJsonValue(value, parsed) && redactionPreserved(value);
+}
+
+function redactionPreserved(value: unknown): boolean {
+  try {
+    const serialized = JSON.stringify(value);
+    return typeof serialized === 'string' && redactPersistedText(serialized) === serialized;
+  } catch {
     return false;
   }
-  const cleanup = verification.cleanup as { updatedAt?: unknown; error?: unknown };
-  return (
-    validCanonicalTimestamp(cleanup.updatedAt) &&
-    (cleanup.error === undefined || validCanonicalFreeText(cleanup.error))
+}
+
+function sameCanonicalJsonValue(value: unknown, parsed: unknown): boolean {
+  if (
+    value === null ||
+    parsed === null ||
+    typeof value !== 'object' ||
+    typeof parsed !== 'object'
+  ) {
+    return Object.is(value, parsed);
+  }
+  if (Array.isArray(value) || Array.isArray(parsed)) {
+    return (
+      Array.isArray(value) &&
+      Array.isArray(parsed) &&
+      value.length === parsed.length &&
+      value.every((item, index) => sameCanonicalJsonValue(item, parsed[index]))
+    );
+  }
+  const valueKeys = Reflect.ownKeys(value);
+  const parsedKeys = Object.keys(parsed);
+  if (valueKeys.some((key) => typeof key !== 'string') || valueKeys.length !== parsedKeys.length) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  const canonical = parsed as Record<string, unknown>;
+  return parsedKeys.every(
+    (key) => Object.hasOwn(record, key) && sameCanonicalJsonValue(record[key], canonical[key])
   );
+}
+
+function validCanonicalTargetPath(value: string): boolean {
+  const canonicalPosix =
+    posix.isAbsolute(value) &&
+    !value.includes('\\') &&
+    posix.normalize(value) === value &&
+    (value === '/' || !value.endsWith('/'));
+  const canonicalWindows =
+    win32.isAbsolute(value) &&
+    !value.includes('/') &&
+    win32.normalize(value) === value &&
+    (/^[A-Za-z]:\\$/.test(value) || !value.endsWith('\\'));
+  return canonicalPosix || canonicalWindows;
 }
 
 function hasCanonicalAttemptFields(value: unknown, parsed: LoopSessionAttempt): boolean {
@@ -681,7 +770,11 @@ function hasCanonicalTarget(value: unknown, parsed: LoopSessionTarget): boolean 
 
 function validCanonicalId(value: unknown): value is string {
   return (
-    typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim()
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 256 &&
+    value === value.trim() &&
+    redactPersistedText(value) === value
   );
 }
 
@@ -697,7 +790,16 @@ function validCanonicalFreeText(value: unknown): value is string {
     value.length > 0 &&
     value.length <= 4_096 &&
     value === value.trim() &&
-    !value.includes('\0')
+    !value.includes('\0') &&
+    redactPersistedText(value) === value
+  );
+}
+
+function validCanonicalTarget(target: LoopSessionTarget): boolean {
+  return (
+    validCanonicalId(target.workspaceId) &&
+    validCanonicalTargetPath(target.path) &&
+    (target.machine.kind === 'local' || validCanonicalId(target.machine.connectionId))
   );
 }
 
