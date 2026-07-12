@@ -558,6 +558,16 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://graphite.com/docs/gt-mcp',
     credentialKeys: [],
   },
+  executor: {
+    config: {
+      command: 'executor',
+      args: ['mcp'],
+    },
+    name: 'Executor',
+    description: 'One MCP gateway for every tool: connect MCP, OpenAPI, and GraphQL integrations',
+    docsUrl: 'https://executor.sh/docs',
+    credentialKeys: [],
+  },
   axiom: {
     config: {
       type: 'http',
