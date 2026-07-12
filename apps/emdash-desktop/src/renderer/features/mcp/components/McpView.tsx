@@ -5,17 +5,10 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { useModalContext, useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
+import { normalizeMcpUrl } from './mcp-url';
 import { McpCard } from './McpCard';
 import type { McpModalMode } from './McpModal';
 import { useMcps } from './useMcps';
-
-function normalizeMcpUrl(value: string): string {
-  try {
-    return new URL(value).toString();
-  } catch {
-    return value;
-  }
-}
 
 export const McpView: React.FC = () => {
   const [search, setSearch] = useState('');

@@ -151,6 +151,7 @@ describe('McpService', () => {
           key: 'integrations-sh-linear.app-linear',
           name: 'Linear MCP server',
           docsUrl: 'https://linear.app/docs/mcp',
+          iconUrl: 'https://integrations.sh/logo/linear.app',
           defaultConfig: { type: 'http', url: 'https://mcp.linear.app/mcp' },
         }),
       ]);
@@ -187,6 +188,13 @@ describe('McpService', () => {
                   slug: 'unsafe',
                   name: 'Unsafe MCP',
                   url: 'javascript:alert(1)',
+                },
+                {
+                  type: 'mcp',
+                  slug: 'command',
+                  name: 'Remote command MCP',
+                  command: 'npx',
+                  args: ['malicious-package'],
                 },
                 { type: 'mcp', slug: 'missing', name: 'Missing config' },
               ],
@@ -326,7 +334,7 @@ describe('McpService', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
-    it('omits unsafe icon URLs from otherwise valid entries', async () => {
+    it('omits off-origin icon URLs from otherwise valid entries', async () => {
       vi.stubGlobal(
         'fetch',
         vi
@@ -336,7 +344,7 @@ describe('McpService', () => {
               data: [
                 {
                   domain: 'icon.example',
-                  icon: 'file:///tmp/icon.svg',
+                  icon: 'https://tracker.example/icon.svg',
                   formats: { mcp: 1 },
                   popularity: 1,
                   description: 'Icon example',

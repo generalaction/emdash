@@ -199,7 +199,7 @@ export class McpService {
         docsUrl:
           toSafeHttpUrl(surface.docs) ??
           `https://integrations.sh/${encodedDomain}/${surface.slug}/`,
-        iconUrl: toSafeHttpUrl(domainEntry.icon),
+        iconUrl: toSafeIntegrationsShIconUrl(domainEntry.icon),
         defaultConfig,
         credentialKeys: [],
       });
@@ -294,6 +294,7 @@ export class McpService {
 
 const INTEGRATIONS_SH_DOMAINS_URL = 'https://integrations.sh/api/domains.json';
 const INTEGRATIONS_SH_API_BASE_URL = 'https://integrations.sh/api';
+const INTEGRATIONS_SH_ORIGIN = 'https://integrations.sh';
 const INTEGRATIONS_SH_CACHE_TTL_MS = 5 * 60_000;
 
 interface IntegrationsShDomain {
@@ -310,8 +311,6 @@ interface IntegrationsShMcpSurface {
   name: string;
   docs?: string;
   url?: string;
-  command?: string;
-  args?: string[];
 }
 
 function isIntegrationsShDomain(value: unknown): value is IntegrationsShDomain {
@@ -336,10 +335,7 @@ function isIntegrationsShMcpSurface(value: unknown): value is IntegrationsShMcpS
     /^[a-z0-9-]+$/i.test(surface.slug) &&
     typeof surface.name === 'string' &&
     (surface.docs === undefined || typeof surface.docs === 'string') &&
-    (surface.url === undefined || typeof surface.url === 'string') &&
-    (surface.command === undefined || typeof surface.command === 'string') &&
-    (surface.args === undefined ||
-      (Array.isArray(surface.args) && surface.args.every((arg) => typeof arg === 'string')))
+    (surface.url === undefined || typeof surface.url === 'string')
   );
 }
 
@@ -354,15 +350,18 @@ function toSafeHttpUrl(value: string | undefined): string | undefined {
   }
 }
 
+function toSafeIntegrationsShIconUrl(value: string): string | undefined {
+  const url = toSafeHttpUrl(value);
+  if (!url) return undefined;
+  return new URL(url).origin === INTEGRATIONS_SH_ORIGIN ? url : undefined;
+}
+
 function toIntegrationsShDefaultConfig(
   surface: IntegrationsShMcpSurface
 ): Record<string, unknown> | null {
   if (surface.url) {
     const url = toSafeHttpUrl(surface.url);
     return url ? { type: 'http', url } : null;
-  }
-  if (surface.command?.trim()) {
-    return { type: 'stdio', command: surface.command.trim(), args: surface.args ?? [] };
   }
   return null;
 }
