@@ -13,7 +13,7 @@ async function getSettings(workspaceId: string): Promise<ProjectSettingsLoadResu
   return ok(
     await getEffectiveTaskSettings({
       projectSettings: workspace.settings,
-      taskFs: workspace.fileSystem,
+      taskFiles: workspace.files,
       taskConfigPath: workspace.configPath,
     })
   );

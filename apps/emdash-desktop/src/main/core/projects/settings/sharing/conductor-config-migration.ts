@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -16,7 +16,6 @@ import {
   addScript,
   applyProjectConfigMigration,
   errorMessage,
-  openProjectFileSystem,
   projectPath,
   trimmedText,
   writeConfigFailed,
@@ -66,7 +65,7 @@ function toConductorMigration(data: ConductorMigrationData): ProjectConfigMigrat
 
 async function readConductorMigrationData(
   project: ProjectProvider,
-  fileSystem: ScopedFileSystem
+  files: FilesClientScope
 ): Promise<ConductorMigrationData> {
   const data: ConductorMigrationData = {
     settings: {},
@@ -76,12 +75,12 @@ async function readConductorMigrationData(
   };
 
   const conductorConfigPath = projectPath(project, CONDUCTOR_CONFIG_FILE);
-  const hasConductorConfig = await fileSystem.exists(conductorConfigPath);
+  const hasConductorConfig = await files.client.fs.exists(fileKey(files, conductorConfigPath));
   if (!hasConductorConfig.success) {
     log.warn('Failed to inspect Conductor config for migration', hasConductorConfig.error);
   }
   if (hasConductorConfig.success && hasConductorConfig.data) {
-    const content = await fileSystem.readText(conductorConfigPath);
+    const content = await files.client.fs.readText(fileKey(files, conductorConfigPath));
     if (!content.success) {
       log.warn('Failed to read Conductor config for migration', content.error);
     } else if (content.data.truncated) {
@@ -109,7 +108,7 @@ async function readConductorMigrationData(
   }
 
   const worktreeIncludePath = projectPath(project, CONDUCTOR_WORKTREE_INCLUDE_FILE);
-  const hasWorktreeInclude = await fileSystem.exists(worktreeIncludePath);
+  const hasWorktreeInclude = await files.client.fs.exists(fileKey(files, worktreeIncludePath));
   if (!hasWorktreeInclude.success) {
     log.warn(
       'Failed to inspect Conductor worktree include for migration',
@@ -117,7 +116,7 @@ async function readConductorMigrationData(
     );
   }
   if (hasWorktreeInclude.success && hasWorktreeInclude.data) {
-    const content = await fileSystem.readText(worktreeIncludePath);
+    const content = await files.client.fs.readText(fileKey(files, worktreeIncludePath));
     if (!content.success) {
       log.warn('Failed to read Conductor worktree include for migration', content.error);
       return data;
@@ -145,10 +144,7 @@ async function migrateConductorConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const fileSystem = openProjectFileSystem(project);
-    if (!fileSystem.success) return fileSystem;
-
-    const data = await readConductorMigrationData(project, fileSystem.data);
+    const data = await readConductorMigrationData(project, project.files);
     const migration = toConductorMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Conductor settings were found.');
@@ -163,7 +159,7 @@ async function migrateConductorConfig(
 
 export const conductorConfigMigrator: ProjectConfigMigrator = {
   provider: 'conductor',
-  inspect: async (project, fileSystem) =>
-    toConductorMigration(await readConductorMigrationData(project, fileSystem)),
+  inspect: async (project, files) =>
+    toConductorMigration(await readConductorMigrationData(project, files)),
   migrate: migrateConductorConfig,
 };

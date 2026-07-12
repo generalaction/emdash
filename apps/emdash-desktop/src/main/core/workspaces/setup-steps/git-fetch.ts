@@ -1,5 +1,6 @@
+import { gitContract } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
-import { gitErrorMessage } from '@main/core/git/runtime-git';
+import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-process/client';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/git-fetch';
 import type { StepContext } from './step-context';
 
@@ -15,12 +16,17 @@ export async function execute(
   ctx: StepContext
 ): Promise<Result<Step.Success, Step.Error>> {
   const { remote, refspec, force } = args;
-  const fetched = await ctx.gitRepository.fetch(remote, { refspec, force });
+  const fetched = await runGitJob(gitContract.repository.fetch, ctx.git.repository.fetch, {
+    ...ctx.repository,
+    remote,
+    refspec,
+    force,
+  });
   if (fetched.success) return ok({});
 
   const checkedOutBranch = destinationLocalBranch(refspec);
   if (checkedOutBranch) {
-    const worktrees = await ctx.gitRepository.listWorktrees();
+    const worktrees = await ctx.git.repository.listWorktrees(ctx.repository);
     if (
       worktrees.success &&
       worktrees.data.some(

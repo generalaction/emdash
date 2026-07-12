@@ -322,8 +322,6 @@ export class WorkspaceBootstrapService {
           projectPath: project.repoPath,
           settings: project.settings,
           logPrefix: 'WorkspaceBootstrapService',
-          gitRepository: project.gitRepository,
-          gitRepositoryFetchService: project.gitRepositoryFetchService,
         })
       );
     } catch (e) {

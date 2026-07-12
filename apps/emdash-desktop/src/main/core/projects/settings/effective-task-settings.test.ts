@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
 import { getEffectiveTaskSettings } from './effective-task-settings';
 import type { ProjectSettingsProvider } from './provider';
 
@@ -10,25 +10,32 @@ function makeProjectSettings(settings: Awaited<ReturnType<ProjectSettingsProvide
   } as unknown as ProjectSettingsProvider;
 }
 
-function makeTaskFs(config: unknown | null): Pick<IFileSystem, 'exists' | 'readText'> {
+function makeTaskFiles(config: unknown | null) {
+  const exists = vi.fn(async () => ok(config !== null));
+  const readText = vi.fn(async () =>
+    ok({
+      content: JSON.stringify(config),
+      truncated: false,
+      totalSize: 0,
+      etag: 'test-etag',
+    })
+  );
   return {
-    exists: vi.fn(async () => ok(config !== null)),
-    readText: vi.fn(async () =>
-      ok({
-        content: JSON.stringify(config),
-        truncated: false,
-        totalSize: 0,
-        etag: 'test-etag',
-      })
-    ),
+    files: filesClientScope({ fs: { exists, readText } } as never, '/worktree'),
+    exists,
+    readText,
   };
+}
+
+function taskFilesWith(exists: ReturnType<typeof vi.fn>, readText: ReturnType<typeof vi.fn>) {
+  return filesClientScope({ fs: { exists, readText } } as never, '/worktree');
 }
 
 describe('getEffectiveTaskSettings', () => {
   const taskConfigPath = '/worktree/.emdash.json';
 
   it('merges shareable project settings by leaf with project settings winning', async () => {
-    const taskFs = makeTaskFs({
+    const taskFiles = makeTaskFiles({
       scripts: { setup: 'pnpm install', run: 'npm run dev' },
       shellSetup: 'source .envrc',
       tmux: true,
@@ -39,12 +46,16 @@ describe('getEffectiveTaskSettings', () => {
         preservePatterns: ['.env.local'],
         scripts: { run: 'pnpm dev' },
       }),
-      taskFs,
+      taskFiles: taskFiles.files,
       taskConfigPath,
     });
 
-    expect(taskFs.exists).toHaveBeenCalledWith(taskConfigPath);
-    expect(taskFs.readText).toHaveBeenCalledWith(taskConfigPath);
+    expect(taskFiles.exists).toHaveBeenCalledWith(
+      expect.objectContaining({ relative: '.emdash.json' })
+    );
+    expect(taskFiles.readText).toHaveBeenCalledWith(
+      expect.objectContaining({ relative: '.emdash.json' })
+    );
     expect(settings).toMatchObject({
       preservePatterns: ['.env.local'],
       shellSetup: 'source .envrc',
@@ -61,12 +72,10 @@ describe('getEffectiveTaskSettings', () => {
   it('falls back to defaults plus project settings when the task config is invalid', async () => {
     const settings = await getEffectiveTaskSettings({
       projectSettings: makeProjectSettings({ shellSetup: 'nvm use' }),
-      taskFs: {
-        exists: vi.fn(async () => ok(true)),
-        readText: vi.fn(async () =>
-          ok({ content: '{', truncated: false, totalSize: 1, etag: 'test-etag' })
-        ),
-      },
+      taskFiles: taskFilesWith(
+        vi.fn(async () => ok(true)),
+        vi.fn(async () => ok({ content: '{', truncated: false, totalSize: 1, etag: 'test-etag' }))
+      ),
       taskConfigPath,
     });
 
@@ -80,17 +89,17 @@ describe('getEffectiveTaskSettings', () => {
       projectSettings: makeProjectSettings({
         scripts: { run: 'pnpm dev' },
       }),
-      taskFs: {
-        exists: vi.fn(async () => ok(true)),
-        readText: vi.fn(async () =>
+      taskFiles: taskFilesWith(
+        vi.fn(async () => ok(true)),
+        vi.fn(async () =>
           ok({
             content: '{"scripts":',
             truncated: true,
             totalSize: 204_801,
             etag: 'test-etag',
           })
-        ),
-      },
+        )
+      ),
       taskConfigPath,
     });
 
@@ -102,7 +111,7 @@ describe('getEffectiveTaskSettings', () => {
       projectSettings: makeProjectSettings({
         preservePatterns: 'not-an-array',
       } as never),
-      taskFs: makeTaskFs(null),
+      taskFiles: makeTaskFiles(null).files,
       taskConfigPath,
     });
 

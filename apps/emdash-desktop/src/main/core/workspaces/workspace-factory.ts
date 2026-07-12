@@ -1,11 +1,19 @@
 import path from 'node:path';
+import { filesContract, type FsError } from '@emdash/core/files';
+import { err, ok, type Result } from '@emdash/shared';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
-import { GitRepositoryService } from '@main/core/git/repository/service';
-import { RuntimeGit } from '@main/core/git/runtime-git';
+import {
+  fileRelativePath,
+  filesClientScope,
+  fsErrorMessage,
+  nativeFilePath,
+  runFilesJob,
+  type FileExclusionPredicate,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -36,16 +44,12 @@ type WorkspaceFactoryContext = {
   projectPath: string;
   settings: ProjectSettingsProvider;
   logPrefix: string;
-  gitRepository?: GitRepositoryService;
-  gitRepositoryFetchService?: GitRepositoryFetchService;
   extraHooks?: {
     onCreate?: (workspace: Workspace) => Promise<void>;
     onDestroy?: (workspace: Workspace) => Promise<void>;
     onDetach?: (workspace: Workspace) => Promise<void>;
   };
 };
-
-const git = new RuntimeGit();
 
 export function createWorkspaceFactory(
   workspaceId: string,
@@ -60,8 +64,8 @@ export function createWorkspaceFactory(
     }
 
     const workDir = context.workDir;
-    const fileSystem = new RuntimeFileSystem(workDir);
-    const gitCheckout = git.checkout(workDir);
+    const filesClient = await getFilesRuntimeClient();
+    const files = filesClientScope(filesClient, workDir);
     const configPath = path.join(workDir, '.emdash.json');
     const projectSettings = await context.settings.get();
     const defaultBranch = await context.settings.getDefaultBranch();
@@ -75,7 +79,7 @@ export function createWorkspaceFactory(
     });
     const taskLevelSettings = await getEffectiveTaskSettings({
       projectSettings: context.settings,
-      taskFs: fileSystem,
+      taskFiles: files,
       taskConfigPath: configPath,
     });
     const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
@@ -96,23 +100,13 @@ export function createWorkspaceFactory(
       workspaceId,
       terminals: workspaceTerminals,
     });
-    const gitRepository =
-      context.gitRepository ?? new GitRepositoryService(gitCheckout.repository, context.settings);
-    const ownsFetchService = !context.gitRepositoryFetchService;
-    const gitRepositoryFetchService =
-      context.gitRepositoryFetchService ??
-      new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
-
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
       configPath,
-      fileSystem,
-      gitCheckout,
+      files,
       settings: context.settings,
       lifecycleService,
-      gitRepository,
-      gitRepositoryFetchService,
     };
 
     return {
@@ -120,9 +114,8 @@ export function createWorkspaceFactory(
       onCreateSideEffect: (created) => {
         void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
           rootPath: created.path,
-          enumerate: (root, options) => created.fileSystem.enumerate(root, options),
+          enumerate: (root, options) => enumerateWorkspaceFiles(created.files, root, options),
         });
-        if (ownsFetchService) gitRepositoryFetchService.start();
         void runAutomaticScripts({
           workspace: created,
           context,
@@ -134,12 +127,11 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
       onDestroy: async (destroyed) => {
         await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        if (ownsFetchService) gitRepositoryFetchService.stop();
         workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
         const latestProjectSettings = await context.settings.get();
         const latestTaskSettings = await getEffectiveTaskSettings({
           projectSettings: context.settings,
-          taskFs: destroyed.fileSystem,
+          taskFiles: destroyed.files,
           taskConfigPath: destroyed.configPath,
         });
         const teardownScript = latestTaskSettings.scripts?.teardown;
@@ -281,7 +273,7 @@ export async function buildTaskProviders(
 
 export async function resolveTaskEnv(
   task: Pick<Task, 'id' | 'name'>,
-  workspace: Pick<Workspace, 'path' | 'fileSystem' | 'configPath'>,
+  workspace: Pick<Workspace, 'path' | 'files' | 'configPath'>,
   projectPath: string,
   settings: ProjectSettingsProvider
 ): Promise<{
@@ -293,7 +285,7 @@ export async function resolveTaskEnv(
   const defaultBranch = await settings.getDefaultBranch();
   const taskLevelSettings = await getEffectiveTaskSettings({
     projectSettings: settings,
-    taskFs: workspace.fileSystem,
+    taskFiles: workspace.files,
     taskConfigPath: workspace.configPath,
   });
   return {
@@ -308,4 +300,36 @@ export async function resolveTaskEnv(
     tmuxEnabled: projectSettings.tmux ?? false,
     shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
   };
+}
+
+function enumerateWorkspaceFiles(
+  files: FilesClientScope,
+  rootPath: string,
+  options: { exclude?: FileExclusionPredicate; includeSymlinkFiles?: boolean } = {}
+): Result<AsyncIterable<string>, FsError> {
+  let relative;
+  try {
+    relative = fileRelativePath(files, rootPath);
+  } catch (error) {
+    return err({
+      type: 'invalid-path',
+      path: rootPath,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return ok(
+    (async function* () {
+      const result = await runFilesJob(filesContract.fs.enumerate, files.client.fs.enumerate, {
+        root: files.root,
+        relative,
+        options: { includeSymlinkFiles: options.includeSymlinkFiles },
+      });
+      if (!result.success) throw new Error(fsErrorMessage(result.error));
+      for (const item of result.data.paths) {
+        const absolute = nativeFilePath(files, item);
+        if (!options.exclude?.(absolute)) yield absolute;
+      }
+    })()
+  );
 }

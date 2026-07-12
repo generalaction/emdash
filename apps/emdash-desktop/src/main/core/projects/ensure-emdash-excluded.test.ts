@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
 import { ensureEmdashGitExcluded } from './ensure-emdash-excluded';
 
 function statResult(path: string, type: 'file' | 'directory') {
@@ -9,8 +9,8 @@ function statResult(path: string, type: 'file' | 'directory') {
       path,
       type,
       size: 0,
-      mtime: new Date(0),
-      ctime: new Date(0),
+      mtimeMs: 0,
+      ctimeMs: 0,
       mode: type === 'directory' ? 0o040755 : 0o100644,
     },
   };
@@ -31,87 +31,95 @@ function makeFs(opts: {
   excludeContent?: string | null;
   truncated?: boolean;
 }) {
-  const writeText = vi.fn(async () => ({
+  const writeFile = vi.fn(async () => ({
     success: true as const,
-    data: { bytesWritten: 1 },
+    data: undefined,
   }));
-  const fs = {
-    stat: vi.fn(async (p: string) =>
-      p === '/repo/.git' && opts.gitType ? statResult(p, opts.gitType) : notFound(p)
-    ),
-    exists: vi.fn(async () => ({
-      success: true as const,
-      data: opts.excludeContent != null,
-    })),
-    readText: vi.fn(async () => ({
-      success: true as const,
-      data: {
-        content: opts.excludeContent ?? '',
-        truncated: opts.truncated ?? false,
-        totalSize: 0,
-        etag: 'test-etag',
-      },
-    })),
-    writeText,
-  } as unknown as IFileSystem;
-  return { fs, writeText };
+  const client = {
+    fs: {
+      stat: vi.fn(async ({ relative }: { relative: string }) =>
+        relative === '.git' && opts.gitType
+          ? statResult(relative, opts.gitType)
+          : notFound(relative)
+      ),
+      exists: vi.fn(async () => ({
+        success: true as const,
+        data: opts.excludeContent != null,
+      })),
+      readText: vi.fn(async () => ({
+        success: true as const,
+        data: {
+          content: opts.excludeContent ?? '',
+          truncated: opts.truncated ?? false,
+          totalSize: 0,
+          etag: 'test-etag',
+        },
+      })),
+    },
+    mutations: { writeFile },
+  };
+  return { files: filesClientScope(client as never, '/repo'), writeFile };
 }
 
 describe('ensureEmdashGitExcluded', () => {
   it('skips repos without a real .git directory (linked worktree / submodule)', async () => {
-    const { fs, writeText } = makeFs({ gitType: 'file', excludeContent: '' });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).not.toHaveBeenCalled();
+    const { files, writeFile } = makeFs({ gitType: 'file', excludeContent: '' });
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('skips when there is no .git at all', async () => {
-    const { fs, writeText } = makeFs({ excludeContent: '' });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).not.toHaveBeenCalled();
+    const { files, writeFile } = makeFs({ excludeContent: '' });
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('creates the exclude entry when info/exclude is missing', async () => {
-    const { fs, writeText } = makeFs({ gitType: 'directory', excludeContent: null });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).toHaveBeenCalledWith('/repo/.git/info/exclude', '.emdash/\n');
+    const { files, writeFile } = makeFs({ gitType: 'directory', excludeContent: null });
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '.git/info/exclude', content: '.emdash/\n' })
+    );
   });
 
   it('appends the entry, preserving existing exclude content', async () => {
-    const { fs, writeText } = makeFs({
+    const { files, writeFile } = makeFs({
       gitType: 'directory',
       excludeContent: '# git ls-files\nbuild/\n',
     });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).toHaveBeenCalledWith(
-      '/repo/.git/info/exclude',
-      '# git ls-files\nbuild/\n.emdash/\n'
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '.git/info/exclude',
+        content: '# git ls-files\nbuild/\n.emdash/\n',
+      })
     );
   });
 
   it('does nothing when .emdash/ is already excluded', async () => {
-    const { fs, writeText } = makeFs({
+    const { files, writeFile } = makeFs({
       gitType: 'directory',
       excludeContent: 'foo\n.emdash/\n',
     });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).not.toHaveBeenCalled();
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('treats a slashless .emdash entry as already excluded', async () => {
-    const { fs, writeText } = makeFs({ gitType: 'directory', excludeContent: '.emdash\n' });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).not.toHaveBeenCalled();
+    const { files, writeFile } = makeFs({ gitType: 'directory', excludeContent: '.emdash\n' });
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('does not rewrite when the exclude read was truncated', async () => {
     // A truncated view could miss an existing entry past the cut; rewriting it would
     // drop the tail of the file, so bail instead.
-    const { fs, writeText } = makeFs({
+    const { files, writeFile } = makeFs({
       gitType: 'directory',
       excludeContent: 'build/\n',
       truncated: true,
     });
-    await ensureEmdashGitExcluded(fs, '/repo');
-    expect(writeText).not.toHaveBeenCalled();
+    await ensureEmdashGitExcluded(files, '/repo');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 });

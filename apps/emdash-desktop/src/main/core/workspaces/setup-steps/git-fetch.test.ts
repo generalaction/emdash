@@ -1,17 +1,27 @@
 import { err, ok } from '@emdash/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute } from './git-fetch';
 import type { StepContext } from './step-context';
+
+const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
+
+vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+  ...(await importOriginal()),
+  runGitJob: runtime.runGitJob,
+}));
 
 function makeCtx(args: {
   fetch: ReturnType<typeof vi.fn>;
   listWorktrees: ReturnType<typeof vi.fn>;
 }) {
   return {
-    gitRepository: {
-      fetch: args.fetch,
-      listWorktrees: args.listWorktrees,
+    git: {
+      repository: {
+        fetch: args.fetch,
+        listWorktrees: args.listWorktrees,
+      },
     },
+    repository: { repository: {} },
   } as unknown as StepContext;
 }
 
@@ -22,6 +32,10 @@ const input = {
 } as const;
 
 describe('git-fetch setup step', () => {
+  beforeEach(() => {
+    runtime.runGitJob.mockImplementation((_definition, handle, jobInput) => handle(jobInput));
+  });
+
   it('treats a checked-out destination branch as already available', async () => {
     const fetch = vi.fn(async () =>
       err({ type: 'git_error' as const, message: 'refusing to fetch into checked out branch' })
@@ -40,10 +54,9 @@ describe('git-fetch setup step', () => {
       success: true,
       data: {},
     });
-    expect(fetch).toHaveBeenCalledWith('origin', {
-      refspec: input.refspec,
-      force: true,
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({ remote: 'origin', refspec: input.refspec, force: true })
+    );
   });
 
   it('returns the fetch failure when the destination branch is not checked out', async () => {

@@ -84,9 +84,13 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
 
   const remoteRepositoryUrl =
     !providedRepositoryUrl && selectedRemote
-      ? (await project.gitRepository.getRemotes().catch(() => [])).find(
-          (candidate) => candidate.name === selectedRemote
-        )?.url
+      ? (
+          await project.git.repository.model
+            .state(project.repository, 'remotes')
+            .snapshot()
+            .then((snapshot) => snapshot.data.remotes)
+            .catch(() => [])
+        ).find((candidate) => candidate.name === selectedRemote)?.url
       : undefined;
   const repositoryUrl = providedRepositoryUrl ?? remoteRepositoryUrl;
 

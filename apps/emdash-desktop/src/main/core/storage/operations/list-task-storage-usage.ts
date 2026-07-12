@@ -1,5 +1,11 @@
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import { fsErrorMessage, isFileNotFoundError } from '@main/core/files/scoped-file-system';
+import {
+  fileKey,
+  filesClientScope,
+  fsErrorMessage,
+  isFileNotFoundError,
+  nativeFilePath,
+} from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import { hasWorktreeGitMarker } from '@main/core/tasks/operations/task-lifecycle-utils';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
@@ -86,7 +92,9 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
     return { ...base, pathState: 'remote', canDelete: false };
   }
 
-  const usage = await new RuntimeFileSystem(row.workspacePath).measureUsage(row.workspacePath);
+  const filesClient = await getFilesRuntimeClient();
+  const files = filesClientScope(filesClient, row.workspacePath);
+  const usage = await filesClient.fs.measureUsage(fileKey(files, row.workspacePath));
   if (!usage.success) {
     if (isFileNotFoundError(usage.error)) {
       return { ...base, pathState: 'missing' };
@@ -102,7 +110,9 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
     return {
       ...base,
       pathState: 'error',
-      errors: [{ path: usage.data.path, message: 'Path is not a directory.' }],
+      errors: [
+        { path: nativeFilePath(files, usage.data.path), message: 'Path is not a directory.' },
+      ],
     };
   }
 
@@ -115,7 +125,10 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
     pathState,
     canDelete,
     reclaimableBytes: usage.data.exclusiveDiskBytes,
-    errors: usage.data.errors,
+    errors: usage.data.errors.map((error) => ({
+      path: nativeFilePath(files, error.path),
+      message: error.message,
+    })),
   };
 }
 

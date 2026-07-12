@@ -3,15 +3,16 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { fsErrorMessage } from '@main/core/files/scoped-file-system';
+import {
+  fileMutationKey,
+  fileRelativePath,
+  fsErrorMessage,
+  parentFilePaths,
+  singleFileChunk,
+} from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
-import {
-  hostPathFromNative,
-  nativePathFromHost,
-  portablePath,
-  resolveRelativePath,
-} from '@shared/core/runtime/paths';
+import { nativePathFromHost, portablePath, resolveRelativePath } from '@shared/core/runtime/paths';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { SSH_PROJECT_STATE_DIR_NAME } from '../settings/worktree-defaults';
 import { taskSessionManager } from '../tasks/task-session-manager';
@@ -142,9 +143,8 @@ export const ptyController = createRPCController({
   },
 
   /**
-   * Upload local files into the task's working directory on a remote SSH host
-   * and return their remote paths.  Uses the SFTP subsystem of the already-
-   * connected ssh2 client — no local ssh/scp binaries are involved.
+   * Upload local files into the task workspace through its Files runtime and
+   * return the resulting workspace paths.
    *
    * The session ID encodes the project and scope (`projectId:scopeId:leafId`),
    * where `scopeId` is a task ID for conversation uploads.
@@ -168,15 +168,22 @@ export const ptyController = createRPCController({
       // Writing to the root left every attached image behind as an untracked file
       // that dirtied `git status` and never got cleaned up (#2680).
       const uploadDir = `${SSH_PROJECT_STATE_DIR_NAME}/uploads`;
-      const workspaceRoot = hostPathFromNative(workspace.path);
+      const workspaceRoot = workspace.files.root;
       const uploadDirRoot = resolveRelativePath(workspaceRoot, portablePath(uploadDir));
       const uploadDirPath = nativePathFromHost(uploadDirRoot);
-      const madeUploadDir = await workspace.fileSystem.mkdir(uploadDirPath, { recursive: true });
-      if (!madeUploadDir.success) {
-        return err({
-          type: 'upload_failed' as const,
-          message: fsErrorMessage(madeUploadDir.error),
+      for (const relative of parentFilePaths(fileRelativePath(workspace.files, uploadDirPath))) {
+        const exists = await workspace.files.client.fs.exists({ root: workspaceRoot, relative });
+        if (!exists.success) {
+          return err({ type: 'upload_failed' as const, message: fsErrorMessage(exists.error) });
+        }
+        if (exists.data) continue;
+        const created = await workspace.files.client.mutations.createDirectory({
+          root: workspaceRoot,
+          path: relative,
         });
+        if (!created.success && created.error.type !== 'already-exists') {
+          return err({ type: 'upload_failed' as const, message: fsErrorMessage(created.error) });
+        }
       }
 
       const remotePaths = await Promise.all(
@@ -188,7 +195,15 @@ export const ptyController = createRPCController({
             )
           );
           const bytes = await readFile(localPath);
-          const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
+          const written = await workspace.files.client.fs.upload(
+            { ...fileMutationKey(workspace.files, remotePath), overwrite: true },
+            {
+              name: basename(remotePath),
+              mimeType: 'application/octet-stream',
+              size: bytes.byteLength,
+              source: singleFileChunk(bytes),
+            }
+          );
           if (!written.success) {
             throw new Error(fsErrorMessage(written.error));
           }

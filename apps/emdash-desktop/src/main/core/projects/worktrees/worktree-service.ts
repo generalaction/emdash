@@ -1,13 +1,31 @@
 import path from 'node:path';
-import type { GitBranchRef } from '@emdash/core/git';
+import { filesContract } from '@emdash/core/files';
+import {
+  gitContract,
+  type CheckoutSelector,
+  type GitBranchRef,
+  type RepositorySelector,
+} from '@emdash/core/git';
 import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import {
+  fileKey,
+  fileMutationKey,
+  fileRelativePath,
+  filesClientScope,
+  fsErrorMessage,
+  nativeFilePath,
+  runFilesJob,
+  singleFileChunk,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
+import type { FilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import {
   gitErrorMessage,
-  type RuntimeGitCheckout,
-  type RuntimeGitRepository,
-} from '@main/core/git/runtime-git';
+  gitFilePath,
+  mutationResult,
+  runGitJob,
+} from '@main/core/git/runtime-process/client';
+import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
 import {
   ensureAbsoluteDir,
   isRealPathContained,
@@ -15,7 +33,7 @@ import {
 } from '@main/core/runtime/files-helpers';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
+import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import {
   isSafePreservePattern,
@@ -36,26 +54,37 @@ export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
-  private readonly gitRepository: RuntimeGitRepository;
-  private readonly gitCheckout: RuntimeGitCheckout;
-  private readonly repoFileSystem: ScopedFileSystem;
+  private readonly git: GitRuntimeClient;
+  private readonly files: FilesRuntimeClient;
+  private readonly repository: RepositorySelector;
+  private readonly checkout: CheckoutSelector;
+  private readonly repoFiles: FilesClientScope;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     repoPath: string;
-    gitRepository: RuntimeGitRepository;
-    gitCheckout: RuntimeGitCheckout;
+    git: GitRuntimeClient;
+    files: FilesRuntimeClient;
+    repository: RepositorySelector;
+    checkout: CheckoutSelector;
     projectSettings: ProjectSettingsProvider;
     resolveWorktreePoolPath: () => Promise<string>;
   }) {
     this.resolveWorktreePoolPath = args.resolveWorktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
-    this.gitRepository = args.gitRepository;
-    this.gitCheckout = args.gitCheckout;
-    this.repoFileSystem = new RuntimeFileSystem(args.repoPath);
+    this.git = args.git;
+    this.files = args.files;
+    this.repository = args.repository;
+    this.checkout = args.checkout;
+    this.repoFiles = filesClientScope(args.files, args.repoPath);
 
-    void this.gitRepository.pruneWorktrees();
+    void mutationResult(
+      this.git.repository.model.mutate('pruneWorktrees', {
+        key: this.repository,
+        input: {},
+      })
+    );
   }
 
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -82,7 +111,7 @@ export class WorktreeService {
       prunable?: boolean;
     }>
   > {
-    const result = await this.gitRepository.listWorktrees();
+    const result = await this.git.repository.listWorktrees(this.repository);
     if (!result.success) return [];
     return result.data.map((worktree) => ({
       path: nativePathFromHost(worktree.worktreePath),
@@ -144,7 +173,8 @@ export class WorktreeService {
     const rootPath = containsNativePath(this.repoPath, absPath)
       ? this.repoPath
       : path.dirname(absPath);
-    const exists = await new RuntimeFileSystem(rootPath).exists(absPath);
+    const scope = filesClientScope(this.files, rootPath);
+    const exists = await this.files.fs.exists(fileKey(scope, absPath));
     return exists.success ? exists.data : false;
   }
 
@@ -157,7 +187,11 @@ export class WorktreeService {
     }
     const poolPath = await this.resolveWorktreePoolPath();
     const rootPath = containsNativePath(poolPath, absPath) ? poolPath : path.dirname(absPath);
-    const removed = await new RuntimeFileSystem(rootPath).remove(absPath, options);
+    const scope = filesClientScope(this.files, rootPath);
+    const removed = await this.files.mutations.delete({
+      ...fileMutationKey(scope, absPath),
+      recursive: options?.recursive,
+    });
     if (!removed.success) return err({ message: fsErrorMessage(removed.error) });
     return ok<void>();
   }
@@ -170,7 +204,12 @@ export class WorktreeService {
         !candidate.prunable
     );
     if (worktree) return worktree.path;
-    void this.gitRepository.pruneWorktrees();
+    void mutationResult(
+      this.git.repository.model.mutate('pruneWorktrees', {
+        key: this.repository,
+        input: {},
+      })
+    );
     return undefined;
   }
 
@@ -180,7 +219,7 @@ export class WorktreeService {
     if (!sourceBranch) return undefined;
 
     if (sourceBranch.type === 'local') {
-      const refs = await this.gitRepository.getRefs();
+      const refs = (await this.git.repository.model.state(this.repository, 'refs').snapshot()).data;
       return refs.branches.some(
         (branch) => branch.type === 'local' && branch.branch === sourceBranch.branch
       )
@@ -189,9 +228,12 @@ export class WorktreeService {
     }
 
     const remoteName = sourceBranch.remote.name;
-    await this.gitRepository.fetch(remoteName);
+    await runGitJob(gitContract.repository.fetch, this.git.repository.fetch, {
+      ...this.repository,
+      remote: remoteName,
+    });
     const remoteRef = `refs/remotes/${remoteName}/${sourceBranch.branch}`;
-    const refs = await this.gitRepository.getRefs();
+    const refs = (await this.git.repository.model.state(this.repository, 'refs').snapshot()).data;
     return refs.branches.some(
       (branch) =>
         branch.type === 'remote' &&
@@ -213,10 +255,18 @@ export class WorktreeService {
     baseRef: string | undefined
   ): Promise<void> {
     if (!baseRef) return;
-    const current = await this.gitRepository.getBranchBase(branchName);
+    const current = await this.git.repository.getBranchBase({
+      ...this.repository,
+      branch: branchName,
+    });
     if (current.success && current.data) return;
 
-    const result = await this.gitRepository.setBranchBase(branchName, baseRef);
+    const result = await mutationResult(
+      this.git.repository.model.mutate('setBranchBase', {
+        key: this.repository,
+        input: { branch: branchName, base: baseRef },
+      })
+    );
     if (!result.success) {
       log.warn('WorktreeService: failed to set branch base metadata', {
         branchName,
@@ -248,7 +298,12 @@ export class WorktreeService {
         !worktree.prunable
     );
     if (candidate) return candidate.path;
-    void this.gitRepository.pruneWorktrees();
+    void mutationResult(
+      this.git.repository.model.mutate('pruneWorktrees', {
+        key: this.repository,
+        input: {},
+      })
+    );
     return undefined;
   }
 
@@ -284,14 +339,19 @@ export class WorktreeService {
       }
       try {
         await this.removePathForReuse(targetPath);
-        await this.gitRepository.pruneWorktrees();
+        await mutationResult(
+          this.git.repository.model.mutate('pruneWorktrees', {
+            key: this.repository,
+            input: {},
+          })
+        );
       } catch (cause) {
         return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
     try {
-      const refs = await this.gitRepository.getRefs();
+      const refs = (await this.git.repository.model.state(this.repository, 'refs').snapshot()).data;
       const localExists = refs.branches.some(
         (branch) => branch.type === 'local' && branch.branch === branchName
       );
@@ -301,10 +361,12 @@ export class WorktreeService {
         if (!sourceRef) {
           return err({ type: 'branch-not-found', branch: sourceBranch?.branch ?? branchName });
         }
-        const created = await this.gitRepository.createBranch({
-          name: branchName,
-          from: sourceRef,
-        });
+        const created = await mutationResult(
+          this.git.repository.model.mutate('createBranch', {
+            key: this.repository,
+            input: { options: { name: branchName, from: sourceRef } },
+          })
+        );
         if (!created.success) throw new Error(gitErrorMessage(created.error));
       }
       await this.ensureBranchBaseConfig(branchName, baseConfigValue);
@@ -314,8 +376,23 @@ export class WorktreeService {
       if (!parentDir.success) {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
-      await this.gitRepository.pruneWorktrees();
-      const added = await this.gitRepository.addWorktree({ path: targetPath, ref: branchName });
+      await mutationResult(
+        this.git.repository.model.mutate('pruneWorktrees', {
+          key: this.repository,
+          input: {},
+        })
+      );
+      const added = await mutationResult(
+        this.git.repository.model.mutate('addWorktree', {
+          key: this.repository,
+          input: {
+            options: {
+              path: hostPathFromNative(targetPath),
+              ref: branchName,
+            },
+          },
+        })
+      );
       if (!added.success) throw new Error(gitErrorMessage(added.error));
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
@@ -373,7 +450,12 @@ export class WorktreeService {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       try {
         await this.removePathForReuse(targetPath);
-        await this.gitRepository.pruneWorktrees();
+        await mutationResult(
+          this.git.repository.model.mutate('pruneWorktrees', {
+            key: this.repository,
+            input: {},
+          })
+        );
       } catch (cause) {
         return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
@@ -386,9 +468,12 @@ export class WorktreeService {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
       for (const remoteName of remoteCandidates) {
-        await this.gitRepository.fetch(remoteName);
+        await runGitJob(gitContract.repository.fetch, this.git.repository.fetch, {
+          ...this.repository,
+          remote: remoteName,
+        });
       }
-      const refs = await this.gitRepository.getRefs();
+      const refs = (await this.git.repository.model.state(this.repository, 'refs').snapshot()).data;
       const localExists = refs.branches.some(
         (branch) => branch.type === 'local' && branch.branch === branchName
       );
@@ -406,17 +491,39 @@ export class WorktreeService {
           return err({ type: 'branch-not-found', branch: branchName });
         }
         const upstream = `${trackingRemote}/${branchName}`;
-        const created = await this.gitRepository.createBranch({
-          name: branchName,
-          from: upstream,
-        });
+        const created = await mutationResult(
+          this.git.repository.model.mutate('createBranch', {
+            key: this.repository,
+            input: { options: { name: branchName, from: upstream } },
+          })
+        );
         if (!created.success) throw new Error(gitErrorMessage(created.error));
-        const tracked = await this.gitRepository.setUpstream(branchName, upstream);
+        const tracked = await mutationResult(
+          this.git.repository.model.mutate('setUpstream', {
+            key: this.repository,
+            input: { branch: branchName, upstream },
+          })
+        );
         if (!tracked.success) throw new Error(gitErrorMessage(tracked.error));
       }
 
-      await this.gitRepository.pruneWorktrees();
-      const added = await this.gitRepository.addWorktree({ path: targetPath, ref: branchName });
+      await mutationResult(
+        this.git.repository.model.mutate('pruneWorktrees', {
+          key: this.repository,
+          input: {},
+        })
+      );
+      const added = await mutationResult(
+        this.git.repository.model.mutate('addWorktree', {
+          key: this.repository,
+          input: {
+            options: {
+              path: hostPathFromNative(targetPath),
+              ref: branchName,
+            },
+          },
+        })
+      );
       if (!added.success) throw new Error(gitErrorMessage(added.error));
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
@@ -435,34 +542,48 @@ export class WorktreeService {
   }
 
   async moveWorktree(oldPath: string, newPath: string): Promise<void> {
-    const moved = await this.gitRepository.moveWorktree(oldPath, newPath);
+    const moved = await mutationResult(
+      this.git.repository.model.mutate('moveWorktree', {
+        key: this.repository,
+        input: { from: hostPathFromNative(oldPath), to: hostPathFromNative(newPath) },
+      })
+    );
     if (!moved.success) throw new Error(gitErrorMessage(moved.error));
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    const removed = await this.gitRepository.removeWorktree(worktreePath, true);
+    const removed = await mutationResult(
+      this.git.repository.model.mutate('removeWorktree', {
+        key: this.repository,
+        input: { worktreePath: hostPathFromNative(worktreePath), force: true },
+      })
+    );
     if (!removed.success && (await this.existsAbsolute(worktreePath))) {
       await this.removePathForReuse(worktreePath);
     }
-    await this.gitRepository.pruneWorktrees();
-  }
-
-  private taskConfigFs(rootPath: string): ScopedFileSystem {
-    return new RuntimeFileSystem(rootPath);
+    await mutationResult(
+      this.git.repository.model.mutate('pruneWorktrees', {
+        key: this.repository,
+        input: {},
+      })
+    );
   }
 
   private async isTrackedSourcePath(absPath: string): Promise<boolean> {
     const relPath = path.relative(this.repoPath, absPath);
-    const tracked = await this.gitCheckout.isFileTracked(relPath);
+    const tracked = await this.git.checkout.isFileTracked({
+      ...this.checkout,
+      path: gitFilePath(relPath),
+    });
     return tracked.success && tracked.data;
   }
 
   private async copyPreservedFiles(targetPath: string): Promise<void> {
-    const taskFs = this.taskConfigFs(targetPath);
+    const taskFiles = filesClientScope(this.files, targetPath);
 
     const settings = await getEffectiveTaskSettings({
       projectSettings: this.projectSettings,
-      taskFs,
+      taskFiles,
       taskConfigPath: path.join(targetPath, '.emdash.json'),
     });
     const patterns = settings.preservePatterns ?? [];
@@ -471,7 +592,11 @@ export class WorktreeService {
         log.warn('WorktreeService: skipping unsafe preserve pattern', { pattern });
         continue;
       }
-      const matches = this.repoFileSystem.glob([pattern], { cwd: this.repoPath, dot: true });
+      const matches = await runFilesJob(filesContract.fs.glob, this.files.fs.glob, {
+        root: this.repoFiles.root,
+        patterns: [pattern],
+        options: { cwd: fileRelativePath(this.repoFiles, this.repoPath), dot: true },
+      });
       if (!matches.success) {
         log.warn('WorktreeService: failed to match preserve pattern', {
           pattern,
@@ -479,10 +604,11 @@ export class WorktreeService {
         });
         continue;
       }
-      for await (const absPath of matches.data) {
+      for (const relativePath of matches.data.paths) {
+        const absPath = nativeFilePath(this.repoFiles, relativePath);
         const relPath = preservedRepoRelativePath(nativePathOperations, this.repoPath, absPath);
         if (!relPath || (await this.isTrackedSourcePath(absPath))) continue;
-        const stat = await this.repoFileSystem.stat(absPath);
+        const stat = await this.files.fs.stat(fileKey(this.repoFiles, absPath));
         if (!stat.success || stat.data.type !== 'file') continue;
         const destPath = preservedDestinationPath(nativePathOperations, targetPath, relPath);
         if (!destPath) continue;
@@ -493,7 +619,7 @@ export class WorktreeService {
           });
           continue;
         }
-        const source = await this.repoFileSystem.readBytes(absPath);
+        const source = await this.files.fs.readBytes(fileKey(this.repoFiles, absPath));
         if (!source.success) {
           log.warn('WorktreeService: failed to copy preserved file', {
             sourcePath: absPath,
@@ -502,7 +628,16 @@ export class WorktreeService {
           });
           continue;
         }
-        const copied = await taskFs.writeBytes(destPath, source.data.bytes);
+        const bytes = await source.data.bytes();
+        const copied = await this.files.fs.upload(
+          { ...fileMutationKey(taskFiles, destPath), overwrite: true },
+          {
+            name: path.basename(destPath),
+            mimeType: 'application/octet-stream',
+            size: bytes.byteLength,
+            source: singleFileChunk(bytes),
+          }
+        );
         if (!copied.success) {
           log.warn('WorktreeService: failed to copy preserved file', {
             sourcePath: absPath,

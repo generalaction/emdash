@@ -1,13 +1,11 @@
 import { and, eq, ne } from 'drizzle-orm';
-import { RuntimeGit } from '@main/core/git/runtime-git';
+import { checkoutSelector } from '@main/core/git/runtime-process/client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
-
-const git = new RuntimeGit();
 
 async function getTaskPreflight(
   projectId: string,
@@ -52,7 +50,11 @@ async function getTaskPreflight(
       try {
         const worktreePath = await project.worktreeService.getWorktree(provisionedBranch);
         if (worktreePath) {
-          const status = await git.checkout(worktreePath).getStatus();
+          const status = (
+            await project.git.checkout.model
+              .state(checkoutSelector(worktreePath), 'status')
+              .snapshot()
+          ).data;
           if (status.kind === 'error') {
             log.warn('getDeletePreflight: git status check failed', {
               taskId,

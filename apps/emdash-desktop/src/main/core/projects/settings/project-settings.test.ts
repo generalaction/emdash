@@ -5,7 +5,7 @@ import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
@@ -23,25 +23,28 @@ function makeTrackingGit(isFileCleanlyTracked: boolean) {
 
 const projectId = () => `project-${randomUUID()}`;
 
-function makeLocalConfigReader(projectPath: string): Pick<IFileSystem, 'exists' | 'readText'> {
-  const resolvePath = (filePath: string) =>
-    path.isAbsolute(filePath) ? filePath : path.join(projectPath, filePath);
-  return {
-    exists: vi.fn(async (filePath: string) => ok(fs.existsSync(resolvePath(filePath)))),
-    readText: vi.fn(async (filePath: string) => {
-      try {
-        const content = fs.readFileSync(resolvePath(filePath), 'utf8');
-        return ok({
-          content,
-          truncated: false,
-          totalSize: Buffer.byteLength(content),
-          etag: 'test-etag',
-        });
-      } catch {
-        return err({ type: 'not-found' as const, path: filePath });
-      }
-    }),
+function makeLocalConfigFiles(projectPath: string) {
+  const client = {
+    fs: {
+      exists: vi.fn(async ({ relative }: { relative: string }) =>
+        ok(fs.existsSync(path.join(projectPath, relative)))
+      ),
+      readText: vi.fn(async ({ relative }: { relative: string }) => {
+        try {
+          const content = fs.readFileSync(path.join(projectPath, relative), 'utf8');
+          return ok({
+            content,
+            truncated: false,
+            totalSize: Buffer.byteLength(content),
+            etag: 'test-etag',
+          });
+        } catch {
+          return err({ type: 'not-found' as const, path: relative });
+        }
+      }),
+    },
   };
+  return filesClientScope(client as never, projectPath);
 }
 
 function makeLocalProvider(
@@ -55,7 +58,7 @@ function makeLocalProvider(
     projectId(),
     projectPath,
     'main',
-    makeLocalConfigReader(projectPath),
+    makeLocalConfigFiles(projectPath),
     {
       ...options,
       worktreeDirectoryFileSystem: {
@@ -79,22 +82,23 @@ function makeLocalProvider(
   );
 }
 
-function makeSshConfigReader(
-  config: unknown | null = null
-): Pick<IFileSystem, 'exists' | 'readText'> {
-  return {
-    exists: vi.fn(async () => ok(config !== null)),
-    readText: vi.fn(async (filePath: string) => {
-      if (config === null) return err({ type: 'not-found' as const, path: filePath });
-      const content = JSON.stringify(config);
-      return ok({
-        content,
-        truncated: false,
-        totalSize: Buffer.byteLength(content),
-        etag: 'test-etag',
-      });
-    }),
+function makeSshConfigFiles(config: unknown | null = null) {
+  const client = {
+    fs: {
+      exists: vi.fn(async () => ok(config !== null)),
+      readText: vi.fn(async ({ relative }: { relative: string }) => {
+        if (config === null) return err({ type: 'not-found' as const, path: relative });
+        const content = JSON.stringify(config);
+        return ok({
+          content,
+          truncated: false,
+          totalSize: Buffer.byteLength(content),
+          etag: 'test-etag',
+        });
+      }),
+    },
   };
+  return filesClientScope(client as never, '/remote/repo');
 }
 
 vi.mock('@main/core/settings/settings-service', () => ({
@@ -556,7 +560,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('normalizes and canonicalizes ssh absolute worktreeDirectory on update', async () => {
-    const projectFs = makeSshConfigReader();
+    const projectFs = makeSshConfigFiles();
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(ok()),
       realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
@@ -585,7 +589,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('rejects ssh relative worktreeDirectory values', async () => {
-    const projectFs = makeSshConfigReader();
+    const projectFs = makeSshConfigFiles();
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(ok()),
       realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
@@ -609,7 +613,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('uses project-scoped ssh default worktree directory when not configured', async () => {
-    const projectFs = makeSshConfigReader();
+    const projectFs = makeSshConfigFiles();
 
     const provider = new SshProjectSettingsProvider(
       projectId(),
@@ -623,7 +627,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('rejects tilde worktreeDirectory for ssh projects', async () => {
-    const projectFs = makeSshConfigReader();
+    const projectFs = makeSshConfigFiles();
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(ok()),
       realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
@@ -648,7 +652,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('falls back to project-scoped ssh default when configured directory is invalid', async () => {
-    const projectFs = makeSshConfigReader({ worktreeDirectory: '~/worktrees' });
+    const projectFs = makeSshConfigFiles({ worktreeDirectory: '~/worktrees' });
 
     const provider = new SshProjectSettingsProvider(
       projectId(),
@@ -662,7 +666,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   });
 
   it('expands and caches ssh home for tilde worktreeDirectory values', async () => {
-    const projectFs = makeSshConfigReader();
+    const projectFs = makeSshConfigFiles();
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(ok()),
       realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),

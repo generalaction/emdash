@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -16,7 +16,6 @@ import {
   applyProjectConfigMigration,
   errorMessage,
   normalizedCommandLines,
-  openProjectFileSystem,
   projectPath,
   setScript,
   writeConfigFailed,
@@ -82,7 +81,7 @@ function toSupersetMigration(data: SupersetMigrationData): ProjectConfigMigratio
 
 async function readSupersetMigrationData(
   project: ProjectProvider,
-  fileSystem: ScopedFileSystem
+  files: FilesClientScope
 ): Promise<SupersetMigrationData> {
   const data: SupersetMigrationData = {
     settings: {},
@@ -92,14 +91,14 @@ async function readSupersetMigrationData(
   };
 
   const supersetConfigPath = projectPath(project, SUPERSET_CONFIG_FILE);
-  const exists = await fileSystem.exists(supersetConfigPath);
+  const exists = await files.client.fs.exists(fileKey(files, supersetConfigPath));
   if (!exists.success) {
     log.warn('Failed to inspect Superset config for migration', exists.error);
     return data;
   }
   if (!exists.data) return data;
 
-  const content = await fileSystem.readText(supersetConfigPath);
+  const content = await files.client.fs.readText(fileKey(files, supersetConfigPath));
   if (!content.success) {
     log.warn('Failed to read Superset config for migration', content.error);
     return data;
@@ -137,10 +136,7 @@ async function migrateSupersetConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const fileSystem = openProjectFileSystem(project);
-    if (!fileSystem.success) return fileSystem;
-
-    const data = await readSupersetMigrationData(project, fileSystem.data);
+    const data = await readSupersetMigrationData(project, project.files);
     const migration = toSupersetMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Superset settings were found.');
@@ -155,7 +151,7 @@ async function migrateSupersetConfig(
 
 export const supersetConfigMigrator: ProjectConfigMigrator = {
   provider: 'superset',
-  inspect: async (project, fileSystem) =>
-    toSupersetMigration(await readSupersetMigrationData(project, fileSystem)),
+  inspect: async (project, files) =>
+    toSupersetMigration(await readSupersetMigrationData(project, files)),
   migrate: migrateSupersetConfig,
 };

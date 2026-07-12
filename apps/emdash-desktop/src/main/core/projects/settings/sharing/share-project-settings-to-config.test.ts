@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
+import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
@@ -48,41 +48,49 @@ function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
       content,
     ])
   );
-  const fileSystem = {
-    exists: vi.fn(async (filePath: string) => ok(files.has(filePath))),
-    readText: vi.fn(async (filePath: string) => {
-      const content = files.get(filePath);
-      if (content === undefined) {
-        return err({
-          type: 'not-found' as const,
-          path: filePath,
-        });
-      }
-      return ok({
-        content,
-        truncated: false,
-        totalSize: Buffer.byteLength(content),
-        etag: 'test-etag',
+  const exists = vi.fn(async (filePath: string) => ok(files.has(filePath)));
+  const readText = vi.fn(async (filePath: string) => {
+    const content = files.get(filePath);
+    if (content === undefined) {
+      return err({
+        type: 'not-found' as const,
+        path: filePath,
       });
-    }),
-    writeText: vi.fn(async (filePath: string, content: string) => {
-      files.set(filePath, content);
-      return ok({ bytesWritten: Buffer.byteLength(content) });
-    }),
-    readBytes: vi.fn(),
-    writeBytes: vi.fn(),
-    stat: vi.fn(),
-    mkdir: vi.fn(),
-    remove: vi.fn(),
-    realPath: vi.fn(),
-    copyFile: vi.fn(),
-    glob: vi.fn(),
-    enumerate: vi.fn(),
+    }
+    return ok({
+      content,
+      truncated: false,
+      totalSize: Buffer.byteLength(content),
+      etag: 'test-etag',
+    });
+  });
+  const writeText = vi.fn(async (filePath: string, content: string) => {
+    files.set(filePath, content);
+    return ok({ bytesWritten: Buffer.byteLength(content) });
+  });
+  const resolve = (relative: string) => joinPath(repoPath, relative);
+  const clientReadText = vi.fn(({ relative }: { relative: string }) => readText(resolve(relative)));
+  const writeFile = vi.fn(({ path, content }: { path: string; content: string }) =>
+    writeText(resolve(path), content).then((result) => (result.success ? ok(undefined) : result))
+  );
+  const scope = filesClientScope(
+    {
+      fs: {
+        exists: ({ relative }: { relative: string }) => exists(resolve(relative)),
+        readText: clientReadText,
+      },
+      mutations: { writeFile },
+    } as never,
+    repoPath
+  );
+  return Object.assign(scope, {
+    exists,
+    readText,
+    writeText,
     content(filePath: string) {
       return files.get(filePath) ?? files.get(`${repoPath}/${filePath}`);
     },
-  };
-  return fileSystem as unknown as IFileSystem & typeof fileSystem;
+  });
 }
 
 function joinPath(...parts: string[]): string {
@@ -93,11 +101,11 @@ function configPathForDirectory(directoryPath: string): string {
   return joinPath(directoryPath, '.emdash.json');
 }
 
-function projectFixture(fileSystem: IFileSystem, overrides: Record<string, unknown> = {}) {
+function projectFixture(files: FilesClientScope, overrides: Record<string, unknown> = {}) {
   return {
     projectId: 'project-1',
     repoPath,
-    fileSystem,
+    files,
     projectConfigPath: configPath,
     resolveProjectPath: (relativePath: string) => joinPath(repoPath, relativePath),
     configPathForDirectory,
@@ -106,16 +114,16 @@ function projectFixture(fileSystem: IFileSystem, overrides: Record<string, unkno
   };
 }
 
-function workspaceFixture(workspacePath: string, fileSystem: IFileSystem) {
+function workspaceFixture(workspacePath: string, files: FilesClientScope) {
   return {
     path: workspacePath,
-    fileSystem,
+    files,
     configPath: configPathForDirectory(workspacePath),
   };
 }
 
-function projectTarget(fileSystem: IFileSystem) {
-  return { type: 'project' as const, label: 'Repo Name', path: repoPath, fileSystem, configPath };
+function projectTarget(files: FilesClientScope) {
+  return { type: 'project' as const, label: 'Repo Name', path: repoPath, files, configPath };
 }
 
 describe('shareProjectSettingsToConfig', () => {
@@ -266,16 +274,10 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('returns an error when the filesystem reports an unsuccessful write', async () => {
     const patch = vi.fn();
-    const fileSystem = {
-      ...createMemoryFileSystem(),
-      writeText: vi.fn(async (filePath: string) =>
-        err({
-          type: 'io' as const,
-          path: filePath,
-          message: 'permission denied',
-        })
-      ),
-    };
+    const fileSystem = createMemoryFileSystem();
+    vi.mocked(fileSystem.client.mutations.writeFile).mockResolvedValue(
+      err({ type: 'io' as const, path: '.emdash.json', message: 'permission denied' })
+    );
     const project = {
       settings: {
         get: vi.fn().mockResolvedValue({
@@ -291,7 +293,7 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns'],
       },
-      [projectTarget(fileSystem as never)]
+      [projectTarget(fileSystem)]
     );
 
     expect(result).toEqual({
@@ -373,17 +375,15 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('does not overwrite an existing .emdash.json when the read is truncated', async () => {
-    const fileSystem = {
-      ...createMemoryFileSystem({ '.emdash.json': '{"shellSetup":' }),
-      readText: vi.fn(async () =>
-        ok({
-          content: '{"shellSetup":',
-          truncated: true,
-          totalSize: 204_801,
-          etag: 'test-etag',
-        })
-      ),
-    };
+    const fileSystem = createMemoryFileSystem({ '.emdash.json': '{"shellSetup":' });
+    vi.mocked(fileSystem.client.fs.readText).mockResolvedValue(
+      ok({
+        content: '{"shellSetup":',
+        truncated: true,
+        totalSize: 204_801,
+        etag: 'test-etag',
+      })
+    );
     const project = {
       settings: {
         get: vi.fn().mockResolvedValue({
@@ -399,7 +399,7 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns'],
       },
-      [projectTarget(fileSystem as never)]
+      [projectTarget(fileSystem)]
     );
 
     expect(result).toEqual({

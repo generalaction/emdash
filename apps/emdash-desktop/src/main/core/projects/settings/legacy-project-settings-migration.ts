@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
@@ -22,7 +22,7 @@ import type { ProjectSettingsStorage, StoredProjectSettings } from './project-se
 export type LegacyProjectSettingsMigrationArgs = {
   projectId: string;
   row: StoredProjectSettings | undefined;
-  configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined;
+  configFiles: FilesClientScope | undefined;
   configPath: string;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
@@ -50,7 +50,7 @@ function normalizeLegacyDefaultBranch(
 }
 
 async function readLegacyProjectConfig(
-  configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined,
+  configFiles: FilesClientScope | undefined,
   configPath: string
 ): Promise<
   | (BaseProjectSettings & {
@@ -58,15 +58,15 @@ async function readLegacyProjectConfig(
     })
   | undefined
 > {
-  if (!configReader) return undefined;
+  if (!configFiles) return undefined;
   try {
-    const exists = await configReader.exists(configPath);
+    const exists = await configFiles.client.fs.exists(fileKey(configFiles, configPath));
     if (!exists.success) {
       log.warn('Failed to check legacy .emdash.json for migration', exists.error);
       return undefined;
     }
     if (!exists.data) return undefined;
-    const content = await configReader.readText(configPath);
+    const content = await configFiles.client.fs.readText(fileKey(configFiles, configPath));
     if (!content.success) {
       log.warn('Failed to read legacy .emdash.json for migration', content.error);
       return undefined;
@@ -93,7 +93,7 @@ async function readLegacyProjectConfig(
 export async function migrateLegacyProjectSettingsIfNeeded({
   projectId,
   row,
-  configReader,
+  configFiles,
   configPath,
   defaultBranchFallback,
   storage,
@@ -119,7 +119,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     'shareable project settings'
   );
   const { remote, ...currentSettings } = current;
-  const legacy = await readLegacyProjectConfig(configReader, configPath);
+  const legacy = await readLegacyProjectConfig(configFiles, configPath);
   const next: BaseProjectSettings = baseProjectSettingsSchema.parse({
     ...currentSettings,
     baseRemote: currentSettings.baseRemote ?? remote,

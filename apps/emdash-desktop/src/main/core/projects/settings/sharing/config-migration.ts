@@ -1,5 +1,9 @@
 import type { Result } from '@emdash/shared';
-import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import {
+  fileKey,
+  fsErrorMessage,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
@@ -9,12 +13,7 @@ import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import { codexConfigMigrator } from './codex-config-migration';
 import { conductorConfigMigrator } from './conductor-config-migration';
-import {
-  errorMessage,
-  openProjectFileSystem,
-  projectPath,
-  writeConfigFailed,
-} from './config-migration-utils';
+import { errorMessage, projectPath, writeConfigFailed } from './config-migration-utils';
 import { paseoConfigMigrator } from './paseo-config-migration';
 import { supersetConfigMigrator } from './superset-config-migration';
 import { CONFIG_FILE } from './workspace-config-file';
@@ -23,7 +22,7 @@ export type ProjectConfigMigrator = {
   provider: ProjectConfigMigration['provider'];
   inspect: (
     project: ProjectProvider,
-    fileSystem: ScopedFileSystem
+    files: FilesClientScope
   ) => Promise<ProjectConfigMigration | null>;
   migrate: (
     project: ProjectProvider,
@@ -45,13 +44,8 @@ function projectConfigPath(project: ProjectProvider): string {
 export async function inspectProjectConfigMigrations(
   project: ProjectProvider
 ): Promise<ProjectConfigMigration[]> {
-  const fileSystem = openProjectFileSystem(project);
-  if (!fileSystem.success) {
-    log.warn('Failed to open project file system before config migration', fileSystem.error);
-    return [];
-  }
-
-  const existingConfig = await fileSystem.data.exists(projectConfigPath(project));
+  const configPath = projectConfigPath(project);
+  const existingConfig = await project.files.client.fs.exists(fileKey(project.files, configPath));
   if (!existingConfig.success) {
     log.warn(`Failed to inspect ${CONFIG_FILE} before config migration`, existingConfig.error);
     return [];
@@ -61,7 +55,7 @@ export async function inspectProjectConfigMigrations(
   const migrations = await Promise.all(
     PROJECT_CONFIG_MIGRATORS.map(async (migrator) => {
       try {
-        return await migrator.inspect(project, fileSystem.data);
+        return await migrator.inspect(project, project.files);
       } catch (error) {
         log.warn(`Failed to inspect ${migrator.provider} config for migration`, error);
         return null;
@@ -77,10 +71,8 @@ export async function migrateProjectConfigFromProvider(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const fileSystem = openProjectFileSystem(project);
-    if (!fileSystem.success) return fileSystem;
-
-    const existingConfig = await fileSystem.data.exists(projectConfigPath(project));
+    const configPath = projectConfigPath(project);
+    const existingConfig = await project.files.client.fs.exists(fileKey(project.files, configPath));
     if (!existingConfig.success) {
       return writeConfigFailed(
         `Could not check existing ${CONFIG_FILE}: ${fsErrorMessage(existingConfig.error)}`

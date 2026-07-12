@@ -1,28 +1,20 @@
 import path from 'node:path';
 import type { FsError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import type { FileStat, ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import {
-  isRealPathContained as isRealPathContainedByRealPath,
-  realPathNearestExisting as realPathNearestExistingByRealPath,
-} from '../files/realpath-containment';
+  fileKey,
+  fileRelativePath,
+  filesClientScope,
+  parentFilePaths,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
+import { isRealPathContained as isRealPathContainedByRealPath } from '../files/realpath-containment';
 
-export type AbsoluteDirectoryFileSystem = {
-  mkdir(path: string, options?: { recursive?: boolean }): Promise<Result<void, FsError>>;
-  realPath(path: string): Promise<Result<string, FsError>>;
-};
-
-export function openFileSystem(rootPath: string): Result<ScopedFileSystem, FsError> {
+async function openFilesClientScope(rootPath: string): Promise<Result<FilesClientScope, FsError>> {
   if (!path.isAbsolute(rootPath)) return err(expectedAbsolutePath(rootPath));
-  return ok(new RuntimeFileSystem(rootPath));
-}
-
-export function absoluteDirectoryFileSystem(rootPath: string): AbsoluteDirectoryFileSystem {
-  return {
-    mkdir: (absPath, options) => ensureAbsoluteDir(rootPath, absPath, options),
-    realPath: (absPath) => realPathAbsolute(rootPath, absPath),
-  };
+  return ok(filesClientScope(await getFilesRuntimeClient(), rootPath));
 }
 
 export async function ensureAbsoluteDir(
@@ -39,41 +31,25 @@ export async function ensureAbsoluteDir(
   }
 
   const recursive = options.recursive ?? true;
+  const client = await getFilesRuntimeClient();
   const volumeRoot = path.parse(resolvedRoot).root;
-  const rootReady = await new RuntimeFileSystem(volumeRoot).mkdir(resolvedRoot, { recursive });
+  const rootReady = await ensureDirectory(filesClientScope(client, volumeRoot), resolvedRoot, {
+    recursive,
+  });
   if (!rootReady.success) return rootReady;
 
-  return new RuntimeFileSystem(resolvedRoot).mkdir(resolvedPath, { recursive });
+  return ensureDirectory(filesClientScope(client, resolvedRoot), resolvedPath, { recursive });
 }
 
 export async function realPathAbsolute(
   rootPath: string,
   absPath: string
 ): Promise<Result<string, FsError>> {
-  const opened = openFileSystem(rootPath);
+  const opened = await openFilesClientScope(rootPath);
   if (!opened.success) return opened;
   if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
-  return opened.data.realPath(absPath);
-}
-
-export async function statAbsolute(
-  rootPath: string,
-  absPath: string
-): Promise<Result<FileStat, FsError>> {
-  const opened = openFileSystem(rootPath);
-  if (!opened.success) return opened;
-  if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
-  return opened.data.stat(absPath);
-}
-
-export async function realPathNearestExisting(
-  rootPath: string,
-  absPath: string
-): Promise<Result<string, FsError>> {
-  const opened = openFileSystem(rootPath);
-  if (!opened.success) return opened;
-  if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
-  return realPathNearestExistingByRealPath(opened.data, nativePathOperations, absPath);
+  const result = await opened.data.client.fs.realPath(fileKey(opened.data, absPath));
+  return result.success ? ok(nativePathFromHost(result.data)) : result;
 }
 
 export async function isRealPathContained(
@@ -81,7 +57,7 @@ export async function isRealPathContained(
   candidatePath: string,
   options: { candidateMustExist?: boolean } = {}
 ): Promise<Result<boolean, FsError>> {
-  const opened = openFileSystem(rootPath);
+  const opened = await openFilesClientScope(rootPath);
   if (!opened.success) return opened;
   if (!path.isAbsolute(candidatePath)) return err(expectedAbsolutePath(candidatePath));
   return isRealPathContainedByRealPath(
@@ -91,6 +67,27 @@ export async function isRealPathContained(
     candidatePath,
     options
   );
+}
+
+async function ensureDirectory(
+  files: FilesClientScope,
+  targetPath: string,
+  options: { recursive?: boolean }
+): Promise<Result<void, FsError>> {
+  const relative = fileRelativePath(files, targetPath);
+  if (!relative) return ok<void>();
+  const candidates = options.recursive ? parentFilePaths(relative) : [relative];
+  for (const candidate of candidates) {
+    const exists = await files.client.fs.exists({ root: files.root, relative: candidate });
+    if (!exists.success) return exists;
+    if (exists.data) continue;
+    const created = await files.client.mutations.createDirectory({
+      root: files.root,
+      path: candidate,
+    });
+    if (!created.success && created.error.type !== 'already-exists') return created;
+  }
+  return ok<void>();
 }
 
 const nativePathOperations = {

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
@@ -31,12 +31,6 @@ export function errorMessage(error: unknown): string {
 
 export function projectPath(project: ProjectProvider, relPath: string): string {
   return project.resolveProjectPath(relPath);
-}
-
-export function openProjectFileSystem(
-  project: ProjectProvider
-): Result<ScopedFileSystem, UpdateProjectSettingsError> {
-  return ok(project.fileSystem);
 }
 
 export function trimmedText(value: string | undefined): string | undefined {
@@ -87,13 +81,12 @@ export async function applyProjectConfigMigration(
     return ok(migration);
   }
 
-  const fileSystem = openProjectFileSystem(project);
-  if (!fileSystem.success) return fileSystem;
-
-  const written = await fileSystem.data.writeText(
-    projectPath(project, CONFIG_FILE),
-    `${JSON.stringify(data.settings, null, 2)}\n`
-  );
+  const configPath = projectPath(project, CONFIG_FILE);
+  const written = await project.files.client.mutations.writeFile({
+    ...fileMutationKey(project.files, configPath),
+    content: `${JSON.stringify(data.settings, null, 2)}\n`,
+    precondition: { kind: 'overwrite' },
+  });
   if (!written.success) {
     return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);
   }

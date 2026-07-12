@@ -1,6 +1,16 @@
 import path from 'node:path';
+import { filesContract } from '@emdash/core/files';
 import { ok, type Result } from '@emdash/shared';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
+import {
+  fileKey,
+  fileMutationKey,
+  fileRelativePath,
+  filesClientScope,
+  nativeFilePath,
+  runFilesJob,
+  singleFileChunk,
+} from '@main/core/files/runtime-process/client';
+import { gitFilePath } from '@main/core/git/runtime-process/client';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import {
   isSafePreservePattern,
@@ -23,10 +33,10 @@ export async function execute(
   }
 
   try {
-    const taskFs = new RuntimeFileSystem(targetPath);
+    const taskFiles = filesClientScope(ctx.files.client, targetPath);
     const settings = await getEffectiveTaskSettings({
       projectSettings: ctx.projectSettings,
-      taskFs,
+      taskFiles,
       taskConfigPath: path.join(targetPath, '.emdash.json'),
     });
 
@@ -35,7 +45,11 @@ export async function execute(
         log.warn('setup-steps/copy-preserved-files: skipping unsafe preserve pattern', { pattern });
         continue;
       }
-      const matches = ctx.fileSystem.glob([pattern], { cwd: ctx.repoPath, dot: true });
+      const matches = await runFilesJob(filesContract.fs.glob, ctx.files.client.fs.glob, {
+        root: ctx.files.root,
+        patterns: [pattern],
+        options: { cwd: fileRelativePath(ctx.files, ctx.repoPath), dot: true },
+      });
       if (!matches.success) {
         log.warn('setup-steps/copy-preserved-files: failed to match preserve pattern', {
           pattern,
@@ -43,19 +57,29 @@ export async function execute(
         });
         continue;
       }
-      for await (const absPath of matches.data) {
+      for (const relativePath of matches.data.paths) {
+        const absPath = nativeFilePath(ctx.files, relativePath);
         const relPath = preservedRepoRelativePath(nativePathOperations, ctx.repoPath, absPath);
         if (!relPath || (await isTrackedSourcePath(relPath, ctx))) continue;
-        const stat = await ctx.fileSystem.stat(absPath);
+        const stat = await ctx.files.client.fs.stat(fileKey(ctx.files, absPath));
         if (!stat.success || stat.data.type !== 'file') continue;
         const destPath = preservedDestinationPath(nativePathOperations, targetPath, relPath);
         if (!destPath) continue;
         const contained = await isRealPathContained(targetPath, destPath);
         if (!contained.success || !contained.data) continue;
 
-        const source = await ctx.fileSystem.readBytes(absPath);
+        const source = await ctx.files.client.fs.readBytes(fileKey(ctx.files, absPath));
         if (!source.success) continue;
-        const copied = await taskFs.writeBytes(destPath, source.data.bytes);
+        const bytes = await source.data.bytes();
+        const copied = await taskFiles.client.fs.upload(
+          { ...fileMutationKey(taskFiles, destPath), overwrite: true },
+          {
+            name: path.basename(destPath),
+            mimeType: 'application/octet-stream',
+            size: bytes.byteLength,
+            source: singleFileChunk(bytes),
+          }
+        );
         if (!copied.success) {
           log.warn('setup-steps/copy-preserved-files: failed to copy preserved file', {
             sourcePath: absPath,
@@ -76,7 +100,10 @@ export async function execute(
 }
 
 async function isTrackedSourcePath(relativePath: string, ctx: StepContext): Promise<boolean> {
-  const result = await ctx.gitCheckout.getFileAtIndex(relativePath);
+  const result = await ctx.git.checkout.getFileAtIndex({
+    ...ctx.checkout,
+    filePath: gitFilePath(relativePath),
+  });
   return result.success && result.data !== null;
 }
 

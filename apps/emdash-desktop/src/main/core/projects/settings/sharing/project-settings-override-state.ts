@@ -1,3 +1,4 @@
+import { fileKey } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   emptyProjectSettingsOverrideState,
@@ -15,10 +16,14 @@ export async function computeProjectSettingsOverrideState(
 
   for (const resolved of targets) {
     try {
-      const exists = await resolved.fileSystem.exists(resolved.configPath);
+      const exists = await resolved.files.client.fs.exists(
+        fileKey(resolved.files, resolved.configPath)
+      );
       if (!exists.success || !exists.data) continue;
 
-      const content = await resolved.fileSystem.readText(resolved.configPath);
+      const content = await resolved.files.client.fs.readText(
+        fileKey(resolved.files, resolved.configPath)
+      );
       if (!content.success) continue;
       if (content.data.truncated) {
         log.warn('Project settings override source was truncated', {

@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import type { FilesClientScope } from '@main/core/files/runtime-process/client';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
@@ -29,10 +29,10 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
     projectId: string,
     projectPath: string,
     defaultBranchFallback: string = 'main',
-    configReader: Pick<ScopedFileSystem, 'exists' | 'readText'>,
+    files: FilesClientScope,
     private readonly localOptions: LocalProjectSettingsProviderOptions
   ) {
-    super(projectId, projectPath, defaultBranchFallback, configReader, path.join, localOptions);
+    super(projectId, projectPath, defaultBranchFallback, files, path.join, localOptions);
   }
 
   protected defaultWorktreeDirectory(): Promise<string> {

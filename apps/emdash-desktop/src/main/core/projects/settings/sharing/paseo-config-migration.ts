@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -17,7 +17,6 @@ import {
   applyProjectConfigMigration,
   errorMessage,
   normalizedCommandLines,
-  openProjectFileSystem,
   projectPath,
   writeConfigFailed,
 } from './config-migration-utils';
@@ -88,7 +87,7 @@ function addUnsupportedScripts(
 
 async function readPaseoMigrationData(
   project: ProjectProvider,
-  fileSystem: ScopedFileSystem
+  files: FilesClientScope
 ): Promise<PaseoMigrationData> {
   const data: PaseoMigrationData = {
     settings: {},
@@ -98,14 +97,14 @@ async function readPaseoMigrationData(
   };
 
   const paseoConfigPath = projectPath(project, PASEO_CONFIG_FILE);
-  const exists = await fileSystem.exists(paseoConfigPath);
+  const exists = await files.client.fs.exists(fileKey(files, paseoConfigPath));
   if (!exists.success) {
     log.warn('Failed to inspect Paseo config for migration', exists.error);
     return data;
   }
   if (!exists.data) return data;
 
-  const content = await fileSystem.readText(paseoConfigPath);
+  const content = await files.client.fs.readText(fileKey(files, paseoConfigPath));
   if (!content.success) {
     log.warn('Failed to read Paseo config for migration', content.error);
     return data;
@@ -136,10 +135,7 @@ async function migratePaseoConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const fileSystem = openProjectFileSystem(project);
-    if (!fileSystem.success) return fileSystem;
-
-    const data = await readPaseoMigrationData(project, fileSystem.data);
+    const data = await readPaseoMigrationData(project, project.files);
     const migration = toPaseoMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Paseo settings were found.');
@@ -154,7 +150,6 @@ async function migratePaseoConfig(
 
 export const paseoConfigMigrator: ProjectConfigMigrator = {
   provider: 'paseo',
-  inspect: async (project, fileSystem) =>
-    toPaseoMigration(await readPaseoMigrationData(project, fileSystem)),
+  inspect: async (project, files) => toPaseoMigration(await readPaseoMigrationData(project, files)),
   migrate: migratePaseoConfig,
 };

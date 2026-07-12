@@ -2,7 +2,9 @@ import path from 'node:path';
 import type { GitRefsState } from '@emdash/core/git';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RuntimeGitCheckout, RuntimeGitRepository } from '@main/core/git/runtime-git';
+import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-process/client';
+import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
+import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { WorktreeService } from './worktree-service';
 
@@ -10,40 +12,29 @@ const fileSystem = vi.hoisted(() => ({
   existing: new Set<string>(),
   removed: [] as string[],
 }));
+const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
+const filesRuntime = vi.hoisted(() => ({ client: undefined as unknown }));
 
-vi.mock('@main/core/files/runtime-files', () => ({
-  RuntimeFileSystem: class {
-    async exists(targetPath: string) {
-      return ok(fileSystem.existing.has(path.resolve(targetPath)));
-    }
+vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+  ...(await importOriginal()),
+  runGitJob: runtime.runGitJob,
+}));
 
-    async mkdir(targetPath: string) {
-      fileSystem.existing.add(path.resolve(targetPath));
-      return ok<void>();
-    }
-
-    async realPath(targetPath: string) {
-      return ok(path.resolve(targetPath));
-    }
-
-    async remove(targetPath: string) {
-      const resolved = path.resolve(targetPath);
-      fileSystem.removed.push(resolved);
-      fileSystem.existing.delete(resolved);
-      return ok<void>();
-    }
-  },
+vi.mock('@main/core/files/runtime-process/host', () => ({
+  getFilesRuntimeClient: async () => filesRuntime.client,
 }));
 
 describe('WorktreeService runtime orchestration', () => {
   beforeEach(() => {
     fileSystem.existing.clear();
     fileSystem.removed.length = 0;
+    runtime.runGitJob.mockImplementation((_definition, handle, input) => handle(input));
+    filesRuntime.client = makeFilesClient();
   });
 
   it('creates a local branch and worktree from the selected source branch', async () => {
     const git = makeGitRepository({ refs: refs(localBranch('main')) });
-    const service = makeService(git.repository);
+    const service = makeService(git.client);
 
     const result = await service.checkoutBranchWorktree(
       { type: 'local', branch: 'main' },
@@ -52,14 +43,15 @@ describe('WorktreeService runtime orchestration', () => {
     );
 
     expect(result).toEqual(ok(path.join('/pool', 'task/feature')));
-    expect(git.repository.createBranch).toHaveBeenCalledWith({
-      name: 'task/feature',
-      from: 'refs/heads/main',
+    expectMutation(git.mutate, 'createBranch', {
+      options: { name: 'task/feature', from: 'refs/heads/main' },
     });
-    expect(git.repository.setBranchBase).toHaveBeenCalledWith('task/feature', 'main');
-    expect(git.repository.addWorktree).toHaveBeenCalledWith({
-      path: path.join('/pool', 'task/feature'),
-      ref: 'task/feature',
+    expectMutation(git.mutate, 'setBranchBase', { branch: 'task/feature', base: 'main' });
+    expectMutation(git.mutate, 'addWorktree', {
+      options: {
+        path: hostPath(path.join('/pool', 'task/feature')),
+        ref: 'task/feature',
+      },
     });
   });
 
@@ -72,7 +64,7 @@ describe('WorktreeService runtime orchestration', () => {
         },
       ],
     });
-    const service = makeService(git.repository);
+    const service = makeService(git.client);
 
     const result = await service.checkoutBranchWorktree(
       { type: 'local', branch: 'main' },
@@ -81,31 +73,33 @@ describe('WorktreeService runtime orchestration', () => {
     );
 
     expect(result).toEqual(ok('/external/feature'));
-    expect(git.repository.addWorktree).not.toHaveBeenCalled();
+    expect(git.mutate).not.toHaveBeenCalledWith('addWorktree', expect.anything());
   });
 
   it('creates and tracks a local branch from an available remote branch', async () => {
     const git = makeGitRepository({
       refs: refs(remoteBranch('origin', 'feature')),
     });
-    const service = makeService(git.repository);
+    const service = makeService(git.client);
 
     const result = await service.checkoutExistingBranch('feature', {
       copyPreservedFiles: false,
     });
 
     expect(result).toEqual(ok(path.join('/pool', 'feature')));
-    expect(git.repository.fetch).toHaveBeenCalledWith('origin');
-    expect(git.repository.createBranch).toHaveBeenCalledWith({
-      name: 'feature',
-      from: 'origin/feature',
+    expect(git.fetch).toHaveBeenCalledWith(expect.objectContaining({ remote: 'origin' }));
+    expectMutation(git.mutate, 'createBranch', {
+      options: { name: 'feature', from: 'origin/feature' },
     });
-    expect(git.repository.setUpstream).toHaveBeenCalledWith('feature', 'origin/feature');
+    expectMutation(git.mutate, 'setUpstream', {
+      branch: 'feature',
+      upstream: 'origin/feature',
+    });
   });
 
   it('returns branch-not-found without attempting to add a worktree', async () => {
     const git = makeGitRepository();
-    const service = makeService(git.repository);
+    const service = makeService(git.client);
 
     const result = await service.checkoutBranchWorktree(
       { type: 'local', branch: 'missing' },
@@ -117,23 +111,48 @@ describe('WorktreeService runtime orchestration', () => {
       success: false,
       error: { type: 'branch-not-found', branch: 'missing' },
     });
-    expect(git.repository.createBranch).not.toHaveBeenCalled();
-    expect(git.repository.addWorktree).not.toHaveBeenCalled();
+    expect(git.mutate).not.toHaveBeenCalledWith('createBranch', expect.anything());
+    expect(git.mutate).not.toHaveBeenCalledWith('addWorktree', expect.anything());
   });
 });
 
-function makeService(repository: RuntimeGitRepository): WorktreeService {
+function makeService(git: GitRuntimeClient): WorktreeService {
   return new WorktreeService({
     repoPath: '/repo',
-    gitRepository: repository,
-    gitCheckout: {
-      isFileTracked: vi.fn().mockResolvedValue(ok(false)),
-    } as unknown as RuntimeGitCheckout,
+    git,
+    files: filesRuntime.client as never,
+    repository: repositorySelector('/repo'),
+    checkout: checkoutSelector('/repo'),
     projectSettings: {
       getBaseRemote: vi.fn().mockResolvedValue('origin'),
     } as unknown as ProjectSettingsProvider,
     resolveWorktreePoolPath: async () => '/pool',
   });
+}
+
+function makeFilesClient() {
+  return {
+    fs: {
+      exists: vi.fn(async (key) => ok(fileSystem.existing.has(path.resolve(keyPath(key))))),
+      realPath: vi.fn(async (key) => ok(resolveRelativePath(key.root, key.relative))),
+    },
+    mutations: {
+      createDirectory: vi.fn(async ({ root, path: relative }) => {
+        fileSystem.existing.add(path.resolve(keyPath({ root, relative })));
+        return ok<void>();
+      }),
+      delete: vi.fn(async ({ root, path: relative }) => {
+        const resolved = path.resolve(keyPath({ root, relative }));
+        fileSystem.removed.push(resolved);
+        fileSystem.existing.delete(resolved);
+        return ok<void>();
+      }),
+    },
+  };
+}
+
+function keyPath(key: { root: Parameters<typeof resolveRelativePath>[0]; relative: string }) {
+  return nativePathFromHost(resolveRelativePath(key.root, key.relative as never));
 }
 
 function makeGitRepository(
@@ -145,20 +164,34 @@ function makeGitRepository(
     }>;
   } = {}
 ) {
-  const repository = {
-    pruneWorktrees: vi.fn().mockResolvedValue(ok()),
-    listWorktrees: vi.fn().mockResolvedValue(ok(options.worktrees ?? [])),
-    getRefs: vi.fn().mockResolvedValue(options.refs ?? refs()),
-    fetch: vi.fn().mockResolvedValue(ok()),
-    createBranch: vi.fn().mockResolvedValue(ok()),
-    getBranchBase: vi.fn().mockResolvedValue(ok(null)),
-    setBranchBase: vi.fn().mockResolvedValue(ok()),
-    setUpstream: vi.fn().mockResolvedValue(ok()),
-    addWorktree: vi.fn().mockResolvedValue(ok()),
-    removeWorktree: vi.fn().mockResolvedValue(ok()),
-    moveWorktree: vi.fn().mockResolvedValue(ok()),
-  } as unknown as RuntimeGitRepository;
-  return { repository };
+  const mutate = vi.fn().mockImplementation(async (name: string) =>
+    ok({
+      data:
+        name === 'addWorktree'
+          ? { worktreePath: hostPath('/pool/worktree'), head: { kind: 'branch', name: 'feature' } }
+          : undefined,
+    })
+  );
+  const fetch = vi.fn().mockResolvedValue(ok());
+  const client = {
+    repository: {
+      model: {
+        mutate,
+        state: vi.fn((_key, state: string) => ({
+          snapshot: async () => ({ data: state === 'refs' ? (options.refs ?? refs()) : {} }),
+        })),
+      },
+      listWorktrees: vi.fn().mockResolvedValue(ok(options.worktrees ?? [])),
+      getBranchBase: vi.fn().mockResolvedValue(ok(null)),
+      fetch,
+    },
+    checkout: { isFileTracked: vi.fn().mockResolvedValue(ok(false)) },
+  } as unknown as GitRuntimeClient;
+  return { client, fetch, mutate };
+}
+
+function expectMutation(mutate: ReturnType<typeof vi.fn>, name: string, input: unknown): void {
+  expect(mutate).toHaveBeenCalledWith(name, expect.objectContaining({ input }));
 }
 
 function refs(...branches: GitRefsState['branches']): GitRefsState {

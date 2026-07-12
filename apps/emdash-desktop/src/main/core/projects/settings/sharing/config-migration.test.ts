@@ -1,5 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
 import {
   inspectProjectConfigMigrations,
   migrateProjectConfigFromProvider,
@@ -20,45 +21,61 @@ function createFs(initialFiles: Record<string, string>) {
       content,
     ])
   );
-  return {
-    exists: vi.fn((filePath: string) => Promise.resolve(ok(files.has(filePath)))),
-    readText: vi.fn((filePath: string) => {
-      const content = files.get(filePath);
-      if (content === undefined) {
-        return Promise.resolve(
-          err({
-            type: 'not-found' as const,
-            path: filePath,
-          })
-        );
-      }
+  const exists = vi.fn((filePath: string) => Promise.resolve(ok(files.has(filePath))));
+  const readText = vi.fn((filePath: string) => {
+    const content = files.get(filePath);
+    if (content === undefined) {
       return Promise.resolve(
-        ok({
-          content,
-          truncated: false,
-          totalSize: Buffer.byteLength(content),
-          etag: 'test-etag',
+        err({
+          type: 'not-found' as const,
+          path: filePath,
         })
       );
-    }),
-    writeText: vi.fn((filePath: string, content: string) => {
-      files.set(filePath, content);
-      return Promise.resolve(ok({ bytesWritten: Buffer.byteLength(content) }));
-    }),
+    }
+    return Promise.resolve(
+      ok({
+        content,
+        truncated: false,
+        totalSize: Buffer.byteLength(content),
+        etag: 'test-etag',
+      })
+    );
+  });
+  const writeText = vi.fn((filePath: string, content: string) => {
+    files.set(filePath, content);
+    return Promise.resolve(ok({ bytesWritten: Buffer.byteLength(content) }));
+  });
+  const resolve = (relative: string) => `${repoPath}/${relative}`.replace(/\/+/g, '/');
+  const scope = filesClientScope(
+    {
+      fs: {
+        exists: ({ relative }: { relative: string }) => exists(resolve(relative)),
+        readText: ({ relative }: { relative: string }) => readText(resolve(relative)),
+      },
+      mutations: {
+        writeFile: ({ path, content }: { path: string; content: string }) =>
+          writeText(resolve(path), content).then((result) =>
+            result.success ? ok(undefined) : result
+          ),
+      },
+    } as never,
+    repoPath
+  );
+  return Object.assign(scope, {
+    exists,
+    readText,
+    writeText,
     content(filePath: string) {
       return files.get(filePath) ?? files.get(`${repoPath}/${filePath}`);
     },
-  };
+  });
 }
 
-function createProject(
-  fileSystem: ReturnType<typeof createFs>,
-  settings: Record<string, unknown> = {}
-) {
+function createProject(files: ReturnType<typeof createFs>, settings: Record<string, unknown> = {}) {
   const join = (...parts: string[]) => parts.join('/').replace(/\/+/g, '/');
   return {
     repoPath,
-    fileSystem,
+    files,
     projectConfigPath: join(repoPath, '.emdash.json'),
     resolveProjectPath: (relativePath: string) => join(repoPath, relativePath),
     configPathForDirectory: (directoryPath: string) => join(directoryPath, '.emdash.json'),

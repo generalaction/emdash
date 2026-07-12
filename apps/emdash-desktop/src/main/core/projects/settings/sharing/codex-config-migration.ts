@@ -1,7 +1,7 @@
 import type { Result } from '@emdash/shared';
 import * as toml from 'smol-toml';
 import z from 'zod';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -16,7 +16,6 @@ import {
   addScript,
   applyProjectConfigMigration,
   errorMessage,
-  openProjectFileSystem,
   projectPath,
   trimmedText,
   writeConfigFailed,
@@ -84,7 +83,7 @@ function toCodexMigration(data: CodexMigrationData): ProjectConfigMigration | nu
 
 async function readCodexMigrationData(
   project: ProjectProvider,
-  fileSystem: ScopedFileSystem
+  files: FilesClientScope
 ): Promise<CodexMigrationData> {
   const data: CodexMigrationData = {
     settings: {},
@@ -94,14 +93,14 @@ async function readCodexMigrationData(
   };
 
   const environmentPath = projectPath(project, CODEX_ENVIRONMENT_FILE);
-  const exists = await fileSystem.exists(environmentPath);
+  const exists = await files.client.fs.exists(fileKey(files, environmentPath));
   if (!exists.success) {
     log.warn('Failed to inspect Codex environment file for migration', exists.error);
     return data;
   }
   if (!exists.data) return data;
 
-  const content = await fileSystem.readText(environmentPath);
+  const content = await files.client.fs.readText(fileKey(files, environmentPath));
   if (!content.success) {
     log.warn('Failed to read Codex environment file for migration', content.error);
     return data;
@@ -128,10 +127,7 @@ async function migrateCodexConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const fileSystem = openProjectFileSystem(project);
-    if (!fileSystem.success) return fileSystem;
-
-    const data = await readCodexMigrationData(project, fileSystem.data);
+    const data = await readCodexMigrationData(project, project.files);
     const migration = toCodexMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Codex settings were found.');
@@ -146,7 +142,6 @@ async function migrateCodexConfig(
 
 export const codexConfigMigrator: ProjectConfigMigrator = {
   provider: 'codex',
-  inspect: async (project, fileSystem) =>
-    toCodexMigration(await readCodexMigrationData(project, fileSystem)),
+  inspect: async (project, files) => toCodexMigration(await readCodexMigrationData(project, files)),
   migrate: migrateCodexConfig,
 };

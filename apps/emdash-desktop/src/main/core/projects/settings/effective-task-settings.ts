@@ -1,4 +1,4 @@
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import {
   defaultShareableProjectSettings,
@@ -10,14 +10,14 @@ import type { ProjectSettingsProvider } from './provider';
 
 export async function getEffectiveTaskSettings(args: {
   projectSettings: ProjectSettingsProvider;
-  taskFs: Pick<ScopedFileSystem, 'exists' | 'readText'>;
+  taskFiles: FilesClientScope;
   taskConfigPath: string;
 }): Promise<ProjectSettings> {
-  const { projectSettings, taskFs, taskConfigPath } = args;
+  const { projectSettings, taskFiles, taskConfigPath } = args;
   const parsedSettings = shareableProjectSettingsSchema.safeParse(await projectSettings.get());
   const localShareableSettings = parsedSettings.success ? parsedSettings.data : {};
   const defaults = defaultShareableProjectSettings();
-  const exists = await taskFs.exists(taskConfigPath);
+  const exists = await taskFiles.client.fs.exists(fileKey(taskFiles, taskConfigPath));
   if (!exists.success) {
     log.warn('Failed to check task .emdash.json, falling back to project settings', exists.error);
     return mergeShareableProjectSettings(defaults, localShareableSettings);
@@ -27,7 +27,7 @@ export async function getEffectiveTaskSettings(args: {
   }
 
   try {
-    const content = await taskFs.readText(taskConfigPath);
+    const content = await taskFiles.client.fs.readText(fileKey(taskFiles, taskConfigPath));
     if (!content.success) {
       log.warn('Failed to read task .emdash.json, falling back to project settings', content.error);
       return mergeShareableProjectSettings(defaults, localShareableSettings);

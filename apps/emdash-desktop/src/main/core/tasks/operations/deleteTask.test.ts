@@ -1,8 +1,10 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import { deleteTask } from './deleteTask';
 
 const mocks = vi.hoisted(() => ({
@@ -18,17 +20,14 @@ const mocks = vi.hoisted(() => ({
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
 }));
+const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 
-vi.mock('@main/core/files/runtime-files', () => ({
-  RuntimeFileSystem: vi.fn(function RuntimeFileSystem(rootPath: string) {
-    return mocks.fileSystemFactory(rootPath);
-  }),
+vi.mock('@main/core/files/runtime-process/host', () => ({
+  getFilesRuntimeClient: async () => clients.files,
 }));
 
-vi.mock('@main/core/git/runtime-git', () => ({
-  RuntimeGit: vi.fn(function RuntimeGit() {
-    return { repository: mocks.gitRepository };
-  }),
+vi.mock('@main/core/git/runtime-process/host', () => ({
+  getGitRuntimeClient: async () => clients.git,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -83,6 +82,8 @@ vi.mock('@main/lib/telemetry', () => ({
 describe('deleteTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clients.files = makeFilesClient();
+    clients.git = makeGitClient();
     mocks.deleteWhere.mockResolvedValue(undefined);
     mocks.fileSystemFactory.mockReturnValue({
       exists: async (targetPath: string) => {
@@ -173,3 +174,42 @@ describe('deleteTask', () => {
     }
   });
 });
+
+function makeFilesClient() {
+  return {
+    fs: {
+      exists: ({ root, relative }: { root: HostAbsolutePath; relative: PortableRelativePath }) => {
+        const rootPath = nativePathFromHost(root);
+        const targetPath = nativePathFromHost(resolveRelativePath(root, relative));
+        return mocks.fileSystemFactory(rootPath).exists(targetPath);
+      },
+    },
+    mutations: {
+      delete: ({
+        root,
+        path: relative,
+      }: {
+        root: HostAbsolutePath;
+        path: PortableRelativePath;
+      }) => {
+        const rootPath = nativePathFromHost(root);
+        const targetPath = nativePathFromHost(resolveRelativePath(root, relative));
+        return mocks.fileSystemFactory(rootPath).remove(targetPath);
+      },
+    },
+  };
+}
+
+function makeGitClient() {
+  return {
+    repository: {
+      model: {
+        mutate: async (_name: string, { key }: { key: { repository: HostAbsolutePath } }) => {
+          const repositoryPath = nativePathFromHost(key.repository);
+          const result = await mocks.gitRepository(repositoryPath).pruneWorktrees();
+          return result.success ? ok({ data: result.data }) : result;
+        },
+      },
+    },
+  };
+}

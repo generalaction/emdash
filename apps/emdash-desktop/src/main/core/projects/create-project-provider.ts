@@ -1,16 +1,22 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import { fsErrorMessage } from '@main/core/files/scoped-file-system';
+import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
-import { RuntimeGit } from '@main/core/git/runtime-git';
+import {
+  checkoutSelector,
+  gitFilePath,
+  repositorySelector,
+} from '@main/core/git/runtime-process/client';
+import { getGitRuntimeClient } from '@main/core/git/runtime-process/host';
 import { projectGitHubAccountBackfillService } from '@main/core/github/services/project-github-account-backfill-instance';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
 import { LocalWorkspaceSetupExecutor } from '@main/core/workspaces/local-workspace-setup-executor';
 import { applyRecovery } from '@main/core/workspaces/recovery-strategy';
 import { log } from '@main/lib/logger';
+import { nativePathFromHost, relativeRuntimePath } from '@shared/core/runtime/paths';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
@@ -19,8 +25,6 @@ import { LocalProjectSettingsProvider } from './settings/providers/local-project
 import { WorktreeService } from './worktrees/worktree-service';
 
 export type CreateProviderError = { message: string };
-
-const git = new RuntimeGit();
 
 export async function createProvider(
   project: LocalProject | SshProject
@@ -38,31 +42,45 @@ async function createLocalProvider(
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
   try {
     const ctx = new LocalExecutionContext({ root: project.path });
-    const projectFileSystem = new RuntimeFileSystem(project.path);
-    const gitRepository = git.repository(project.path);
-    const gitCheckout = git.checkout(project.path);
+    const [git, filesClient] = await Promise.all([getGitRuntimeClient(), getFilesRuntimeClient()]);
+    const projectFiles = filesClientScope(filesClient, project.path);
+    const repository = repositorySelector(project.path);
+    const checkout = checkoutSelector(project.path);
+    const gitInspector = {
+      isFileCleanlyTracked: async (filePath: string) => {
+        const relative = gitFilePath(relativeRuntimePath(checkout.checkout, filePath));
+        const [index, status] = await Promise.all([
+          git.checkout.getFileAtIndex({ ...checkout, filePath: relative }),
+          git.checkout.model.state(checkout, 'status').snapshot(),
+        ]);
+        if (!index.success || index.data === null || status.data.kind !== 'ok') return false;
+        const entry = status.data.entries[relative];
+        return !entry || (entry.index === 'unmodified' && entry.worktree === 'unmodified');
+      },
+    };
     const settings = new LocalProjectSettingsProvider(
       project.id,
       project.path,
       project.baseRef,
-      projectFileSystem,
+      projectFiles,
       {
-        git: gitCheckout,
+        git: gitInspector,
         worktreeDirectoryFileSystem: {
           mkdir: async (targetPath, options) => {
             const result = await ensureAbsoluteDir(path.dirname(targetPath), targetPath, options);
             return result.success ? ok() : err({ message: fsErrorMessage(result.error) });
           },
           realPath: async (targetPath) => {
-            const result = await new RuntimeFileSystem(targetPath).realPath(targetPath);
+            const targetFiles = filesClientScope(filesClient, targetPath);
+            const result = await filesClient.fs.realPath(fileKey(targetFiles, targetPath));
             return result.success
-              ? ok(result.data)
+              ? ok(nativePathFromHost(result.data))
               : err({ message: fsErrorMessage(result.error) });
           },
         },
       }
     );
-    await settings.ensure({ git: gitCheckout });
+    await settings.ensure({ git: gitInspector });
 
     const worktreeDirectory = await settings.getWorktreeDirectory();
     const madeWorktreeDirectory = await ensureAbsoluteDir(
@@ -78,19 +96,21 @@ async function createLocalProvider(
     const worktreeService = new WorktreeService({
       repoPath: project.path,
       projectSettings: settings,
-      gitRepository,
-      gitCheckout,
+      git,
+      files: filesClient,
+      repository,
+      checkout,
       resolveWorktreePoolPath,
     });
-    const repositoryService = new GitRepositoryService(gitRepository, settings);
+    const repositoryService = new GitRepositoryService(git, repository, settings);
 
-    ensureEmdashGitExcludedSafe(projectFileSystem, project.path, project.id);
+    ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 
     const transport: ProjectProviderTransport = {
       kind: 'local',
       defaultWorkspaceType: { kind: 'local' },
       ctx,
-      fileSystem: projectFileSystem,
+      files: projectFiles,
       projectConfigPath: path.join(project.path, '.emdash.json'),
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
@@ -99,9 +119,10 @@ async function createLocalProvider(
           ctx,
           repoPath: project.path,
           worktreePoolPath,
-          fileSystem: projectFileSystem,
-          gitRepository,
-          gitCheckout,
+          files: projectFiles,
+          git,
+          repository,
+          checkout,
           projectSettings: settings,
           worktreeService,
         };
@@ -119,7 +140,7 @@ async function createLocalProvider(
       },
       settings,
     };
-    const fetchService = new GitRepositoryFetchService(repositoryService, () =>
+    const fetchService = new GitRepositoryFetchService(git, repository, () =>
       repositoryService.getBaseRemote()
     );
     fetchService.start();
@@ -132,6 +153,7 @@ async function createLocalProvider(
       worktreeService,
       fetchService,
       git,
+      repository,
       () => {}
     );
     await backfillGitHubAccount(provider);

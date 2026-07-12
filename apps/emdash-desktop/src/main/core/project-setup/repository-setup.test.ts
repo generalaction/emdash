@@ -1,5 +1,7 @@
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { cloneProjectRepository, initializeProjectRepository } from './repository-setup';
 
 const mocks = vi.hoisted(() => ({
@@ -13,41 +15,32 @@ const mocks = vi.hoisted(() => ({
   stat: vi.fn(),
   writeText: vi.fn(),
 }));
+const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
+const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
 
 vi.mock('@main/core/runtime/files-helpers', () => ({
   ensureAbsoluteDir: mocks.ensureAbsoluteDir,
 }));
 
-vi.mock('@main/core/files/runtime-files', () => ({
-  RuntimeFileSystem: class {
-    stat = mocks.stat;
-    writeText = mocks.writeText;
-  },
+vi.mock('@main/core/files/runtime-process/host', () => ({
+  getFilesRuntimeClient: async () => clients.files,
 }));
 
-vi.mock('@main/core/git/runtime-git', () => ({
-  gitErrorMessage: (error: unknown) =>
-    typeof error === 'object' && error !== null && 'message' in error
-      ? String(error.message)
-      : String(error),
-  RuntimeGit: class {
-    cloneRepository = mocks.cloneRepository;
-    ensureRepository = mocks.ensureRepository;
+vi.mock('@main/core/git/runtime-process/host', () => ({
+  getGitRuntimeClient: async () => clients.git,
+}));
 
-    checkout() {
-      return {
-        stage: mocks.stage,
-        commit: mocks.commit,
-        getHead: mocks.getHead,
-        repository: { publishBranch: mocks.publishBranch },
-      };
-    }
-  },
+vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+  ...(await importOriginal()),
+  runGitJob: runtime.runGitJob,
 }));
 
 describe('project repository setup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clients.git = makeGitClient();
+    clients.files = makeFilesClient();
+    runtime.runGitJob.mockImplementation((_definition, handle, input) => handle(input));
     mocks.ensureAbsoluteDir.mockResolvedValue(ok());
     mocks.cloneRepository.mockResolvedValue(
       ok({ kind: 'repository', rootPath: '/work/repo', baseRef: 'main' })
@@ -150,3 +143,61 @@ describe('project repository setup', () => {
     expect(mocks.publishBranch).not.toHaveBeenCalled();
   });
 });
+
+function makeGitClient() {
+  const cloneRepository = vi.fn(({ repositoryUrl, targetPath }) =>
+    mocks.cloneRepository(repositoryUrl, nativePathFromHost(targetPath))
+  );
+  const publishBranch = vi.fn(({ branchName, remote }) => mocks.publishBranch(branchName, remote));
+  return {
+    cloneRepository,
+    ensureRepository: ({
+      path,
+      options,
+    }: {
+      path: HostAbsolutePath;
+      options?: { initIfMissing?: boolean };
+    }) => mocks.ensureRepository(nativePathFromHost(path), options?.initIfMissing ?? false),
+    repository: { publishBranch },
+    checkout: {
+      model: {
+        state: () => ({ snapshot: async () => ({ data: await mocks.getHead() }) }),
+        mutate: async (
+          name: string,
+          { input }: { input: { paths?: string[]; message?: string } }
+        ) => {
+          const result =
+            name === 'stage'
+              ? await mocks.stage(input.paths ?? [])
+              : await mocks.commit(input.message ?? '');
+          return result.success ? ok({ data: result.data }) : result;
+        },
+      },
+    },
+  };
+}
+
+function makeFilesClient() {
+  return {
+    fs: {
+      stat: ({ root }: { root: HostAbsolutePath }) => mocks.stat(nativePathFromHost(root)),
+    },
+    mutations: {
+      writeFile: async ({
+        root,
+        path,
+        content,
+      }: {
+        root: HostAbsolutePath;
+        path: PortableRelativePath;
+        content: string;
+      }) => {
+        const result = await mocks.writeText(
+          `${nativePathFromHost(root)}/${path}`.replace(/\/+/g, '/'),
+          content
+        );
+        return result.success ? ok(undefined) : result;
+      },
+    },
+  };
+}

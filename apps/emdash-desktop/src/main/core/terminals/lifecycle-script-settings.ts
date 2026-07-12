@@ -18,7 +18,7 @@ export async function resolveLifecycleScriptForWorkspace(
 ): Promise<Result<{ script?: string; shellSetup?: string }, LifecycleScriptSettingsError>> {
   const settings = await getEffectiveTaskSettings({
     projectSettings: workspace.settings,
-    taskFs: workspace.fileSystem,
+    taskFiles: workspace.files,
     taskConfigPath: workspace.configPath,
   });
   return ok({

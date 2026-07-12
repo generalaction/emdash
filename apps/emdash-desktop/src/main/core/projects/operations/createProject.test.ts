@@ -1,8 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
 import { ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  hostPathFromNative,
+  nativePathFromHost,
+  resolveRelativePath,
+} from '@shared/core/runtime/paths';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 
@@ -19,27 +25,14 @@ const mocks = vi.hoisted(() => ({
   returningMock: vi.fn(),
   statMock: vi.fn(),
 }));
+const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 
-vi.mock('@main/core/files/runtime-files', () => ({
-  RuntimeFileSystem: vi.fn(function RuntimeFileSystem() {
-    return { stat: mocks.statMock };
-  }),
+vi.mock('@main/core/files/runtime-process/host', () => ({
+  getFilesRuntimeClient: async () => clients.files,
 }));
 
-vi.mock('@main/core/git/runtime-git', () => ({
-  RuntimeGit: vi.fn(function RuntimeGit() {
-    return {
-      ensureRepository: mocks.ensureRepositoryMock,
-      inspectPath: mocks.inspectPathMock,
-      repository: mocks.openRepositoryMock,
-    };
-  }),
-  gitErrorMessage: (error: unknown) =>
-    error instanceof Error
-      ? error.message
-      : typeof error === 'object' && error && 'message' in error
-        ? String(error.message)
-        : String(error),
+vi.mock('@main/core/git/runtime-process/host', () => ({
+  getGitRuntimeClient: async () => clients.git,
 }));
 
 vi.mock('@main/core/projects/project-manager', () => ({
@@ -63,6 +56,8 @@ function expectOk<T, E>(result: Result<T, E>): T {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clients.git = makeGitClient();
+  clients.files = makeFilesClient();
 
   mocks.insertMock.mockReturnValue({ values: mocks.valuesMock });
   mocks.valuesMock.mockReturnValue({ returning: mocks.returningMock });
@@ -85,6 +80,57 @@ beforeEach(() => {
   mocks.repoGetDefaultBranchMock.mockResolvedValue(ok('main'));
   mocks.statMock.mockResolvedValue(ok({ path: 'worktree', type: 'directory' }));
 });
+
+function makeGitClient() {
+  return {
+    ensureRepository: async ({
+      path: repositoryPath,
+      options,
+    }: {
+      path: HostAbsolutePath;
+      options?: { initIfMissing?: boolean };
+    }) => {
+      const result = await mocks.ensureRepositoryMock(
+        nativePathFromHost(repositoryPath),
+        options?.initIfMissing ?? false
+      );
+      return result.success
+        ? ok({ ...result.data, rootPath: hostPathFromNative(result.data.rootPath) })
+        : { ...result, error: { ...result.error, path: hostPathFromNative(result.error.path) } };
+    },
+    inspectPath: async ({ path: inspectedPath }: { path: HostAbsolutePath }) => {
+      const result = await mocks.inspectPathMock(nativePathFromHost(inspectedPath));
+      return result.kind === 'repository'
+        ? { ...result, rootPath: hostPathFromNative(result.rootPath) }
+        : { ...result, path: hostPathFromNative(result.path) };
+    },
+    repository: {
+      getDefaultBranch: ({
+        repository,
+        remote,
+      }: {
+        repository: HostAbsolutePath;
+        remote?: string;
+      }) => mocks.openRepositoryMock(nativePathFromHost(repository)).getDefaultBranch(remote),
+      model: {
+        state: (selector: { repository: HostAbsolutePath }) => ({
+          snapshot: async () => ({
+            data: await mocks.openRepositoryMock(nativePathFromHost(selector.repository)).getRefs(),
+          }),
+        }),
+      },
+    },
+  };
+}
+
+function makeFilesClient() {
+  return {
+    fs: {
+      stat: ({ root, relative }: { root: HostAbsolutePath; relative: PortableRelativePath }) =>
+        mocks.statMock(nativePathFromHost(resolveRelativePath(root, relative))),
+    },
+  };
+}
 
 describe('createLocalProject', () => {
   const tempDirs: string[] = [];
@@ -123,7 +169,6 @@ describe('createLocalProject', () => {
     );
 
     expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, true);
-    expect(mocks.openRepositoryMock).toHaveBeenCalledWith(projectPath);
     expect(created).toMatchObject({
       id: 'project-id',
       name: 'Project',

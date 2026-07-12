@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import type { FilesClientScope } from '@main/core/files/runtime-process/client';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { UpdateProjectSettingsError } from '@shared/projects';
@@ -20,7 +20,7 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
 
   constructor(
     projectId: string,
-    fs: Pick<ScopedFileSystem, 'exists' | 'readText'>,
+    files: FilesClientScope,
     defaultBranchFallback: string = 'main',
     private readonly rootFs?: {
       mkdir(
@@ -33,7 +33,7 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
     private readonly ctx?: IExecutionContext,
     options: DbProjectSettingsProviderOptions = {}
   ) {
-    super(projectId, projectPath, defaultBranchFallback, fs, path.posix.join, options);
+    super(projectId, projectPath, defaultBranchFallback, files, path.posix.join, options);
   }
 
   private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {

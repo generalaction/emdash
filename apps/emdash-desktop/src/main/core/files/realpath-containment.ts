@@ -1,10 +1,7 @@
 import type { FsError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
-import { isFileNotFoundError } from './scoped-file-system';
-
-export type RealPathFileSystem = {
-  realPath(path: string): Promise<Result<string, FsError>>;
-};
+import { nativePathFromHost } from '@shared/core/runtime/paths';
+import { fileKey, isFileNotFoundError, type FilesClientScope } from './runtime-process/client';
 
 export type RealPathPathOperations = {
   basename(path: string): string;
@@ -19,7 +16,7 @@ export type RealPathContainmentOptions = {
 };
 
 export async function realPathNearestExisting(
-  fileSystem: RealPathFileSystem,
+  files: FilesClientScope,
   pathOperations: RealPathPathOperations,
   absPath: string
 ): Promise<Result<string, FsError>> {
@@ -27,10 +24,13 @@ export async function realPathNearestExisting(
   const tail: string[] = [];
 
   for (;;) {
-    const real = await fileSystem.realPath(current);
+    const real = await files.client.fs.realPath(fileKey(files, current));
     if (real.success) {
+      const nativeRealPath = nativePathFromHost(real.data);
       return ok(
-        tail.length ? pathOperations.join(real.data, ...tail.slice().reverse()) : real.data
+        tail.length
+          ? pathOperations.join(nativeRealPath, ...tail.slice().reverse())
+          : nativeRealPath
       );
     }
     if (!isFileNotFoundError(real.error)) return real;
@@ -49,24 +49,27 @@ export async function realPathNearestExisting(
 }
 
 export async function isRealPathContained(
-  fileSystem: RealPathFileSystem,
+  files: FilesClientScope,
   pathOperations: RealPathPathOperations,
   rootPath: string,
   candidatePath: string,
   options: RealPathContainmentOptions = {}
 ): Promise<Result<boolean, FsError>> {
-  const rootReal = await fileSystem.realPath(rootPath);
+  const rootReal = await files.client.fs.realPath(fileKey(files, rootPath));
   if (!rootReal.success) return rootReal;
+  const nativeRootReal = nativePathFromHost(rootReal.data);
 
   const candidateReal = options.candidateMustExist
-    ? await fileSystem.realPath(candidatePath)
-    : await realPathNearestExisting(fileSystem, pathOperations, candidatePath);
+    ? await files.client.fs
+        .realPath(fileKey(files, candidatePath))
+        .then((result) => (result.success ? ok(nativePathFromHost(result.data)) : result))
+    : await realPathNearestExisting(files, pathOperations, candidatePath);
   if (!candidateReal.success) {
     return options.candidateErrorMode === 'error' ? candidateReal : ok(false);
   }
 
   return ok(
-    candidateReal.data === rootReal.data ||
-      pathOperations.contains(rootReal.data, candidateReal.data)
+    candidateReal.data === nativeRootReal ||
+      pathOperations.contains(nativeRootReal, candidateReal.data)
   );
 }

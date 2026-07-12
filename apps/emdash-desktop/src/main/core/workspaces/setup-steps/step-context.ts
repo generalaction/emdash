@@ -1,6 +1,7 @@
+import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
-import type { RuntimeGitCheckout, RuntimeGitRepository } from '@main/core/git/runtime-git';
+import type { FilesClientScope } from '@main/core/files/runtime-process/client';
+import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
 
@@ -17,10 +18,11 @@ export type StepContext = {
   /** Absolute path to the worktree pool directory where worktrees are created. */
   worktreePoolPath: string;
   /** Project-root Files runtime capability. */
-  fileSystem: ScopedFileSystem;
-  /** Git runtime capabilities for the project repository and checkout. */
-  gitRepository: RuntimeGitRepository;
-  gitCheckout: RuntimeGitCheckout;
+  files: FilesClientScope;
+  /** Git runtime client and the selectors bound to this project. */
+  git: GitRuntimeClient;
+  repository: RepositorySelector;
+  checkout: CheckoutSelector;
   /** Project settings provider (used by copy-preserved-files). */
   projectSettings: ProjectSettingsProvider;
   /** Worktree service that owns checkout validation, stale cleanup, and checkout creation. */

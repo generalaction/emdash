@@ -1,4 +1,9 @@
-import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import {
+  fileKey,
+  fileMutationKey,
+  fsErrorMessage,
+  type FilesClientScope,
+} from '@main/core/files/runtime-process/client';
 import { SSH_PROJECT_STATE_DIR_NAME } from '@main/core/settings/worktree-defaults';
 import { log } from '@main/lib/logger';
 
@@ -26,19 +31,19 @@ function joinProjectPath(rootPath: string, relativePath: string): string {
  * skips when `.emdash` is already ignored (e.g. via a global gitignore).
  */
 export async function ensureEmdashGitExcluded(
-  fs: ScopedFileSystem,
+  files: FilesClientScope,
   repoPath: string
 ): Promise<void> {
   const gitPath = joinProjectPath(repoPath, '.git');
   const excludePath = joinProjectPath(repoPath, GIT_EXCLUDE_PATH);
 
-  const gitDir = await fs.stat(gitPath);
+  const gitDir = await files.client.fs.stat(fileKey(files, gitPath));
   if (!gitDir.success || gitDir.data.type !== 'directory') return;
 
   let existing = '';
-  const excludeExists = await fs.exists(excludePath);
+  const excludeExists = await files.client.fs.exists(fileKey(files, excludePath));
   if (excludeExists.success && excludeExists.data) {
-    const read = await fs.readText(excludePath);
+    const read = await files.client.fs.readText(fileKey(files, excludePath));
     if (!read.success) return;
     // `read` caps at a default byte limit; rewriting a truncated view would drop
     // any rules past the cut. Bail rather than risk corrupting the file.
@@ -54,7 +59,11 @@ export async function ensureEmdashGitExcluded(
 
   const base = existing.replace(/\s*$/, '');
   const next = base.length > 0 ? `${base}\n${IGNORE_PATTERN}\n` : `${IGNORE_PATTERN}\n`;
-  const result = await fs.writeText(excludePath, next);
+  const result = await files.client.mutations.writeFile({
+    ...fileMutationKey(files, excludePath),
+    content: next,
+    precondition: { kind: 'overwrite' },
+  });
   if (!result.success) {
     throw new Error(fsErrorMessage(result.error));
   }
@@ -62,11 +71,11 @@ export async function ensureEmdashGitExcluded(
 
 /** Fire-and-forget wrapper that never rejects; logs and moves on. */
 export function ensureEmdashGitExcludedSafe(
-  fs: ScopedFileSystem,
+  files: FilesClientScope,
   repoPath: string,
   projectId: string
 ): void {
-  void ensureEmdashGitExcluded(fs, repoPath).catch((error) => {
+  void ensureEmdashGitExcluded(files, repoPath).catch((error) => {
     log.warn('ensureEmdashGitExcluded failed', {
       projectId,
       error: error instanceof Error ? error.message : String(error),

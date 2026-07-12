@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { mutationResult } from '@main/core/git/runtime-process/client';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
@@ -98,12 +99,15 @@ export async function deleteTask(
       const fromBranch =
         wsRow.config?.git.kind === 'create-branch' ? wsRow.config.git.fromBranch : undefined;
       if (fromBranch && provisionedBranch !== fromBranch.branch) {
-        const branchDelete = await project.gitRepository
-          .deleteBranch(provisionedBranch)
-          .catch((e) => {
-            log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
-            return null;
-          });
+        const branchDelete = await mutationResult(
+          project.git.repository.model.mutate('deleteBranch', {
+            key: project.repository,
+            input: { branch: provisionedBranch },
+          })
+        ).catch((e) => {
+          log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
+          return null;
+        });
         if (branchDelete && !branchDelete.success) {
           log.warn('deleteTask: branch deletion failed', { taskId, error: branchDelete.error });
         }

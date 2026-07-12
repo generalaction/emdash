@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
@@ -37,7 +37,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     private readonly projectId: string,
     protected readonly projectPath: string,
     protected readonly defaultBranchFallback: string = 'main',
-    private readonly configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined,
+    private readonly configFiles: FilesClientScope | undefined,
     private readonly joinProjectPath: (rootPath: string, relPath: string) => string,
     private readonly options: DbProjectSettingsProviderOptions = {}
   ) {}
@@ -63,12 +63,14 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
   }
 
   private async hasSharedPreservePatterns(): Promise<boolean> {
-    if (!this.configReader) return false;
+    if (!this.configFiles) return false;
     const configPath = this.projectFilePath(CONFIG_FILE);
     try {
-      const exists = await this.configReader.exists(configPath);
+      const exists = await this.configFiles.client.fs.exists(fileKey(this.configFiles, configPath));
       if (!exists.success || !exists.data) return false;
-      const content = await this.configReader.readText(configPath);
+      const content = await this.configFiles.client.fs.readText(
+        fileKey(this.configFiles, configPath)
+      );
       if (!content.success) return false;
       if (content.data.truncated) {
         log.warn('Shared project settings were truncated during initialization', {
@@ -156,7 +158,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       await migrateLegacyProjectSettingsIfNeeded({
         projectId: this.projectId,
         row,
-        configReader: this.configReader,
+        configFiles: this.configFiles,
         configPath: this.projectFilePath(CONFIG_FILE),
         defaultBranchFallback: this.defaultBranchFallback,
         storage: this.storage,

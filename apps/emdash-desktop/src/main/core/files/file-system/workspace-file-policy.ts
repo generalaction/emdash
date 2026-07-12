@@ -10,7 +10,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';
-import type { ScopedFileSystem } from '../scoped-file-system';
+import type { FilesClientScope } from '../runtime-process/client';
 
 export type WorkspacePathResolution = {
   path: string;
@@ -66,51 +66,39 @@ export function resolveWorkspacePath(
 }
 
 export async function assertWorkspaceWriteAllowed(
-  fileSystem: ScopedFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   filePath: string
 ): Promise<Result<WorkspacePathResolution, FsError>> {
   const resolved = resolveWorkspacePath(workspacePath, filePath);
   if (!resolved.success) return resolved;
-  const contained = await isWorkspaceRealPathContained(
-    fileSystem,
-    workspacePath,
-    resolved.data.path
-  );
+  const contained = await isWorkspaceRealPathContained(files, workspacePath, resolved.data.path);
   if (!contained.success) return contained;
   if (!contained.data) return pathEscapeError(filePath);
   return resolved;
 }
 
 export async function assertWorkspaceDirectoryTargetAllowed(
-  fileSystem: ScopedFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   dirPath: string
 ): Promise<Result<WorkspacePathResolution, FsError>> {
   const resolved = resolveWorkspacePath(workspacePath, dirPath, { allowEmpty: true });
   if (!resolved.success) return resolved;
-  const contained = await isWorkspaceRealPathContained(
-    fileSystem,
-    workspacePath,
-    resolved.data.path
-  );
+  const contained = await isWorkspaceRealPathContained(files, workspacePath, resolved.data.path);
   if (!contained.success) return contained;
   if (!contained.data) return pathEscapeError(dirPath);
   return resolved;
 }
 
 async function isWorkspaceRealPathContained(
-  fileSystem: ScopedFileSystem,
+  files: FilesClientScope,
   workspacePath: string,
   candidatePath: string
 ): Promise<Result<boolean, FsError>> {
-  return isRealPathContainedByRealPath(
-    fileSystem,
-    machinePathOperations,
-    workspacePath,
-    candidatePath,
-    { candidateErrorMode: 'error' }
-  );
+  return isRealPathContainedByRealPath(files, machinePathOperations, workspacePath, candidatePath, {
+    candidateErrorMode: 'error',
+  });
 }
 
 function normalizeRelativePath(

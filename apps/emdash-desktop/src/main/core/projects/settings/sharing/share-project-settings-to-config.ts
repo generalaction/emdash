@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
-import { fsErrorMessage } from '@main/core/files/scoped-file-system';
+import { fileKey, fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
@@ -29,14 +29,16 @@ export async function shareProjectSettingsToConfig(
     const localSettings = await project.settings.get();
     let config: Record<string, unknown>;
     try {
-      const exists = await target.fileSystem.exists(target.configPath);
+      const exists = await target.files.client.fs.exists(fileKey(target.files, target.configPath));
       if (!exists.success) {
         const message = `Could not check existing ${CONFIG_FILE}: ${fsErrorMessage(exists.error)}`;
         log.warn('Failed to check project config before writing', exists.error);
         return writeConfigFailed(message);
       }
       if (exists.data) {
-        const content = await target.fileSystem.readText(target.configPath);
+        const content = await target.files.client.fs.readText(
+          fileKey(target.files, target.configPath)
+        );
         if (!content.success) {
           const message = `Could not read existing ${CONFIG_FILE}: ${fsErrorMessage(content.error)}`;
           log.warn('Failed to read project config before writing', content.error);
@@ -66,10 +68,11 @@ export async function shareProjectSettingsToConfig(
       request.fields
     );
 
-    const written = await target.fileSystem.writeText(
-      target.configPath,
-      `${JSON.stringify(config, null, 2)}\n`
-    );
+    const written = await target.files.client.mutations.writeFile({
+      ...fileMutationKey(target.files, target.configPath),
+      content: `${JSON.stringify(config, null, 2)}\n`,
+      precondition: { kind: 'overwrite' },
+    });
     if (!written.success) {
       log.warn('Failed to write project config to repo', written.error);
       return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);

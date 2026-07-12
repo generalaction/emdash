@@ -2,6 +2,8 @@ import type * as nodeCrypto from 'node:crypto';
 import type * as fsPromises from 'node:fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
+import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import { ptySessionRegistry } from './pty-session-registry';
 
 const mocks = vi.hoisted(() => ({
@@ -101,9 +103,32 @@ describe('ptyController', () => {
     mocks.readFile.mockResolvedValue(bytes);
     mocks.getTask.mockReturnValue({});
     mocks.getWorkspaceId.mockReturnValue('workspace-1');
+    const files = filesClientScope(
+      {
+        fs: {
+          exists: vi.fn(async ({ relative }) => ({ success: true, data: relative === '.emdash' })),
+          upload: vi.fn(async ({ root, path }, file) => {
+            const chunks: Uint8Array[] = [];
+            for await (const chunk of file.source) chunks.push(chunk);
+            await writeBytes(
+              nativePathFromHost(resolveRelativePath(root, path)),
+              Buffer.concat(chunks)
+            );
+            return { success: true, data: { bytesWritten: bytes.byteLength } };
+          }),
+        },
+        mutations: {
+          createDirectory: vi.fn(async ({ root, path }) => {
+            await mkdir(nativePathFromHost(resolveRelativePath(root, path)), { recursive: true });
+            return { success: true, data: undefined };
+          }),
+        },
+      } as never,
+      '/remote/worktree'
+    );
     mocks.getWorkspace.mockReturnValue({
       path: '/remote/worktree',
-      fileSystem: { mkdir, writeBytes },
+      files,
     });
 
     const result = await ptyController.uploadFiles({

@@ -1,10 +1,10 @@
-import type { CheckoutHeadState, FetchError, GitBranchRef } from '@emdash/core/git';
-import type { IDisposable, IReleasable, Result } from '@emdash/shared';
+import type { GitBranchRef, RepositorySelector } from '@emdash/core/git';
+import type { IDisposable, IReleasable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import type { FilesClientScope } from '@main/core/files/runtime-process/client';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';
-import type { RuntimeGit } from '@main/core/git/runtime-git';
+import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { SetupResult } from '@main/core/workspaces/workspace-setup-executor';
@@ -52,7 +52,7 @@ export type ProjectProviderTransport = {
   readonly kind: string;
   readonly defaultWorkspaceType: WorkspaceType;
   readonly ctx: IExecutionContext;
-  readonly fileSystem: ScopedFileSystem;
+  readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   /**
    * Transitional desktop-owned path helper. Remove once project config reads/writes
@@ -78,11 +78,12 @@ export class ProjectProvider implements IReleasable, IDisposable {
   readonly projectId: string;
   readonly repoPath: string;
   readonly settings: ProjectSettingsProvider;
+  readonly git: GitRuntimeClient;
+  readonly repository: RepositorySelector;
   readonly gitRepository: GitRepositoryService;
-  readonly fileSystem: ScopedFileSystem;
+  readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   readonly worktreeService: WorktreeService;
-  readonly gitRepositoryFetchService: GitRepositoryFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
 
@@ -97,8 +98,9 @@ export class ProjectProvider implements IReleasable, IDisposable {
     transport: ProjectProviderTransport,
     gitRepository: GitRepositoryService,
     worktreeService: WorktreeService,
-    gitRepositoryFetchService: GitRepositoryFetchService,
-    private readonly _gitRuntime: RuntimeGit,
+    private readonly gitRepositoryFetchService: GitRepositoryFetchService,
+    git: GitRuntimeClient,
+    repository: RepositorySelector,
     private readonly _releaseProjectLeases: () => void | Promise<void>
   ) {
     this.type = transport.kind;
@@ -106,14 +108,15 @@ export class ProjectProvider implements IReleasable, IDisposable {
     this.repoPath = repoPath;
     this._ctx = transport.ctx;
     this.settings = transport.settings;
-    this.fileSystem = transport.fileSystem;
+    this.files = transport.files;
     this.projectConfigPath = transport.projectConfigPath;
     this._resolveProjectPath = transport.resolveProjectPath;
     this._configPathForDirectory = transport.configPathForDirectory;
     this._runWorkspaceSetup = transport.runWorkspaceSetup;
+    this.git = git;
+    this.repository = repository;
     this.gitRepository = gitRepository;
     this.worktreeService = worktreeService;
-    this.gitRepositoryFetchService = gitRepositoryFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
   }
 
@@ -146,23 +149,11 @@ export class ProjectProvider implements IReleasable, IDisposable {
     return this.gitRepository.getRemoteState();
   }
 
-  getWorktreeForBranch(branchName: string): Promise<string | undefined> {
-    return this.worktreeService.getWorktree(branchName);
-  }
-
   async removeTaskWorktree(taskBranch: string): Promise<void> {
     const worktreePath = await this.worktreeService.getWorktree(taskBranch);
     if (worktreePath) {
       await this.worktreeService.removeWorktree(worktreePath);
     }
-  }
-
-  fetch(): Promise<Result<void, FetchError>> {
-    return this.gitRepositoryFetchService.fetch();
-  }
-
-  getProjectRootHead(): Promise<CheckoutHeadState> {
-    return this._gitRuntime.checkout(this.repoPath).getHead();
   }
 
   async release(): Promise<void> {

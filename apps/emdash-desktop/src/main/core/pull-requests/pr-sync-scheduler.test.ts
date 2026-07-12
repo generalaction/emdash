@@ -88,8 +88,17 @@ function createProject(
   const project = {
     settings: {},
     ctx: {},
+    git: {
+      repository: {
+        model: {
+          state: vi.fn(() => ({
+            snapshot: vi.fn().mockResolvedValue({ data: { remotes } }),
+          })),
+        },
+      },
+    },
+    repository: { repository: {} },
     gitRepository: {
-      getRemotes: vi.fn().mockResolvedValue(remotes),
       subscribeRemotes: vi.fn((cb: (model: GitRemotesState) => void) => {
         remoteSubscribers.push(cb);
         return unsubscribe;

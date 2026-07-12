@@ -1,6 +1,6 @@
 import type { FsError } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
-import type { FileExclusionPredicate } from '@main/core/files/scoped-file-system';
+import type { FileExclusionPredicate } from '@main/core/files/runtime-process/client';
 import { log } from '@main/lib/logger';
 import { collectWithBudget } from './collect-with-budget';
 import { createSearchIndexExclusion } from './search-index-exclusions';

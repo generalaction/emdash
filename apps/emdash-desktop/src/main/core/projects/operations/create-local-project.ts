@@ -2,20 +2,19 @@ import { randomUUID } from 'node:crypto';
 import nodePath from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
-import { RuntimeFileSystem } from '@main/core/files/runtime-files';
-import { fsErrorMessage } from '@main/core/files/scoped-file-system';
-import { RuntimeGit } from '@main/core/git/runtime-git';
+import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+import { getGitRuntimeClient } from '@main/core/git/runtime-process/host';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
 import { getDirectoryStatus } from '../path-utils';
 import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
-
-const git = new RuntimeGit();
 
 export type CreateLocalProjectParams = {
   id?: string;
@@ -44,7 +43,7 @@ export async function createLocalProject(
   }
 
   const repositoryResult = await ensureProjectRepository(
-    git,
+    await getGitRuntimeClient(),
     params.path,
     params.initGitRepository
   );
@@ -92,7 +91,9 @@ export async function createLocalProject(
 
 export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
   try {
-    const pathEntry = await new RuntimeFileSystem(nodePath.dirname(path)).stat(path);
+    const filesClient = await getFilesRuntimeClient();
+    const files = filesClientScope(filesClient, nodePath.dirname(path));
+    const pathEntry = await filesClient.fs.stat(fileKey(files, path));
     if (!pathEntry.success) {
       if (pathEntry.error.type === 'not-found') {
         return { isDirectory: false, isGitRepo: false };
@@ -107,12 +108,20 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const inspection = await git.inspectPath(path);
+    const inspection = await (
+      await getGitRuntimeClient()
+    ).inspectPath({
+      path: hostPathFromNative(path),
+    });
     if (inspection.kind === 'inspect-failed') {
       return {
         isDirectory: true,
         isGitRepo: false,
-        error: { type: 'inspect-failed', path: inspection.path, message: inspection.message },
+        error: {
+          type: 'inspect-failed',
+          path: nativePathFromHost(inspection.path),
+          message: inspection.message,
+        },
       };
     }
     return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };

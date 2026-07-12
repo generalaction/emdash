@@ -3,11 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  isRealPathContained,
-  realPathNearestExisting,
-  type RealPathFileSystem,
-} from '../files/realpath-containment';
+import { hostPathFromNative } from '@shared/core/runtime/paths';
+import { isRealPathContained, realPathNearestExisting } from '../files/realpath-containment';
+import { filesClientScope } from '../files/runtime-process/client';
 
 const pathOperations = {
   basename: path.basename,
@@ -19,15 +17,23 @@ const pathOperations = {
   },
 };
 
-const files: RealPathFileSystem = {
-  realPath: async (filePath) => {
-    try {
-      return ok(fs.realpathSync(filePath));
-    } catch {
-      return err({ type: 'not-found', path: filePath } as never);
-    }
-  },
-};
+function makeFiles(root: string) {
+  return filesClientScope(
+    {
+      fs: {
+        realPath: async ({ relative }: { relative: string }) => {
+          const filePath = path.join(root, relative);
+          try {
+            return ok(hostPathFromNative(fs.realpathSync(filePath)));
+          } catch {
+            return err({ type: 'not-found', path: relative } as never);
+          }
+        },
+      },
+    } as never,
+    root
+  );
+}
 
 describe('realpath containment', () => {
   let root: string;
@@ -46,7 +52,7 @@ describe('realpath containment', () => {
   it('treats a real path inside the root as contained', async () => {
     fs.mkdirSync(path.join(root, 'inside'));
     const result = await isRealPathContained(
-      files,
+      makeFiles(root),
       pathOperations,
       root,
       path.join(root, 'inside', 'file.txt')
@@ -57,7 +63,7 @@ describe('realpath containment', () => {
   it('rejects a destination whose parent symlink escapes the root', async () => {
     fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
     const result = await isRealPathContained(
-      files,
+      makeFiles(root),
       pathOperations,
       root,
       path.join(root, 'escape', 'file.txt')
@@ -68,7 +74,7 @@ describe('realpath containment', () => {
   it('rejects an existing symlink that resolves outside the root', async () => {
     fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
     const result = await isRealPathContained(
-      files,
+      makeFiles(root),
       pathOperations,
       root,
       path.join(root, 'escape'),
@@ -81,7 +87,7 @@ describe('realpath containment', () => {
     fs.mkdirSync(path.join(root, 'a'));
     const realRoot = fs.realpathSync(root);
     const resolved = await realPathNearestExisting(
-      files,
+      makeFiles(root),
       pathOperations,
       path.join(root, 'a', 'b', 'c.txt')
     );
