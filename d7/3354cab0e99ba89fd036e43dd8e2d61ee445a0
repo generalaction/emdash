@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_0a8bb6c9b50f58::t_0c91fc7647d626 561-570
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "d73354cab0e99ba89fd036e43dd8e2d61ee445a0",
+  "prompts": {},
+  "sessions": {
+    "s_0a8bb6c9b50f58": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5517-b7ee-78f1-a9a1-bd18e4425b48",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
