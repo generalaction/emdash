@@ -346,6 +346,7 @@ export type CleanRoomE2EGateOutput = {
   nativePreviewSummary: string;
   verificationRunIds: string[];
   sessionAttempts: LoopSessionAttempt[];
+  intermediateFailures: LoopPromptHandoff[];
   stageResult: LoopStageResult;
 };
 
@@ -385,6 +386,7 @@ export type CleanRoomE2EGateError = {
   pendingWorkspace?: E2EPendingWorkspaceAuthority;
   lastWorkspaceDestroyed?: boolean;
   sessionAttempts: LoopSessionAttempt[];
+  intermediateFailures: LoopPromptHandoff[];
   stageResult: LoopStageResult;
 };
 
@@ -438,7 +440,7 @@ export class CleanRoomE2EGate {
         })
       );
     }
-    const input = normalized.data;
+    let input = normalized.data;
     const precondition = terminalPrecondition(input);
     if (precondition) {
       return err(
@@ -606,6 +608,19 @@ export class CleanRoomE2EGate {
       const binding = acquired.data;
       const bindingError = validateBinding(binding, cleanRoom.target, input);
       if (bindingError) {
+        if (!bindingError.safeToRelease) {
+          return err(
+            this.failure(input, bindingError.type, 'execution', bindingError.message, {
+              featureHead,
+              attempt,
+              verificationRunId,
+              recoveryRequired: true,
+              lastWorkspaceDestroyed: false,
+              pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+              sessionAttempts,
+            })
+          );
+        }
         const cleanup = await this.cleanup(
           input,
           cleanRoom,
@@ -1246,6 +1261,29 @@ export class CleanRoomE2EGate {
             })
           );
         }
+        if (intermediateFailures.length >= 64) {
+          markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
+            error: 'The bounded intermediate-failure ledger is full.',
+          });
+          const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
+          if (!cleanup.success) return cleanup;
+          return err(
+            this.failure(
+              input,
+              'evidence-ledger-full',
+              'correction',
+              'A correction cannot be integrated after the bounded failure ledger is full.',
+              {
+                featureHead,
+                attempt,
+                verificationRunId,
+                conversationId: session.conversationId,
+                lastWorkspaceDestroyed: true,
+                sessionAttempts,
+              }
+            )
+          );
+        }
         const previousFeatureHead = featureHead;
         const integrated = await this.callDependency('E2E correction integration', () =>
           this.dependencies.cleanRoom.integrateFix({
@@ -1290,7 +1328,11 @@ export class CleanRoomE2EGate {
             )
           );
         }
-        if (!validCommit(integrated.data.featureHead)) {
+        if (
+          !integrated.data ||
+          typeof integrated.data !== 'object' ||
+          !validCommit(integrated.data.featureHead)
+        ) {
           markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
             error: 'Fix integration returned invalid head authority.',
           });
@@ -1325,6 +1367,19 @@ export class CleanRoomE2EGate {
         }
         featureHead = integrated.data.featureHead;
         correctionCount += 1;
+        intermediateFailures.push({
+          source: 'Clean-room E2E correction',
+          handoff: {
+            summary: sentinel.summary,
+            risks: ['The integrated correction still requires a fresh clean-room replay.'],
+            remainingWork: [
+              'Recreate the clean room and independently re-run every required check.',
+            ],
+            artifacts: [],
+            createdAt: this.dependencies.now().toISOString(),
+          },
+        });
+        input = { ...input, intermediateFailures: [...intermediateFailures] };
         markOuterAttempt(sessionAttempts, outerLedgerIndex, 'completed', this.dependencies.now(), {
           checkpointAfter: featureHead,
         });
@@ -1522,7 +1577,26 @@ export class CleanRoomE2EGate {
       if (!cleanup.success) return cleanup;
 
       if (checked.data.status === 'correctable') {
+        if (intermediateFailures.length >= 64) {
+          return err(
+            this.failure(
+              input,
+              'evidence-ledger-full',
+              'required-checks',
+              'The bounded intermediate-failure ledger cannot retain another check handoff.',
+              {
+                featureHead,
+                attempt,
+                verificationRunId,
+                conversationId: session.conversationId,
+                lastWorkspaceDestroyed: true,
+                sessionAttempts,
+              }
+            )
+          );
+        }
         intermediateFailures.push(checked.data.handoff!);
+        input = { ...input, intermediateFailures: [...intermediateFailures] };
         if (attempt === input.maxAttempts) {
           return err(
             this.failure(
@@ -1635,6 +1709,7 @@ export class CleanRoomE2EGate {
         ),
         verificationRunIds: [...verificationRunIds],
         sessionAttempts: sessionAttempts.map(copyAttempt),
+        intermediateFailures: intermediateFailures.map(copyPromptHandoff),
         stageResult: this.stageResult(
           'passed',
           correctionCount === 0
@@ -1750,6 +1825,8 @@ export class CleanRoomE2EGate {
       if (!cancelled.success) return cancelled;
       const value = cancelled.data;
       if (
+        !value ||
+        typeof value !== 'object' ||
         value.quiescent !== true ||
         value.attemptId !== session.attemptId ||
         value.conversationId !== session.conversationId ||
@@ -1812,7 +1889,12 @@ export class CleanRoomE2EGate {
         )
       );
     }
-    if (released.data.released !== true || !sameTarget(released.data.target, binding.target)) {
+    if (
+      !released.data ||
+      typeof released.data !== 'object' ||
+      released.data.released !== true ||
+      !sameTarget(released.data.target, binding.target)
+    ) {
       return err(
         this.failure(
           input,
@@ -1954,7 +2036,7 @@ export class CleanRoomE2EGate {
   }
 
   private failure(
-    input: Pick<RunCleanRoomE2EGateInput, 'signal'>,
+    input: Pick<RunCleanRoomE2EGateInput, 'signal' | 'intermediateFailures'>,
     type: string,
     stage: CleanRoomE2EGateStage,
     message: string,
@@ -1982,6 +2064,7 @@ export class CleanRoomE2EGate {
         ? { lastWorkspaceDestroyed: fields.lastWorkspaceDestroyed }
         : {}),
       sessionAttempts: fields.sessionAttempts.map(copyAttempt),
+      intermediateFailures: safeCopyPromptHandoffs(input.intermediateFailures),
       stageResult: this.stageResult(
         status,
         status === 'cancelled'
@@ -2155,18 +2238,22 @@ function validateBinding(
   binding: E2EExecutionBinding,
   target: LoopSessionTarget,
   input: NormalizedInput
-): { type: string; message: string } | undefined {
+): { type: string; message: string; safeToRelease: boolean } | undefined {
   if (
     !binding ||
     typeof binding !== 'object' ||
     !binding.executionTarget ||
     typeof binding.executionTarget !== 'object' ||
+    typeof binding.executionTarget.dispose !== 'function' ||
+    !binding.executionTarget.executionContext ||
+    typeof binding.executionTarget.executionContext !== 'object' ||
     !sameTarget(binding.target, target) ||
     !sameTarget(binding.executionTarget, target)
   ) {
     return {
       type: 'execution-target-drift',
       message: 'Execution binding drifted from the clean room.',
+      safeToRelease: false,
     };
   }
   if (
@@ -2177,6 +2264,7 @@ function validateBinding(
     return {
       type: 'task-environment-invalid',
       message: 'Execution binding returned a malformed or mismatched task environment.',
+      safeToRelease: true,
     };
   }
   const keys = Object.keys(binding.taskEnvironment).sort();
@@ -2205,6 +2293,7 @@ function validateBinding(
     return {
       type: 'task-environment-invalid',
       message: 'Trusted task environment is not the exact six-key overlay.',
+      safeToRelease: true,
     };
   }
   return undefined;
@@ -2561,6 +2650,20 @@ function markOuterAttempt(
 
 function copyAttempt(attempt: LoopSessionAttempt): LoopSessionAttempt {
   return loopSessionAttemptSchema.parse(attempt);
+}
+
+function copyPromptHandoff(handoff: LoopPromptHandoff): LoopPromptHandoff {
+  return loopPromptHandoffSchema.parse(handoff);
+}
+
+function safeCopyPromptHandoffs(value: unknown): LoopPromptHandoff[] {
+  if (!Array.isArray(value)) return [];
+  const copied: LoopPromptHandoff[] = [];
+  for (const candidate of value.slice(0, 64)) {
+    const parsed = loopPromptHandoffSchema.safeParse(candidate);
+    if (parsed.success) copied.push(parsed.data);
+  }
+  return copied;
 }
 
 function pendingWorkspaceAuthority(cleanRoom: CleanRoomWorkspace): E2EPendingWorkspaceAuthority {

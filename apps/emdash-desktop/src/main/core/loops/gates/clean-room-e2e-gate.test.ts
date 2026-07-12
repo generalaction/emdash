@@ -407,6 +407,7 @@ describe('CleanRoomE2EGate', () => {
         attempts: 2,
         correctionCount: 1,
         lastWorkspaceDestroyed: true,
+        intermediateFailures: [{ source: 'Clean-room E2E correction' }],
       },
     });
     expect(harness.calls).toContain(`integrate:1:${FIX_COMMIT}`);
@@ -446,7 +447,15 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: true,
-      data: { attempts: 3, correctionCount: 1, featureHead: FIX_COMMIT },
+      data: {
+        attempts: 3,
+        correctionCount: 1,
+        featureHead: FIX_COMMIT,
+        intermediateFailures: [
+          { source: 'Authoritative E2E checks' },
+          { source: 'Clean-room E2E correction' },
+        ],
+      },
     });
     const secondPrompt = vi.mocked(harness.dependencies.session.sendE2EPrompt).mock.calls[1]?.[0]
       .prompt;
@@ -477,6 +486,7 @@ describe('CleanRoomE2EGate', () => {
         type: 'attempts-exhausted',
         featureHead: FIX_COMMIT,
         attempt: 1,
+        intermediateFailures: [{ source: 'Clean-room E2E correction' }],
         stageResult: { status: 'failed' },
       },
     });
