@@ -17,6 +17,7 @@ import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldDispatchAppHotkeyFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
@@ -32,7 +33,7 @@ const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navig
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function dispatchTerminalAppHotkey(event: KeyboardEvent): boolean {
-  if (event.type !== 'keydown') return false;
+  if (!shouldDispatchAppHotkeyFromTerminal(event, IS_MAC_PLATFORM)) return false;
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
@@ -384,9 +385,8 @@ export function usePty(
         const dialog = document.querySelector('[role="dialog"]');
         if (dialog && !dialog.contains(container)) return false;
 
-        // xterm handles key events before TanStack's document-level hotkey
-        // listeners can see them. Dispatch any active app shortcut here first;
-        // unmatched shortcuts continue to the CLI unchanged.
+        // xterm handles key events before TanStack's document-level hotkey listeners.
+        // Preserve terminal Ctrl sequences on non-macOS except for tab navigation.
         if (dispatchTerminalAppHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();

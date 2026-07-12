@@ -4,6 +4,7 @@ import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldDispatchAppHotkeyFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
@@ -34,6 +35,33 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
 
   it('uses line feed for Ctrl+J', () => {
     expect(CTRL_J_ASCII).toBe('\n');
+  });
+
+  it('preserves non-macOS terminal controls while dispatching app shortcuts on macOS', () => {
+    for (const key of ['w', 'k', 'd']) {
+      expect(shouldDispatchAppHotkeyFromTerminal(makeEvent({ key, ctrlKey: true }), false)).toBe(
+        false
+      );
+    }
+
+    expect(shouldDispatchAppHotkeyFromTerminal(makeEvent({ key: 'k', metaKey: true }), true)).toBe(
+      true
+    );
+    expect(
+      shouldDispatchAppHotkeyFromTerminal(makeEvent({ key: 'Tab', ctrlKey: true }), false)
+    ).toBe(true);
+    expect(
+      shouldDispatchAppHotkeyFromTerminal(
+        makeEvent({ key: 'Tab', ctrlKey: true, shiftKey: true }),
+        false
+      )
+    ).toBe(true);
+    expect(
+      shouldDispatchAppHotkeyFromTerminal(
+        makeEvent({ type: 'keyup', key: 'k', metaKey: true }),
+        true
+      )
+    ).toBe(false);
   });
 
   it('detects copy shortcuts with selection', () => {
