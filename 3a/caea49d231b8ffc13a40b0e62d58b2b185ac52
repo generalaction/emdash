@@ -1,0 +1,57 @@
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_eab6ff0530daf9::t_13484d998af958 152
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_eab6ff0530daf9::t_8f45cfdcf3e814 106,113-198
+  s_0a8bb6c9b50f58::t_862232779677de 199-200
+apps/emdash-desktop/src/renderer/features/mcp/components/useMcps.ts
+  s_eab6ff0530daf9::t_46afc8ee1ba207 57-60
+  s_eab6ff0530daf9::t_3fa8684cab83eb 80
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 12,33-43,131-132
+  s_eab6ff0530daf9::t_2c4c9bf802a6e4 4
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 35
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 63-67
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 101-105,112-116
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 28-37
+apps/emdash-desktop/src/renderer/features/mcp/components/McpView.tsx
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 13,17-18,25,151-158,165-168
+  s_eab6ff0530daf9::t_3fa8684cab83eb 159
+  s_eab6ff0530daf9::t_13484d998af958 70-75
+  s_eab6ff0530daf9::t_d8e01b55da5590 76-78,80-82
+  s_eab6ff0530daf9::t_2c4c9bf802a6e4 169-174
+  s_eab6ff0530daf9::t_46afc8ee1ba207 40,42-48,79
+  s_eab6ff0530daf9::t_f49cdd6a6a8377 160-162
+  s_eab6ff0530daf9::t_f747a772af51b1 164
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_eab6ff0530daf9::t_d1a1c6ed63e50d 7,25-31,88-106,110-117,122-129,133-134,138-139,141-151,158-179,265-333
+  s_eab6ff0530daf9::t_2c4c9bf802a6e4 107-109,118-121,135-137,140,152-157
+  s_eab6ff0530daf9::t_8f45cfdcf3e814 130-132
+  s_eab6ff0530daf9::t_2df0ef8dd5d6b9 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "3acaea49d231b8ffc13a40b0e62d58b2b185ac52",
+  "prompts": {},
+  "sessions": {
+    "s_0a8bb6c9b50f58": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5517-b7ee-78f1-a9a1-bd18e4425b48",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_eab6ff0530daf9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f558a-abc0-7df0-89c8-c5e5ab192498",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
