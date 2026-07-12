@@ -10,20 +10,22 @@ import type { McpModalMode } from './McpModal';
 import { useMcps } from './useMcps';
 
 export const McpView: React.FC = () => {
+  const [search, setSearch] = useState('');
   const {
     installed,
     catalog,
+    integrationsShEntries,
+    isSearchingIntegrationsSh,
     providers,
     isLoading,
     isRefreshing,
     saveServer,
     removeServer,
     refresh,
-  } = useMcps();
+  } = useMcps(search);
 
   const { showModal, closeModal } = useModalContext();
   const showConfirm = useShowModal('confirmActionModal');
-  const [search, setSearch] = useState('');
 
   const handleRemoveRequest = (serverName: string) => {
     closeModal();
@@ -35,9 +37,15 @@ export const McpView: React.FC = () => {
     });
   };
 
-  const openModal = (mode: McpModalMode) => {
+  const openModal = (mode: McpModalMode, isIntegrationsShResult = false) => {
     const source =
-      mode.type === 'add-catalog' ? 'catalog' : mode.type === 'add-custom' ? 'custom' : null;
+      mode.type === 'add-catalog'
+        ? isIntegrationsShResult
+          ? 'integrations_sh'
+          : 'catalog'
+        : mode.type === 'add-custom'
+          ? 'custom'
+          : null;
     showModal('mcpServerModal', {
       mode,
       providers,
@@ -59,6 +67,19 @@ export const McpView: React.FC = () => {
         c.name.toLowerCase().includes(lowerSearch) ||
         c.description.toLowerCase().includes(lowerSearch))
   );
+  const catalogUrls = new Set(
+    catalog.flatMap((entry) =>
+      typeof entry.defaultConfig.url === 'string' ? [entry.defaultConfig.url] : []
+    )
+  );
+  const installedUrls = new Set(installed.flatMap((server) => (server.url ? [server.url] : [])));
+  const integrationsShResults = integrationsShEntries.filter((entry) => {
+    const url = entry.defaultConfig.url;
+    return (
+      !installedNames.has(entry.key) &&
+      (typeof url !== 'string' || (!catalogUrls.has(url) && !installedUrls.has(url)))
+    );
+  });
 
   if (isLoading) {
     return (
@@ -127,13 +148,30 @@ export const McpView: React.FC = () => {
           </CardGridSection>
         )}
 
-        {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-muted-foreground text-sm">
-              {search ? 'No servers match your search.' : 'No servers available.'}
-            </p>
-          </div>
+        {(isSearchingIntegrationsSh || integrationsShResults.length > 0) && (
+          <CardGridSection
+            title={isSearchingIntegrationsSh ? 'Searching integrations.sh...' : 'integrations.sh'}
+          >
+            {integrationsShResults.map((entry) => (
+              <McpCard
+                key={entry.key}
+                catalogEntry={entry}
+                onAdd={(result) => openModal({ type: 'add-catalog', entry: result }, true)}
+              />
+            ))}
+          </CardGridSection>
         )}
+
+        {filteredInstalled.length === 0 &&
+          filteredCatalog.length === 0 &&
+          integrationsShResults.length === 0 &&
+          !isSearchingIntegrationsSh && (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground text-sm">
+                {search ? 'No servers match your search.' : 'No servers available.'}
+              </p>
+            </div>
+          )}
       </div>
     </div>
   );

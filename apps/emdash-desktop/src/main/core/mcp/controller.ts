@@ -25,6 +25,16 @@ function mapProviders(): McpProvidersResponse[] {
 }
 
 export const mcpController = createRPCController({
+  searchIntegrationsSh: async ({ query }: { query: string }) => {
+    try {
+      const data = await mcpService.searchIntegrationsSh(query);
+      return { success: true, data };
+    } catch (error) {
+      log.error('Failed to search integrations.sh:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
   loadAll: async () => {
     try {
       const data = await mcpService.loadAll();

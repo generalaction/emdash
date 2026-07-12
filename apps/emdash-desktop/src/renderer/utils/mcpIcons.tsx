@@ -98,14 +98,22 @@ function renderSvgMarkup(svgContent: string): React.ReactNode {
   return <div className="size-5" dangerouslySetInnerHTML={{ __html: processed }} />;
 }
 
-export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ name, iconKey }) => {
+export const McpServerIcon: React.FC<{ name: string; iconKey?: string; iconUrl?: string }> = ({
+  name,
+  iconKey,
+  iconUrl,
+}) => {
   const resolvedIconKey = resolveMcpIconKey(iconKey, name);
   const icon = resolvedIconKey ? getIcon(resolvedIconKey) : undefined;
   const svgContent = icon ?? fallbackSvg;
 
   return (
     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 transition-colors group-hover:bg-background-3">
-      {svgContent ? renderSvgMarkup(svgContent) : null}
+      {iconUrl ? (
+        <img src={iconUrl} alt="" className="size-5 rounded-sm" loading="lazy" />
+      ) : svgContent ? (
+        renderSvgMarkup(svgContent)
+      ) : null}
     </div>
   );
 };
