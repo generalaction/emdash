@@ -37,6 +37,14 @@ export const tabNavigationShortcutChannel = defineEvent<{
   direction: TabNavigationDirection;
 }>('tab-navigation:shortcut');
 
+/** A number-family shortcut (tab/task 1-9) pressed while a browser webview has focus. */
+export const numberShortcutChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  family: 'tab' | 'task';
+  /** 0-based position (digit - 1). */
+  index: number;
+}>('number-shortcut:pressed');
+
 export const browserAppShortcutChannel = defineEvent<{
   source: { kind: 'browser'; browserId: string };
   shortcutKey: ShortcutSettingsKey;

@@ -37,6 +37,17 @@ function dispatchTerminalAppHotkey(event: KeyboardEvent): boolean {
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
+/**
+ * Modified digit presses (tab/task 1-9 and similar) must reach the app even
+ * though xterm would otherwise consume them (Ctrl+2-8 map to control chars).
+ */
+function dispatchTerminalNumberHotkey(event: KeyboardEvent): boolean {
+  if (event.type !== 'keydown') return false;
+  if (!/^[1-9]$/.test(event.key)) return false;
+  if (!event.ctrlKey && !event.metaKey && !event.altKey) return false;
+  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
+}
+
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
@@ -388,6 +399,13 @@ export function usePty(
         // xterm handles key events before TanStack's document-level hotkey listeners.
         // Preserve terminal Ctrl sequences on non-macOS except for tab navigation.
         if (dispatchTerminalAppHotkey(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          return false;
+        }
+
+        if (dispatchTerminalNumberHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
