@@ -90,7 +90,12 @@ function PaletteItem({
   return (
     <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
-      <span className="flex-1 truncate">{item.title}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{item.title}</span>
+        {action?.subtitle && (
+          <span className="truncate text-xs text-foreground/40">{action.subtitle}</span>
+        )}
+      </span>
       {action?.shortcut && <Shortcut hotkey={action.shortcut} variant="keycaps" />}
     </Command.Item>
   );
