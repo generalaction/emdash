@@ -18,6 +18,8 @@ const DEFAULT_MAX_SCREENSHOT_BYTES_PER_RUN = 50 * 1024 * 1024;
 
 const EVENTS_FILE = 'events.ndjson';
 const SCREENSHOTS_DIR = 'screenshots';
+const cookieAssignmentPattern =
+  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b\s*[:=]\s*[^\r\n]*/giu;
 
 export type LoopEvidenceRunStatus = 'passed' | 'failed' | 'cancelled' | 'correction-required';
 
@@ -49,6 +51,8 @@ export type LoopEvidenceRunPort = {
   }): Promise<LoopEvidenceScreenshot>;
   /** Appends the terminal event after every previously requested write has settled. */
   finish(input: { status: LoopEvidenceRunStatus; summary: string }): Promise<void>;
+  /** Releases an unrecoverable unfinished run so bounded retention can remove it. */
+  abandon(): Promise<void>;
 };
 
 export type LoopEvidenceStorePort = {
@@ -636,6 +640,14 @@ class LoopEvidenceRun implements LoopEvidenceRunPort {
     });
   }
 
+  async abandon(): Promise<void> {
+    await this.enqueue(async () => {
+      if (this.finished) return;
+      this.finished = true;
+      await this.onFinished();
+    });
+  }
+
   private async appendUnlocked(kind: string, data: unknown, terminal = false): Promise<void> {
     this.assertOpen();
     await this.assertDirectories();
@@ -787,7 +799,11 @@ function sanitizeObservation(observation: LoopBrowserObservation): LoopBrowserOb
 }
 
 function sanitizeText(value: string, limit: number): string {
-  return redactAll(stripUrlDetails(value.slice(0, limit * 4))).slice(0, limit);
+  return redactEvidenceSecrets(stripUrlDetails(value.slice(0, limit * 4))).slice(0, limit);
+}
+
+function redactEvidenceSecrets(value: string): string {
+  return redactAll(value.replace(cookieAssignmentPattern, '[REDACTED_COOKIE]'));
 }
 
 function stripUrlDetails(value: string): string {

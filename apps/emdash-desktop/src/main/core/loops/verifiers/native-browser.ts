@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { redactAll } from '@emdash/shared/logger';
 import type { VerificationActionExecution } from '@main/core/browser/browser-webcontents-registry';
 import type {
@@ -57,7 +57,10 @@ export const NATIVE_BROWSER_CORRECTION_REQUIRED_PREFIX =
 
 const nativeBrowserTerminalPattern =
   /<<<LOOP:NATIVE_BROWSER_PASSED>>>|<<<LOOP:NATIVE_BROWSER_FAILED[ \t]+([^\r\n<>]+)>>>|<<<LOOP:NATIVE_BROWSER_CORRECTION_REQUIRED[ \t]+([^\r\n<>]+)>>>/gu;
-const sensitiveTargetPattern = /password|passphrase|secret|token|authorization|api[_ -]?key/iu;
+const sensitiveTargetPattern =
+  /password|passphrase|secret|token|authorization|api[_ -]?key|cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid/iu;
+const cookieAssignmentPattern =
+  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b\s*[:=]\s*[^\r\n]*/giu;
 
 export type NativeBrowserTerminalOutcome =
   | { kind: 'passed' }
@@ -126,7 +129,8 @@ class NativeBrowserVerifierFailure extends Error {
   constructor(
     readonly kind: VerifierError['kind'],
     message: string,
-    readonly evidenceStatus: LoopEvidenceRunStatus = 'failed'
+    readonly evidenceStatus: LoopEvidenceRunStatus = 'failed',
+    readonly evidenceSummary?: string
   ) {
     super(message);
   }
@@ -256,6 +260,7 @@ async function runNativeBrowserVerification(
   const leasesToClose: LoopBrowserLease[] = [];
   let evidenceStatus: LoopEvidenceRunStatus = 'failed';
   let finalSummary = 'Native browser verification failed';
+  let resultSummary = finalSummary;
   let command = 'ACP native browser verification';
   let result: Result<VerifierEvidence, VerifierError> | null = null;
 
@@ -406,6 +411,7 @@ async function runNativeBrowserVerification(
       }
     }
 
+    const runEvidence = evidence;
     let prompt = buildInitialPrompt(ctx, binding, activeSession);
     let successfulObservations = 0;
     const actionIds = new Set<string>();
@@ -432,12 +438,14 @@ async function runNativeBrowserVerification(
       if (turn.kind === 'terminal') {
         if (turn.outcome.kind === 'passed') {
           if (successfulObservations === 0) {
-            await control.wait(
-              evidence.appendIntermediateFailure({
-                kind: 'unobserved-pass',
-                message:
-                  'The nested verifier attempted to pass without a successful browser observation',
-              })
+            await waitForEvidenceOperation(
+              () =>
+                runEvidence.appendIntermediateFailure({
+                  kind: 'unobserved-pass',
+                  message:
+                    'The nested verifier attempted to pass without a successful browser observation',
+                }),
+              control
             );
             throw new NativeBrowserVerifierFailure(
               'command-failed',
@@ -446,44 +454,56 @@ async function runNativeBrowserVerification(
           }
           evidenceStatus = 'passed';
           finalSummary = terminalSummary(finalText, 'Native browser criteria passed');
+          resultSummary =
+            'Native browser criteria passed. Sensitive browser evidence is retained in app data.';
           result = ok({
             verifierId: id,
             label,
             command,
             cwd: binding.target.path,
             durationMs: Date.now() - startedAt,
-            stdoutTail: safeText(finalText, '', 4_000),
+            stdoutTail: '',
             stderrTail: '',
             exitCode: 0,
-            summary: `${finalSummary}\n\nSensitive browser evidence is retained in app data.`,
-            evidencePath: evidence.directory,
+            summary: resultSummary,
+            evidencePath: runEvidence.directory,
           });
           break;
         }
         if (turn.outcome.kind === 'correction-required') {
           evidenceStatus = 'correction-required';
           finalSummary = safeText(turn.outcome.summary, 'Browser correction is required');
-          await control.wait(
-            evidence.appendIntermediateFailure({
-              kind: 'correction-required',
-              message: finalSummary,
-            })
+          await waitForEvidenceOperation(
+            () =>
+              runEvidence.appendIntermediateFailure({
+                kind: 'correction-required',
+                message: finalSummary,
+              }),
+            control
           );
           throw new NativeBrowserVerifierFailure(
             'command-failed',
-            `Native browser correction required: ${finalSummary}`,
-            'correction-required'
+            'Native browser correction is required. See app-data evidence.',
+            'correction-required',
+            finalSummary
           );
         }
         evidenceStatus = 'failed';
         finalSummary = safeText(turn.outcome.reason, 'Native browser criteria failed');
-        await control.wait(
-          evidence.appendIntermediateFailure({
-            kind: 'terminal-failure',
-            message: finalSummary,
-          })
+        await waitForEvidenceOperation(
+          () =>
+            runEvidence.appendIntermediateFailure({
+              kind: 'terminal-failure',
+              message: finalSummary,
+            }),
+          control
         );
-        throw new NativeBrowserVerifierFailure('command-failed', finalSummary);
+        throw new NativeBrowserVerifierFailure(
+          'command-failed',
+          'Native browser criteria failed. See app-data evidence.',
+          'failed',
+          finalSummary
+        );
       }
 
       if (turnIndex >= MAX_NATIVE_BROWSER_ACTIONS) {
@@ -518,7 +538,7 @@ async function runNativeBrowserVerification(
         turn.action,
         actionId,
         activeSession.lease,
-        evidence,
+        runEvidence,
         control
       );
 
@@ -538,11 +558,13 @@ async function runNativeBrowserVerification(
           throw error;
         }
         if (!reconciled.success) {
-          await control.wait(
-            evidence.appendIntermediateFailure({
-              kind: 'lease-reconcile',
-              message: safeText(reconciled.error.message, 'Browser lease reconciliation failed'),
-            })
+          await waitForEvidenceOperation(
+            () =>
+              runEvidence.appendIntermediateFailure({
+                kind: 'lease-reconcile',
+                message: safeText(reconciled.error.message, 'Browser lease reconciliation failed'),
+              }),
+            control
           );
           throw new NativeBrowserVerifierFailure(
             'command-failed',
@@ -557,28 +579,32 @@ async function runNativeBrowserVerification(
             'Native browser reconciliation returned an unknown session transition'
           );
         }
-        activeSession = validateReconciledSession(
+        const reconciledSession = validateReconciledSession(
           reconciled.data,
           previousSession,
           binding,
           ctx.loop
         );
+        activeSession = reconciledSession;
         const rotation: RotationObservation = {
           kind: reconciled.data.kind === 'rotated' ? 'lease-rotated' : 'lease-resumed',
           previousVerificationRunId: previousSession.lease.verificationRunId,
-          verificationRunId: activeSession.lease.verificationRunId,
-          workspaceId: activeSession.lease.workspaceId,
-          allowedPreviewOrigin: activeSession.lease.allowedPreviewOrigin,
+          verificationRunId: reconciledSession.lease.verificationRunId,
+          workspaceId: reconciledSession.lease.workspaceId,
+          allowedPreviewOrigin: reconciledSession.lease.allowedPreviewOrigin,
           actionReplayed: false,
         };
         if (reconciled.data.kind === 'rotated') {
-          await control.wait(
-            evidence.appendLeaseRotation({
-              previousVerificationRunId: previousSession.lease.verificationRunId,
-              verificationRunId: activeSession.lease.verificationRunId,
-              previousOrigin: previousSession.lease.allowedPreviewOrigin,
-              allowedPreviewOrigin: activeSession.lease.allowedPreviewOrigin,
-            })
+          successfulObservations = 0;
+          await waitForEvidenceOperation(
+            () =>
+              runEvidence.appendLeaseRotation({
+                previousVerificationRunId: previousSession.lease.verificationRunId,
+                verificationRunId: reconciledSession.lease.verificationRunId,
+                previousOrigin: previousSession.lease.allowedPreviewOrigin,
+                allowedPreviewOrigin: reconciledSession.lease.allowedPreviewOrigin,
+              }),
+            control
           );
         }
         prompt = buildObservationPrompt(actionId, turn.action.kind, rotation);
@@ -604,11 +630,12 @@ async function runNativeBrowserVerification(
   } catch (error) {
     const failure = normalizeFailure(error, control);
     evidenceStatus = failure.evidenceStatus;
-    finalSummary = failure.message;
+    finalSummary = failure.evidenceSummary ?? failure.message;
+    resultSummary = failure.message;
     result = err(
       verifierFailure(
         failure.kind,
-        failure.message,
+        resultSummary,
         binding?.target.path ?? ctx.cwd,
         Date.now() - startedAt,
         command,
@@ -617,40 +644,52 @@ async function runNativeBrowserVerification(
     );
   }
 
-  const surfaceCleanupFailure = async (
-    kind: string,
-    message: string,
-    recordInEvidence = true
-  ): Promise<void> => {
-    const cleanupMessage = safeText(message, 'Native browser cleanup failed');
-    finalSummary = `${finalSummary}\nCleanup recovery required: ${cleanupMessage}`;
-    if (evidenceStatus === 'passed') evidenceStatus = 'failed';
+  const primarySummary = finalSummary;
+  const primaryResultSummary = resultSummary;
+  const cleanupSummaries: string[] = [];
+  const recordCleanupSummary = (kind: string, message: unknown): void => {
+    if (cleanupSummaries.length < 8) {
+      cleanupSummaries.push(`${kind}: ${safeText(message, 'cleanup failed', 384)}`);
+    }
+    const formatSummary = (primary: string) =>
+      [
+        'Cleanup recovery required:',
+        ...cleanupSummaries.map((summary) => `- ${summary}`),
+        `Primary result: ${primary}`,
+      ].join('\n');
+    finalSummary = formatSummary(primarySummary);
+    resultSummary = formatSummary(primaryResultSummary);
+  };
+  const updateCleanupResult = (): void => {
     result = err(
       verifierFailure(
         'execution-error',
-        finalSummary,
+        resultSummary,
         binding?.target.path ?? ctx.cwd,
         Date.now() - startedAt,
         command,
         evidence?.directory
       )
     );
+  };
+  const surfaceCleanupFailure = async (
+    kind: string,
+    message: string,
+    recordInEvidence = true
+  ): Promise<void> => {
+    const cleanupMessage = safeText(message, 'Native browser cleanup failed', 384);
+    recordCleanupSummary(kind, cleanupMessage);
+    if (evidenceStatus === 'passed') evidenceStatus = 'failed';
+    updateCleanupResult();
     if (!recordInEvidence || !evidence) return;
     try {
       await evidence.appendIntermediateFailure({ kind, message: cleanupMessage });
     } catch (appendError) {
-      const appendMessage = safeText(appendError, 'Failed to append cleanup recovery evidence');
-      finalSummary = `${finalSummary}\nCleanup recovery required: ${appendMessage}`;
-      result = err(
-        verifierFailure(
-          'execution-error',
-          finalSummary,
-          binding?.target.path ?? ctx.cwd,
-          Date.now() - startedAt,
-          command,
-          evidence.directory
-        )
+      recordCleanupSummary(
+        `${kind}-evidence`,
+        safeText(appendError, 'Failed to append cleanup recovery evidence', 384)
       );
+      updateCleanupResult();
     }
   };
 
@@ -689,6 +728,15 @@ async function runNativeBrowserVerification(
         safeText(error, 'Failed to finalize native browser evidence'),
         false
       );
+      try {
+        await evidence.abandon();
+      } catch (abandonError) {
+        await surfaceCleanupFailure(
+          'evidence-abandon',
+          safeText(abandonError, 'Failed to release unfinished native browser evidence'),
+          false
+        );
+      }
     }
   }
   control.dispose();
@@ -826,6 +874,7 @@ async function sendControlledPrompt(
   prompt: string,
   control: NativeBrowserRunControl
 ) {
+  control.assertActive();
   const promptPromise = driver.sendPrompt(conversationId, prompt);
   try {
     return await control.wait(promptPromise);
@@ -841,10 +890,18 @@ async function sendControlledPrompt(
         settlePromise(cancellationPromise),
         settlePromise(promptPromise),
       ]);
-      if (!cancellation.success || (cancellation.value && !cancellation.value.success)) {
+      const cancellationError = !cancellation.success
+        ? cancellation.error
+        : !cancellation.value.success
+          ? cancellation.value.error.message
+          : null;
+      if (cancellationError !== null) {
         throw new NativeBrowserVerifierFailure(
-          control.abortKind,
-          `${control.abortMessage}; nested ACP cancellation was not acknowledged`,
+          'execution-error',
+          `${control.abortMessage}\nCleanup recovery required: ${safeText(
+            cancellationError,
+            'Nested ACP cancellation was not acknowledged'
+          )}`,
           'cancelled'
         );
       }
@@ -867,6 +924,33 @@ async function settlePromise<T>(
     return { success: true, value: await promise };
   } catch (error) {
     return { success: false, error };
+  }
+}
+
+async function waitForEvidenceOperation<T>(
+  start: () => Promise<T>,
+  control: NativeBrowserRunControl
+): Promise<T> {
+  control.assertActive();
+  const operation = start();
+  try {
+    return await control.wait(operation);
+  } catch (error) {
+    if (control.wasAborted) {
+      const lateSettlement = await settlePromise(operation);
+      if (!lateSettlement.success) {
+        throw new NativeBrowserVerifierFailure(
+          'execution-error',
+          `${control.abortMessage}\nCleanup recovery required: Native browser evidence write failed while quiescing: ${safeText(
+            lateSettlement.error,
+            'evidence write failed',
+            1_024
+          )}`,
+          'cancelled'
+        );
+      }
+    }
+    throw error;
   }
 }
 
@@ -1093,10 +1177,13 @@ function validateReconciledSession(
 ): NativeBrowserVerificationSession {
   const next = validateBrowserSession(reconciled.session, binding.target, loop);
   if (reconciled.kind === 'resumed') {
-    if (!sameLease(previous.lease, next.lease)) {
+    if (
+      !sameLease(previous.lease, next.lease) ||
+      next.previewServerId !== previous.previewServerId
+    ) {
       throw new NativeBrowserVerifierFailure(
         'command-failed',
-        'A resumed native browser session changed lease identity'
+        'A resumed native browser session changed lease or preview identity'
       );
     }
     return next;
@@ -1157,7 +1244,7 @@ function validateAction(action: LoopBrowserAction, lease: LoopBrowserLease): voi
       .join(' ');
     if (
       sensitiveTargetPattern.test(targetText) ||
-      redactAll(action.value) !== action.value ||
+      redactNativeBrowserSecrets(action.value) !== action.value ||
       sensitiveTargetPattern.test(action.value)
     ) {
       throw new NativeBrowserVerifierFailure(
@@ -1186,36 +1273,42 @@ async function validateAndStoreExecution(
   const result = sanitizeActionResult(parsed.data, lease.allowedPreviewOrigin);
   if (result.ok) validateObservationKind(action, result.observation);
   if (action.kind === 'screenshot' && result.ok) {
-    if (result.observation.kind !== 'screenshot' || !execution.screenshot) {
+    const screenshot = execution.screenshot;
+    if (result.observation.kind !== 'screenshot' || !screenshot) {
       throw new NativeBrowserVerifierFailure(
         'execution-error',
         'Native browser screenshot result omitted its sensitive artifact bytes'
       );
     }
     if (
-      execution.screenshot.artifactId !== result.observation.artifact.artifactId ||
-      execution.screenshot.mimeType !== result.observation.artifact.mimeType ||
-      execution.screenshot.data.byteLength !== result.observation.artifact.byteLength
+      screenshot.artifactId !== result.observation.artifact.artifactId ||
+      screenshot.mimeType !== result.observation.artifact.mimeType ||
+      screenshot.data.byteLength !== result.observation.artifact.byteLength
     ) {
       throw new NativeBrowserVerifierFailure(
         'execution-error',
         'Native browser screenshot metadata did not match its sensitive artifact'
       );
     }
-    await control.wait(evidence.writeScreenshot(execution.screenshot));
+    await waitForEvidenceOperation(() => evidence.writeScreenshot(screenshot), control);
   } else if (execution.screenshot) {
     throw new NativeBrowserVerifierFailure(
       'execution-error',
       'Native browser service attached screenshot bytes to a non-screenshot action'
     );
   }
-  await control.wait(evidence.appendObservation({ actionId, actionKind: action.kind, result }));
+  await waitForEvidenceOperation(
+    () => evidence.appendObservation({ actionId, actionKind: action.kind, result }),
+    control
+  );
   if (!result.ok) {
-    await control.wait(
-      evidence.appendIntermediateFailure({
-        kind: `browser-${result.error.kind}`,
-        message: result.error.message,
-      })
+    await waitForEvidenceOperation(
+      () =>
+        evidence.appendIntermediateFailure({
+          kind: `browser-${result.error.kind}`,
+          message: result.error.message,
+        }),
+      control
     );
   }
   return result;
@@ -1386,23 +1479,28 @@ function assertEvidenceOutsideRepositories(
       'Native browser evidence store did not return an absolute app-data path'
     );
   }
-  if (isWithinPath(ctx.cwd, evidenceDirectory)) {
-    throw new NativeBrowserVerifierFailure(
-      'invalid-config',
-      'Native browser evidence must not be stored in the feature repository'
-    );
-  }
-  if (target.machine.kind === 'local' && isWithinPath(target.path, evidenceDirectory)) {
-    throw new NativeBrowserVerifierFailure(
-      'invalid-config',
-      'Native browser evidence must not be stored in the verification repository'
-    );
+  if (target.machine.kind === 'local') {
+    if (isWithinPath(ctx.cwd, evidenceDirectory)) {
+      throw new NativeBrowserVerifierFailure(
+        'invalid-config',
+        'Native browser evidence must not be stored in the feature repository'
+      );
+    }
+    if (isWithinPath(target.path, evidenceDirectory)) {
+      throw new NativeBrowserVerifierFailure(
+        'invalid-config',
+        'Native browser evidence must not be stored in the verification repository'
+      );
+    }
   }
 }
 
 function isWithinPath(parent: string, candidate: string): boolean {
   const fromParent = relative(resolve(parent), resolve(candidate));
-  return fromParent === '' || (!fromParent.startsWith('..') && !isAbsolute(fromParent));
+  return (
+    fromParent === '' ||
+    (fromParent !== '..' && !fromParent.startsWith(`..${sep}`) && !isAbsolute(fromParent))
+  );
 }
 
 function sameTarget(left: LoopSessionTarget, right: LoopSessionTarget): boolean {
@@ -1528,10 +1626,14 @@ function safeText(value: unknown, fallback: string, limit = 4_096): string {
         : typeof value === 'object' && value !== null && 'message' in value
           ? String((value as { message?: unknown }).message ?? '')
           : '';
-  const redacted = redactAll(stripUrlDetails(raw.slice(0, limit * 4)))
+  const redacted = redactNativeBrowserSecrets(stripUrlDetails(raw.slice(0, limit * 4)))
     .slice(0, limit)
     .trim();
   return redacted || fallback;
+}
+
+function redactNativeBrowserSecrets(value: string): string {
+  return redactAll(value.replace(cookieAssignmentPattern, '[REDACTED_COOKIE]'));
 }
 
 function stripUrlDetails(value: string): string {

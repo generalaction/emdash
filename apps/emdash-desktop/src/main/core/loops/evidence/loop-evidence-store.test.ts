@@ -42,7 +42,27 @@ describe('LoopEvidenceStore', () => {
       kind: 'browser-action',
       message:
         'token=super-secret https://user:pass@example.test/account?token=secret#private ' +
-        'file:///home/devuser/private data:text/plain,secret javascript:alert(secret)',
+        'file:///home/devuser/private data:text/plain,secret javascript:alert(secret) ' +
+        'cookie=sessionid=intermediate-cookie-secret',
+    });
+    await run.appendObservation({
+      actionId: 'diagnostics',
+      actionKind: 'diagnostics',
+      result: {
+        ok: true,
+        observation: {
+          kind: 'diagnostics',
+          entries: [
+            {
+              level: 'error',
+              source: 'network',
+              message: 'Set-Cookie: sessionid=observed-cookie-secret; HttpOnly',
+              redacted: true,
+            },
+          ],
+          truncated: false,
+        },
+      },
     });
     const artifact = await run.writeScreenshot({
       artifactId: '../../shot',
@@ -60,6 +80,8 @@ describe('LoopEvidenceStore', () => {
     expect(events).toContain('[REDACTED]');
     expect(events).not.toContain('super-secret');
     expect(events).not.toContain('hunter2');
+    expect(events).not.toContain('intermediate-cookie-secret');
+    expect(events).not.toContain('observed-cookie-secret');
     expect(events).not.toContain('?token=');
     expect(events).not.toContain('#private');
     expect(events).not.toContain('file:///');
@@ -69,10 +91,11 @@ describe('LoopEvidenceStore', () => {
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line) as { sequence: number; kind: string });
-    expect(records.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4]);
+    expect(records.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4, 5]);
     expect(records.map(({ kind }) => kind)).toEqual([
       'started',
       'intermediate-failure',
+      'observation',
       'screenshot',
       'terminal',
     ]);
@@ -208,6 +231,35 @@ describe('LoopEvidenceStore', () => {
     );
     await expect(store.beginRun(identity)).rejects.toThrow(/already exists/i);
     await run.finish({ status: 'failed', summary: 'bounded terminal' });
+  });
+
+  it('releases an abandoned failed-finalization run to bounded retention', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'emdash-loop-evidence-abandon-'));
+    tempDirs.push(root);
+    let now = new Date('2026-07-12T05:00:00.000Z');
+    const appDataPath = join(root, 'app-data');
+    const store = new LoopEvidenceStore({
+      appDataPath,
+      now: () => now,
+      maxAgeMs: 1_000,
+      maxEventBytes: 512,
+    });
+    const identity = { loopId: 'loop', phaseId: 'phase', verificationRunId: 'abandoned' };
+    const run = await store.beginRun(identity);
+
+    await expect(run.finish({ status: 'failed', summary: 'x'.repeat(4_000) })).rejects.toThrow(
+      /event exceeds/i
+    );
+    await run.abandon();
+    await expect(
+      run.appendIntermediateFailure({ kind: 'late', message: 'must stay closed' })
+    ).rejects.toThrow(/finished/i);
+    await expect(store.beginRun(identity)).rejects.toThrow(/already exists/i);
+    await store.cleanupExpired();
+    await utimes(run.directory, now, now);
+    now = new Date(now.getTime() + 2_000);
+    await store.cleanupExpired();
+    await expect(access(run.directory)).rejects.toThrow();
   });
 
   it('cleans a failed initialization so the same authority can retry', async () => {
