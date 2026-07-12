@@ -1,4 +1,3 @@
-import type { Hotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -190,7 +189,7 @@ export const GenericTabItem = observer(function GenericTabItem({
                 'group-hover:from-muted'
               )}
             >
-              <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" />
+              <Shortcut hotkey={numberHint} variant="keycaps" />
             </div>
           )}
         </div>

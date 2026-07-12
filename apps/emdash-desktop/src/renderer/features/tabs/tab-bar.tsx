@@ -17,7 +17,7 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
   const revealHints = useModifierHeld(getFamilyRevealModifier(TAB_BY_NUMBER_KEYS, keyboard));
   const numberHints = useMemo(() => {
     if (!revealHints) return null;
-    const hints = new Map<string, string>();
+    const hints = new Map<string, Hotkey>();
     resolvedTabs.slice(0, TAB_BY_NUMBER_KEYS.length).forEach((tab, i) => {
       const hotkey = getEffectiveHotkey(TAB_BY_NUMBER_KEYS[i], keyboard);
       if (hotkey !== null) hints.set(tab.tabId, hotkey);
@@ -63,3 +63,4 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
     </div>
   );
 });
+import type { Hotkey } from '@tanstack/react-hotkeys';

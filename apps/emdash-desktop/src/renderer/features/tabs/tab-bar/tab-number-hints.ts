@@ -1,3 +1,4 @@
+import type { Hotkey } from '@tanstack/react-hotkeys';
 import { createContext, useContext } from 'react';
 
 /**
@@ -5,8 +6,8 @@ import { createContext, useContext } from 'react';
  * shortcut modifier is held. Null while hints are hidden. Provided by TabBar
  * per pane.
  */
-export const TabNumberHintsContext = createContext<ReadonlyMap<string, string> | null>(null);
+export const TabNumberHintsContext = createContext<ReadonlyMap<string, Hotkey> | null>(null);
 
-export function useTabNumberHint(tabId: string): string | null {
+export function useTabNumberHint(tabId: string): Hotkey | null {
   return useContext(TabNumberHintsContext)?.get(tabId) ?? null;
 }

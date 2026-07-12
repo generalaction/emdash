@@ -1,8 +1,10 @@
+import type { HotkeyCallback } from '@tanstack/hotkeys';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import type { AppSettings } from '@shared/core/app-settings';
 import { TAB_BY_NUMBER_KEYS, TASK_BY_NUMBER_KEYS } from '@shared/shortcuts';
 
@@ -15,8 +17,8 @@ export const NUMBER_HOTKEY_DEBOUNCE_MS = 200;
 
 // Shared across all number bindings (hook instances and forwarded webview
 // events) so key-repeat of one action is debounced app-wide.
-let lastClaimId = '';
-let lastClaimAt = 0;
+const lastClaimAtById = new Map<string, number>();
+const numberHotkeyCallbacks = new WeakSet<HotkeyCallback>();
 
 /**
  * Claims the debounce window for a number-shortcut press. Repeats of the SAME
@@ -26,10 +28,24 @@ let lastClaimAt = 0;
  * clock discrepancy from wedging the window shut.
  */
 export function claimNumberHotkey(id: string, at: number = performance.now()): boolean {
-  if (id === lastClaimId && Math.abs(at - lastClaimAt) < NUMBER_HOTKEY_DEBOUNCE_MS) return false;
-  lastClaimId = id;
-  lastClaimAt = at;
+  const lastClaimAt = lastClaimAtById.get(id);
+  if (lastClaimAt !== undefined && Math.abs(at - lastClaimAt) < NUMBER_HOTKEY_DEBOUNCE_MS) {
+    return false;
+  }
+  lastClaimAtById.set(id, at);
   return true;
+}
+
+/**
+ * Dispatches only number-navigation registrations from widgets such as xterm
+ * that consume keyboard events before they reach the document listener.
+ */
+export function dispatchNumberHotkey(event: KeyboardEvent): boolean {
+  if (event.type !== 'keydown') return false;
+  return dispatchMatchingHotkeys(event, {
+    dispatch: 'first',
+    filter: (registration) => numberHotkeyCallbacks.has(registration.callback),
+  });
 }
 
 /**
@@ -45,12 +61,16 @@ export function useNumberHotkeys(
 ): void {
   const keys = family === 'tab' ? TAB_BY_NUMBER_KEYS : TASK_BY_NUMBER_KEYS;
 
-  const fire = (index: number) => (e: KeyboardEvent) => {
-    e.preventDefault();
-    // Event creation time, not handler time: key-repeat must be swallowed
-    // even when a heavy render delays processing of the repeated event.
-    if (!claimNumberHotkey(`${family}:${index}`, e.timeStamp)) return;
-    onSelect(index);
+  const fire = (index: number): HotkeyCallback => {
+    const callback: HotkeyCallback = (event) => {
+      event.preventDefault();
+      // Event creation time, not handler time: key-repeat must be swallowed
+      // even when a heavy render delays processing of the repeated event.
+      if (!claimNumberHotkey(`${family}:${index}`, event.timeStamp)) return;
+      onSelect(index);
+    };
+    numberHotkeyCallbacks.add(callback);
+    return callback;
   };
 
   const options = (index: number) =>
