@@ -35,7 +35,7 @@
     "test:watch": "vitest",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
+    "lint": "oxlint --config ../../apps/emdash-desktop/.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
     "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },

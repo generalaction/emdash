@@ -84,7 +84,7 @@
     "example:replica": "tsx examples/replica/client.ts",
     "example:process": "tsx examples/process/client.ts",
     "example:optimistic-live-model": "tsx examples/optimistic-live-model/client.ts",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
+    "lint": "oxlint --config ../../apps/emdash-desktop/.oxlintrc.json .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
