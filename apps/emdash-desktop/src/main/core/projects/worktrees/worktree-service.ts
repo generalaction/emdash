@@ -28,9 +28,13 @@ export type CreateWorktreeAtCommitError =
   | { type: 'invalid-commit'; commit: string }
   | { type: 'commit-not-found'; commit: string }
   | { type: 'branch-exists'; branch: string }
+  | { type: 'cancelled'; message: string }
+  | { type: 'deadline-exceeded'; message: string }
+  | { type: 'worktree-rollback-incomplete'; message: string }
   | { type: 'worktree-setup-failed'; cause: SerializedError };
 
 export type CopyPreservedFilesError =
+  | { type: 'invalid-generated-worktree'; message: string }
   | { type: 'preserve-config-unavailable'; message: string }
   | { type: 'preserve-glob-failed'; pattern: string; message: string }
   | { type: 'preserve-source-failed'; pattern: string; message: string }
@@ -40,6 +44,31 @@ export type RemoveGeneratedWorktreeError = {
   type: 'worktree-remove-failed';
   message: string;
 };
+
+export type GeneratedWorktreeValidationError = {
+  type: 'invalid-generated-worktree';
+  message: string;
+};
+
+export type CreateWorktreeOperationControl = {
+  signal?: AbortSignal;
+  deadlineAt?: number;
+  expectedTargetPath?: string;
+};
+
+class WorktreeOperationStopped extends Error {
+  constructor(
+    readonly failure: Extract<
+      CreateWorktreeAtCommitError,
+      { type: 'cancelled' | 'deadline-exceeded' }
+    >
+  ) {
+    super(failure.message);
+  }
+}
+
+const WORKTREE_GIT_TIMEOUT_MS = 120_000;
+const FULL_COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
 function fileErrorCause(error: { type?: string; message: string }): SerializedError {
   return { name: error.type ?? 'FileError', message: error.message };
@@ -75,19 +104,21 @@ export class WorktreeService {
     return result as Promise<T>;
   }
 
-  private async isValidWorktree(worktreePath: string): Promise<boolean> {
+  private async isValidWorktree(
+    worktreePath: string,
+    control: CreateWorktreeOperationControl = {}
+  ): Promise<boolean> {
     // A linked worktree contains a .git FILE pointing to the main repo's worktrees
     // directory.
+    this.throwIfCreateStopped(control);
     const hasGitFile = await this.existsAbsolute(this.files.path.join(worktreePath, '.git'));
     if (!hasGitFile) return false;
 
     try {
-      const { stdout } = await this.ctx.exec('git', [
-        '-C',
-        worktreePath,
-        'rev-parse',
-        '--is-inside-work-tree',
-      ]);
+      const { stdout } = await this.gitForCreate(
+        ['-C', worktreePath, 'rev-parse', '--is-inside-work-tree'],
+        control
+      );
       return stdout.trim() === 'true';
     } catch {
       return false;
@@ -99,15 +130,150 @@ export class WorktreeService {
     return this.resolveWorktreePoolPath();
   }
 
+  async resolveGeneratedWorktreePath(
+    branchName: string
+  ): Promise<Result<string, GeneratedWorktreeValidationError>> {
+    try {
+      await this.ctx.exec('git', ['check-ref-format', '--branch', branchName], {
+        timeout: WORKTREE_GIT_TIMEOUT_MS,
+      });
+      const location = await this.resolveGeneratedLocation(branchName);
+      return location.success ? ok(location.data.targetPath) : location;
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  async attestGeneratedWorktree(
+    targetPath: string,
+    expectedBranchName?: string
+  ): Promise<Result<void, GeneratedWorktreeValidationError>> {
+    try {
+      const poolPath = await this.resolveWorktreePoolPath();
+      if (
+        !this.files.path.isAbsolute(targetPath) ||
+        !this.files.path.contains(poolPath, targetPath) ||
+        targetPath === poolPath
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      const branchName =
+        expectedBranchName ?? this.files.path.relative(poolPath, targetPath).replaceAll('\\', '/');
+      const resolved = await this.resolveGeneratedWorktreePath(branchName);
+      if (!resolved.success || resolved.data !== targetPath) return invalidGeneratedWorktree();
+      return this.attestGeneratedWorktreeAtLocation(targetPath, branchName, poolPath);
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async resolveGeneratedLocation(
+    branchName: string
+  ): Promise<Result<{ poolPath: string; targetPath: string }, GeneratedWorktreeValidationError>> {
+    try {
+      const poolPath = await this.resolveWorktreePoolPath();
+      const targetPath = this.files.path.join(poolPath, branchName);
+      if (
+        !this.files.path.isAbsolute(poolPath) ||
+        !this.files.path.isAbsolute(targetPath) ||
+        !this.files.path.contains(poolPath, targetPath) ||
+        targetPath === poolPath
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      return ok({ poolPath, targetPath });
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async attestGeneratedWorktreeAtLocation(
+    targetPath: string,
+    branchName: string,
+    poolPath: string,
+    expectedCommit?: string,
+    control: CreateWorktreeOperationControl = {}
+  ): Promise<Result<void, GeneratedWorktreeValidationError>> {
+    try {
+      const contained = await isRealPathContained(this.files, poolPath, targetPath, {
+        candidateMustExist: true,
+      });
+      if (
+        !contained.success ||
+        !contained.data ||
+        !(await this.isValidWorktree(targetPath, control))
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      const ref = `refs/heads/${branchName}`;
+      const symbolic = await this.gitForCreate(
+        ['-C', targetPath, 'symbolic-ref', '--quiet', 'HEAD'],
+        control
+      );
+      if (symbolic.stdout.trim() !== ref) return invalidGeneratedWorktree();
+      if (expectedCommit) {
+        const head = await this.gitForCreate(['-C', targetPath, 'rev-parse', 'HEAD'], control);
+        if (head.stdout.trim().toLowerCase() !== expectedCommit.toLowerCase()) {
+          return invalidGeneratedWorktree();
+        }
+      }
+      const mainCommonDir = await this.readCanonicalCommonDir(this.repoPath, control);
+      const targetCommonDir = await this.readCanonicalCommonDir(targetPath, control);
+      if (!mainCommonDir || !targetCommonDir || mainCommonDir !== targetCommonDir) {
+        return invalidGeneratedWorktree();
+      }
+      const listed = await this.gitForCreate(['worktree', 'list', '--porcelain'], control);
+      const found = listed.stdout.split(/\r?\n\r?\n/).some((block) => {
+        const lines = block.split(/\r?\n/);
+        return (
+          lines.includes(`worktree ${targetPath}`) &&
+          lines.includes(`branch ${ref}`) &&
+          (!expectedCommit || lines.includes(`HEAD ${expectedCommit}`))
+        );
+      });
+      return found ? ok() : invalidGeneratedWorktree();
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async readCanonicalCommonDir(
+    worktreePath: string,
+    control: CreateWorktreeOperationControl
+  ): Promise<string | undefined> {
+    try {
+      const result = await this.gitForCreate(
+        ['-C', worktreePath, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+        control
+      );
+      const output = result.stdout.trim();
+      const absolute = this.files.path.isAbsolute(output)
+        ? output
+        : this.files.path.join(worktreePath, output);
+      const real = await realPathAbsolute(this.files, absolute);
+      return real.success ? real.data : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
-    const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
-    return result.success
-      ? ok()
-      : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
+    try {
+      const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
+      return result.success
+        ? ok()
+        : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
   }
 
   private async removePathForReuse(targetPath: string): Promise<void> {
     const poolPath = await this.resolveWorktreePoolPath();
+    return this.removePathForReuseAtPool(poolPath, targetPath);
+  }
+
+  private async removePathForReuseAtPool(poolPath: string, targetPath: string): Promise<void> {
     const contained = await isRealPathContained(this.files, poolPath, targetPath, {
       candidateMustExist: true,
     });
@@ -289,111 +455,237 @@ export class WorktreeService {
 
   async createWorktreeAtCommit(
     commit: string,
-    branchName: string
+    branchName: string,
+    control: CreateWorktreeOperationControl = {}
   ): Promise<Result<string, CreateWorktreeAtCommitError>> {
-    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(commit)) {
+    if (!FULL_COMMIT_PATTERN.test(commit)) {
       return err({ type: 'invalid-commit', commit });
     }
 
-    const poolDir = await this.ensureWorktreePoolDirExists();
-    if (!poolDir.success) {
-      return poolDir.error.type === 'worktree-setup-failed'
-        ? err(poolDir.error)
-        : err({
-            type: 'worktree-setup-failed',
-            cause: { name: 'WorktreePoolError', message: 'Worktree pool could not be prepared.' },
-          });
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) return err(stopped);
+    try {
+      return await this.enqueueGitOp(() =>
+        this.doCreateWorktreeAtCommit(commit, branchName, control)
+      );
+    } catch (cause) {
+      const operationStopped = stoppedWorktreeFailure(cause, control);
+      return operationStopped ? err(operationStopped) : createSetupFailure(cause);
     }
-    return this.enqueueGitOp(() => this.doCreateWorktreeAtCommit(commit, branchName));
   }
 
   private async doCreateWorktreeAtCommit(
     commit: string,
-    branchName: string
+    branchName: string,
+    control: CreateWorktreeOperationControl
   ): Promise<Result<string, CreateWorktreeAtCommitError>> {
+    const stoppedBeforeLocation = worktreeOperationFailure(control);
+    if (stoppedBeforeLocation) return err(stoppedBeforeLocation);
+    let location;
     try {
-      await this.ctx.exec('git', ['cat-file', '-e', `${commit}^{commit}`]);
-    } catch {
+      location = await awaitWithWorktreeControl(this.resolveGeneratedLocation(branchName), control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      return stopped ? err(stopped) : createSetupFailure(cause);
+    }
+    if (!location.success) return createSetupFailure(new Error(location.error.message));
+    const { poolPath, targetPath } = location.data;
+    if (control.expectedTargetPath && control.expectedTargetPath !== targetPath) {
+      return createSetupFailure(new Error('Generated worktree target changed before creation.'));
+    }
+    this.throwIfCreateStopped(control);
+    let poolDir;
+    try {
+      poolDir = await awaitWithWorktreeControl(ensureAbsoluteDir(this.files, poolPath), control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      return stopped ? err(stopped) : createSetupFailure(cause);
+    }
+    if (!poolDir.success) return createSetupFailure(fileErrorCause(poolDir.error));
+
+    try {
+      await this.gitForCreate(['cat-file', '-e', `${commit}^{commit}`], control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
       return err({ type: 'commit-not-found', commit });
     }
 
     try {
-      await this.ctx.exec('git', ['check-ref-format', '--branch', branchName]);
+      await this.gitForCreate(['check-ref-format', '--branch', branchName], control);
     } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
     try {
       const ref = `refs/heads/${branchName}`;
-      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(refname)', ref]);
+      const listed = await this.gitForCreate(['for-each-ref', '--format=%(refname)', ref], control);
       if (listed.stdout.trim() === ref) return err({ type: 'branch-exists', branch: branchName });
     } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
-    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
+    this.throwIfCreateStopped(control);
     if (await this.existsAbsolute(targetPath)) {
       try {
-        if (await this.isValidWorktree(targetPath)) {
+        this.throwIfCreateStopped(control);
+        const validWorktree = await this.isValidWorktree(targetPath, control);
+        this.throwIfCreateStopped(control);
+        if (validWorktree) {
           return err({ type: 'branch-exists', branch: branchName });
         }
-        await this.removePathForReuse(targetPath);
-        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+        await this.removePathForReuseAtPool(poolPath, targetPath);
+        this.throwIfCreateStopped(control);
+        await this.gitForCreate(['worktree', 'prune'], control).catch(() => {});
       } catch (cause) {
+        const stopped = stoppedWorktreeFailure(cause, control);
+        if (stopped) return err(stopped);
         return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
+    let addReturned = false;
     try {
+      this.throwIfCreateStopped(control);
+      const safeParent = await isRealPathContained(
+        this.files,
+        poolPath,
+        this.files.path.dirname(targetPath)
+      );
+      if (!safeParent.success || !safeParent.data) {
+        return createSetupFailure(new Error('Generated worktree parent escaped the pool.'));
+      }
+      this.throwIfCreateStopped(control);
       const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
       if (!parentDir.success) {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'add', '-b', branchName, targetPath, commit]);
-      const { stdout } = await this.ctx.exec('git', ['-C', targetPath, 'rev-parse', 'HEAD']);
-      if (stdout.trim().toLowerCase() !== commit.toLowerCase()) {
-        throw new Error('Created worktree did not resolve to the requested immutable commit');
-      }
+      await this.gitForCreate(['worktree', 'prune'], control).catch(() => {});
+      this.throwIfCreateStopped(control);
+      await this.gitForCreate(['worktree', 'add', '-b', branchName, targetPath, commit], control);
+      addReturned = true;
+      this.throwIfCreateStopped(control);
+      const attested = await this.attestGeneratedWorktreeAtLocation(
+        targetPath,
+        branchName,
+        poolPath,
+        commit,
+        control
+      );
+      if (!attested.success) throw new Error(attested.error.message);
+      this.throwIfCreateStopped(control);
       return ok(targetPath);
     } catch (cause) {
-      const rollback = await this.rollbackGeneratedWorktree(targetPath, branchName);
+      if (!addReturned) {
+        const ambiguous = await this.hasGeneratedResources(targetPath, branchName);
+        if (ambiguous) {
+          return err({
+            type: 'worktree-rollback-incomplete',
+            message: 'Generated worktree ownership was ambiguous after creation failed.',
+          });
+        }
+        const stopped = stoppedWorktreeFailure(cause, control);
+        if (stopped) return err(stopped);
+        return createSetupFailure(cause);
+      }
+      const rollback = await this.rollbackGeneratedWorktree(
+        targetPath,
+        branchName,
+        commit,
+        poolPath
+      );
       if (!rollback.success) {
         return err({
-          type: 'worktree-setup-failed',
-          cause: {
-            name: 'WorktreeRollbackError',
-            message: 'Generated worktree creation failed and rollback was incomplete.',
-          },
+          type: 'worktree-rollback-incomplete',
+          message: 'Generated worktree creation failed and rollback was incomplete.',
         });
       }
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
   }
 
   private async rollbackGeneratedWorktree(
     targetPath: string,
-    branchName: string
+    branchName: string,
+    ownedCommit: string,
+    poolPath: string
   ): Promise<Result<void, { message: string }>> {
     let failed = false;
+    let ownershipProven = false;
     if (await this.existsAbsolute(targetPath)) {
-      await this.removePathForReuse(targetPath).catch(() => {
+      const owned = await this.attestRollbackTarget(targetPath, branchName, ownedCommit, poolPath);
+      if (!owned) {
         failed = true;
-      });
+      } else {
+        ownershipProven = true;
+        await this.removePathForReuseAtPool(poolPath, targetPath).catch(() => {
+          failed = true;
+        });
+      }
     }
     await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {
       failed = true;
     });
+    if (!ownershipProven) {
+      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
+    }
     try {
       const ref = `refs/heads/${branchName}`;
-      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(refname)', ref]);
-      if (listed.stdout.trim() === ref) {
-        await this.ctx.exec('git', ['branch', '--delete', '--force', branchName]);
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(objectname)', ref]);
+      const currentHead = listed.stdout.trim();
+      if (currentHead) {
+        if (currentHead.toLowerCase() !== ownedCommit.toLowerCase()) {
+          failed = true;
+        } else {
+          await this.ctx.exec('git', ['update-ref', '-d', ref, ownedCommit]);
+        }
       }
     } catch {
       failed = true;
     }
     return failed ? err({ message: 'Generated worktree rollback was incomplete.' }) : ok();
+  }
+
+  private async hasGeneratedResources(targetPath: string, branchName: string): Promise<boolean> {
+    try {
+      if (await this.existsAbsolute(targetPath)) return true;
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(objectname)', ref]);
+      return Boolean(listed.stdout.trim());
+    } catch {
+      return true;
+    }
+  }
+
+  private async attestRollbackTarget(
+    targetPath: string,
+    branchName: string,
+    ownedCommit: string,
+    poolPath: string
+  ): Promise<boolean> {
+    const attested = await this.attestGeneratedWorktreeAtLocation(
+      targetPath,
+      branchName,
+      poolPath,
+      ownedCommit
+    );
+    if (!attested.success) return false;
+    try {
+      const status = await this.ctx.exec(
+        'git',
+        ['-C', targetPath, 'status', '--porcelain', '--untracked-files=normal'],
+        { timeout: WORKTREE_GIT_TIMEOUT_MS }
+      );
+      return status.stdout.trim() === '';
+    } catch {
+      return false;
+    }
   }
 
   private async doCheckoutBranchWorktree(
@@ -573,47 +865,67 @@ export class WorktreeService {
   }
 
   async removeGeneratedWorktreeIfPresent(
-    worktreePath: string
+    worktreePath: string,
+    options: { expectedBranchName: string; expectedHead: string | null }
   ): Promise<Result<{ removed: boolean }, RemoveGeneratedWorktreeError>> {
-    if (!this.files.path.isAbsolute(worktreePath)) {
-      return err({
-        type: 'worktree-remove-failed',
-        message: 'Generated worktree path could not be validated.',
-      });
-    }
-    const fs = openFileSystem(this.files);
-    if (!fs.success) {
-      return err({
-        type: 'worktree-remove-failed',
-        message: 'Generated worktree filesystem could not be opened.',
-      });
-    }
-    const exists = await fs.data.exists(worktreePath);
-    if (!exists.success) {
-      return err({
-        type: 'worktree-remove-failed',
-        message: 'Generated worktree presence could not be verified.',
-      });
-    }
-    if (exists.data) {
-      try {
-        await this.removePathForReuse(worktreePath);
-      } catch {
+    try {
+      const location = await this.resolveGeneratedLocation(options.expectedBranchName);
+      if (
+        !location.success ||
+        location.data.targetPath !== worktreePath ||
+        !this.files.path.isAbsolute(worktreePath)
+      ) {
         return err({
           type: 'worktree-remove-failed',
-          message: 'Generated worktree could not be removed safely.',
+          message: 'Generated worktree path could not be validated.',
         });
       }
-    }
-    try {
-      await this.ctx.exec('git', ['worktree', 'prune']);
+      await this.ctx.exec('git', ['check-ref-format', '--branch', options.expectedBranchName], {
+        timeout: WORKTREE_GIT_TIMEOUT_MS,
+      });
+      const fs = openFileSystem(this.files);
+      if (!fs.success) {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree filesystem could not be opened.',
+        });
+      }
+      const exists = await fs.data.exists(worktreePath);
+      if (!exists.success) {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree presence could not be verified.',
+        });
+      }
+      if (exists.data) {
+        if (!options.expectedHead || !FULL_COMMIT_PATTERN.test(options.expectedHead)) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree ownership could not be attested.',
+          });
+        }
+        const attested = await this.attestGeneratedWorktreeAtLocation(
+          worktreePath,
+          options.expectedBranchName,
+          location.data.poolPath,
+          options.expectedHead
+        );
+        if (!attested.success) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree ownership could not be attested.',
+          });
+        }
+        await this.removePathForReuseAtPool(location.data.poolPath, worktreePath);
+      }
+      await this.ctx.exec('git', ['worktree', 'prune'], { timeout: WORKTREE_GIT_TIMEOUT_MS });
+      return ok({ removed: exists.data });
     } catch {
       return err({
         type: 'worktree-remove-failed',
-        message: 'Generated worktree metadata could not be pruned.',
+        message: 'Generated worktree could not be removed safely.',
       });
     }
-    return ok({ removed: exists.data });
   }
 
   private taskConfigFs(): IFileSystem | null {
@@ -644,9 +956,13 @@ export class WorktreeService {
 
   async copyPreservedFilesToWorktree(
     targetPath: string,
-    options: { strict?: boolean } = {}
+    options: { strict?: boolean; generatedBranchName?: string } = {}
   ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
     const strict = options.strict ?? true;
+    if (strict) {
+      const attested = await this.attestGeneratedWorktree(targetPath, options.generatedBranchName);
+      if (!attested.success) return err(attested.error);
+    }
     const taskFs = this.taskConfigFs();
     if (!taskFs) {
       return err({
@@ -805,6 +1121,105 @@ export class WorktreeService {
       });
     }
   }
+
+  private throwIfCreateStopped(control: CreateWorktreeOperationControl): void {
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) throw new WorktreeOperationStopped(stopped);
+  }
+
+  private gitForCreate(args: string[], control: CreateWorktreeOperationControl) {
+    this.throwIfCreateStopped(control);
+    const timeout =
+      control.deadlineAt === undefined
+        ? WORKTREE_GIT_TIMEOUT_MS
+        : Math.max(1, Math.min(WORKTREE_GIT_TIMEOUT_MS, control.deadlineAt - Date.now()));
+    return awaitWithWorktreeControl(
+      this.ctx.exec('git', args, { timeout, signal: control.signal }),
+      control
+    );
+  }
+}
+
+function invalidGeneratedWorktree(): Result<never, GeneratedWorktreeValidationError> {
+  return err({
+    type: 'invalid-generated-worktree',
+    message: 'Generated worktree identity could not be validated.',
+  });
+}
+
+function createSetupFailure(cause: unknown): Result<never, CreateWorktreeAtCommitError> {
+  return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+}
+
+function worktreeOperationFailure(
+  control: CreateWorktreeOperationControl
+): Extract<CreateWorktreeAtCommitError, { type: 'cancelled' | 'deadline-exceeded' }> | undefined {
+  if (control.signal?.aborted) {
+    return { type: 'cancelled', message: 'Generated worktree creation was cancelled.' };
+  }
+  if (control.deadlineAt !== undefined && control.deadlineAt <= Date.now()) {
+    return {
+      type: 'deadline-exceeded',
+      message: 'Generated worktree creation deadline was exceeded.',
+    };
+  }
+  return undefined;
+}
+
+function stoppedWorktreeFailure(
+  cause: unknown,
+  control: CreateWorktreeOperationControl
+): Extract<CreateWorktreeAtCommitError, { type: 'cancelled' | 'deadline-exceeded' }> | undefined {
+  if (cause instanceof WorktreeOperationStopped) return cause.failure;
+  return worktreeOperationFailure(control);
+}
+
+function awaitWithWorktreeControl<T>(
+  operation: Promise<T>,
+  control: CreateWorktreeOperationControl
+): Promise<T> {
+  const stopped = worktreeOperationFailure(control);
+  if (stopped) return Promise.reject(new WorktreeOperationStopped(stopped));
+  if (!control.signal && control.deadlineAt === undefined) return operation;
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      control.signal?.removeEventListener('abort', onAbort);
+      callback();
+    };
+    const onAbort = () => {
+      const failure = worktreeOperationFailure(control) ?? {
+        type: 'cancelled' as const,
+        message: 'Generated worktree creation was cancelled.',
+      };
+      finish(() => reject(new WorktreeOperationStopped(failure)));
+    };
+    const remaining =
+      control.deadlineAt === undefined ? undefined : Math.max(0, control.deadlineAt - Date.now());
+    const timer =
+      remaining === undefined
+        ? undefined
+        : setTimeout(() => {
+            finish(() =>
+              reject(
+                new WorktreeOperationStopped({
+                  type: 'deadline-exceeded',
+                  message: 'Generated worktree creation deadline was exceeded.',
+                })
+              )
+            );
+          }, remaining);
+    control.signal?.addEventListener('abort', onAbort, { once: true });
+    if (control.signal?.aborted) onAbort();
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (cause) => finish(() => reject(cause))
+    );
+  });
 }
 
 /**

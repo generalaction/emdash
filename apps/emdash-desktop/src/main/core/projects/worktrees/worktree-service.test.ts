@@ -122,7 +122,7 @@ describe('WorktreeService', () => {
     repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-repo-'));
     poolDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-pool-'));
     await initRepo(repoDir);
-  });
+  }, 30_000);
 
   afterEach(() => {
     fs.rmSync(repoDir, { recursive: true, force: true });
@@ -175,6 +175,359 @@ describe('WorktreeService', () => {
   }
 
   describe('createWorktreeAtCommit', () => {
+    it('rejects resolver drift against the frozen target before worktree mutation', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const poolA = path.join(poolDir, 'a');
+      const poolB = path.join(poolDir, 'b');
+      let currentPool = poolA;
+      const service = makeService({ resolveWorktreePoolPath: async () => currentPool });
+      const branch = 'emdash/loop-frozen-target';
+      const resolved = await service.resolveGeneratedWorktreePath(branch);
+      if (!resolved.success) throw new Error('expected frozen target');
+      currentPool = poolB;
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        expectedTargetPath: resolved.data,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-setup-failed' },
+      });
+      expect(fs.existsSync(path.join(poolB, branch))).toBe(false);
+      await expect(
+        git(['show-ref', '--verify', `refs/heads/${branch}`], { cwd: repoDir })
+      ).rejects.toBeDefined();
+    });
+
+    it('preserves a competing actor worktree created at the add boundary', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-competing-actor';
+      const targetPath = path.join(poolDir, branch);
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      let injectActor = true;
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: async (command, args = [], options) => {
+          if (injectActor && args[0] === 'worktree' && args[1] === 'add') {
+            injectActor = false;
+            await delegate.exec(command, args, options);
+            fs.writeFileSync(path.join(targetPath, 'actor.txt'), 'actor bytes');
+            throw new Error('original add lost to competing actor');
+          }
+          return delegate.exec(command, args, options);
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        expectedTargetPath: targetPath,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(await git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })).toMatchObject({
+        stdout: `${commit}\n`,
+      });
+      expect(await git(['rev-parse', 'HEAD'], { cwd: targetPath })).toMatchObject({
+        stdout: `${commit}\n`,
+      });
+      expect(fs.readFileSync(path.join(targetPath, 'actor.txt'), 'utf8')).toBe('actor bytes');
+    });
+
+    it('rejects a symlinked branch parent that escapes the generated pool', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-outside-'));
+      fs.symlinkSync(outside, path.join(poolDir, 'emdash'), 'dir');
+      const branch = 'emdash/loop-symlink-parent';
+      const service = makeService();
+
+      try {
+        const result = await service.createWorktreeAtCommit(commit, branch, {
+          expectedTargetPath: path.join(poolDir, branch),
+        });
+
+        expect(result).toMatchObject({
+          success: false,
+          error: { type: 'worktree-setup-failed' },
+        });
+        expect(fs.existsSync(path.join(outside, 'loop-symlink-parent'))).toBe(false);
+        await expect(
+          git(['show-ref', '--verify', `refs/heads/${branch}`], { cwd: repoDir })
+        ).rejects.toBeDefined();
+      } finally {
+        fs.rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('returns a typed failure when the pool resolver rejects', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const service = makeService({
+        resolveWorktreePoolPath: async () => {
+          throw new Error('settings unavailable');
+        },
+      });
+
+      await expect(
+        service.createWorktreeAtCommit(commit, 'emdash/loop-resolver-rejects')
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'worktree-setup-failed' },
+      });
+    });
+
+    it('settles cancellation while the pool resolver is held without Git mutation', async () => {
+      const commit = 'a'.repeat(40);
+      const controller = new AbortController();
+      let resolverStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        resolverStarted = resolve;
+      });
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime(),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: () => {
+          resolverStarted?.();
+          return new Promise<string>(() => {});
+        },
+      });
+      exec.mockClear();
+
+      const creating = service.createWorktreeAtCommit(commit, 'emdash/loop-held-resolver', {
+        signal: controller.signal,
+      });
+      await started;
+      controller.abort();
+
+      await expect(creating).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled' },
+      });
+      expect(exec).not.toHaveBeenCalled();
+    });
+
+    it('settles deadline while pool directory creation is held without worktree mutation', async () => {
+      const commit = 'a'.repeat(40);
+      let mkdirStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        mkdirStarted = resolve;
+      });
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          mkdirAbsolute: () => {
+            mkdirStarted?.();
+            return new Promise<void>(() => {});
+          },
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+      exec.mockClear();
+
+      const creating = service.createWorktreeAtCommit(commit, 'emdash/loop-held-mkdir', {
+        deadlineAt: Date.now() + 25,
+      });
+      await started;
+
+      await expect(creating).resolves.toMatchObject({
+        success: false,
+        error: { type: 'deadline-exceeded' },
+      });
+      expect(exec).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'add']),
+        expect.anything()
+      );
+    });
+
+    it('does not remove a stale path when cancellation lands during its validity probe', async () => {
+      const commit = 'a'.repeat(40);
+      const branch = 'emdash/loop-cancel-stale-probe';
+      const targetPath = path.join(poolDir, branch);
+      const controller = new AbortController();
+      let releaseProbe: ((value: { stdout: string; stderr: string }) => void) | undefined;
+      let markProbeStarted: (() => void) | undefined;
+      const probeStarted = new Promise<void>((resolve) => {
+        markProbeStarted = resolve;
+      });
+      const removeAbsolute = vi.fn(async () => ok<void>());
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === '-C' && args[1] === targetPath && args[2] === 'rev-parse') {
+          return new Promise<{ stdout: string; stderr: string }>((resolve) => {
+            releaseProbe = resolve;
+            markProbeStarted?.();
+          });
+        }
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsolute: async (candidate) =>
+            candidate === targetPath || candidate === path.join(targetPath, '.git'),
+          removeAbsolute,
+          realPathAbsolute: async (candidate) => candidate,
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const creating = service.createWorktreeAtCommit(commit, branch, {
+        signal: controller.signal,
+        expectedTargetPath: targetPath,
+      });
+      await probeStarted;
+      controller.abort();
+      releaseProbe?.({ stdout: 'false\n', stderr: '' });
+      await expect(creating).resolves.toMatchObject({
+        success: false,
+        error: { type: 'cancelled' },
+      });
+      expect(removeAbsolute).not.toHaveBeenCalled();
+      expect(exec).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'add']),
+        expect.anything()
+      );
+    });
+
+    it('does not remove a stale path when the deadline expires during its validity probe', async () => {
+      const commit = 'a'.repeat(40);
+      const branch = 'emdash/loop-deadline-stale-probe';
+      const targetPath = path.join(poolDir, branch);
+      const deadlineAt = Date.now() + 60_000;
+      let releaseProbe: ((value: { stdout: string; stderr: string }) => void) | undefined;
+      let markProbeStarted: (() => void) | undefined;
+      const probeStarted = new Promise<void>((resolve) => {
+        markProbeStarted = resolve;
+      });
+      const removeAbsolute = vi.fn(async () => ok<void>());
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === '-C' && args[1] === targetPath && args[2] === 'rev-parse') {
+          return new Promise<{ stdout: string; stderr: string }>((resolve) => {
+            releaseProbe = resolve;
+            markProbeStarted?.();
+          });
+        }
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsolute: async (candidate) =>
+            candidate === targetPath || candidate === path.join(targetPath, '.git'),
+          removeAbsolute,
+          realPathAbsolute: async (candidate) => candidate,
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const creating = service.createWorktreeAtCommit(commit, branch, {
+        deadlineAt,
+        expectedTargetPath: targetPath,
+      });
+      await probeStarted;
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(deadlineAt + 1);
+      releaseProbe?.({ stdout: 'false\n', stderr: '' });
+      try {
+        await expect(creating).resolves.toMatchObject({
+          success: false,
+          error: { type: 'deadline-exceeded' },
+        });
+      } finally {
+        nowSpy.mockRestore();
+      }
+      expect(removeAbsolute).not.toHaveBeenCalled();
+    });
+
+    it('requires post-create generated path and ref attestation', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-post-attestation';
+      const targetPath = path.join(poolDir, branch);
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      let worktreeAdded = false;
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: async (command, args = [], options) => {
+          const result = await delegate.exec(command, args, options);
+          if (args[0] === 'worktree' && args[1] === 'add') worktreeAdded = true;
+          if (worktreeAdded && args[0] === 'worktree' && args[1] === 'list') {
+            return { stdout: '', stderr: '' };
+          }
+          return result;
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        expectedTargetPath: targetPath,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(fs.existsSync(targetPath)).toBe(true);
+      await expect(
+        git(['show-ref', '--verify', `refs/heads/${branch}`], { cwd: repoDir })
+      ).resolves.toBeDefined();
+    });
+
     it('pins a generated worktree to the exact immutable commit when the source branch moves', async () => {
       fs.writeFileSync(path.join(repoDir, 'feature.txt'), 'base');
       await git(['add', 'feature.txt'], { cwd: repoDir });
@@ -233,10 +586,32 @@ describe('WorktreeService', () => {
         },
       };
       const commit = 'a'.repeat(40);
+      let added = false;
+      const targetPath = 'host:/remote/worktrees/project/emdash/loop-verify-remote';
       const exec = vi.fn(async (_command: string, args: string[] = []) => {
-        if (args[0] === 'show-ref') throw new Error('missing branch');
-        if (args[0] === '-C' && args[2] === 'rev-parse') {
+        if (args[0] === 'worktree' && args[1] === 'add') added = true;
+        if (args[0] === '-C' && args.includes('--git-common-dir')) {
+          return { stdout: 'host:/remote/repo/.git\n', stderr: '' };
+        }
+        if (args[0] === '-C' && args[1] === targetPath && args[2] === 'symbolic-ref') {
+          return { stdout: 'refs/heads/emdash/loop-verify-remote\n', stderr: '' };
+        }
+        if (
+          args[0] === '-C' &&
+          args[1] === targetPath &&
+          args[2] === 'rev-parse' &&
+          args[3] === '--is-inside-work-tree'
+        ) {
+          return { stdout: 'true\n', stderr: '' };
+        }
+        if (args[0] === '-C' && args[1] === targetPath && args[2] === 'rev-parse') {
           return { stdout: `${commit}\n`, stderr: '' };
+        }
+        if (args[0] === 'worktree' && args[1] === 'list' && added) {
+          return {
+            stdout: `worktree ${targetPath}\nHEAD ${commit}\nbranch refs/heads/emdash/loop-verify-remote\n`,
+            stderr: '',
+          };
         }
         return { stdout: '', stderr: '' };
       });
@@ -251,7 +626,10 @@ describe('WorktreeService', () => {
         },
         files: makeFakeFilesRuntime({
           pathApi: remotePathApi,
+          existsAbsolute: async (candidate) =>
+            added && (candidate === targetPath || candidate === `${targetPath}/.git`),
           mkdirAbsolute: async () => {},
+          realPathAbsolute: async (candidate) => candidate,
         }),
         projectSettings: makeSettings(),
         resolveWorktreePoolPath: async () => '/remote/worktrees/project',
@@ -261,18 +639,19 @@ describe('WorktreeService', () => {
       const result = await service.createWorktreeAtCommit(commit, 'emdash/loop-verify-remote');
 
       expect(result.success).toBe(true);
-      expect(exec).toHaveBeenCalledWith('git', ['cat-file', '-e', `${commit}^{commit}`]);
-      expect(exec).toHaveBeenCalledWith('git', [
-        'worktree',
-        'add',
-        '-b',
-        'emdash/loop-verify-remote',
-        'host:/remote/worktrees/project/emdash/loop-verify-remote',
-        commit,
-      ]);
+      expect(exec).toHaveBeenCalledWith(
+        'git',
+        ['cat-file', '-e', `${commit}^{commit}`],
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
+      expect(exec).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'add', '-b', 'emdash/loop-verify-remote', targetPath, commit],
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
     });
 
-    it('rolls back the generated worktree and branch when exact HEAD verification fails', async () => {
+    it('does not delete a generated target whose exact ownership cannot be attested', async () => {
       const commit = 'b'.repeat(40);
       const targetPath = path.join(poolDir, 'emdash', 'loop-verify-rollback');
       let targetExists = false;
@@ -319,14 +698,15 @@ describe('WorktreeService', () => {
 
       const result = await service.createWorktreeAtCommit(commit, 'emdash/loop-verify-rollback');
 
-      expect(result.success).toBe(false);
-      expect(removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
-      expect(exec).toHaveBeenCalledWith('git', [
-        'branch',
-        '--delete',
-        '--force',
-        'emdash/loop-verify-rollback',
-      ]);
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(removeAbsolute).not.toHaveBeenCalled();
+      expect(exec).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['branch', '--delete', '--force'])
+      );
     });
 
     it('surfaces an incomplete generated-worktree rollback without exposing paths', async () => {
@@ -377,14 +757,169 @@ describe('WorktreeService', () => {
       expect(result).toEqual({
         success: false,
         error: {
-          type: 'worktree-setup-failed',
-          cause: {
-            name: 'WorktreeRollbackError',
-            message: 'Generated worktree creation failed and rollback was incomplete.',
-          },
+          type: 'worktree-rollback-incomplete',
+          message: 'Generated worktree creation failed and rollback was incomplete.',
         },
       });
       expect(JSON.stringify(result)).not.toContain(targetPath);
+    });
+
+    it('uses owned-commit CAS and preserves a branch moved before rollback', async () => {
+      const commit = 'd'.repeat(40);
+      const movedCommit = 'e'.repeat(40);
+      const branch = 'emdash/loop-rollback-cas';
+      const targetPath = path.join(poolDir, branch);
+      const controller = new AbortController();
+      let targetExists = false;
+      let branchHead = '';
+      let attestationLists = 0;
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === '-C' && args.includes('--git-common-dir')) {
+          return { stdout: `${path.join(repoDir, '.git')}\n`, stderr: '' };
+        }
+        if (args[0] === 'for-each-ref') {
+          return {
+            stdout: branchHead
+              ? args[1] === '--format=%(refname)'
+                ? `refs/heads/${branch}\n`
+                : `${branchHead}\n`
+              : '',
+            stderr: '',
+          };
+        }
+        if (args[0] === 'worktree' && args[1] === 'add') {
+          targetExists = true;
+          branchHead = commit;
+        }
+        if (args[0] === '-C' && args[1] === targetPath) {
+          if (args[2] === 'symbolic-ref') {
+            return { stdout: `refs/heads/${branch}\n`, stderr: '' };
+          }
+          if (args[2] === 'rev-parse' && args[3] === '--is-inside-work-tree') {
+            return { stdout: 'true\n', stderr: '' };
+          }
+          if (args[2] === 'rev-parse' && args[3] === 'HEAD') {
+            return { stdout: `${branchHead}\n`, stderr: '' };
+          }
+        }
+        if (args[0] === 'worktree' && args[1] === 'list' && targetExists) {
+          attestationLists += 1;
+          if (attestationLists === 1) controller.abort();
+          return {
+            stdout: `worktree ${targetPath}\nHEAD ${branchHead}\nbranch refs/heads/${branch}\n`,
+            stderr: '',
+          };
+        }
+        if (args[0] === 'update-ref' && args[1] === '-d') {
+          branchHead = movedCommit;
+          if (branchHead !== args[3]) throw new Error('CAS lost');
+          branchHead = '';
+        }
+        if (args[0] === 'branch') branchHead = '';
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          existsAbsolute: async (candidate) =>
+            targetExists &&
+            (candidate === targetPath || candidate === path.join(targetPath, '.git')),
+          removeAbsolute: async () => {
+            targetExists = false;
+            return ok();
+          },
+          realPathAbsolute: async (candidate) => candidate,
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        expectedTargetPath: targetPath,
+        signal: controller.signal,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(branchHead).toBe(movedCommit);
+      expect(exec).toHaveBeenCalledWith('git', [
+        'update-ref',
+        '-d',
+        `refs/heads/${branch}`,
+        commit,
+      ]);
+      expect(exec).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['branch', '--delete', '--force'])
+      );
+    });
+
+    it('preserves actor bytes that appear immediately before rollback removal', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-rollback-dirty';
+      const targetPath = path.join(poolDir, branch);
+      const controller = new AbortController();
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      let added = false;
+      let abortAfterAttestation = true;
+      let injectActorBytes = true;
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: async (command, args = [], options) => {
+          const result = await delegate.exec(command, args, options);
+          if (args[0] === 'worktree' && args[1] === 'add') added = true;
+          if (added && abortAfterAttestation && args[0] === 'worktree' && args[1] === 'list') {
+            abortAfterAttestation = false;
+            controller.abort();
+          }
+          if (
+            added &&
+            injectActorBytes &&
+            args[0] === '-C' &&
+            args[1] === targetPath &&
+            args[2] === 'status'
+          ) {
+            injectActorBytes = false;
+            fs.writeFileSync(path.join(targetPath, 'actor.txt'), 'actor bytes');
+            return delegate.exec(command, args, options);
+          }
+          return result;
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        signal: controller.signal,
+        expectedTargetPath: targetPath,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(fs.readFileSync(path.join(targetPath, 'actor.txt'), 'utf8')).toBe('actor bytes');
+      expect(await git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })).toMatchObject({
+        stdout: `${commit}\n`,
+      });
     });
   });
 
@@ -975,9 +1510,14 @@ describe('WorktreeService', () => {
       exec.mockClear();
 
       await expect(
-        service.removeGeneratedWorktreeIfPresent(path.join(poolDir, 'missing'))
+        service.removeGeneratedWorktreeIfPresent(path.join(poolDir, 'missing'), {
+          expectedBranchName: 'missing',
+          expectedHead: null,
+        })
       ).resolves.toEqual({ success: true, data: { removed: false } });
-      expect(exec).toHaveBeenCalledWith('git', ['worktree', 'prune']);
+      expect(exec).toHaveBeenCalledWith('git', ['worktree', 'prune'], {
+        timeout: 120_000,
+      });
     });
 
     it('fails closed when remote filesystem presence cannot be determined', async () => {
@@ -1005,7 +1545,10 @@ describe('WorktreeService', () => {
       exec.mockClear();
 
       await expect(
-        service.removeGeneratedWorktreeIfPresent('/remote/worktrees/project/loop')
+        service.removeGeneratedWorktreeIfPresent('/remote/worktrees/project/loop', {
+          expectedBranchName: 'loop',
+          expectedHead: null,
+        })
       ).resolves.toEqual({
         success: false,
         error: {
@@ -1014,6 +1557,82 @@ describe('WorktreeService', () => {
         },
       });
       expect(exec).not.toHaveBeenCalledWith('git', ['worktree', 'prune']);
+    });
+
+    it('removes only the exact canonical generated worktree attested by branch and head', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-cleanup-owned';
+      const service = makeService();
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected generated worktree');
+
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toEqual({ success: true, data: { removed: true } });
+      expect(fs.existsSync(created.data)).toBe(false);
+      await expect(
+        git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })
+      ).resolves.toMatchObject({ stdout: `${commit}\n` });
+    });
+
+    it('preserves a foreign worktree when expected branch or head attestation differs', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-cleanup-foreign';
+      const service = makeService();
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected generated worktree');
+      fs.writeFileSync(path.join(created.data, 'foreign.txt'), 'foreign bytes');
+
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: 'f'.repeat(40),
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'worktree-remove-failed' },
+      });
+      expect(fs.readFileSync(path.join(created.data, 'foreign.txt'), 'utf8')).toBe('foreign bytes');
+      expect(await git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })).toMatchObject({
+        stdout: `${commit}\n`,
+      });
+    });
+
+    it('rejects a replacement repository occupying a stale canonical worktree path', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-replacement-repo';
+      const service = makeService();
+      const created = await service.createWorktreeAtCommit(commit, branch);
+      if (!created.success) throw new Error('expected generated worktree');
+      fs.rmSync(created.data, { recursive: true, force: true });
+      fs.mkdirSync(created.data, { recursive: true });
+      await git(['init'], { cwd: created.data });
+      await git(['config', 'user.email', 'test@test.com'], { cwd: created.data });
+      await git(['config', 'user.name', 'Test'], { cwd: created.data });
+      await git(['fetch', repoDir, commit], { cwd: created.data });
+      await git(['symbolic-ref', 'HEAD', `refs/heads/${branch}`], { cwd: created.data });
+      await git(['reset', '--hard', commit], { cwd: created.data });
+      fs.writeFileSync(path.join(created.data, 'foreign.txt'), 'foreign repository bytes');
+
+      await expect(service.attestGeneratedWorktree(created.data, branch)).resolves.toMatchObject({
+        success: false,
+        error: { type: 'invalid-generated-worktree' },
+      });
+      await expect(
+        service.removeGeneratedWorktreeIfPresent(created.data, {
+          expectedBranchName: branch,
+          expectedHead: commit,
+        })
+      ).resolves.toMatchObject({
+        success: false,
+        error: { type: 'worktree-remove-failed' },
+      });
+      expect(fs.readFileSync(path.join(created.data, 'foreign.txt'), 'utf8')).toBe(
+        'foreign repository bytes'
+      );
     });
   });
 
