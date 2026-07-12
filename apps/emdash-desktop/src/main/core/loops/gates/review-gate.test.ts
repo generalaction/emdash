@@ -55,7 +55,7 @@ type HarnessOptions = {
   sessionTarget?: LoopSessionTarget;
   conversationId?: string;
   finalText?: string;
-  snapshots?: ReviewWorkspaceSnapshot[];
+  snapshots?: readonly ReviewWorkspaceSnapshot[];
   rangeValidation?: ReviewCheckpointRangeValidation;
   correctionValidation?: ReviewCorrectionValidation;
   requiredGateResult?: ReviewRequiredGateResult;
