@@ -560,7 +560,11 @@ export class WorktreeService {
         return createSetupFailure(new Error('Generated worktree parent escaped the pool.'));
       }
       this.throwIfCreateStopped(control);
-      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      const parentDir = await awaitWithWorktreeControl(
+        ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath)),
+        control
+      );
+      this.throwIfCreateStopped(control);
       if (!parentDir.success) {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
@@ -679,7 +683,7 @@ export class WorktreeService {
     try {
       const status = await this.ctx.exec(
         'git',
-        ['-C', targetPath, 'status', '--porcelain', '--untracked-files=normal'],
+        ['-C', targetPath, 'status', '--porcelain', '--untracked-files=all', '--ignored=matching'],
         { timeout: WORKTREE_GIT_TIMEOUT_MS }
       );
       return status.stdout.trim() === '';

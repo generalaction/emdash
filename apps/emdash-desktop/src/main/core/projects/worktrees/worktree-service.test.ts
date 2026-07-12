@@ -370,6 +370,55 @@ describe('WorktreeService', () => {
       );
     });
 
+    it('settles deadline while nested branch-parent creation is held without worktree mutation', async () => {
+      const commit = 'a'.repeat(40);
+      let mkdirCalls = 0;
+      let nestedMkdirStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        nestedMkdirStarted = resolve;
+      });
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx: {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          mkdirAbsolute: () => {
+            mkdirCalls += 1;
+            if (mkdirCalls === 2) {
+              nestedMkdirStarted?.();
+              return new Promise<void>(() => {});
+            }
+            return Promise.resolve();
+          },
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+      exec.mockClear();
+
+      const creating = service.createWorktreeAtCommit(commit, 'emdash/loop-held-nested-mkdir', {
+        deadlineAt: Date.now() + 25,
+      });
+      await started;
+
+      await expect(creating).resolves.toMatchObject({
+        success: false,
+        error: { type: 'deadline-exceeded' },
+      });
+      expect(mkdirCalls).toBe(2);
+      expect(exec).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'add']),
+        expect.anything()
+      );
+    });
+
     it('does not remove a stale path when cancellation lands during its validity probe', async () => {
       const commit = 'a'.repeat(40);
       const branch = 'emdash/loop-cancel-stale-probe';
@@ -863,64 +912,75 @@ describe('WorktreeService', () => {
       );
     });
 
-    it('preserves actor bytes that appear immediately before rollback removal', async () => {
-      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
-      const branch = 'emdash/loop-rollback-dirty';
-      const targetPath = path.join(poolDir, branch);
-      const controller = new AbortController();
-      const delegate = new LocalExecutionContext({ root: repoDir });
-      let added = false;
-      let abortAfterAttestation = true;
-      let injectActorBytes = true;
-      const ctx: IExecutionContext = {
-        root: repoDir,
-        supportsLocalSpawn: true,
-        exec: async (command, args = [], options) => {
-          const result = await delegate.exec(command, args, options);
-          if (args[0] === 'worktree' && args[1] === 'add') added = true;
-          if (added && abortAfterAttestation && args[0] === 'worktree' && args[1] === 'list') {
-            abortAfterAttestation = false;
-            controller.abort();
-          }
-          if (
-            added &&
-            injectActorBytes &&
-            args[0] === '-C' &&
-            args[1] === targetPath &&
-            args[2] === 'status'
-          ) {
-            injectActorBytes = false;
-            fs.writeFileSync(path.join(targetPath, 'actor.txt'), 'actor bytes');
-            return delegate.exec(command, args, options);
-          }
-          return result;
-        },
-        execStreaming: (command, args, onChunk, options) =>
-          delegate.execStreaming(command, args, onChunk, options),
-        dispose: () => delegate.dispose(),
-      };
-      const service = new WorktreeService({
-        repoPath: repoDir,
-        ctx,
-        files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
-        projectSettings: makeSettings(),
-        resolveWorktreePoolPath: async () => poolDir,
-      });
+    it.each([
+      { label: 'untracked', actorFile: 'actor.txt', ignore: false },
+      { label: 'ignored', actorFile: 'ignored-actor.txt', ignore: true },
+    ])(
+      'preserves $label actor bytes that appear immediately before rollback removal',
+      async ({ actorFile, ignore }) => {
+        if (ignore) {
+          fs.writeFileSync(path.join(repoDir, '.gitignore'), `${actorFile}\n`);
+          await git(['add', '.gitignore'], { cwd: repoDir });
+          await git(['commit', '-m', 'ignore actor fixture'], { cwd: repoDir });
+        }
+        const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+        const branch = 'emdash/loop-rollback-dirty';
+        const targetPath = path.join(poolDir, branch);
+        const controller = new AbortController();
+        const delegate = new LocalExecutionContext({ root: repoDir });
+        let added = false;
+        let abortAfterAttestation = true;
+        let injectActorBytes = true;
+        const ctx: IExecutionContext = {
+          root: repoDir,
+          supportsLocalSpawn: true,
+          exec: async (command, args = [], options) => {
+            const result = await delegate.exec(command, args, options);
+            if (args[0] === 'worktree' && args[1] === 'add') added = true;
+            if (added && abortAfterAttestation && args[0] === 'worktree' && args[1] === 'list') {
+              abortAfterAttestation = false;
+              controller.abort();
+            }
+            if (
+              added &&
+              injectActorBytes &&
+              args[0] === '-C' &&
+              args[1] === targetPath &&
+              args[2] === 'status'
+            ) {
+              injectActorBytes = false;
+              fs.writeFileSync(path.join(targetPath, actorFile), 'actor bytes');
+              return delegate.exec(command, args, options);
+            }
+            return result;
+          },
+          execStreaming: (command, args, onChunk, options) =>
+            delegate.execStreaming(command, args, onChunk, options),
+          dispose: () => delegate.dispose(),
+        };
+        const service = new WorktreeService({
+          repoPath: repoDir,
+          ctx,
+          files: Object.assign(new FilesRuntime(), { path: nativeMachinePath }),
+          projectSettings: makeSettings(),
+          resolveWorktreePoolPath: async () => poolDir,
+        });
 
-      const result = await service.createWorktreeAtCommit(commit, branch, {
-        signal: controller.signal,
-        expectedTargetPath: targetPath,
-      });
+        const result = await service.createWorktreeAtCommit(commit, branch, {
+          signal: controller.signal,
+          expectedTargetPath: targetPath,
+        });
 
-      expect(result).toMatchObject({
-        success: false,
-        error: { type: 'worktree-rollback-incomplete' },
-      });
-      expect(fs.readFileSync(path.join(targetPath, 'actor.txt'), 'utf8')).toBe('actor bytes');
-      expect(await git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })).toMatchObject({
-        stdout: `${commit}\n`,
-      });
-    });
+        expect(result).toMatchObject({
+          success: false,
+          error: { type: 'worktree-rollback-incomplete' },
+        });
+        expect(fs.readFileSync(path.join(targetPath, actorFile), 'utf8')).toBe('actor bytes');
+        expect(await git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })).toMatchObject({
+          stdout: `${commit}\n`,
+        });
+      }
+    );
   });
 
   describe('copyPreservedFilesToWorktree', () => {
