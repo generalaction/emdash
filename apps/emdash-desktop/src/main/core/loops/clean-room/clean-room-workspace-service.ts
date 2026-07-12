@@ -1,7 +1,10 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
-import type { CreateWorktreeAtCommitError } from '@main/core/projects/worktrees/worktree-service';
+import type {
+  CopyPreservedFilesError,
+  CreateWorktreeAtCommitError,
+} from '@main/core/projects/worktrees/worktree-service';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import type { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
 import type { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -105,7 +108,19 @@ type IssuedCleanRoom = {
   featureTarget: LoopSessionTarget;
 };
 
+type CleanRoomOperationControl = {
+  signal?: AbortSignal;
+  deadlineAt: number;
+};
+
+type CleanRoomStopFailure = Extract<
+  CleanRoomWorkspaceError,
+  { type: 'cancelled' | 'deadline-exceeded' }
+>;
+
 const CLEAN_ROOM_TIMEOUT_MS = 10 * 60_000;
+const MAX_CLEAN_ROOM_TIMEOUT_MS = 2_147_483_647;
+const FULL_COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
 function sameMachine(left: MachineRef, right: MachineRef): boolean {
   return (
@@ -115,6 +130,8 @@ function sameMachine(left: MachineRef, right: MachineRef): boolean {
 }
 
 export class CleanRoomWorkspaceService {
+  private readonly cleanupAuthorityPrerequisites = new Map<string, Set<Promise<unknown>>>();
+  private readonly cleanupResourcePrerequisites = new Map<string, Set<Promise<unknown>>>();
   private readonly destroyed = new Set<string>();
   private readonly destroying = new Map<string, Promise<Result<void, CleanRoomWorkspaceError>>>();
   private readonly issuedIds = new Set<string>();
@@ -123,13 +140,19 @@ export class CleanRoomWorkspaceService {
   constructor(private readonly deps: CleanRoomWorkspaceServiceDependencies) {}
 
   async preflight(
-    input: Pick<CreateCleanRoomInput, 'project' | 'featureTarget'>
+    input: Pick<CreateCleanRoomInput, 'project' | 'featureTarget'>,
+    control?: CleanRoomOperationControl
   ): Promise<Result<void, CleanRoomWorkspaceError>> {
     const { project, featureTarget } = input;
     let sourceCapability: CleanRoomSourceCapability;
     try {
-      sourceCapability = await this.deps.resolveSourceCapability(project, featureTarget);
-    } catch {
+      const operation = this.deps.resolveSourceCapability(project, featureTarget);
+      sourceCapability = control
+        ? await awaitWithCleanRoomControl(operation, control)
+        : await operation;
+    } catch (cause) {
+      const stopped = stoppedCleanRoomFailure(cause, control);
+      if (stopped) return err(stopped);
       return err(unsupportedCleanRoomError());
     }
     const typeMatchesMachine =
@@ -153,23 +176,29 @@ export class CleanRoomWorkspaceService {
   async create(
     input: CreateCleanRoomInput
   ): Promise<Result<CleanRoomWorkspace, CleanRoomWorkspaceError>> {
-    const supported = await this.preflight(input);
-    if (!supported.success) return supported;
-    const deadlineAt = Date.now() + Math.max(1, input.timeoutMs ?? CLEAN_ROOM_TIMEOUT_MS);
+    const deadlineAt = cleanRoomDeadlineAt(input.timeoutMs);
+    const control = { signal: input.signal, deadlineAt } satisfies CleanRoomOperationControl;
     const stopped = cleanRoomOperationFailure(input.signal, deadlineAt);
     if (stopped) return err(stopped);
+    const supported = await this.preflight(input, control);
+    if (!supported.success) return supported;
 
     const snapshotService = this.deps.createFeatureSnapshotService(input.project.ctx);
     let snapshot;
     try {
-      snapshot = await snapshotService.capture({
-        featurePath: input.featureTarget.path,
-        baseCommit: input.baseCommit,
-        expectedFeatureHead: input.expectedFeatureHead,
-        signal: input.signal,
-        deadlineAt,
-      });
-    } catch {
+      snapshot = await awaitWithCleanRoomControl(
+        snapshotService.capture({
+          featurePath: input.featureTarget.path,
+          baseCommit: input.baseCommit,
+          expectedFeatureHead: input.expectedFeatureHead,
+          signal: input.signal,
+          deadlineAt,
+        }),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err({
         type: 'snapshot-failed',
         cause: dependencyFeatureFailure('capture-feature-snapshot'),
@@ -188,8 +217,13 @@ export class CleanRoomWorkspaceService {
 
     let resolvedTarget;
     try {
-      resolvedTarget = await input.project.worktreeService.resolveGeneratedWorktreePath(branchName);
-    } catch {
+      resolvedTarget = await awaitWithCleanRoomControl(
+        input.project.worktreeService.resolveGeneratedWorktreePath(branchName),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err(worktreeCreateFailure());
     }
     if (!resolvedTarget.success) return err(worktreeCreateFailure());
@@ -215,30 +249,102 @@ export class CleanRoomWorkspaceService {
       completed: { teardown: false, worktree: false, branch: false },
       revision: 0,
     };
-    const journaled = await this.persistPendingCleanup(pendingCleanup, null);
-    if (!journaled.success) return journaled;
 
     const failAfterCleanup = async (
       failure: CleanRoomWorkspaceError
     ): Promise<Result<never, CleanRoomWorkspaceError>> => {
-      const cleaned = await this.retryPendingCleanup(cleanupId, input.project);
-      return cleaned.success ? err(failure) : cleaned;
+      const cleanup = this.retryPendingCleanup(cleanupId, input.project);
+      try {
+        const cleaned = await awaitWithCleanRoomControl(cleanup, control);
+        return cleaned.success ? err(failure) : cleaned;
+      } catch (cause) {
+        const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+        return err(stoppedFailure ?? failure);
+      }
     };
 
-    let created;
+    const initialJournalOperation = this.trackCleanupPrerequisite(
+      cleanupId,
+      this.persistCreationCheckpoint(pendingCleanup, null),
+      'authority'
+    );
+    let journaled;
     try {
-      created = await input.project.worktreeService.createWorktreeAtCommit(
+      journaled = await awaitWithCleanRoomControl(initialJournalOperation, control);
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) {
+        void initialJournalOperation.then((settled) => {
+          if (settled.success) void this.discardCreationIntentIfExact(settled.data);
+        });
+        return err(stoppedFailure);
+      }
+      return err({
+        type: 'cleanup-journal-failed',
+        message: 'Clean-room cleanup state could not be persisted.',
+      });
+    }
+    if (!journaled.success) return journaled;
+    pendingCleanup = journaled.data;
+
+    let rawCreateWorktreeOperation: ReturnType<
+      CleanRoomProject['worktreeService']['createWorktreeAtCommit']
+    >;
+    try {
+      rawCreateWorktreeOperation = input.project.worktreeService.createWorktreeAtCommit(
         snapshot.data.baseCommit,
         branchName,
-        { signal: input.signal, deadlineAt, expectedTargetPath: worktreePath }
+        {
+          signal: input.signal,
+          deadlineAt,
+          expectedTargetPath: worktreePath,
+        }
       );
     } catch {
+      return cleanupFailureWithRecord('worktree creation dependency settlement', pendingCleanup);
+    }
+    const createWorktreeOperation = this.trackCleanupPrerequisite(
+      cleanupId,
+      rawCreateWorktreeOperation,
+      'resource'
+    );
+    let created;
+    try {
+      created = await awaitWithCleanRoomControl(createWorktreeOperation, control);
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) {
+        void createWorktreeOperation.then(
+          (settled) => {
+            if (!settled.success && settled.error.type !== 'worktree-rollback-incomplete') {
+              void this.discardCreationIntentIfExact(pendingCleanup);
+              return;
+            }
+            void this.retryPendingCleanup(cleanupId, input.project);
+          },
+          () => {
+            void this.retryPendingCleanup(cleanupId, input.project);
+          }
+        );
+        return err(stoppedFailure);
+      }
       return failAfterCleanup(worktreeCreateFailure());
     }
     if (!created.success) {
       const operationFailure = mapWorktreeOperationFailure(created.error);
       if (created.error.type !== 'worktree-rollback-incomplete') {
-        const discarded = await this.discardCreationIntent(pendingCleanup);
+        let discarded;
+        try {
+          discarded = await this.awaitCleanupPrerequisite(
+            cleanupId,
+            this.discardCreationIntent(pendingCleanup),
+            control,
+            'authority'
+          );
+        } catch (cause) {
+          const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+          return err(stoppedFailure ?? worktreeCreateFailure());
+        }
         if (!discarded.success) return discarded;
         return err(operationFailure ?? worktreeCreateFailure());
       }
@@ -252,23 +358,38 @@ export class CleanRoomWorkspaceService {
       worktreeOwnership: 'attested',
       revision: expectedJournalRevision + 1,
     };
-    const createdJournaled = await this.persistPendingCleanup(
-      pendingCleanup,
-      expectedJournalRevision
-    );
+    let createdJournaled;
+    try {
+      createdJournaled = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        this.persistCreationCheckpoint(pendingCleanup, expectedJournalRevision),
+        control,
+        'authority'
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      return failAfterCleanup(stoppedFailure ?? journalCheckpointFailure());
+    }
     if (!createdJournaled.success) return failAfterCleanup(createdJournaled.error);
+    pendingCleanup = createdJournaled.data;
 
     const stoppedBeforeReplay = cleanRoomOperationFailure(input.signal, deadlineAt);
     if (stoppedBeforeReplay) return failAfterCleanup(stoppedBeforeReplay);
     let replayed;
     try {
-      replayed = await snapshotService.replay({
-        verificationPath: worktreePath,
-        snapshot: snapshot.data,
-        signal: input.signal,
-        deadlineAt,
-      });
-    } catch {
+      replayed = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        snapshotService.replay({
+          verificationPath: worktreePath,
+          snapshot: snapshot.data,
+          signal: input.signal,
+          deadlineAt,
+        }),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return failAfterCleanup(stoppedFailure);
       return failAfterCleanup({
         type: 'replay-failed',
         cause: dependencyFeatureFailure('replay-feature-snapshot'),
@@ -284,27 +405,46 @@ export class CleanRoomWorkspaceService {
       branchHead: replayed.data.replayedThroughCommit,
       revision: expectedJournalRevision + 1,
     };
-    const replayJournaled = await this.persistPendingCleanup(
-      pendingCleanup,
-      expectedJournalRevision
-    );
+    let replayJournaled;
+    try {
+      replayJournaled = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        this.persistCreationCheckpoint(pendingCleanup, expectedJournalRevision),
+        control,
+        'authority'
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      return failAfterCleanup(stoppedFailure ?? journalCheckpointFailure());
+    }
     if (!replayJournaled.success) return failAfterCleanup(replayJournaled.error);
+    pendingCleanup = replayJournaled.data;
 
     const stoppedBeforePreserve = cleanRoomOperationFailure(input.signal, deadlineAt);
     if (stoppedBeforePreserve) return failAfterCleanup(stoppedBeforePreserve);
     let preserved;
     try {
-      preserved = await input.project.worktreeService.copyPreservedFilesToWorktree(worktreePath, {
-        strict: true,
-        generatedBranchName: branchName,
-      });
-    } catch {
+      preserved = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        input.project.worktreeService.copyPreservedFilesToWorktree(worktreePath, {
+          strict: true,
+          generatedBranchName: branchName,
+          signal: input.signal,
+          deadlineAt,
+        }),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return failAfterCleanup(stoppedFailure);
       return failAfterCleanup({
         type: 'preserve-failed',
         message: 'Required clean-room preserved files could not be reproduced.',
       });
     }
     if (!preserved.success) {
+      const operationFailure = mapPreserveOperationFailure(preserved.error);
+      if (operationFailure) return failAfterCleanup(operationFailure);
       return failAfterCleanup({
         type: 'preserve-failed',
         message: 'Required clean-room preserved files could not be reproduced.',
@@ -317,18 +457,27 @@ export class CleanRoomWorkspaceService {
       teardownRequired: true,
       revision: expectedJournalRevision + 1,
     };
-    const acquisitionJournaled = await this.persistPendingCleanup(
-      pendingCleanup,
-      expectedJournalRevision
-    );
+    let acquisitionJournaled;
+    try {
+      acquisitionJournaled = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        this.persistCreationCheckpoint(pendingCleanup, expectedJournalRevision),
+        control,
+        'authority'
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      return failAfterCleanup(stoppedFailure ?? journalCheckpointFailure());
+    }
     if (!acquisitionJournaled.success) return failAfterCleanup(acquisitionJournaled.error);
+    pendingCleanup = acquisitionJournaled.data;
 
     let acquired;
     try {
-      acquired = await this.deps.workspaceRegistry.acquire(
+      const factory = this.deps.createWorkspaceFactory(
         workspaceId,
-        input.project.projectId,
-        this.deps.createWorkspaceFactory(workspaceId, input.project.defaultWorkspaceType, {
+        input.project.defaultWorkspaceType,
+        {
           task: input.task,
           workDir: worktreePath,
           projectId: input.project.projectId,
@@ -344,11 +493,19 @@ export class CleanRoomWorkspaceService {
           strictStartup: {
             requirePreview: input.requirePreview,
             signal: input.signal,
+            deadlineAt,
             previewTimeoutMs: input.previewTimeoutMs,
           },
-        })
+        }
       );
-    } catch {
+      acquired = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        this.deps.workspaceRegistry.acquire(workspaceId, input.project.projectId, factory, control),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return failAfterCleanup(stoppedFailure);
       return failAfterCleanup({
         type: 'workspace-acquire-failed',
         message: 'Failed to acquire the clean-room workspace.',
@@ -357,14 +514,22 @@ export class CleanRoomWorkspaceService {
 
     let startup;
     try {
-      startup = await acquired.workspace.lifecycleService.waitForRequiredStartup();
-    } catch {
+      startup = await this.awaitCleanupPrerequisite(
+        cleanupId,
+        acquired.workspace.lifecycleService.waitForRequiredStartup(),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return failAfterCleanup(stoppedFailure);
       return failAfterCleanup({
         type: 'startup-failed',
         message: 'Required workspace startup failed unexpectedly.',
       });
     }
     if (!startup.success) {
+      const stoppedFailure = cleanRoomOperationFailure(input.signal, deadlineAt);
+      if (stoppedFailure) return failAfterCleanup(stoppedFailure);
       return failAfterCleanup({
         type: 'startup-failed',
         message: startup.error.message,
@@ -404,11 +569,16 @@ export class CleanRoomWorkspaceService {
     signal?: AbortSignal;
     timeoutMs?: number;
   }): Promise<Result<{ featureHead: string }, CleanRoomWorkspaceError>> {
+    const deadlineAt = cleanRoomDeadlineAt(input.timeoutMs);
+    const control = { signal: input.signal, deadlineAt } satisfies CleanRoomOperationControl;
+    const stopped = cleanRoomOperationFailure(input.signal, deadlineAt);
+    if (stopped) return err(stopped);
     const identity = await this.validateIssuedWorkspace(
       input.cleanRoom,
       input.featureTarget,
       input.project,
-      true
+      true,
+      control
     );
     if (!identity.success) return identity;
     if (
@@ -433,20 +603,23 @@ export class CleanRoomWorkspaceService {
         },
       });
     }
-    const deadlineAt = Date.now() + Math.max(1, input.timeoutMs ?? CLEAN_ROOM_TIMEOUT_MS);
-    const stopped = cleanRoomOperationFailure(input.signal, deadlineAt);
-    if (stopped) return err(stopped);
     const snapshotService = this.deps.createFeatureSnapshotService(input.project.ctx);
     let fixAttestation;
     try {
-      fixAttestation = await snapshotService.capture({
-        featurePath: identity.data.workspace.target.path,
-        baseCommit: input.expectedFeatureHead,
-        expectedFeatureHead: input.fixCommit,
-        signal: input.signal,
-        deadlineAt,
-      });
-    } catch {
+      fixAttestation = await this.awaitCleanupPrerequisite(
+        input.cleanRoom.cleanupId,
+        snapshotService.capture({
+          featurePath: identity.data.workspace.target.path,
+          baseCommit: input.expectedFeatureHead,
+          expectedFeatureHead: input.fixCommit,
+          signal: input.signal,
+          deadlineAt,
+        }),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err({
         type: 'fix-integration-failed',
         cause: dependencyFeatureFailure('attest-clean-room-fix'),
@@ -473,19 +646,26 @@ export class CleanRoomWorkspaceService {
     const fixCheckpointed = await this.checkpointCleanupBranchHead(
       input.cleanRoom.cleanupId,
       input.fixCommit,
-      input.project
+      input.project,
+      control
     );
     if (!fixCheckpointed.success) return fixCheckpointed;
     let result;
     try {
-      result = await snapshotService.integrateFix({
-        featurePath: identity.data.featureTarget.path,
-        expectedFeatureHead: input.expectedFeatureHead,
-        fixCommit: input.fixCommit,
-        signal: input.signal,
-        deadlineAt,
-      });
-    } catch {
+      result = await this.awaitCleanupPrerequisite(
+        input.cleanRoom.cleanupId,
+        snapshotService.integrateFix({
+          featurePath: identity.data.featureTarget.path,
+          expectedFeatureHead: input.expectedFeatureHead,
+          fixCommit: input.fixCommit,
+          signal: input.signal,
+          deadlineAt,
+        }),
+        control
+      );
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err({
         type: 'fix-integration-failed',
         cause: dependencyFeatureFailure('integrate-clean-room-fix'),
@@ -502,7 +682,8 @@ export class CleanRoomWorkspaceService {
     cleanRoom: CleanRoomWorkspace,
     featureTarget: LoopSessionTarget,
     project: CleanRoomProject,
-    requireWorktreeAttestation: boolean
+    requireWorktreeAttestation: boolean,
+    control?: CleanRoomOperationControl
   ): Promise<Result<IssuedCleanRoom, CleanRoomWorkspaceError>> {
     const issued = this.issuedWorkspaces.get(cleanRoom.cleanupId);
     if (
@@ -519,8 +700,11 @@ export class CleanRoomWorkspaceService {
 
     let pending: CleanRoomPendingCleanup | undefined;
     try {
-      pending = await this.deps.cleanupJournal.load(cleanRoom.cleanupId);
-    } catch {
+      const operation = this.deps.cleanupJournal.load(cleanRoom.cleanupId);
+      pending = control ? await awaitWithCleanRoomControl(operation, control) : await operation;
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err(invalidIdentityError());
     }
     if (
@@ -540,20 +724,28 @@ export class CleanRoomWorkspaceService {
     }
 
     try {
-      const canonical = await project.worktreeService.resolveGeneratedWorktreePath(
+      const canonicalOperation = project.worktreeService.resolveGeneratedWorktreePath(
         cleanRoom.branchName
       );
+      const canonical = control
+        ? await awaitWithCleanRoomControl(canonicalOperation, control)
+        : await canonicalOperation;
       if (!canonical.success || canonical.data !== cleanRoom.target.path) {
         return err(invalidIdentityError());
       }
       if (requireWorktreeAttestation) {
-        const attested = await project.worktreeService.attestGeneratedWorktree(
+        const attestationOperation = project.worktreeService.attestGeneratedWorktree(
           cleanRoom.target.path,
           cleanRoom.branchName
         );
+        const attested = control
+          ? await awaitWithCleanRoomControl(attestationOperation, control)
+          : await attestationOperation;
         if (!attested.success) return err(invalidIdentityError());
       }
-    } catch {
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err(invalidIdentityError());
     }
     return ok({
@@ -565,19 +757,23 @@ export class CleanRoomWorkspaceService {
   private async checkpointCleanupBranchHead(
     cleanupId: string,
     branchHead: string,
-    project: CleanRoomProject
+    project: CleanRoomProject,
+    control?: CleanRoomOperationControl
   ): Promise<Result<void, CleanRoomWorkspaceError>> {
     let record: CleanRoomPendingCleanup | undefined;
     try {
-      record = await this.deps.cleanupJournal.load(cleanupId);
-    } catch {
+      const operation = this.deps.cleanupJournal.load(cleanupId);
+      record = control ? await awaitWithCleanRoomControl(operation, control) : await operation;
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      if (stoppedFailure) return err(stoppedFailure);
       return err({
         type: 'cleanup-journal-failed',
         message: 'Clean-room cleanup state could not be loaded.',
       });
     }
     if (!record) return err(invalidIdentityError());
-    const validated = await validatePendingCleanup(record, project);
+    const validated = await validatePendingCleanup(record, project, control);
     if (!validated.success) return validated;
     record = validated.data;
     if (record.worktreeOwnership !== 'attested') return err(invalidIdentityError());
@@ -585,7 +781,18 @@ export class CleanRoomWorkspaceService {
     if (record.branchHead !== record.expectedFeatureHead) return err(invalidIdentityError());
     const expectedRevision = record.revision;
     record = { ...record, branchHead, revision: expectedRevision + 1 };
-    return this.persistPendingCleanup(record, expectedRevision);
+    const operation = this.trackCleanupPrerequisite(
+      cleanupId,
+      this.persistPendingCleanup(record, expectedRevision),
+      'authority'
+    );
+    if (!control) return operation;
+    try {
+      return await awaitWithCleanRoomControl(operation, control);
+    } catch (cause) {
+      const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+      return stoppedFailure ? err(stoppedFailure) : err(journalCheckpointFailure());
+    }
   }
 
   async adoptPendingCleanup(
@@ -660,6 +867,54 @@ export class CleanRoomWorkspaceService {
     return result;
   }
 
+  private trackCleanupPrerequisite<T>(
+    cleanupId: string,
+    operation: Promise<T>,
+    kind: 'authority' | 'resource'
+  ): Promise<T> {
+    const prerequisites =
+      kind === 'authority' ? this.cleanupAuthorityPrerequisites : this.cleanupResourcePrerequisites;
+    let pending = prerequisites.get(cleanupId);
+    if (!pending) {
+      pending = new Set();
+      prerequisites.set(cleanupId, pending);
+    }
+    pending.add(operation);
+    const remove = (): void => {
+      pending!.delete(operation);
+      if (pending!.size === 0 && prerequisites.get(cleanupId) === pending) {
+        prerequisites.delete(cleanupId);
+      }
+    };
+    void operation.then(remove, remove);
+    return operation;
+  }
+
+  private awaitCleanupPrerequisite<T>(
+    cleanupId: string,
+    operation: Promise<T>,
+    control: CleanRoomOperationControl,
+    kind: 'authority' | 'resource' = 'resource'
+  ): Promise<T> {
+    return awaitWithCleanRoomControl(
+      this.trackCleanupPrerequisite(cleanupId, operation, kind),
+      control
+    );
+  }
+
+  private async waitForCleanupPrerequisites(
+    cleanupId: string,
+    kind: 'authority' | 'resource'
+  ): Promise<void> {
+    const prerequisites =
+      kind === 'authority' ? this.cleanupAuthorityPrerequisites : this.cleanupResourcePrerequisites;
+    while (true) {
+      const pending = Array.from(prerequisites.get(cleanupId) ?? []);
+      if (pending.length === 0) return;
+      await Promise.allSettled(pending);
+    }
+  }
+
   retryPendingCleanup(
     cleanupId: string,
     project: CleanRoomProject
@@ -721,6 +976,66 @@ export class CleanRoomWorkspaceService {
     }
   }
 
+  private async persistCreationCheckpoint(
+    desired: CleanRoomPendingCleanup,
+    expectedRevision: number | null
+  ): Promise<Result<CleanRoomPendingCleanup, CleanRoomWorkspaceError>> {
+    let candidate = clonePendingCleanup(desired);
+    let expected = expectedRevision;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      let saved = false;
+      let saveThrew = false;
+      try {
+        saved = await this.deps.cleanupJournal.save(clonePendingCleanup(candidate), expected);
+      } catch {
+        saveThrew = true;
+      }
+      if (saved) return ok(candidate);
+
+      let current: CleanRoomPendingCleanup | undefined;
+      try {
+        current = await this.deps.cleanupJournal.load(candidate.cleanupId);
+      } catch {
+        return err({
+          type: 'cleanup-journal-failed',
+          message: 'Clean-room cleanup state could not be loaded for reconciliation.',
+        });
+      }
+      if (expected === null) {
+        if (saveThrew && current && samePendingCleanupCheckpoint(current, candidate)) {
+          return ok(clonePendingCleanup(current));
+        }
+        return err(
+          saveThrew && !current
+            ? {
+                type: 'cleanup-journal-failed',
+                message: 'Clean-room cleanup state could not be persisted.',
+              }
+            : journalCheckpointFailure()
+        );
+      }
+      if (!current || !samePendingCleanupAuthority(current, candidate)) {
+        return err(
+          saveThrew
+            ? {
+                type: 'cleanup-journal-failed',
+                message: 'Clean-room cleanup state could not be reconciled after persistence.',
+              }
+            : journalCheckpointFailure()
+        );
+      }
+      const reconciled = reconcileCreationCheckpoint(current, candidate);
+      if (!reconciled) return err(journalCheckpointFailure());
+      if (reconciled.revision === current.revision) return ok(reconciled);
+      expected = current.revision;
+      candidate = reconciled;
+    }
+    return err({
+      type: 'cleanup-journal-failed',
+      message: 'Clean-room cleanup state could not be reconciled after concurrent updates.',
+    });
+  }
+
   private async discardCreationIntent(
     record: CleanRoomPendingCleanup
   ): Promise<Result<void, CleanRoomWorkspaceError>> {
@@ -749,26 +1064,63 @@ export class CleanRoomWorkspaceService {
     }
   }
 
+  private async discardCreationIntentIfExact(record: CleanRoomPendingCleanup): Promise<void> {
+    try {
+      const current = await this.deps.cleanupJournal.load(record.cleanupId);
+      if (!current || !samePendingCleanupCheckpoint(current, record)) return;
+      await this.deps.cleanupJournal.remove(record.cleanupId, record.revision);
+    } catch {
+      // The exact durable intent remains recoverable when the journal is temporarily unavailable.
+    }
+  }
+
   private async runPendingCleanup(
     cleanupId: string,
     project: CleanRoomProject
   ): Promise<Result<void, CleanRoomWorkspaceError>> {
-    let record: CleanRoomPendingCleanup | undefined;
+    let provisional: CleanRoomPendingCleanup | undefined;
     try {
-      record = await this.deps.cleanupJournal.load(cleanupId);
+      provisional = await this.deps.cleanupJournal.load(cleanupId);
     } catch {
       return err({
         type: 'cleanup-journal-failed',
         message: 'Clean-room cleanup state could not be loaded.',
       });
     }
-    if (!record) {
+    if (!provisional) {
       return err({
         type: 'cleanup-journal-failed',
         message: 'Clean-room cleanup state was not found.',
       });
     }
 
+    const provisionalValidation = await validatePendingCleanup(provisional, project);
+    if (!provisionalValidation.success) return provisionalValidation;
+    provisional = provisionalValidation.data;
+
+    let teardownQuiesced = false;
+    if (!provisional.completed.teardown && provisional.teardownRequired) {
+      try {
+        await this.deps.workspaceRegistry.teardown(provisional.workspaceId, 'terminate');
+        teardownQuiesced = true;
+      } catch {
+        return cleanupFailureWithRecord('workspace teardown', provisional);
+      }
+    }
+
+    await this.waitForCleanupPrerequisites(cleanupId, 'resource');
+    await this.waitForCleanupPrerequisites(cleanupId, 'authority');
+
+    let record: CleanRoomPendingCleanup | undefined;
+    try {
+      record = await this.deps.cleanupJournal.load(cleanupId);
+    } catch {
+      return err({
+        type: 'cleanup-journal-failed',
+        message: 'Clean-room cleanup state could not be reloaded after quiescence.',
+      });
+    }
+    if (!record) return ok();
     const validated = await validatePendingCleanup(record, project);
     if (!validated.success) return validated;
     record = validated.data;
@@ -788,13 +1140,25 @@ export class CleanRoomWorkspaceService {
       );
       return listed.stdout.trim();
     };
+    const isAncestor = async (ancestor: string, descendant: string): Promise<boolean> => {
+      try {
+        await project.ctx.exec('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+          timeout: 60_000,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
 
     if (!record.completed.teardown) {
       if (record.teardownRequired) {
-        try {
-          await this.deps.workspaceRegistry.teardown(record.workspaceId, 'terminate');
-        } catch {
-          return cleanupFailureWithRecord('workspace teardown', record);
+        if (!teardownQuiesced) {
+          try {
+            await this.deps.workspaceRegistry.teardown(record.workspaceId, 'terminate');
+          } catch {
+            return cleanupFailureWithRecord('workspace teardown', record);
+          }
         }
       }
       record.completed.teardown = true;
@@ -804,6 +1168,25 @@ export class CleanRoomWorkspaceService {
 
     if (!record.completed.worktree) {
       try {
+        await project.worktreeService.waitForGeneratedWorktreeOperations(record.target.path);
+        const actualBranchHead = await readBranchHead();
+        if (
+          actualBranchHead &&
+          actualBranchHead.toLowerCase() !== record.branchHead.toLowerCase()
+        ) {
+          const replayAdvanced =
+            record.worktreeOwnership === 'attested' &&
+            FULL_COMMIT_PATTERN.test(actualBranchHead) &&
+            (await isAncestor(record.baseCommit, actualBranchHead)) &&
+            (await isAncestor(actualBranchHead, record.expectedFeatureHead)) &&
+            (await isAncestor(record.branchHead, actualBranchHead));
+          if (!replayAdvanced) {
+            return cleanupFailureWithRecord('temporary branch movement', record);
+          }
+          record.branchHead = actualBranchHead;
+          const saved = await saveProgress();
+          if (!saved.success) return saved;
+        }
         const requireClean = record.worktreeOwnership === 'intent';
         const removed = await project.worktreeService.removeGeneratedWorktreeIfPresent(
           record.target.path,
@@ -860,6 +1243,12 @@ export class CleanRoomWorkspaceService {
       }
       return ok();
     } catch {
+      try {
+        const remaining = await this.deps.cleanupJournal.load(cleanupId);
+        if (!remaining) return ok();
+      } catch {
+        // Preserve the durable cleanup record and surface a retryable failure below.
+      }
       return cleanupFailureWithRecord('cleanup journal removal', record);
     }
   }
@@ -877,11 +1266,160 @@ export class CleanRoomWorkspaceService {
   }
 }
 
-function cancelledError(): CleanRoomWorkspaceError {
+class CleanRoomOperationStopped extends Error {
+  constructor(readonly failure: CleanRoomStopFailure) {
+    super(failure.message);
+  }
+}
+
+function awaitWithCleanRoomControl<T>(
+  operation: Promise<T>,
+  control: CleanRoomOperationControl
+): Promise<T> {
+  const stopped = cleanRoomOperationFailure(control.signal, control.deadlineAt);
+  if (stopped) return Promise.reject(new CleanRoomOperationStopped(stopped));
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (complete: () => void): void => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      control.signal?.removeEventListener('abort', onAbort);
+      complete();
+    };
+    const stop = (): void => {
+      const failure = cleanRoomOperationFailure(control.signal, control.deadlineAt);
+      if (failure) finish(() => reject(new CleanRoomOperationStopped(failure)));
+    };
+    const scheduleDeadline = (): void => {
+      const remaining = control.deadlineAt - Date.now();
+      if (remaining <= 0) {
+        stop();
+        return;
+      }
+      timer = setTimeout(scheduleDeadline, remaining);
+      timer.unref?.();
+    };
+    const onAbort = (): void => stop();
+
+    scheduleDeadline();
+    if (!settled) {
+      control.signal?.addEventListener('abort', onAbort, { once: true });
+      if (control.signal?.aborted) onAbort();
+    }
+
+    operation.then(
+      (value) => {
+        const failure = cleanRoomOperationFailure(control.signal, control.deadlineAt);
+        finish(() => (failure ? reject(new CleanRoomOperationStopped(failure)) : resolve(value)));
+      },
+      (cause) => finish(() => reject(cause))
+    );
+  });
+}
+
+function stoppedCleanRoomFailure(
+  cause: unknown,
+  control: CleanRoomOperationControl | undefined
+): CleanRoomWorkspaceError | undefined {
+  if (cause instanceof CleanRoomOperationStopped) return cause.failure;
+  return control ? cleanRoomOperationFailure(control.signal, control.deadlineAt) : undefined;
+}
+
+function samePendingCleanupAuthority(
+  left: CleanRoomPendingCleanup,
+  right: CleanRoomPendingCleanup
+): boolean {
+  return (
+    left.version === right.version &&
+    left.cleanupId === right.cleanupId &&
+    left.verificationRunId === right.verificationRunId &&
+    left.attempt === right.attempt &&
+    left.projectId === right.projectId &&
+    left.workspaceId === right.workspaceId &&
+    left.target.path === right.target.path &&
+    sameMachine(left.target.machine, right.target.machine) &&
+    sameTargetIdentity(left.featureTarget, right.featureTarget) &&
+    left.branchName === right.branchName &&
+    left.baseCommit === right.baseCommit &&
+    left.expectedFeatureHead === right.expectedFeatureHead
+  );
+}
+
+function samePendingCleanupCheckpoint(
+  left: CleanRoomPendingCleanup,
+  right: CleanRoomPendingCleanup
+): boolean {
+  return (
+    samePendingCleanupAuthority(left, right) &&
+    left.worktreeOwnership === right.worktreeOwnership &&
+    left.teardownRequired === right.teardownRequired &&
+    left.branchHead.toLowerCase() === right.branchHead.toLowerCase() &&
+    left.completed.teardown === right.completed.teardown &&
+    left.completed.worktree === right.completed.worktree &&
+    left.completed.branch === right.completed.branch &&
+    left.revision === right.revision
+  );
+}
+
+function reconcileCreationCheckpoint(
+  current: CleanRoomPendingCleanup,
+  desired: CleanRoomPendingCleanup
+): CleanRoomPendingCleanup | undefined {
+  const currentHead = creationHeadRank(current.branchHead, current);
+  const desiredHead = creationHeadRank(desired.branchHead, desired);
+  if (
+    currentHead === undefined ||
+    desiredHead === undefined ||
+    current.completed.teardown ||
+    current.completed.worktree ||
+    current.completed.branch
+  ) {
+    return undefined;
+  }
+  const ownershipSatisfied =
+    current.worktreeOwnership === 'attested' || desired.worktreeOwnership === 'intent';
+  const teardownSatisfied = current.teardownRequired || !desired.teardownRequired;
+  const headSatisfied = currentHead >= desiredHead;
+  if (ownershipSatisfied && teardownSatisfied && headSatisfied) {
+    return clonePendingCleanup(current);
+  }
+  return {
+    ...clonePendingCleanup(current),
+    worktreeOwnership:
+      current.worktreeOwnership === 'attested' || desired.worktreeOwnership === 'attested'
+        ? 'attested'
+        : 'intent',
+    teardownRequired: current.teardownRequired || desired.teardownRequired,
+    branchHead: desiredHead > currentHead ? desired.branchHead : current.branchHead,
+    revision: current.revision + 1,
+  };
+}
+
+function creationHeadRank(
+  head: string,
+  record: Pick<CleanRoomPendingCleanup, 'baseCommit' | 'expectedFeatureHead'>
+): number | undefined {
+  if (head.toLowerCase() === record.baseCommit.toLowerCase()) return 0;
+  if (head.toLowerCase() === record.expectedFeatureHead.toLowerCase()) return 1;
+  return undefined;
+}
+
+function cancelledError(): Extract<CleanRoomWorkspaceError, { type: 'cancelled' }> {
   return { type: 'cancelled', message: 'Clean-room creation was cancelled.' };
 }
 
-function deadlineExceededError(): CleanRoomWorkspaceError {
+function cleanRoomDeadlineAt(timeoutMs: number | undefined): number {
+  const requested = timeoutMs ?? CLEAN_ROOM_TIMEOUT_MS;
+  const normalized = Number.isFinite(requested)
+    ? Math.min(MAX_CLEAN_ROOM_TIMEOUT_MS, Math.max(1, requested))
+    : CLEAN_ROOM_TIMEOUT_MS;
+  return Date.now() + normalized;
+}
+
+function deadlineExceededError(): Extract<CleanRoomWorkspaceError, { type: 'deadline-exceeded' }> {
   return {
     type: 'deadline-exceeded',
     message: 'Clean-room creation deadline was exceeded.',
@@ -891,7 +1429,7 @@ function deadlineExceededError(): CleanRoomWorkspaceError {
 function cleanRoomOperationFailure(
   signal: AbortSignal | undefined,
   deadlineAt: number
-): CleanRoomWorkspaceError | undefined {
+): CleanRoomStopFailure | undefined {
   if (signal?.aborted) return cancelledError();
   if (deadlineAt <= Date.now()) return deadlineExceededError();
   return undefined;
@@ -924,6 +1462,14 @@ function mapWorktreeOperationFailure(
   return undefined;
 }
 
+function mapPreserveOperationFailure(
+  cause: CopyPreservedFilesError
+): CleanRoomWorkspaceError | undefined {
+  if (cause.type === 'cancelled') return cancelledError();
+  if (cause.type === 'deadline-exceeded') return deadlineExceededError();
+  return undefined;
+}
+
 function dependencyFeatureFailure(operation: string): FeatureSnapshotError {
   return {
     type: 'git-failed',
@@ -936,6 +1482,16 @@ function worktreeCreateFailure(): CleanRoomWorkspaceError {
   return {
     type: 'worktree-create-failed',
     message: 'Failed to create clean-room worktree.',
+  };
+}
+
+function journalCheckpointFailure(): Extract<
+  CleanRoomWorkspaceError,
+  { type: 'cleanup-journal-failed' }
+> {
+  return {
+    type: 'cleanup-journal-failed',
+    message: 'Clean-room cleanup state changed concurrently.',
   };
 }
 
@@ -971,7 +1527,8 @@ function sameWorkspaceIdentity(left: CleanRoomWorkspace, right: CleanRoomWorkspa
 
 async function validatePendingCleanup(
   input: CleanRoomPendingCleanup,
-  project: CleanRoomProject
+  project: CleanRoomProject,
+  control?: CleanRoomOperationControl
 ): Promise<Result<CleanRoomPendingCleanup, CleanRoomWorkspaceError>> {
   const parsed = parseCleanRoomPendingCleanup(input);
   if (!parsed.success) return err(invalidIdentityError());
@@ -984,11 +1541,16 @@ async function validatePendingCleanup(
     return err(invalidIdentityError());
   }
   try {
-    const resolved = await project.worktreeService.resolveGeneratedWorktreePath(record.branchName);
+    const operation = project.worktreeService.resolveGeneratedWorktreePath(record.branchName);
+    const resolved = control
+      ? await awaitWithCleanRoomControl(operation, control)
+      : await operation;
     if (!resolved.success || resolved.data !== record.target.path) {
       return err(invalidIdentityError());
     }
-  } catch {
+  } catch (cause) {
+    const stoppedFailure = stoppedCleanRoomFailure(cause, control);
+    if (stoppedFailure) return err(stoppedFailure);
     return err(invalidIdentityError());
   }
   return ok(clonePendingCleanup(record));

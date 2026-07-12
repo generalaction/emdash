@@ -20,6 +20,7 @@ import {
 import {
   createInMemoryCleanRoomCleanupJournal,
   type CleanRoomCleanupJournal,
+  type CleanRoomPendingCleanup,
 } from './cleanup-journal';
 import type { FeatureSnapshot, FeatureSnapshotError } from './feature-snapshot-service';
 
@@ -30,7 +31,19 @@ vi.mock('@main/core/runtime/runtime-manager', () => ({ runtimeManager: {} }));
 
 const BASE = '1'.repeat(40);
 const FEATURE = '2'.repeat(40);
+const INTERMEDIATE = '3'.repeat(40);
 const REPLAYED = FEATURE;
+
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
 
 function machineEqual(left: MachineRef, right: MachineRef): boolean {
   return (
@@ -53,19 +66,49 @@ function makeHarness(
     factoryThrow?: boolean;
     startupReject?: boolean;
     createReject?: boolean;
+    createSyncThrow?: boolean;
     createBranchExists?: boolean;
     createAmbiguousClean?: boolean;
     createAmbiguousBranchOnly?: boolean;
     createAmbiguousActor?: boolean;
+    holdCreateWorktree?: boolean;
     preserveReject?: boolean;
+    holdSourceCapability?: boolean;
+    holdPathResolution?: boolean;
+    holdPreserve?: boolean;
+    holdAcquire?: boolean;
+    holdStartup?: boolean;
+    holdFixAttestation?: boolean;
+    holdFixIntegration?: boolean;
+    holdJournalSave?: { call: number; phase: 'before-apply' | 'after-apply' };
+    throwAfterJournalSaveAt?: number;
     afterCapture?: () => void;
     cleanupJournal?: CleanRoomCleanupJournal;
   } = {}
 ) {
   const order: string[] = [];
+  const sourceCapabilityGate = deferred();
+  const pathResolutionGate = deferred();
+  const createWorktreeGate = deferred();
+  const preserveGate = deferred();
+  const acquireGate = deferred();
+  const startupGate = deferred();
+  const fixAttestationGate = deferred();
+  const fixIntegrationGate = deferred();
+  const journalSaveGate = deferred();
+  const sourceCapabilityStarted = deferred();
+  const pathResolutionStarted = deferred();
+  const createWorktreeStarted = deferred();
+  const preserveStarted = deferred();
+  const acquireStarted = deferred();
+  const startupStarted = deferred();
+  const fixAttestationStarted = deferred();
+  const fixIntegrationStarted = deferred();
+  const journalSaveStarted = deferred();
   let branchHead: string | null = null;
   let worktreeExists = false;
   let actorBytes: string | undefined;
+  let preservedBytes: string | undefined;
   const machine = options.machine ?? ({ kind: 'local' } satisfies MachineRef);
   const featureMachine = options.featureMachine ?? machine;
   const sourceCapability =
@@ -79,6 +122,15 @@ function makeHarness(
     root: '/project',
     supportsLocalSpawn: machine.kind === 'local',
     exec: vi.fn(async (_command, args = []) => {
+      if (args[0] === 'merge-base' && args[1] === '--is-ancestor') {
+        const [ancestor, descendant] = [String(args[2]), String(args[3])];
+        const valid =
+          ancestor === descendant ||
+          (ancestor === BASE && (descendant === INTERMEDIATE || descendant === FEATURE)) ||
+          (ancestor === INTERMEDIATE && descendant === FEATURE);
+        if (!valid) throw new Error('not an ancestor');
+        return { stdout: '', stderr: '' };
+      }
       if (args[0] === 'for-each-ref') {
         if (args[1] === '--format=%(objectname)') {
           return {
@@ -106,10 +158,16 @@ function makeHarness(
     dispose: vi.fn(),
   };
   const worktreeService = {
-    resolveGeneratedWorktreePath: vi.fn(async (branch: string) => ok(`/pool/${branch}`)),
+    resolveGeneratedWorktreePath: vi.fn(async (branch: string) => {
+      pathResolutionStarted.resolve();
+      if (options.holdPathResolution) await pathResolutionGate.promise;
+      return ok(`/pool/${branch}`);
+    }),
     attestGeneratedWorktree: vi.fn(async () => ok()),
     createWorktreeAtCommit: vi.fn(async (_commit: string, branch: string) => {
       order.push('create-worktree');
+      createWorktreeStarted.resolve();
+      if (options.holdCreateWorktree) await createWorktreeGate.promise;
       if (options.createReject) throw new Error('create rejected');
       if (options.createBranchExists) {
         branchHead = BASE;
@@ -137,11 +195,24 @@ function makeHarness(
       worktreeExists = true;
       return ok(`/pool/${branch}`);
     }),
-    copyPreservedFilesToWorktree: vi.fn(async () => {
-      order.push('copy-preserves');
-      if (options.preserveReject) throw new Error('preserve rejected');
-      return options.preserveResult ?? ok({ copied: ['.env.local'] });
-    }),
+    copyPreservedFilesToWorktree: vi.fn(
+      async (
+        _targetPath: string,
+        _copyOptions: {
+          strict?: boolean;
+          generatedBranchName?: string;
+          signal?: AbortSignal;
+          deadlineAt?: number;
+        } = {}
+      ) => {
+        order.push('copy-preserves');
+        preserveStarted.resolve();
+        if (options.holdPreserve) await preserveGate.promise;
+        if (options.preserveReject) throw new Error('preserve rejected');
+        preservedBytes = 'preserved bytes';
+        return options.preserveResult ?? ok({ copied: ['.env.local'] });
+      }
+    ),
     removeGeneratedWorktreeIfPresent: vi.fn(
       async (
         _path: string,
@@ -162,11 +233,19 @@ function makeHarness(
         }
         const removed = worktreeExists;
         worktreeExists = false;
+        preservedBytes = undefined;
         return ok({ removed });
       }
     ),
+    waitForGeneratedWorktreeOperations: vi.fn(async () => {}),
     existsAtAbsolutePath: vi.fn(async () => worktreeExists),
   };
+  if (options.createSyncThrow) {
+    worktreeService.createWorktreeAtCommit.mockImplementation(() => {
+      order.push('create-worktree');
+      throw new Error('create threw synchronously');
+    });
+  }
   const snapshot = {
     baseCommit: BASE,
     expectedFeatureHead: FEATURE,
@@ -177,6 +256,8 @@ function makeHarness(
       async (input: { featurePath: string; baseCommit: string; expectedFeatureHead: string }) => {
         order.push('capture');
         if (input.featurePath.startsWith('/pool/')) {
+          fixAttestationStarted.resolve();
+          if (options.holdFixAttestation) await fixAttestationGate.promise;
           return (
             options.fixAttestationResult ??
             ok({
@@ -196,29 +277,43 @@ function makeHarness(
       if (result.success) branchHead = result.data.replayedThroughCommit;
       return result;
     }),
-    integrateFix: vi.fn(async () => ok({ featureHead: '4'.repeat(40) })),
+    integrateFix: vi.fn(async () => {
+      fixIntegrationStarted.resolve();
+      if (options.holdFixIntegration) await fixIntegrationGate.promise;
+      return ok({ featureHead: '4'.repeat(40) });
+    }),
   };
   const waitForRequiredStartup = vi.fn(async () => {
     order.push('startup-ready');
+    startupStarted.resolve();
+    if (options.holdStartup) await startupGate.promise;
     if (options.startupReject) throw new Error('startup rejected');
     return options.startupResult ?? ok({ setup: 'succeeded', run: 'running', preview: 'ready' });
   });
   const factoryContext: unknown[] = [];
+  const factoryBody = vi.fn(async (workspaceId: string, context: { workDir: string }) => ({
+    workspace: {
+      id: workspaceId,
+      path: context.workDir,
+      lifecycleService: { waitForRequiredStartup },
+    } as unknown as Workspace,
+  }));
   const createWorkspaceFactory = vi.fn((workspaceId, _type, context) => {
     order.push('factory');
     if (options.factoryThrow) throw new Error('factory failed');
     factoryContext.push(context);
-    return async () => ({
-      workspace: {
-        id: workspaceId,
-        path: context.workDir,
-        lifecycleService: { waitForRequiredStartup },
-      } as unknown as Workspace,
-    });
+    return async () => factoryBody(workspaceId, context);
   });
+  const acquisitionControls: Array<{ signal?: AbortSignal; deadlineAt?: number }> = [];
   const registry = {
-    acquire: vi.fn(async (_key, _projectId, factory) => {
+    acquire: vi.fn(async (_key, _projectId, factory, control = {}) => {
       order.push('acquire');
+      acquireStarted.resolve();
+      acquisitionControls.push(control);
+      if (options.holdAcquire) await acquireGate.promise;
+      if (control.signal?.aborted || (control.deadlineAt ?? Infinity) <= Date.now()) {
+        throw new DOMException('Workspace acquisition stopped.', 'AbortError');
+      }
       if (options.acquireReject) throw new Error('acquire failed');
       return factory();
     }),
@@ -249,13 +344,38 @@ function makeHarness(
     gitRepositoryFetchService: {},
   } as unknown as CleanRoomProject;
   const runtimeManager = { acquire: vi.fn() } as unknown as Pick<RuntimeManager, 'acquire'>;
-  const cleanupJournal = options.cleanupJournal ?? createInMemoryCleanRoomCleanupJournal();
+  let cleanupJournal = options.cleanupJournal ?? createInMemoryCleanRoomCleanupJournal();
+  if (options.holdJournalSave || options.throwAfterJournalSaveAt !== undefined) {
+    const delegateSave = cleanupJournal.save.bind(cleanupJournal);
+    let saveCall = 0;
+    cleanupJournal = {
+      ...cleanupJournal,
+      save: vi.fn(async (record, expectedRevision) => {
+        saveCall += 1;
+        const held = options.holdJournalSave?.call === saveCall;
+        if (held) journalSaveStarted.resolve();
+        if (held && options.holdJournalSave?.phase === 'before-apply') {
+          await journalSaveGate.promise;
+        }
+        const saved = await delegateSave(record, expectedRevision);
+        if (held && options.holdJournalSave?.phase === 'after-apply') {
+          await journalSaveGate.promise;
+        }
+        if (options.throwAfterJournalSaveAt === saveCall) {
+          throw new Error('save acknowledgement lost');
+        }
+        return saved;
+      }),
+    };
+  }
   const dependencies = {
     createWorkspaceFactory,
     workspaceRegistry: registry as unknown as Pick<WorkspaceRegistry, 'acquire' | 'teardown'>,
     runtimeManager,
     cleanupJournal,
     resolveSourceCapability: vi.fn(async () => {
+      sourceCapabilityStarted.resolve();
+      if (options.holdSourceCapability) await sourceCapabilityGate.promise;
       if (options.sourceCapabilityReject) throw new Error('provider unavailable');
       return sourceCapability;
     }),
@@ -285,6 +405,8 @@ function makeHarness(
     featureTarget,
     order,
     factoryContext,
+    factoryBody,
+    acquisitionControls,
     registry,
     worktreeService,
     snapshotService,
@@ -293,14 +415,172 @@ function makeHarness(
     executionContext,
     cleanupJournal,
     dependencies,
+    gates: {
+      sourceCapability: sourceCapabilityGate,
+      pathResolution: pathResolutionGate,
+      createWorktree: createWorktreeGate,
+      preserve: preserveGate,
+      acquire: acquireGate,
+      startup: startupGate,
+      fixAttestation: fixAttestationGate,
+      fixIntegration: fixIntegrationGate,
+      journalSave: journalSaveGate,
+    },
+    started: {
+      sourceCapability: sourceCapabilityStarted,
+      pathResolution: pathResolutionStarted,
+      createWorktree: createWorktreeStarted,
+      preserve: preserveStarted,
+      acquire: acquireStarted,
+      startup: startupStarted,
+      fixAttestation: fixAttestationStarted,
+      fixIntegration: fixIntegrationStarted,
+      journalSave: journalSaveStarted,
+    },
     setBranchHead: (head: string | null) => {
       branchHead = head;
     },
     readActorBytes: () => actorBytes,
+    readPreservedBytes: () => preservedBytes,
+    hasWorktree: () => worktreeExists,
   };
 }
 
 describe('CleanRoomWorkspaceService', () => {
+  it.each([
+    {
+      label: 'trusted capability resolution',
+      options: { holdSourceCapability: true },
+      gate: 'sourceCapability' as const,
+      absent: ['capture', 'create-worktree'],
+      cleanup: false,
+    },
+    {
+      label: 'generated path resolution',
+      options: { holdPathResolution: true },
+      gate: 'pathResolution' as const,
+      absent: ['create-worktree'],
+      cleanup: false,
+    },
+    {
+      label: 'strict preserve reproduction',
+      options: { holdPreserve: true },
+      gate: 'preserve' as const,
+      absent: ['acquire'],
+      cleanup: true,
+    },
+    {
+      label: 'workspace acquisition',
+      options: { holdAcquire: true },
+      gate: 'acquire' as const,
+      absent: ['startup-ready'],
+      cleanup: true,
+    },
+    {
+      label: 'required startup readiness',
+      options: { holdStartup: true },
+      gate: 'startup' as const,
+      absent: [],
+      cleanup: true,
+    },
+  ])(
+    'enforces one absolute deadline while awaiting $label',
+    async ({ options, gate, absent, cleanup }) => {
+      const harness = makeHarness(options);
+      const result = await (async () => {
+        vi.useFakeTimers();
+        try {
+          const creation = harness.service.create({ ...harness.input, timeoutMs: 60_000 });
+          await harness.started[gate].promise;
+          await vi.advanceTimersByTimeAsync(60_001);
+          const result = await creation;
+          for (const operation of absent) expect(harness.order).not.toContain(operation);
+          if (cleanup) {
+            expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+          }
+          harness.gates[gate].resolve();
+          await vi.advanceTimersByTimeAsync(0);
+          return result;
+        } finally {
+          vi.useRealTimers();
+        }
+      })();
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'deadline-exceeded',
+          message: 'Clean-room creation deadline was exceeded.',
+        },
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      for (const operation of absent) expect(harness.order).not.toContain(operation);
+      await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+      if (cleanup) {
+        expect(harness.hasWorktree()).toBe(false);
+        expect(harness.readPreservedBytes()).toBeUndefined();
+      }
+      if (gate === 'acquire') expect(harness.factoryBody).not.toHaveBeenCalled();
+    }
+  );
+
+  it('settles a held dependency with the real deadline timer', async () => {
+    const harness = makeHarness({ holdSourceCapability: true });
+    const creation = harness.service.create({ ...harness.input, timeoutMs: 25 });
+    await harness.started.sourceCapability.promise;
+
+    await expect(creation).resolves.toMatchObject({
+      success: false,
+      error: { type: 'deadline-exceeded' },
+    });
+
+    harness.gates.sourceCapability.resolve();
+  });
+
+  it('uses the caller signal while trusted capability resolution is held', async () => {
+    const harness = makeHarness({ holdSourceCapability: true });
+    const controller = new AbortController();
+    const creation = harness.service.create({
+      ...harness.input,
+      signal: controller.signal,
+      timeoutMs: 60_000,
+    });
+
+    await harness.started.sourceCapability.promise;
+    controller.abort();
+
+    await expect(creation).resolves.toEqual({
+      success: false,
+      error: { type: 'cancelled', message: 'Clean-room creation was cancelled.' },
+    });
+    harness.gates.sourceCapability.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(harness.snapshotService.capture).not.toHaveBeenCalled();
+  });
+
+  it('uses the caller signal while required startup readiness is held', async () => {
+    const harness = makeHarness({ holdStartup: true });
+    const controller = new AbortController();
+    const creation = harness.service.create({
+      ...harness.input,
+      signal: controller.signal,
+      timeoutMs: 60_000,
+    });
+    await vi.waitFor(() => expect(harness.waitForRequiredStartup).toHaveBeenCalled());
+
+    controller.abort();
+
+    await expect(creation).resolves.toEqual({
+      success: false,
+      error: { type: 'cancelled', message: 'Clean-room creation was cancelled.' },
+    });
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    harness.gates.startup.resolve();
+    await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+    expect(harness.hasWorktree()).toBe(false);
+  });
+
   it('creates at the frozen base, replays, preserves, acquires, and awaits readiness in order', async () => {
     const harness = makeHarness();
 
@@ -331,9 +611,34 @@ describe('CleanRoomWorkspaceService', () => {
     });
     expect(harness.worktreeService.copyPreservedFilesToWorktree).toHaveBeenCalledWith(
       '/pool/emdash/loop-verify-fixed',
-      { strict: true, generatedBranchName: 'emdash/loop-verify-fixed' }
+      expect.objectContaining({
+        strict: true,
+        generatedBranchName: 'emdash/loop-verify-fixed',
+        deadlineAt: expect.any(Number),
+      })
     );
+    const preserveOptions = harness.worktreeService.copyPreservedFilesToWorktree.mock.calls[0][1];
+    if (!preserveOptions) throw new Error('expected preserve controls');
+    const factoryContext = harness.factoryContext[0] as {
+      strictStartup: { deadlineAt: number; signal?: AbortSignal };
+    };
+    expect(harness.acquisitionControls[0].deadlineAt).toBe(preserveOptions.deadlineAt);
+    expect(factoryContext.strictStartup.deadlineAt).toBe(preserveOptions.deadlineAt);
+    expect(harness.acquisitionControls[0].signal).toBe(factoryContext.strictStartup.signal);
   });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    'normalizes a non-finite creation timeout (%s)',
+    async (timeoutMs) => {
+      const harness = makeHarness();
+
+      const result = await harness.service.create({ ...harness.input, timeoutMs });
+
+      expect(result.success).toBe(true);
+      expect(Number.isFinite(harness.acquisitionControls[0].deadlineAt)).toBe(true);
+      expect(harness.acquisitionControls[0].deadlineAt).toBeGreaterThan(Date.now());
+    }
+  );
 
   it('stops immediately after snapshot cancellation without creating a worktree', async () => {
     const controller = new AbortController();
@@ -369,6 +674,135 @@ describe('CleanRoomWorkspaceService', () => {
     expect(save.mock.invocationCallOrder[0]).toBeLessThan(
       harness.worktreeService.createWorktreeAtCommit.mock.invocationCallOrder[0]
     );
+  });
+
+  it('settles a held initial journal CAS by discarding only the exact late intent', async () => {
+    const harness = makeHarness({
+      holdJournalSave: { call: 1, phase: 'after-apply' },
+    });
+
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const creation = harness.service.create({ ...harness.input, timeoutMs: 60_000 });
+        await harness.started.journalSave.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await creation;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'deadline-exceeded',
+        message: 'Clean-room creation deadline was exceeded.',
+      },
+    });
+    expect(harness.worktreeService.createWorktreeAtCommit).not.toHaveBeenCalled();
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([
+      expect.objectContaining({ worktreeOwnership: 'intent', revision: 0 }),
+    ]);
+
+    harness.gates.journalSave.resolve();
+
+    await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    expect(harness.order).not.toContain('delete-branch');
+  });
+
+  it('waits for a held post-replay journal CAS before cleanup reload and removal', async () => {
+    const harness = makeHarness({
+      holdJournalSave: { call: 3, phase: 'before-apply' },
+    });
+
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const creation = harness.service.create({ ...harness.input, timeoutMs: 60_000 });
+        await harness.started.journalSave.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await creation;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'deadline-exceeded',
+        message: 'Clean-room creation deadline was exceeded.',
+      },
+    });
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([
+      expect.objectContaining({ branchHead: BASE, revision: 1 }),
+    ]);
+
+    harness.gates.journalSave.resolve();
+
+    await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+    expect(harness.order).toContain('remove-worktree');
+    expect(harness.order).toContain('delete-branch');
+    expect(harness.registry.acquire).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: 'initial intent', saveCall: 1 },
+    { label: 'post-replay checkpoint', saveCall: 3 },
+  ])('reconciles an applied $label when its save acknowledgement throws', async ({ saveCall }) => {
+    const harness = makeHarness({ throwAfterJournalSaveAt: saveCall });
+
+    const result = await harness.service.create(harness.input);
+
+    expect(result.success).toBe(true);
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([
+      expect.objectContaining({ branchHead: FEATURE, revision: 3 }),
+    ]);
+  });
+
+  it('preserves a pre-existing exact initial record when the absent-record CAS loses', async () => {
+    const record = {
+      version: '1',
+      cleanupId: 'cleanup-loop-verify-fixed',
+      verificationRunId: 'verification-1',
+      attempt: 1,
+      projectId: 'project-1',
+      workspaceId: 'loop-verify-fixed',
+      target: { path: '/pool/emdash/loop-verify-fixed', machine: { kind: 'local' } },
+      featureTarget: {
+        workspaceId: 'feature-workspace',
+        path: '/feature',
+        machine: { kind: 'local' },
+      },
+      branchName: 'emdash/loop-verify-fixed',
+      baseCommit: BASE,
+      expectedFeatureHead: FEATURE,
+      worktreeOwnership: 'intent',
+      teardownRequired: false,
+      branchHead: BASE,
+      completed: { teardown: false, worktree: false, branch: false },
+      revision: 0,
+    } satisfies CleanRoomPendingCleanup;
+    const journal = createInMemoryCleanRoomCleanupJournal(new Map([[record.cleanupId, record]]));
+    const remove = vi.spyOn(journal, 'remove');
+    const harness = makeHarness({ cleanupJournal: journal });
+
+    await expect(harness.service.create(harness.input)).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'cleanup-journal-failed',
+        message: 'Clean-room cleanup state changed concurrently.',
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(journal.list()).resolves.toEqual([record]);
+    expect(remove).not.toHaveBeenCalled();
+    expect(harness.worktreeService.createWorktreeAtCommit).not.toHaveBeenCalled();
   });
 
   it('returns a typed journal failure without creating a worktree when initial save rejects', async () => {
@@ -767,6 +1201,81 @@ describe('CleanRoomWorkspaceService', () => {
     );
   });
 
+  it('retains durable intent when a synchronous worktree dependency throw is ambiguous', async () => {
+    const harness = makeHarness({ createSyncThrow: true });
+
+    await expect(harness.service.create(harness.input)).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        pendingCleanup: { worktreeOwnership: 'intent', revision: 0 },
+      },
+    });
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([
+      expect.objectContaining({ worktreeOwnership: 'intent', revision: 0 }),
+    ]);
+  });
+
+  it('retains creation intent until a signal-ignoring worktree mutation settles', async () => {
+    const harness = makeHarness({ holdCreateWorktree: true });
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const creation = harness.service.create({ ...harness.input, timeoutMs: 60_000 });
+        await harness.started.createWorktree.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await creation;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'deadline-exceeded',
+        message: 'Clean-room creation deadline was exceeded.',
+      },
+    });
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([
+      expect.objectContaining({ worktreeOwnership: 'intent', revision: 0 }),
+    ]);
+
+    harness.gates.createWorktree.resolve();
+
+    await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+    expect(harness.hasWorktree()).toBe(false);
+    expect(harness.order.slice(-2)).toEqual(['remove-worktree', 'delete-branch']);
+  });
+
+  it('discards intent without removing a late non-mutating branch collision', async () => {
+    const harness = makeHarness({ holdCreateWorktree: true, createBranchExists: true });
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const creation = harness.service.create({ ...harness.input, timeoutMs: 60_000 });
+        await harness.started.createWorktree.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await creation;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'deadline-exceeded' },
+    });
+    harness.gates.createWorktree.resolve();
+
+    await expect.poll(async () => (await harness.cleanupJournal.list()).length).toBe(0);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    expect(harness.hasWorktree()).toBe(true);
+    expect(harness.readActorBytes()).toBe('pre-existing bytes');
+  });
+
   it('converges a clean applied-but-rejected worktree from durable creation intent', async () => {
     const harness = makeHarness({ createAmbiguousClean: true });
 
@@ -953,6 +1462,78 @@ describe('CleanRoomWorkspaceService', () => {
     );
   });
 
+  it('enforces the absolute deadline while fix attestation is held', async () => {
+    const harness = makeHarness({ holdFixAttestation: true });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const integration = harness.service.integrateFix({
+          cleanRoom: created.data,
+          featureTarget: harness.featureTarget,
+          expectedFeatureHead: FEATURE,
+          fixCommit: '5'.repeat(40),
+          project: harness.project,
+          timeoutMs: 60_000,
+        });
+        await harness.started.fixAttestation.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await integration;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'deadline-exceeded' },
+    });
+    expect(harness.snapshotService.integrateFix).not.toHaveBeenCalled();
+
+    harness.gates.fixAttestation.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(harness.snapshotService.integrateFix).not.toHaveBeenCalled();
+    await expect(harness.service.destroy(created.data, harness.project)).resolves.toEqual(ok());
+  });
+
+  it('settles promptly while fix integration ignores the absolute deadline', async () => {
+    const harness = makeHarness({ holdFixIntegration: true });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const fixCommit = '5'.repeat(40);
+    harness.setBranchHead(fixCommit);
+    const result = await (async () => {
+      vi.useFakeTimers();
+      try {
+        const integration = harness.service.integrateFix({
+          cleanRoom: created.data,
+          featureTarget: harness.featureTarget,
+          expectedFeatureHead: FEATURE,
+          fixCommit,
+          project: harness.project,
+          timeoutMs: 60_000,
+        });
+        await harness.started.fixIntegration.promise;
+        await vi.advanceTimersByTimeAsync(60_001);
+        return await integration;
+      } finally {
+        vi.useRealTimers();
+      }
+    })();
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'deadline-exceeded' },
+    });
+    harness.gates.fixIntegration.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(harness.service.destroy(created.data, harness.project)).resolves.toEqual(ok());
+  });
+
   it('rejects a forged clean-room handle before integration reads or mutates Git', async () => {
     const harness = makeHarness();
     const created = await harness.service.create(harness.input);
@@ -1116,6 +1697,41 @@ describe('CleanRoomWorkspaceService', () => {
     await expect(journal.list()).resolves.toEqual([]);
   });
 
+  it('reconciles an intermediate frozen replay head during restart cleanup', async () => {
+    const harness = makeHarness();
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const [createdRecord] = await harness.cleanupJournal.list();
+    const staleRecord = {
+      ...createdRecord,
+      branchHead: BASE,
+      teardownRequired: false,
+      completed: { teardown: false, worktree: false, branch: false },
+      revision: 1,
+    };
+    const restartedJournal = createInMemoryCleanRoomCleanupJournal(
+      new Map([[staleRecord.cleanupId, staleRecord]])
+    );
+    const recovered = new CleanRoomWorkspaceService({
+      ...harness.dependencies,
+      cleanupJournal: restartedJournal,
+    });
+    harness.setBranchHead(INTERMEDIATE);
+    harness.order.length = 0;
+
+    await expect(
+      recovered.retryPendingCleanup(staleRecord.cleanupId, harness.project)
+    ).resolves.toEqual(ok());
+
+    expect(harness.order).toEqual(['remove-worktree', 'delete-branch']);
+    expect(harness.executionContext.exec).toHaveBeenCalledWith(
+      'git',
+      ['update-ref', '-d', 'refs/heads/emdash/loop-verify-fixed', INTERMEDIATE],
+      { timeout: 60_000 }
+    );
+    await expect(restartedJournal.list()).resolves.toEqual([]);
+  });
+
   it('rejects retry with the wrong project before any cleanup mutation', async () => {
     const harness = makeHarness();
     const created = await harness.service.create(harness.input);
@@ -1155,7 +1771,7 @@ describe('CleanRoomWorkspaceService', () => {
       expect.objectContaining({
         cleanupId: created.data.cleanupId,
         branchHead: FEATURE,
-        completed: { teardown: true, worktree: true, branch: false },
+        completed: { teardown: true, worktree: false, branch: false },
       }),
     ]);
   });
@@ -1215,6 +1831,23 @@ describe('CleanRoomWorkspaceService', () => {
       ['update-ref', '-d', 'refs/heads/emdash/loop-verify-fixed', FEATURE],
       { timeout: 60_000 }
     );
+  });
+
+  it('accepts an applied journal removal when its acknowledgement throws', async () => {
+    const journal = createInMemoryCleanRoomCleanupJournal();
+    const harness = makeHarness({ cleanupJournal: journal });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const delegateRemove = journal.remove.bind(journal);
+    journal.remove = vi.fn(async (cleanupId, expectedRevision) => {
+      await delegateRemove(cleanupId, expectedRevision);
+      throw new Error('remove acknowledgement lost');
+    });
+
+    await expect(harness.service.destroy(created.data, harness.project)).resolves.toEqual(ok());
+
+    await expect(journal.list()).resolves.toEqual([]);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).toHaveBeenCalledTimes(1);
   });
 
   it('turns a rejected journal load into a typed retry and clears single-flight state', async () => {

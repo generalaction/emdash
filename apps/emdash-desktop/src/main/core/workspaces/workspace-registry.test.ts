@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Workspace } from './workspace';
-import { WorkspaceRegistry } from './workspace-registry';
+import { WorkspaceRegistry, type WorkspaceFactoryResult } from './workspace-registry';
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
   let resolve: (value: T) => void = () => {};
@@ -46,7 +46,7 @@ describe('WorkspaceRegistry', () => {
   it('orphan-cancels a held factory and disposes its late result exactly once', async () => {
     const registry = new WorkspaceRegistry();
     const late = makeWorkspace('loop:late');
-    const factoryResult = deferred<{ workspace: Workspace }>();
+    const factoryResult = deferred<WorkspaceFactoryResult>();
     const controller = new AbortController();
 
     const acquisition = registry.acquire('loop:late', 'test-project', () => factoryResult.promise, {

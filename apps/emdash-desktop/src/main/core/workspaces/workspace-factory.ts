@@ -173,11 +173,12 @@ export function createWorkspaceFactory(
               taskEnvVars: bootstrapTaskEnvVars,
             });
 
-      lifecycleService = new LifecycleScriptService({
+      const createdLifecycleService = new LifecycleScriptService({
         projectId: context.projectId,
         workspaceId,
         terminals: workspaceTerminals,
       });
+      lifecycleService = createdLifecycleService;
 
       const gitRepository =
         context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
@@ -189,7 +190,7 @@ export function createWorkspaceFactory(
       let unsubscribeGitUpdates: (() => void) | undefined;
       let unsubscribeFileChanges: (() => void) | undefined;
 
-      fileTreeProjector = new FileTreeProjector(fileTree, (update) =>
+      const createdFileTreeProjector = new FileTreeProjector(fileTree, (update) =>
         events.emit(fileTreeProjectionChannel, {
           projectId: context.projectId,
           workspaceId,
@@ -198,12 +199,13 @@ export function createWorkspaceFactory(
           scopes: update.scopes,
         })
       );
+      fileTreeProjector = createdFileTreeProjector;
       const disposeWorkspace = createRetryableWorkspaceFactoryCleanup([
         async () => {
           unsubscribeGitUpdates?.();
           unsubscribeGitUpdates = undefined;
         },
-        async () => fileTreeProjector.dispose(),
+        async () => createdFileTreeProjector.dispose(),
         async () => {
           unsubscribeFileChanges?.();
           unsubscribeFileChanges = undefined;
@@ -217,10 +219,10 @@ export function createWorkspaceFactory(
         configPath,
         fileSystem,
         fileTree,
-        fileTreeProjector,
+        fileTreeProjector: createdFileTreeProjector,
         gitWorktree,
         settings: context.settings,
-        lifecycleService,
+        lifecycleService: createdLifecycleService,
         gitRepository,
         gitRepositoryFetchService,
         dispose: disposeWorkspace,
@@ -283,7 +285,7 @@ export function createWorkspaceFactory(
           }
           dispatchWorkspaceLifecycleStartup({
             strict: context.strictStartup !== undefined,
-            lifecycleService,
+            lifecycleService: createdLifecycleService,
             required: {
               setup: scripts?.setup
                 ? { type: 'setup', script: scripts.setup, shellSetup }
@@ -397,11 +399,13 @@ export function createWorkspaceFactory(
         },
       };
     } catch (error) {
+      const createdFileTreeProjector = fileTreeProjector;
+      const createdLifecycleService = lifecycleService;
       return failWorkspaceFactoryAfterCleanup(
         error,
         createRetryableWorkspaceFactoryCleanup([
-          ...(fileTreeProjector ? [async () => fileTreeProjector.dispose()] : []),
-          ...(lifecycleService ? [() => lifecycleService.dispose()] : []),
+          ...(createdFileTreeProjector ? [async () => createdFileTreeProjector.dispose()] : []),
+          ...(createdLifecycleService ? [() => createdLifecycleService.dispose()] : []),
           () => runtime.release(),
         ])
       );

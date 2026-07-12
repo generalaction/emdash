@@ -472,9 +472,11 @@ describe('createWorkspaceFactory control', () => {
         projectPath: '/tmp/project-shared',
         workspaceRuntime: {
           machine: { kind: 'local' },
-          manager: { acquire: vi.fn(() => runtimeGate.promise) },
+          manager: { acquire: vi.fn(() => runtimeGate.promise) } as Parameters<
+            typeof createWorkspaceFactory
+          >[2]['workspaceRuntime']['manager'],
         },
-        settings,
+        settings: settings as unknown as Parameters<typeof createWorkspaceFactory>[2]['settings'],
         logPrefix: 'WorkspaceFactorySharedTest',
         gitRepository: {} as Parameters<typeof createWorkspaceFactory>[2]['gitRepository'],
         gitRepositoryFetchService: {} as Parameters<

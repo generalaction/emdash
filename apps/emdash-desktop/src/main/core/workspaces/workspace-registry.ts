@@ -404,7 +404,11 @@ function createWorkspaceRelease(workspace: Workspace): () => Promise<void> {
     if (operation) return operation;
     const current = runAllCleanupOperations(
       workspace.dispose
-        ? [() => workspace.dispose!()]
+        ? [
+            async () => {
+              await workspace.dispose!();
+            },
+          ]
         : [
             ...(!fallbackCompleted.fileTree
               ? [

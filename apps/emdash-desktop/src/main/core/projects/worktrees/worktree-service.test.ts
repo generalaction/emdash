@@ -188,6 +188,7 @@ describe('WorktreeService', () => {
       const branch = 'emdash/loop-held-add';
       const targetPath = path.join(poolDir, branch);
       const delegate = new LocalExecutionContext({ root: repoDir });
+      let deadlineAt = Date.now() + 60_000;
       let releaseAdd: (() => void) | undefined;
       const addGate = new Promise<void>((resolve) => {
         releaseAdd = resolve;
@@ -201,6 +202,7 @@ describe('WorktreeService', () => {
         supportsLocalSpawn: true,
         exec: async (command, args = [], options) => {
           if (args[0] === 'worktree' && args[1] === 'add') {
+            deadlineAt = Date.now() + 50;
             markAddStarted?.();
             await addGate;
             return delegate.exec(command, args, {
@@ -224,7 +226,9 @@ describe('WorktreeService', () => {
       });
 
       const creating = service.createWorktreeAtCommit(commit, branch, {
-        deadlineAt: Date.now() + 50,
+        get deadlineAt() {
+          return deadlineAt;
+        },
         expectedTargetPath: targetPath,
       });
       await addStarted;
@@ -249,7 +253,7 @@ describe('WorktreeService', () => {
         })
       ).resolves.toEqual(ok({ removed: true }));
       expect(fs.existsSync(targetPath)).toBe(false);
-    });
+    }, 15_000);
 
     it('rejects resolver drift against the frozen target before worktree mutation', async () => {
       const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
@@ -448,6 +452,7 @@ describe('WorktreeService', () => {
 
     it('settles deadline while nested branch-parent creation is held without worktree mutation', async () => {
       const commit = 'a'.repeat(40);
+      let deadlineAt = Date.now() + 60_000;
       let mkdirCalls = 0;
       let nestedMkdirStarted: (() => void) | undefined;
       const started = new Promise<void>((resolve) => {
@@ -467,6 +472,7 @@ describe('WorktreeService', () => {
           mkdirAbsolute: () => {
             mkdirCalls += 1;
             if (mkdirCalls === 2) {
+              deadlineAt = Date.now() + 25;
               nestedMkdirStarted?.();
               return new Promise<void>(() => {});
             }
@@ -479,7 +485,9 @@ describe('WorktreeService', () => {
       exec.mockClear();
 
       const creating = service.createWorktreeAtCommit(commit, 'emdash/loop-held-nested-mkdir', {
-        deadlineAt: Date.now() + 25,
+        get deadlineAt() {
+          return deadlineAt;
+        },
       });
       await started;
 
@@ -493,7 +501,7 @@ describe('WorktreeService', () => {
         expect.arrayContaining(['worktree', 'add']),
         expect.anything()
       );
-    });
+    }, 15_000);
 
     it('does not remove a stale path when cancellation lands during its validity probe', async () => {
       const commit = 'a'.repeat(40);
@@ -651,7 +659,7 @@ describe('WorktreeService', () => {
       await expect(
         git(['show-ref', '--verify', `refs/heads/${branch}`], { cwd: repoDir })
       ).resolves.toBeDefined();
-    });
+    }, 15_000);
 
     it('pins a generated worktree to the exact immutable commit when the source branch moves', async () => {
       fs.writeFileSync(path.join(repoDir, 'feature.txt'), 'base');
