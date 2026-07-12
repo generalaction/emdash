@@ -14,6 +14,33 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
+  /**
+   * The configured hotkey is the "1" of a 1–9 family: the same modifiers are
+   * bound for every digit (see `getNumberHotkeys`).
+   */
+  numberFamily?: boolean;
+}
+
+export const NUMBER_HOTKEY_COUNT = 9;
+
+/**
+ * Expands a number-family base hotkey (e.g. 'Control+1') into the bindings for
+ * digits 1–9 with the same modifiers. Returns null when the base does not end
+ * in a digit 1–9, which disables the family.
+ */
+export function getNumberHotkeys(base: string): string[] | null {
+  const parts = base.split('+');
+  if (!/^[1-9]$/.test(parts[parts.length - 1])) return null;
+  const prefix = parts.slice(0, -1).join('+');
+  return Array.from({ length: NUMBER_HOTKEY_COUNT }, (_, i) =>
+    prefix ? `${prefix}+${i + 1}` : String(i + 1)
+  );
+}
+
+function isMacLike(): boolean {
+  const nav = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator;
+  if (nav) return /mac/i.test(nav.platform ?? nav.userAgent ?? '');
+  return (globalThis as { process?: { platform?: string } }).process?.platform === 'darwin';
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -209,6 +236,25 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous task',
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
+  },
+  tabByNumber: {
+    // On Windows/Linux Mod is Ctrl, so Control+1 would collide with taskByNumber.
+    defaultHotkey: () => (isMacLike() ? 'Control+1' : 'Alt+1'),
+    label: 'Jump to Tab 1–9',
+    description:
+      'Switch to a tab by position, left to right. Record the shortcut for 1; digits 2–9 use the same modifiers.',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+    numberFamily: true,
+  },
+  taskByNumber: {
+    defaultHotkey: 'Mod+1',
+    label: 'Jump to Task 1–9',
+    description:
+      'Switch to a task by its position in the sidebar, top to bottom. Record the shortcut for 1; digits 2–9 use the same modifiers.',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
+    numberFamily: true,
   },
   tabClose: {
     defaultHotkey: 'Mod+W',

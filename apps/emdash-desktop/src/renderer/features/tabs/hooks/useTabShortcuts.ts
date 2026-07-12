@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useNumberHotkeys } from '@renderer/lib/hooks/use-number-hotkeys';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -30,32 +31,16 @@ export interface UseTabShortcutsOptions {
 }
 
 /**
- * Hotkeys for jumping to a specific tab by position (1-indexed).
- * These are internal constants — not user-configurable via APP_SHORTCUTS.
- */
-const TAB_INDEX_HOTKEYS = [
-  'Mod+1',
-  'Mod+2',
-  'Mod+3',
-  'Mod+4',
-  'Mod+5',
-  'Mod+6',
-  'Mod+7',
-  'Mod+8',
-  'Mod+9',
-] as const;
-
-/**
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
- *   tabNext    (default Mod+Alt+ArrowRight) — next tab
- *   tabPrev    (default Mod+Alt+ArrowLeft)  — previous tab
- *   Control+Tab / Control+Shift+Tab          — next / previous tab
- *   tabClose   (default Mod+W)              — close active tab
- *   tabReopen  (default Mod+Shift+T)        — reopen most recently closed tab
- *   tabRename  (default Mod+Shift+R)        — rename active tab (when supported)
- *   Mod+1–9                                 — jump to tab by index (not configurable)
+ *   tabNext     (default Mod+Alt+ArrowRight)      — next tab
+ *   tabPrev     (default Mod+Alt+ArrowLeft)       — previous tab
+ *   Control+Tab / Control+Shift+Tab               — next / previous tab
+ *   tabClose    (default Mod+W)                   — close active tab
+ *   tabReopen   (default Mod+Shift+T)             — reopen most recently closed tab
+ *   tabRename   (default Mod+Shift+R)             — rename active tab (when supported)
+ *   tabByNumber (default Control+1–9 on macOS)    — jump to tab by position, left to right
  *
  * Pass `focused: false` to disable shortcuts when the panel is not focused,
  * preventing conflicts when multiple tab panels are mounted simultaneously.
@@ -127,76 +112,7 @@ export function useTabShortcuts(
     { enabled: enabled && tabRenameHotkey !== null, conflictBehavior: 'allow' }
   );
 
-  useHotkey(
-    TAB_INDEX_HOTKEYS[0],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(0);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[1],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(1);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[2],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(2);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[3],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(3);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[4],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(4);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[5],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(5);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[6],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(6);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[7],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(7);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
-  useHotkey(
-    TAB_INDEX_HOTKEYS[8],
-    (e) => {
-      e.preventDefault();
-      store?.setTabActiveIndex(8);
-    },
-    { enabled, conflictBehavior: 'allow' }
-  );
+  useNumberHotkeys(getEffectiveHotkey('tabByNumber', keyboard), enabled, (index) => {
+    store?.setTabActiveIndex(index);
+  });
 }
