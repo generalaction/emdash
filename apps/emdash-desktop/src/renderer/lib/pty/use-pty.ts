@@ -8,7 +8,6 @@ import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
-import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { TERMINAL_PADDING_PX } from './pty';
@@ -32,8 +31,8 @@ const IS_MAC_PLATFORM =
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
-function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
-  if (!getDomTabNavigationDirection(event)) return false;
+function dispatchTerminalAppHotkey(event: KeyboardEvent): boolean {
+  if (event.type !== 'keydown') return false;
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
@@ -385,7 +384,10 @@ export function usePty(
         const dialog = document.querySelector('[role="dialog"]');
         if (dialog && !dialog.contains(container)) return false;
 
-        if (dispatchTerminalTabNavigationHotkey(event)) {
+        // xterm handles key events before TanStack's document-level hotkey
+        // listeners can see them. Dispatch any active app shortcut here first;
+        // unmatched shortcuts continue to the CLI unchanged.
+        if (dispatchTerminalAppHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
