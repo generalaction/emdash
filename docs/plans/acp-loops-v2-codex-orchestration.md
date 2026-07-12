@@ -1181,7 +1181,25 @@ fresh recreated green run becomes the final success report.
 - [x] 2026-07-11: Passed the integrated Wave 1 gate at `62f43bcd3`: 15 focused files and 127 tests,
   desktop typecheck, focused lint/format, and `git diff --check` all passed under Node `24.14.0` and
   `pnpm@10.28.2`.
-- [ ] Complete, review, and merge Wave 2A lanes W/P.
+- [x] 2026-07-12: Completed and merged Wave 2A Lane P at `a55ecbc97` (initial integration
+  `86f9f6835`). Work, terminal Review, and E2E prompts now use bounded data-only context,
+  artifact-reference handoffs, strict final-line sentinels, target-bound native browser wording,
+  and a correction-ready result that cannot masquerade as a fresh E2E pass. The Sol/ultra prompt
+  audit at session `019f52f9-2a69-7693-ab8e-2daf5b40d9f0` supplied the adversarial contract
+  matrix; all findings were closed, and 13 focused/compatibility files passed 100/100.
+- [x] 2026-07-12: Completed and merged Wave 2A Lane W through `edb2cea02`, followed by the
+  test-only quiescence hardening at `b47329def`. The lane now has trusted same-machine capability
+  resolution, immutable-base linear replay, strict path-safe preserves, durable injected cleanup
+  authority with CAS/restart recovery, lifecycle/acquisition/worktree quiescence, actor-safe
+  teardown, optimistic fix integration, and proven rollback when a deadline lands after the
+  feature ref/tree mutation. Exact and full-range Sol/ultra reviews at sessions
+  `019f5478-474f-7e70-87f5-6cfca9751b64` and
+  `019f5478-6a7c-7802-b015-bc3fd2cc3cdb` approved with no P1/P2 findings; the test-only follow-up
+  was separately approved at session `019f54a1-41ab-7f91-a7bb-57c9521b8fa6`.
+- [x] 2026-07-12: Passed the integrated Wave 2A gate at `b47329def`: 20 focused and compatibility
+  files passed 336/336 with one worker; desktop and release typechecks passed; all 22 changed
+  TypeScript files passed focused lint and formatting; `git diff --check` passed. The integration
+  worktree was clean and no branch was pushed.
 - [ ] Complete and merge Wave 2B lanes V/N, then Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
@@ -1213,6 +1231,12 @@ fresh recreated green run becomes the final success report.
 - Observation: the user's current Summario worktree is dirty/divergent, and its Playwright harness
   is not necessarily on the clean dogfood base.
   Evidence: record the exact execution-time base and never import the harness branch implicitly.
+- Observation: millisecond wall-clock tests can expire before reaching their intended held stage
+  when other isolated builds contend for the host.
+  Evidence: the first integrated Wave 2A run passed 282/284 but exposed only a 5-second Git-test
+  timeout and a 20-millisecond pre-stage lifecycle race. Stage-entry synchronization, fake time,
+  and narrowly scoped 15-second allowances for observed Git-heavy cases produced the repeatable
+  336/336 gate without changing production behavior.
 - Observation: Summario's clean base has no complete backend reset/provisioning script, and the
   installed Convex CLI has no deployment-delete command.
   Evidence: use a new worktree-local Convex deployment per local attempt; remote cloud fallback is
