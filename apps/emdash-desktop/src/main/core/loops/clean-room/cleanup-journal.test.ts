@@ -25,7 +25,9 @@ function pending(overrides: Partial<CleanRoomPendingCleanup> = {}): CleanRoomPen
     branchName: 'emdash/loop-verify-fixed',
     baseCommit: BASE,
     expectedFeatureHead: HEAD,
+    worktreeOwnership: 'attested',
     teardownRequired: true,
+    branchHead: HEAD,
     completed: { teardown: false, worktree: false, branch: false },
     revision: 0,
     ...overrides,
@@ -76,6 +78,14 @@ describe('clean-room cleanup journal', () => {
       }),
     ],
     ['mismatched branch', pending({ branchName: 'emdash/other' })],
+    [
+      'intent claiming workspace teardown authority',
+      pending({ worktreeOwnership: 'intent', teardownRequired: true, branchHead: BASE }),
+    ],
+    [
+      'intent bound to a non-base head',
+      pending({ worktreeOwnership: 'intent', teardownRequired: false, branchHead: HEAD }),
+    ],
     [
       'impossible progress',
       pending({ completed: { teardown: false, worktree: true, branch: false }, branchHead: BASE }),

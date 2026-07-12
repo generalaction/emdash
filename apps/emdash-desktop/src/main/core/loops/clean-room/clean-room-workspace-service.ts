@@ -42,6 +42,11 @@ export type CleanRoomWorkspaceServiceDependencies = {
   workspaceRegistry: Pick<WorkspaceRegistry, 'acquire' | 'teardown'>;
   runtimeManager: Pick<RuntimeManager, 'acquire'>;
   cleanupJournal: CleanRoomCleanupJournal;
+  /**
+   * Trusted provider boundary. Implementations must resolve the actual feature workspace by
+   * workspaceId and bind its provider, path, and machine; caller data or default workspace type
+   * alone is not authority.
+   */
   resolveSourceCapability(
     project: CleanRoomProject,
     featureTarget: LoopSessionTarget
@@ -101,7 +106,6 @@ type IssuedCleanRoom = {
 };
 
 const CLEAN_ROOM_TIMEOUT_MS = 10 * 60_000;
-const FULL_COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
 function sameMachine(left: MachineRef, right: MachineRef): boolean {
   return (
@@ -205,7 +209,9 @@ export class CleanRoomWorkspaceService {
       branchName,
       baseCommit: snapshot.data.baseCommit,
       expectedFeatureHead: snapshot.data.expectedFeatureHead,
+      worktreeOwnership: 'intent',
       teardownRequired: false,
+      branchHead: snapshot.data.baseCommit,
       completed: { teardown: false, worktree: false, branch: false },
       revision: 0,
     };
@@ -231,6 +237,11 @@ export class CleanRoomWorkspaceService {
     }
     if (!created.success) {
       const operationFailure = mapWorktreeOperationFailure(created.error);
+      if (created.error.type !== 'worktree-rollback-incomplete') {
+        const discarded = await this.discardCreationIntent(pendingCleanup);
+        if (!discarded.success) return discarded;
+        return err(operationFailure ?? worktreeCreateFailure());
+      }
       return failAfterCleanup(operationFailure ?? worktreeCreateFailure());
     }
     if (created.data !== worktreePath) return failAfterCleanup(worktreeCreateFailure());
@@ -238,7 +249,7 @@ export class CleanRoomWorkspaceService {
     let expectedJournalRevision = pendingCleanup.revision;
     pendingCleanup = {
       ...pendingCleanup,
-      branchHead: snapshot.data.baseCommit,
+      worktreeOwnership: 'attested',
       revision: expectedJournalRevision + 1,
     };
     const createdJournaled = await this.persistPendingCleanup(
@@ -569,6 +580,7 @@ export class CleanRoomWorkspaceService {
     const validated = await validatePendingCleanup(record, project);
     if (!validated.success) return validated;
     record = validated.data;
+    if (record.worktreeOwnership !== 'attested') return err(invalidIdentityError());
     if (record.branchHead === branchHead) return ok();
     if (record.branchHead !== record.expectedFeatureHead) return err(invalidIdentityError());
     const expectedRevision = record.revision;
@@ -709,6 +721,34 @@ export class CleanRoomWorkspaceService {
     }
   }
 
+  private async discardCreationIntent(
+    record: CleanRoomPendingCleanup
+  ): Promise<Result<void, CleanRoomWorkspaceError>> {
+    if (
+      record.worktreeOwnership !== 'intent' ||
+      record.revision !== 0 ||
+      record.completed.teardown ||
+      record.completed.worktree ||
+      record.completed.branch
+    ) {
+      return err(invalidIdentityError());
+    }
+    try {
+      const removed = await this.deps.cleanupJournal.remove(record.cleanupId, record.revision);
+      return removed
+        ? ok()
+        : err({
+            type: 'cleanup-journal-failed',
+            message: 'Clean-room creation intent changed concurrently.',
+          });
+    } catch {
+      return err({
+        type: 'cleanup-journal-failed',
+        message: 'Clean-room creation intent could not be discarded.',
+      });
+    }
+  }
+
   private async runPendingCleanup(
     cleanupId: string,
     project: CleanRoomProject
@@ -739,6 +779,15 @@ export class CleanRoomWorkspaceService {
       const saved = await this.persistPendingCleanup(record, expectedRevision);
       return saved.success ? saved : cleanupFailureWithRecord('cleanup journal update', record);
     };
+    const ref = `refs/heads/${record.branchName}`;
+    const readBranchHead = async (): Promise<string> => {
+      const listed = await project.ctx.exec(
+        'git',
+        ['for-each-ref', '--format=%(objectname)', ref],
+        { timeout: 60_000 }
+      );
+      return listed.stdout.trim();
+    };
 
     if (!record.completed.teardown) {
       if (record.teardownRequired) {
@@ -753,43 +802,15 @@ export class CleanRoomWorkspaceService {
       if (!saved.success) return saved;
     }
 
-    if (record.branchHead === undefined) {
-      try {
-        const ref = `refs/heads/${record.branchName}`;
-        const listed = await project.ctx.exec(
-          'git',
-          ['for-each-ref', '--format=%(objectname)', ref],
-          { timeout: 60_000 }
-        );
-        const branchHead = listed.stdout.trim();
-        if (branchHead && !FULL_COMMIT.test(branchHead)) {
-          return cleanupFailureWithRecord('temporary branch attestation', record);
-        }
-        if (branchHead) {
-          return cleanupFailureWithRecord('generated worktree ownership checkpoint', record);
-        }
-        const absent = await project.worktreeService.removeGeneratedWorktreeIfPresent(
-          record.target.path,
-          { expectedBranchName: record.branchName, expectedHead: null }
-        );
-        if (!absent.success || absent.data.removed) {
-          return cleanupFailureWithRecord('generated worktree absence attestation', record);
-        }
-        record.branchHead = null;
-      } catch {
-        return cleanupFailureWithRecord('temporary branch attestation', record);
-      }
-      const saved = await saveProgress();
-      if (!saved.success) return saved;
-    }
-
     if (!record.completed.worktree) {
       try {
+        const requireClean = record.worktreeOwnership === 'intent';
         const removed = await project.worktreeService.removeGeneratedWorktreeIfPresent(
           record.target.path,
           {
             expectedBranchName: record.branchName,
             expectedHead: record.branchHead,
+            ...(requireClean ? { requireClean: true } : {}),
           }
         );
         if (!removed.success) return cleanupFailureWithRecord('worktree removal', record);
@@ -802,19 +823,10 @@ export class CleanRoomWorkspaceService {
     }
 
     if (!record.completed.branch) {
-      const ref = `refs/heads/${record.branchName}`;
       try {
-        const readBranchHead = async (): Promise<string> => {
-          const listed = await project.ctx.exec(
-            'git',
-            ['for-each-ref', '--format=%(objectname)', ref],
-            { timeout: 60_000 }
-          );
-          return listed.stdout.trim();
-        };
         const currentHead = await readBranchHead();
         if (currentHead) {
-          if (!record.branchHead || currentHead.toLowerCase() !== record.branchHead.toLowerCase()) {
+          if (currentHead.toLowerCase() !== record.branchHead.toLowerCase()) {
             return cleanupFailureWithRecord('temporary branch movement', record);
           }
           try {

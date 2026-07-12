@@ -14,8 +14,9 @@ export type CleanRoomPendingCleanup = {
   branchName: string;
   baseCommit: string;
   expectedFeatureHead: string;
+  worktreeOwnership: 'intent' | 'attested';
   teardownRequired: boolean;
-  branchHead?: string | null;
+  branchHead: string;
   completed: { teardown: boolean; worktree: boolean; branch: boolean };
   revision: number;
 };
@@ -46,6 +47,7 @@ const TOP_LEVEL_KEYS = new Set([
   'branchName',
   'baseCommit',
   'expectedFeatureHead',
+  'worktreeOwnership',
   'teardownRequired',
   'branchHead',
   'completed',
@@ -141,9 +143,15 @@ export function parseCleanRoomPendingCleanup(
   const teardownCompleted = completed.teardown;
   const worktreeCompleted = completed.worktree;
   const branchCompleted = completed.branch;
-
-  const branchHeadPresent = Object.hasOwn(record, 'branchHead');
+  const worktreeOwnership = record.worktreeOwnership;
   const branchHead = record.branchHead;
+  if (
+    (worktreeOwnership !== 'intent' && worktreeOwnership !== 'attested') ||
+    typeof branchHead !== 'string' ||
+    !FULL_COMMIT.test(branchHead)
+  ) {
+    return invalidRecord();
+  }
   const valid =
     record.version === '1' &&
     boundedString(record.cleanupId, 180) &&
@@ -164,12 +172,11 @@ export function parseCleanRoomPendingCleanup(
     FULL_COMMIT.test(record.baseCommit) &&
     typeof record.expectedFeatureHead === 'string' &&
     FULL_COMMIT.test(record.expectedFeatureHead) &&
+    (worktreeOwnership !== 'intent' || !record.teardownRequired) &&
+    (worktreeOwnership !== 'intent' ||
+      branchHead.toLowerCase() === record.baseCommit.toLowerCase()) &&
     (!worktreeCompleted || teardownCompleted) &&
     (!branchCompleted || worktreeCompleted) &&
-    (!worktreeCompleted || branchHeadPresent) &&
-    (!branchHeadPresent ||
-      branchHead === null ||
-      (typeof branchHead === 'string' && FULL_COMMIT.test(branchHead))) &&
     Number.isSafeInteger(record.revision) &&
     Number(record.revision) >= 0;
   if (!valid) return invalidRecord();
@@ -191,8 +198,9 @@ export function parseCleanRoomPendingCleanup(
       branchName: String(record.branchName),
       baseCommit: String(record.baseCommit),
       expectedFeatureHead: String(record.expectedFeatureHead),
+      worktreeOwnership,
       teardownRequired,
-      ...(branchHeadPresent ? { branchHead: branchHead as string | null } : {}),
+      branchHead,
       completed: {
         teardown: teardownCompleted,
         worktree: worktreeCompleted,

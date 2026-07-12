@@ -53,6 +53,9 @@ function makeHarness(
     factoryThrow?: boolean;
     startupReject?: boolean;
     createReject?: boolean;
+    createBranchExists?: boolean;
+    createAmbiguousClean?: boolean;
+    createAmbiguousBranchOnly?: boolean;
     createAmbiguousActor?: boolean;
     preserveReject?: boolean;
     afterCapture?: () => void;
@@ -108,10 +111,23 @@ function makeHarness(
     createWorktreeAtCommit: vi.fn(async (_commit: string, branch: string) => {
       order.push('create-worktree');
       if (options.createReject) throw new Error('create rejected');
-      if (options.createAmbiguousActor) {
+      if (options.createBranchExists) {
         branchHead = BASE;
         worktreeExists = true;
-        actorBytes = 'actor bytes';
+        actorBytes = 'pre-existing bytes';
+        return err({ type: 'branch-exists' as const, branch });
+      }
+      if (options.createAmbiguousBranchOnly) {
+        branchHead = BASE;
+        return err({
+          type: 'worktree-rollback-incomplete' as const,
+          message: 'Generated branch ownership was ambiguous after creation failed.',
+        });
+      }
+      if (options.createAmbiguousClean || options.createAmbiguousActor) {
+        branchHead = BASE;
+        worktreeExists = true;
+        if (options.createAmbiguousActor) actorBytes = 'actor bytes';
         return err({
           type: 'worktree-rollback-incomplete' as const,
           message: 'Generated worktree ownership was ambiguous after creation failed.',
@@ -127,10 +143,23 @@ function makeHarness(
       return options.preserveResult ?? ok({ copied: ['.env.local'] });
     }),
     removeGeneratedWorktreeIfPresent: vi.fn(
-      async (): Promise<
+      async (
+        _path: string,
+        removeOptions: {
+          expectedBranchName: string;
+          expectedHead: string | null;
+          requireClean?: boolean;
+        }
+      ): Promise<
         Result<{ removed: boolean }, { type: 'worktree-remove-failed'; message: string }>
       > => {
         order.push('remove-worktree');
+        if (removeOptions.requireClean && actorBytes !== undefined) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree contains actor bytes.',
+          });
+        }
         const removed = worktreeExists;
         worktreeExists = false;
         return ok({ removed });
@@ -331,6 +360,8 @@ describe('CleanRoomWorkspaceService', () => {
       1,
       expect.objectContaining({
         cleanupId: 'cleanup-loop-verify-fixed',
+        branchHead: BASE,
+        worktreeOwnership: 'intent',
         revision: 0,
       }),
       null
@@ -471,6 +502,43 @@ describe('CleanRoomWorkspaceService', () => {
     ).resolves.toEqual({ success: true, data: { cleanupIds: [] } });
     expect(harness.order).toEqual([]);
     await expect(journal.list()).resolves.toHaveLength(1);
+  });
+
+  it('deduplicates and sorts authoritative cleanup ids before retry', async () => {
+    const sourceJournal = createInMemoryCleanRoomCleanupJournal();
+    const harness = makeHarness({ cleanupJournal: sourceJournal });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const [record] = await sourceJournal.list();
+    const makeRecord = (suffix: string, projectId = record.projectId) => ({
+      ...record,
+      cleanupId: `cleanup-loop-verify-${suffix}`,
+      projectId,
+      workspaceId: `loop-verify-${suffix}`,
+      target: { ...record.target, path: `/pool/emdash/loop-verify-${suffix}` },
+      branchName: `emdash/loop-verify-${suffix}`,
+    });
+    const first = makeRecord('a');
+    const last = makeRecord('z');
+    const otherProject = makeRecord('other', 'project-other');
+    const journal: CleanRoomCleanupJournal = {
+      ...sourceJournal,
+      list: vi.fn(async () => [last, first, last, otherProject]),
+    };
+    const recovered = new CleanRoomWorkspaceService({
+      ...harness.dependencies,
+      cleanupJournal: journal,
+    });
+    const retry = vi.spyOn(recovered, 'retryPendingCleanup').mockResolvedValue(ok());
+
+    await expect(recovered.recoverPendingCleanups(harness.project)).resolves.toEqual({
+      success: true,
+      data: { cleanupIds: [first.cleanupId, last.cleanupId] },
+    });
+    expect(retry.mock.calls.map(([cleanupId]) => cleanupId)).toEqual([
+      first.cleanupId,
+      last.cleanupId,
+    ]);
   });
 
   it('rejects forged, oversized, and stale pending-cleanup adoption without journal mutation', async () => {
@@ -693,9 +761,78 @@ describe('CleanRoomWorkspaceService', () => {
       '/pool/emdash/loop-verify-fixed',
       {
         expectedBranchName: 'emdash/loop-verify-fixed',
-        expectedHead: null,
+        expectedHead: BASE,
+        requireClean: true,
       }
     );
+  });
+
+  it('converges a clean applied-but-rejected worktree from durable creation intent', async () => {
+    const harness = makeHarness({ createAmbiguousClean: true });
+
+    const result = await harness.service.create(harness.input);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'worktree-create-failed',
+        message: 'Failed to create clean-room worktree.',
+      },
+    });
+    expect(harness.order).toEqual([
+      'capture',
+      'create-worktree',
+      'remove-worktree',
+      'delete-branch',
+    ]);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).toHaveBeenCalledWith(
+      '/pool/emdash/loop-verify-fixed',
+      {
+        expectedBranchName: 'emdash/loop-verify-fixed',
+        expectedHead: BASE,
+        requireClean: true,
+      }
+    );
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([]);
+  });
+
+  it('preserves a pre-existing exact worktree when creation returns typed branch-exists', async () => {
+    const harness = makeHarness({ createBranchExists: true });
+
+    const result = await harness.service.create(harness.input);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'worktree-create-failed',
+        message: 'Failed to create clean-room worktree.',
+      },
+    });
+    expect(harness.order).toEqual(['capture', 'create-worktree']);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
+    expect(harness.readActorBytes()).toBe('pre-existing bytes');
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([]);
+  });
+
+  it('converges an ambiguous exact base branch left without a worktree', async () => {
+    const harness = makeHarness({ createAmbiguousBranchOnly: true });
+
+    const result = await harness.service.create(harness.input);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'worktree-create-failed',
+        message: 'Failed to create clean-room worktree.',
+      },
+    });
+    expect(harness.order).toEqual([
+      'capture',
+      'create-worktree',
+      'remove-worktree',
+      'delete-branch',
+    ]);
+    await expect(harness.cleanupJournal.list()).resolves.toEqual([]);
   });
 
   it('retains pending cleanup without deleting an ambiguous competing-actor worktree', async () => {
@@ -712,8 +849,15 @@ describe('CleanRoomWorkspaceService', () => {
         },
       },
     });
-    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).not.toHaveBeenCalled();
-    expect(harness.order).toEqual(['capture', 'create-worktree']);
+    expect(harness.worktreeService.removeGeneratedWorktreeIfPresent).toHaveBeenCalledWith(
+      '/pool/emdash/loop-verify-fixed',
+      {
+        expectedBranchName: 'emdash/loop-verify-fixed',
+        expectedHead: BASE,
+        requireClean: true,
+      }
+    );
+    expect(harness.order).toEqual(['capture', 'create-worktree', 'remove-worktree']);
     expect(harness.readActorBytes()).toBe('actor bytes');
     await expect(harness.cleanupJournal.list()).resolves.toHaveLength(1);
   });

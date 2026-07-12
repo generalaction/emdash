@@ -703,6 +703,10 @@ export class WorktreeService {
       ownedCommit
     );
     if (!attested.success) return false;
+    return this.isGeneratedWorktreeClean(targetPath);
+  }
+
+  private async isGeneratedWorktreeClean(targetPath: string): Promise<boolean> {
     try {
       const status = await this.ctx.exec(
         'git',
@@ -893,7 +897,7 @@ export class WorktreeService {
 
   async removeGeneratedWorktreeIfPresent(
     worktreePath: string,
-    options: { expectedBranchName: string; expectedHead: string | null }
+    options: { expectedBranchName: string; expectedHead: string | null; requireClean?: boolean }
   ): Promise<Result<{ removed: boolean }, RemoveGeneratedWorktreeError>> {
     try {
       const location = await this.resolveGeneratedLocation(options.expectedBranchName);
@@ -941,6 +945,12 @@ export class WorktreeService {
           return err({
             type: 'worktree-remove-failed',
             message: 'Generated worktree ownership could not be attested.',
+          });
+        }
+        if (options.requireClean && !(await this.isGeneratedWorktreeClean(worktreePath))) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree contains unowned filesystem changes.',
           });
         }
         await this.removePathForReuseAtPool(location.data.poolPath, worktreePath);
