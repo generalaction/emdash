@@ -141,36 +141,50 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
-## 2026-07-12 governor checkpoint: resume Wave 2C only
+## 2026-07-12 70–79 checkpoint: persistent resumer
 
-The usage governor stopped execution at the 80% dispatch boundary while Wave 2C Lane E was under
-final audit. Resume only that lane; do not start Wave 3 until the E2E gate is approved and merged.
+Resume only Wave 2C independent review. Do not integrate Lane E or start Wave 3 until a fresh exact
+range audit approves `e5c1bece0..cc1e848dc` with no P0/P1/P2 findings.
 
-- Integration is paused on `codex/loops-v2-integration`; this checkpoint is documentation-only and
-  does not merge Lane E source.
-- The isolated E2E lane's validated source snapshot is `ab38b4f9b` on
-  `codex/loops-v2-e2e-gate`. Its source commits after the integration base are `f541c4f8b`,
-  `06242559d`, `7a22377e4`, `a43c1f501`, and `ab38b4f9b`. Temporary dependency symlinks were
-  removed. Nothing was pushed.
-- The original checkout at `/home/devuser/projects/emdash` remains dirty/user-owned and untouched.
-- Exact checkpoint verification: the focused E2E gate passed 42/42; desktop plus release
-  typecheck exited 0; focused lint/format and `git diff --check` exited 0. Earlier compatibility on
-  the pre-checkpoint range passed 424/424, but it must be repeated after the remaining fixes.
-- Contract audit session `019f56ae-0516-7230-be4e-b803da389789` and lifecycle audit session
-  `019f56ad-cdeb-73e1-a6bc-0a5671c848ad` both returned NOT APPROVED and made no edits.
+- Lane E is clean at `cc1e848dc` on `codex/loops-v2-e2e-gate`; integration source remains
+  unmerged. Source commits after the integration base are `f541c4f8b`, `06242559d`, `7a22377e4`,
+  `a43c1f501`, `ab38b4f9b`, and `cc1e848dc`.
+- Exact proof: focused E2E tests passed 95/95; the 13-file compatibility matrix passed 478/478
+  with one worker; desktop/release typecheck, focused lint/format, and `git diff --check` passed.
+- Two fresh read-only audits were started after `cc1e848dc` but interrupted before producing a
+  verdict when the 70–79 governor correction prohibited fresh audit work. They are not approval
+  evidence and must be rerun after a proven reset.
+- The original dirty checkout at `/home/devuser/projects/emdash` remains user-owned and untouched.
+  Nothing was pushed, merged, released, or deployed. No ACP session or later wave was started.
 
-Required resume order:
+The default persistent Emdash worktree root is `/home/devuser/emdash/worktrees`. Git's worktree
+registry and a before/after status audit prove that all eleven ACP execution worktrees remained on
+the same branches and SHAs and were clean on both sides of the move:
 
-1. Add failing tests and close the P0s: make every clock use no-throw; treat untrusted acquire as
-   an unreleased/pending workspace; strictly validate every successful dependency payload; reject
-   canonical local/SSH target aliases; and scope collision-safe cancellation single-flight state
-   to one run/session.
-2. Close the P1 contract gaps: reconcile persisted v2 Codex/model/gates/base/checkpoint/session
-   authority; reject historical attempt and conversation reuse; require exact purpose/phase/full
-   session echoes; pass complete Loop/phase/criteria/validation-command context into required
-   checks; parse/clone only Lane W cleanup authority; reconcile final feature HEAD on all terminal
-   post-integration paths; and preserve any trustworthy outer/nested attempt evidence on malformed
-   responses.
-3. Run the focused E2E suite, desktop/release typecheck, focused lint/format, and the 424-test
-   compatibility matrix. Obtain a fresh Sol/ultra audit of the exact new range. Only an approved,
-   clean lane may be cherry-picked into integration and marked Wave 2C complete.
+| Old path | Persistent path | Branch | SHA |
+| --- | --- | --- | --- |
+| `/tmp/emdash-acp-loops` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/acp-loops-base` | `loops/acp-loops` | `9345a707521583a02e778718c0e94ebe863ec67d` |
+| `/tmp/emdash-loops-v2-clean-room` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/clean-room` | `codex/loops-v2-clean-room` | `9ad2a9695d73fa5a6b142ba9dc049fcd20c1da30` |
+| `/tmp/emdash-loops-v2-contracts` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/contracts` | `codex/loops-v2-contracts` | `ff672baf64cf76ef8e90fab5c8ff24cbd7e474c3` |
+| `/tmp/emdash-loops-v2-e2e-gate` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/e2e-gate` | `codex/loops-v2-e2e-gate` | `cc1e848dc7178e6fce12f9476ea220d148d59413` |
+| `/tmp/emdash-loops-v2-integration` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` | `codex/loops-v2-integration` | `c10a9c2dde08ab616bb2937f69e99a8e5471b91b` before this handoff-only commit |
+| `/tmp/emdash-loops-v2-native-browser` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/native-browser` | `codex/loops-v2-native-browser` | `42653b0e1f1341f359ce9e789528e5906613f62a` |
+| `/tmp/emdash-loops-v2-native-verifier` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/native-verifier` | `codex/loops-v2-native-verifier` | `5cad306c95a1c3ca76c34873c01ccd7f75c4458b` |
+| `/tmp/emdash-loops-v2-prompts` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/prompts` | `codex/loops-v2-prompts` | `ecdc8cd2983cec65c210e7a4a1136452b0abb3b7` |
+| `/tmp/emdash-loops-v2-review-gate` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/review-gate` | `codex/loops-v2-review-gate` | `53800cb8dfcd613475a67d8b5345910570edbea6` |
+| `/tmp/emdash-loops-v2-runtime` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/runtime` | `codex/loops-v2-runtime` | `af7bff1d239b74e8e10bb3d5cc3101dfa328bf94` |
+| `/tmp/emdash-loops-v2-ui` | `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/ui` | `codex/loops-v2-ui` | `34890dd7d6b62e5fb7667778f7b968ac5467921a` |
+
+`git worktree move` updated Git routing atomically. No repository contents or caller/provider
+configuration changed, so the enforced Codex plus `gpt-5.6-sol` contract is intact. The unrelated
+`/tmp/emdash-settings-search-port` worktree and non-worktree Gist reference were intentionally left
+alone.
+
+Exact resume order:
+
+1. Work from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/e2e-gate` and rerun two fresh
+   independent exact-range audits of `e5c1bece0..cc1e848dc`; do not reuse an interrupted verdict.
+2. Fix any finding and repeat the focused/compatibility/typecheck/lint/format gates plus exact-range
+   review until approved. The current lane is a green checkpoint, not an approved lane.
+3. Only then cherry-pick the Lane E commits into the persistent integration worktree, update the
+   living plan, and begin the next serialized wave.

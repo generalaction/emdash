@@ -1223,21 +1223,20 @@ fresh recreated green run becomes the final success report.
   focused and compatibility files passed 254/254 with one worker; desktop and release typechecks,
   focused lint/format, and `git diff --check` passed. The isolated integration and lane worktrees
   were clean, temporary dependency links were removed, and no branch was pushed.
-- [ ] 2026-07-12: Paused Wave 2C at the usage-governor checkpoint before integration. Lane E's
-  validated source snapshot is `ab38b4f9b` on `codex/loops-v2-e2e-gate` (after `f541c4f8b`,
-  `06242559d`, `7a22377e4`, and `a43c1f501`). The latest patch retains bounded correction/check
-  handoffs on every typed outcome and adds malformed integration, cancellation, release, and
-  execution-binding payload guards. Its focused gate passed 42/42, desktop/release typecheck
-  passed, and focused lint, format, and `git diff --check` passed under Node 24/pnpm 10. The lane
-  and integration worktrees are clean, temporary dependency links were removed, and nothing was
-  pushed. Do not merge this checkpoint: independent Sol/ultra contract audit session
-  `019f56ae-0516-7230-be4e-b803da389789` and lifecycle audit session
-  `019f56ad-cdeb-73e1-a6bc-0a5671c848ad` both returned NOT APPROVED. Close the recorded P0
-  clock/acquire/payload/target-alias/cancellation-single-flight findings and P1 persisted-config,
-  durable-ledger, exact-session-echo, full-required-check-context, cleanup-schema,
-  post-integration reconciliation, and trustworthy-failure-ledger findings. Then rerun focused
-  plus the previously green 424-test compatibility matrix and obtain a fresh exact-range approval.
-  No Wave 3 work has started.
+- [ ] 2026-07-12: Wave 2C is checkpointed, but deliberately not approved or integrated. Lane E is
+  clean at `cc1e848dc` on `codex/loops-v2-e2e-gate`. It now closes the previously recorded
+  clock/acquire/payload/target-alias/cancellation-single-flight findings and adds persisted v2
+  config/state/criteria authority, durable identity freshness, complete session/check echoes,
+  provenance-bound cleanup records, append-only failure evidence, and post-integration feature
+  reconciliation. The exact focused gate passed 95/95; the 13-file clean-room/Review/native
+  compatibility matrix passed 478/478 with one worker; desktop plus release typecheck, focused
+  lint/format, and `git diff --check` passed under Node 24/pnpm 10. Two fresh exact-range audits
+  were started after this checkpoint but immediately interrupted without a verdict when the
+  70–79 usage correction prohibited new audit work. A fresh independent exact-range approval is
+  still mandatory before integration. All ACP execution worktrees were then mechanically moved
+  from `/tmp` to `/home/devuser/emdash/worktrees/emdash/acp-loops-v2`, with branches, SHAs, clean
+  state, task routing, and committed provider configuration preserved; the exact map is in the
+  durable handoff. No Wave 3 work has started and nothing was pushed.
 - [ ] Complete and merge Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
