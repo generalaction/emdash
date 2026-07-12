@@ -7,7 +7,7 @@ import {
   type ShortcutSettingsKey,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
-import { getNumberHotkeys } from '@shared/shortcuts';
+import { getNumberHotkeys, resolveNumberFamilyBase } from '@shared/shortcuts';
 
 function isMonacoFocused(): boolean {
   return document.activeElement?.closest('.monaco-editor') !== null;
@@ -36,7 +36,9 @@ export function MonacoKeyboardBridge() {
 
     for (const [key, def] of shortcuts) {
       if (!def.ignoreWhenMonacoFocused) continue;
-      const hotkey = getEffectiveHotkey(key, keyboard);
+      const hotkey = def.numberFamily
+        ? resolveNumberFamilyBase(key, keyboard?.[key])
+        : getEffectiveHotkey(key, keyboard);
       if (hotkey === null) continue;
       const family = def.numberFamily ? getNumberHotkeys(hotkey) : null;
       for (const h of family ?? [hotkey]) next.add(normalizeHotkey(h, platform));

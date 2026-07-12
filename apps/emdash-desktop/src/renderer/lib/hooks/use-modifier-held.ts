@@ -20,9 +20,10 @@ export function getHotkeyRevealModifier(hotkey: string | null): RevealModifier |
 }
 
 /**
- * True while `key` has been held down alone for at least `delayMs`. Pressing
- * any other key (a chord, not a discovery hold), releasing the modifier, or
- * blurring the window resets to false.
+ * True while `key` has been held down for at least `delayMs`, until it is
+ * released or the window blurs. Chord presses while held (e.g. the digit of a
+ * number shortcut) do NOT reset the state, so hints stay visible across
+ * consecutive jumps within one hold.
  */
 export function useModifierHeld(key: RevealModifier | null, delayMs = 250): boolean {
   const [held, setHeld] = useState(false);
@@ -38,11 +39,9 @@ export function useModifierHeld(key: RevealModifier | null, delayMs = 250): bool
       setHeld(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== key) {
-        cancel();
-        return;
-      }
-      if (e.repeat || timer !== null) return;
+      // timer doubles as the "this hold is already tracked" sentinel; it stays
+      // set after firing until keyup/blur cancels.
+      if (e.key !== key || e.repeat || timer !== null) return;
       timer = window.setTimeout(() => setHeld(true), delayMs);
     };
     const onKeyUp = (e: KeyboardEvent) => {
