@@ -55,6 +55,11 @@ export const gitRepositoryContract = defineContract({
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
+      setBranchBase: mutation({
+        input: z.object({ branch: z.string(), base: z.string() }),
+        data: z.void(),
+        error: gitCommandErrorSchema,
+      }),
       createTag: mutation({
         input: z.object({ options: explicitTagOptionsSchema }),
         data: z.void(),
@@ -66,6 +71,11 @@ export const gitRepositoryContract = defineContract({
         error: gitCommandErrorSchema,
       }),
       addRemote: mutation({
+        input: z.object({ name: z.string(), url: z.string() }),
+        data: z.void(),
+        error: gitCommandErrorSchema,
+      }),
+      setRemoteUrl: mutation({
         input: z.object({ name: z.string(), url: z.string() }),
         data: z.void(),
         error: gitCommandErrorSchema,
@@ -93,6 +103,11 @@ export const gitRepositoryContract = defineContract({
         data: z.void(),
         error: gitCommandErrorSchema,
       }),
+      moveWorktree: mutation({
+        input: z.object({ from: hostAbsolutePathSchema, to: hostAbsolutePathSchema }),
+        data: z.void(),
+        error: gitCommandErrorSchema,
+      }),
       pruneWorktrees: mutation({
         input: z.object({}),
         data: z.void(),
@@ -109,6 +124,11 @@ export const gitRepositoryContract = defineContract({
   getDefaultBranch: fallible({
     input: repositorySelectorSchema.extend({ remote: z.string().optional() }),
     data: z.string(),
+    error: gitCommandErrorSchema,
+  }),
+  getBranchBase: fallible({
+    input: repositorySelectorSchema.extend({ branch: z.string() }),
+    data: z.string().nullable(),
     error: gitCommandErrorSchema,
   }),
   readBlobAtRef: fallible({

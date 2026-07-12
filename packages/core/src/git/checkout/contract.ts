@@ -181,6 +181,11 @@ export const gitCheckoutContract = defineContract({
     data: z.array(gitChangeSchema),
     error: gitCommandErrorSchema,
   }),
+  isFileTracked: fallible({
+    input: checkoutSelectorSchema.extend({ path: gitFilePathSchema }),
+    data: z.boolean(),
+    error: gitCommandErrorSchema,
+  }),
   getConflictVersions: fallible({
     input: checkoutSelectorSchema.extend({ path: gitFilePathSchema }),
     data: conflictVersionsSchema,

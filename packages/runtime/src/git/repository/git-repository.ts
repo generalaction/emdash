@@ -1,4 +1,4 @@
-import type { BoundExec } from '@emdash/core/exec';
+import { ExecError, type BoundExec } from '@emdash/core/exec';
 import {
   gitErr,
   type AddWorktreeOptions,
@@ -138,6 +138,15 @@ export class GitRepository {
     );
   }
 
+  async moveWorktree(
+    from: HostAbsolutePath,
+    to: HostAbsolutePath
+  ): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec(['worktree', 'move', toNativeAbsolutePath(from), toNativeAbsolutePath(to)])
+    );
+  }
+
   async pruneWorktrees(): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() => this.exec.exec(['worktree', 'prune']));
   }
@@ -194,6 +203,20 @@ export class GitRepository {
     );
   }
 
+  async setBranchBase(branch: string, base: string): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.setBranchBaseConfig(branch, base));
+  }
+
+  async getBranchBase(branch: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.exec.exec(['config', '--get', `branch.${branch}.base`]);
+      return stdout.trim() || null;
+    } catch (error) {
+      if (error instanceof ExecError && error.exitCode === 1) return null;
+      throw error;
+    }
+  }
+
   async createTag(options: ExplicitTagOptions): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() =>
       this.exec.exec([
@@ -216,19 +239,30 @@ export class GitRepository {
     return this.commandMutation(() => this.exec.exec(['remote', 'add', name, url]));
   }
 
+  async setRemoteUrl(name: string, url: string): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.exec.exec(['remote', 'set-url', name, url]));
+  }
+
   async removeRemote(name: string): Promise<Result<void, GitCommandError>> {
     return this.commandMutation(() => this.exec.exec(['remote', 'remove', name]));
   }
 
   async fetch(
     remote?: string,
-    context: GitOperationContext = {}
+    context: GitOperationContext = {},
+    options: { refspec?: string; force?: boolean } = {}
   ): Promise<Result<void, FetchError>> {
     try {
       throwIfGitOpAborted(context.signal);
       await execGitWithProgress(
         this.exec,
-        ['fetch', '--progress', ...(remote ? [remote] : [])],
+        [
+          'fetch',
+          '--progress',
+          ...(options.force ? ['--force'] : []),
+          ...(remote ? [remote] : []),
+          ...(options.refspec ? [options.refspec] : []),
+        ],
         context
       );
       return ok(undefined);

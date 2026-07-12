@@ -46,13 +46,16 @@ export class GitRepositoryRuntime {
         deleteBranch: (context) => context.resource.deleteBranch(context),
         renameBranch: (context) => context.resource.renameBranch(context),
         setUpstream: (context) => context.resource.setUpstream(context),
+        setBranchBase: (context) => context.resource.setBranchBase(context),
         createTag: (context) => context.resource.createTag(context),
         deleteTag: (context) => context.resource.deleteTag(context),
         addRemote: (context) => context.resource.addRemote(context),
+        setRemoteUrl: (context) => context.resource.setRemoteUrl(context),
         removeRemote: (context) => context.resource.removeRemote(context),
         stashDrop: (context) => context.resource.stashDrop(context),
         addWorktree: (context) => context.resource.addWorktree(context),
         removeWorktree: (context) => context.resource.removeWorktree(context),
+        moveWorktree: (context) => context.resource.moveWorktree(context),
         pruneWorktrees: (context) => context.resource.pruneWorktrees(context),
       },
       toMutationError: (_name, error) => expectedGitCommandError(error),
@@ -69,16 +72,27 @@ export class GitRepositoryRuntime {
     return this.read(input, (repository) => repository.getDefaultBranch(input.remote));
   }
 
+  getBranchBase(input: RepositorySelector & { branch: string }) {
+    return this.read(input, (repository) => repository.getBranchBase(input.branch));
+  }
+
   readBlobAtRef(input: RepositorySelector & { ref: string; filePath: PortableRelativePath }) {
     return this.read(input, (repository) => repository.readBlobAtRef(input.ref, input.filePath));
   }
 
   fetch(input: FetchJobInput, context: LiveJobContext<GitTransferProgress>) {
     return this.run(input, (repository) =>
-      repository.fetch(input.remote, {
-        signal: context.signal,
-        onProgress: context.progress,
-      })
+      repository.fetch(
+        input.remote,
+        {
+          signal: context.signal,
+          onProgress: context.progress,
+        },
+        {
+          refspec: input.refspec,
+          force: input.force,
+        }
+      )
     );
   }
 

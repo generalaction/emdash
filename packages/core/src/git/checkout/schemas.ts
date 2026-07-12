@@ -54,6 +54,7 @@ export type CommitFile = z.infer<typeof commitFileSchema>;
 
 export const gitLogResultSchema = z.object({
   commits: z.array(commitSchema),
+  totalCount: z.number().int().nonnegative(),
 });
 export type GitLogResult = z.infer<typeof gitLogResultSchema>;
 
@@ -139,6 +140,7 @@ export type ImageReadResult = z.infer<typeof imageReadResultSchema>;
 export const diffModeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('head') }),
   z.object({ kind: z.literal('staged') }),
+  z.object({ kind: z.literal('unstaged') }),
 ]);
 export type DiffMode = z.infer<typeof diffModeSchema>;
 
@@ -167,6 +169,7 @@ export type DiffTarget = z.infer<typeof diffTargetSchema>;
 
 export const normalizedDiffTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('working-vs-head') }),
+  z.object({ kind: z.literal('working-vs-index') }),
   z.object({ kind: z.literal('staged-vs-head') }),
   z.object({ kind: z.literal('working-vs-ref'), ref: gitObjectRefSchema }),
   z.object({ kind: z.literal('merge-base'), base: gitObjectRefSchema, head: gitObjectRefSchema }),
@@ -176,6 +179,7 @@ export type NormalizedDiffTarget = z.infer<typeof normalizedDiffTargetSchema>;
 export function normalizeDiffTarget(target: DiffTarget = { kind: 'head' }): NormalizedDiffTarget {
   if ('base' in target) return { kind: 'merge-base', base: target.base, head: target.head };
   if (target.kind === 'head') return { kind: 'working-vs-head' };
+  if (target.kind === 'unstaged') return { kind: 'working-vs-index' };
   if (target.kind === 'staged') return { kind: 'staged-vs-head' };
   return { kind: 'working-vs-ref', ref: target };
 }
@@ -184,6 +188,8 @@ export function denormalizeDiffTarget(target: NormalizedDiffTarget): DiffTarget 
   switch (target.kind) {
     case 'working-vs-head':
       return { kind: 'head' };
+    case 'working-vs-index':
+      return { kind: 'unstaged' };
     case 'staged-vs-head':
       return { kind: 'staged' };
     case 'working-vs-ref':

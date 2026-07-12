@@ -135,6 +135,10 @@ export class GitCheckoutRuntime {
     );
   }
 
+  isFileTracked(input: CheckoutSelector & { path: PortableRelativePath }) {
+    return this.read(input, (checkout) => checkout.isFileTracked(input.path));
+  }
+
   getConflictVersions(input: CheckoutSelector & { path: PortableRelativePath }) {
     return this.run(input, (checkout) => checkout.getConflictVersions(input.path));
   }

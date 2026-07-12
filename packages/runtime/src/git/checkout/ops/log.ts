@@ -21,17 +21,23 @@ export async function getLog(exec: BoundExec, options: GitLogOptions = {}): Prom
   const skip = typeof options.skip === 'number' ? Math.max(0, Math.floor(options.skip)) : 0;
   const head = options.head ? toRefString(options.head) : 'HEAD';
   const range = options.base ? `${toRefString(options.base)}..${head}` : head;
-  const { stdout } = await exec.exec([
-    'log',
-    `--max-count=${maxCount}`,
-    `--skip=${skip}`,
-    '--decorate=full',
-    `--format=${LOG_FORMAT}`,
-    range,
-    '--',
+  const [{ stdout }, { stdout: countOutput }, remoteReachable] = await Promise.all([
+    exec.exec([
+      'log',
+      `--max-count=${maxCount}`,
+      `--skip=${skip}`,
+      '--decorate=full',
+      `--format=${LOG_FORMAT}`,
+      range,
+      '--',
+    ]),
+    exec.exec(['rev-list', '--count', range, '--']),
+    getRemoteReachableCommits(exec),
   ]);
-  const remoteReachable = await getRemoteReachableCommits(exec);
-  return { commits: parseLogRecords(stdout, remoteReachable) };
+  return {
+    commits: parseLogRecords(stdout, remoteReachable),
+    totalCount: Number.parseInt(countOutput.trim(), 10) || 0,
+  };
 }
 
 export async function getCommit(exec: BoundExec, hash: string): Promise<Commit | null> {

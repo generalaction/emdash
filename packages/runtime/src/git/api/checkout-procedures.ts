@@ -8,6 +8,7 @@ export function createCheckoutProcedures(runtime: GitCheckoutRuntime) {
   return {
     getFileDiff: (input) => runtime.getFileDiff(input),
     getChangedFiles: (input) => runtime.getChangedFiles(input),
+    isFileTracked: (input) => runtime.isFileTracked(input),
     getConflictVersions: (input) => runtime.getConflictVersions(input),
     getFileAtRef: (input) => runtime.getFileAtRef(input),
     getFileAtIndex: (input) => runtime.getFileAtIndex(input),

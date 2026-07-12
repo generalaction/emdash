@@ -92,9 +92,10 @@ export function parseUnifiedFileDiff(output: string, filePath: PortableRelativeP
   return diff;
 }
 
-export function resolveDiffTarget(base: DiffTarget): { cached: boolean; ref: string } {
+export function resolveDiffTarget(base: DiffTarget): { cached: boolean; ref?: string } {
   if ('base' in base) return { cached: false, ref: toRangeString(base) };
   if (base.kind === 'staged') return { cached: true, ref: '--cached' };
+  if (base.kind === 'unstaged') return { cached: false };
   if (base.kind === 'head') return { cached: false, ref: 'HEAD' };
   return { cached: false, ref: toRefString(base) };
 }
@@ -162,12 +163,9 @@ export async function getChangedFiles(
   toPortablePath: (filePath: string) => PortableRelativePath
 ): Promise<GitChange[]> {
   const resolved = resolveDiffTarget(base);
-  const diffArgs = resolved.cached
-    ? ['diff', '--numstat', '--cached']
-    : ['diff', '--numstat', resolved.ref];
-  const nameArgs = resolved.cached
-    ? ['diff', '--name-status', '--cached']
-    : ['diff', '--name-status', resolved.ref];
+  const targetArgs = resolved.cached ? ['--cached'] : resolved.ref ? [resolved.ref] : [];
+  const diffArgs = ['diff', '--numstat', ...targetArgs];
+  const nameArgs = ['diff', '--name-status', ...targetArgs];
 
   let numstatResult: Awaited<ReturnType<BoundExec['exec']>>;
   let nameStatusResult: Awaited<ReturnType<BoundExec['exec']>>;

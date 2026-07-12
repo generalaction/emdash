@@ -421,9 +421,8 @@ export class GitCheckout {
     try {
       const relativePath = this.toRelativePath(filePath);
       const resolved = resolveDiffTarget(base);
-      const args = resolved.cached
-        ? ['diff', '--no-color', '--cached', '--', relativePath]
-        : ['diff', '--no-color', resolved.ref, '--', relativePath];
+      const targetArgs = resolved.cached ? ['--cached'] : resolved.ref ? [resolved.ref] : [];
+      const args = ['diff', '--no-color', ...targetArgs, '--', relativePath];
       const { stdout } = await this.exec.exec(args);
       if (stdout.trim().length > 0 || resolved.cached) {
         return ok(parseUnifiedFileDiff(stdout, relativePath));
@@ -437,6 +436,12 @@ export class GitCheckout {
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
     return readChangedFiles(this.exec, base, (filePath) => this.toRelativePath(filePath));
+  }
+
+  async isFileTracked(filePath: string): Promise<boolean> {
+    const relativePath = this.toRelativePath(filePath);
+    const { stdout } = await this.exec.exec(['ls-files', '-z', '--', relativePath]);
+    return stdout.split('\0').includes(relativePath);
   }
 
   async getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {

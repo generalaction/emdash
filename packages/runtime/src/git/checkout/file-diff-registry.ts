@@ -103,6 +103,7 @@ function entryId(relativePath: PortableRelativePath, target: NormalizedDiffTarge
 function dependsOnMutableRef(target: NormalizedDiffTarget): boolean {
   switch (target.kind) {
     case 'working-vs-head':
+    case 'working-vs-index':
     case 'staged-vs-head':
       return true;
     case 'working-vs-ref':

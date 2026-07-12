@@ -68,6 +68,7 @@ describe('GitRepository', () => {
   it('runs branch mutations and exposes fresh refs on demand', async () => {
     const { repository, cleanup } = await makeRepository();
     try {
+      await expect(repository.getBranchBase('main')).resolves.toBeNull();
       await expect(
         repository.createBranch({ name: 'feature', from: 'main' })
       ).resolves.toMatchObject({
@@ -76,6 +77,11 @@ describe('GitRepository', () => {
       expect((await repository.getRefs()).branches).toContainEqual(
         expect.objectContaining({ type: 'local', branch: 'feature' })
       );
+      await expect(repository.getBranchBase('feature')).resolves.toBe('main');
+      await expect(repository.setBranchBase('feature', 'origin/main')).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(repository.getBranchBase('feature')).resolves.toBe('origin/main');
 
       await expect(repository.renameBranch('feature', 'renamed')).resolves.toMatchObject({
         success: true,
@@ -141,6 +147,13 @@ describe('GitRepository', () => {
         { name: 'origin', url: 'https://example.com/repo.git' },
       ]);
 
+      await expect(
+        repository.setRemoteUrl('origin', 'https://example.com/renamed.git')
+      ).resolves.toMatchObject({ success: true });
+      expect((await repository.getRemotes()).remotes).toEqual([
+        { name: 'origin', url: 'https://example.com/renamed.git' },
+      ]);
+
       await expect(repository.removeRemote('origin')).resolves.toMatchObject({ success: true });
       expect((await repository.getRemotes()).remotes).toEqual([]);
     } finally {
@@ -194,12 +207,21 @@ describe('GitRepository', () => {
         expect.objectContaining({ type: 'local', branch: 'linked' })
       );
 
-      await expect(repository.removeWorktree(added.data.worktreePath)).resolves.toMatchObject({
+      const movedPath = `${linkedPath}-moved`;
+      await expect(
+        repository.moveWorktree(added.data.worktreePath, hostPath(movedPath))
+      ).resolves.toMatchObject({ success: true });
+      expect(await repository.listWorktrees()).toContainEqual(
+        expect.objectContaining({ worktreePath: hostPath(movedPath) })
+      );
+
+      await expect(repository.removeWorktree(hostPath(movedPath))).resolves.toMatchObject({
         success: true,
       });
       expect(await repository.listWorktrees()).toHaveLength(1);
 
       await rm(linkedPath, { recursive: true, force: true });
+      await rm(movedPath, { recursive: true, force: true });
     } finally {
       await cleanup();
     }
@@ -254,6 +276,7 @@ describe('GitRepository', () => {
     const repository = new GitRepository({ identity: {} as RepositoryIdentity, exec });
 
     await expect(repository.readBlobAtRef('HEAD', gitPath('file.txt'))).rejects.toBe(failure);
+    await expect(repository.getBranchBase('feature')).rejects.toBe(failure);
   });
 
   it('reads multi-megabyte blobs without a persistent child process', async () => {

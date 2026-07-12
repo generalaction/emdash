@@ -127,6 +127,17 @@ describe('GitCheckout', () => {
     }
   });
 
+  it('reports whether a path is tracked by the index', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await writeFile(path.join(repo, 'fresh.txt'), 'fresh\n', 'utf8');
+      await expect(checkout.isFileTracked('tracked.txt')).resolves.toBe(true);
+      await expect(checkout.isFileTracked('fresh.txt')).resolves.toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('produces structured file diffs for tracked and untracked files', async () => {
     const { repo, checkout, cleanup } = await makeCheckout();
     try {
@@ -150,6 +161,32 @@ describe('GitCheckout', () => {
       expect(untrackedDiff.success).toBe(true);
       if (!untrackedDiff.success) throw new Error('untracked diff failed');
       expect(untrackedDiff.data).toMatchObject({ additions: 2, deletions: 0 });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('separates staged and unstaged changes', async () => {
+    const { repo, checkout, cleanup } = await makeCheckout();
+    try {
+      await writeFile(path.join(repo, 'tracked.txt'), 'staged\n', 'utf8');
+      await checkout.stage(['tracked.txt']);
+      await writeFile(path.join(repo, 'tracked.txt'), 'unstaged\n', 'utf8');
+
+      await expect(checkout.getChangedFiles({ kind: 'staged' })).resolves.toEqual([
+        expect.objectContaining({ path: gitPath('tracked.txt'), additions: 1, deletions: 1 }),
+      ]);
+      await expect(checkout.getChangedFiles({ kind: 'unstaged' })).resolves.toEqual([
+        expect.objectContaining({ path: gitPath('tracked.txt'), additions: 1, deletions: 1 }),
+      ]);
+
+      const diffResult = await checkout.getFileDiff('tracked.txt', { kind: 'unstaged' });
+      expect(diffResult.success).toBe(true);
+      if (!diffResult.success) throw new Error('unstaged diff failed');
+      expect(diffResult.data.hunks[0]?.lines).toEqual([
+        expect.objectContaining({ type: 'del', content: 'staged' }),
+        expect.objectContaining({ type: 'add', content: 'unstaged' }),
+      ]);
     } finally {
       await cleanup();
     }
@@ -205,6 +242,7 @@ describe('GitCheckout', () => {
 
       const log = await checkout.getLog();
       expect(log.commits).toHaveLength(2);
+      expect(log.totalCount).toBe(2);
       expect(log.commits[0]).toMatchObject({ subject: 'second commit', isPushed: false });
 
       const commit = await checkout.getCommit(commitResult.data.hash);

@@ -52,6 +52,8 @@ export type ExplicitTagOptions = z.infer<typeof explicitTagOptionsSchema>;
 
 export const fetchJobInputSchema = repositorySelectorSchema.extend({
   remote: z.string().optional(),
+  refspec: z.string().optional(),
+  force: z.boolean().optional(),
 });
 export type FetchJobInput = z.infer<typeof fetchJobInputSchema>;
 

@@ -145,6 +145,11 @@ export class CheckoutResource {
     return this.commands.getChangedFiles(target);
   }
 
+  isFileTracked(filePath: string): Promise<boolean> {
+    this.assertActive();
+    return this.commands.isFileTracked(filePath);
+  }
+
   getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
     this.assertActive();
     return this.commands.getConflictVersions(filePath);

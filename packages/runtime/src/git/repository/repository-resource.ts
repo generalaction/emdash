@@ -108,6 +108,11 @@ export class RepositoryResource {
     return this.commands.getDefaultBranch(remote);
   }
 
+  getBranchBase(branch: string): Promise<string | null> {
+    this.assertActive();
+    return this.commands.getBranchBase(branch);
+  }
+
   async createBranch(context: RepositoryMutationContext<'createBranch'>) {
     const result = await this.execute(
       () => this.commands.createBranch(context.input.options),
@@ -141,6 +146,12 @@ export class RepositoryResource {
     return result;
   }
 
+  async setBranchBase(context: RepositoryMutationContext<'setBranchBase'>) {
+    return this.execute(() =>
+      this.commands.setBranchBase(context.input.branch, context.input.base)
+    );
+  }
+
   async createTag(context: RepositoryMutationContext<'createTag'>) {
     const result = await this.execute(() => this.commands.createTag(context.input.options));
     if (result.success) this.refsChanged();
@@ -161,6 +172,14 @@ export class RepositoryResource {
       this.invalidate('remotes');
       this.invalidate('refs');
     }
+    return result;
+  }
+
+  async setRemoteUrl(context: RepositoryMutationContext<'setRemoteUrl'>) {
+    const result = await this.execute(() =>
+      this.commands.setRemoteUrl(context.input.name, context.input.url)
+    );
+    if (result.success) this.invalidate('remotes');
     return result;
   }
 
@@ -196,14 +215,26 @@ export class RepositoryResource {
     return result;
   }
 
+  async moveWorktree(context: RepositoryMutationContext<'moveWorktree'>) {
+    const result = await this.execute(() =>
+      this.commands.moveWorktree(context.input.from, context.input.to)
+    );
+    if (result.success) this.invalidate('worktrees');
+    return result;
+  }
+
   async pruneWorktrees(_context: RepositoryMutationContext<'pruneWorktrees'>) {
     const result = await this.execute(() => this.commands.pruneWorktrees());
     if (result.success) this.invalidate('worktrees');
     return result;
   }
 
-  async fetch(remote: string | undefined, context: GitOperationContext) {
-    const result = await this.execute(() => this.commands.fetch(remote, context), true);
+  async fetch(
+    remote: string | undefined,
+    context: GitOperationContext,
+    options: { refspec?: string; force?: boolean } = {}
+  ) {
+    const result = await this.execute(() => this.commands.fetch(remote, context, options), true);
     this.invalidate('refs');
     if (result.success) this.invalidateCheckoutHistory();
     else this.invalidate('remotes');
