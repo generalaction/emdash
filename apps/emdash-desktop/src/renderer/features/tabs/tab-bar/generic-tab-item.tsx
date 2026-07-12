@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { TabHost } from '@renderer/features/tabs/core/tab-host';
 import type { ResolvedTab, TabViewContext } from '@renderer/features/tabs/core/tab-provider';
+import { Kbd } from '@renderer/lib/ui/kbd';
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { usePaneContext } from '../pane-context';
@@ -10,6 +11,7 @@ import { DraggableTab } from './draggable-tab';
 import { TabCloseButton } from './tab-close-button';
 import type { TabCommand } from './tab-commands';
 import { TabContextMenu } from './tab-context-menu';
+import { useTabNumberHint } from './tab-number-hints';
 import { TabTitle } from './tab-title';
 
 /** Props for GenericTabItem — aligns with TabBarItemProps<any> for convenience. */
@@ -66,6 +68,7 @@ export const GenericTabItem = observer(function GenericTabItem({
   renameMaxLength,
 }: GenericTabItemProps) {
   const { isFocusedPane, pane } = usePaneContext();
+  const numberHint = useTabNumberHint(tab.tabId);
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
 
@@ -137,6 +140,7 @@ export const GenericTabItem = observer(function GenericTabItem({
           )}
         >
           <div className="flex h-full items-center pr-2 pl-3">
+            {numberHint != null && <Kbd className="mr-1.5">{numberHint}</Kbd>}
             {preSlot}
             {isEditing ? (
               <input

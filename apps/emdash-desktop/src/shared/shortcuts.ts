@@ -37,7 +37,7 @@ export function getNumberHotkeys(base: string): string[] | null {
   );
 }
 
-function isMacLike(): boolean {
+export function isMacLike(): boolean {
   const nav = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator;
   if (nav) return /mac/i.test(nav.platform ?? nav.userAgent ?? '');
   return (globalThis as { process?: { platform?: string } }).process?.platform === 'darwin';

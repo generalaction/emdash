@@ -18,7 +18,11 @@ import {
   type BrowsingDataKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
-import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import {
+  browserAppShortcutChannel,
+  numberShortcutChannel,
+  tabNavigationShortcutChannel,
+} from '@shared/events/appEvents';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import {
   APP_SHORTCUTS,
@@ -67,6 +71,7 @@ export class BrowserWebContentsRegistry {
   private readonly pendingWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
   private browserShortcuts = getBrowserShortcuts();
+  private browserNumberFamilies = getBrowserNumberFamilies();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -86,6 +91,7 @@ export class BrowserWebContentsRegistry {
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
     this.browserShortcuts = getBrowserShortcuts(keyboard);
+    this.browserNumberFamilies = getBrowserNumberFamilies(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -248,6 +254,19 @@ export class BrowserWebContentsRegistry {
           events.emit(tabNavigationShortcutChannel, {
             source: { kind: 'browser', browserId },
             direction: tabNavigationDirection,
+          });
+          return;
+        }
+      }
+
+      const numberShortcut = getBrowserNumberShortcut(input, this.browserNumberFamilies);
+      if (numberShortcut) {
+        const browserId = this.browserIdByWebContentsId.get(webContents.id);
+        if (browserId) {
+          event.preventDefault();
+          events.emit(numberShortcutChannel, {
+            source: { kind: 'browser', browserId },
+            ...numberShortcut,
           });
           return;
         }
@@ -445,12 +464,63 @@ type ParsedShortcut = {
   control: boolean;
 };
 
+type BrowserNumberFamily = {
+  family: 'tab' | 'task';
+  modifiers: Pick<ParsedShortcut, 'shift' | 'alt' | 'meta' | 'control'>;
+};
+
+/**
+ * Parses the configured number-family shortcuts (tab/task 1-9) into modifier
+ * sets so digit presses inside browser webviews can be forwarded to the app.
+ */
+function getBrowserNumberFamilies(keyboard?: AppSettings['keyboard']): BrowserNumberFamily[] {
+  // Inside the function: the registry singleton constructs during module init,
+  // before module-level consts below the class would initialize.
+  const familyKeys: ReadonlyArray<['tab' | 'task', ShortcutSettingsKey]> = [
+    ['tab', 'tabByNumber'],
+    ['task', 'taskByNumber'],
+  ];
+  const families: BrowserNumberFamily[] = [];
+  for (const [family, shortcutKey] of familyKeys) {
+    const configured = keyboard?.[shortcutKey];
+    if (configured === null) continue;
+    const hotkey = configured ?? resolveDefaultHotkey(APP_SHORTCUTS[shortcutKey]);
+    if (!hotkey) continue;
+    const parsed = parseShortcut(hotkey);
+    if (!parsed || !/^[1-9]$/.test(parsed.key)) continue;
+    const { key: _key, ...modifiers } = parsed;
+    families.push({ family, modifiers });
+  }
+  return families;
+}
+
+function getBrowserNumberShortcut(
+  input: Electron.Input,
+  families: readonly BrowserNumberFamily[]
+): { family: 'tab' | 'task'; index: number } | null {
+  if (input.type !== 'keyDown') return null;
+  if (!/^[1-9]$/.test(input.key)) return null;
+  for (const { family, modifiers } of families) {
+    if (
+      Boolean(input.shift) === modifiers.shift &&
+      Boolean(input.alt) === modifiers.alt &&
+      Boolean(input.meta) === modifiers.meta &&
+      Boolean(input.control) === modifiers.control
+    ) {
+      return { family, index: Number(input.key) - 1 };
+    }
+  }
+  return null;
+}
+
 function getBrowserShortcuts(
   keyboard?: AppSettings['keyboard']
 ): Map<ShortcutSettingsKey, ParsedShortcut> {
   const shortcuts = new Map<ShortcutSettingsKey, ParsedShortcut>();
   for (const shortcutKey of Object.keys(APP_SHORTCUTS) as ShortcutSettingsKey[]) {
     if (shortcutKey === 'closeModal') continue;
+    // Number families are matched per-digit by getBrowserNumberShortcut.
+    if (APP_SHORTCUTS[shortcutKey].numberFamily) continue;
 
     const configured = keyboard?.[shortcutKey];
     if (configured === null) continue;

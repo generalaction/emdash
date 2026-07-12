@@ -15,6 +15,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Kbd } from '@renderer/lib/ui/kbd';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
@@ -26,12 +27,15 @@ interface SidebarTaskItemProps {
   projectId: string;
   /** Pinned strip uses tighter padding than tasks nested under a project. */
   rowVariant?: 'underProject' | 'pinned';
+  /** 1-based task-by-number digit, shown while the shortcut modifier is held. */
+  numberHint?: number | null;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
   taskId,
   projectId,
   rowVariant = 'underProject',
+  numberHint = null,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
@@ -123,6 +127,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           </span>
         </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
+          {numberHint != null && <Kbd>{numberHint}</Kbd>}
           {showLineChanges && <TaskGitDiffStats task={task} />}
           {showPrStatus && <RenderPrBadge task={task} />}
           <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />

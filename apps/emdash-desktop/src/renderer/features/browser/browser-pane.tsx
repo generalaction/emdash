@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
+import { claimNumberHotkey } from '@renderer/lib/hooks/use-number-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
-import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { numberShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
@@ -120,6 +121,16 @@ export const BrowserPane = observer(function BrowserPane({
       } else {
         pane.setPreviousTabActive();
       }
+    });
+  }, [sessionBrowserId, pane, visible]);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId) return;
+    return events.on(numberShortcutChannel, (event) => {
+      if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
+      if (event.family !== 'tab') return;
+      if (!claimNumberHotkey()) return;
+      pane.setTabActiveIndex(event.index);
     });
   }, [sessionBrowserId, pane, visible]);
 
