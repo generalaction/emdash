@@ -1,16 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import {
-  useTaskViewContext,
-  useWorkspace,
-  useWorkspaceId,
-  useWorkspaceViewModel,
-} from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { HTML_EXTS } from '@renderer/lib/editor/fileKind';
-import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { filesPath, readRuntimeImage } from '@renderer/lib/runtime/files';
+import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
 import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface HtmlRendererProps {
@@ -40,8 +36,6 @@ const LINK_INTERCEPT_SCRIPT = `
  * The source/preview toggle lives in the FileContent container above this component.
  */
 export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
   const { pane } = usePaneContext();
@@ -67,7 +61,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     }
     let cancelled = false;
     setIsProcessing(true);
-    void processHtmlForPreview(rawContent, filePath, workspacePath, projectId, workspaceId)
+    void processHtmlForPreview(rawContent, filePath, workspacePath)
       .then((html) => {
         if (!cancelled) setProcessedHtml(html);
       })
@@ -80,7 +74,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     return () => {
       cancelled = true;
     };
-  }, [rawContent, filePath, workspacePath, projectId, workspaceId]);
+  }, [rawContent, filePath, workspacePath]);
 
   // Route link clicks postMessaged from the sandbox into the tab manager so
   // sibling HTML files open as new tabs.
@@ -141,9 +135,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
 async function processHtmlForPreview(
   rawHtml: string,
   containingFilePath: string,
-  workspacePath: string | undefined,
-  projectId: string,
-  workspaceId: string
+  workspacePath: string
 ): Promise<string> {
   const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
   if (!doc.documentElement) return rawHtml;
@@ -153,7 +145,7 @@ async function processHtmlForPreview(
   const fetchText = (path: string) => {
     let p = textCache.get(path);
     if (!p) {
-      p = readWorkspaceText(projectId, workspaceId, path);
+      p = readWorkspaceText(workspacePath, path);
       textCache.set(path, p);
     }
     return p;
@@ -161,7 +153,7 @@ async function processHtmlForPreview(
   const fetchImage = (path: string) => {
     let p = imageCache.get(path);
     if (!p) {
-      p = readWorkspaceImage(projectId, workspaceId, path);
+      p = readWorkspaceImage(workspacePath, path);
       imageCache.set(path, p);
     }
     return p;
@@ -272,20 +264,13 @@ async function inlineCssUrls(
   }, css);
 }
 
-async function readWorkspaceText(
-  projectId: string,
-  workspaceId: string,
-  filePath: string
-): Promise<string | null> {
-  const result = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
-  return result.success ? (result.data?.content ?? null) : null;
+async function readWorkspaceText(workspacePath: string, filePath: string): Promise<string | null> {
+  const client = await getFilesRuntimeClient();
+  const result = await client.fs.readText(filesPath(workspacePath, filePath));
+  return result.success ? result.data.content : null;
 }
 
-async function readWorkspaceImage(
-  projectId: string,
-  workspaceId: string,
-  filePath: string
-): Promise<string | null> {
-  const result = await rpc.workspace.files.readImage(projectId, workspaceId, filePath);
-  return result.success && result.data?.success ? result.data.dataUrl : null;
+async function readWorkspaceImage(workspacePath: string, filePath: string): Promise<string | null> {
+  const result = await readRuntimeImage(workspacePath, filePath);
+  return result.success && !result.data.truncated ? result.data.dataUrl : null;
 }

@@ -1,19 +1,20 @@
-import type {
-  GitBranchRef,
-  GitRepoSnapshot,
-  GitRefsModel,
-  GitRemote,
-  GitRemotesModel,
-  LocalBranch,
-  RemoteBranch,
+import {
+  gitContract,
+  type GitBranchRef,
+  type FetchPrForReviewOptions,
+  type GitRefsState,
+  type GitRemote,
+  type GitRemotesState,
+  type LocalBranch,
+  type RemoteBranch,
 } from '@emdash/core/git';
-import { Result, type Result as ResultType } from '@emdash/shared/result';
-import { computed, makeObservable, reaction } from 'mobx';
-import { events, rpc } from '@renderer/lib/ipc';
-import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
+import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
+import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { rpc } from '@renderer/lib/ipc';
+import { repositorySelector, runRuntimeJob } from '@renderer/lib/runtime/git';
+import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { Resource } from '@renderer/lib/stores/resource';
-import { gitRepoUpdateChannel } from '@shared/core/git/events';
-import type { GitDefaultBranchResult, GitRepositorySnapshotError } from '@shared/core/git/rpc';
 import type { ConfiguredRemotes } from '@shared/core/git/types';
 import {
   projectDefaultBranchToBranch,
@@ -24,65 +25,34 @@ import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provi
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';
 
-export class GitRepositoryStore {
-  private readonly refs = new ModelMirror<GitRefsModel>();
-  private readonly remotesModel = new ModelMirror<GitRemotesModel>();
-  private readonly bindings: MirrorBinding[];
-  readonly providerRepositoryInfo: Resource<ProviderRepositoryResult>;
-  readonly gitDefaultBranchInfo: Resource<GitDefaultBranchResult>;
+type RepositoryModel = typeof gitContract.repository.model;
 
-  private settingsDisposer: (() => void) | null = null;
+export class GitRepositoryStore {
+  private replica: LiveModelReplica<RepositoryModel> | null = null;
+  private model: ReplicaInstance<RepositoryModel> | null = null;
+  private releaseModel: (() => Promise<void>) | null = null;
+  private startPromise: Promise<void> | null = null;
   private started = false;
+  private loadError: string | null = null;
+
+  readonly providerRepositoryInfo: Resource<ProviderRepositoryResult>;
+  readonly gitDefaultBranchInfo: Resource<Awaited<ReturnType<typeof loadDefaultBranch>>>;
+  private settingsDisposer: (() => void) | null = null;
 
   constructor(
     private readonly projectId: string,
+    private readonly projectPath: string,
     private readonly settingsStore: ProjectSettingsStore,
     private readonly baseRef: string
   ) {
-    const snapshot = coalesce(
-      async (): Promise<ResultType<GitRepoSnapshot, GitRepositorySnapshotError>> =>
-        Result.fromAsync(rpc.gitRepository.getRepoSnapshot(this.projectId))
-    );
-    this.bindings = [
-      bindMirror<GitRefsModel, GitRepositorySnapshotError>({
-        mirror: this.refs,
-        subscribe: (push) =>
-          events.on(gitRepoUpdateChannel, (payload) => {
-            if (payload.projectId === this.projectId && payload.update.kind === 'refs') {
-              push({
-                value: payload.update.model,
-                sequence: payload.update.sequence,
-                generation: payload.update.generation,
-              });
-            }
-          }),
-        snapshot: async () => Result.fromAsync(snapshot()).map((s) => s.refs),
-      }),
-      bindMirror<GitRemotesModel, GitRepositorySnapshotError>({
-        mirror: this.remotesModel,
-        subscribe: (push) =>
-          events.on(gitRepoUpdateChannel, (payload) => {
-            if (payload.projectId === this.projectId && payload.update.kind === 'remotes') {
-              push({
-                value: payload.update.model,
-                sequence: payload.update.sequence,
-                generation: payload.update.generation,
-              });
-            }
-          }),
-        snapshot: async () => Result.fromAsync(snapshot()).map((s) => s.remotes),
-      }),
-    ];
-
     this.providerRepositoryInfo = new Resource<ProviderRepositoryResult>(
-      () => rpc.gitRepository.resolveProviderRepository(projectId),
+      () => rpc.repository.resolveProvider(projectId),
       [{ kind: 'demand' }]
     );
-    this.gitDefaultBranchInfo = new Resource<GitDefaultBranchResult>(
-      () => rpc.gitRepository.getDefaultBranch(projectId),
+    this.gitDefaultBranchInfo = new Resource(
+      () => loadDefaultBranch(this.projectPath, this.baseRemote.name),
       [{ kind: 'demand' }]
     );
-
     this.settingsDisposer = reaction(
       () => [
         settingsStore.settings?.baseRemote,
@@ -94,39 +64,43 @@ export class GitRepositoryStore {
         this.providerRepositoryInfo.invalidate();
       }
     );
-
-    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference' | 'gitDefaultBranch'>(
-      this,
-      {
-        branches: computed,
-        localBranches: computed,
-        remoteBranches: computed,
-        configuredRemotes: computed,
-        baseRemote: computed,
-        pushRemote: computed,
-        defaultBranchPreference: computed,
-        defaultBranch: computed,
-        remotes: computed,
-        loading: computed,
-        canonicalRepositoryUrl: computed,
-        providerRepository: computed,
-        pullRequestRepositoryUrl: computed,
-        issueRepositoryUrl: computed,
-        gitDefaultBranch: computed,
-      }
-    );
+    makeObservable<
+      GitRepositoryStore,
+      'model' | 'loadError' | 'configuredRemotes' | 'defaultBranchPreference' | 'gitDefaultBranch'
+    >(this, {
+      model: observable.ref,
+      loadError: observable,
+      branches: computed,
+      localBranches: computed,
+      remoteBranches: computed,
+      configuredRemotes: computed,
+      baseRemote: computed,
+      pushRemote: computed,
+      defaultBranchPreference: computed,
+      defaultBranch: computed,
+      remotes: computed,
+      loading: computed,
+      canonicalRepositoryUrl: computed,
+      providerRepository: computed,
+      pullRequestRepositoryUrl: computed,
+      issueRepositoryUrl: computed,
+      gitDefaultBranch: computed,
+    });
   }
 
   start(): void {
     if (this.started) return;
     this.started = true;
-    for (const binding of this.bindings) binding.start();
     this.providerRepositoryInfo.start();
     this.gitDefaultBranchInfo.start();
+    void this.ensureStarted();
   }
 
   async resync(): Promise<void> {
-    await Promise.all(this.bindings.map((binding) => binding.resync()));
+    await this.ensureStarted();
+    const model = this.model;
+    if (!model) return;
+    await Promise.all([model.states.refs.refresh(), model.states.remotes.refresh()]);
   }
 
   refreshLocal(): void {
@@ -144,25 +118,33 @@ export class GitRepositoryStore {
   }
 
   dispose(): void {
-    for (const binding of this.bindings) binding.dispose();
-    this.refs.dispose();
-    this.remotesModel.dispose();
+    this.started = false;
     this.providerRepositoryInfo.dispose();
     this.gitDefaultBranchInfo.dispose();
     this.settingsDisposer?.();
     this.settingsDisposer = null;
+    const release = this.releaseModel;
+    const replica = this.replica;
+    this.releaseModel = null;
+    this.replica = null;
+    this.model = null;
+    void (async () => {
+      try {
+        await release?.();
+      } finally {
+        await replica?.dispose();
+      }
+    })();
   }
 
   get loading(): boolean {
-    return this.refs.value === null || this.remotesModel.value === null;
+    return this.model === null && this.loadError === null;
   }
 
   get localData() {
     return {
       loading: this.loading,
-      data: {
-        localBranches: this.localBranches,
-      },
+      data: { localBranches: this.localBranches },
       load: () => this.resync(),
     };
   }
@@ -180,7 +162,7 @@ export class GitRepositoryStore {
   }
 
   get branches(): (LocalBranch | RemoteBranch)[] {
-    return (this.refs.value?.branches as (LocalBranch | RemoteBranch)[] | undefined) ?? [];
+    return this.refs?.branches ?? [];
   }
 
   get localBranches(): LocalBranch[] {
@@ -200,12 +182,11 @@ export class GitRepositoryStore {
   }
 
   get remotes(): GitRemote[] {
-    return this.remotesModel.value?.remotes ?? [];
+    return this.remotesState?.remotes ?? [];
   }
 
   get canonicalRepositoryUrl(): string | null {
-    const url = this.baseRemote.url;
-    return parseRepositoryRef(url)?.repositoryUrl ?? null;
+    return parseRepositoryRef(this.baseRemote.url)?.repositoryUrl ?? null;
   }
 
   get providerRepository(): ProviderRepository | null {
@@ -234,9 +215,8 @@ export class GitRepositoryStore {
   }
 
   isBranchOnRemote(branchName: string): boolean {
-    const remoteName = this.pushRemote.name;
     return this.remoteBranches.some(
-      (branch) => branch.branch === branchName && branch.remote.name === remoteName
+      (branch) => branch.branch === branchName && branch.remote.name === this.pushRemote.name
     );
   }
 
@@ -244,17 +224,45 @@ export class GitRepositoryStore {
     return this.localBranches.find((branch) => branch.branch === branchName)?.divergence ?? null;
   }
 
-  fetchRemote() {
-    return rpc.gitRepository.fetch(this.projectId);
+  async fetchRemote() {
+    const client = await getGitRuntimeClient();
+    return runRuntimeJob(gitContract.repository.fetch, client.repository.fetch, {
+      ...repositorySelector(this.projectPath),
+      remote: this.baseRemote.name,
+    });
   }
 
-  publishBranch(branchName: string, workspaceId?: string) {
-    return rpc.gitRepository.publishBranch(
-      this.projectId,
+  async addRemote(name: string, url: string) {
+    const model = await this.requireModel();
+    const invocation = await model.mutations.addRemote({ name, url });
+    if (invocation.result.success) await invocation.settled;
+    return invocation.result;
+  }
+
+  async publishBranch(branchName: string, _workspaceId?: string) {
+    const client = await getGitRuntimeClient();
+    return runRuntimeJob(gitContract.repository.publishBranch, client.repository.publishBranch, {
+      ...repositorySelector(this.projectPath),
       branchName,
-      this.pushRemote.name,
-      workspaceId
+      remote: this.pushRemote.name,
+    });
+  }
+
+  async fetchPrForReview(options: FetchPrForReviewOptions) {
+    const client = await getGitRuntimeClient();
+    return runRuntimeJob(
+      gitContract.repository.fetchPrForReview,
+      client.repository.fetchPrForReview,
+      { ...repositorySelector(this.projectPath), options }
     );
+  }
+
+  private get refs(): GitRefsState | null {
+    return this.model?.states.refs.current() ?? null;
+  }
+
+  private get remotesState(): GitRemotesState | null {
+    return this.model?.states.remotes.current() ?? null;
   }
 
   private get configuredRemotes(): ConfiguredRemotes {
@@ -271,6 +279,61 @@ export class GitRepositoryStore {
 
   private get gitDefaultBranch(): string | undefined {
     const result = this.gitDefaultBranchInfo.data;
-    return result?.success ? result.data.defaultBranch : undefined;
+    return result?.success ? result.data : undefined;
   }
+
+  private ensureStarted(): Promise<void> {
+    this.startPromise ??= this.bindRuntime();
+    return this.startPromise;
+  }
+
+  private async requireModel(): Promise<ReplicaInstance<RepositoryModel>> {
+    await this.ensureStarted();
+    if (!this.model) throw new Error(this.loadError ?? 'Git repository is unavailable');
+    return this.model;
+  }
+
+  private async bindRuntime(): Promise<void> {
+    try {
+      const client = await getGitRuntimeClient();
+      const replica = createLiveModelReplica(
+        gitContract.repository.model,
+        client.repository.model,
+        {
+          stores: {
+            refs: createImmutableMobxStore,
+            remotes: createImmutableMobxStore,
+            stashes: createImmutableMobxStore,
+            worktrees: createImmutableMobxStore,
+          },
+        }
+      );
+      const lease = replica.acquire(repositorySelector(this.projectPath));
+      const model = await lease.ready();
+      if (!this.started) {
+        await lease.release();
+        await replica.dispose();
+        return;
+      }
+      runInAction(() => {
+        this.replica = replica;
+        this.releaseModel = () => lease.release();
+        this.model = model;
+        this.loadError = null;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.loadError = error instanceof Error ? error.message : String(error);
+      });
+    }
+  }
+}
+
+async function loadDefaultBranch(projectPath: string, remote: string) {
+  const client = await getGitRuntimeClient();
+  const result = await client.repository.getDefaultBranch({
+    ...repositorySelector(projectPath),
+    remote,
+  });
+  return result.success ? { success: true as const, data: result.data } : result;
 }

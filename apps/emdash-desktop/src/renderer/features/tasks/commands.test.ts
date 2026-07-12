@@ -39,7 +39,7 @@ vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
 const mocks = vi.hoisted(() => ({
   focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
-  getTaskGitWorktreeStore: vi.fn(),
+  getTaskGitCheckoutStore: vi.fn(),
   getTaskManagerStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
@@ -74,7 +74,7 @@ vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getRegisteredTaskData: mocks.getRegisteredTaskData,
-  getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
+  getTaskGitCheckoutStore: mocks.getTaskGitCheckoutStore,
   getTaskManagerStore: mocks.getTaskManagerStore,
   getTaskStore: mocks.getTaskStore,
   getTaskView: mocks.getTaskView,
@@ -170,7 +170,7 @@ describe('createTaskCommandProvider', () => {
       { projectId: 'project-1', taskId: 'task-1' },
       { projectId: 'project-1', taskId: 'task-2' },
     ];
-    mocks.getTaskGitWorktreeStore.mockReturnValue(undefined);
+    mocks.getTaskGitCheckoutStore.mockReturnValue(undefined);
     mocks.getRegisteredTaskData.mockReturnValue({
       id: 'task-1',
       isPinned: false,

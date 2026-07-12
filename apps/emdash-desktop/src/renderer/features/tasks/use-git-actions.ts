@@ -1,13 +1,13 @@
 import { useMutation } from '@tanstack/react-query';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import {
-  getTaskGitWorktreeStore,
+  getTaskGitCheckoutStore,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
 
 export function useGitActions(projectId: string, taskId: string) {
-  const git = getTaskGitWorktreeStore(projectId, taskId)!;
+  const git = getTaskGitCheckoutStore(projectId, taskId)!;
   const repository = getGitRepositoryStore(projectId)!;
   const workspaceId = getTaskStore(projectId, taskId)?.workspaceId ?? undefined;
 

@@ -1,16 +1,13 @@
-import type { Result } from '@emdash/shared';
+import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useWorkspace } from '@renderer/features/tasks/task-view-context';
-import { rpc } from '@renderer/lib/ipc';
+import { readRuntimeImage } from '@renderer/lib/runtime/files';
+import { checkoutSelector, gitFilePath } from '@renderer/lib/runtime/git';
+import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import {
-  HEAD_REF,
-  type GitRef,
-  type ImageReadResult,
-  type ImageUnavailableReason,
-} from '@shared/core/git/types';
+import { HEAD_REF, type GitRef } from '@shared/core/git/types';
 import { gitRefToString } from '@shared/core/git/utils';
 import type { ActiveFile } from '@shared/view-state';
 
@@ -31,8 +28,6 @@ type Side = 'original' | 'modified';
 
 function unavailableMessage(reason: ImageUnavailableReason): string {
   switch (reason) {
-    case 'ssh':
-      return 'Preview unavailable on SSH workspaces';
     case 'unsupported':
       return 'Preview unavailable for this format';
     case 'too-large':
@@ -60,39 +55,34 @@ function fromImageReadResult(result: ImageReadResult): SideState {
   }
 }
 
-type ImageRpcResult = Result<{ result: ImageReadResult }, unknown>;
-
-async function loadGitImage(call: () => Promise<ImageRpcResult>): Promise<SideState> {
+async function loadGitImage(
+  call: () => Promise<{ success: true; data: ImageReadResult } | { success: false }>
+): Promise<SideState> {
   const res = await call();
   if (!res.success) return { status: 'error', message: 'Failed to load image' };
-  return fromImageReadResult(res.data.result);
+  return fromImageReadResult(res.data);
 }
 
-function loadFromRef(
-  projectId: string,
-  workspaceId: string,
-  filePath: string,
-  ref: GitRef
-): Promise<SideState> {
-  return loadGitImage(() =>
-    rpc.workspace.gitWorktree.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
-  );
+function loadFromRef(workspacePath: string, filePath: string, ref: GitRef): Promise<SideState> {
+  return loadGitImage(async () => {
+    const client = await getGitRuntimeClient();
+    return client.checkout.getImageAtRef({
+      ...checkoutSelector(workspacePath),
+      filePath: gitFilePath(filePath),
+      ref: gitRefToString(ref),
+    });
+  });
 }
 
-async function loadFromDisk(
-  projectId: string,
-  workspaceId: string,
-  filePath: string
-): Promise<SideState> {
-  const res = await rpc.workspace.files.readImage(projectId, workspaceId, filePath);
-  if (!res.success) return { status: 'unavailable', reason: 'git-error' };
-  const image = res.data;
-  if (!image?.success) {
-    const error = image?.error ?? '';
-    if (/not found/i.test(error)) return { status: 'missing' };
-    return { status: 'unavailable', reason: 'git-error' };
+async function loadFromDisk(workspacePath: string, filePath: string): Promise<SideState> {
+  const res = await readRuntimeImage(workspacePath, filePath);
+  if (!res.success) {
+    return res.error.type === 'not-found' || res.error.type === 'not-a-directory'
+      ? { status: 'missing' }
+      : { status: 'unavailable', reason: 'git-error' };
   }
-  if (!image.dataUrl) return { status: 'unavailable', reason: 'git-error' };
+  const image = res.data;
+  if (image.truncated) return { status: 'unavailable', reason: 'too-large' };
   return {
     status: 'ready',
     dataUrl: image.dataUrl,
@@ -101,35 +91,26 @@ async function loadFromDisk(
   };
 }
 
-function loadOriginal(
-  projectId: string,
-  workspaceId: string,
-  activeFile: ActiveFile
-): Promise<SideState> {
+function loadOriginal(workspacePath: string, activeFile: ActiveFile): Promise<SideState> {
   const ref: GitRef = activeFile.group === 'staged' ? HEAD_REF : activeFile.originalRef;
-  return loadFromRef(projectId, workspaceId, activeFile.path, ref);
+  return loadFromRef(workspacePath, activeFile.path, ref);
 }
 
-function loadModified(
-  projectId: string,
-  workspaceId: string,
-  activeFile: ActiveFile
-): Promise<SideState> {
+function loadModified(workspacePath: string, activeFile: ActiveFile): Promise<SideState> {
   switch (activeFile.group) {
     case 'disk':
-      return loadFromDisk(projectId, workspaceId, activeFile.path);
+      return loadFromDisk(workspacePath, activeFile.path);
     case 'staged':
-      return loadGitImage(() =>
-        rpc.workspace.gitWorktree.getImageAtIndex(projectId, workspaceId, activeFile.path)
-      );
+      return loadGitImage(async () => {
+        const client = await getGitRuntimeClient();
+        return client.checkout.getImageAtIndex({
+          ...checkoutSelector(workspacePath),
+          filePath: gitFilePath(activeFile.path),
+        });
+      });
     case 'git':
     case 'pr':
-      return loadFromRef(
-        projectId,
-        workspaceId,
-        activeFile.path,
-        activeFile.modifiedRef ?? HEAD_REF
-      );
+      return loadFromRef(workspacePath, activeFile.path, activeFile.modifiedRef ?? HEAD_REF);
   }
 }
 
@@ -144,17 +125,16 @@ function shouldRetryModifiedLoad(state: SideState): boolean {
 }
 
 async function loadModifiedWithTransientRetry(
-  projectId: string,
-  workspaceId: string,
+  workspacePath: string,
   activeFile: ActiveFile
 ): Promise<SideState> {
   const delays = [120, 300, 600];
-  let state = await loadModified(projectId, workspaceId, activeFile);
+  let state = await loadModified(workspacePath, activeFile);
 
   for (const ms of delays) {
     if (!shouldRetryModifiedLoad(state)) return state;
     await delay(ms);
-    state = await loadModified(projectId, workspaceId, activeFile);
+    state = await loadModified(workspacePath, activeFile);
   }
 
   return state;
@@ -231,13 +211,13 @@ export const ImageDiffView = observer(function ImageDiffView({
   activeFile,
 }: ImageDiffViewProps) {
   const workspace = useWorkspace();
-  const git = workspace.gitWorktree;
+  const git = workspace.gitCheckout;
 
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 
   // For disk/staged groups the bytes can change without fileKey changing
   // (in-place overwrite, re-stage). Pinning to statusRevision reruns the
-  // load whenever GitWorktreeStore observes an fs-watch or index event.
+  // load whenever GitCheckoutStore observes an fs-watch or index event.
   const reactiveRevision =
     activeFile.group === 'disk' || activeFile.group === 'staged' ? git.statusRevision : 0;
 
@@ -245,14 +225,14 @@ export const ImageDiffView = observer(function ImageDiffView({
 
   const originalQuery = useQuery({
     queryKey: ['image-diff', 'original', projectId, workspaceId, fileKey, reactiveRevision],
-    queryFn: () => loadOriginal(projectId, workspaceId, activeFile),
+    queryFn: () => loadOriginal(workspace.path, activeFile),
     placeholderData: placeholder,
     staleTime: Infinity,
   });
 
   const modifiedQuery = useQuery({
     queryKey: ['image-diff', 'modified', projectId, workspaceId, fileKey, reactiveRevision],
-    queryFn: () => loadModifiedWithTransientRetry(projectId, workspaceId, activeFile),
+    queryFn: () => loadModifiedWithTransientRetry(workspace.path, activeFile),
     placeholderData: placeholder,
     staleTime: Infinity,
   });

@@ -1,6 +1,7 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { watchFileContent } from '@renderer/lib/runtime/files';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import {
   addTabId,
@@ -9,8 +10,7 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import { fileChangesChannel } from '@shared/core/fs/fsEvents';
-import { isProjectConfigPath } from '@shared/core/project-settings/project-settings';
+import { PROJECT_CONFIG_FILE } from '@shared/core/project-settings/project-settings';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import {
@@ -96,7 +96,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  constructor(projectId: string, workspaceId: string) {
+  constructor(projectId: string, workspaceId: string, localWorkspacePath?: string) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     makeObservable(this, {
@@ -115,19 +115,20 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       void this.load();
     });
     this._unsubscribes.push(
-      events.on(fileChangesChannel, (data) => {
-        if (data.projectId !== this.projectId || data.workspaceId !== this.workspaceId) return;
-        if (
-          data.update.kind === 'resync' ||
-          data.update.changes.some((change) => isProjectConfigPath(change.path))
-        ) {
-          this.reloadIfLoaded();
-        }
-      }),
       events.on(projectSettingsChangedChannel, ({ projectId }) => {
         if (projectId === this.projectId) this.reloadIfLoaded();
       })
     );
+    if (localWorkspacePath) {
+      void watchFileContent(localWorkspacePath, PROJECT_CONFIG_FILE, () => {
+        this.reloadIfLoaded();
+      })
+        .then((unsubscribe) => {
+          if (this._disposed) unsubscribe();
+          else this._unsubscribes.push(unsubscribe);
+        })
+        .catch(() => {});
+    }
   }
 
   get tabs(): LifecycleScriptStore[] {

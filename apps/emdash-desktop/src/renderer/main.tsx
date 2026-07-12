@@ -8,12 +8,9 @@ import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
-import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { rpc } from '@renderer/lib/ipc';
-import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
-import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
@@ -24,10 +21,7 @@ import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
-  // Wire invalidation bridges so FS and git events flow into the model registry.
-  wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
-  wireCommitHistoryInvalidation();
   wireExternalLinkRequests();
 
   appState.update.start();

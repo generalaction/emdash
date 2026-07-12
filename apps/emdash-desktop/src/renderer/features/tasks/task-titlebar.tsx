@@ -121,8 +121,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
-  const linesAdded = workspace.gitWorktree.totalLinesAdded;
-  const linesDeleted = workspace.gitWorktree.totalLinesDeleted;
+  const linesAdded = workspace.gitCheckout.totalLinesAdded;
+  const linesDeleted = workspace.gitCheckout.totalLinesDeleted;
   const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
   const projectStore = asMounted(getProjectStore(projectId));
@@ -168,7 +168,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{workspace.gitWorktree.branchName}</span>
+                  <span>{workspace.gitCheckout.branchName}</span>
                 </span>
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (

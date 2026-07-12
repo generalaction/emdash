@@ -2,7 +2,7 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -33,7 +33,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.gitWorktree;
+  const git = workspace.gitCheckout;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView ?? null;
   const hasPRs = changesView?.expandedSections.pullRequests ?? false;
@@ -48,7 +48,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
 
   if (!diffView || !changesView) return null;
 
-  const branchName = getTaskGitWorktreeStore(projectId, taskId)?.branchName;
+  const branchName = getTaskGitCheckoutStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
   const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
 

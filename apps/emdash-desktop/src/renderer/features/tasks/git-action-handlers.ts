@@ -1,5 +1,5 @@
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
-import type { GitWorktreeStore } from '@renderer/features/tasks/stores/git-worktree-store';
+import type { GitCheckoutStore } from '@renderer/features/tasks/stores/git-checkout-store';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { formatErrorType, formatPushErrorDetail } from './utils';
 
@@ -14,7 +14,7 @@ export async function runGitFetch(repository: GitRepositoryStore) {
   return result;
 }
 
-export async function runGitPull(git: GitWorktreeStore) {
+export async function runGitPull(git: GitCheckoutStore) {
   const result = await git.pull();
   if (!result.success) {
     toast({
@@ -25,7 +25,7 @@ export async function runGitPull(git: GitWorktreeStore) {
   return result;
 }
 
-export async function runGitPush(git: GitWorktreeStore) {
+export async function runGitPush(git: GitCheckoutStore) {
   const result = await git.push();
   if (!result.success) {
     toast({

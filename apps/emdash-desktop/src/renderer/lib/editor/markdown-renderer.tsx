@@ -2,16 +2,11 @@ import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
-import {
-  useTaskViewContext,
-  useWorkspace,
-  useWorkspaceId,
-  useWorkspaceViewModel,
-} from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { readRuntimeImage } from '@renderer/lib/runtime/files';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { resolveWorkspaceResourcePath } from './workspace-resource-path';
@@ -27,8 +22,6 @@ interface MarkdownEditorRendererProps {
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   tab,
 }: MarkdownEditorRendererProps) {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const workspacePath = useWorkspace().path;
   const { editorView } = useWorkspaceViewModel();
   const { pane } = usePaneContext();
@@ -48,10 +41,10 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         resourcePath: src,
       });
       if (!imagePath) return null;
-      const result = await rpc.workspace.files.readImage(projectId, workspaceId, imagePath);
-      return result.success && result.data?.success ? result.data.dataUrl : null;
+      const result = await readRuntimeImage(workspacePath, imagePath);
+      return result.success && !result.data.truncated ? result.data.dataUrl : null;
     },
-    [projectId, workspaceId, workspacePath, tab.path]
+    [workspacePath, tab.path]
   );
 
   const openWorkspaceLink = useCallback(

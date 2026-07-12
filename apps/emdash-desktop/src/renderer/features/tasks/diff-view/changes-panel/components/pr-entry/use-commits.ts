@@ -1,5 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
+import { checkoutSelector } from '@renderer/lib/runtime/git';
+import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { commitRef } from '@shared/core/git/utils';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
@@ -42,18 +44,20 @@ export function useCommits(projectId: string, workspaceId: string, range: Commit
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       if (!range) return { commits: [], aheadCount: 0 };
 
-      const result = await rpc.workspace.gitWorktree.getLog(
-        projectId,
-        workspaceId,
-        PAGE_SIZE,
-        pageParam,
-        undefined,
-        undefined,
-        commitRef(range.baseRefOid),
-        commitRef(range.headRefOid)
-      );
+      const workspace = workspaceRegistry.get(projectId, workspaceId);
+      if (!workspace) throw new Error('Workspace is unavailable');
+      const client = await getGitRuntimeClient();
+      const result = await client.checkout.getLog({
+        ...checkoutSelector(workspace.path),
+        options: {
+          limit: PAGE_SIZE,
+          skip: pageParam,
+          base: commitRef(range.baseRefOid),
+          head: commitRef(range.headRefOid),
+        },
+      });
       if (!result.success) throw new Error('Failed to load commits');
-      return result.data;
+      return { commits: result.data.commits, aheadCount: result.data.totalCount };
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, _all, lastPageParam) =>

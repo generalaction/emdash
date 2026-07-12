@@ -92,9 +92,11 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       ctx: TabViewContext
     ): FileTabResource {
       const taskCtx = ctx as TaskTabContext;
+      if (!taskCtx.workspacePath) throw new Error('Local workspace path is unavailable');
       const modelManager = getFileModelManager(taskCtx.workspaceId, {
         projectId: taskCtx.projectId,
         workspaceId: taskCtx.workspaceId,
+        workspacePath: taskCtx.workspacePath,
         modelRootPath: taskCtx.modelRootPath,
       });
       return new FileTabResource(
@@ -103,6 +105,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
         {
           projectId: taskCtx.projectId,
           workspaceId: taskCtx.workspaceId,
+          workspacePath: taskCtx.workspacePath,
           modelRootPath: taskCtx.modelRootPath,
         },
         handle
@@ -129,7 +132,34 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
           fileName,
           onSuccess: (result) => {
             if (result === 'save') {
-              void modelRegistry.saveFileToDisk(bufferUri).then(() => resolve(true));
+              void modelRegistry
+                .saveFileToDisk(bufferUri)
+                .then((saved) => {
+                  if (saved !== null) {
+                    resolve(true);
+                    return;
+                  }
+                  if (!modelRegistry.hasPendingConflict(bufferUri)) {
+                    resolve(false);
+                    return;
+                  }
+                  showModal('conflictDialog', {
+                    filePath: entry.state.path,
+                    onSuccess: (acceptIncoming) => {
+                      if (acceptIncoming) {
+                        modelRegistry.reloadFromDisk(bufferUri);
+                        resolve(true);
+                        return;
+                      }
+                      void modelRegistry
+                        .saveFileToDisk(bufferUri, { overwrite: true })
+                        .then((overwritten) => resolve(overwritten !== null))
+                        .catch(() => resolve(false));
+                    },
+                    onClose: () => resolve(false),
+                  });
+                })
+                .catch(() => resolve(false));
             } else {
               resolve(true);
             }

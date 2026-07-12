@@ -50,10 +50,10 @@ export function getDiffView(projectId: string, taskId: string): DiffViewStore | 
   return getTaskView(projectId, taskId)?.diffView ?? undefined;
 }
 
-export function getTaskGitWorktreeStore(projectId: string, taskId: string) {
+export function getTaskGitCheckoutStore(projectId: string, taskId: string) {
   const store = getTaskStore(projectId, taskId);
   if (!store?.workspaceId) return undefined;
-  return workspaceRegistry.get(projectId, store.workspaceId)?.gitWorktree;
+  return workspaceRegistry.get(projectId, store.workspaceId)?.gitCheckout;
 }
 
 export function taskAgentStatus(store: TaskStore): AgentStatus | null {

@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   getConversationsForProject: vi.fn(),
   getProjectManagerStore: vi.fn(),
   getPullRequestsForTask: vi.fn(),
-  getTaskGitWorktreeStore: vi.fn(),
+  getTaskGitCheckoutStore: vi.fn(),
   getTasks: vi.fn(),
   mountProject: vi.fn(),
   provisionWorkspace: vi.fn(),
@@ -62,7 +62,7 @@ vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
 }));
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
-  getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
+  getTaskGitCheckoutStore: mocks.getTaskGitCheckoutStore,
 }));
 
 vi.mock('@renderer/lib/stores/view-state-cache', () => ({

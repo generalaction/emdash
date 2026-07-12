@@ -10,7 +10,7 @@ import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-butt
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
-import { getTaskGitWorktreeStore } from '../../stores/task-selectors';
+import { getTaskGitCheckoutStore } from '../../stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -42,18 +42,18 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore;
   const repositoryUrl = workspace.gitRepository.pullRequestRepositoryUrl;
-  const taskBranch = getTaskGitWorktreeStore(projectId, taskId)?.branchName;
+  const taskBranch = getTaskGitCheckoutStore(projectId, taskId)?.branchName;
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
   const defaultBranch = workspace.gitRepository.defaultBranch;
-  const headOid = workspace.gitWorktree.headOid;
+  const headOid = workspace.gitCheckout.headOid;
   const branchCommitRange: CommitRange | undefined =
     !currentPr && defaultBranch?.oid && headOid && defaultBranch.oid !== headOid
       ? {
           source: 'branch',
           baseRefOid: defaultBranch.oid,
           headRefOid: headOid,
-          revision: workspace.gitWorktree.statusRevision,
+          revision: workspace.gitCheckout.statusRevision,
         }
       : undefined;
   const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);

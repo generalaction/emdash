@@ -6,11 +6,6 @@ import { automationsController } from './core/automations/controller';
 import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
-import { machineFilesController } from './core/files/controller';
-import { workspaceFileSystemController } from './core/files/file-system/controller';
-import { fileTreeController } from './core/files/file-tree/controller';
-import { gitRepositoryController } from './core/git/repository/controller';
-import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
 import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
@@ -21,6 +16,7 @@ import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
+import { repositoryController } from './core/repository/controller';
 import { resourceMonitorController } from './core/resource-monitor/controller';
 import { searchController } from './core/search/controller';
 import { appSettingsController } from './core/settings/controller';
@@ -45,11 +41,10 @@ export const rpcRouter = createRPCRouter({
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
   browser: browserController,
-  gitRepository: gitRepositoryController,
+  repository: repositoryController,
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
-  files: machineFilesController,
   github: githubController,
   integrations: integrationsController,
   issues: issueController,
@@ -70,9 +65,6 @@ export const rpcRouter = createRPCRouter({
   search: searchController,
   projectSettings: projectSettingsController,
   workspace: createRPCNamespace({
-    gitWorktree: gitWorktreeController,
-    files: workspaceFileSystemController,
-    fileTree: fileTreeController,
     editor: editorBufferController,
   }),
 });

@@ -1,10 +1,11 @@
-import type { GitChange } from '@emdash/core/git';
-import { makeAutoObservable } from 'mobx';
+import { normalizeDiffTarget, type GitChange } from '@emdash/core/git';
+import { makeAutoObservable, reaction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
+import { checkoutSelector } from '@renderer/lib/runtime/git';
+import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { commitRef, mergeBaseRange } from '@shared/core/git/utils';
 import {
   isForkPr,
@@ -14,6 +15,7 @@ import {
   type PullRequestMergeOptions,
 } from '@shared/core/pull-requests/pull-requests';
 import type { Task } from '@shared/core/tasks/tasks';
+import type { GitCheckoutStore } from './git-checkout-store';
 import { isRegistered, type TaskStore } from './task-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -35,6 +37,7 @@ export class PrStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly gitRepositoryStore: GitRepositoryStore,
+    private readonly gitCheckoutStore: GitCheckoutStore,
     private readonly taskStore: TaskStore
   ) {
     makeAutoObservable(this);
@@ -66,18 +69,15 @@ export class PrStore {
           { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
           {
             kind: 'event',
-            subscribe: (handler) => {
-              const unsubHead = events.on(gitWorktreeUpdateChannel, (p) => {
-                if (p.workspaceId === this.workspaceId && p.update.kind === 'head') handler();
-              });
-              const unsubRefs = events.on(gitRepoUpdateChannel, (p) => {
-                if (p.projectId === this.projectId && p.update.kind === 'refs') handler();
-              });
-              return () => {
-                unsubHead();
-                unsubRefs();
-              };
-            },
+            subscribe: (handler) =>
+              reaction(
+                () => [
+                  this.gitCheckoutStore.headOid,
+                  this.gitCheckoutStore.branchName,
+                  this.gitRepositoryStore.branches.map((branch) => branch.oid).join(':'),
+                ],
+                () => handler()
+              ),
             onEvent: 'reload',
             debounceMs: 500,
           },
@@ -174,13 +174,13 @@ export class PrStore {
     const range = mergeBaseRange(baseRef, headRef);
 
     const tryRange = async (): Promise<GitChange[] | null> => {
-      const result = await rpc.workspace.gitWorktree.getChangedFiles(
-        this.projectId,
-        this.workspaceId,
-        range
-      );
+      const client = await getGitRuntimeClient();
+      const result = await client.checkout.getChangedFiles({
+        ...checkoutSelector(this.gitCheckoutStore.workspacePath),
+        target: normalizeDiffTarget(range),
+      });
       if (!result.success) return null;
-      const changes = result.data.changes;
+      const changes = result.data;
       const expectedChangedFiles = pr.changedFiles;
       if (changes.length === 0 && expectedChangedFiles !== 0) return null;
       if (
@@ -196,16 +196,17 @@ export class PrStore {
     const first = await tryRange();
     if (first) return first;
 
-    await rpc.gitRepository.fetch(this.projectId, this.workspaceId);
+    await this.gitRepositoryStore.fetchRemote();
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (prNumber) {
-      await rpc.gitRepository.fetchPrForReview(
-        this.projectId,
+      await this.gitRepositoryStore.fetchPrForReview({
         prNumber,
-        pr.headRefName,
-        pr.headRepositoryUrl,
-        isForkPr(pr)
-      );
+        headRefName: pr.headRefName,
+        headRepositoryUrl: pr.headRepositoryUrl,
+        localBranch: pr.headRefName,
+        isFork: isForkPr(pr),
+        configuredRemote: this.gitRepositoryStore.baseRemote.name,
+      });
     }
 
     const retry = await tryRange();

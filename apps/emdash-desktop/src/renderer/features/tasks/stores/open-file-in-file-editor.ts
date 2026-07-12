@@ -5,27 +5,26 @@ import {
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { rpc } from '@renderer/lib/ipc';
+import { filesPath } from '@renderer/lib/runtime/files';
+import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
 import { focusTracker } from '@renderer/utils/focus-tracker';
-import { resolveWorkspacePath } from './workspace-path';
+import {
+  absoluteRuntimePath,
+  hostPathFromNative,
+  nativePathFromHost,
+  relativePathWithin,
+} from '@shared/core/runtime/paths';
 import { workspaceRegistry } from './workspace-registry';
 
-function isAbsolutePath(filePath: string): boolean {
-  const normalizedPath = filePath.replace(/\\/g, '/');
-  return normalizedPath.startsWith('/') || /^[A-Za-z]:\//.test(normalizedPath);
-}
-
-function isPathInsideWorkspace(workspacePath: string, filePath: string): boolean {
-  const root = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '');
-  const path = filePath.replace(/\\/g, '/');
-  return path === root || path.startsWith(`${root}/`);
-}
-
 function resolveEditorFilePath(workspacePath: string, filePath: string): string | null {
-  const resolvedPath = resolveWorkspacePath(workspacePath, filePath);
-  if (isAbsolutePath(filePath) && !isPathInsideWorkspace(workspacePath, resolvedPath)) {
+  try {
+    const root = hostPathFromNative(workspacePath);
+    const resolved = absoluteRuntimePath(root, filePath);
+    relativePathWithin(root, resolved);
+    return nativePathFromHost(resolved).replaceAll('\\', '/');
+  } catch {
     return null;
   }
-  return resolvedPath;
 }
 
 export async function openFileInTaskEditor(
@@ -46,12 +45,9 @@ export async function openFileInTaskEditor(
   // Agent output often points at paths that don't exist in the worktree
   // (subdirectory-relative, deleted, etc.) — precheck so we can toast a
   // useful error instead of opening an empty tab.
-  const exists = await rpc.workspace.files.fileExists(
-    projectId,
-    provisioned.workspaceId,
-    resolvedPath
-  );
-  if (!exists.success || !exists.data.exists) {
+  const files = await getFilesRuntimeClient();
+  const exists = await files.fs.exists(filesPath(workspace.path, resolvedPath));
+  if (!exists.success || !exists.data) {
     toast.error(`File not found in workspace: ${filePath}`);
     return;
   }
@@ -82,12 +78,9 @@ export async function openFileInAdjacentPane(
     return;
   }
 
-  const exists = await rpc.workspace.files.fileExists(
-    projectId,
-    provisioned.workspaceId,
-    resolvedPath
-  );
-  if (!exists.success || !exists.data.exists) {
+  const files = await getFilesRuntimeClient();
+  const exists = await files.fs.exists(filesPath(workspace.path, resolvedPath));
+  if (!exists.success || !exists.data) {
     toast.error(`File not found in workspace: ${filePath}`);
     return;
   }

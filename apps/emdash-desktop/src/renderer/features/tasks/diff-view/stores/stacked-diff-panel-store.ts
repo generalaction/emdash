@@ -8,7 +8,7 @@ import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
-import type { GitWorktreeStore } from '../../stores/git-worktree-store';
+import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';
@@ -114,7 +114,7 @@ export class StackedDiffPanelStore {
     projectId: string,
     workspaceId: string,
     private readonly diffView: DiffViewStore,
-    private readonly gitWorktree: GitWorktreeStore,
+    private readonly gitCheckout: GitCheckoutStore,
     private readonly pr: PrStore
   ) {
     this._slots = Array.from(
@@ -198,7 +198,7 @@ export class StackedDiffPanelStore {
 
     const isStaged = activeFile.group === 'staged';
     return {
-      files: isStaged ? this.gitWorktree.stagedFileChanges : this.gitWorktree.unstagedFileChanges,
+      files: isStaged ? this.gitCheckout.stagedFileChanges : this.gitCheckout.unstagedFileChanges,
       diffType: isStaged ? 'staged' : 'disk',
       originalRef: commitRef('HEAD'),
     };
@@ -231,7 +231,7 @@ export class StackedDiffPanelStore {
       slot.commitModifiedSha = commitModifiedSha;
     }
 
-    const currentPaths = new Set(files.map((f) => f.path));
+    const currentPaths = new Set<string>(files.map((f) => f.path));
     for (const path of this._expanded.keys()) {
       if (!currentPaths.has(path)) this._expanded.delete(path);
     }

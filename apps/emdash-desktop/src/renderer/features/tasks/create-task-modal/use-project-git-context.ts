@@ -1,12 +1,11 @@
-import type { GitHeadModel } from '@emdash/core/git';
-import type { GitBranchRef } from '@emdash/core/git';
+import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import {
   asMounted,
   getGitRepositoryStore,
   getProjectStore,
 } from '@renderer/features/projects/stores/project-selectors';
-import { rpc } from '@renderer/lib/ipc';
+import { readCheckoutHead } from '@renderer/lib/runtime/git';
 
 export type ProjectGitContext = {
   defaultBranch: GitBranchRef | undefined;
@@ -15,7 +14,7 @@ export type ProjectGitContext = {
   repositoryWorkspaceId: string | null;
 };
 
-function branchNameFromHead(head: GitHeadModel | undefined): string | null {
+function branchNameFromHead(head: CheckoutHeadState | undefined): string | null {
   if (!head || head.kind === 'detached') return null;
   return head.name;
 }
@@ -26,11 +25,10 @@ export function useProjectGitContext(projectId: string | undefined): ProjectGitC
 
   const headQuery = useQuery({
     queryKey: ['gitRepository', 'projectRootHead', projectId],
-    enabled: !!projectId,
+    enabled: !!projectId && project?.data.type === 'local',
     queryFn: async () => {
-      const result = await rpc.gitRepository.getProjectRootHead(projectId!);
-      if (!result.success) throw new Error(result.error.type);
-      return result.data.head;
+      if (!project || project.data.type !== 'local') throw new Error('Local project required');
+      return readCheckoutHead(project.data.path);
     },
     refetchOnWindowFocus: true,
   });

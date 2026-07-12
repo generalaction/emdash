@@ -9,11 +9,10 @@ import {
   getProjectSshConnectionId,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -130,7 +129,7 @@ export class TaskManagerStore {
   private _unsubTaskDeleted: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
-  private _unsubGitWorktreeUpdate: (() => void) | null = null;
+  private _disposeGitHeadReaction: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -230,7 +229,7 @@ export class TaskManagerStore {
         for (const [, store] of this.tasks) {
           if (!isRegistered(store)) continue;
           const task = store.data as Task;
-          const branchName = getTaskGitWorktreeStore(task.projectId, task.id)?.branchName;
+          const branchName = getTaskGitCheckoutStore(task.projectId, task.id)?.branchName;
           if (branchName !== pr.headRefName) continue;
           runInAction(() => {
             const idx = task.prs.findIndex((p) => p.url === pr.url);
@@ -255,14 +254,18 @@ export class TaskManagerStore {
       }
     });
 
-    this._unsubGitWorktreeUpdate = events.on(gitWorktreeUpdateChannel, (payload) => {
-      if (payload.projectId !== this.projectId || payload.update.kind !== 'head') return;
-      for (const [, store] of this.tasks) {
-        if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
-          void this._reloadPrsForTask(store);
+    this._disposeGitHeadReaction = reaction(
+      () =>
+        [...this.tasks.values()].filter(isRegistered).map((store) => {
+          const git = getTaskGitCheckoutStore(this.projectId, store.data.id);
+          return `${store.workspaceId}:${git?.branchName ?? ''}:${git?.headOid ?? ''}`;
+        }),
+      () => {
+        for (const store of this.tasks.values()) {
+          if (isRegistered(store)) void this._reloadPrsForTask(store);
         }
       }
-    });
+    );
 
     this._disposeRepositoryReaction = reaction(
       () => this._repository.pullRequestRepositoryUrl,
@@ -690,8 +693,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
-    this._unsubGitWorktreeUpdate?.();
-    this._unsubGitWorktreeUpdate = null;
+    this._disposeGitHeadReaction?.();
+    this._disposeGitHeadReaction = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();

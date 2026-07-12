@@ -54,6 +54,10 @@ export function formatFetchErrorDetail(
         : `Git authentication failed. Authenticate Git on ${machine}, then try again.`
     )
     .with(
+      { type: 'auth_required' },
+      () => `Git authentication is required. Authenticate Git on ${machine}, then try again.`
+    )
+    .with(
       { type: 'network_error' },
       () => 'Cannot reach the remote. Check your network connection, then try again.'
     )
@@ -65,6 +69,7 @@ export function formatFetchErrorDetail(
       { type: 'git_error' },
       () => 'An unexpected error occurred while fetching from the remote.'
     )
+    .with({ type: 'resolution_failed' }, (e) => e.message)
     .exhaustive();
 }
 

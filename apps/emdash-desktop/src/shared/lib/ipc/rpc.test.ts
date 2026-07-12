@@ -22,26 +22,26 @@ const fsController = createRPCController({
   write: (path: string, data: string) => Promise.resolve(data.length),
 });
 
-const gitWorktreeController = createRPCController({
-  clone: (url: string) => Promise.resolve(`cloned ${url}`),
+const editorController = createRPCController({
+  open: (file: string) => Promise.resolve(`opened ${file}`),
 });
 
-const gitRepositoryController = createRPCController({
-  branches: () => Promise.resolve(['main']),
+const catalogController = createRPCController({
+  entries: () => Promise.resolve(['first']),
 });
 
-const wsFilesController = createRPCController({
+const terminalController = createRPCController({
   list: (dir: string) => Promise.resolve([dir]),
 });
 
 const workspaceNamespace = createRPCNamespace({
-  gitWorktree: gitWorktreeController,
-  files: wsFilesController,
+  editor: editorController,
+  terminal: terminalController,
 });
 
 const router = createRPCRouter({
   vcs: vcsController,
-  gitRepository: gitRepositoryController,
+  catalog: catalogController,
   fs: fsController,
   workspace: workspaceNamespace,
 });
@@ -84,9 +84,9 @@ describe('createRPCClient', () => {
     const invoke = vi.fn().mockResolvedValue('ok');
     const rpc = createRPCClient<Router>(invoke);
 
-    await rpc.workspace.gitWorktree.clone('https://example.com/repo');
+    await rpc.workspace.editor.open('README.md');
 
-    expect(invoke).toHaveBeenCalledWith('workspace.gitWorktree.clone', 'https://example.com/repo');
+    expect(invoke).toHaveBeenCalledWith('workspace.editor.open', 'README.md');
   });
 
   it('forwards multiple arguments correctly', async () => {
@@ -111,9 +111,9 @@ describe('createRPCClient', () => {
     const invoke = vi.fn().mockResolvedValue([]);
     const rpc = createRPCClient<Router>(invoke);
 
-    await rpc.workspace.files.list('projects');
+    await rpc.workspace.terminal.list('projects');
 
-    expect(invoke).toHaveBeenCalledWith('workspace.files.list', 'projects');
+    expect(invoke).toHaveBeenCalledWith('workspace.terminal.list', 'projects');
   });
 });
 
@@ -136,9 +136,9 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    expect(ipc.registeredChannels()).toContain('workspace.gitWorktree.clone');
-    expect(ipc.registeredChannels()).toContain('gitRepository.branches');
-    expect(ipc.registeredChannels()).toContain('workspace.files.list');
+    expect(ipc.registeredChannels()).toContain('workspace.editor.open');
+    expect(ipc.registeredChannels()).toContain('catalog.entries');
+    expect(ipc.registeredChannels()).toContain('workspace.terminal.list');
   });
 
   it('calls through to the original handler function with args', async () => {
@@ -153,8 +153,8 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    const result = await ipc.invoke('workspace.gitWorktree.clone', 'https://example.com');
-    expect(result).toBe('cloned https://example.com');
+    const result = await ipc.invoke('workspace.editor.open', 'README.md');
+    expect(result).toBe('opened README.md');
   });
 
   it('passes sender id to sender-aware handlers without exposing it to callers', async () => {
@@ -202,13 +202,13 @@ describe('IpcClient type-safety', () => {
   });
 
   it('types a nested procedure as an async function with the original signature', () => {
-    expectTypeOf(rpc.workspace.gitWorktree.clone).toEqualTypeOf<(url: string) => Promise<string>>();
+    expectTypeOf(rpc.workspace.editor.open).toEqualTypeOf<(file: string) => Promise<string>>();
   });
 
   it('types a nested namespace as a sub-namespace object, not a callable', () => {
     expectTypeOf(rpc.workspace).toEqualTypeOf<{
-      files: { list: (dir: string) => Promise<string[]> };
-      gitWorktree: { clone: (url: string) => Promise<string> };
+      editor: { open: (file: string) => Promise<string> };
+      terminal: { list: (dir: string) => Promise<string[]> };
     }>();
   });
 

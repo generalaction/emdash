@@ -4,7 +4,7 @@ import { getGitRepositoryStore } from '@renderer/features/projects/stores/projec
 import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   getRegisteredTaskData,
-  getTaskGitWorktreeStore,
+  getTaskGitCheckoutStore,
   getTaskManagerStore,
   getTaskStore,
   getTaskView,
@@ -48,7 +48,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       );
 
       const taskManager = getTaskManagerStore(projectId);
-      const git = getTaskGitWorktreeStore(projectId, taskId);
+      const git = getTaskGitCheckoutStore(projectId, taskId);
       const repository = git ? getGitRepositoryStore(projectId) : undefined;
       const taskData = getRegisteredTaskData(projectId, taskId);
       const activeBrowserTab = activePane?.resolvedTabs.find(

@@ -5,7 +5,7 @@ import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { commitRef } from '@shared/core/git/utils';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
-import { type GitWorktreeStore } from '../../stores/git-worktree-store';
+import { type GitCheckoutStore } from '../../stores/git-checkout-store';
 
 export const MAX_STACKED_FILES = 8;
 
@@ -41,10 +41,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   private _disposeReactions: Array<() => void> = [];
 
   constructor(
-    private readonly gitWorktree: GitWorktreeStore,
+    private readonly gitCheckout: GitCheckoutStore,
     private readonly pr: PrStore
   ) {
-    this.changesView = new ChangesViewStore(gitWorktree, pr);
+    this.changesView = new ChangesViewStore(gitCheckout, pr);
 
     makeObservable(this, {
       activeFileOverride: observable,
@@ -95,11 +95,11 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
     const isStaged = override.group === 'staged';
     const ownList = isStaged
-      ? this.gitWorktree.stagedFileChanges
-      : this.gitWorktree.unstagedFileChanges;
+      ? this.gitCheckout.stagedFileChanges
+      : this.gitCheckout.unstagedFileChanges;
     const otherList = isStaged
-      ? this.gitWorktree.unstagedFileChanges
-      : this.gitWorktree.stagedFileChanges;
+      ? this.gitCheckout.unstagedFileChanges
+      : this.gitCheckout.stagedFileChanges;
 
     // Override is still valid
     if (ownList.some((f) => f.path === override.path)) return override;
@@ -167,7 +167,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
-    return this.gitWorktree.isBranchPublished ? 'commit-push' : 'commit';
+    return this.gitCheckout.isBranchPublished ? 'commit-push' : 'commit';
   }
 
   setCommitAction(action: CommitAction | null): void {
@@ -179,8 +179,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (file?.group === 'disk' || file?.group === 'staged') {
       const list =
         file.group === 'staged'
-          ? this.gitWorktree.stagedFileChanges
-          : this.gitWorktree.unstagedFileChanges;
+          ? this.gitCheckout.stagedFileChanges
+          : this.gitCheckout.unstagedFileChanges;
       this._activeFileOverrideIndex = list.findIndex((f) => f.path === file.path);
     } else {
       this._activeFileOverrideIndex = -1;
@@ -202,9 +202,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   }
 
   private get _defaultActiveFile(): ActiveFile | null {
-    const first = this.gitWorktree.unstagedFileChanges[0] ?? this.gitWorktree.stagedFileChanges[0];
+    const first = this.gitCheckout.unstagedFileChanges[0] ?? this.gitCheckout.stagedFileChanges[0];
     if (!first) return null;
-    const isUnstaged = !!this.gitWorktree.unstagedFileChanges[0];
+    const isUnstaged = !!this.gitCheckout.unstagedFileChanges[0];
     return {
       path: first.path,
       type: isUnstaged ? 'disk' : 'git',

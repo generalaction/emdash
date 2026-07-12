@@ -1,4 +1,6 @@
+import type { FileEntry } from '@emdash/core/files';
 import { describe, expect, it } from 'vitest';
+import { portablePath } from '@shared/core/runtime/paths';
 import {
   buildFileTreeVisibleRows,
   buildNestedVisibleRows,
@@ -205,142 +207,75 @@ describe('file tree utils', () => {
     expect(rows[0].chain.map((n) => n.path)).toEqual(['a', 'a/b']);
   });
 
-  it('compacts flat render nodes from preview metadata and uses loaded real nodes', () => {
-    const src = toRenderableFileNode({
-      id: 1,
-      path: 'src',
-      name: 'src',
-      parentId: null,
-      type: 'directory',
-      childrenLoaded: true,
-      directoryPreview: {
-        childCount: 1,
-        singleChildDirectoryChain: [{ name: 'components', path: 'src/components' }],
-      },
-    });
-    const components = toRenderableFileNode({
-      id: 2,
-      path: 'src/components',
-      name: 'components',
-      parentId: 1,
-      type: 'directory',
-      childrenLoaded: true,
-    });
-    const button = toRenderableFileNode({
-      id: 3,
-      path: 'src/components/Button.tsx',
-      name: 'Button.tsx',
-      parentId: 2,
+  it('converts portable runtime entries to absolute renderer paths', () => {
+    const node = toRenderableFileNode(coreEntry('src/index.ts', 'file', 'src'), '/repo');
+
+    expect(node).toMatchObject({
+      id: 'src/index.ts',
+      path: '/repo/src/index.ts',
+      parentId: 'src',
+      parentPath: '/repo/src',
+      name: 'index.ts',
       type: 'file',
-      childrenLoaded: false,
     });
-    const childrenById = new Map<number | null, RenderableFileNode[]>([
+  });
+
+  it('renders expanded runtime directory children without synthetic preview nodes', () => {
+    const src = toRenderableFileNode(coreEntry('src', 'directory', ''), '/repo');
+    const index = toRenderableFileNode(coreEntry('src/index.ts', 'file', 'src'), '/repo');
+    const childrenById = new Map<string | null, RenderableFileNode[]>([
       [null, [src]],
-      [1, [components]],
-      [2, [button]],
+      ['src', [index]],
     ]);
 
     const rows = buildFileTreeVisibleRows(
       [src],
-      new Set(['src/components']),
+      new Set(['/repo/src']),
       childrenById,
-      new Set(['src', 'src/components'])
+      new Set(['/repo/src'])
     );
 
-    expect(rows.map((row) => row.node.path)).toEqual([
-      'src/components',
-      'src/components/Button.tsx',
-    ]);
-    expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
+    expect(rows.map((row) => row.node.path)).toEqual(['/repo/src', '/repo/src/index.ts']);
   });
 
-  it('does not infer workspace file-tree compaction from loaded children without preview metadata', () => {
-    const src = toRenderableFileNode({
-      id: 1,
-      path: 'src',
-      name: 'src',
-      parentId: null,
-      type: 'directory',
-      childrenLoaded: true,
-    });
-    const components = toRenderableFileNode({
-      id: 2,
-      path: 'src/components',
-      name: 'components',
-      parentId: 1,
-      type: 'directory',
-      childrenLoaded: false,
-    });
-    const childrenById = new Map<number | null, RenderableFileNode[]>([
-      [null, [src]],
-      [1, [components]],
-    ]);
-
-    const rows = buildFileTreeVisibleRows([src], new Set(['src']), childrenById, new Set(['src']));
-
-    expect(rows.map((row) => row.node.path)).toEqual(['src', 'src/components']);
-    expect(rows[0].chain.map((node) => node.path)).toEqual(['src']);
-  });
-
-  it('compacts a collapsed chain from core directory preview metadata without loaded children', () => {
-    const apps = toRenderableFileNode({
-      id: 1,
-      path: 'apps',
-      name: 'apps',
-      parentId: null,
-      type: 'directory',
-      childrenLoaded: false,
-      directoryPreview: {
-        childCount: 1,
-        singleChildDirectoryChain: [{ name: 'desktop', path: 'apps/desktop' }],
+  it('expands in-root directory symlinks', () => {
+    const link = toRenderableFileNode(
+      {
+        ...coreEntry('linked', 'symlink', ''),
+        symlinkTarget: '/repo/target',
+        symlinkTargetKind: 'directory',
       },
-    });
-    const childrenById = new Map<number | null, RenderableFileNode[]>([[null, [apps]]]);
-
-    // `apps` is not loaded for this view, so the chain comes entirely from the core metadata.
-    const rows = buildFileTreeVisibleRows([apps], new Set(), childrenById, new Set());
-
-    expect(rows).toHaveLength(1);
-    expect(rows[0].chain.map((node) => node.path)).toEqual(['apps', 'apps/desktop']);
-    expect(rows[0].node.path).toBe('apps/desktop');
-    expect(rows[0].node.type).toBe('directory');
-  });
-
-  it('expands symlink directories without compacting through them', () => {
-    const link = toRenderableFileNode({
-      id: 1,
-      path: 'linked',
-      name: 'linked',
-      parentId: null,
-      type: 'symlink',
-      symlink: { targetType: 'directory', broken: false },
-      childrenLoaded: true,
-    });
-    const nested = toRenderableFileNode({
-      id: 2,
-      path: 'linked/nested',
-      name: 'nested',
-      parentId: 1,
-      type: 'directory',
-      childrenLoaded: false,
-      directoryPreview: {
-        childCount: 1,
-        singleChildDirectoryChain: [{ name: 'leaf', path: 'linked/nested/leaf' }],
-      },
-    });
-    const childrenById = new Map<number | null, RenderableFileNode[]>([
+      '/repo'
+    );
+    const nested = toRenderableFileNode(coreEntry('linked/nested', 'directory', 'linked'), '/repo');
+    const childrenById = new Map<string | null, RenderableFileNode[]>([
       [null, [link]],
-      [1, [nested]],
+      ['linked', [nested]],
     ]);
 
     const rows = buildFileTreeVisibleRows(
       [link],
-      new Set(['linked']),
+      new Set(['/repo/linked']),
       childrenById,
-      new Set(['linked'])
+      new Set(['/repo/linked'])
     );
 
-    expect(rows.map((row) => row.node.path)).toEqual(['linked', 'linked/nested/leaf']);
-    expect(rows[0].chain.map((node) => node.path)).toEqual(['linked']);
+    expect(rows.map((row) => row.node.path)).toEqual(['/repo/linked', '/repo/linked/nested']);
   });
 });
+
+function coreEntry(
+  entryPath: string,
+  kind: FileEntry['kind'],
+  parentPath: string | null
+): FileEntry {
+  const name = entryPath.split('/').pop() ?? entryPath;
+  return {
+    path: portablePath(entryPath),
+    name,
+    parentPath: parentPath === null ? null : portablePath(parentPath),
+    kind,
+    childrenLoaded: kind !== 'file',
+    children: [],
+  };
+}

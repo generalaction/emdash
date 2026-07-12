@@ -31,7 +31,7 @@ export const StackedDiffView = observer(function StackedDiffView() {
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
   const diffView = taskView.diffView;
-  const git = workspace.gitWorktree;
+  const git = workspace.gitCheckout;
   const pr = taskView.prStore;
 
   const panelStore = useMemo(

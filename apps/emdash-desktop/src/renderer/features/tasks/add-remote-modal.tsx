@@ -72,7 +72,8 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     errorMessage: ownersErrorMessage,
     handleOwnerChange,
   } = useGitHubRepositoryOwnerSelect(githubAccountId);
-  const selectedRemote = getGitRepositoryStore(projectId)?.pushRemote.name ?? 'origin';
+  const repositoryStore = getGitRepositoryStore(projectId);
+  const selectedRemote = repositoryStore?.pushRemote.name ?? 'origin';
   const canSubmitCreateRepository =
     githubAccountId !== null &&
     !settingsLoading &&
@@ -117,22 +118,16 @@ export const AddRemoteModal = observer(function AddRemoteModal({
           return;
         }
 
-        const addRemoteResult = await rpc.gitRepository.addRemote(
-          projectId,
-          selectedRemote,
-          result.repoUrl
-        );
+        if (!repositoryStore) throw new Error('Git repository is unavailable');
+        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, result.repoUrl);
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
           return;
         }
       } else {
-        const addRemoteResult = await rpc.gitRepository.addRemote(
-          projectId,
-          selectedRemote,
-          url.trim()
-        );
+        if (!repositoryStore) throw new Error('Git repository is unavailable');
+        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, url.trim());
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
@@ -140,21 +135,16 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         }
       }
 
-      const fetchResult = await rpc.gitRepository.fetch(projectId);
+      if (!repositoryStore) throw new Error('Git repository is unavailable');
+      const fetchResult = await repositoryStore.fetchRemote();
       if (!fetchResult.success) {
         setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
         return;
       }
 
-      const publishResult = await rpc.gitRepository.publishBranch(
-        projectId,
-        branchName,
-        selectedRemote,
-        workspaceId
-      );
+      const publishResult = await repositoryStore.publishBranch(branchName, workspaceId);
       if (!publishResult.success) {
         if (publishResult.error.type === 'rejected') {
-          const repositoryStore = getGitRepositoryStore(projectId);
           repositoryStore?.refreshLocal();
           repositoryStore?.refreshRemote();
           setError(
@@ -166,7 +156,6 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         return;
       }
 
-      const repositoryStore = getGitRepositoryStore(projectId);
       repositoryStore?.refreshLocal();
       repositoryStore?.refreshRemote();
       onSuccess();

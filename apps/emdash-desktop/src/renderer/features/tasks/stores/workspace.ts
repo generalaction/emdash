@@ -1,10 +1,11 @@
 import type { ILifecycle } from '@emdash/shared';
 import { computed, makeObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
+import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
 import { releaseFileModelManager } from '../editor/stores/file-model-manager';
-import { GitWorktreeStore } from './git-worktree-store';
+import { GitCheckoutStore } from './git-checkout-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 
 export class WorkspaceStore implements ILifecycle {
@@ -12,11 +13,11 @@ export class WorkspaceStore implements ILifecycle {
   readonly path: string;
   readonly gitRepository: GitRepositoryStore;
   readonly sshConnectionId: string | undefined;
-  readonly gitWorktree: GitWorktreeStore;
+  readonly gitCheckout: GitCheckoutStore;
   readonly lifecycleScripts: LifecycleScriptsStore;
 
   constructor(
-    projectId: string,
+    private readonly projectId: string,
     workspaceId: string,
     path: string,
     gitRepository: GitRepositoryStore,
@@ -26,9 +27,14 @@ export class WorkspaceStore implements ILifecycle {
     this.workspaceId = workspaceId;
     this.path = path;
     this.sshConnectionId = sshConnectionId;
+    if (!sshConnectionId) modelRegistry.bindWorkspaceRoot(projectId, workspaceId, path);
     this.gitRepository = gitRepository;
-    this.gitWorktree = new GitWorktreeStore(projectId, workspaceId, this.gitRepository);
-    this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
+    this.gitCheckout = new GitCheckoutStore(projectId, workspaceId, path, this.gitRepository);
+    this.lifecycleScripts = new LifecycleScriptsStore(
+      projectId,
+      workspaceId,
+      sshConnectionId ? undefined : path
+    );
   }
 
   get connectionState(): ConnectionState | null {
@@ -43,7 +49,7 @@ export class WorkspaceStore implements ILifecycle {
   }
 
   activate(): void {
-    this.gitWorktree.start();
+    this.gitCheckout.start();
   }
 
   initialize(): void {
@@ -51,11 +57,14 @@ export class WorkspaceStore implements ILifecycle {
   }
 
   dispose(): void {
-    this.gitWorktree.dispose();
+    this.gitCheckout.dispose();
     this.lifecycleScripts.dispose();
     // Last task on this workspace has been released (ref-count hit 0 in
     // WorkspaceRegistryStore), so the per-workspace Monaco model manager and its
     // registered models can be torn down. No open editors remain at this point.
     releaseFileModelManager(this.workspaceId);
+    if (!this.sshConnectionId) {
+      modelRegistry.unbindWorkspaceRoot(this.projectId, this.workspaceId);
+    }
   }
 }

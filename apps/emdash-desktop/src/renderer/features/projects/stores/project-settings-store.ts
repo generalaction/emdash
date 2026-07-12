@@ -1,9 +1,9 @@
 import type { Result } from '@emdash/shared';
 import { events, rpc } from '@renderer/lib/ipc';
+import { watchFileContent } from '@renderer/lib/runtime/files';
 import { Resource } from '@renderer/lib/stores/resource';
-import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import {
-  isProjectConfigPath,
+  PROJECT_CONFIG_FILE,
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
   type ProjectConfigMigration,
@@ -18,10 +18,14 @@ import type { UpdateProjectSettingsError } from '@shared/projects';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;
-  private readonly _unsubscribeConfigWatch: () => void;
+  private _unsubscribeConfigWatch: () => void = () => {};
   private readonly _unsubscribeSettingsChanged: () => void;
+  private _disposed = false;
 
-  constructor(private readonly projectId: string) {
+  constructor(
+    private readonly projectId: string,
+    localProjectPath?: string
+  ) {
     this.pageData = new Resource(async () => {
       const result = await rpc.projects.getProjectSettingsPage(projectId);
       if (!result.success) {
@@ -34,15 +38,16 @@ export class ProjectSettingsStore {
       return result.data;
     }, [{ kind: 'demand' }]);
 
-    this._unsubscribeConfigWatch = events.on(fileChangesChannel, (data) => {
-      if (data.projectId !== projectId) return;
-      if (
-        data.update.kind === 'resync' ||
-        data.update.changes.some((change) => isProjectConfigPath(change.path))
-      ) {
+    if (localProjectPath) {
+      void watchFileContent(localProjectPath, PROJECT_CONFIG_FILE, () => {
         this.pageData.invalidate();
-      }
-    });
+      })
+        .then((unsubscribe) => {
+          if (this._disposed) unsubscribe();
+          else this._unsubscribeConfigWatch = unsubscribe;
+        })
+        .catch(() => {});
+    }
 
     this._unsubscribeSettingsChanged = events.on(projectSettingsChangedChannel, (data) => {
       if (data.projectId === projectId) {
@@ -113,6 +118,7 @@ export class ProjectSettingsStore {
   }
 
   dispose(): void {
+    this._disposed = true;
     this._unsubscribeConfigWatch();
     this._unsubscribeSettingsChanged();
     this.pageData.dispose();

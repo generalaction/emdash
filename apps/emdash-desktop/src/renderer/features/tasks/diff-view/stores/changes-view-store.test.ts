@@ -2,10 +2,11 @@ import type { GitChange } from '@emdash/core/git';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitWorktreeStore } from '../../stores/git-worktree-store';
+import { portablePath } from '@shared/core/runtime/paths';
+import { type GitCheckoutStore } from '../../stores/git-checkout-store';
 import { ChangesViewStore } from './changes-view-store';
 
-class FakeGitWorktreeStore {
+class FakeGitCheckoutStore {
   unstagedFileChanges: GitChange[] = [];
   stagedFileChanges: GitChange[] = [];
   isLoading = true;
@@ -41,16 +42,16 @@ class FakePrStore {
 }
 
 const change = (path: string): GitChange => ({
-  path,
+  path: portablePath(path),
   status: 'modified',
   additions: 1,
   deletions: 0,
 });
 
 function createStore() {
-  const git = new FakeGitWorktreeStore();
+  const git = new FakeGitCheckoutStore();
   const pr = new FakePrStore();
-  const store = new ChangesViewStore(git as unknown as GitWorktreeStore, pr as unknown as PrStore);
+  const store = new ChangesViewStore(git as unknown as GitCheckoutStore, pr as unknown as PrStore);
 
   return { git, pr, store };
 }

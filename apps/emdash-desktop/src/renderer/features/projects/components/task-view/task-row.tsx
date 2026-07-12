@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
-  getTaskGitWorktreeStore,
+  getTaskGitCheckoutStore,
   getTaskManagerStore,
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
@@ -57,7 +57,7 @@ export const TaskRow = observer(function TaskRow({
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
   const branchName =
-    getTaskGitWorktreeStore(task.data.projectId, task.data.id)?.branchName ?? undefined;
+    getTaskGitCheckoutStore(task.data.projectId, task.data.id)?.branchName ?? undefined;
 
   return (
     <TaskContextMenu

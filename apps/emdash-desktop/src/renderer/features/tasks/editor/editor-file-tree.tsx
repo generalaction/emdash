@@ -1,3 +1,4 @@
+import { MAX_FILE_UPLOAD_BYTES } from '@emdash/core/files';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -24,14 +25,12 @@ import {
 import { relativeToWorkspace } from '@renderer/features/tasks/stores/workspace-path';
 import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 import {
-  useTaskViewContext,
   useWorkspace,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import {
   clearDraggedWorkspaceFile,
-  getDraggedFilePaths,
   hasDraggedFiles,
   setDraggedWorkspaceFile,
 } from '@renderer/lib/drag-files';
@@ -39,6 +38,8 @@ import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
+import { filesPath } from '@renderer/lib/runtime/files';
+import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -47,7 +48,7 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
-import { basenameFromAnyPath } from '@shared/path-name';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
@@ -75,19 +76,36 @@ function isPathWithinDeletedItem(path: string, deletedPath: string, closesDescen
 
 async function importLocalFiles(args: {
   files: FilesStore;
-  projectId: string;
-  workspaceId: string;
-  srcPaths: string[];
+  workspacePath: string;
+  sourceFiles: File[];
   destDirPath: string;
   overwrite?: boolean;
 }): Promise<void> {
-  const { files, projectId, workspaceId, srcPaths, destDirPath, overwrite = false } = args;
+  const { files, workspacePath, sourceFiles, destDirPath, overwrite = false } = args;
+  const oversizedFile = sourceFiles.find((file) => file.size > MAX_FILE_UPLOAD_BYTES);
+  if (oversizedFile) {
+    toast({
+      title: 'Import failed',
+      description: `${oversizedFile.name} exceeds the 10 MB upload limit.`,
+      variant: 'destructive',
+    });
+    return;
+  }
+  const destinations = sourceFiles.map((file) => joinPath(destDirPath, file.name));
+  if (new Set(destinations).size !== destinations.length) {
+    toast({
+      title: 'Import failed',
+      description: 'Multiple dropped files have the same destination name.',
+      variant: 'destructive',
+    });
+    return;
+  }
 
   // Optimistic insert — tree updates the moment the drop lands. The watcher
   // event arriving after the copy finishes is a no-op for already-present nodes.
   const inserted = files.addOptimisticNodes(
-    srcPaths.map((srcPath) => ({
-      path: joinPath(destDirPath, basenameFromAnyPath(srcPath)),
+    destinations.map((path) => ({
+      path,
       type: 'file',
     }))
   );
@@ -110,9 +128,8 @@ async function importLocalFiles(args: {
         onSuccess: () => {
           void importLocalFiles({
             files,
-            projectId,
-            workspaceId,
-            srcPaths,
+            workspacePath,
+            sourceFiles,
             destDirPath,
             overwrite: true,
           });
@@ -129,18 +146,44 @@ async function importLocalFiles(args: {
   };
 
   try {
-    const result = await rpc.workspace.files.copyLocalFiles(
-      projectId,
-      workspaceId,
-      srcPaths,
-      destDirPath,
-      {
-        overwrite,
+    const client = await getFilesRuntimeClient();
+    if (!overwrite) {
+      const conflicts: string[] = [];
+      for (const destination of destinations) {
+        const target = filesPath(workspacePath, destination);
+        const result = await client.fs.exists(target);
+        if (!result.success) {
+          await handleFailure(result.error);
+          return;
+        }
+        if (result.data) conflicts.push(target.relative);
       }
-    );
-    if (!result.success) {
-      await handleFailure(result.error);
-      return;
+      if (conflicts.length > 0) {
+        await handleFailure({
+          type: 'conflict',
+          message: 'Files already exist',
+          paths: conflicts,
+        });
+        return;
+      }
+    }
+
+    for (const [index, sourceFile] of sourceFiles.entries()) {
+      const destination = filesPath(workspacePath, destinations[index]);
+      const result = await client.fs.upload(
+        { root: destination.root, path: destination.relative, overwrite },
+        {
+          name: sourceFile.name,
+          mimeType: sourceFile.type || 'application/octet-stream',
+          size: sourceFile.size,
+          lastModified: sourceFile.lastModified,
+          source: sourceFile.stream(),
+        }
+      );
+      if (!result.success) {
+        await handleFailure(result.error);
+        return;
+      }
     }
     files.confirmOptimisticNodes(inserted);
   } catch (error) {
@@ -159,7 +202,6 @@ const FileTreeRow = observer(function FileTreeRow({
   style: React.CSSProperties;
 }) {
   const taskView = useWorkspaceViewModel();
-  const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
@@ -170,7 +212,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
   const isSelected = isActive;
   const relNodePath = relativeToWorkspace(workspace.path, node.path);
-  const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
+  const fileStatus = workspace.gitCheckout.fileChanges?.find((c) => c.path === relNodePath)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const isExpandable = isExpandableFileTreeNode(node);
   const isOpenable = isOpenableFileTreeNode(node);
@@ -226,12 +268,11 @@ const FileTreeRow = observer(function FileTreeRow({
     if (!isOpenable) return;
 
     try {
-      const result = await rpc.workspace.files.readFile(
-        projectId,
-        workspaceId,
-        node.path,
-        MAX_COPY_FILE_BYTES
-      );
+      const client = await getFilesRuntimeClient();
+      const result = await client.fs.readText({
+        ...filesPath(workspace.path, node.path),
+        options: { maxBytes: MAX_COPY_FILE_BYTES },
+      });
       if (!result.success) {
         toast({
           title: 'Copy failed',
@@ -261,7 +302,8 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const copyPath = async () => {
     try {
-      const result = await rpc.workspace.files.getAbsolutePath(projectId, workspaceId, node.path);
+      const client = await getFilesRuntimeClient();
+      const result = await client.fs.realPath(filesPath(workspace.path, node.path));
       if (!result.success) {
         toast({
           title: 'Copy failed',
@@ -270,7 +312,7 @@ const FileTreeRow = observer(function FileTreeRow({
         });
         return;
       }
-      await rpc.app.clipboardWriteText(result.data.path);
+      await rpc.app.clipboardWriteText(nativePathFromHost(result.data));
       toast({ title: 'Path copied' });
     } catch (error) {
       toast({
@@ -308,11 +350,14 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const deleteItem = async () => {
     try {
-      const result = await rpc.workspace.files.removeFile(projectId, workspaceId, node.path, {
+      const client = await getFilesRuntimeClient();
+      const path = filesPath(workspace.path, node.path);
+      const result = await client.mutations.delete({
+        root: path.root,
+        path: path.relative,
         recursive: node.type === 'directory',
       });
       if (!result.success) throw new Error(resultErrorMessage(result.error));
-      if (!result.data.success) throw new Error(result.data.error ?? 'Delete failed.');
 
       closeDeletedFileTabs();
       files?.removeNode(node.path);
@@ -382,8 +427,8 @@ const FileTreeRow = observer(function FileTreeRow({
     event.preventDefault();
     event.stopPropagation();
     setIsDropTarget(false);
-    const srcPaths = getDraggedFilePaths(event.dataTransfer);
-    if (srcPaths.length === 0) return;
+    const sourceFiles = Array.from(event.dataTransfer.files);
+    if (sourceFiles.length === 0) return;
 
     void (async () => {
       if (!files) return;
@@ -401,9 +446,8 @@ const FileTreeRow = observer(function FileTreeRow({
 
       await importLocalFiles({
         files,
-        projectId,
-        workspaceId,
-        srcPaths,
+        workspacePath: workspace.path,
+        sourceFiles,
         destDirPath: targetDirPath,
       });
     })();
@@ -498,8 +542,6 @@ const FileTreeRow = observer(function FileTreeRow({
 
 export const EditorFileTree = observer(function EditorFileTree() {
   const workspace = useWorkspace();
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const editorView = taskView.editorView;
   const files = editorView.files;
@@ -527,15 +569,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
     event.preventDefault();
     event.stopPropagation();
     setIsDragOverRoot(false);
-    const srcPaths = getDraggedFilePaths(event.dataTransfer);
-    if (srcPaths.length === 0) return;
+    const sourceFiles = Array.from(event.dataTransfer.files);
+    if (sourceFiles.length === 0) return;
     if (!files) return;
 
     void importLocalFiles({
       files,
-      projectId,
-      workspaceId,
-      srcPaths,
+      workspacePath: workspace.path,
+      sourceFiles,
       destDirPath: workspace.path,
     });
   };

@@ -1,18 +1,20 @@
+import {
+  absoluteRuntimePath,
+  hostPathFromNative,
+  nativePathFromHost,
+  relativeRuntimePath,
+} from '@shared/core/runtime/paths';
+
 export function resolveWorkspacePath(workspacePath: string | undefined, filePath: string): string {
-  const normalizedPath = filePath.replace(/\\/g, '/');
-  if (isAbsolutePath(normalizedPath) || !workspacePath) return normalizedPath;
-  const root = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '');
-  const relative = normalizedPath.replace(/^\/+/, '');
-  return `${root}/${relative}`;
+  if (!workspacePath) return filePath.replaceAll('\\', '/');
+  const root = hostPathFromNative(workspacePath);
+  return nativePathFromHost(absoluteRuntimePath(root, filePath)).replaceAll('\\', '/');
 }
 
 export function relativeToWorkspace(workspacePath: string, filePath: string): string {
-  const root = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '');
-  const normalizedPath = filePath.replace(/\\/g, '/');
-  const prefix = `${root}/`;
-  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : normalizedPath;
-}
-
-function isAbsolutePath(filePath: string): boolean {
-  return filePath.startsWith('/') || /^[A-Za-z]:\//.test(filePath);
+  try {
+    return relativeRuntimePath(hostPathFromNative(workspacePath), filePath);
+  } catch {
+    return filePath.replaceAll('\\', '/');
+  }
 }

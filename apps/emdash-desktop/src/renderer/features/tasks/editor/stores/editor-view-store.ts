@@ -117,6 +117,11 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     try {
       const result = await modelRegistry.saveFileToDisk(uri);
       if (result === null) {
+        if (modelRegistry.hasPendingConflict(uri)) {
+          runInAction(() => {
+            this.pendingConflictUri = uri;
+          });
+        }
         log.error('[EditorViewStore] Failed to save file:', filePath);
       }
     } catch (error) {
@@ -159,7 +164,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
         this.isSaving = true;
       });
       try {
-        await modelRegistry.saveFileToDisk(uri);
+        await modelRegistry.saveFileToDisk(uri, { overwrite: true });
       } finally {
         runInAction(() => {
           this.isSaving = false;

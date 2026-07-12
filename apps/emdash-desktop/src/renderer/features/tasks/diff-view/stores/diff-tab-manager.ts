@@ -1,13 +1,13 @@
 import { reaction } from 'mobx';
 import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
-import type { GitWorktreeStore } from '../../stores/git-worktree-store';
+import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffTabResource } from './diff-tab-resource';
 import type { DiffViewStore } from './diff-view-store';
 
 interface DiffSession {
-  gitWorktree: GitWorktreeStore;
+  gitCheckout: GitCheckoutStore;
   pr: PrStore;
   diffView: DiffViewStore;
 }
@@ -74,8 +74,8 @@ export class DiffTabManager {
 
   private _validKeys(session: DiffSession): Set<string> {
     const valid = new Set<string>();
-    for (const c of session.gitWorktree.unstagedFileChanges) valid.add(`disk:${c.path}`);
-    for (const c of session.gitWorktree.stagedFileChanges) valid.add(`staged:${c.path}`);
+    for (const c of session.gitCheckout.unstagedFileChanges) valid.add(`disk:${c.path}`);
+    for (const c of session.gitCheckout.stagedFileChanges) valid.add(`staged:${c.path}`);
     for (const r of this._resources) {
       if (r.diffGroup !== 'pr' || r.prNumber == null) continue;
       const matchedPr = session.pr.pullRequests.find((p) => getPrNumber(p) === r.prNumber);
@@ -98,8 +98,8 @@ export class DiffTabManager {
       if (counterpartGroup && validKeys.has(`${counterpartGroup}:${resource.path}`)) {
         const changes =
           counterpartGroup === 'staged'
-            ? session.gitWorktree.stagedFileChanges
-            : session.gitWorktree.unstagedFileChanges;
+            ? session.gitCheckout.stagedFileChanges
+            : session.gitCheckout.unstagedFileChanges;
         const match = changes.find((c) => c.path === resource.path);
         resource.transition(counterpartGroup, commitRef('HEAD'), match?.status);
       } else {

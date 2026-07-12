@@ -38,7 +38,7 @@ function makeFakeSession(
   diffViewSetActiveFile = vi.fn()
 ) {
   const session = {
-    gitWorktree: {
+    gitCheckout: {
       unstagedFileChanges: observable.array(unstagedPaths.map((p) => ({ path: p, status: 'M' }))),
       stagedFileChanges: observable.array(stagedPaths.map((p) => ({ path: p, status: 'M' }))),
     },
@@ -106,7 +106,7 @@ describe('DiffTabManager: staleness reconcile', () => {
 
     // Remove the file — reaction fires and sees the resource is now stale.
     runInAction(() => {
-      (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
+      (session.gitCheckout.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
     });
 
     expect(resource.closeSelf).toHaveBeenCalled();
@@ -123,8 +123,8 @@ describe('DiffTabManager: staleness reconcile', () => {
 
     // Move to staged.
     runInAction(() => {
-      (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
-      (session.gitWorktree.stagedFileChanges as ReturnType<typeof observable.array>).replace([
+      (session.gitCheckout.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
+      (session.gitCheckout.stagedFileChanges as ReturnType<typeof observable.array>).replace([
         { path: 'src/moved.ts', status: 'M' },
       ]);
     });
@@ -143,7 +143,7 @@ describe('DiffTabManager: staleness reconcile', () => {
     manager.bindSession(session as never);
 
     runInAction(() => {
-      (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
+      (session.gitCheckout.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
     });
 
     expect(resource.closeSelf).not.toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('DiffTabManager: staleness reconcile', () => {
 
     // Removing the file after unbind should NOT trigger close.
     runInAction(() => {
-      (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
+      (session.gitCheckout.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
     });
 
     expect(resource.closeSelf).not.toHaveBeenCalled();

@@ -42,8 +42,11 @@ export class MountedProject {
   constructor(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot) {
     this.data = data;
     this.view = new ProjectViewStore();
-    this.settings = new ProjectSettingsStore(data.id);
-    this.gitRepository = new GitRepositoryStore(data.id, this.settings, data.baseRef);
+    this.settings = new ProjectSettingsStore(
+      data.id,
+      data.type === 'local' ? data.path : undefined
+    );
+    this.gitRepository = new GitRepositoryStore(data.id, data.path, this.settings, data.baseRef);
     this.gitRepository.start();
     this.prSync = new PrSyncStore(data.id);
     this.taskManager = new TaskManagerStore(data.id, this.gitRepository, this.settings);

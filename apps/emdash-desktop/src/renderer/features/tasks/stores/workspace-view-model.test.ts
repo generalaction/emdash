@@ -69,23 +69,8 @@ vi.mock('@renderer/lib/ipc', () => ({
     conversations: {
       markConversationSeen: vi.fn().mockResolvedValue(undefined),
     },
-    gitRepository: {
-      getDefaultBranch: vi
-        .fn()
-        .mockResolvedValue({ success: true, data: { defaultBranch: 'main' } }),
-      resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
-    },
-    workspace: {
-      gitWorktree: {},
-      fileTree: {
-        openProjection: vi.fn().mockResolvedValue({
-          success: true,
-          data: { subscriptionId: 'sub-1', version: 1, scopes: [{ scopeId: null, entries: [] }] },
-        }),
-        registerDir: vi.fn().mockResolvedValue({ success: true, data: { version: 2 } }),
-        revealPath: vi.fn().mockResolvedValue({ success: true, data: { version: 4 } }),
-        closeProjection: vi.fn().mockResolvedValue({ success: true, data: undefined }),
-      },
+    repository: {
+      resolveProvider: vi.fn().mockResolvedValue({ success: false }),
     },
   },
 }));

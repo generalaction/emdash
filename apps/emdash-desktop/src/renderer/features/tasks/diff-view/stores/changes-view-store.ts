@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitWorktreeStore } from '../../stores/git-worktree-store';
+import { type GitCheckoutStore } from '../../stores/git-checkout-store';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 
@@ -19,7 +19,7 @@ export class ChangesViewStore {
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
 
   constructor(
-    private readonly gitWorktree: GitWorktreeStore,
+    private readonly gitCheckout: GitCheckoutStore,
     private readonly pr: PrStore
   ) {
     makeObservable(this, {
@@ -32,12 +32,12 @@ export class ChangesViewStore {
     this._disposeReactions.push(
       reaction(
         () => ({
-          unstaged: this.gitWorktree.unstagedFileChanges.map((c) => c.path),
-          staged: this.gitWorktree.stagedFileChanges.map((c) => c.path),
+          unstaged: this.gitCheckout.unstagedFileChanges.map((c) => c.path),
+          staged: this.gitCheckout.stagedFileChanges.map((c) => c.path),
         }),
         ({ unstaged, staged }) => {
-          const unstagedSet = new Set(unstaged);
-          const stagedSet = new Set(staged);
+          const unstagedSet = new Set<string>(unstaged);
+          const stagedSet = new Set<string>(staged);
           runInAction(() => {
             for (const p of this.unstagedSelection) {
               if (!unstagedSet.has(p)) this.unstagedSelection.delete(p);
@@ -53,10 +53,10 @@ export class ChangesViewStore {
     // Set sensible initial expanded state once the first git load completes.
     this._disposeReactions.push(
       when(
-        () => !this.gitWorktree.isLoading && !this.gitWorktree.error,
+        () => !this.gitCheckout.isLoading && !this.gitCheckout.error,
         () => {
-          const hasUnstaged = this.gitWorktree.unstagedFileChanges.length > 0;
-          const hasStaged = this.gitWorktree.stagedFileChanges.length > 0;
+          const hasUnstaged = this.gitCheckout.unstagedFileChanges.length > 0;
+          const hasStaged = this.gitCheckout.stagedFileChanges.length > 0;
           const hasPullRequests = this.pr.pullRequests.length > 0;
 
           runInAction(() => {
@@ -74,8 +74,8 @@ export class ChangesViewStore {
     this._disposeReactions.push(
       reaction(
         () => ({
-          unstaged: this.gitWorktree.unstagedFileChanges.length,
-          staged: this.gitWorktree.stagedFileChanges.length,
+          unstaged: this.gitCheckout.unstagedFileChanges.length,
+          staged: this.gitCheckout.stagedFileChanges.length,
           pullRequests: this.pr.pullRequests.length,
         }),
         (curr, prev) => {
@@ -127,7 +127,7 @@ export class ChangesViewStore {
   }
 
   get unstagedSelectionState(): SelectionState {
-    const total = this.gitWorktree.unstagedFileChanges.length;
+    const total = this.gitCheckout.unstagedFileChanges.length;
     const selected = this.unstagedSelection.size;
     if (total === 0 || selected === 0) return 'none';
     if (selected === total) return 'all';
@@ -135,7 +135,7 @@ export class ChangesViewStore {
   }
 
   get stagedSelectionState(): SelectionState {
-    const total = this.gitWorktree.stagedFileChanges.length;
+    const total = this.gitCheckout.stagedFileChanges.length;
     const selected = this.stagedSelection.size;
     if (total === 0 || selected === 0) return 'none';
     if (selected === total) return 'all';
@@ -154,7 +154,7 @@ export class ChangesViewStore {
     if (this.unstagedSelectionState === 'all') {
       this.unstagedSelection.clear();
     } else {
-      for (const c of this.gitWorktree.unstagedFileChanges) {
+      for (const c of this.gitCheckout.unstagedFileChanges) {
         this.unstagedSelection.add(c.path);
       }
     }
@@ -178,7 +178,7 @@ export class ChangesViewStore {
     if (this.stagedSelectionState === 'all') {
       this.stagedSelection.clear();
     } else {
-      for (const c of this.gitWorktree.stagedFileChanges) {
+      for (const c of this.gitCheckout.stagedFileChanges) {
         this.stagedSelection.add(c.path);
       }
     }

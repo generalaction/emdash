@@ -1,8 +1,15 @@
+import { filesContract, type FileContentModel } from '@emdash/core/files';
+import { gitContract, type GitFileContentState, type GitFileSource } from '@emdash/core/git';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { rpc } from '@renderer/lib/ipc';
+import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
+import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { HEAD_REF, type GitRef } from '@shared/core/git/types';
-import { gitRefToString, refsEqual } from '@shared/core/git/utils';
+import { gitRefToString } from '@shared/core/git/utils';
+import { hostPathFromNative, relativeRuntimePath } from '@shared/core/runtime/paths';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -21,6 +28,8 @@ interface BufferModelEntry {
   workspaceId: string;
   filePath: string;
   language: string;
+  /** Etag of the disk content this buffer was last synchronized with. */
+  baseEtag: string | undefined;
 }
 
 interface DiskModelEntry {
@@ -31,6 +40,9 @@ interface DiskModelEntry {
   workspaceId: string;
   filePath: string;
   language: string;
+  content: ReplicaInstance<FilesContentModel>;
+  releaseContent: () => Promise<void>;
+  unsubscribeContent: () => void;
 }
 
 interface GitModelEntry {
@@ -43,11 +55,22 @@ interface GitModelEntry {
   language: string;
   /** The git ref — HEAD for the current commit; structured ref for PR/merge-target diffs. */
   ref: GitRef;
+  releaseContent: () => Promise<void>;
+  unsubscribeContent: () => void;
 }
 
 type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
 export type ModelType = 'buffer' | 'disk' | 'git';
 export type ModelStatus = 'loading' | 'ready' | 'error' | 'too-large';
+
+type FilesContentModel = typeof filesContract.content;
+type GitContentModel = typeof gitContract.checkout.content;
+
+type WorkspaceRoot = {
+  projectId: string;
+  path: string;
+  root: HostAbsolutePath;
+};
 
 /**
  * Manages up to three Monaco ITextModel instances per open file using a single
@@ -63,10 +86,9 @@ export type ModelStatus = 'loading' | 'ready' | 'error' | 'too-large';
  * for 60 s after the last `unregisterModel` call, then evicted. Re-registering before the timer
  * fires cancels the eviction.
  *
- * **Invalidation**: the registry is a pure SWR cache — it does not subscribe to any events.
- * Callers must wire external invalidation bridges (see `invalidation-bridges.ts`) that translate
- * FS/git events into `invalidateModel(uri)` calls. Use `findGitUris` / `findDiskUris` to query
- * which URIs are affected by a given event.
+ * **Source synchronization**: disk and Git models lease Wire live models for as long as the
+ * Monaco model is retained. Files content updates clean buffers directly; dirty buffers are
+ * preserved and marked conflicted. Git content updates its read-only Monaco model directly.
  *
  * Binary files must be filtered by callers before registering (use `getFileKind` from fileKind.ts).
  */
@@ -80,6 +102,12 @@ export class MonacoModelRegistry {
    * Plain Map — Monaco ITextModel instances are imperative/mutable; not observable.
    */
   private modelMap = new Map<string, ModelEntry>();
+
+  /** Local runtime roots supplied by WorkspaceStore; Monaco URI roots are not filesystem paths. */
+  private workspaceRoots = new Map<string, WorkspaceRoot>();
+
+  private filesContentReplicaPromise: Promise<LiveModelReplica<FilesContentModel>> | null = null;
+  private gitContentReplicaPromise: Promise<LiveModelReplica<GitContentModel>> | null = null;
 
   /**
    * Diff editor view states keyed by `${originalUri}::${modifiedUri}`.
@@ -118,6 +146,19 @@ export class MonacoModelRegistry {
     this.resolveMonacoReady(m);
   }
 
+  bindWorkspaceRoot(projectId: string, workspaceId: string, path: string): void {
+    this.workspaceRoots.set(workspaceId, {
+      projectId,
+      path,
+      root: hostPathFromNative(path),
+    });
+  }
+
+  unbindWorkspaceRoot(projectId: string, workspaceId: string): void {
+    const root = this.workspaceRoots.get(workspaceId);
+    if (root?.projectId === projectId) this.workspaceRoots.delete(workspaceId);
+  }
+
   private reloadingFromDisk = new Set<string>();
 
   /**
@@ -128,14 +169,6 @@ export class MonacoModelRegistry {
   readonly pendingConflicts = observable.set<string>();
 
   private bufferReadyCallbacks = new Map<string, Array<() => void>>();
-
-  /**
-   * In-flight fetch deduplication. Prevents duplicate RPCs when two callers
-   * register the same file concurrently before either resolves.
-   * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
-   */
-  // oxlint-disable-next-line typescript/no-explicit-any
-  private pendingFetches = new Map<string, Promise<any>>();
 
   // ---------------------------------------------------------------------------
   // MobX reactive state
@@ -202,18 +235,6 @@ export class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Dedup fetch
-  // ---------------------------------------------------------------------------
-
-  private dedupFetch<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    const existing = this.pendingFetches.get(key) as Promise<T> | undefined;
-    if (existing) return existing;
-    const p = fn().finally(() => this.pendingFetches.delete(key));
-    this.pendingFetches.set(key, p);
-    return p;
-  }
-
-  // ---------------------------------------------------------------------------
   // Register (public API)
   // ---------------------------------------------------------------------------
 
@@ -271,47 +292,45 @@ export class MonacoModelRegistry {
     }
 
     this.modelStatus.set(diskUri, 'loading');
-
-    // Run the RPC fetch and Monaco initialization in parallel — no need to wait
-    // for Monaco before fetching file content from the main process.
-    let content: string;
-    let m: typeof monaco;
+    const key = this.runtimePath(projectId, workspaceId, filePath);
+    const replica = await this.getFilesContentReplica();
+    const lease = replica.acquire(key);
+    let contentModel: ReplicaInstance<FilesContentModel>;
     try {
-      const fetchKey = `${projectId}:${workspaceId}:${filePath}:disk`;
-      type DiskFetchResult = { content: string; truncated: boolean; totalSize: number };
-      const [fetchResult, monaco_] = await Promise.all([
-        this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
-          const res = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
-          if (!res.success) {
-            const detail = 'message' in res.error ? res.error.message : JSON.stringify(res.error);
-            throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${detail}`);
-          }
-          const result = res.data.content;
-          if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
-          return { content: result, truncated: res.data.truncated, totalSize: res.data.totalSize };
-        }),
-        this.monacoReadyPromise,
-      ]);
-
-      // File too large to load into Monaco — mark status and bail out without creating a model.
-      if (fetchResult.truncated) {
-        runInAction(() => {
-          this.modelStatus.set(diskUri, 'too-large');
-          this.modelTotalSizes.set(diskUri, fetchResult.totalSize);
-        });
-        return uri;
-      }
-
-      content = fetchResult.content;
-      m = monaco_;
+      contentModel = await lease.ready();
     } catch (err) {
+      await lease.release();
       this.modelStatus.set(diskUri, 'error');
       throw err;
     }
 
+    const content = contentModel.states.content.current();
+    if (content.kind === 'unavailable') {
+      await lease.release();
+      this.modelStatus.set(diskUri, 'error');
+      throw new Error(
+        `registerModel(disk): content unavailable for ${filePath}: ${JSON.stringify(content.error)}`
+      );
+    }
+    if (content.kind === 'binary') {
+      await lease.release();
+      this.modelStatus.set(diskUri, 'error');
+      throw new Error(`registerModel(disk): binary content for ${filePath}`);
+    }
+    if (content.truncated) {
+      await lease.release();
+      runInAction(() => {
+        this.modelStatus.set(diskUri, 'too-large');
+        this.modelTotalSizes.set(diskUri, content.byteSize);
+      });
+      return uri;
+    }
+
+    const m = await this.monacoReadyPromise;
+
     const diskMonacoUri = m.Uri.parse(diskUri);
     let model = m.editor.getModel(diskMonacoUri);
-    if (!model) model = m.editor.createModel(content, language, diskMonacoUri);
+    if (!model) model = m.editor.createModel(content.content, language, diskMonacoUri);
     const entry: DiskModelEntry = {
       type: 'disk',
       model,
@@ -320,8 +339,15 @@ export class MonacoModelRegistry {
       workspaceId,
       filePath,
       language,
+      content: contentModel,
+      releaseContent: () => lease.release(),
+      unsubscribeContent: () => {},
     };
     this.modelMap.set(diskUri, entry);
+    entry.unsubscribeContent = contentModel.states.content.onChange((value) => {
+      const current = this.modelMap.get(diskUri);
+      if (current?.type === 'disk') this.applyDiskUpdate(diskUri, current, value);
+    });
 
     this.modelStatus.set(diskUri, 'ready');
 
@@ -350,33 +376,34 @@ export class MonacoModelRegistry {
     }
 
     this.modelStatus.set(gitUri, 'loading');
-
-    // Run the RPC fetch and Monaco initialization in parallel.
-    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${gitRefToString(ref)}`;
-    const [content, m] = await Promise.all([
-      this.dedupFetch(fetchKey, async () => {
-        if (ref.kind === 'staged') {
-          const res = await rpc.workspace.gitWorktree.getFileAtIndex(
-            projectId,
-            workspaceId,
-            filePath
-          );
-          return res.success ? res.data.content : null;
-        }
-        const res = await rpc.workspace.gitWorktree.getFileAtRef(
-          projectId,
-          workspaceId,
-          filePath,
-          gitRefToString(ref)
-        );
-        return res.success ? res.data.content : null;
-      }),
-      this.monacoReadyPromise,
-    ]);
+    const path = this.runtimePath(projectId, workspaceId, filePath);
+    const replica = await this.getGitContentReplica();
+    const lease = replica.acquire({
+      checkout: path.root,
+      path: path.relative,
+      source: this.gitSource(ref),
+    });
+    let contentModel: ReplicaInstance<GitContentModel>;
+    try {
+      contentModel = await lease.ready();
+    } catch (error) {
+      await lease.release();
+      this.modelStatus.set(gitUri, 'error');
+      throw error;
+    }
+    const content = contentModel.states.content.current();
+    if (content.kind === 'unavailable') {
+      await lease.release();
+      this.modelStatus.set(gitUri, 'error');
+      throw new Error(
+        `registerModel(git): content unavailable for ${filePath}: ${JSON.stringify(content.error)}`
+      );
+    }
+    const m = await this.monacoReadyPromise;
 
     const gitMonacoUri = m.Uri.parse(gitUri);
     let model = m.editor.getModel(gitMonacoUri);
-    if (!model) model = m.editor.createModel(content ?? '', language, gitMonacoUri);
+    if (!model) model = m.editor.createModel(this.gitContentText(content), language, gitMonacoUri);
     const entry: GitModelEntry = {
       type: 'git',
       model,
@@ -386,8 +413,20 @@ export class MonacoModelRegistry {
       filePath,
       language,
       ref,
+      releaseContent: () => lease.release(),
+      unsubscribeContent: () => {},
     };
     this.modelMap.set(gitUri, entry);
+    entry.unsubscribeContent = contentModel.states.content.onChange((value) => {
+      const current = this.modelMap.get(gitUri);
+      if (current?.type !== 'git') return;
+      if (value.kind === 'unavailable') {
+        this.modelStatus.set(gitUri, 'error');
+        return;
+      }
+      current.model.setValue(this.gitContentText(value));
+      this.modelStatus.set(gitUri, 'ready');
+    });
 
     this.modelStatus.set(gitUri, 'ready');
 
@@ -410,9 +449,8 @@ export class MonacoModelRegistry {
       if (!this.bufferContentDisposables.has(uri)) {
         const disposable = existing.model.onDidChangeContent(() => {
           if (this.reloadingFromDisk.has(uri)) return;
+          this.reconcileBufferDirtyState(uri);
           runInAction(() => {
-            if (this.computeIsDirtyRaw(uri)) this.dirtyUris.add(uri);
-            else this.dirtyUris.delete(uri);
             this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
           });
           const existingTimer = this.bufferAutosaveTimers.get(uri);
@@ -460,6 +498,7 @@ export class MonacoModelRegistry {
         filePath,
         language,
         viewState: null,
+        baseEtag: this.diskEtag(diskEntry),
       };
       this.modelMap.set(uri, entry);
 
@@ -469,9 +508,8 @@ export class MonacoModelRegistry {
 
         // Update reactive dirty set and bump content version so observer()
         // components that render buffer text (e.g. markdown preview) re-render.
+        this.reconcileBufferDirtyState(uri);
         runInAction(() => {
-          if (this.computeIsDirtyRaw(uri)) this.dirtyUris.add(uri);
-          else this.dirtyUris.delete(uri);
           this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
         });
 
@@ -550,6 +588,10 @@ export class MonacoModelRegistry {
       this.evictionTimers.delete(uri);
       const e = this.modelMap.get(uri);
       if (!e || e.refs > 0) return;
+      if (e.type === 'disk' || e.type === 'git') {
+        e.unsubscribeContent();
+        void e.releaseContent();
+      }
       if (!e.model.isDisposed()) e.model.dispose();
       this.modelMap.delete(uri);
       this.modelStatus.delete(uri);
@@ -589,6 +631,35 @@ export class MonacoModelRegistry {
         this.bufferAutosaveTimers.delete(uri);
       }
     }
+  }
+
+  async dispose(): Promise<void> {
+    for (const timer of this.evictionTimers.values()) clearTimeout(timer);
+    for (const timer of this.bufferAutosaveTimers.values()) clearTimeout(timer);
+    this.evictionTimers.clear();
+    this.bufferAutosaveTimers.clear();
+    for (const disposable of this.bufferContentDisposables.values()) disposable.dispose();
+    this.bufferContentDisposables.clear();
+
+    const releases: Promise<void>[] = [];
+    for (const entry of this.modelMap.values()) {
+      if (entry.type === 'disk' || entry.type === 'git') {
+        entry.unsubscribeContent();
+        releases.push(entry.releaseContent());
+      }
+      if (!entry.model.isDisposed()) entry.model.dispose();
+    }
+    this.modelMap.clear();
+    await Promise.all(releases);
+
+    const filesReplica = this.filesContentReplicaPromise;
+    const gitReplica = this.gitContentReplicaPromise;
+    this.filesContentReplicaPromise = null;
+    this.gitContentReplicaPromise = null;
+    await Promise.all([
+      filesReplica?.then((replica) => replica.dispose()),
+      gitReplica?.then((replica) => replica.dispose()),
+    ]);
   }
 
   // ---------------------------------------------------------------------------
@@ -699,6 +770,21 @@ export class MonacoModelRegistry {
     return buf.model.getValue() !== disk.model.getValue();
   }
 
+  private reconcileBufferDirtyState(uri: string): void {
+    const dirty = this.computeIsDirtyRaw(uri);
+    const buffer = this.modelMap.get(uri);
+    const disk = this.modelMap.get(this.toDiskUri(uri));
+    if (!dirty && buffer?.type === 'buffer') buffer.baseEtag = this.diskEtag(disk);
+    runInAction(() => {
+      if (dirty) {
+        this.dirtyUris.add(uri);
+      } else {
+        this.dirtyUris.delete(uri);
+        this.pendingConflicts.delete(uri);
+      }
+    });
+  }
+
   /**
    * Mark the current buffer content as saved.
    * Syncs the disk model to match the buffer so isDirty() returns false.
@@ -708,6 +794,7 @@ export class MonacoModelRegistry {
     const disk = this.modelMap.get(this.toDiskUri(uri));
     if (buf?.type === 'buffer' && disk?.type === 'disk') {
       disk.model.setValue(buf.model.getValue());
+      buf.baseEtag = this.diskEtag(disk);
       runInAction(() => {
         this.dirtyUris.delete(uri);
       });
@@ -776,8 +863,10 @@ export class MonacoModelRegistry {
       this.reloadingFromDisk.add(uri);
       buf.model.setValue(disk.model.getValue());
       this.reloadingFromDisk.delete(uri);
+      buf.baseEtag = this.diskEtag(disk);
       runInAction(() => {
         this.dirtyUris.delete(uri);
+        this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
       });
     }
     this.pendingConflicts.delete(uri);
@@ -789,18 +878,29 @@ export class MonacoModelRegistry {
    *
    * @returns the saved content string on success, or `null` on failure.
    */
-  async saveFileToDisk(uri: string): Promise<string | null> {
+  async saveFileToDisk(uri: string, options: { overwrite?: boolean } = {}): Promise<string | null> {
     const buf = this.modelMap.get(uri);
     if (!buf || buf.type !== 'buffer') return null;
+    const disk = this.modelMap.get(this.toDiskUri(uri));
+    if (!disk || disk.type !== 'disk') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.workspace.files.writeFile(
-      buf.projectId,
-      buf.workspaceId,
-      buf.filePath,
-      content
-    );
-    if (!result.success) return null;
+    const precondition = options.overwrite
+      ? ({ kind: 'overwrite' } as const)
+      : buf.baseEtag
+        ? ({ kind: 'etag', etag: buf.baseEtag } as const)
+        : null;
+    if (!precondition) return null;
+
+    const invocation = await disk.content.mutations.write({ content, precondition });
+    if (!invocation.result.success) {
+      if (invocation.result.error.type === 'etag-mismatch') {
+        this.pendingConflicts.add(uri);
+        await disk.content.states.content.refresh();
+      }
+      return null;
+    }
+    await invocation.settled;
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
@@ -809,97 +909,86 @@ export class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Manual invalidation
+  // Runtime bindings
   // ---------------------------------------------------------------------------
 
-  /**
-   * Re-fetch the model at `uri` from its source (disk or git). No-op for buffers.
-   * Bypasses dedup cache — always fires a fresh RPC.
-   */
-  async invalidateModel(uri: string): Promise<void> {
-    const entry = this.modelMap.get(uri);
-    if (!entry) return;
-    if (entry.type === 'disk') {
-      const res = await rpc.workspace.files.readFile(
-        entry.projectId,
-        entry.workspaceId,
-        entry.filePath
-      );
-      if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
-    } else if (entry.type === 'git') {
-      const res =
-        entry.ref.kind === 'staged'
-          ? await rpc.workspace.gitWorktree.getFileAtIndex(
-              entry.projectId,
-              entry.workspaceId,
-              entry.filePath
-            )
-          : await rpc.workspace.gitWorktree.getFileAtRef(
-              entry.projectId,
-              entry.workspaceId,
-              entry.filePath,
-              gitRefToString(entry.ref)
-            );
-      if (res.success) {
-        entry.model.setValue(res.data.content ?? '');
-      }
-    }
+  private async getFilesContentReplica(): Promise<LiveModelReplica<FilesContentModel>> {
+    this.filesContentReplicaPromise ??= getFilesRuntimeClient().then((client) =>
+      createLiveModelReplica(filesContract.content, client.content)
+    );
+    return this.filesContentReplicaPromise;
   }
 
-  // ---------------------------------------------------------------------------
-  // Query methods — used by invalidation bridges to find affected URIs
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Return all registered git:// URIs matching the given filter.
-   * Used by invalidation bridges to find which models to invalidate after an event.
-   * Any filter field left undefined is treated as a wildcard.
-   */
-  findGitUris(filter: {
-    workspaceId?: string;
-    projectId?: string;
-    ref?: GitRef;
-    refKind?: GitRef['kind'];
-  }): string[] {
-    const result: string[] = [];
-    for (const [uri, entry] of this.modelMap) {
-      if (entry.type !== 'git') continue;
-      if (filter.workspaceId !== undefined && entry.workspaceId !== filter.workspaceId) continue;
-      if (filter.projectId !== undefined && entry.projectId !== filter.projectId) continue;
-      if (filter.refKind !== undefined && entry.ref.kind !== filter.refKind) continue;
-      if (filter.ref !== undefined && !refsEqual(filter.ref, entry.ref)) continue;
-      result.push(uri);
-    }
-    return result;
+  private async getGitContentReplica(): Promise<LiveModelReplica<GitContentModel>> {
+    this.gitContentReplicaPromise ??= getGitRuntimeClient().then((client) =>
+      createLiveModelReplica(gitContract.checkout.content, client.checkout.content)
+    );
+    return this.gitContentReplicaPromise;
   }
 
-  /**
-   * Return all registered disk:// URIs for the given workspace and file path.
-   * Used by the FS-event invalidation bridge.
-   */
-  findDiskUris(filter: { workspaceId: string; filePath?: string }): string[] {
-    const result: string[] = [];
-    for (const [uri, entry] of this.modelMap) {
-      if (entry.type !== 'disk') continue;
-      if (entry.workspaceId !== filter.workspaceId) continue;
-      if (filter.filePath !== undefined && entry.filePath !== filter.filePath) continue;
-      result.push(uri);
+  private runtimePath(
+    projectId: string,
+    workspaceId: string,
+    filePath: string
+  ): { root: HostAbsolutePath; relative: PortableRelativePath } {
+    const workspace = this.workspaceRoots.get(workspaceId);
+    if (!workspace || workspace.projectId !== projectId) {
+      throw new Error(`No local runtime root is bound for workspace ${workspaceId}`);
     }
-    return result;
+    return {
+      root: workspace.root,
+      relative: relativeRuntimePath(workspace.root, filePath),
+    };
   }
 
-  // ---------------------------------------------------------------------------
-  // Disk update helper (used by invalidateModel)
-  // ---------------------------------------------------------------------------
+  private gitSource(ref: GitRef): GitFileSource {
+    if (ref.kind === 'head') return { kind: 'head' };
+    if (ref.kind === 'staged') return { kind: 'index' };
+    if (ref.kind === 'unstaged') {
+      throw new Error('Working-tree content must be read through the Files runtime');
+    }
+    return { kind: 'revision', revision: ref };
+  }
 
-  private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
+  private gitContentText(content: GitFileContentState): string {
+    return content.kind === 'text' ? content.content : '';
+  }
+
+  private diskEtag(entry: ModelEntry | undefined): string | undefined {
+    if (entry?.type !== 'disk') return undefined;
+    const content = entry.content.states.content.current();
+    return content.kind === 'text' ? content.etag : undefined;
+  }
+
+  private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, content: FileContentModel): void {
     const bufferUri = diskUri.replace(/^disk:\/\//, 'file://');
     const bufEntry = this.modelMap.get(bufferUri);
+    if (content.kind === 'unavailable' || content.kind === 'binary') {
+      this.modelStatus.set(diskUri, 'error');
+      if (bufEntry?.type === 'buffer' && this.dirtyUris.has(bufferUri)) {
+        this.pendingConflicts.add(bufferUri);
+      }
+      return;
+    }
+    if (content.truncated) {
+      runInAction(() => {
+        this.modelStatus.set(diskUri, 'too-large');
+        this.modelTotalSizes.set(diskUri, content.byteSize);
+      });
+      if (bufEntry?.type === 'buffer') this.pendingConflicts.add(bufferUri);
+      return;
+    }
+
+    const newContent = content.content;
     const bufValue = bufEntry?.type === 'buffer' ? bufEntry.model.getValue() : undefined;
     const wasDirty = this.dirtyUris.has(bufferUri);
     const newMatchesBuffer = bufValue === newContent;
 
     entry.model.setValue(newContent);
+    runInAction(() => {
+      this.modelStatus.set(diskUri, 'ready');
+      this.modelTotalSizes.delete(diskUri);
+    });
 
     if (!wasDirty || newMatchesBuffer) {
       if (bufEntry?.type === 'buffer' && !newMatchesBuffer) {
@@ -907,12 +996,17 @@ export class MonacoModelRegistry {
         const fullRange = bufEntry.model.getFullModelRange();
         bufEntry.model.applyEdits([{ range: fullRange, text: newContent }], false);
         this.reloadingFromDisk.delete(bufferUri);
+        runInAction(() => {
+          this.bufferVersions.set(bufferUri, (this.bufferVersions.get(bufferUri) ?? 0) + 1);
+        });
       }
+      if (bufEntry?.type === 'buffer') bufEntry.baseEtag = content.etag;
       // Clear dirty state — disk now matches buffer (either buffer was synced to disk, or
       // new disk content already matched existing buffer edits).
       runInAction(() => {
         this.dirtyUris.delete(bufferUri);
       });
+      this.pendingConflicts.delete(bufferUri);
     } else {
       this.pendingConflicts.add(bufferUri);
     }

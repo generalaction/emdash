@@ -3,6 +3,7 @@ import { getFileKind, isMonacoBackedKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { readRuntimeImage } from '@renderer/lib/runtime/files';
 import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { HEAD_REF } from '@shared/core/git/types';
 import type { FileTabResource } from './file-tab-resource';
@@ -14,6 +15,7 @@ import type { FileTabResource } from './file-tab-resource';
 export interface FileModelContext {
   projectId: string;
   workspaceId: string;
+  workspacePath: string;
   modelRootPath: string;
 }
 
@@ -96,12 +98,8 @@ export class FileModelManager {
     const kind = getFileKind(path);
 
     if (kind === 'image' || kind === 'svg') {
-      const result = await rpc.workspace.files.readImage(
-        this._ctx.projectId,
-        this._ctx.workspaceId,
-        path
-      );
-      const dataUrl = result.success && result.data.success ? result.data.dataUrl : '';
+      const result = await readRuntimeImage(this._ctx.workspacePath, path);
+      const dataUrl = result.success && !result.data.truncated ? result.data.dataUrl : '';
       runInAction(() => {
         const entry = this._entries.get(path);
         if (!entry) return;

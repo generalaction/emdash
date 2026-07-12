@@ -3,6 +3,7 @@ import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-reac
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
@@ -105,11 +106,9 @@ export const CreatePrModal = observer(function CreatePrModal({
     setIsCreating(true);
     try {
       if (push) {
-        const pushResult = await rpc.workspace.gitWorktree.push(
-          projectId,
-          workspaceId,
-          repo?.pushRemote.name ?? 'origin'
-        );
+        const workspace = workspaceRegistry.get(projectId, workspaceId);
+        if (!workspace) throw new Error('Workspace is unavailable');
+        const pushResult = await workspace.gitCheckout.push();
         if (!pushResult.success) {
           log.error('Failed to push branch:', pushResult.error);
           setError(formatPushErrorDetail(pushResult.error));
