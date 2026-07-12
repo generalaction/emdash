@@ -81,8 +81,9 @@ designed.
 
 ## Process Hosting
 
-Desktop-local ACP and workspace-server ACP both use plain Node child processes via
-`spawnWorker()`. The child process entry calls
+Desktop-local ACP and workspace-server ACP both register logical workers through
+`WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
+process entry calls
 `bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
 `AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
 `LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
@@ -93,6 +94,12 @@ storage, and session cells stay inside the ACP runtime. Each host owns a worker
 manifest that maps the ACP worker id to the emitted child-process entry path for
 that host's build.
 
+Desktop composes the ACP client and renderer exposure in
+`apps/emdash-desktop/src/main/core/wire-workers/desktop-workers.ts`: the raw
+stable worker client is wrapped there for session-ID persistence, then forwarded
+to Electron windows through `exposeWireToWindows()`. `WireWorkerHost` itself
+does not own client decoration, startup policy, or renderer exposure.
+
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
 `workspace-server`) rather than imported by `@emdash/runtime`; this keeps runtime
 from depending back on `@emdash/plugins` while still letting plugin resolution be
@@ -101,8 +108,8 @@ owned by the runtime composition root.
 Desktop relies on Electron's `child_process.fork` behavior, which runs children
 with `ELECTRON_RUN_AS_NODE`. The packaged app must keep the `RunAsNode` fuse
 enabled while this fork model is used. If the app later disables that fuse for
-macOS hardening, the wire package still has the `utilityProcessHost` seam for an
-Electron utility-process implementation.
+macOS hardening, the wire package exposes the Electron
+`utilityProcessSpawner()` seam for utility-process generations.
 
 ## Models and Protocol Versioning
 

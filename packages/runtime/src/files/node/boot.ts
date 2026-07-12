@@ -1,17 +1,14 @@
 import { filesContract, type FilesContract } from '@emdash/core/files';
 import { initProcessLogging } from '@emdash/shared/logger/node';
-import {
-  serveWorkerProcess,
-  workerValidatePolicy,
-  type ProcessRuntimePort,
-} from '@emdash/wire/util/process-runtime';
+import { validation } from '@emdash/wire/api';
+import { serveWireWorker, workerValidatePolicy, type WorkerParentPort } from '@emdash/wire/worker';
 import { createFilesController } from '../api/controller';
 import { FilesRuntime, type FilesRuntimeOptions } from '../files-runtime';
 
 export type BootFilesRuntimeProcessOptions = {
   contract?: FilesContract;
   env?: NodeJS.ProcessEnv;
-  port?: ProcessRuntimePort;
+  port?: WorkerParentPort;
   exit?: (code: number) => void;
   runtime?: Omit<FilesRuntimeOptions, 'watcher'>;
 };
@@ -21,8 +18,8 @@ export function bootFilesRuntimeProcess(options: BootFilesRuntimeProcessOptions 
   const contract = options.contract ?? filesContract;
   const logger = initProcessLogging({ name: 'files-runtime', env });
 
-  void serveWorkerProcess(
-    (scope) => {
+  void serveWireWorker(
+    ({ scope }) => {
       const runtime = new FilesRuntime({
         ...options.runtime,
         onError: (context, error) => logger.warn(context, { error }),
@@ -30,10 +27,15 @@ export function bootFilesRuntimeProcess(options: BootFilesRuntimeProcessOptions 
       scope.add(() => runtime.dispose());
       return createFilesController(runtime, {
         contract,
-        validate: workerValidatePolicy(env),
+        validate: 'none',
       });
     },
-    { port: options.port, exit: options.exit, logger }
+    {
+      port: options.port,
+      exit: options.exit,
+      logger,
+      middleware: [validation(contract, workerValidatePolicy(env))],
+    }
   ).catch((error: unknown) => {
     logger.error('files runtime process failed', {
       error: error instanceof Error ? error.message : String(error),

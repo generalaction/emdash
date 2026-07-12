@@ -104,14 +104,13 @@ const alias = {
   '@emdash/shared/result': resolve(__dirname, '../../packages/shared/src/result/index.ts'),
   '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
   '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
-  '@emdash/wire/process/node': resolve(__dirname, '../../packages/wire/src/process/node/index.ts'),
-  '@emdash/wire/process': resolve(__dirname, '../../packages/wire/src/process/index.ts'),
   '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
-  '@emdash/wire/util/process-runtime': resolve(
-    __dirname,
-    '../../packages/wire/src/util/process-runtime/index.ts'
-  ),
   '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
+  '@emdash/wire/worker/electron': resolve(
+    __dirname,
+    '../../packages/wire/src/worker/electron/index.ts'
+  ),
+  '@emdash/wire/worker/node': resolve(__dirname, '../../packages/wire/src/worker/node/index.ts'),
   '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
   '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };

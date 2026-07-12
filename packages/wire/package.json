@@ -45,21 +45,17 @@
       "types": "./dist/mobx.d.mts",
       "default": "./dist/mobx.mjs"
     },
-    "./util/process-runtime": {
-      "types": "./dist/process-runtime.d.mts",
-      "default": "./dist/process-runtime.mjs"
-    },
     "./worker": {
       "types": "./dist/worker.d.mts",
       "default": "./dist/worker.mjs"
     },
-    "./process": {
-      "types": "./dist/process.d.mts",
-      "default": "./dist/process.mjs"
+    "./worker/node": {
+      "types": "./dist/worker-node.d.mts",
+      "default": "./dist/worker-node.mjs"
     },
-    "./process/node": {
-      "types": "./dist/process-node.d.mts",
-      "default": "./dist/process-node.mjs"
+    "./worker/electron": {
+      "types": "./dist/worker-electron.d.mts",
+      "default": "./dist/worker-electron.mjs"
     },
     "./package.json": "./package.json"
   },

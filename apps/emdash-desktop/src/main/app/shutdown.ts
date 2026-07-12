@@ -1,7 +1,5 @@
 import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
-import { disposeAcpRuntimeProcess } from '@main/core/acp/controller';
-import { disposeAgentConfigRuntimeProcess } from '@main/core/agent-config/controller';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { automationsService } from '@main/core/automations/automations-service';
 import { remoteTmuxReaperService } from '@main/core/pty/remote-tmux-reaper-service';
@@ -9,6 +7,7 @@ import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { stopResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { updateService } from '@main/core/updates/update-service';
+import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { projectManager } from '../core/projects/project-manager';
@@ -54,8 +53,7 @@ export async function runQuitCleanup(): Promise<void> {
     ['acpAgentStatusBridge.dispose', async () => acpAgentStatusBridge.dispose()],
     ['projectManager.release', () => projectManager.release()],
     ['runtimeManager.dispose', () => runtimeManager.dispose()],
-    ['disposeAcpRuntimeProcess', () => disposeAcpRuntimeProcess()],
-    ['disposeAgentConfigRuntimeProcess', () => disposeAgentConfigRuntimeProcess()],
+    ['disposeDesktopWireWorkers', () => disposeDesktopWireWorkers()],
     ['appScope.dispose', () => appScope.dispose()],
     ['telemetryService.dispose', () => telemetryService.dispose()],
   ];

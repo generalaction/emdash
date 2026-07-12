@@ -12,7 +12,7 @@ flowchart TB
     scope[Scope and ResourceCache]
     scheduling[Clock and RetrySchedule]
     mailbox[Mailbox]
-    processHost[ProcessHost supervision]
+    workerHost[WireWorkerHost]
   end
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
@@ -33,7 +33,7 @@ flowchart TB
   runtime --> api --> live
   observability --> api
   observability --> live
-  processHost --> api
+  workerHost --> api
 ```
 
 The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
@@ -43,7 +43,7 @@ materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers u
 client handles directly or wrap them in replicas. The API layer turns those
 primitives into a contract with typed procedure calls and live topic client
 handles.
-The runtime layer owns lifecycle utilities and process supervision. Observability
+The runtime layer owns lifecycle utilities and worker hosting. Observability
 hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
 
 ## Pages
@@ -64,7 +64,7 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
-    reconnecting, process, and logging transports.
+    reconnecting, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-state.md): snapshots, updates,
     cursors, `LiveState`, replicas, and `BatchedLiveState`.
@@ -92,12 +92,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Mailbox and Broadcast](./runtime/mailbox-and-broadcast.md): bounded local
     async handoff, overflow policy, guarantees, and the deferred Broadcast
     contract.
-  - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
-    and process-backed wire transports.
-  - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
-    controllers with ready handshakes, graceful shutdown, and reconnect resync.
-  - [Workers](./runtime/workers.md): worker lifecycle helpers, lazy spawning,
-    ambient logging, and process-hosted contract examples.
+  - [Workers](./runtime/workers.md): `WireWorkerHost`, `WorkerSlot`,
+    one-generation spawners, child serving, and process-hosted contracts.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -128,13 +124,10 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
-- `@emdash/wire/util/process-runtime`: helpers for serving and consuming
-  process-hosted wire controllers.
-- `@emdash/wire/worker`: worker helpers for resolving runtime entries,
-  supervised spawning, and lazy process lifecycle.
-- `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
-  and `processTransport()`.
-- `@emdash/wire/process/node`: Node `childProcessHost()`.
+- `@emdash/wire/worker`: `WireWorkerHost`, `WorkerSlot`, `serveWireWorker()`,
+  worker signal types, supervision types, and process contracts.
+- `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
+- `@emdash/wire/worker/electron`: Electron utility-process spawners.
 
 MobX-backed utilities intentionally live in their own export because they have a
 `mobx` peer dependency. Server-only code can import `@emdash/wire` or

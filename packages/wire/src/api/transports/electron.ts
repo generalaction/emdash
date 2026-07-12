@@ -47,6 +47,7 @@ export type MessageChannelFactory = () => {
 
 export type ExposeWireOptions = {
   channel?: string;
+  beforeOpen?: (event: IpcMainInvokeEventLike) => void | Promise<void>;
 };
 
 type WindowPortRecord = {
@@ -65,7 +66,8 @@ export function exposeWireToWindows(
   const hub = createWireSessionHub(controller);
   const ports = new Map<number, WindowPortRecord>();
 
-  deps.ipcMain.handle(connectChannel, (event) => {
+  deps.ipcMain.handle(connectChannel, async (event) => {
+    await options.beforeOpen?.(event);
     const { port1, port2 } = deps.createMessageChannel();
     const existing = ports.get(event.sender.id);
     existing?.port.close?.();

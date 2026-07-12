@@ -482,7 +482,7 @@ Only `FilesRuntime`, `createFilesProcedures`, and `createFilesController` are ex
 export type BootFilesRuntimeProcessOptions = {
   contract?: FilesContract;
   env?: NodeJS.ProcessEnv;
-  port?: ProcessRuntimePort;
+  port?: WorkerParentPort;
   exit?: (code: number) => void;
 };
 
@@ -957,13 +957,15 @@ const controller = createController(workspaceWireContract, {
 Forwarded from a child:
 
 ```ts
-const child = await spawnRuntime({
+const worker = host.define({
+  name: 'files',
   contract: workspaceWireContract.files,
-  // host and process spec omitted
+  process: () => ({ entry: filesWorkerPath }),
 });
+await worker.ready();
 
 const controller = createController(workspaceWireContract, {
-  files: child.client,
+  files: worker.client,
 });
 ```
 
@@ -1012,9 +1014,9 @@ live state IDs match.
 - Run at least one round trip through `streamTransport` to catch JSON-only transport failures.
 - Mount the files contract under a parent contract and verify live endpoint IDs.
 
-### Process Test
+### Worker Process Test
 
-Spawn a real Node child with `childProcessHost` and `spawnRuntime`, then:
+Spawn a real Node child with `WireWorkerHost` and `childProcessSpawner()`, then:
 
 1. Read a text file.
 2. Subscribe to a tree.

@@ -140,21 +140,6 @@ messages are flushed. `Connection` listens for that signal and re-issues active
 `close()` stops the retry loop, closes the current inner
 transport if present, and clears queued messages and listeners.
 
-## Process Transport
-
-`processTransport(process)` adapts a supervised `ManagedProcess` to
-`WireTransport`:
-
-```ts
-const runtime = await host.spawn({ entry: '/path/to/runtime.js' }, scope);
-const contractClient = client(api, connect(processTransport(runtime)));
-```
-
-See [process host](../runtime/process-host.md).
-
-`close()` releases `ManagedProcess` message and exit subscriptions. It does not
-kill the process; process lifetime remains owned by the `ProcessHost`/`Scope`.
-
 ## Logging Transport
 
 `loggingTransport(transport, logger, options?)` wraps any transport and debug

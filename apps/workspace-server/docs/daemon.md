@@ -123,9 +123,9 @@ to the connection that created them.
 
 ## ACP Runtime Child
 
-Socket mode mounts the ACP runtime as a child process. The parent daemon uses
-`spawnWorker()` from `@emdash/wire/worker` to fork the ACP worker path declared in
-the workspace-server worker manifest. The child calls the shared
+Socket mode mounts the ACP runtime as a child process. The parent daemon defines
+an ACP worker through `WireWorkerHost` and uses the worker path declared in the
+workspace-server worker manifest. The child calls the shared
 `bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp-agents/node`.
 
 One wire contract uses the process IPC channel:

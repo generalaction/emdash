@@ -2,26 +2,23 @@ import { fork, type ChildProcess } from 'node:child_process';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '../../util';
 import { listen, type EventEmitterLike } from '../events';
-import { createSupervisedProcess } from '../supervisor';
-import type { ChildHandle, ManagedProcess, ProcessExit, ProcessHost, ProcessSpec } from '../types';
+import type { ProcessExit, WorkerProcess, WorkerProcessSpawner, WorkerProcessSpec } from '../types';
 
-export function childProcessHost(): ProcessHost {
+export function childProcessSpawner(): WorkerProcessSpawner {
   return {
-    spawn(spec, scope): Promise<ManagedProcess> {
-      return createSupervisedProcess(spec, spawnChildProcess, scope);
+    async spawn(spec: WorkerProcessSpec, _scope: Scope): Promise<WorkerProcess> {
+      return spawnChildProcess(spec);
     },
   };
 }
 
-function spawnChildProcess(spec: ProcessSpec, _scope: Scope): ChildHandle {
-  const child = fork(spec.entry, spec.args ?? [], {
+function spawnChildProcess(spec: WorkerProcessSpec): WorkerProcess {
+  const child = fork(spec.entry, [...(spec.args ?? [])], {
     cwd: spec.cwd,
     env: { ...process.env, ...spec.env },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     // Structured-clone (V8) serialization preserves `undefined` values, typed
-    // arrays, and Dates across the IPC channel, matching the semantics wire
-    // payloads were designed for. The default JSON mode drops `undefined`
-    // object properties, which breaks Result<void> payloads.
+    // arrays, and Dates across the IPC channel, matching Wire payload semantics.
     serialization: 'advanced',
   });
 

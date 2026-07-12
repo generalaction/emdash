@@ -157,4 +157,4 @@ the production SSH transport.
 - `packages/wire/docs/api/serving.md`
 - `packages/wire/docs/api/transports.md`
 - `packages/wire/docs/runtime/lifecycle.md`
-- `packages/wire/docs/runtime/process-runtimes.md`
+- `packages/wire/docs/runtime/workers.md`

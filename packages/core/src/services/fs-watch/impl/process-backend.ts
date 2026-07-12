@@ -1,32 +1,20 @@
 import { eventFromUpdate, stableStringify } from '@emdash/wire';
-import type { ProcessHost } from '@emdash/wire/process';
-import type { Scope } from '@emdash/wire/util';
-import { lazyWorker } from '@emdash/wire/worker';
-import { fsWatchContract, type FsWatchStreamEvent } from '../api';
+import type { ContractClient } from '@emdash/wire/api';
+import type { fsWatchContract, FsWatchStreamEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 
 export type ProcessWatchBackendOptions = {
-  entry: string;
-  scope?: Scope;
-  host?: ProcessHost;
-  env?: Record<string, string | undefined>;
+  client: ContractClient<typeof fsWatchContract>;
+  ready?: () => Promise<void>;
   onError?: WatchOnError;
 };
 
 export function processWatchBackend(options: ProcessWatchBackendOptions): WatchBackend {
   const onError = options.onError ?? (() => {});
-  const worker = lazyWorker({
-    name: 'fs-watch',
-    contract: fsWatchContract,
-    entry: options.entry,
-    scope: options.scope,
-    host: options.host,
-    env: options.env,
-  });
 
   return {
     async subscribe(key, sink, scope) {
-      const handle = await worker.get();
+      await options.ready?.();
       const ready = createDeferred<void>();
       void ready.promise.catch(() => {});
       let awaitingInitialReady = true;
@@ -38,7 +26,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
         );
       };
       scope.signal.addEventListener('abort', abortReady, { once: true });
-      const detach = await handle.client.events.handle(key).attach(
+      const detach = await options.client.events.handle(key).attach(
         (update) => {
           const event = eventFromUpdate<FsWatchStreamEvent>(update);
           switch (event.kind) {
@@ -88,9 +76,6 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
         detach();
         throw error;
       }
-    },
-    async dispose() {
-      await worker.dispose();
     },
   };
 }

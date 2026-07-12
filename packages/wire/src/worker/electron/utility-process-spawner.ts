@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { listen, type EventEmitterLike } from './events';
-import { createSupervisedProcess } from './supervisor';
-import type { ChildHandle, ManagedProcess, ProcessExit, ProcessHost, ProcessSpec } from './types';
+import type { Scope } from '../../util';
+import { listen, type EventEmitterLike } from '../events';
+import type { ProcessExit, WorkerProcess, WorkerProcessSpawner, WorkerProcessSpec } from '../types';
 
 export type UtilityProcessForkOptions = {
   cwd?: string;
@@ -22,16 +22,22 @@ export type UtilityForkLike = (
   options?: UtilityProcessForkOptions
 ) => UtilityProcessLike;
 
-export function utilityProcessHost(deps: { fork: UtilityForkLike }): ProcessHost {
+export function utilityProcessSpawner(deps: { fork: UtilityForkLike }): WorkerProcessSpawner {
   return {
-    spawn(spec, scope): Promise<ManagedProcess> {
-      return createSupervisedProcess(spec, (nextSpec) => spawnUtilityChild(deps, nextSpec), scope);
+    async spawn(spec: WorkerProcessSpec, _scope: Scope): Promise<WorkerProcess> {
+      return spawnUtilityProcess(deps, spec);
     },
   };
 }
 
-function spawnUtilityChild(deps: { fork: UtilityForkLike }, spec: ProcessSpec): ChildHandle {
-  const process = deps.fork(spec.entry, spec.args ?? [], { cwd: spec.cwd, env: spec.env });
+function spawnUtilityProcess(
+  deps: { fork: UtilityForkLike },
+  spec: WorkerProcessSpec
+): WorkerProcess {
+  const process = deps.fork(spec.entry, [...(spec.args ?? [])], {
+    cwd: spec.cwd,
+    env: spec.env,
+  });
 
   return {
     get pid() {

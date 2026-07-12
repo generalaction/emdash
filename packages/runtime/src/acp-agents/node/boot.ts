@@ -6,12 +6,8 @@ import { createLocalPluginFs } from '@emdash/core/agents/plugins/helpers';
 import { NodeExecutionContext } from '@emdash/core/exec';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { withValidation } from '@emdash/wire';
-import {
-  serveWorkerProcess,
-  workerValidatePolicy,
-  type ProcessRuntimePort,
-} from '@emdash/wire/util/process-runtime';
+import { validation } from '@emdash/wire/api';
+import { serveWireWorker, workerValidatePolicy, type WorkerParentPort } from '@emdash/wire/worker';
 import { createAcpController } from '../api/controller';
 import { AcpRuntime } from '../runtime/runtime';
 import type { AcpRuntimeDeps } from '../runtime/types';
@@ -21,7 +17,7 @@ import { LocalAttachmentStore } from './local-attachment-store';
 export type BootAcpRuntimeProcessOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
   env?: NodeJS.ProcessEnv;
-  port?: ProcessRuntimePort;
+  port?: WorkerParentPort;
   exit?: (code: number) => void;
 };
 
@@ -29,8 +25,8 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
   const env = options.env ?? process.env;
   const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
 
-  void serveWorkerProcess(
-    (scope) => {
+  void serveWireWorker(
+    ({ scope }) => {
       const attachmentsDir = env.EMDASH_ACP_ATTACHMENTS_DIR;
       if (!attachmentsDir) {
         throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
@@ -70,8 +66,13 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       } satisfies AcpRuntimeDeps);
 
       scope.add(() => acp.dispose());
-      return withValidation(acpApiContract, createAcpController(acp), workerValidatePolicy(env));
+      return createAcpController(acp);
     },
-    { port: options.port, exit: options.exit, logger }
+    {
+      port: options.port,
+      exit: options.exit,
+      logger,
+      middleware: [validation(acpApiContract, workerValidatePolicy(env))],
+    }
   );
 }
