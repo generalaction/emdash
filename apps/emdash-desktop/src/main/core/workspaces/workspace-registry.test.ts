@@ -123,6 +123,27 @@ describe('WorkspaceRegistry', () => {
     expect(late.dispose).toHaveBeenCalledTimes(1);
   });
 
+  it('does not publish a zero-ref workspace when teardown races the commit boundary', async () => {
+    const registry = new WorkspaceRegistry();
+    const item = makeWorkspace('loop:commit-race');
+    let teardown: Promise<void> | undefined;
+    const acquisition = registry.acquire('loop:commit-race', 'test-project', async () => ({
+      workspace: item.workspace,
+      onCreate: async () => {
+        teardown = registry.teardown('loop:commit-race');
+      },
+    }));
+
+    await expect(acquisition).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(teardown).resolves.toBeUndefined();
+
+    expect(registry.get('loop:commit-race')).toBeUndefined();
+    expect(registry.refCount('loop:commit-race')).toBe(0);
+    expect(item.fileTreeDispose).toHaveBeenCalledTimes(1);
+    expect(item.gitDispose).toHaveBeenCalledTimes(1);
+    expect(item.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('retains failed teardown state and retries only incomplete cleanup', async () => {
     const registry = new WorkspaceRegistry();
     const item = makeWorkspace('branch:retry-teardown');
@@ -138,7 +159,8 @@ describe('WorkspaceRegistry', () => {
     await expect(registry.teardown('branch:retry-teardown')).rejects.toThrow(
       'teardown held state failed'
     );
-    expect(registry.get('branch:retry-teardown')).toBe(item.workspace);
+    expect(registry.get('branch:retry-teardown')).toBeUndefined();
+    expect(registry.listForProject('test-project')).toEqual([]);
     expect(item.fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(item.gitDispose).toHaveBeenCalledTimes(1);
     expect(item.dispose).toHaveBeenCalledTimes(1);
@@ -201,6 +223,50 @@ describe('WorkspaceRegistry', () => {
     expect(item.gitDispose).toHaveBeenCalledTimes(1);
     expect(item.dispose).toHaveBeenCalledTimes(2);
     expect(registry.get('loop:dispose-retry')).toBeUndefined();
+  });
+
+  it('automatically clears an orphan tombstone after late factory quiescence', async () => {
+    const registry = new WorkspaceRegistry();
+    const late = makeWorkspace('loop:auto-quiesce-late');
+    const replacement = makeWorkspace('loop:auto-quiesce-replacement');
+    const factoryResult = deferred<{ workspace: Workspace }>();
+    const controller = new AbortController();
+    const acquisition = registry.acquire(
+      'loop:auto-quiesce',
+      'test-project',
+      () => factoryResult.promise,
+      { signal: controller.signal }
+    );
+    controller.abort();
+    await expect(acquisition).rejects.toMatchObject({ name: 'AbortError' });
+
+    factoryResult.resolve({ workspace: late.workspace });
+    await expect.poll(() => late.dispose).toHaveBeenCalledTimes(1);
+
+    await expect(
+      registry.acquire('loop:auto-quiesce', 'test-project', async () => ({
+        workspace: replacement.workspace,
+      }))
+    ).resolves.toMatchObject({ workspace: replacement.workspace });
+    expect(registry.refCount('loop:auto-quiesce')).toBe(1);
+  });
+
+  it('does not cache a synchronously throwing factory in single-flight state', async () => {
+    const registry = new WorkspaceRegistry();
+    const replacement = makeWorkspace('loop:sync-retry');
+
+    await expect(
+      registry.acquire('loop:sync-retry', 'test-project', () => {
+        throw new Error('synchronous factory failure');
+      })
+    ).rejects.toThrow('synchronous factory failure');
+
+    await expect(
+      registry.acquire('loop:sync-retry', 'test-project', async () => ({
+        workspace: replacement.workspace,
+      }))
+    ).resolves.toMatchObject({ workspace: replacement.workspace });
+    expect(registry.refCount('loop:sync-retry')).toBe(1);
   });
 
   it('creates once and increments ref count on repeated acquire', async () => {

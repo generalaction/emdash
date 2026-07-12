@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { PreviewServer } from '@shared/core/preview-servers/types';
 import {
@@ -6,6 +6,7 @@ import {
   dispatchWorkspaceLifecycleStartup,
   waitForWorkspacePreview,
 } from './workspace-factory';
+import { LifecycleScriptService } from './workspace-lifecycle-service';
 import { WorkspaceRegistry } from './workspace-registry';
 
 vi.mock('@main/db/client', () => ({ db: {} }));
@@ -125,7 +126,7 @@ describe('waitForWorkspacePreview', () => {
 });
 
 describe('createWorkspaceFactory control', () => {
-  it.each(['runtime', 'worktree', 'tree', 'settings'] as const)(
+  it.each(['runtime', 'worktree', 'tree', 'settings', 'task-settings'] as const)(
     'settles at the absolute deadline and releases partial or late %s leases',
     async (heldStage) => {
       const gate = deferred<unknown>();
@@ -154,7 +155,14 @@ describe('createWorkspaceFactory control', () => {
                 ? gate.promise
                 : Promise.resolve(ok({ value: {}, release: treeRelease }))
             ),
-            fileSystem: vi.fn(() => ok({})),
+            fileSystem: vi.fn(() =>
+              ok({
+                exists: vi.fn(() =>
+                  heldStage === 'task-settings' ? gate.promise : Promise.resolve(ok(false))
+                ),
+                readText: vi.fn(),
+              })
+            ),
             path: { join: (...parts: string[]) => parts.join('/') },
           },
         },
@@ -173,7 +181,7 @@ describe('createWorkspaceFactory control', () => {
       const factory = createWorkspaceFactory(
         'loop-deadline',
         { kind: 'local' },
-        controlledFactoryContext({ manager, settings, deadlineAt: Date.now() + 20 })
+        controlledFactoryContext({ manager, settings, deadlineAt: Date.now() + 50 })
       );
 
       const creation = factory();
@@ -186,29 +194,24 @@ describe('createWorkspaceFactory control', () => {
           settled = true;
         }
       );
-      if (heldStage !== 'settings') {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        expect(settled).toBe(false);
-      }
+      await new Promise((resolve) => setTimeout(resolve, 70));
+      expect(settled).toBe(false);
 
-      if (heldStage === 'settings') {
-        await expect(creation).rejects.toMatchObject({ name: 'AbortError' });
-        gate.resolve({});
-      } else {
-        if (heldStage === 'runtime') gate.resolve(runtimeLease);
-        if (heldStage === 'worktree') gate.resolve({ value: {}, release: worktreeRelease });
-        if (heldStage === 'tree') gate.resolve(ok({ value: {}, release: treeRelease }));
-        await expect(creation).rejects.toMatchObject({ name: 'AbortError' });
-      }
+      if (heldStage === 'runtime') gate.resolve(runtimeLease);
+      if (heldStage === 'worktree') gate.resolve({ value: {}, release: worktreeRelease });
+      if (heldStage === 'tree') gate.resolve(ok({ value: {}, release: treeRelease }));
+      if (heldStage === 'settings') gate.resolve({});
+      if (heldStage === 'task-settings') gate.resolve(ok(false));
+      await expect(creation).rejects.toMatchObject({ name: 'AbortError' });
 
       await expect.poll(() => runtimeRelease).toHaveBeenCalledTimes(1);
       if (heldStage !== 'runtime') {
         expect(worktreeRelease).toHaveBeenCalledTimes(1);
       }
-      if (heldStage === 'tree' || heldStage === 'settings') {
+      if (heldStage === 'tree' || heldStage === 'settings' || heldStage === 'task-settings') {
         expect(treeRelease).toHaveBeenCalledTimes(1);
       }
-      if (heldStage === 'settings') {
+      if (heldStage === 'settings' || heldStage === 'task-settings') {
         expect(releaseOrder).toEqual(['tree', 'worktree', 'runtime']);
       }
     }
@@ -251,6 +254,41 @@ describe('createWorkspaceFactory control', () => {
     expect(registry.refCount('loop-registry-deadline')).toBe(0);
   });
 
+  it('preserves the strict absolute deadline under registry-owned cancellation', async () => {
+    const registry = new WorkspaceRegistry();
+    const runtimeGate = deferred<unknown>();
+    const runtimeRelease = vi.fn(async () => {});
+    const strictDeadlineAt = Date.now() + 50;
+    const factory = createWorkspaceFactory(
+      'loop-strict-deadline',
+      { kind: 'local' },
+      controlledFactoryContext({
+        manager: { acquire: vi.fn(() => runtimeGate.promise) },
+        settings: { get: vi.fn(async () => ({})), getDefaultBranch: vi.fn(async () => 'main') },
+        deadlineAt: strictDeadlineAt,
+      })
+    );
+    const acquisition = registry.acquire('loop-strict-deadline', 'project-deadline', factory, {
+      deadlineAt: Date.now() + 60_000,
+    });
+    let settled = false;
+    void acquisition.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    expect(settled).toBe(false);
+    runtimeGate.resolve({ value: { git: {}, files: {} }, release: runtimeRelease });
+
+    await expect(acquisition).rejects.toMatchObject({ name: 'AbortError' });
+    expect(runtimeRelease).toHaveBeenCalledTimes(1);
+  });
+
   it('attempts reverse-order lower releases and exposes retryable quiescence on failure', async () => {
     const settingsGate = deferred<unknown>();
     const releaseOrder: string[] = [];
@@ -291,11 +329,15 @@ describe('createWorkspaceFactory control', () => {
           get: vi.fn(() => settingsGate.promise),
           getDefaultBranch: vi.fn(async () => 'main'),
         },
-        deadlineAt: Date.now() + 20,
+        deadlineAt: Date.now() + 50,
       })
     );
 
-    const failure = await factory().catch((error: unknown) => error);
+    const creation = factory();
+    const observedFailure = creation.catch((error: unknown) => error);
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    settingsGate.resolve({});
+    const failure = await observedFailure;
 
     expect(failure).toMatchObject({ name: 'WorkspaceFactoryQuiescenceFailure' });
     expect(releaseOrder).toEqual(['tree-failed', 'worktree', 'runtime']);
@@ -384,6 +426,99 @@ describe('createWorkspaceFactory control', () => {
     expect(onDestroy).toHaveBeenCalledTimes(1);
     expect(context.settings.get).toHaveBeenCalledTimes(4);
     expect(runtimeRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a real shared factory alive when the first waiter aborts', async () => {
+    const registry = new WorkspaceRegistry();
+    const runtimeGate = deferred<unknown>();
+    const firstControl = new AbortController();
+    const strictDeadlineAt = Date.now() + 60_000;
+    const startup = vi.spyOn(LifecycleScriptService.prototype, 'startRequiredStartup');
+    const runtimeRelease = vi.fn(async () => {});
+    const worktreeRelease = vi.fn(async () => {});
+    const treeRelease = vi.fn(async () => {});
+    const fileTree = {
+      subscribe: vi.fn(() => vi.fn()),
+      dispose: vi.fn(),
+    };
+    const fileSystem = {
+      exists: vi.fn(async () => ok(false)),
+      readText: vi.fn(),
+    };
+    const gitWorktree = {
+      repository: {},
+      subscribe: vi.fn(() => vi.fn()),
+      dispose: vi.fn(),
+    };
+    const files = {
+      openTree: vi.fn(async () => ok({ value: fileTree, release: treeRelease })),
+      fileSystem: vi.fn(() => ok(fileSystem)),
+      watchChanges: vi.fn(() =>
+        err({ type: 'fs-error' as const, path: '/tmp/shared', message: 'watch disabled' })
+      ),
+      path: { join: (...parts: string[]) => parts.join('/') },
+    };
+    const settings = {
+      get: vi.fn(async () => ({})),
+      getDefaultBranch: vi.fn(async () => 'main'),
+    };
+    const factory = createWorkspaceFactory(
+      'loop-shared-real-factory',
+      { kind: 'local' },
+      {
+        task: { id: 'task-shared', name: 'Shared task' },
+        workDir: '/tmp/loop-shared-real-factory',
+        projectId: 'project-shared',
+        projectPath: '/tmp/project-shared',
+        workspaceRuntime: {
+          machine: { kind: 'local' },
+          manager: { acquire: vi.fn(() => runtimeGate.promise) },
+        },
+        settings,
+        logPrefix: 'WorkspaceFactorySharedTest',
+        gitRepository: {} as Parameters<typeof createWorkspaceFactory>[2]['gitRepository'],
+        gitRepositoryFetchService: {} as Parameters<
+          typeof createWorkspaceFactory
+        >[2]['gitRepositoryFetchService'],
+        strictStartup: {
+          requirePreview: false,
+          signal: firstControl.signal,
+          deadlineAt: strictDeadlineAt,
+        },
+      }
+    );
+    const first = registry.acquire('loop-shared-real-factory', 'project-shared', factory, {
+      signal: firstControl.signal,
+    });
+    const live = registry.acquire('loop-shared-real-factory', 'project-shared', factory);
+
+    firstControl.abort();
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    runtimeGate.resolve({
+      value: {
+        git: {
+          openWorktree: vi.fn(async () => ({ value: gitWorktree, release: worktreeRelease })),
+        },
+        files,
+      },
+      release: runtimeRelease,
+    });
+
+    await expect(live).resolves.toMatchObject({
+      workspace: { id: 'loop-shared-real-factory' },
+    });
+    expect(registry.refCount('loop-shared-real-factory')).toBe(1);
+    expect(runtimeRelease).not.toHaveBeenCalled();
+    expect(startup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        deadlineAt: strictDeadlineAt,
+      })
+    );
+
+    await registry.teardown('loop-shared-real-factory');
+    expect(runtimeRelease).toHaveBeenCalledTimes(1);
+    startup.mockRestore();
   });
 });
 

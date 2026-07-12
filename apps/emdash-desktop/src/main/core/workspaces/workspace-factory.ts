@@ -86,13 +86,18 @@ export function createWorkspaceFactory(
   workspaceId: string,
   type: WorkspaceType,
   context: WorkspaceFactoryContext
-): () => Promise<WorkspaceFactoryResult> {
-  return async () => {
+): (control?: WorkspaceAcquireControl) => Promise<WorkspaceFactoryResult> {
+  return async (acquisitionControl) => {
     const workDir = context.workDir;
-    const control: WorkspaceAcquireControl = {
-      signal: context.strictStartup?.signal,
-      deadlineAt: context.strictStartup?.deadlineAt,
-    };
+    const control: WorkspaceAcquireControl = acquisitionControl
+      ? {
+          signal: acquisitionControl.signal,
+          deadlineAt: context.strictStartup?.deadlineAt ?? acquisitionControl.deadlineAt,
+        }
+      : {
+          signal: context.strictStartup?.signal,
+          deadlineAt: context.strictStartup?.deadlineAt,
+        };
     throwIfWorkspaceFactoryStopped(control);
 
     const ctx =
@@ -114,11 +119,11 @@ export function createWorkspaceFactory(
       const configPath = filesRuntime.path.join(workDir, '.emdash.json');
 
       // Settings (shared)
-      const projectSettings = await awaitWithWorkspaceFactoryControl(
+      const projectSettings = await awaitWithWorkspaceFactoryReadQuiescence(
         context.settings.get(),
         control
       );
-      const defaultBranch = await awaitWithWorkspaceFactoryControl(
+      const defaultBranch = await awaitWithWorkspaceFactoryReadQuiescence(
         context.settings.getDefaultBranch(),
         control
       );
@@ -131,7 +136,7 @@ export function createWorkspaceFactory(
         portSeed: workDir,
       });
       const tmuxEnabled = projectSettings.tmux ?? false;
-      const taskLevelSettings = await awaitWithWorkspaceFactoryControl(
+      const taskLevelSettings = await awaitWithWorkspaceFactoryReadQuiescence(
         getEffectiveTaskSettings({
           projectSettings: context.settings,
           taskFs: fileSystem,
@@ -284,8 +289,8 @@ export function createWorkspaceFactory(
                 ? { type: 'setup', script: scripts.setup, shellSetup }
                 : undefined,
               run: scripts?.run ? { type: 'run', script: scripts.run, shellSetup } : undefined,
-              signal: context.strictStartup?.signal,
-              deadlineAt: context.strictStartup?.deadlineAt,
+              signal: control.signal,
+              deadlineAt: control.deadlineAt,
               runStartupGraceMs: context.strictStartup?.runStartupGraceMs,
               waitForPreview: context.strictStartup?.requirePreview
                 ? ({ signal }) =>
@@ -295,7 +300,7 @@ export function createWorkspaceFactory(
                       signal,
                       timeoutMs: capWorkspaceFactoryTimeout(
                         context.strictStartup?.previewTimeoutMs ?? 60_000,
-                        context.strictStartup?.deadlineAt
+                        control.deadlineAt
                       ),
                       pollIntervalMs: context.strictStartup?.previewPollIntervalMs,
                     })
@@ -700,6 +705,18 @@ function awaitWithWorkspaceFactoryControl<T>(
       (error) => finish(() => reject(error))
     );
   });
+}
+
+async function awaitWithWorkspaceFactoryReadQuiescence<T>(
+  operation: Promise<T>,
+  control: WorkspaceAcquireControl
+): Promise<T> {
+  try {
+    return await awaitWithWorkspaceFactoryControl(operation, control);
+  } catch (error) {
+    await operation.catch(() => {});
+    throw error;
+  }
 }
 
 async function runWorkspaceFactoryCleanup(operations: Array<() => Promise<void>>): Promise<void> {

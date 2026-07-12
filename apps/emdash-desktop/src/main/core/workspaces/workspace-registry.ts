@@ -23,6 +23,8 @@ export type WorkspaceAcquireControl = {
   deadlineAt?: number;
 };
 
+type WorkspaceFactory = (control?: WorkspaceAcquireControl) => Promise<WorkspaceFactoryResult>;
+
 type WorkspaceEntry = {
   workspace: Workspace;
   sshFilesRuntime?: IFilesRuntime;
@@ -54,6 +56,7 @@ type WorkspaceAcquisition = {
   disposal?: Promise<void>;
   failure?: unknown;
   quiescence?: Promise<void>;
+  controller: AbortController;
   promise: Promise<WorkspaceAcquireResult>;
 };
 
@@ -65,21 +68,21 @@ export class WorkspaceRegistry {
   async acquire(
     key: string,
     projectId: string,
-    factory: () => Promise<WorkspaceFactoryResult>,
+    factory: WorkspaceFactory,
     control: WorkspaceAcquireControl = {}
   ): Promise<WorkspaceAcquireResult> {
     throwIfWorkspaceAcquireStopped(control);
     const existing = this.entries.get(key);
-    if (existing && existing.refCount > 0) {
+    if (existing) {
+      if (existing.teardown || existing.refCount === 0) {
+        const teardown =
+          existing.teardown ??
+          this.teardownEntry(key, existing, existing.teardownMode ?? 'terminate');
+        await awaitWithWorkspaceAcquireControl(teardown, control);
+        return this.acquire(key, projectId, factory, control);
+      }
       existing.refCount += 1;
       return { workspace: existing.workspace, sshFilesRuntime: existing.sshFilesRuntime };
-    }
-    if (existing) {
-      const teardown =
-        existing.teardown ??
-        this.teardownEntry(key, existing, existing.teardownMode ?? 'terminate');
-      await awaitWithWorkspaceAcquireControl(teardown, control);
-      return this.acquire(key, projectId, factory, control);
     }
     const orphaned = this.orphanedAcquisitions.get(key);
     if (orphaned) {
@@ -98,9 +101,16 @@ export class WorkspaceRegistry {
       waiters: 0,
       orphaned: false,
       sideEffectsStarted: false,
+      controller: new AbortController(),
     } as WorkspaceAcquisition;
-    acquisition.promise = this.runAcquisition(acquisition, factory);
+    let resolveAcquisition: (result: WorkspaceAcquireResult) => void = () => {};
+    let rejectAcquisition: (error: unknown) => void = () => {};
+    acquisition.promise = new Promise<WorkspaceAcquireResult>((resolve, reject) => {
+      resolveAcquisition = resolve;
+      rejectAcquisition = reject;
+    });
     this.acquiring.set(key, acquisition);
+    void this.runAcquisition(acquisition, factory).then(resolveAcquisition, rejectAcquisition);
     return this.waitForAcquisition(acquisition, control);
   }
 
@@ -125,12 +135,14 @@ export class WorkspaceRegistry {
   }
 
   get(key: string): Workspace | undefined {
-    return this.entries.get(key)?.workspace;
+    const entry = this.entries.get(key);
+    return entry && entry.refCount > 0 && !entry.teardown ? entry.workspace : undefined;
   }
 
   listForProject(projectId: string): { workspaceId: string; path: string }[] {
     return Array.from(this.entries.entries())
       .filter(([, entry]) => entry.projectId === projectId)
+      .filter(([, entry]) => entry.refCount > 0 && !entry.teardown)
       .map(([workspaceId, entry]) => ({ workspaceId, path: entry.workspace.path }));
   }
 
@@ -175,10 +187,10 @@ export class WorkspaceRegistry {
 
   private async runAcquisition(
     acquisition: WorkspaceAcquisition,
-    factory: () => Promise<WorkspaceFactoryResult>
+    factory: WorkspaceFactory
   ): Promise<WorkspaceAcquireResult> {
     try {
-      const result = await factory();
+      const result = await factory({ signal: acquisition.controller.signal });
       acquisition.result = result;
       if (acquisition.orphaned || acquisition.waiters === 0) {
         await this.disposeAcquisition(acquisition);
@@ -198,23 +210,6 @@ export class WorkspaceRegistry {
         throw workspaceAcquireAbortError();
       }
 
-      const entry: WorkspaceEntry = {
-        workspace: result.workspace,
-        sshFilesRuntime: result.sshFilesRuntime,
-        refCount: 0,
-        projectId: acquisition.projectId,
-        onDestroy: result.onDestroy,
-        onDetach: result.onDetach,
-        release: createWorkspaceRelease(result.workspace),
-        cleanup: {
-          destroyHook: false,
-          detachHook: false,
-          release: false,
-          lifecycle: false,
-        },
-      };
-      acquisition.entry = entry;
-      this.entries.set(acquisition.key, entry);
       return { workspace: result.workspace, sshFilesRuntime: result.sshFilesRuntime };
     } catch (error) {
       let propagated = error;
@@ -232,10 +227,6 @@ export class WorkspaceRegistry {
         this.orphanAcquisition(acquisition);
       }
       throw propagated;
-    } finally {
-      if (this.acquiring.get(acquisition.key) === acquisition) {
-        this.acquiring.delete(acquisition.key);
-      }
     }
   }
 
@@ -249,15 +240,26 @@ export class WorkspaceRegistry {
       const result = await awaitWithWorkspaceAcquireControl(acquisition.promise, control);
       throwIfWorkspaceAcquireStopped(control);
       if (acquisition.orphaned) throw workspaceAcquireAbortError();
-      const entry = this.entries.get(acquisition.key);
-      if (!entry || entry !== acquisition.entry) throw workspaceAcquireAbortError();
+      const factoryResult = acquisition.result;
+      if (!factoryResult) throw workspaceAcquireAbortError();
+      const entry = acquisition.entry ?? createWorkspaceEntry(acquisition.projectId, factoryResult);
+      if (!acquisition.entry) {
+        acquisition.entry = entry;
+        this.entries.set(acquisition.key, entry);
+      }
+      if (this.entries.get(acquisition.key) !== entry || entry.teardown) {
+        throw workspaceAcquireAbortError();
+      }
       entry.refCount += 1;
       return result;
     } catch (error) {
-      stopped = workspaceAcquireStopped(control);
+      stopped = error instanceof WorkspaceAcquireWaiterStopped || workspaceAcquireStopped(control);
       throw error;
     } finally {
       acquisition.waiters -= 1;
+      if (acquisition.waiters === 0 && this.acquiring.get(acquisition.key) === acquisition) {
+        this.acquiring.delete(acquisition.key);
+      }
       if (stopped && acquisition.waiters === 0 && (acquisition.entry?.refCount ?? 0) === 0) {
         this.orphanAcquisition(acquisition);
       }
@@ -267,6 +269,7 @@ export class WorkspaceRegistry {
   private orphanAcquisition(acquisition: WorkspaceAcquisition): void {
     if (acquisition.orphaned) return;
     acquisition.orphaned = true;
+    acquisition.controller.abort(workspaceAcquireAbortError());
     if (this.acquiring.get(acquisition.key) === acquisition) {
       this.acquiring.delete(acquisition.key);
     }
@@ -277,6 +280,7 @@ export class WorkspaceRegistry {
       }
       void this.disposeAcquisition(acquisition).catch(() => {});
     }
+    void this.quiesceAcquisition(acquisition).catch(() => {});
   }
 
   private disposeAcquisition(acquisition: WorkspaceAcquisition): Promise<void> {
@@ -356,6 +360,12 @@ class WorkspaceAcquisitionQuiescenceFailure extends Error {
   }
 }
 
+class WorkspaceAcquireWaiterStopped extends DOMException {
+  constructor() {
+    super('Workspace acquisition was cancelled.', 'AbortError');
+  }
+}
+
 function isWorkspaceFactoryQuiescenceFailure(
   error: unknown
 ): error is { quiesce(): Promise<void> } {
@@ -365,6 +375,24 @@ function isWorkspaceFactoryQuiescenceFailure(
     'quiesce' in error &&
     typeof error.quiesce === 'function'
   );
+}
+
+function createWorkspaceEntry(projectId: string, result: WorkspaceFactoryResult): WorkspaceEntry {
+  return {
+    workspace: result.workspace,
+    sshFilesRuntime: result.sshFilesRuntime,
+    refCount: 0,
+    projectId,
+    onDestroy: result.onDestroy,
+    onDetach: result.onDetach,
+    release: createWorkspaceRelease(result.workspace),
+    cleanup: {
+      destroyHook: false,
+      detachHook: false,
+      release: false,
+      lifecycle: false,
+    },
+  };
 }
 
 function createWorkspaceRelease(workspace: Workspace): () => Promise<void> {
@@ -483,7 +511,7 @@ function workspaceAcquireStopped(control: WorkspaceAcquireControl): boolean {
 }
 
 function throwIfWorkspaceAcquireStopped(control: WorkspaceAcquireControl): void {
-  if (workspaceAcquireStopped(control)) throw workspaceAcquireAbortError();
+  if (workspaceAcquireStopped(control)) throw new WorkspaceAcquireWaiterStopped();
 }
 
 function workspaceAcquireAbortError(): DOMException {
@@ -494,7 +522,9 @@ function awaitWithWorkspaceAcquireControl<T>(
   operation: Promise<T>,
   control: WorkspaceAcquireControl
 ): Promise<T> {
-  if (workspaceAcquireStopped(control)) return Promise.reject(workspaceAcquireAbortError());
+  if (workspaceAcquireStopped(control)) {
+    return Promise.reject(new WorkspaceAcquireWaiterStopped());
+  }
   if (!control.signal && control.deadlineAt === undefined) return operation;
 
   return new Promise<T>((resolve, reject) => {
@@ -506,7 +536,7 @@ function awaitWithWorkspaceAcquireControl<T>(
       control.signal?.removeEventListener('abort', onAbort);
       callback();
     };
-    const onAbort = () => finish(() => reject(workspaceAcquireAbortError()));
+    const onAbort = () => finish(() => reject(new WorkspaceAcquireWaiterStopped()));
     const remaining =
       control.deadlineAt === undefined ? undefined : Math.max(0, control.deadlineAt - Date.now());
     const timer = remaining === undefined ? undefined : setTimeout(onAbort, remaining);
