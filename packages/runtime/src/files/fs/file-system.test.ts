@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
@@ -164,6 +164,34 @@ describe('FileSystemRuntime', () => {
       await expect(readFile(path.join(root, 'file.txt'), 'utf8')).resolves.toMatch(
         /^(first|second)$/u
       );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('measures reclaimable disk usage without counting external hardlinks', async () => {
+    const root = await makeRoot();
+    const rootRef = runtimeRoot(root);
+    const task = path.join(root, 'task');
+    const store = path.join(root, 'store');
+    await mkdir(task);
+    await mkdir(store);
+    const storeFile = path.join(store, 'shared.bin');
+    await writeFile(storeFile, 'x'.repeat(128 * 1024));
+    await link(storeFile, path.join(task, 'shared.bin'));
+    await writeFile(path.join(task, 'owned.txt'), 'owned');
+    const runtime = new FilesRuntime({ watcher: noopWatcher(), idleTtlMs: 0 });
+
+    try {
+      const usage = await runtime.fs.measureUsage({
+        root: rootRef,
+        relative: relativePath('task'),
+      });
+      expect(usage.success).toBe(true);
+      if (!usage.success) throw usage.error;
+      expect(usage.data.type).toBe('directory');
+      expect(usage.data.diskBytes).toBeGreaterThan(usage.data.exclusiveDiskBytes);
+      expect(usage.data.errors).toEqual([]);
     } finally {
       await runtime.dispose();
     }

@@ -1,4 +1,4 @@
-export { filesContract, type FilesContract } from './api/contract';
+export { filesContract, MAX_FILE_UPLOAD_BYTES, type FilesContract } from './api/contract';
 export { fsErrorSchema, type FsError } from './api/errors';
 export {
   contentKeySchema,
@@ -9,6 +9,8 @@ export {
   fileEnumerationOptionsSchema,
   fileGlobOptionsSchema,
   fileStatSchema,
+  fileUsageErrorSchema,
+  fileUsageSchema,
   moveInputSchema,
   pathBatchSchema,
   pathKeySchema,
@@ -19,6 +21,8 @@ export {
   renameInputSchema,
   rootKeySchema,
   treeKeySchema,
+  uploadFileInputSchema,
+  uploadFileResultSchema,
   writeFileInputSchema,
   writeContentInputSchema,
   writePreconditionSchema,
@@ -30,6 +34,8 @@ export {
   type FileEnumerationOptions,
   type FileGlobOptions,
   type FileStat,
+  type FileUsage,
+  type FileUsageError,
   type MoveInput,
   type PathBatch,
   type PathKey,
@@ -40,6 +46,8 @@ export {
   type RenameInput,
   type RootKey,
   type TreeKey,
+  type UploadFileInput,
+  type UploadFileResult,
   type WriteFileInput,
   type WriteContentInput,
   type WritePrecondition,

@@ -8,6 +8,7 @@ import type {
   DeleteInput,
   FileGlobOptions,
   FileStat,
+  FileUsage,
   FsError,
   MoveInput,
   PathBatch,
@@ -18,6 +19,8 @@ import type {
   ReadTextResult,
   RenameInput,
   RootKey,
+  UploadFileInput,
+  UploadFileResult,
   WriteFileInput,
 } from '@emdash/core/files';
 import {
@@ -27,12 +30,13 @@ import {
   type PortableRelativePath,
 } from '@emdash/core/path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { BlobSource, LiveJobContext } from '@emdash/wire';
+import type { BlobSource, LiveJobContext, WireFile } from '@emdash/wire';
 import { globIterate } from 'glob';
 import type { FilesAllocationGraph } from '../allocation/allocation-graph';
 import { expectedFsError, toFsError } from '../api/errors';
 import type { RootResource } from '../root/root-resource';
 import { enumerateFiles } from './enumerate';
+import { measurePathUsage } from './measure-usage';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import { writeFileContent } from './write-file';
 
@@ -63,6 +67,10 @@ export class FileSystemRuntime {
         return err(toFsError(error, resolved.data.path));
       }
     });
+  }
+
+  measureUsage(input: PathKey): Promise<Result<FileUsage, FsError>> {
+    return this.run(input.root, (root) => measurePathUsage(root.paths, input.relative));
   }
 
   exists(input: PathKey): Promise<Result<boolean, FsError>> {
@@ -176,6 +184,60 @@ export class FileSystemRuntime {
         }
       }
       throw new Error('readBytes exhausted its read attempts');
+    });
+  }
+
+  async upload(input: UploadFileInput, file: WireFile): Promise<Result<UploadFileResult, FsError>> {
+    let bytes: Uint8Array;
+    try {
+      bytes = await file.bytes();
+    } catch (error) {
+      return err(toFsError(error, input.path));
+    }
+
+    return this.run(input.root, async (root) => {
+      const destination = await root.paths.resolveDestination(input.path);
+      if (!destination.success) return destination;
+
+      return root.runFileMutation(destination.data.absolutePath, async () => {
+        let existed = false;
+        try {
+          const metadata = await lstat(destination.data.absolutePath).catch((error: unknown) => {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            throw error;
+          });
+          existed = metadata !== null;
+          if (metadata?.isDirectory()) {
+            return err({ type: 'is-a-directory', path: destination.data.path });
+          }
+          if (metadata?.isSymbolicLink()) {
+            return err({
+              type: 'invalid-path',
+              path: destination.data.path,
+              message: 'Upload destination must not be a symbolic link',
+            });
+          }
+          if (existed && !input.overwrite) {
+            return err({ type: 'already-exists', path: destination.data.path });
+          }
+
+          const flags = input.overwrite
+            ? constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
+            : constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
+          const handle = await open(destination.data.absolutePath, flags, 0o666);
+          try {
+            await handle.writeFile(bytes);
+          } finally {
+            await handle.close();
+          }
+          this.allocations.notifyActiveRoot(root, [
+            { kind: existed ? 'update' : 'create', path: destination.data.path },
+          ]);
+          return ok({ bytesWritten: bytes.byteLength });
+        } catch (error) {
+          return err(toFsError(error, destination.data.path));
+        }
+      });
     });
   }
 

@@ -411,12 +411,32 @@ describe('createFilesController', () => {
       if (download.success) {
         expect(Buffer.from(await download.data.bytes()).toString('utf8')).toBe('stream\r\n');
       }
+
+      const uploadBytes = Buffer.from('uploaded through Wire\n');
+      await expect(
+        connection.api.fs.upload(
+          { root: rootRef, path: relativePath('uploaded.txt') },
+          {
+            name: 'uploaded.txt',
+            mimeType: 'text/plain',
+            size: uploadBytes.byteLength,
+            source: chunks(uploadBytes),
+          }
+        )
+      ).resolves.toEqual({ success: true, data: { bytesWritten: uploadBytes.byteLength } });
+      await expect(readFile(path.join(root, 'uploaded.txt'), 'utf8')).resolves.toBe(
+        'uploaded through Wire\n'
+      );
     } finally {
       connection.dispose();
       await runtime.dispose();
     }
   });
 });
+
+async function* chunks(bytes: Uint8Array): AsyncIterable<Uint8Array> {
+  yield bytes;
+}
 
 function makeClient(runtime: FilesRuntime) {
   const pair = memoryTransportPair();

@@ -6,6 +6,7 @@ import {
   liveModel,
   liveState,
   mutation,
+  uploadFile,
 } from '@emdash/wire';
 import { z } from 'zod';
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '../../path';
@@ -21,6 +22,7 @@ import {
   fileEnumerationOptionsSchema,
   fileGlobOptionsSchema,
   fileStatSchema,
+  fileUsageSchema,
   moveInputSchema,
   pathBatchSchema,
   pathKeySchema,
@@ -31,13 +33,18 @@ import {
   renameInputSchema,
   rootKeySchema,
   treeKeySchema,
+  uploadFileInputSchema,
+  uploadFileResultSchema,
   writeContentInputSchema,
   writeFileInputSchema,
 } from './schemas';
 
+export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 export const filesContract = defineContract({
   fs: defineContract({
     stat: fallible({ input: pathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
+    measureUsage: fallible({ input: pathKeySchema, data: fileUsageSchema, error: fsErrorSchema }),
     exists: fallible({ input: pathKeySchema, data: z.boolean(), error: fsErrorSchema }),
     realPath: fallible({
       input: pathKeySchema,
@@ -52,6 +59,12 @@ export const filesContract = defineContract({
     readBytes: downloadFile({
       input: pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
       meta: readBytesMetaSchema,
+      error: fsErrorSchema,
+    }),
+    upload: uploadFile({
+      input: uploadFileInputSchema,
+      maxSize: MAX_FILE_UPLOAD_BYTES,
+      result: uploadFileResultSchema,
       error: fsErrorSchema,
     }),
     glob: liveJob({

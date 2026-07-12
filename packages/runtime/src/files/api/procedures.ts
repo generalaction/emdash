@@ -11,10 +11,12 @@ export function createFilesProcedures(
   return {
     fs: {
       stat: (input) => runtime.fs.stat(input),
+      measureUsage: (input) => runtime.fs.measureUsage(input),
       exists: (input) => runtime.fs.exists(input),
       realPath: (input) => runtime.fs.realPath(input),
       readText: (input) => runtime.fs.readText(input),
       readBytes: (input) => runtime.fs.readBytes(input),
+      upload: (input, file) => runtime.fs.upload(input, file),
       glob: {
         run: (input, context) => runtime.fs.glob(input, context),
       },
