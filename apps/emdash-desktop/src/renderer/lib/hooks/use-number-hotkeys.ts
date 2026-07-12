@@ -9,17 +9,22 @@ import { getNumberHotkeys } from '@shared/shortcuts';
 export const NUMBER_HOTKEY_DEBOUNCE_MS = 200;
 
 // Shared across all number-family bindings (hook instances and forwarded
-// webview events) so rapid presses are debounced app-wide.
-let lastFiredAt = 0;
+// webview events) so key-repeat of one action is debounced app-wide while
+// distinct actions stay responsive.
+let lastClaimId = '';
+let lastClaimAt = 0;
 
 /**
- * Claims the debounce window for a number-hotkey press. Returns false when the
- * press falls inside the window and must be swallowed. `at` is compared on the
- * performance.now() clock (KeyboardEvent.timeStamp uses the same origin).
+ * Claims the debounce window for a number-hotkey press. Repeats of the SAME
+ * action (same `id`) inside the window are swallowed; a different action
+ * always fires. `at` is compared on the performance.now() clock
+ * (KeyboardEvent.timeStamp uses the same origin); the absolute delta keeps a
+ * clock discrepancy from wedging the window shut.
  */
-export function claimNumberHotkey(at: number = performance.now()): boolean {
-  if (at - lastFiredAt < NUMBER_HOTKEY_DEBOUNCE_MS) return false;
-  lastFiredAt = at;
+export function claimNumberHotkey(id: string, at: number = performance.now()): boolean {
+  if (id === lastClaimId && Math.abs(at - lastClaimAt) < NUMBER_HOTKEY_DEBOUNCE_MS) return false;
+  lastClaimId = id;
+  lastClaimAt = at;
   return true;
 }
 
@@ -27,9 +32,12 @@ export function claimNumberHotkey(at: number = performance.now()): boolean {
  * Binds a number-family base hotkey (e.g. 'Control+1') to digits 1–9 with the
  * same modifiers. `onSelect` receives the 0-based index. A null `base`
  * (disabled in settings) or a base without a trailing digit binds nothing.
+ * `family` scopes the debounce so repeats of one action are swallowed without
+ * blocking other number shortcuts.
  */
 export function useNumberHotkeys(
   base: Hotkey | null,
+  family: 'tab' | 'task',
   enabled: boolean,
   onSelect: (index: number) => void
 ): void {
@@ -38,9 +46,9 @@ export function useNumberHotkeys(
 
   const fire = (index: number) => (e: KeyboardEvent) => {
     e.preventDefault();
-    // Event creation time, not handler time: rapid presses must be swallowed
-    // even when a heavy render delays processing of the second event.
-    if (!claimNumberHotkey(e.timeStamp)) return;
+    // Event creation time, not handler time: key-repeat must be swallowed
+    // even when a heavy render delays processing of the repeated event.
+    if (!claimNumberHotkey(`${family}:${index}`, e.timeStamp)) return;
     onSelect(index);
   };
 

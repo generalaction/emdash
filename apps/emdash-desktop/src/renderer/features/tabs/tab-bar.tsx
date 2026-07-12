@@ -1,10 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { getHotkeyRevealModifier, useModifierHeld } from '@renderer/lib/hooks/use-modifier-held';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { NUMBER_HOTKEY_COUNT } from '@shared/shortcuts';
+import { getNumberHotkeys, resolveNumberFamilyBase } from '@shared/shortcuts';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 import { TabNumberHintsContext } from './tab-bar/tab-number-hints';
 
@@ -14,11 +13,13 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
   const resolvedTabs = pane.resolvedTabs;
 
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const revealModifier = getHotkeyRevealModifier(getEffectiveHotkey('tabByNumber', keyboard));
-  const revealHints = useModifierHeld(revealModifier);
-  const numberHints = revealHints
-    ? new Map(resolvedTabs.slice(0, NUMBER_HOTKEY_COUNT).map((tab, i) => [tab.tabId, i + 1]))
-    : null;
+  const base = resolveNumberFamilyBase('tabByNumber', keyboard?.tabByNumber);
+  const revealHints = useModifierHeld(getHotkeyRevealModifier(base));
+  const numberHints = useMemo(() => {
+    const hotkeys = revealHints && base !== null ? getNumberHotkeys(base) : null;
+    if (!hotkeys) return null;
+    return new Map(resolvedTabs.slice(0, hotkeys.length).map((tab, i) => [tab.tabId, hotkeys[i]]));
+  }, [revealHints, base, resolvedTabs]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 

@@ -3,6 +3,7 @@ import {
   getDomTabNavigationDirection,
   getElectronTabNavigationDirection,
   getNumberHotkeys,
+  resolveNumberFamilyBase,
 } from './shortcuts';
 
 describe('tab navigation shortcuts', () => {
@@ -107,5 +108,24 @@ describe('getNumberHotkeys', () => {
     expect(getNumberHotkeys('Mod+K')).toBeNull();
     expect(getNumberHotkeys('Control+0')).toBeNull();
     expect(getNumberHotkeys('')).toBeNull();
+  });
+});
+
+describe('resolveNumberFamilyBase', () => {
+  it('returns the configured base when it expands to a digit family', () => {
+    expect(resolveNumberFamilyBase('tabByNumber', 'Alt+1')).toBe('Alt+1');
+  });
+
+  it('returns null when the family is disabled', () => {
+    expect(resolveNumberFamilyBase('tabByNumber', null)).toBeNull();
+  });
+
+  it('falls back to the default when the configured base has no trailing digit', () => {
+    const fallback = resolveNumberFamilyBase('taskByNumber', 'Mod+K');
+    expect(fallback).toBe('Mod+1');
+  });
+
+  it('resolves the default when nothing is configured', () => {
+    expect(resolveNumberFamilyBase('taskByNumber', undefined)).toBe('Mod+1');
   });
 });

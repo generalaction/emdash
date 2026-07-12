@@ -28,6 +28,7 @@ import {
   APP_SHORTCUTS,
   getElectronTabNavigationDirection,
   resolveDefaultHotkey,
+  resolveNumberFamilyBase,
   type ShortcutSettingsKey,
 } from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
@@ -259,15 +260,17 @@ export class BrowserWebContentsRegistry {
         }
       }
 
-      const numberShortcut = getBrowserNumberShortcut(input, this.browserNumberFamilies);
-      if (numberShortcut) {
+      const numberShortcuts = getBrowserNumberShortcuts(input, this.browserNumberFamilies);
+      if (numberShortcuts.length > 0) {
         const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (browserId) {
           event.preventDefault();
-          events.emit(numberShortcutChannel, {
-            source: { kind: 'browser', browserId },
-            ...numberShortcut,
-          });
+          for (const numberShortcut of numberShortcuts) {
+            events.emit(numberShortcutChannel, {
+              source: { kind: 'browser', browserId },
+              ...numberShortcut,
+            });
+          }
           return;
         }
       }
@@ -482,24 +485,23 @@ function getBrowserNumberFamilies(keyboard?: AppSettings['keyboard']): BrowserNu
   ];
   const families: BrowserNumberFamily[] = [];
   for (const [family, shortcutKey] of familyKeys) {
-    const configured = keyboard?.[shortcutKey];
-    if (configured === null) continue;
-    const hotkey = configured ?? resolveDefaultHotkey(APP_SHORTCUTS[shortcutKey]);
-    if (!hotkey) continue;
-    const parsed = parseShortcut(hotkey);
-    if (!parsed || !/^[1-9]$/.test(parsed.key)) continue;
+    const base = resolveNumberFamilyBase(shortcutKey, keyboard?.[shortcutKey]);
+    if (base === null) continue;
+    const parsed = parseShortcut(base);
+    if (!parsed) continue;
     const { key: _key, ...modifiers } = parsed;
     families.push({ family, modifiers });
   }
   return families;
 }
 
-function getBrowserNumberShortcut(
+function getBrowserNumberShortcuts(
   input: Electron.Input,
   families: readonly BrowserNumberFamily[]
-): { family: 'tab' | 'task'; index: number } | null {
-  if (input.type !== 'keyDown') return null;
-  if (!/^[1-9]$/.test(input.key)) return null;
+): { family: 'tab' | 'task'; index: number }[] {
+  if (input.type !== 'keyDown') return [];
+  if (!/^[1-9]$/.test(input.key)) return [];
+  const matches: { family: 'tab' | 'task'; index: number }[] = [];
   for (const { family, modifiers } of families) {
     if (
       Boolean(input.shift) === modifiers.shift &&
@@ -507,10 +509,10 @@ function getBrowserNumberShortcut(
       Boolean(input.meta) === modifiers.meta &&
       Boolean(input.control) === modifiers.control
     ) {
-      return { family, index: Number(input.key) - 1 };
+      matches.push({ family, index: Number(input.key) - 1 });
     }
   }
-  return null;
+  return matches;
 }
 
 function getBrowserShortcuts(

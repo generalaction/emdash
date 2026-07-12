@@ -1,10 +1,11 @@
+import type { Hotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { TabHost } from '@renderer/features/tabs/core/tab-host';
 import type { ResolvedTab, TabViewContext } from '@renderer/features/tabs/core/tab-provider';
-import { Kbd } from '@renderer/lib/ui/kbd';
 import { Separator } from '@renderer/lib/ui/separator';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { usePaneContext } from '../pane-context';
 import { DraggableTab } from './draggable-tab';
@@ -140,7 +141,9 @@ export const GenericTabItem = observer(function GenericTabItem({
           )}
         >
           <div className="flex h-full items-center pr-2 pl-3">
-            {numberHint != null && <Kbd className="mr-1.5">{numberHint}</Kbd>}
+            {numberHint != null && (
+              <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" className="mr-1.5" />
+            )}
             {preSlot}
             {isEditing ? (
               <input

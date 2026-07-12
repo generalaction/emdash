@@ -43,6 +43,23 @@ export function isMacLike(): boolean {
   return (globalThis as { process?: { platform?: string } }).process?.platform === 'darwin';
 }
 
+/**
+ * Resolves the effective base hotkey for a number-family shortcut. A `null`
+ * override disables the family. A configured base that cannot expand into a
+ * digit family (no trailing 1-9) falls back to the default binding instead of
+ * silently disabling the whole family.
+ */
+export function resolveNumberFamilyBase(
+  key: ShortcutSettingsKey,
+  configured: string | null | undefined
+): string | null {
+  if (configured === null) return null;
+  const fallback = resolveDefaultHotkey(APP_SHORTCUTS[key]) ?? null;
+  const base = configured ?? fallback;
+  if (base && getNumberHotkeys(base)) return base;
+  return fallback && getNumberHotkeys(fallback) ? fallback : null;
+}
+
 export type TabNavigationDirection = 'next' | 'previous';
 
 export const TAB_NAVIGATION_HOTKEYS = {
@@ -253,6 +270,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description:
       'Switch to a task by its position in the sidebar, top to bottom. Record the shortcut for 1; digits 2–9 use the same modifiers.',
     category: 'Task View',
+    conflictBehavior: 'allow',
     ignoreWhenMonacoFocused: true,
     numberFamily: true,
   },
