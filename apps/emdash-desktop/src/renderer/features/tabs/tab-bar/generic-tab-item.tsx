@@ -141,9 +141,6 @@ export const GenericTabItem = observer(function GenericTabItem({
           )}
         >
           <div className="flex h-full items-center pr-2 pl-3">
-            {numberHint != null && (
-              <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" className="mr-1.5" />
-            )}
             {preSlot}
             {isEditing ? (
               <input
@@ -184,6 +181,18 @@ export const GenericTabItem = observer(function GenericTabItem({
               statusIndicator={statusSlot}
             />
           </div>
+          {numberHint != null && (
+            <div
+              className={cn(
+                'pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center pr-2 pl-8',
+                'bg-gradient-to-l from-background-secondary from-55% to-transparent',
+                tab.isActive && 'from-background-secondary-1',
+                'group-hover:from-muted'
+              )}
+            >
+              <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" />
+            </div>
+          )}
         </div>
         <Separator orientation="vertical" />
       </DraggableTab>

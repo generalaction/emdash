@@ -107,7 +107,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     >
       <SidebarMenuRow
         className={cn(
-          'group/row flex items-center justify-between px-1 py-1.5 h-8 gap-1',
+          'group/row relative flex items-center justify-between px-1 py-1.5 h-8 gap-1',
           rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
         )}
         isActive={isActive}
@@ -128,11 +128,22 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           </span>
         </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
-          {numberHint != null && <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" />}
           {showLineChanges && <TaskGitDiffStats task={task} />}
           {showPrStatus && <RenderPrBadge task={task} />}
           <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
         </div>
+        {numberHint != null && (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center rounded-r-lg pr-2 pl-10',
+              'bg-gradient-to-l from-background-tertiary from-55% to-transparent',
+              'group-hover/row:from-background-tertiary-1',
+              'group-data-[active=true]/row:from-background-tertiary-2'
+            )}
+          >
+            <Shortcut hotkey={numberHint as Hotkey} variant="keycaps" />
+          </div>
+        )}
       </SidebarMenuRow>
     </TaskContextMenu>
   );
