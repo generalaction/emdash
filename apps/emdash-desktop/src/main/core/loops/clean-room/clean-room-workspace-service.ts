@@ -1,24 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
 import type { CreateWorktreeAtCommitError } from '@main/core/projects/worktrees/worktree-service';
-import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
-import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
-import {
-  workspaceRegistry,
-  type WorkspaceRegistry,
-} from '@main/core/workspaces/workspace-registry';
+import type { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
+import type { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { LoopSessionTarget } from '@shared/core/loops/loop-state';
 import {
-  cleanRoomCleanupJournal,
   clonePendingCleanup,
   parseCleanRoomPendingCleanup,
   type CleanRoomCleanupJournal,
   type CleanRoomPendingCleanup,
 } from './cleanup-journal';
-import { FeatureSnapshotService, type FeatureSnapshotError } from './feature-snapshot-service';
+import type { FeatureSnapshotError, FeatureSnapshotService } from './feature-snapshot-service';
 
 export type CleanRoomProject = Pick<
   ProjectProvider,
@@ -48,6 +42,10 @@ export type CleanRoomWorkspaceServiceDependencies = {
   workspaceRegistry: Pick<WorkspaceRegistry, 'acquire' | 'teardown'>;
   runtimeManager: Pick<RuntimeManager, 'acquire'>;
   cleanupJournal: CleanRoomCleanupJournal;
+  resolveSourceCapability(
+    project: CleanRoomProject,
+    featureTarget: LoopSessionTarget
+  ): Promise<CleanRoomSourceCapability>;
   createFeatureSnapshotService(ctx: IExecutionContext): SnapshotOperations;
   createId(): string;
 };
@@ -58,7 +56,6 @@ export type CreateCleanRoomInput = {
   task: { id: string; name: string };
   project: CleanRoomProject;
   featureTarget: LoopSessionTarget;
-  sourceCapability: CleanRoomSourceCapability;
   baseCommit: string;
   expectedFeatureHead: string;
   requirePreview: boolean;
@@ -106,15 +103,6 @@ type IssuedCleanRoom = {
 const CLEAN_ROOM_TIMEOUT_MS = 10 * 60_000;
 const FULL_COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
-const defaultDependencies: CleanRoomWorkspaceServiceDependencies = {
-  createWorkspaceFactory,
-  workspaceRegistry,
-  runtimeManager,
-  cleanupJournal: cleanRoomCleanupJournal,
-  createFeatureSnapshotService: (ctx) => new FeatureSnapshotService(ctx),
-  createId: () => randomUUID(),
-};
-
 function sameMachine(left: MachineRef, right: MachineRef): boolean {
   return (
     left.kind === right.kind &&
@@ -128,12 +116,18 @@ export class CleanRoomWorkspaceService {
   private readonly issuedIds = new Set<string>();
   private readonly issuedWorkspaces = new Map<string, IssuedCleanRoom>();
 
-  constructor(private readonly deps: CleanRoomWorkspaceServiceDependencies = defaultDependencies) {}
+  constructor(private readonly deps: CleanRoomWorkspaceServiceDependencies) {}
 
   async preflight(
-    input: Pick<CreateCleanRoomInput, 'project' | 'featureTarget' | 'sourceCapability'>
+    input: Pick<CreateCleanRoomInput, 'project' | 'featureTarget'>
   ): Promise<Result<void, CleanRoomWorkspaceError>> {
-    const { project, featureTarget, sourceCapability } = input;
+    const { project, featureTarget } = input;
+    let sourceCapability: CleanRoomSourceCapability;
+    try {
+      sourceCapability = await this.deps.resolveSourceCapability(project, featureTarget);
+    } catch {
+      return err(unsupportedCleanRoomError());
+    }
     const typeMatchesMachine =
       (project.defaultWorkspaceType.kind === 'local' &&
         project.defaultWorkspaceMachine.kind === 'local') ||
@@ -147,11 +141,7 @@ export class CleanRoomWorkspaceService {
       !typeMatchesMachine ||
       !sameMachine(project.defaultWorkspaceMachine, featureTarget.machine)
     ) {
-      return err({
-        type: 'unsupported-clean-room',
-        message:
-          'This workspace provider does not expose the immutable same-machine Git-worktree capability required for clean-room verification.',
-      });
+      return err(unsupportedCleanRoomError());
     }
     return ok();
   }
@@ -592,9 +582,7 @@ export class CleanRoomWorkspaceService {
   ): Promise<Result<{ cleanupId: string }, CleanRoomWorkspaceError>> {
     const parsed = parseCleanRoomPendingCleanup(candidate);
     if (!parsed.success) return err(invalidIdentityError());
-    const validated = await validatePendingCleanup(parsed.data, project);
-    if (!validated.success) return validated;
-    const record = validated.data;
+    const record = parsed.data;
 
     let existing: CleanRoomPendingCleanup | undefined;
     try {
@@ -605,31 +593,40 @@ export class CleanRoomWorkspaceService {
         message: 'Clean-room cleanup state could not be loaded.',
       });
     }
-    if (existing) {
-      const parsedExisting = parseCleanRoomPendingCleanup(existing);
-      if (
-        !parsedExisting.success ||
-        JSON.stringify(parsedExisting.data) !== JSON.stringify(record)
-      ) {
-        return err(invalidIdentityError());
-      }
-      return ok({ cleanupId: record.cleanupId });
+    if (!existing) return err(invalidIdentityError());
+    const parsedExisting = parseCleanRoomPendingCleanup(existing);
+    if (!parsedExisting.success || JSON.stringify(parsedExisting.data) !== JSON.stringify(record)) {
+      return err(invalidIdentityError());
     }
+    const validated = await validatePendingCleanup(parsedExisting.data, project);
+    return validated.success ? ok({ cleanupId: validated.data.cleanupId }) : validated;
+  }
 
+  async recoverPendingCleanups(
+    project: CleanRoomProject
+  ): Promise<Result<{ cleanupIds: string[] }, CleanRoomWorkspaceError>> {
+    let records: CleanRoomPendingCleanup[];
     try {
-      const saved = await this.deps.cleanupJournal.save(record, null);
-      if (saved) return ok({ cleanupId: record.cleanupId });
-      const raced = await this.deps.cleanupJournal.load(record.cleanupId);
-      const parsedRaced = raced ? parseCleanRoomPendingCleanup(raced) : undefined;
-      return parsedRaced?.success && JSON.stringify(parsedRaced.data) === JSON.stringify(record)
-        ? ok({ cleanupId: record.cleanupId })
-        : err(invalidIdentityError());
+      records = await this.deps.cleanupJournal.list();
     } catch {
       return err({
         type: 'cleanup-journal-failed',
-        message: 'Clean-room cleanup state could not be persisted.',
+        message: 'Clean-room cleanup state could not be enumerated.',
       });
     }
+    const projectCleanupIds = new Set<string>();
+    for (const candidate of records) {
+      const parsed = parseCleanRoomPendingCleanup(candidate);
+      if (!parsed.success) return err(invalidIdentityError());
+      if (parsed.data.projectId !== project.projectId) continue;
+      projectCleanupIds.add(parsed.data.cleanupId);
+    }
+    const cleanupIds = [...projectCleanupIds].sort();
+    for (const cleanupId of cleanupIds) {
+      const cleaned = await this.retryPendingCleanup(cleanupId, project);
+      if (!cleaned.success) return cleaned;
+    }
+    return ok({ cleanupIds });
   }
 
   async destroy(
@@ -989,6 +986,17 @@ function invalidIdentityError(): CleanRoomWorkspaceError {
   return {
     type: 'invalid-clean-room-identity',
     message: 'Clean-room workspace identity could not be validated.',
+  };
+}
+
+function unsupportedCleanRoomError(): Extract<
+  CleanRoomWorkspaceError,
+  { type: 'unsupported-clean-room' }
+> {
+  return {
+    type: 'unsupported-clean-room',
+    message:
+      'This workspace provider does not expose the immutable same-machine Git-worktree capability required for clean-room verification.',
   };
 }
 

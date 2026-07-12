@@ -52,6 +52,7 @@ const TOP_LEVEL_KEYS = new Set([
   'revision',
 ]);
 
+/** Test-only journal. Production composition must inject a durable adapter. */
 export function createInMemoryCleanRoomCleanupJournal(
   records = new Map<string, CleanRoomPendingCleanup>()
 ): CleanRoomCleanupJournal {
@@ -216,8 +217,6 @@ export function clonePendingCleanup(record: CleanRoomPendingCleanup): CleanRoomP
     completed: { ...record.completed },
   };
 }
-
-export const cleanRoomCleanupJournal = createInMemoryCleanRoomCleanupJournal();
 
 function parseMachine(candidate: unknown): MachineRef | undefined {
   if (!isPlainObject(candidate)) return undefined;

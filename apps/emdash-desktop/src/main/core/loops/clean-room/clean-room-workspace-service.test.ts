@@ -44,6 +44,7 @@ function makeHarness(
     machine?: MachineRef;
     featureMachine?: MachineRef;
     sourceCapability?: CleanRoomSourceCapability;
+    sourceCapabilityReject?: boolean;
     startupResult?: Result<LifecycleStartupReady, LifecycleStartupError>;
     preserveResult?: Result<{ copied: string[] }, CopyPreservedFilesError>;
     replayResult?: Result<{ replayedThroughCommit: string }, FeatureSnapshotError>;
@@ -225,6 +226,10 @@ function makeHarness(
     workspaceRegistry: registry as unknown as Pick<WorkspaceRegistry, 'acquire' | 'teardown'>,
     runtimeManager,
     cleanupJournal,
+    resolveSourceCapability: vi.fn(async () => {
+      if (options.sourceCapabilityReject) throw new Error('provider unavailable');
+      return sourceCapability;
+    }),
     createFeatureSnapshotService: vi.fn(() => snapshotService),
     createId: () => 'fixed',
   } satisfies CleanRoomWorkspaceServiceDependencies;
@@ -239,7 +244,6 @@ function makeHarness(
     task: { id: 'task-1', name: 'Task one' },
     project,
     featureTarget,
-    sourceCapability,
     baseCommit: BASE,
     expectedFeatureHead: FEATURE,
     requirePreview: true,
@@ -407,6 +411,68 @@ describe('CleanRoomWorkspaceService', () => {
     expect(harness.snapshotService.integrateFix).not.toHaveBeenCalled();
   });
 
+  it('rejects an absent caller-supplied cleanup record without seeding the authoritative journal', async () => {
+    const sourceJournal = createInMemoryCleanRoomCleanupJournal();
+    const harness = makeHarness({ cleanupJournal: sourceJournal });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const [record] = await sourceJournal.list();
+    const authoritativeJournal = createInMemoryCleanRoomCleanupJournal();
+    const save = vi.spyOn(authoritativeJournal, 'save');
+    const recovered = new CleanRoomWorkspaceService({
+      ...harness.dependencies,
+      cleanupJournal: authoritativeJournal,
+    });
+    harness.order.length = 0;
+    vi.mocked(harness.executionContext.exec).mockClear();
+
+    await expect(recovered.adoptPendingCleanup(record, harness.project)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid-clean-room-identity' },
+    });
+    expect(save).not.toHaveBeenCalled();
+    await expect(authoritativeJournal.list()).resolves.toEqual([]);
+    expect(harness.order).toEqual([]);
+    expect(harness.executionContext.exec).not.toHaveBeenCalled();
+  });
+
+  it('enumerates authoritative journal state for restart cleanup without adoption', async () => {
+    const journal = createInMemoryCleanRoomCleanupJournal();
+    const harness = makeHarness({ cleanupJournal: journal });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    harness.order.length = 0;
+    const recovered = new CleanRoomWorkspaceService({
+      ...harness.dependencies,
+      cleanupJournal: journal,
+    });
+
+    await expect(recovered.recoverPendingCleanups(harness.project)).resolves.toEqual({
+      success: true,
+      data: { cleanupIds: [created.data.cleanupId] },
+    });
+    expect(harness.order).toEqual(['teardown', 'remove-worktree', 'delete-branch']);
+    await expect(journal.list()).resolves.toEqual([]);
+  });
+
+  it('skips another project records during authoritative restart enumeration', async () => {
+    const journal = createInMemoryCleanRoomCleanupJournal();
+    const harness = makeHarness({ cleanupJournal: journal });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    harness.order.length = 0;
+    const recovered = new CleanRoomWorkspaceService({
+      ...harness.dependencies,
+      cleanupJournal: journal,
+    });
+
+    await expect(
+      recovered.recoverPendingCleanups({ ...harness.project, projectId: 'project-other' })
+    ).resolves.toEqual({ success: true, data: { cleanupIds: [] } });
+    expect(harness.order).toEqual([]);
+    await expect(journal.list()).resolves.toHaveLength(1);
+  });
+
   it('rejects forged, oversized, and stale pending-cleanup adoption without journal mutation', async () => {
     const journal = createInMemoryCleanRoomCleanupJournal();
     const harness = makeHarness({ cleanupJournal: journal });
@@ -482,6 +548,42 @@ describe('CleanRoomWorkspaceService', () => {
     expect(harness.snapshotService.capture).not.toHaveBeenCalled();
     expect(harness.executionContext.exec).not.toHaveBeenCalled();
     expect(harness.worktreeService.createWorktreeAtCommit).not.toHaveBeenCalled();
+  });
+
+  it('maps trusted capability resolver rejection before snapshot or Git work', async () => {
+    const harness = makeHarness({ sourceCapabilityReject: true });
+
+    await expect(harness.service.create(harness.input)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unsupported-clean-room' },
+    });
+    expect(harness.snapshotService.capture).not.toHaveBeenCalled();
+    expect(harness.executionContext.exec).not.toHaveBeenCalled();
+  });
+
+  it('cannot opt into clean-room support with caller-supplied capability data', async () => {
+    const harness = makeHarness({
+      sourceCapability: { kind: 'unsupported', provider: 'byoi' },
+    });
+    const forgedInput = {
+      ...harness.input,
+      sourceCapability: {
+        kind: 'immutable-same-machine-git-worktree',
+        projectId: 'project-1',
+        machine: { kind: 'local' },
+      },
+    };
+
+    await expect(harness.service.create(forgedInput)).resolves.toMatchObject({
+      success: false,
+      error: { type: 'unsupported-clean-room' },
+    });
+    expect(harness.dependencies.resolveSourceCapability).toHaveBeenCalledWith(
+      harness.project,
+      harness.featureTarget
+    );
+    expect(harness.snapshotService.capture).not.toHaveBeenCalled();
+    expect(harness.executionContext.exec).not.toHaveBeenCalled();
   });
 
   it.each([
