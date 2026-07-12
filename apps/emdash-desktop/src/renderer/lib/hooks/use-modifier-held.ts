@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
-import { isMacLike } from '@shared/shortcuts';
+import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import type { AppSettings } from '@shared/core/app-settings';
+import { isMacLike, type ShortcutSettingsKey } from '@shared/shortcuts';
 
 export type RevealModifier = 'Meta' | 'Control' | 'Alt' | 'Shift';
+
+/**
+ * The modifier whose hold reveals number hints for a shortcut family: taken
+ * from the first enabled binding among `keys`.
+ */
+export function getFamilyRevealModifier(
+  keys: readonly ShortcutSettingsKey[],
+  keyboard: AppSettings['keyboard'] | undefined
+): RevealModifier | null {
+  for (const key of keys) {
+    const modifier = getHotkeyRevealModifier(getEffectiveHotkey(key, keyboard));
+    if (modifier !== null) return modifier;
+  }
+  return null;
+}
 
 /**
  * The modifier key whose hold should reveal number-shortcut hints for a
