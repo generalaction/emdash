@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+import z from 'zod';
 import { err, ok, type Result } from '@main/lib/result';
 import { loopStageResultSchema, type LoopStageResult } from '@shared/core/loops/loop-phase-state';
 import {
@@ -31,6 +33,8 @@ const MAX_ATTEMPTS = 64;
 const MAX_ID_LENGTH = 256;
 const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
+const MAX_TASK_ENVIRONMENT_BYTES = 64 * 1024;
+const MAX_TASK_ENVIRONMENT_VALUE_LENGTH = 4_096;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
   'EMDASH_PORT',
@@ -39,6 +43,57 @@ const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_TASK_NAME',
   'EMDASH_TASK_PATH',
 ] as const;
+const trustedTaskEnvironmentSchema = z.record(z.string(), z.string());
+const e2eSessionInfoSchema = z
+  .object({
+    attemptId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    conversationId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    verificationRunId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    attempt: z.number().int().positive().max(MAX_ATTEMPTS),
+    target: loopSessionTargetSchema,
+    provider: loopProviderSchema,
+    model: z.string().trim().min(1).max(MAX_MODEL_LENGTH),
+    taskEnvironment: trustedTaskEnvironmentSchema,
+  })
+  .strict();
+const e2ePromptResultSchema = z
+  .object({
+    conversationId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    verificationRunId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    attempt: z.number().int().positive().max(MAX_ATTEMPTS),
+    target: loopSessionTargetSchema,
+    finalText: z.string().max(512 * 1024),
+  })
+  .strict();
+const e2eRequiredChecksResultSchema = z
+  .object({
+    status: z.enum(['passed', 'correctable', 'failed']),
+    verificationRunId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    attempt: z.number().int().positive().max(MAX_ATTEMPTS),
+    outerConversationId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    target: loopSessionTargetSchema,
+    executionTarget: loopSessionTargetSchema,
+    checkpointCommit: loopCommitSchema,
+    provider: loopProviderSchema,
+    model: z.string().trim().min(1).max(MAX_MODEL_LENGTH),
+    taskEnvironment: trustedTaskEnvironmentSchema,
+    requiredTestsSummary: z.string().max(MAX_SUMMARY_LENGTH),
+    nativeBrowserRan: z.literal(true),
+    nativePreview: z
+      .object({
+        invocationCount: z.number().int().nonnegative().max(MAX_ATTEMPTS),
+        passed: z.boolean(),
+        summary: z.string().max(MAX_SUMMARY_LENGTH),
+        target: loopSessionTargetSchema,
+        provider: loopProviderSchema,
+        model: z.string().trim().min(1).max(MAX_MODEL_LENGTH),
+        taskEnvironment: trustedTaskEnvironmentSchema,
+      })
+      .strict(),
+    sessionAttempts: z.array(loopSessionAttemptSchema).max(1_024),
+    handoff: loopPromptHandoffSchema.optional(),
+  })
+  .strict();
 
 export type E2EGateDependencyError = {
   type?: string;
@@ -232,6 +287,10 @@ export type E2ESessionPort = {
 };
 
 export type E2ERequiredChecksPort = {
+  /**
+   * Every settlement, including rejection, occurs only after CLI, native-browser, nested ACP,
+   * evidence, and cancellation effects are quiescent. The gate waits settlement after stop.
+   */
   run(input: {
     verificationRunId: string;
     attempt: number;
@@ -289,6 +348,15 @@ export type CleanRoomE2EGateOutput = {
   stageResult: LoopStageResult;
 };
 
+export type E2EPendingWorkspaceAuthority = {
+  projectId: string;
+  cleanupId: string;
+  verificationRunId: string;
+  attempt: number;
+  target: LoopSessionTarget;
+  expectedFeatureHead: string;
+};
+
 export type CleanRoomE2EGateStage =
   | 'precondition'
   | 'create'
@@ -313,6 +381,7 @@ export type CleanRoomE2EGateError = {
   conversationId?: string;
   recoveryRequired?: boolean;
   pendingCleanup?: unknown;
+  pendingWorkspace?: E2EPendingWorkspaceAuthority;
   lastWorkspaceDestroyed?: boolean;
   sessionAttempts: LoopSessionAttempt[];
   stageResult: LoopStageResult;
@@ -334,7 +403,25 @@ type ActiveAttempt = {
 
 type CleanupResult = Result<void, CleanRoomE2EGateError>;
 
+type ControlFailure = {
+  type: 'cancelled' | 'deadline-exceeded';
+  message: string;
+};
+
+type ControlledDependencyOutcome<T> =
+  | { kind: 'completed'; value: Result<T, E2EGateDependencyError> }
+  | { kind: 'stopped'; failure: ControlFailure };
+
+type StopQuiescence<T> = (
+  operation: Promise<Extract<ControlledDependencyOutcome<T>, { kind: 'completed' }>>
+) => Promise<Result<void, E2EGateDependencyError>>;
+
 export class CleanRoomE2EGate {
+  private readonly cancellationPromises = new Map<
+    string,
+    Promise<Result<void, E2EGateDependencyError>>
+  >();
+
   constructor(private readonly dependencies: CleanRoomE2EGateDependencies) {}
 
   async run(
@@ -380,7 +467,24 @@ export class CleanRoomE2EGate {
         );
       }
 
-      const verificationRunId = this.dependencies.createVerificationRunId(attempt);
+      let verificationRunId: string;
+      try {
+        verificationRunId = this.dependencies.createVerificationRunId(attempt);
+      } catch (cause) {
+        return err(
+          this.failure(
+            input,
+            'dependency-rejected',
+            'create',
+            `Verification run ID allocation failed: ${errorMessage(cause)}`,
+            {
+              featureHead,
+              attempt,
+              sessionAttempts,
+            }
+          )
+        );
+      }
       if (!validId(verificationRunId) || verificationRunIds.includes(verificationRunId)) {
         return err(
           this.failure(
@@ -398,18 +502,20 @@ export class CleanRoomE2EGate {
       }
       verificationRunIds.push(verificationRunId);
 
-      const created = await this.dependencies.cleanRoom.create({
-        verificationRunId,
-        attempt,
-        task: input.task,
-        project: input.project,
-        featureTarget: copyTarget(input.featureTarget),
-        baseCommit: input.baseCommit,
-        expectedFeatureHead: featureHead,
-        requirePreview: true,
-        signal: input.signal,
-        timeoutMs: remainingTimeout(input),
-      });
+      const created = await this.callDependency('Clean-room creation', () =>
+        this.dependencies.cleanRoom.create({
+          verificationRunId,
+          attempt,
+          task: input.task,
+          project: input.project,
+          featureTarget: copyTarget(input.featureTarget),
+          baseCommit: input.baseCommit,
+          expectedFeatureHead: featureHead,
+          requirePreview: true,
+          signal: input.signal,
+          timeoutMs: remainingTimeout(input),
+        })
+      );
       if (!created.success) {
         return err(
           this.dependencyFailure(
@@ -434,6 +540,19 @@ export class CleanRoomE2EGate {
         featureHead
       );
       if (cleanRoomError) {
+        return err(
+          this.failure(input, cleanRoomError.type, 'create', cleanRoomError.message, {
+            featureHead,
+            attempt,
+            verificationRunId,
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            sessionAttempts,
+          })
+        );
+      }
+      const stoppedAfterCreate = controlFailure(input);
+      if (stoppedAfterCreate) {
         const destroyed = await this.destroyOnly(
           input,
           cleanRoom,
@@ -443,7 +562,7 @@ export class CleanRoomE2EGate {
         );
         if (!destroyed.success) return destroyed;
         return err(
-          this.failure(input, cleanRoomError.type, 'create', cleanRoomError.message, {
+          this.failure(input, stoppedAfterCreate.type, 'create', stoppedAfterCreate.message, {
             featureHead,
             attempt,
             verificationRunId,
@@ -453,13 +572,15 @@ export class CleanRoomE2EGate {
         );
       }
 
-      const acquired = await this.dependencies.execution.acquire({
-        cleanRoom,
-        task: input.task,
-        project: input.project,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const acquired = await this.callDependency('Clean-room execution binding', () =>
+        this.dependencies.execution.acquire({
+          cleanRoom,
+          task: input.task,
+          project: input.project,
+          signal: input.signal,
+          deadlineAt: input.deadlineAt,
+        })
+      );
       if (!acquired.success) {
         const destroyed = await this.destroyOnly(
           input,
@@ -503,14 +624,37 @@ export class CleanRoomE2EGate {
           })
         );
       }
+      const stoppedAfterAcquire = controlFailure(input);
+      if (stoppedAfterAcquire) {
+        const cleanup = await this.cleanup(
+          input,
+          cleanRoom,
+          binding,
+          featureHead,
+          attempt,
+          sessionAttempts
+        );
+        if (!cleanup.success) return cleanup;
+        return err(
+          this.failure(input, stoppedAfterAcquire.type, 'execution', stoppedAfterAcquire.message, {
+            featureHead,
+            attempt,
+            verificationRunId,
+            lastWorkspaceDestroyed: true,
+            sessionAttempts,
+          })
+        );
+      }
 
-      const begun = await this.dependencies.authority.beginAttempt({
-        cleanRoom,
-        target: copyTarget(cleanRoom.target),
-        expectedFeatureHead: featureHead,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const begun = await this.callDependency('E2E attempt authority', () =>
+        this.dependencies.authority.beginAttempt({
+          cleanRoom,
+          target: copyTarget(cleanRoom.target),
+          expectedFeatureHead: featureHead,
+          signal: input.signal,
+          deadlineAt: input.deadlineAt,
+        })
+      );
       if (!begun.success) {
         const cleanup = await this.cleanup(
           input,
@@ -554,22 +698,106 @@ export class CleanRoomE2EGate {
           })
         );
       }
+      const stoppedAfterAuthority = controlFailure(input);
+      if (stoppedAfterAuthority) {
+        const cleanup = await this.cleanup(
+          input,
+          cleanRoom,
+          binding,
+          featureHead,
+          attempt,
+          sessionAttempts
+        );
+        if (!cleanup.success) return cleanup;
+        return err(
+          this.failure(
+            input,
+            stoppedAfterAuthority.type,
+            'authority',
+            stoppedAfterAuthority.message,
+            {
+              featureHead,
+              attempt,
+              verificationRunId,
+              lastWorkspaceDestroyed: true,
+              sessionAttempts,
+            }
+          )
+        );
+      }
 
       const startedAt = this.dependencies.now().toISOString();
-      const started = await this.dependencies.session.startFreshE2ESession({
-        purpose: 'e2e',
-        phaseId: input.phase.id,
-        verificationRunId,
-        attempt,
-        target: copyTarget(cleanRoom.target),
-        executionTarget: binding.executionTarget,
-        taskEnvironment: copyEnvironment(binding.taskEnvironment),
-        provider: input.provider,
-        model: input.model,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      let stoppedSession: E2ESessionInfo | undefined;
+      let stoppedLedgerIndex: number | undefined;
+      const started = await this.callControlled(
+        input,
+        'Fresh E2E session start',
+        () =>
+          this.dependencies.session.startFreshE2ESession({
+            purpose: 'e2e',
+            phaseId: input.phase.id,
+            verificationRunId,
+            attempt,
+            target: copyTarget(cleanRoom.target),
+            executionTarget: binding.executionTarget,
+            taskEnvironment: copyEnvironment(binding.taskEnvironment),
+            provider: input.provider,
+            model: input.model,
+            signal: input.signal,
+            deadlineAt: input.deadlineAt,
+          }),
+        async (operation) => {
+          const settled = await operation;
+          if (!settled.value.success) {
+            return settled.value.error.type === 'untrusted-settlement'
+              ? err({
+                  type: 'cleanup-failed',
+                  message: 'Late E2E session start did not prove that no session was created.',
+                })
+              : ok();
+          }
+          stoppedSession = settled.value.data;
+          const ledger = tryMakeOuterAttempt(input, stoppedSession, featureHead, startedAt);
+          if (!ledger) {
+            return err({
+              message: 'Late E2E session start returned unusable cancellation identity.',
+            });
+          }
+          stoppedLedgerIndex = sessionAttempts.push(ledger) - 1;
+          const cancelled = await this.cancelSession(stoppedSession, cleanRoom.target);
+          markOuterAttempt(
+            sessionAttempts,
+            stoppedLedgerIndex,
+            cancelled.success ? 'cancelled' : 'interrupted',
+            this.dependencies.now(),
+            { error: cancelled.success ? 'E2E session was cancelled.' : cancelled.error.message }
+          );
+          return cancelled;
+        }
+      );
       if (!started.success) {
+        if (
+          started.error.type === 'cleanup-failed' ||
+          started.error.type === 'untrusted-settlement'
+        ) {
+          return err(
+            this.dependencyFailure(
+              input,
+              started.error,
+              'quiescence',
+              featureHead,
+              attempt,
+              sessionAttempts,
+              {
+                verificationRunId,
+                ...(stoppedSession ? { conversationId: stoppedSession.conversationId } : {}),
+                recoveryRequired: true,
+                lastWorkspaceDestroyed: false,
+                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+              }
+            )
+          );
+        }
         const cleanup = await this.cleanup(
           input,
           cleanRoom,
@@ -587,12 +815,17 @@ export class CleanRoomE2EGate {
             featureHead,
             attempt,
             sessionAttempts,
-            { verificationRunId, lastWorkspaceDestroyed: true }
+            {
+              verificationRunId,
+              ...(stoppedSession ? { conversationId: stoppedSession.conversationId } : {}),
+              lastWorkspaceDestroyed: true,
+            }
           )
         );
       }
+      const session = started.data;
       const sessionError = validateSession(
-        started.data,
+        session,
         cleanRoom.target,
         binding.taskEnvironment,
         input,
@@ -600,8 +833,28 @@ export class CleanRoomE2EGate {
         attempt,
         sessionAttempts
       );
-      if (sessionError) {
-        const cancelled = await this.cancelSession(started.data);
+      const outerAttempt = tryMakeOuterAttempt(input, session, featureHead, startedAt);
+      if (!outerAttempt) {
+        if (!hasUsableCancellationIdentity(session)) {
+          return err(
+            this.failure(
+              input,
+              'session-authority-invalid',
+              'quiescence',
+              'Fresh E2E session returned no usable cancellation identity.',
+              {
+                featureHead,
+                attempt,
+                verificationRunId,
+                recoveryRequired: true,
+                lastWorkspaceDestroyed: false,
+                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+                sessionAttempts,
+              }
+            )
+          );
+        }
+        const cancelled = await this.cancelSession(session, cleanRoom.target);
         if (!cancelled.success) {
           return err(
             this.dependencyFailure(
@@ -611,10 +864,72 @@ export class CleanRoomE2EGate {
               featureHead,
               attempt,
               sessionAttempts,
-              { verificationRunId, recoveryRequired: true }
+              {
+                verificationRunId,
+                recoveryRequired: true,
+                lastWorkspaceDestroyed: false,
+                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+              }
             )
           );
         }
+        const cleanup = await this.cleanup(
+          input,
+          cleanRoom,
+          binding,
+          featureHead,
+          attempt,
+          sessionAttempts
+        );
+        if (!cleanup.success) return cleanup;
+        return err(
+          this.failure(
+            input,
+            'session-authority-invalid',
+            'session-start',
+            'Fresh E2E session identity cannot be represented in the durable ledger.',
+            {
+              featureHead,
+              attempt,
+              verificationRunId,
+              lastWorkspaceDestroyed: true,
+              sessionAttempts,
+            }
+          )
+        );
+      }
+      const outerLedgerIndex = sessionAttempts.push(outerAttempt) - 1;
+      if (sessionError) {
+        const cancelled = await this.cancelSession(session, cleanRoom.target);
+        if (!cancelled.success) {
+          markOuterAttempt(
+            sessionAttempts,
+            outerLedgerIndex,
+            'interrupted',
+            this.dependencies.now(),
+            { error: 'Invalid E2E session did not prove quiescence.' }
+          );
+          return err(
+            this.dependencyFailure(
+              input,
+              cancelled.error,
+              'quiescence',
+              featureHead,
+              attempt,
+              sessionAttempts,
+              {
+                verificationRunId,
+                conversationId: session.conversationId,
+                recoveryRequired: true,
+                lastWorkspaceDestroyed: false,
+                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+              }
+            )
+          );
+        }
+        markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
+          error: sessionError.message,
+        });
         const cleanup = await this.cleanup(
           input,
           cleanRoom,
@@ -629,16 +944,13 @@ export class CleanRoomE2EGate {
             featureHead,
             attempt,
             verificationRunId,
-            conversationId: started.data.conversationId,
+            conversationId: session.conversationId,
             lastWorkspaceDestroyed: true,
             sessionAttempts,
           })
         );
       }
 
-      const session = started.data;
-      const outerLedgerIndex =
-        sessionAttempts.push(makeOuterAttempt(input, session, featureHead, startedAt)) - 1;
       const active: ActiveAttempt = {
         number: attempt,
         verificationRunId,
@@ -649,29 +961,82 @@ export class CleanRoomE2EGate {
         outerLedgerIndex,
       };
 
-      const prompt = buildE2EPrompt({
-        goal: input.goal,
-        acceptanceCriteria: [...input.acceptanceCriteria],
-        baseCommit: input.baseCommit,
-        checkpointCommit: featureHead,
-        handoffs: [...input.handoffs],
-        verificationRunId,
-        verificationTarget: copyTarget(cleanRoom.target),
-        attempt,
-        intermediateFailures,
-      });
-      const prompted = await this.dependencies.session.sendE2EPrompt({
-        attemptId: session.attemptId,
-        conversationId: session.conversationId,
-        verificationRunId,
-        attempt,
-        target: copyTarget(cleanRoom.target),
-        prompt,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      let prompt: string;
+      try {
+        prompt = buildE2EPrompt({
+          goal: input.goal,
+          acceptanceCriteria: [...input.acceptanceCriteria],
+          baseCommit: input.baseCommit,
+          checkpointCommit: featureHead,
+          handoffs: [...input.handoffs],
+          verificationRunId,
+          verificationTarget: copyTarget(cleanRoom.target),
+          attempt,
+          intermediateFailures,
+        });
+      } catch (cause) {
+        const cancelled = await this.cancelSession(session, cleanRoom.target);
+        if (!cancelled.success) {
+          markOuterAttempt(
+            sessionAttempts,
+            outerLedgerIndex,
+            'interrupted',
+            this.dependencies.now(),
+            { error: cancelled.error.message }
+          );
+          return err(
+            this.dependencyFailure(
+              input,
+              cancelled.error,
+              'quiescence',
+              featureHead,
+              attempt,
+              sessionAttempts,
+              {
+                verificationRunId,
+                conversationId: session.conversationId,
+                recoveryRequired: true,
+                lastWorkspaceDestroyed: false,
+                pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+              }
+            )
+          );
+        }
+        const message = `E2E prompt construction failed: ${errorMessage(cause)}`;
+        markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
+          error: message,
+        });
+        const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
+        if (!cleanup.success) return cleanup;
+        return err(
+          this.failure(input, 'invalid-input', 'prompt', message, {
+            featureHead,
+            attempt,
+            verificationRunId,
+            conversationId: session.conversationId,
+            lastWorkspaceDestroyed: true,
+            sessionAttempts,
+          })
+        );
+      }
+      const prompted = await this.callControlled(
+        input,
+        'E2E prompt',
+        () =>
+          this.dependencies.session.sendE2EPrompt({
+            attemptId: session.attemptId,
+            conversationId: session.conversationId,
+            verificationRunId,
+            attempt,
+            target: copyTarget(cleanRoom.target),
+            prompt,
+            signal: input.signal,
+            deadlineAt: input.deadlineAt,
+          }),
+        async () => this.cancelSession(session, cleanRoom.target)
+      );
 
-      const cancelled = await this.cancelSession(session);
+      const cancelled = await this.cancelSession(session, cleanRoom.target);
       if (!cancelled.success) {
         markOuterAttempt(
           sessionAttempts,
@@ -690,7 +1055,13 @@ export class CleanRoomE2EGate {
             featureHead,
             attempt,
             sessionAttempts,
-            { verificationRunId, conversationId: session.conversationId, recoveryRequired: true }
+            {
+              verificationRunId,
+              conversationId: session.conversationId,
+              recoveryRequired: true,
+              lastWorkspaceDestroyed: false,
+              pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+            }
           )
         );
       }
@@ -735,14 +1106,16 @@ export class CleanRoomE2EGate {
         );
       }
 
-      const inspected = await this.dependencies.authority.inspectAttempt({
-        cleanRoom,
-        target: copyTarget(cleanRoom.target),
-        expectedFeatureHead: featureHead,
-        mutationBaseline: begun.data.mutationBaseline,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const inspected = await this.callDependency('Post-prompt E2E authority', () =>
+        this.dependencies.authority.inspectAttempt({
+          cleanRoom,
+          target: copyTarget(cleanRoom.target),
+          expectedFeatureHead: featureHead,
+          mutationBaseline: begun.data.mutationBaseline,
+          signal: input.signal,
+          deadlineAt: input.deadlineAt,
+        })
+      );
       if (!inspected.success) {
         markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
           error: inspected.error.message,
@@ -760,6 +1133,7 @@ export class CleanRoomE2EGate {
             {
               verificationRunId,
               conversationId: session.conversationId,
+              recoveryRequired: true,
               lastWorkspaceDestroyed: true,
             }
           )
@@ -785,6 +1159,34 @@ export class CleanRoomE2EGate {
             lastWorkspaceDestroyed: true,
             sessionAttempts,
           })
+        );
+      }
+      const stoppedAfterInspection = controlFailure(input);
+      if (stoppedAfterInspection) {
+        markOuterAttempt(
+          sessionAttempts,
+          outerLedgerIndex,
+          stoppedAfterInspection.type === 'cancelled' ? 'cancelled' : 'interrupted',
+          this.dependencies.now(),
+          { error: stoppedAfterInspection.message }
+        );
+        const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
+        if (!cleanup.success) return cleanup;
+        return err(
+          this.failure(
+            input,
+            stoppedAfterInspection.type,
+            'inspect',
+            stoppedAfterInspection.message,
+            {
+              featureHead,
+              attempt,
+              verificationRunId,
+              conversationId: session.conversationId,
+              lastWorkspaceDestroyed: true,
+              sessionAttempts,
+            }
+          )
         );
       }
       const sentinel = parseE2ESentinel(prompted.data.finalText);
@@ -844,32 +1246,44 @@ export class CleanRoomE2EGate {
           );
         }
         const previousFeatureHead = featureHead;
-        const integrated = await this.dependencies.cleanRoom.integrateFix({
-          cleanRoom,
-          featureTarget: copyTarget(input.featureTarget),
-          expectedFeatureHead: previousFeatureHead,
-          fixCommit: inspected.data.headCommit,
-          project: input.project,
-          signal: input.signal,
-          timeoutMs: remainingTimeout(input),
-        });
+        const integrated = await this.callDependency('E2E correction integration', () =>
+          this.dependencies.cleanRoom.integrateFix({
+            cleanRoom,
+            featureTarget: copyTarget(input.featureTarget),
+            expectedFeatureHead: previousFeatureHead,
+            fixCommit: inspected.data.headCommit,
+            project: input.project,
+            signal: input.signal,
+            timeoutMs: remainingTimeout(input),
+          })
+        );
         if (!integrated.success) {
           markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
             error: integrated.error.message,
           });
           const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
           if (!cleanup.success) return cleanup;
+          const reconciled = await this.inspectFeatureAuthorityUncontrolled(
+            input,
+            featureHead,
+            attempt,
+            sessionAttempts,
+            verificationRunId,
+            session.conversationId
+          );
+          if (!reconciled.success) return reconciled;
           return err(
             this.dependencyFailure(
               input,
               integrated.error,
               'correction',
-              featureHead,
+              reconciled.data,
               attempt,
               sessionAttempts,
               {
                 verificationRunId,
                 conversationId: session.conversationId,
+                recoveryRequired: true,
                 lastWorkspaceDestroyed: true,
               }
             )
@@ -879,6 +1293,17 @@ export class CleanRoomE2EGate {
           markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
             error: 'Fix integration returned invalid head authority.',
           });
+          const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
+          if (!cleanup.success) return cleanup;
+          const reconciled = await this.inspectFeatureAuthorityUncontrolled(
+            input,
+            featureHead,
+            attempt,
+            sessionAttempts,
+            verificationRunId,
+            session.conversationId
+          );
+          if (!reconciled.success) return reconciled;
           return err(
             this.failure(
               input,
@@ -886,11 +1311,12 @@ export class CleanRoomE2EGate {
               'correction',
               'Fix integration returned invalid head authority.',
               {
-                featureHead,
+                featureHead: reconciled.data,
                 attempt,
                 verificationRunId,
                 conversationId: session.conversationId,
                 recoveryRequired: true,
+                lastWorkspaceDestroyed: true,
                 sessionAttempts,
               }
             )
@@ -903,6 +1329,25 @@ export class CleanRoomE2EGate {
         });
         const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
         if (!cleanup.success) return cleanup;
+        const stoppedAfterIntegration = controlFailure(input);
+        if (stoppedAfterIntegration) {
+          return err(
+            this.failure(
+              input,
+              stoppedAfterIntegration.type,
+              'correction',
+              stoppedAfterIntegration.message,
+              {
+                featureHead,
+                attempt,
+                verificationRunId,
+                conversationId: session.conversationId,
+                lastWorkspaceDestroyed: true,
+                sessionAttempts,
+              }
+            )
+          );
+        }
         if (attempt === input.maxAttempts) {
           return err(
             this.failure(
@@ -943,19 +1388,28 @@ export class CleanRoomE2EGate {
         );
       }
 
-      const checked = await this.dependencies.requiredChecks.run({
-        verificationRunId,
-        attempt,
-        conversationId: session.conversationId,
-        target: copyTarget(cleanRoom.target),
-        executionTarget: binding.executionTarget,
-        taskEnvironment: copyEnvironment(binding.taskEnvironment),
-        checkpointCommit: featureHead,
-        provider: input.provider,
-        model: input.model,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const checked = await this.callControlled(
+        input,
+        'Required E2E checks',
+        () =>
+          this.dependencies.requiredChecks.run({
+            verificationRunId,
+            attempt,
+            conversationId: session.conversationId,
+            target: copyTarget(cleanRoom.target),
+            executionTarget: binding.executionTarget,
+            taskEnvironment: copyEnvironment(binding.taskEnvironment),
+            checkpointCommit: featureHead,
+            provider: input.provider,
+            model: input.model,
+            signal: input.signal,
+            deadlineAt: input.deadlineAt,
+          }),
+        async (operation) => {
+          await operation;
+          return ok();
+        }
+      );
       if (!checked.success) {
         markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
           error: checked.error.message,
@@ -1004,14 +1458,16 @@ export class CleanRoomE2EGate {
       }
       sessionAttempts.push(...checked.data.sessionAttempts.map(copyAttempt));
 
-      const postChecks = await this.dependencies.authority.inspectAttempt({
-        cleanRoom,
-        target: copyTarget(cleanRoom.target),
-        expectedFeatureHead: featureHead,
-        mutationBaseline: begun.data.mutationBaseline,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const postChecks = await this.callDependency('Post-check E2E authority', () =>
+        this.dependencies.authority.inspectAttempt({
+          cleanRoom,
+          target: copyTarget(cleanRoom.target),
+          expectedFeatureHead: featureHead,
+          mutationBaseline: begun.data.mutationBaseline,
+          signal: input.signal,
+          deadlineAt: input.deadlineAt,
+        })
+      );
       if (!postChecks.success) {
         markOuterAttempt(sessionAttempts, outerLedgerIndex, 'failed', this.dependencies.now(), {
           error: postChecks.error.message,
@@ -1105,12 +1561,12 @@ export class CleanRoomE2EGate {
         );
       }
 
-      const finalFeature = await this.dependencies.authority.inspectFeature({
-        target: copyTarget(input.featureTarget),
-        expectedFeatureHead: featureHead,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      });
+      const finalFeature = await this.callDependency('Final feature authority', () =>
+        this.dependencies.authority.inspectFeature({
+          target: copyTarget(input.featureTarget),
+          expectedFeatureHead: featureHead,
+        })
+      );
       if (!finalFeature.success) {
         return err(
           this.dependencyFailure(
@@ -1123,6 +1579,7 @@ export class CleanRoomE2EGate {
             {
               verificationRunId,
               conversationId: session.conversationId,
+              recoveryRequired: true,
               lastWorkspaceDestroyed: true,
             }
           )
@@ -1130,12 +1587,18 @@ export class CleanRoomE2EGate {
       }
       const finalError = validateFeature(finalFeature.data, input.featureTarget, featureHead);
       if (finalError) {
+        const observedFeatureHead =
+          sameTarget(finalFeature.data.target, input.featureTarget) &&
+          validCommit(finalFeature.data.headCommit)
+            ? finalFeature.data.headCommit
+            : featureHead;
         return err(
           this.failure(input, finalError.type, 'finalize', finalError.message, {
-            featureHead,
+            featureHead: observedFeatureHead,
             attempt,
             verificationRunId,
             conversationId: session.conversationId,
+            recoveryRequired: true,
             lastWorkspaceDestroyed: true,
             sessionAttempts,
           })
@@ -1189,29 +1652,116 @@ export class CleanRoomE2EGate {
     );
   }
 
-  private async cancelSession(
-    session: E2ESessionInfo
-  ): Promise<Result<void, E2EGateDependencyError>> {
-    const cancelled = await this.dependencies.session.cancelE2ESession({
-      attemptId: session.attemptId,
-      conversationId: session.conversationId,
-      verificationRunId: session.verificationRunId,
-      attempt: session.attempt,
-      target: copyTarget(session.target),
-    });
-    if (!cancelled.success) return cancelled;
-    const value = cancelled.data;
-    if (
-      value.quiescent !== true ||
-      value.attemptId !== session.attemptId ||
-      value.conversationId !== session.conversationId ||
-      value.verificationRunId !== session.verificationRunId ||
-      value.attempt !== session.attempt ||
-      !sameTarget(value.target, session.target)
-    ) {
-      return err({ message: 'E2E cancellation returned invalid quiescence authority.' });
+  private dependencyOperation<T>(
+    label: string,
+    operation: () => Promise<Result<T, E2EGateDependencyError>>
+  ): Promise<Extract<ControlledDependencyOutcome<T>, { kind: 'completed' }>> {
+    return Promise.resolve()
+      .then(operation)
+      .then(
+        (value) => ({
+          kind: 'completed' as const,
+          value: isDependencyResult<T>(value)
+            ? value
+            : err({
+                type: 'untrusted-settlement',
+                message: `${label} returned an invalid result.`,
+              }),
+        }),
+        (cause) => ({
+          kind: 'completed' as const,
+          value: err({
+            type: 'untrusted-settlement',
+            message: `${label} failed: ${errorMessage(cause)}`,
+          }),
+        })
+      );
+  }
+
+  private async callDependency<T>(
+    label: string,
+    operation: () => Promise<Result<T, E2EGateDependencyError>>
+  ): Promise<Result<T, E2EGateDependencyError>> {
+    return (await this.dependencyOperation(label, operation)).value;
+  }
+
+  private async callControlled<T>(
+    input: NormalizedInput,
+    label: string,
+    operation: () => Promise<Result<T, E2EGateDependencyError>>,
+    quiesceAfterStop: StopQuiescence<T>
+  ): Promise<Result<T, E2EGateDependencyError>> {
+    const stopped = controlFailure(input);
+    if (stopped) return err(stopped);
+
+    const operationPromise = this.dependencyOperation(label, operation);
+    const controlled = await raceWithControl(operationPromise, input);
+    if (controlled.kind === 'stopped') {
+      const quiesced = await quiesceAfterStop(operationPromise);
+      if (!quiesced.success) {
+        return err({
+          ...quiesced.error,
+          type: 'cleanup-failed',
+          message: `Quiescence failed: ${quiesced.error.message}`,
+        });
+      }
+      return err(controlled.failure);
     }
-    return ok();
+
+    const stoppedAfterSettle = controlFailure(input);
+    if (stoppedAfterSettle) {
+      const quiesced = await quiesceAfterStop(operationPromise);
+      if (!quiesced.success) {
+        return err({
+          ...quiesced.error,
+          type: 'cleanup-failed',
+          message: `Quiescence failed: ${quiesced.error.message}`,
+        });
+      }
+      return err(stoppedAfterSettle);
+    }
+    return controlled.value;
+  }
+
+  private cancelSession(
+    session: E2ESessionInfo,
+    authoritativeTarget: LoopSessionTarget
+  ): Promise<Result<void, E2EGateDependencyError>> {
+    const key = [
+      session.attemptId,
+      session.conversationId,
+      session.verificationRunId,
+      String(session.attempt),
+      authoritativeTarget.workspaceId,
+    ].join('\u0000');
+    const existing = this.cancellationPromises.get(key);
+    if (existing) return existing;
+
+    const promise = this.callDependency('E2E session cancellation', () =>
+      this.dependencies.session.cancelE2ESession({
+        attemptId: session.attemptId,
+        conversationId: session.conversationId,
+        verificationRunId: session.verificationRunId,
+        attempt: session.attempt,
+        target: copyTarget(authoritativeTarget),
+      })
+    ).then((cancelled) => {
+      if (!cancelled.success) return cancelled;
+      const value = cancelled.data;
+      if (
+        value.quiescent !== true ||
+        value.attemptId !== session.attemptId ||
+        value.conversationId !== session.conversationId ||
+        value.verificationRunId !== session.verificationRunId ||
+        value.attempt !== session.attempt ||
+        !sameTarget(value.target, authoritativeTarget)
+      ) {
+        return err({ message: 'E2E cancellation returned invalid quiescence authority.' });
+      }
+      return ok();
+    });
+    this.cancellationPromises.set(key, promise);
+    return promise;
   }
 
   private async cleanupActive(
@@ -1238,10 +1788,12 @@ export class CleanRoomE2EGate {
     attempt: number,
     sessionAttempts: LoopSessionAttempt[]
   ): Promise<CleanupResult> {
-    const released = await this.dependencies.execution.release({
-      target: copyTarget(binding.target),
-      executionTarget: binding.executionTarget,
-    });
+    const released = await this.callDependency('E2E execution release', () =>
+      this.dependencies.execution.release({
+        target: copyTarget(binding.target),
+        executionTarget: binding.executionTarget,
+      })
+    );
     if (!released.success) {
       return err(
         this.dependencyFailure(
@@ -1251,7 +1803,11 @@ export class CleanRoomE2EGate {
           featureHead,
           attempt,
           sessionAttempts,
-          { recoveryRequired: true, lastWorkspaceDestroyed: false }
+          {
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          }
         )
       );
     }
@@ -1267,6 +1823,7 @@ export class CleanRoomE2EGate {
             attempt,
             recoveryRequired: true,
             lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
             sessionAttempts,
           }
         )
@@ -1282,7 +1839,9 @@ export class CleanRoomE2EGate {
     attempt: number,
     sessionAttempts: LoopSessionAttempt[]
   ): Promise<CleanupResult> {
-    const destroyed = await this.dependencies.cleanRoom.destroy(cleanRoom, input.project);
+    const destroyed = await this.callDependency('Clean-room destruction', () =>
+      this.dependencies.cleanRoom.destroy(cleanRoom, input.project)
+    );
     if (!destroyed.success) {
       return err(
         this.dependencyFailure(
@@ -1292,11 +1851,76 @@ export class CleanRoomE2EGate {
           featureHead,
           attempt,
           sessionAttempts,
-          { recoveryRequired: true, lastWorkspaceDestroyed: false }
+          {
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          }
         )
       );
     }
     return ok();
+  }
+
+  private async inspectFeatureAuthorityUncontrolled(
+    input: NormalizedInput,
+    cachedFeatureHead: string,
+    attempt: number,
+    sessionAttempts: LoopSessionAttempt[],
+    verificationRunId?: string,
+    conversationId?: string
+  ): Promise<Result<string, CleanRoomE2EGateError>> {
+    const inspected = await this.callDependency('Uncontrolled feature authority', () =>
+      this.dependencies.authority.inspectFeature({
+        target: copyTarget(input.featureTarget),
+        expectedFeatureHead: cachedFeatureHead,
+      })
+    );
+    if (!inspected.success) {
+      return err(
+        this.dependencyFailure(
+          input,
+          inspected.error,
+          'finalize',
+          cachedFeatureHead,
+          attempt,
+          sessionAttempts,
+          {
+            ...(verificationRunId ? { verificationRunId } : {}),
+            ...(conversationId ? { conversationId } : {}),
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: true,
+          }
+        )
+      );
+    }
+    if (
+      !inspected.data ||
+      typeof inspected.data !== 'object' ||
+      !sameTarget(inspected.data.target, input.featureTarget) ||
+      !validCommit(inspected.data.headCommit) ||
+      inspected.data.clean !== true ||
+      inspected.data.branchAttached !== true
+    ) {
+      return err(
+        this.failure(
+          input,
+          'feature-authority-invalid',
+          'finalize',
+          'Feature authority could not attest an exact clean attached HEAD after cleanup.',
+          {
+            featureHead: cachedFeatureHead,
+            attempt,
+            ...(verificationRunId ? { verificationRunId } : {}),
+            ...(conversationId ? { conversationId } : {}),
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: true,
+            sessionAttempts,
+          }
+        )
+      );
+    }
+    return ok(inspected.data.headCommit);
   }
 
   private dependencyFailure(
@@ -1336,7 +1960,8 @@ export class CleanRoomE2EGate {
     fields: Pick<CleanRoomE2EGateError, 'featureHead' | 'attempt' | 'sessionAttempts'> &
       Partial<CleanRoomE2EGateError>
   ): CleanRoomE2EGateError {
-    const status = type === 'cancelled' ? 'cancelled' : 'failed';
+    const status =
+      type === 'cancelled' ? 'cancelled' : type === 'deadline-exceeded' ? 'interrupted' : 'failed';
     return {
       type,
       stage,
@@ -1349,18 +1974,28 @@ export class CleanRoomE2EGate {
         ? { recoveryRequired: fields.recoveryRequired }
         : {}),
       ...(fields.pendingCleanup !== undefined ? { pendingCleanup: fields.pendingCleanup } : {}),
+      ...(fields.pendingWorkspace !== undefined
+        ? { pendingWorkspace: clonePendingWorkspace(fields.pendingWorkspace) }
+        : {}),
       ...(fields.lastWorkspaceDestroyed !== undefined
         ? { lastWorkspaceDestroyed: fields.lastWorkspaceDestroyed }
         : {}),
       sessionAttempts: fields.sessionAttempts.map(copyAttempt),
       stageResult: this.stageResult(
         status,
-        status === 'cancelled' ? 'Clean-room E2E was cancelled.' : message
+        status === 'cancelled'
+          ? 'Clean-room E2E was cancelled.'
+          : status === 'interrupted'
+            ? 'Clean-room E2E exceeded its deadline.'
+            : message
       ),
     };
   }
 
-  private stageResult(status: 'passed' | 'failed' | 'cancelled', summary: string): LoopStageResult {
+  private stageResult(
+    status: 'passed' | 'failed' | 'cancelled' | 'interrupted',
+    summary: string
+  ): LoopStageResult {
     return loopStageResultSchema.parse({
       status,
       summary: boundedSummary(summary, 'Clean-room E2E completed.'),
@@ -1476,6 +2111,8 @@ function validateCleanRoom(
   featureHead: string
 ): { type: string; message: string } | undefined {
   if (
+    !cleanRoom ||
+    typeof cleanRoom !== 'object' ||
     cleanRoom.projectId !== input.project.projectId ||
     cleanRoom.verificationRunId !== verificationRunId ||
     cleanRoom.attempt !== attempt ||
@@ -1491,8 +2128,15 @@ function validateCleanRoom(
       message: 'Clean-room identity attestation is invalid.',
     };
   }
-  if (!sameMachine(cleanRoom.target, input.featureTarget)) {
-    return { type: 'target-drift', message: 'Clean room was created on a different machine.' };
+  if (
+    !sameMachine(cleanRoom.target, input.featureTarget) ||
+    cleanRoom.target.workspaceId === input.featureTarget.workspaceId ||
+    cleanRoom.target.path === input.featureTarget.path
+  ) {
+    return {
+      type: 'target-drift',
+      message: 'Clean room must be a distinct disposable workspace on the feature machine.',
+    };
   }
   return undefined;
 }
@@ -1503,20 +2147,47 @@ function validateBinding(
   input: NormalizedInput
 ): { type: string; message: string } | undefined {
   if (
+    !binding ||
+    typeof binding !== 'object' ||
+    !binding.executionTarget ||
+    typeof binding.executionTarget !== 'object' ||
     !sameTarget(binding.target, target) ||
-    !sameTarget(binding.executionTarget, target) ||
-    !sameEnvironment(binding.executionTarget.taskEnv, binding.taskEnvironment)
+    !sameTarget(binding.executionTarget, target)
   ) {
     return {
       type: 'execution-target-drift',
       message: 'Execution binding drifted from the clean room.',
     };
   }
+  if (
+    !trustedTaskEnvironmentSchema.safeParse(binding.taskEnvironment).success ||
+    !trustedTaskEnvironmentSchema.safeParse(binding.executionTarget.taskEnv).success ||
+    !sameEnvironment(binding.executionTarget.taskEnv, binding.taskEnvironment)
+  ) {
+    return {
+      type: 'task-environment-invalid',
+      message: 'Execution binding returned a malformed or mismatched task environment.',
+    };
+  }
   const keys = Object.keys(binding.taskEnvironment).sort();
+  const values = Object.values(binding.taskEnvironment);
+  const valuesAreBoundedStrings = values.every(
+    (value) => typeof value === 'string' && value.length <= MAX_TASK_ENVIRONMENT_VALUE_LENGTH
+  );
+  const environmentBytes = valuesAreBoundedStrings
+    ? keys.reduce(
+        (total, key) =>
+          total +
+          Buffer.byteLength(key, 'utf8') +
+          Buffer.byteLength(binding.taskEnvironment[key] ?? '', 'utf8'),
+        0
+      )
+    : Number.POSITIVE_INFINITY;
   if (
     keys.length !== TRUSTED_TASK_ENVIRONMENT_KEYS.length ||
     TRUSTED_TASK_ENVIRONMENT_KEYS.some((key) => !keys.includes(key)) ||
-    Object.values(binding.taskEnvironment).some((value) => typeof value !== 'string') ||
+    !valuesAreBoundedStrings ||
+    environmentBytes > MAX_TASK_ENVIRONMENT_BYTES ||
     binding.taskEnvironment.EMDASH_TASK_ID !== input.task.id ||
     binding.taskEnvironment.EMDASH_TASK_PATH !== target.path ||
     binding.taskEnvironment.EMDASH_ROOT_PATH !== input.project.repoPath
@@ -1534,7 +2205,15 @@ function validateBeginning(
   target: LoopSessionTarget,
   featureHead: string
 ): { type: string; message: string } | undefined {
-  if (!sameTarget(authority.target, target) || !validId(authority.mutationBaseline)) {
+  if (
+    !authority ||
+    typeof authority !== 'object' ||
+    !sameTarget(authority.target, target) ||
+    !validId(authority.mutationBaseline) ||
+    !validCommit(authority.headCommit) ||
+    typeof authority.clean !== 'boolean' ||
+    typeof authority.branchAttached !== 'boolean'
+  ) {
     return {
       type: 'authority-invalid',
       message: 'Attempt authority returned invalid target or baseline.',
@@ -1561,6 +2240,12 @@ function validateSession(
   attempt: number,
   attempts: readonly LoopSessionAttempt[]
 ): { type: string; message: string } | undefined {
+  if (!e2eSessionInfoSchema.safeParse(session).success) {
+    return {
+      type: 'session-authority-invalid',
+      message: 'Fresh E2E session returned malformed or unbounded authority.',
+    };
+  }
   if (!validId(session.attemptId) || !validId(session.conversationId)) {
     return { type: 'session-authority-invalid', message: 'Fresh E2E session IDs are invalid.' };
   }
@@ -1596,6 +2281,12 @@ function validatePromptResult(
   },
   session: E2ESessionInfo
 ): { type: string; message: string } | undefined {
+  if (!e2ePromptResultSchema.safeParse(value).success) {
+    return {
+      type: 'prompt-authority-invalid',
+      message: 'E2E prompt returned malformed or unbounded authority.',
+    };
+  }
   if (
     value.conversationId !== session.conversationId ||
     value.verificationRunId !== session.verificationRunId ||
@@ -1614,6 +2305,8 @@ function validateInspection(
   mutationBaseline: string
 ): { type: string; message: string } | undefined {
   if (
+    !inspection ||
+    typeof inspection !== 'object' ||
     !sameTarget(inspection.target, target) ||
     inspection.mutationBaseline !== mutationBaseline ||
     !validCommit(inspection.headCommit) ||
@@ -1666,7 +2359,14 @@ function validateRequiredChecks(
   input: NormalizedInput,
   existingAttempts: readonly LoopSessionAttempt[]
 ): { type: string; message: string } | undefined {
+  if (!e2eRequiredChecksResultSchema.safeParse(checks).success) {
+    return {
+      type: 'required-checks-authority-invalid',
+      message: 'Required checks returned malformed or unbounded authority.',
+    };
+  }
   if (
+    !['passed', 'correctable', 'failed'].includes(checks.status) ||
     checks.verificationRunId !== active.verificationRunId ||
     checks.attempt !== active.number ||
     checks.outerConversationId !== active.session.conversationId ||
@@ -1711,10 +2411,10 @@ function validateRequiredChecks(
       message: 'Only correctable checks may return a handoff.',
     };
   }
-  if (checks.sessionAttempts.length === 0) {
+  if (checks.sessionAttempts.length !== 1) {
     return {
-      type: 'native-verifier-authority-invalid',
-      message: 'Native verifier attempt ledger is missing.',
+      type: 'native-verifier-ledger-invalid',
+      message: 'Native verifier must attest exactly one nested browser session.',
     };
   }
   const seenAttempts = new Set(existingAttempts.map((item) => item.attemptId));
@@ -1724,9 +2424,15 @@ function validateRequiredChecks(
     if (
       !parsed.success ||
       parsed.data.purpose !== 'browser-verification' ||
+      parsed.data.status !== 'completed' ||
+      parsed.data.finishedAt === undefined ||
+      parsed.data.phaseId !== input.phase.id ||
       parsed.data.verificationRunId !== active.verificationRunId ||
+      parsed.data.checkpointBefore !== featureHead ||
+      parsed.data.checkpointAfter !== featureHead ||
       !sameTarget(parsed.data.target, active.cleanRoom.target) ||
       parsed.data.conversationId === active.session.conversationId ||
+      input.previousConversationIds.includes(parsed.data.conversationId) ||
       seenAttempts.has(parsed.data.attemptId) ||
       seenConversations.has(parsed.data.conversationId)
     ) {
@@ -1763,6 +2469,19 @@ function validateFeature(
   target: LoopSessionTarget,
   featureHead: string
 ): { type: string; message: string } | undefined {
+  if (
+    !feature ||
+    typeof feature !== 'object' ||
+    !loopSessionTargetSchema.safeParse(feature.target).success ||
+    !validCommit(feature.headCommit) ||
+    typeof feature.clean !== 'boolean' ||
+    typeof feature.branchAttached !== 'boolean'
+  ) {
+    return {
+      type: 'feature-authority-invalid',
+      message: 'Feature inspection returned malformed authority.',
+    };
+  }
   if (!sameTarget(feature.target, target) || feature.headCommit !== featureHead) {
     return {
       type: 'feature-head-drift',
@@ -1775,23 +2494,41 @@ function validateFeature(
   return undefined;
 }
 
-function makeOuterAttempt(
+function tryMakeOuterAttempt(
   input: NormalizedInput,
-  session: E2ESessionInfo,
+  session: unknown,
   checkpoint: string,
   startedAt: string
-): LoopSessionAttempt {
-  return loopSessionAttemptSchema.parse({
-    attemptId: session.attemptId,
-    conversationId: session.conversationId,
+): LoopSessionAttempt | undefined {
+  if (!session || typeof session !== 'object') return undefined;
+  const candidate = session as Partial<E2ESessionInfo>;
+  const target = loopSessionTargetSchema.safeParse(candidate.target);
+  if (!target.success) return undefined;
+  const parsed = loopSessionAttemptSchema.safeParse({
+    attemptId: candidate.attemptId,
+    conversationId: candidate.conversationId,
     purpose: 'e2e',
     phaseId: input.phase.id,
-    verificationRunId: session.verificationRunId,
-    target: copyTarget(session.target),
+    verificationRunId: candidate.verificationRunId,
+    target: target.data,
     status: 'running',
     checkpointBefore: checkpoint,
     startedAt,
   });
+  return parsed.success ? parsed.data : undefined;
+}
+
+function hasUsableCancellationIdentity(value: unknown): value is E2ESessionInfo {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<E2ESessionInfo>;
+  return (
+    validId(candidate.attemptId) &&
+    validId(candidate.conversationId) &&
+    validId(candidate.verificationRunId) &&
+    Number.isInteger(candidate.attempt) &&
+    (candidate.attempt ?? 0) > 0 &&
+    (candidate.attempt ?? 0) <= MAX_ATTEMPTS
+  );
 }
 
 function markOuterAttempt(
@@ -1816,6 +2553,26 @@ function copyAttempt(attempt: LoopSessionAttempt): LoopSessionAttempt {
   return loopSessionAttemptSchema.parse(attempt);
 }
 
+function pendingWorkspaceAuthority(cleanRoom: CleanRoomWorkspace): E2EPendingWorkspaceAuthority {
+  return {
+    projectId: cleanRoom.projectId,
+    cleanupId: cleanRoom.cleanupId,
+    verificationRunId: cleanRoom.verificationRunId,
+    attempt: cleanRoom.attempt,
+    target: copyTarget(cleanRoom.target),
+    expectedFeatureHead: cleanRoom.expectedFeatureHead,
+  };
+}
+
+function clonePendingWorkspace(
+  authority: E2EPendingWorkspaceAuthority
+): E2EPendingWorkspaceAuthority {
+  return {
+    ...authority,
+    target: copyTarget(authority.target),
+  };
+}
+
 function copyTarget(target: LoopSessionTarget): LoopSessionTarget {
   return loopSessionTargetSchema.parse(target);
 }
@@ -1826,26 +2583,46 @@ function copyEnvironment(
   return Object.freeze({ ...environment });
 }
 
-function sameEnvironment(
-  left: Readonly<Record<string, string>>,
-  right: Readonly<Record<string, string>>
-): boolean {
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
+function sameEnvironment(left: unknown, right: unknown): boolean {
+  const parsedLeft = trustedTaskEnvironmentSchema.safeParse(left);
+  const parsedRight = trustedTaskEnvironmentSchema.safeParse(right);
+  if (!parsedLeft.success || !parsedRight.success) return false;
+  const leftEnvironment = parsedLeft.data;
+  const rightEnvironment = parsedRight.data;
+  const leftKeys = Object.keys(leftEnvironment).sort();
+  const rightKeys = Object.keys(rightEnvironment).sort();
   return (
     leftKeys.length === rightKeys.length &&
-    leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key])
+    leftKeys.every(
+      (key, index) => key === rightKeys[index] && leftEnvironment[key] === rightEnvironment[key]
+    )
   );
 }
 
-function sameTarget(left: LoopSessionTarget, right: LoopSessionTarget): boolean {
+function sameTarget(left: unknown, right: unknown): boolean {
+  const parsedLeft = parseTargetLike(left);
+  const parsedRight = parseTargetLike(right);
+  if (!parsedLeft.success || !parsedRight.success) return false;
+  const leftTarget = parsedLeft.data;
+  const rightTarget = parsedRight.data;
   return (
-    left.workspaceId === right.workspaceId &&
-    left.path === right.path &&
-    left.machine.kind === right.machine.kind &&
-    (left.machine.kind === 'local' ||
-      (right.machine.kind === 'ssh' && left.machine.connectionId === right.machine.connectionId))
+    leftTarget.workspaceId === rightTarget.workspaceId &&
+    leftTarget.path === rightTarget.path &&
+    leftTarget.machine.kind === rightTarget.machine.kind &&
+    (leftTarget.machine.kind === 'local' ||
+      (rightTarget.machine.kind === 'ssh' &&
+        leftTarget.machine.connectionId === rightTarget.machine.connectionId))
   );
+}
+
+function parseTargetLike(value: unknown): ReturnType<typeof loopSessionTargetSchema.safeParse> {
+  if (!value || typeof value !== 'object') return loopSessionTargetSchema.safeParse(value);
+  const candidate = value as Partial<LoopSessionTarget>;
+  return loopSessionTargetSchema.safeParse({
+    workspaceId: candidate.workspaceId,
+    path: candidate.path,
+    machine: candidate.machine,
+  });
 }
 
 function sameMachine(left: LoopSessionTarget, right: LoopSessionTarget): boolean {
@@ -1868,6 +2645,66 @@ function boundedSummary(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
   return (trimmed || fallback).slice(0, MAX_SUMMARY_LENGTH);
+}
+
+async function raceWithControl<T>(
+  operation: Promise<Extract<ControlledDependencyOutcome<T>, { kind: 'completed' }>>,
+  input: Pick<RunCleanRoomE2EGateInput, 'signal' | 'deadlineAt'>
+): Promise<ControlledDependencyOutcome<T>> {
+  if (!input.signal && input.deadlineAt === undefined) return operation;
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let detachAbort: (() => void) | undefined;
+  const stopped = new Promise<Extract<ControlledDependencyOutcome<T>, { kind: 'stopped' }>>(
+    (resolve) => {
+      const stop = () => {
+        const failure = controlFailure(input);
+        if (failure) resolve({ kind: 'stopped', failure });
+      };
+      if (input.signal) {
+        input.signal.addEventListener('abort', stop, { once: true });
+        detachAbort = () => input.signal?.removeEventListener('abort', stop);
+      }
+      if (input.deadlineAt !== undefined) {
+        timeout = setTimeout(
+          () =>
+            resolve({
+              kind: 'stopped',
+              failure: {
+                type: 'deadline-exceeded',
+                message: 'Clean-room E2E deadline was exceeded.',
+              },
+            }),
+          Math.max(0, input.deadlineAt - Date.now())
+        );
+      }
+      stop();
+    }
+  );
+
+  try {
+    return await Promise.race([operation, stopped]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    detachAbort?.();
+  }
+}
+
+function isDependencyResult<T>(value: unknown): value is Result<T, E2EGateDependencyError> {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<Result<T, E2EGateDependencyError>>;
+  if (candidate.success === true) return 'data' in candidate;
+  if (candidate.success !== false || !('error' in candidate)) return false;
+  const dependencyError = candidate.error;
+  return (
+    !!dependencyError &&
+    typeof dependencyError === 'object' &&
+    typeof (dependencyError as E2EGateDependencyError).message === 'string'
+  );
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 function controlFailure(

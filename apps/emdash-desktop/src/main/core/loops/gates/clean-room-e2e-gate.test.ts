@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ok } from '@main/lib/result';
+import { err, ok } from '@main/lib/result';
 import type { LoopSessionTarget } from '@shared/core/loops/loop-state';
 import type { Loop, LoopPhase } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
@@ -339,6 +339,18 @@ function requiredChecksResult(input: {
   };
 }
 
+function mutateRequiredChecksOnce(
+  harness: Harness,
+  mutate: (result: E2ERequiredChecksResult) => E2ERequiredChecksResult
+): void {
+  const checks = vi.mocked(harness.dependencies.requiredChecks.run);
+  const original = checks.getMockImplementation()!;
+  checks.mockImplementationOnce(async (input) => {
+    const result = await original(input);
+    return result.success ? ok(mutate(result.data)) : result;
+  });
+}
+
 describe('CleanRoomE2EGate', () => {
   it('returns first-pass success only after checks, release, destroy, and feature inspection', async () => {
     const harness = makeHarness([{ finalText: 'Green.\n<<<LOOP:E2E_PASSED>>>' }]);
@@ -512,5 +524,806 @@ describe('CleanRoomE2EGate', () => {
     const checks = vi.mocked(harness.dependencies.requiredChecks.run).mock.calls[0]?.[0];
     expect(checks?.target.machine).toEqual(sshFeatureTarget.machine);
     expect(checks?.executionTarget.machine).toEqual(sshFeatureTarget.machine);
+  });
+
+  it('cancels a late successful session start after abort without sending a prompt', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type StartResult = Awaited<
+      ReturnType<CleanRoomE2EGateDependencies['session']['startFreshE2ESession']>
+    >;
+    const deferred = Promise.withResolvers<StartResult>();
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockReturnValueOnce(
+      deferred.promise
+    );
+
+    const run = harness.gate.run({ ...defaultInput, signal: controller.signal });
+    await vi.waitFor(() =>
+      expect(harness.dependencies.session.startFreshE2ESession).toHaveBeenCalledOnce()
+    );
+    controller.abort();
+    const target = {
+      workspaceId: 'verification-workspace-1',
+      path: '/tmp/verification-workspace-1',
+      machine: { kind: 'local' as const },
+    };
+    deferred.resolve(
+      ok({
+        attemptId: 'e2e-attempt-1',
+        conversationId: 'e2e-conversation-1',
+        verificationRunId: 'verification-run-1',
+        attempt: 1,
+        target,
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        taskEnvironment: environment(target),
+      })
+    );
+
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cancelled',
+        featureHead: FEATURE_COMMIT,
+        lastWorkspaceDestroyed: true,
+        sessionAttempts: [{ conversationId: 'e2e-conversation-1' }],
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.session.sendE2EPrompt).not.toHaveBeenCalled();
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('turns a thrown prompt dependency into a typed failure after quiescent cleanup', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockImplementationOnce(async () => {
+      throw new Error('prompt transport exploded');
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'prompt',
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('rejects an unknown required-check status instead of falling through to pass', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const checks = vi.mocked(harness.dependencies.requiredChecks.run);
+    const original = checks.getMockImplementation()!;
+    checks.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      return ok({ ...result.data, status: 'unknown' } as unknown as E2ERequiredChecksResult);
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'required-checks-authority-invalid', stage: 'required-checks' },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('rejects a non-terminal or previously used nested browser session ledger', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const checks = vi.mocked(harness.dependencies.requiredChecks.run);
+    const original = checks.getMockImplementation()!;
+    checks.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      return ok({
+        ...result.data,
+        sessionAttempts: [
+          {
+            ...result.data.sessionAttempts[0]!,
+            conversationId: 'work-1',
+            status: 'running' as const,
+            finishedAt: undefined,
+          },
+        ],
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+    });
+  });
+
+  it('requires exactly one exact completed nested browser session attestation', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const checks = vi.mocked(harness.dependencies.requiredChecks.run);
+    const original = checks.getMockImplementation()!;
+    checks.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      const first = result.data.sessionAttempts[0]!;
+      return ok({
+        ...result.data,
+        sessionAttempts: [
+          first,
+          {
+            ...first,
+            attemptId: 'browser-second',
+            conversationId: 'browser-second-conversation',
+          },
+        ],
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+    });
+  });
+
+  it('cleans up and reports recovery authority when integration returns an invalid head', async () => {
+    const harness = makeHarness([
+      {
+        finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+    ]);
+    vi.mocked(harness.dependencies.cleanRoom.integrateFix).mockResolvedValueOnce(
+      ok({ featureHead: 'not-a-commit' })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'integration-authority-invalid',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('retains a failed ledger entry for a created session whose target attestation is invalid', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const start = vi.mocked(harness.dependencies.session.startFreshE2ESession);
+    const original = start.getMockImplementation()!;
+    start.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      return ok({
+        ...result.data,
+        target: { ...result.data.target, workspaceId: 'wrong-verification-workspace' },
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        conversationId: 'e2e-conversation-1',
+        lastWorkspaceDestroyed: true,
+        sessionAttempts: [
+          {
+            attemptId: 'e2e-attempt-1',
+            conversationId: 'e2e-conversation-1',
+            status: 'failed',
+          },
+        ],
+      },
+    });
+  });
+
+  it('retains invalid-session cleanup authority when cancellation cannot prove quiescence', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const start = vi.mocked(harness.dependencies.session.startFreshE2ESession);
+    const original = start.getMockImplementation()!;
+    start.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      return ok({
+        ...result.data,
+        target: { ...result.data.target, workspaceId: 'wrong-verification-workspace' },
+      });
+    });
+    vi.mocked(harness.dependencies.session.cancelE2ESession).mockResolvedValueOnce(
+      err({ message: 'session remained live' })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'quiescence',
+        conversationId: 'e2e-conversation-1',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: {
+          projectId: project.projectId,
+          cleanupId: 'cleanup-loop-verify-1',
+          verificationRunId: 'verification-run-1',
+          attempt: 1,
+          target: {
+            workspaceId: 'verification-workspace-1',
+            path: '/tmp/verification-workspace-1',
+          },
+          expectedFeatureHead: FEATURE_COMMIT,
+        },
+        sessionAttempts: [{ conversationId: 'e2e-conversation-1', status: 'interrupted' }],
+      },
+    });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized trusted task-environment value before session creation', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const acquire = vi.mocked(harness.dependencies.execution.acquire);
+    const original = acquire.getMockImplementation()!;
+    acquire.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      const taskEnvironment = {
+        ...result.data.taskEnvironment,
+        EMDASH_TASK_NAME: 'x'.repeat(65_537),
+      };
+      return ok({
+        ...result.data,
+        taskEnvironment,
+        executionTarget: { ...result.data.executionTarget, taskEnv: taskEnvironment },
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'task-environment-invalid', stage: 'execution' },
+    });
+    expect(harness.dependencies.session.startFreshE2ESession).not.toHaveBeenCalled();
+  });
+
+  it('uses an uncontrolled final feature inspection after cleanup even when destroy aborts', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const destroy = vi.mocked(harness.dependencies.cleanRoom.destroy);
+    const original = destroy.getMockImplementation()!;
+    destroy.mockImplementationOnce(async (...args) => {
+      const result = await original(...args);
+      controller.abort();
+      return result;
+    });
+
+    const result = await harness.gate.run({ ...defaultInput, signal: controller.signal });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cancelled',
+        featureHead: FEATURE_COMMIT,
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    const finalInspect = vi.mocked(harness.dependencies.authority.inspectFeature).mock
+      .calls[0]?.[0];
+    expect(finalInspect?.signal).toBeUndefined();
+    expect(finalInspect?.deadlineAt).toBeUndefined();
+  });
+
+  it('rejects a clean room that reuses the feature target instead of a disposable workspace', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.cleanRoom.create).mockImplementationOnce(async (input) =>
+      ok({
+        projectId: project.projectId,
+        cleanupId: 'cleanup-feature-reuse',
+        verificationRunId: input.verificationRunId,
+        attempt: input.attempt,
+        target: featureTarget,
+        branchName: 'emdash/feature-reuse',
+        baseCommit: input.baseCommit,
+        expectedFeatureHead: input.expectedFeatureHead,
+        replayedThroughCommit: input.expectedFeatureHead,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'target-drift',
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'running status',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [
+          { ...result.sessionAttempts[0]!, status: 'running', finishedAt: undefined },
+        ],
+      }),
+    ],
+    [
+      'missing finished timestamp',
+      (result: E2ERequiredChecksResult) => {
+        const { finishedAt: _finishedAt, ...attempt } = result.sessionAttempts[0]!;
+        return { ...result, sessionAttempts: [attempt] };
+      },
+    ],
+    [
+      'wrong phase',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, phaseId: 'different-phase' }],
+      }),
+    ],
+    [
+      'wrong checkpoint before',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, checkpointBefore: BASE_COMMIT }],
+      }),
+    ],
+    [
+      'wrong checkpoint after',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, checkpointAfter: BASE_COMMIT }],
+      }),
+    ],
+    [
+      'previous conversation reuse',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, conversationId: 'work-1' }],
+      }),
+    ],
+    [
+      'outer attempt identity reuse',
+      (result: E2ERequiredChecksResult) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, attemptId: 'e2e-attempt-1' }],
+      }),
+    ],
+  ] as const)('rejects nested browser ledger authority with %s', async (_name, mutate) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    mutateRequiredChecksOnce(harness, mutate);
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+    expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
+  });
+
+  it('rejects concealed mutation after a pass candidate before running required checks', async () => {
+    const harness = makeHarness([
+      { finalText: '<<<LOOP:E2E_PASSED>>>', postHead: FEATURE_COMMIT, mutated: true },
+    ]);
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'mutation-concealed', stage: 'inspect' },
+    });
+    expect(harness.dependencies.requiredChecks.run).not.toHaveBeenCalled();
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('rejects concealed mutation introduced by required checks', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const inspect = vi.mocked(harness.dependencies.authority.inspectAttempt);
+    const original = inspect.getMockImplementation()!;
+    inspect.mockImplementationOnce(original).mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      return result.success ? ok({ ...result.data, mutated: true }) : result;
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'post-check-drift',
+        stage: 'finalize',
+        sessionAttempts: [
+          { purpose: 'e2e', status: 'failed' },
+          { purpose: 'browser-verification', status: 'completed' },
+        ],
+      },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+    expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
+  });
+
+  it('rejects a trusted task-environment value over the per-value bound', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const acquire = vi.mocked(harness.dependencies.execution.acquire);
+    const original = acquire.getMockImplementation()!;
+    acquire.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      const taskEnvironment = {
+        ...result.data.taskEnvironment,
+        EMDASH_TASK_NAME: 'x'.repeat(4_097),
+      };
+      return ok({
+        ...result.data,
+        taskEnvironment,
+        executionTarget: { ...result.data.executionTarget, taskEnv: taskEnvironment },
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'task-environment-invalid', stage: 'execution' },
+    });
+    expect(harness.dependencies.session.startFreshE2ESession).not.toHaveBeenCalled();
+  });
+
+  it('cancels a held prompt immediately on abort without waiting for prompt settlement', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type PromptResult = Awaited<
+      ReturnType<CleanRoomE2EGateDependencies['session']['sendE2EPrompt']>
+    >;
+    const deferred = Promise.withResolvers<PromptResult>();
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockReturnValueOnce(deferred.promise);
+
+    const run = harness.gate.run({ ...defaultInput, signal: controller.signal });
+    await vi.waitFor(() =>
+      expect(harness.dependencies.session.sendE2EPrompt).toHaveBeenCalledOnce()
+    );
+    controller.abort();
+    await vi.waitFor(() =>
+      expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce()
+    );
+
+    const result = await run;
+    deferred.resolve(err({ type: 'cancelled', message: 'prompt stopped' }));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'cancelled', stage: 'prompt', lastWorkspaceDestroyed: true },
+    });
+    expect(harness.dependencies.requiredChecks.run).not.toHaveBeenCalled();
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('waits for held required checks to settle before cleaning up after abort', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type ChecksResult = Awaited<ReturnType<CleanRoomE2EGateDependencies['requiredChecks']['run']>>;
+    const deferred = Promise.withResolvers<ChecksResult>();
+    vi.mocked(harness.dependencies.requiredChecks.run).mockReturnValueOnce(deferred.promise);
+    let settled = false;
+    const run = harness.gate.run({ ...defaultInput, signal: controller.signal }).then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(harness.dependencies.requiredChecks.run).toHaveBeenCalledOnce());
+    controller.abort();
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+
+    deferred.resolve(err({ type: 'cancelled', message: 'checks stopped' }));
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'cancelled', stage: 'required-checks', lastWorkspaceDestroyed: true },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('lets release failure override a thrown prompt and forbids destroy', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockRejectedValueOnce(
+      new Error('prompt transport exploded')
+    );
+    vi.mocked(harness.dependencies.execution.release).mockResolvedValueOnce(
+      err({ type: 'cleanup-failed', message: 'execution remained acquired' })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('preserves pending cleanup when destroy failure overrides a green candidate', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const pendingCleanup = { cleanupId: 'cleanup-loop-verify-1', revision: 7 };
+    vi.mocked(harness.dependencies.cleanRoom.destroy).mockResolvedValueOnce(
+      err({ type: 'cleanup-failed', message: 'teardown failed', pendingCleanup })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        pendingCleanup,
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
+  });
+
+  it('destroys a late-created workspace after abort without acquiring execution', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type CreateResult = Awaited<ReturnType<CleanRoomE2EGateDependencies['cleanRoom']['create']>>;
+    const deferred = Promise.withResolvers<CreateResult>();
+    vi.mocked(harness.dependencies.cleanRoom.create).mockReturnValueOnce(deferred.promise);
+    const run = harness.gate.run({ ...defaultInput, signal: controller.signal });
+    await vi.waitFor(() => expect(harness.dependencies.cleanRoom.create).toHaveBeenCalledOnce());
+    controller.abort();
+    deferred.resolve(
+      ok({
+        projectId: project.projectId,
+        cleanupId: 'cleanup-loop-verify-1',
+        verificationRunId: 'verification-run-1',
+        attempt: 1,
+        target: {
+          workspaceId: 'verification-workspace-1',
+          path: '/tmp/verification-workspace-1',
+          machine: { kind: 'local' },
+        },
+        branchName: 'emdash/verification-workspace-1',
+        baseCommit: BASE_COMMIT,
+        expectedFeatureHead: FEATURE_COMMIT,
+        replayedThroughCommit: FEATURE_COMMIT,
+      })
+    );
+
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'cancelled', stage: 'create', lastWorkspaceDestroyed: true },
+    });
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('cancels and cleans up when bounded prompt serialization rejects aggregate data', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const largeHandoff = {
+      source: 'prior-phase',
+      handoff: {
+        summary: 'x'.repeat(16_384),
+        risks: [],
+        remainingWork: [],
+        artifacts: [],
+        createdAt: '2026-07-12T00:30:00.000Z',
+      },
+    };
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      handoffs: Array.from({ length: 40 }, () => largeHandoff),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'invalid-input', stage: 'prompt', lastWorkspaceDestroyed: true },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.session.sendE2EPrompt).not.toHaveBeenCalled();
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('retains workspace authority when session start rejects without proving no session exists', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockRejectedValueOnce(
+      new Error('start transport disconnected')
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: {
+          cleanupId: 'cleanup-loop-verify-1',
+          verificationRunId: 'verification-run-1',
+          expectedFeatureHead: FEATURE_COMMIT,
+        },
+      },
+    });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed required-check data without throwing or losing cleanup', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
+      ok({ status: 'passed' } as never)
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'required-checks-authority-invalid', stage: 'required-checks' },
+    });
+    expect(harness.calls).toContain('release:1');
+    expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('rejects a runtime non-string task environment value without throwing', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const acquire = vi.mocked(harness.dependencies.execution.acquire);
+    const original = acquire.getMockImplementation()!;
+    acquire.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      const taskEnvironment = {
+        ...result.data.taskEnvironment,
+        EMDASH_TASK_NAME: 42 as unknown as string,
+      };
+      return ok({
+        ...result.data,
+        taskEnvironment,
+        executionTarget: { ...result.data.executionTarget, taskEnv: taskEnvironment },
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'task-environment-invalid', stage: 'execution' },
+    });
+    expect(harness.dependencies.session.startFreshE2ESession).not.toHaveBeenCalled();
+  });
+
+  it('enforces the aggregate UTF-8 task-environment byte bound independently', async () => {
+    const wide = '\u0800'.repeat(4_096);
+    const featurePath = `/${'\u0801'.repeat(4_095)}`;
+    const cleanPath = `/${'\u0802'.repeat(4_095)}`;
+    const longFeatureTarget: LoopSessionTarget = {
+      workspaceId: 'feature-workspace-long',
+      path: featurePath,
+      machine: { kind: 'local' },
+    };
+    const longLoop = {
+      ...loop,
+      projectId: 'project-long',
+      taskId: wide,
+    };
+    const longProject = {
+      ...project,
+      projectId: longLoop.projectId,
+      repoPath: wide,
+    } as unknown as CleanRoomProject;
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }], longFeatureTarget);
+    vi.mocked(harness.dependencies.cleanRoom.create).mockImplementationOnce(async (input) =>
+      ok({
+        projectId: longProject.projectId,
+        cleanupId: 'cleanup-long-environment',
+        verificationRunId: input.verificationRunId,
+        attempt: input.attempt,
+        target: {
+          workspaceId: 'verification-workspace-long',
+          path: cleanPath,
+          machine: { kind: 'local' },
+        },
+        branchName: 'emdash/verification-workspace-long',
+        baseCommit: input.baseCommit,
+        expectedFeatureHead: input.expectedFeatureHead,
+        replayedThroughCommit: input.expectedFeatureHead,
+      })
+    );
+    const acquire = vi.mocked(harness.dependencies.execution.acquire);
+    const originalAcquire = acquire.getMockImplementation()!;
+    acquire.mockImplementationOnce(async (input) => {
+      const result = await originalAcquire(input);
+      if (!result.success) return result;
+      const taskEnvironment = {
+        EMDASH_DEFAULT_BRANCH: wide,
+        EMDASH_PORT: wide,
+        EMDASH_ROOT_PATH: wide,
+        EMDASH_TASK_ID: wide,
+        EMDASH_TASK_NAME: wide,
+        EMDASH_TASK_PATH: cleanPath,
+      };
+      return ok({
+        ...result.data,
+        taskEnvironment,
+        executionTarget: { ...result.data.executionTarget, taskEnv: taskEnvironment },
+      });
+    });
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: longLoop,
+      task: { id: wide, name: 'Long task' },
+      project: longProject,
+      featureTarget: longFeatureTarget,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'task-environment-invalid', stage: 'execution' },
+    });
+    expect(harness.dependencies.session.startFreshE2ESession).not.toHaveBeenCalled();
+  });
+
+  it('marks final feature-inspection rejection as recovery-required after destruction', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.authority.inspectFeature).mockRejectedValueOnce(
+      new Error('feature authority unavailable')
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'finalize',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: true,
+      },
+    });
   });
 });
