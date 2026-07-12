@@ -9,12 +9,21 @@ import { McpCard } from './McpCard';
 import type { McpModalMode } from './McpModal';
 import { useMcps } from './useMcps';
 
+function normalizeMcpUrl(value: string): string {
+  try {
+    return new URL(value).toString();
+  } catch {
+    return value;
+  }
+}
+
 export const McpView: React.FC = () => {
   const [search, setSearch] = useState('');
   const {
     installed,
     catalog,
     integrationsShEntries,
+    integrationsShError,
     isSearchingIntegrationsSh,
     providers,
     isLoading,
@@ -37,15 +46,10 @@ export const McpView: React.FC = () => {
     });
   };
 
-  const openModal = (mode: McpModalMode, isIntegrationsShResult = false) => {
-    const source =
-      mode.type === 'add-catalog'
-        ? isIntegrationsShResult
-          ? 'integrations_sh'
-          : 'catalog'
-        : mode.type === 'add-custom'
-          ? 'custom'
-          : null;
+  const openModal = (
+    mode: McpModalMode,
+    source: 'catalog' | 'integrations_sh' | 'custom' | null = null
+  ) => {
     showModal('mcpServerModal', {
       mode,
       providers,
@@ -69,15 +73,20 @@ export const McpView: React.FC = () => {
   );
   const catalogUrls = new Set(
     catalog.flatMap((entry) =>
-      typeof entry.defaultConfig.url === 'string' ? [entry.defaultConfig.url] : []
+      typeof entry.defaultConfig.url === 'string' ? [normalizeMcpUrl(entry.defaultConfig.url)] : []
     )
   );
-  const installedUrls = new Set(installed.flatMap((server) => (server.url ? [server.url] : [])));
+  const installedUrls = new Set(
+    installed.flatMap((server) => (server.url ? [normalizeMcpUrl(server.url)] : []))
+  );
   const integrationsShResults = integrationsShEntries.filter((entry) => {
     const url = entry.defaultConfig.url;
+    if (typeof url !== 'string') return !installedNames.has(entry.key);
+    const normalizedUrl = normalizeMcpUrl(url);
     return (
       !installedNames.has(entry.key) &&
-      (typeof url !== 'string' || (!catalogUrls.has(url) && !installedUrls.has(url)))
+      !catalogUrls.has(normalizedUrl) &&
+      !installedUrls.has(normalizedUrl)
     );
   });
 
@@ -114,7 +123,7 @@ export const McpView: React.FC = () => {
                 className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
               />
             </Button>
-            <Button onClick={() => openModal({ type: 'add-custom' })}>
+            <Button onClick={() => openModal({ type: 'add-custom' }, 'custom')}>
               <Plus className="size-4" />
               Custom MCP
             </Button>
@@ -142,7 +151,7 @@ export const McpView: React.FC = () => {
               <McpCard
                 key={entry.key}
                 catalogEntry={entry}
-                onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
+                onAdd={(e) => openModal({ type: 'add-catalog', entry: e }, 'catalog')}
               />
             ))}
           </CardGridSection>
@@ -156,15 +165,22 @@ export const McpView: React.FC = () => {
               <McpCard
                 key={entry.key}
                 catalogEntry={entry}
-                onAdd={(result) => openModal({ type: 'add-catalog', entry: result }, true)}
+                onAdd={(result) =>
+                  openModal({ type: 'add-catalog', entry: result }, 'integrations_sh')
+                }
               />
             ))}
           </CardGridSection>
         )}
 
+        {search.trim().length >= 2 && integrationsShError && (
+          <p className="text-destructive text-sm">integrations.sh search is unavailable.</p>
+        )}
+
         {filteredInstalled.length === 0 &&
           filteredCatalog.length === 0 &&
           integrationsShResults.length === 0 &&
+          !integrationsShError &&
           !isSearchingIntegrationsSh && (
             <div className="py-12 text-center">
               <p className="text-muted-foreground text-sm">

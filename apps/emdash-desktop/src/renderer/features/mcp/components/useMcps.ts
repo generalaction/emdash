@@ -31,7 +31,11 @@ export function useMcps(searchQuery = '') {
   const installed: McpServer[] = mcpData?.installed ?? [];
   const catalog: McpCatalogEntry[] = mcpData?.catalog ?? [];
   const integrationsShQuery = useDebounce(searchQuery.trim(), 300);
-  const { data: integrationsShEntries = [], isFetching: isSearchingIntegrationsSh } = useQuery({
+  const {
+    data: integrationsShEntries = [],
+    error: integrationsShError,
+    isFetching: isSearchingIntegrationsSh,
+  } = useQuery({
     queryKey: ['mcp', 'integrations-sh-search', integrationsShQuery],
     queryFn: async () => {
       const result = await rpc.mcp.searchIntegrationsSh({ query: integrationsShQuery });
@@ -129,6 +133,7 @@ export function useMcps(searchQuery = '') {
     installed,
     catalog,
     integrationsShEntries,
+    integrationsShError,
     isSearchingIntegrationsSh,
     providers,
     isLoading,

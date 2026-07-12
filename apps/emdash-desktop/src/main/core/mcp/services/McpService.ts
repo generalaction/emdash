@@ -25,6 +25,7 @@ export class McpService {
   private integrationsShDomainsCache:
     | { expiresAt: number; domains: IntegrationsShDomain[] }
     | undefined;
+  private integrationsShDomainsRequest: Promise<IntegrationsShDomain[]> | undefined;
   private readonly integrationsShSearchCache = new Map<
     string,
     { expiresAt: number; entries: McpCatalogEntry[] }
@@ -104,15 +105,21 @@ export class McpService {
         .sort((a, b) => b.popularity - a.popularity)
         .slice(0, 12);
 
+      let hasFailedDomain = false;
       const results = await Promise.all(
-        matches.map((entry) =>
-          this.loadIntegrationsShDomain(entry).catch((error) => {
+        matches.map(async (entry) => {
+          try {
+            return await this.loadIntegrationsShDomain(entry);
+          } catch (error) {
+            hasFailedDomain = true;
             log.warn(`integrations.sh domain fetch failed for "${entry.domain}"`, error);
             return [];
-          })
-        )
+          }
+        })
       );
       const entries = results.flat().slice(0, 24);
+      if (hasFailedDomain) return cached?.entries ?? entries;
+
       this.integrationsShSearchCache.set(normalizedQuery, {
         expiresAt: Date.now() + INTEGRATIONS_SH_CACHE_TTL_MS,
         entries,
@@ -127,7 +134,7 @@ export class McpService {
         return cached.entries;
       }
       log.warn(`integrations.sh search failed for "${normalizedQuery}"`, error);
-      return [];
+      throw error;
     }
   }
 
@@ -136,13 +143,29 @@ export class McpService {
     if (cached && cached.expiresAt > Date.now()) {
       return cached.domains;
     }
+    if (this.integrationsShDomainsRequest) return this.integrationsShDomainsRequest;
 
+    const request = this.fetchIntegrationsShDomains();
+    this.integrationsShDomainsRequest = request;
+    try {
+      return await request;
+    } finally {
+      if (this.integrationsShDomainsRequest === request) {
+        this.integrationsShDomainsRequest = undefined;
+      }
+    }
+  }
+
+  private async fetchIntegrationsShDomains(): Promise<IntegrationsShDomain[]> {
     const response = await fetch(INTEGRATIONS_SH_DOMAINS_URL, {
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new Error(`integrations.sh returned HTTP ${response.status}`);
     const payload = (await response.json()) as { data?: unknown };
-    const domains = Array.isArray(payload.data) ? payload.data.filter(isIntegrationsShDomain) : [];
+    if (!Array.isArray(payload.data)) {
+      throw new Error('integrations.sh returned an invalid domains document');
+    }
+    const domains = payload.data.filter(isIntegrationsShDomain);
     this.integrationsShDomainsCache = {
       expiresAt: Date.now() + INTEGRATIONS_SH_CACHE_TTL_MS,
       domains,
@@ -154,34 +177,34 @@ export class McpService {
     domainEntry: IntegrationsShDomain
   ): Promise<McpCatalogEntry[]> {
     const encodedDomain = encodeURIComponent(domainEntry.domain);
-    const response = await fetch(
-      `${INTEGRATIONS_SH_RAW_BASE_URL}/${encodedDomain}/integrations.json`,
-      {
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
-    if (!response.ok) return [];
-    const payload = (await response.json()) as { surfaces?: unknown };
-    if (!Array.isArray(payload.surfaces)) return [];
-
-    return payload.surfaces.flatMap((surface): McpCatalogEntry[] => {
-      if (!isIntegrationsShMcpSurface(surface)) return [];
-      const defaultConfig = toIntegrationsShDefaultConfig(surface);
-      if (!defaultConfig) return [];
-      return [
-        {
-          key: `integrations-sh-${domainEntry.domain}-${surface.slug}`,
-          name: surface.name,
-          description: domainEntry.description,
-          docsUrl:
-            toSafeHttpUrl(surface.docs) ??
-            `https://integrations.sh/${encodedDomain}/${surface.slug}/`,
-          iconUrl: domainEntry.icon,
-          defaultConfig,
-          credentialKeys: [],
-        },
-      ];
+    const response = await fetch(`${INTEGRATIONS_SH_API_BASE_URL}/${encodedDomain}/surface`, {
+      signal: AbortSignal.timeout(10_000),
     });
+    if (!response.ok) throw new Error(`integrations.sh returned HTTP ${response.status}`);
+    const payload = (await response.json()) as { description?: unknown; surfaces?: unknown };
+    if (!Array.isArray(payload.surfaces)) {
+      throw new Error('integrations.sh returned an invalid surface document');
+    }
+
+    const entries: McpCatalogEntry[] = [];
+    for (const surface of payload.surfaces) {
+      if (!isIntegrationsShMcpSurface(surface)) continue;
+      const defaultConfig = toIntegrationsShDefaultConfig(surface);
+      if (!defaultConfig) continue;
+      entries.push({
+        key: `integrations-sh-${domainEntry.domain}-${surface.slug}`,
+        name: surface.name,
+        description:
+          typeof payload.description === 'string' ? payload.description : domainEntry.description,
+        docsUrl:
+          toSafeHttpUrl(surface.docs) ??
+          `https://integrations.sh/${encodedDomain}/${surface.slug}/`,
+        iconUrl: toSafeHttpUrl(domainEntry.icon),
+        defaultConfig,
+        credentialKeys: [],
+      });
+    }
+    return entries;
   }
 
   async saveServer(server: McpServer): Promise<void> {
@@ -270,8 +293,7 @@ export class McpService {
 }
 
 const INTEGRATIONS_SH_DOMAINS_URL = 'https://integrations.sh/api/domains.json';
-const INTEGRATIONS_SH_RAW_BASE_URL =
-  'https://raw.githubusercontent.com/UsefulSoftwareCo/integrations/main/domains';
+const INTEGRATIONS_SH_API_BASE_URL = 'https://integrations.sh/api';
 const INTEGRATIONS_SH_CACHE_TTL_MS = 5 * 60_000;
 
 interface IntegrationsShDomain {

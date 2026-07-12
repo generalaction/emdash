@@ -71,6 +71,10 @@ function fakeProvider(id: string, configPath: string) {
   };
 }
 
+function jsonResponse(payload: unknown, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(payload), init);
+}
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockProviders: ReturnType<typeof fakeProvider>[] = [];
@@ -115,34 +119,30 @@ describe('McpService', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              data: [
-                {
-                  domain: 'linear.app',
-                  icon: 'https://integrations.sh/logo/linear.app',
-                  formats: { mcp: 1 },
-                  popularity: 100,
-                  description: 'Manage issues and projects',
-                },
-              ],
-            })
-          )
+          jsonResponse({
+            data: [
+              {
+                domain: 'linear.app',
+                icon: 'https://integrations.sh/logo/linear.app',
+                formats: { mcp: 1 },
+                popularity: 100,
+                description: 'Manage issues and projects',
+              },
+            ],
+          })
         )
         .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              surfaces: [
-                {
-                  type: 'mcp',
-                  slug: 'linear',
-                  name: 'Linear MCP server',
-                  docs: 'https://linear.app/docs/mcp',
-                  url: 'https://mcp.linear.app/mcp',
-                },
-              ],
-            })
-          )
+          jsonResponse({
+            surfaces: [
+              {
+                type: 'mcp',
+                slug: 'linear',
+                name: 'Linear MCP server',
+                docs: 'https://linear.app/docs/mcp',
+                url: 'https://mcp.linear.app/mcp',
+              },
+            ],
+          })
         );
       vi.stubGlobal('fetch', fetchMock);
 
@@ -155,6 +155,10 @@ describe('McpService', () => {
         }),
       ]);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        'https://integrations.sh/api/linear.app/surface',
+        expect.anything()
+      );
     });
 
     it('discards MCP surfaces without a safe install configuration', async () => {
@@ -163,34 +167,30 @@ describe('McpService', () => {
         vi
           .fn()
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                data: [
-                  {
-                    domain: 'unsafe.example',
-                    icon: 'https://integrations.sh/logo/unsafe.example',
-                    formats: { mcp: 1 },
-                    popularity: 1,
-                    description: 'Unsafe example',
-                  },
-                ],
-              })
-            )
+            jsonResponse({
+              data: [
+                {
+                  domain: 'unsafe.example',
+                  icon: 'file:///tmp/icon.svg',
+                  formats: { mcp: 1 },
+                  popularity: 1,
+                  description: 'Unsafe example',
+                },
+              ],
+            })
           )
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                surfaces: [
-                  {
-                    type: 'mcp',
-                    slug: 'unsafe',
-                    name: 'Unsafe MCP',
-                    url: 'javascript:alert(1)',
-                  },
-                  { type: 'mcp', slug: 'missing', name: 'Missing config' },
-                ],
-              })
-            )
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'unsafe',
+                  name: 'Unsafe MCP',
+                  url: 'javascript:alert(1)',
+                },
+                { type: 'mcp', slug: 'missing', name: 'Missing config' },
+              ],
+            })
           )
       );
 
@@ -203,46 +203,163 @@ describe('McpService', () => {
         vi
           .fn()
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                data: [
-                  {
-                    domain: 'flaky.example',
-                    icon: 'https://integrations.sh/logo/flaky.example',
-                    formats: { mcp: 1 },
-                    popularity: 200,
-                    description: 'Example tracker',
-                  },
-                  {
-                    domain: 'healthy.example',
-                    icon: 'https://integrations.sh/logo/healthy.example',
-                    formats: { mcp: 1 },
-                    popularity: 100,
-                    description: 'Example tracker',
-                  },
-                ],
-              })
-            )
+            jsonResponse({
+              data: [
+                {
+                  domain: 'flaky.example',
+                  icon: 'https://integrations.sh/logo/flaky.example',
+                  formats: { mcp: 1 },
+                  popularity: 200,
+                  description: 'Example tracker',
+                },
+                {
+                  domain: 'healthy.example',
+                  icon: 'https://integrations.sh/logo/healthy.example',
+                  formats: { mcp: 1 },
+                  popularity: 100,
+                  description: 'Example tracker',
+                },
+              ],
+            })
           )
           .mockRejectedValueOnce(new Error('network down'))
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                surfaces: [
-                  {
-                    type: 'mcp',
-                    slug: 'healthy',
-                    name: 'Healthy MCP',
-                    url: 'https://mcp.healthy.example/mcp',
-                  },
-                ],
-              })
-            )
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'healthy',
+                  name: 'Healthy MCP',
+                  url: 'https://mcp.healthy.example/mcp',
+                },
+              ],
+            })
+          )
+          .mockResolvedValueOnce(
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'flaky',
+                  name: 'Recovered MCP',
+                  url: 'https://mcp.flaky.example/mcp',
+                },
+              ],
+            })
+          )
+          .mockResolvedValueOnce(
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'healthy',
+                  name: 'Healthy MCP',
+                  url: 'https://mcp.healthy.example/mcp',
+                },
+              ],
+            })
           )
       );
 
       await expect(service.searchIntegrationsSh('tracker')).resolves.toEqual([
         expect.objectContaining({ key: 'integrations-sh-healthy.example-healthy' }),
+      ]);
+
+      await expect(service.searchIntegrationsSh('tracker')).resolves.toHaveLength(2);
+      expect(fetch).toHaveBeenCalledTimes(5);
+    });
+
+    it('reports a domains request failure when no stale cache exists', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('network down')));
+
+      await expect(service.searchIntegrationsSh('linear')).rejects.toThrow('network down');
+    });
+
+    it('rejects an invalid domains document', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ data: null })));
+
+      await expect(service.searchIntegrationsSh('linear')).rejects.toThrow(
+        'invalid domains document'
+      );
+    });
+
+    it('shares an in-flight domains request between searches', async () => {
+      let resolveDomains!: (response: Response) => void;
+      const domainsResponse = new Promise<Response>((resolve) => {
+        resolveDomains = resolve;
+      });
+      const fetchMock = vi
+        .fn()
+        .mockReturnValueOnce(domainsResponse)
+        .mockResolvedValue(
+          jsonResponse({
+            surfaces: [
+              {
+                type: 'mcp',
+                slug: 'linear',
+                name: 'Linear MCP server',
+                url: 'https://mcp.linear.app/mcp',
+              },
+            ],
+          })
+        );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const firstSearch = service.searchIntegrationsSh('linear');
+      const secondSearch = service.searchIntegrationsSh('issues');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      resolveDomains(
+        jsonResponse({
+          data: [
+            {
+              domain: 'linear.app',
+              icon: 'https://integrations.sh/logo/linear.app',
+              formats: { mcp: 1 },
+              popularity: 100,
+              description: 'Manage issues and projects',
+            },
+          ],
+        })
+      );
+      await Promise.all([firstSearch, secondSearch]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('omits unsafe icon URLs from otherwise valid entries', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            jsonResponse({
+              data: [
+                {
+                  domain: 'icon.example',
+                  icon: 'file:///tmp/icon.svg',
+                  formats: { mcp: 1 },
+                  popularity: 1,
+                  description: 'Icon example',
+                },
+              ],
+            })
+          )
+          .mockResolvedValueOnce(
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'icon',
+                  name: 'Icon MCP',
+                  url: 'https://mcp.icon.example/mcp',
+                },
+              ],
+            })
+          )
+      );
+
+      await expect(service.searchIntegrationsSh('icon')).resolves.toEqual([
+        expect.objectContaining({ iconUrl: undefined }),
       ]);
     });
 
@@ -252,34 +369,30 @@ describe('McpService', () => {
         vi
           .fn()
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                data: [
-                  {
-                    domain: 'docs.example',
-                    icon: 'https://integrations.sh/logo/docs.example',
-                    formats: { mcp: 1 },
-                    popularity: 1,
-                    description: 'Docs example',
-                  },
-                ],
-              })
-            )
+            jsonResponse({
+              data: [
+                {
+                  domain: 'docs.example',
+                  icon: 'https://integrations.sh/logo/docs.example',
+                  formats: { mcp: 1 },
+                  popularity: 1,
+                  description: 'Docs example',
+                },
+              ],
+            })
           )
           .mockResolvedValueOnce(
-            new Response(
-              JSON.stringify({
-                surfaces: [
-                  {
-                    type: 'mcp',
-                    slug: 'docs',
-                    name: 'Docs MCP',
-                    docs: 'file:///etc/passwd',
-                    url: 'https://mcp.docs.example/mcp',
-                  },
-                ],
-              })
-            )
+            jsonResponse({
+              surfaces: [
+                {
+                  type: 'mcp',
+                  slug: 'docs',
+                  name: 'Docs MCP',
+                  docs: 'file:///etc/passwd',
+                  url: 'https://mcp.docs.example/mcp',
+                },
+              ],
+            })
           )
       );
 
