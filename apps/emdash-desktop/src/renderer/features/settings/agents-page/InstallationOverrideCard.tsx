@@ -50,7 +50,7 @@ export function InstallationOverrideCard({
         placeholder={
           kind === 'path' ? '/usr/local/bin/claude' : kind === 'cli' ? 'claude' : undefined
         }
-        className="font-mono text-sm"
+        className="font-sans text-sm"
         disabled={isChecking}
       />
       <Alert variant="warning">

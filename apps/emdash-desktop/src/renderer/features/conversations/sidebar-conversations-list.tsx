@@ -161,7 +161,7 @@ const ConversationRow = observer(function ConversationRow({
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
-                className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
+                className="flex h-full items-center pr-1 font-sans text-xs text-foreground-passive"
                 compact
               />
             )}
