@@ -44,8 +44,29 @@ const loopState: LoopState = {
   baseCommit: BASE_COMMIT,
   expectedFeatureHead: CHECKPOINT_COMMIT,
   checkpointCommit: CHECKPOINT_COMMIT,
-  sessionAttempts: [],
-  verification: null,
+  sessionAttempts: [
+    {
+      attemptId: 'browser-attempt-1',
+      conversationId: 'browser-conversation-1',
+      purpose: 'browser-verification',
+      phaseId: 'phase-e2e',
+      verificationRunId: 'verification-run-1',
+      target,
+      status: 'starting',
+      checkpointBefore: CHECKPOINT_COMMIT,
+      startedAt: '2026-07-12T01:00:00.000Z',
+    },
+  ],
+  verification: {
+    verificationRunId: 'verification-run-1',
+    attempt: 1,
+    status: 'running',
+    target,
+    baseCommit: BASE_COMMIT,
+    replayedThroughCommit: CHECKPOINT_COMMIT,
+    expectedFeatureHead: CHECKPOINT_COMMIT,
+    cleanup: { status: 'pending', updatedAt: '2026-07-12T01:00:00.000Z' },
+  },
 };
 const phaseState: LoopPhaseState = {
   version: '2',
@@ -271,6 +292,10 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
             model: 'gpt-5.6-sol',
             taskEnvironment,
           },
+          nativeEvidence: {
+            runId: 'verification-run-1',
+            artifacts: [expect.objectContaining({ artifactId: 'native-screenshot' })],
+          },
           sessionAttempts: [{ attemptId: 'browser-attempt-1', status: 'completed' }],
         },
       });
@@ -327,6 +352,7 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
           type: 'native-browser-rejected',
           message: 'Native browser cleanup failed.',
           quiescent: true,
+          recoveryRequired: false,
           sessionAttempts: [attempt],
         })
       ),
@@ -338,6 +364,8 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
       err({
         type: 'native-browser-rejected',
         message: 'Native browser cleanup failed.',
+        quiescent: true,
+        recoveryRequired: false,
         sessionAttempts: [attempt],
       })
     );
@@ -375,5 +403,222 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
     const result = await run;
 
     expect(result).toMatchObject({ success: true, data: { status: 'passed' } });
+  });
+
+  it.each([
+    ['verificationRunId', 'wrong-run'],
+    ['checkpointCommit', '3'.repeat(40)],
+    ['provider', 'claude'],
+    ['model', 'wrong-model'],
+    ['quiescent', false],
+  ] as const)('rejects drifted raw native %s authority', async (field, value) => {
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () => ok({ ...attestation('passed'), [field]: value } as never)),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+  });
+
+  it('rejects normalized nested identity aliases instead of trimming them', async () => {
+    const raw = attestation('passed');
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        ok({
+          ...raw,
+          sessionAttempt: { ...raw.sessionAttempt, attemptId: ' browser-attempt-1 ' },
+        } as never)
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-browser-authority-invalid', quiescent: false },
+    });
+  });
+
+  it('propagates non-quiescent native recovery with the actual nested identity', async () => {
+    const actual = {
+      ...sessionAttempt('interrupted'),
+      attemptId: 'actual-attempt',
+      conversationId: 'actual-conversation',
+    };
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        err({
+          type: 'native-browser-cleanup-failed',
+          message: 'Cleanup failed at /private/app-data/loops/evidence/run token=secret',
+          quiescent: false,
+          recoveryRequired: true,
+          sessionAttempts: [actual],
+        })
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        quiescent: false,
+        recoveryRequired: true,
+        sessionAttempts: [
+          expect.objectContaining({
+            attemptId: 'actual-attempt',
+            conversationId: 'actual-conversation',
+          }),
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('/private/app-data');
+    expect(JSON.stringify(result)).not.toContain('token=secret');
+  });
+
+  it('maps a thrown native operation to explicit recovery instead of rejecting', async () => {
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () => Promise.reject(new Error('native threw'))),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-execution-error',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+  });
+
+  it('maps hostile native settlement getters to explicit recovery', async () => {
+    const harness = makeHarness({
+      nativeRun: vi.fn(
+        async () =>
+          new Proxy(
+            {},
+            {
+              get(_target, property) {
+                if (property === 'success') throw new Error('hostile getter');
+                return undefined;
+              },
+            }
+          ) as never
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+  });
+
+  it('rejects stale durable verification authority before verifier effects', async () => {
+    const harness = makeHarness();
+    harness.resolveContext.mockResolvedValueOnce(
+      ok({
+        loop: {
+          ...loop,
+          state: { ...loopState, verification: { ...loopState.verification!, attempt: 2 } },
+        },
+        phase,
+      })
+    );
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'required-checks-context-invalid' },
+    });
+    expect(harness.native.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expired deadline and oversized aggregate criteria before authority lookup', async () => {
+    const expiredHarness = makeHarness();
+    const expired = input();
+    expired.deadlineAt = Date.now() - 1;
+
+    const expiredResult = await expiredHarness.adapter.run(expired);
+
+    expect(expiredResult).toMatchObject({ success: false, error: { quiescent: true } });
+    expect(expiredHarness.resolveContext).not.toHaveBeenCalled();
+
+    const criteriaHarness = makeHarness();
+    const oversized = input();
+    oversized.criteria = Array.from({ length: 20 }, (_, index) => ({
+      description: `criterion-${index}`,
+      verifier: 'agent-browser' as const,
+      status: 'pending' as const,
+      evidence: 'x'.repeat(16_000),
+    }));
+
+    const oversizedResult = await criteriaHarness.adapter.run(oversized);
+
+    expect(oversizedResult).toMatchObject({ success: false });
+    expect(criteriaHarness.resolveContext).not.toHaveBeenCalled();
+  });
+
+  it('redacts absolute validation paths from returned summaries', async () => {
+    const harness = makeHarness();
+    vi.mocked(harness.validationVerifier.run).mockResolvedValueOnce(
+      ok({
+        verifierId: 'unit-tests',
+        label: 'Unit tests',
+        command: 'pnpm run test',
+        cwd: target.path,
+        durationMs: 1,
+        stdoutTail: '',
+        stderrTail: '',
+        exitCode: 0,
+        summary: 'Passed; evidence at /private/app-data/loops/evidence/run.',
+      })
+    );
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({ success: true });
+    expect(JSON.stringify(result)).not.toContain('/private/app-data');
+  });
+
+  it('rejects path-bearing artifact identifiers instead of persisting them', async () => {
+    const raw = attestation('passed');
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        ok({
+          ...raw,
+          evidence: {
+            ...raw.evidence,
+            artifacts: [
+              { ...raw.evidence.artifacts[0]!, artifactId: '/private/app-data/secret.png' },
+            ],
+          },
+        } as never)
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'native-browser-authority-invalid' },
+    });
+    expect(JSON.stringify(result)).not.toContain('/private/app-data');
   });
 });

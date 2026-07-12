@@ -224,6 +224,167 @@ export function settlePreallocatedNestedAttempt(
   }
 }
 
+export type NestedAttemptSettlement = {
+  expected: LoopSessionAttempt;
+  actual?: LoopSessionAttempt;
+  ambiguousActual: boolean;
+};
+
+export function collectNestedAttemptSettlement(
+  attempts: readonly LoopSessionAttempt[],
+  index: number,
+  value: unknown,
+  active: ActiveAttempt,
+  featureHead: string,
+  input: NormalizedInput,
+  settledAt: string
+): NestedAttemptSettlement {
+  const starting = attempts[index];
+  if (!starting || starting.purpose !== 'browser-verification') {
+    throw new TypeError('Nested settlement requires its preallocated browser attempt.');
+  }
+  let expected: LoopSessionAttempt | undefined;
+  let actual: LoopSessionAttempt | undefined;
+  let ambiguousActual = false;
+  try {
+    const candidates =
+      value && typeof value === 'object'
+        ? (value as { sessionAttempts?: unknown }).sessionAttempts
+        : undefined;
+    if (Array.isArray(candidates)) {
+      for (const candidate of candidates.slice(0, 4)) {
+        const normalized = normalizeNestedAttemptCandidate(
+          candidate,
+          starting,
+          active,
+          featureHead,
+          input,
+          settledAt
+        );
+        if (!normalized) continue;
+        if (
+          normalized.attemptId === starting.attemptId &&
+          normalized.conversationId === starting.conversationId
+        ) {
+          expected ??= copyAttempt({
+            ...normalized,
+            startedAt: starting.startedAt,
+            ...(normalized.finishedAt
+              ? {
+                  finishedAt: monotonicTimestamp(
+                    starting.startedAt,
+                    normalized.finishedAt,
+                    settledAt
+                  ),
+                }
+              : {}),
+          });
+          continue;
+        }
+        const collides =
+          input.previousSessionAttempts.some(
+            (attempt) =>
+              attempt.attemptId === normalized.attemptId ||
+              attempt.conversationId === normalized.conversationId
+          ) ||
+          attempts.some(
+            (attempt, attemptIndex) =>
+              attemptIndex !== index &&
+              (attempt.attemptId === normalized.attemptId ||
+                attempt.conversationId === normalized.conversationId)
+          );
+        if (collides) continue;
+        if (actual) {
+          ambiguousActual = true;
+          continue;
+        }
+        actual = normalized;
+      }
+    }
+  } catch {
+    // Fall through to the preallocated interrupted authority.
+  }
+  return {
+    expected:
+      expected ??
+      copyAttempt({
+        ...starting,
+        status: 'interrupted',
+        finishedAt: monotonicTimestamp(starting.startedAt, settledAt),
+        error: 'Nested verification returned no exact terminal evidence.',
+      }),
+    ...(actual ? { actual } : {}),
+    ambiguousActual,
+  };
+}
+
+function normalizeNestedAttemptCandidate(
+  value: unknown,
+  starting: LoopSessionAttempt,
+  active: ActiveAttempt,
+  featureHead: string,
+  input: NormalizedInput,
+  settledAt: string
+): LoopSessionAttempt | undefined {
+  try {
+    const parsed = loopSessionAttemptSchema.safeParse(value);
+    if (
+      !parsed.success ||
+      !hasCanonicalAttemptFields(value, parsed.data) ||
+      parsed.data.purpose !== 'browser-verification' ||
+      parsed.data.phaseId !== input.phase.id ||
+      parsed.data.verificationRunId !== active.verificationRunId ||
+      parsed.data.checkpointBefore !== featureHead ||
+      (parsed.data.checkpointAfter !== undefined && parsed.data.checkpointAfter !== featureHead) ||
+      parsed.data.conversationId === active.session.conversationId ||
+      !sameTarget(parsed.data.target, active.cleanRoom.target)
+    ) {
+      return undefined;
+    }
+    const terminal = ['completed', 'failed', 'cancelled', 'interrupted'].includes(
+      parsed.data.status
+    );
+    if (terminal && parsed.data.finishedAt === undefined) return undefined;
+    if (parsed.data.status === 'completed' && parsed.data.checkpointAfter !== featureHead) {
+      return undefined;
+    }
+    const finishedAt = monotonicTimestamp(
+      starting.startedAt,
+      parsed.data.startedAt,
+      parsed.data.finishedAt,
+      settledAt
+    );
+    return copyAttempt({
+      attemptId: parsed.data.attemptId,
+      conversationId: parsed.data.conversationId,
+      purpose: 'browser-verification',
+      phaseId: input.phase.id,
+      verificationRunId: active.verificationRunId,
+      target: copyTarget(active.cleanRoom.target),
+      checkpointBefore: featureHead,
+      startedAt: parsed.data.startedAt,
+      ...(parsed.data.status === 'completed'
+        ? { status: 'completed', checkpointAfter: featureHead, finishedAt }
+        : terminal
+          ? {
+              status: parsed.data.status,
+              finishedAt,
+              error: boundedSummary(
+                parsed.data.error,
+                'Nested verification did not complete successfully.'
+              ),
+            }
+          : {
+              status: 'interrupted',
+              finishedAt,
+              error: 'Nested verification settled without terminal evidence.',
+            }),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 export function normalizeNestedAttempt(
   value: unknown,
   starting: LoopSessionAttempt,

@@ -11,6 +11,7 @@ import {
   type LoopStageResult,
 } from '@shared/core/loops/loop-phase-state';
 import {
+  CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
@@ -120,8 +121,14 @@ export function reduceE2EProgress(
             : loopVerificationWorkspaceStateSchema.parse(transition.verification);
         const workspaceError = validateWorkspaceTransition(current, verification);
         if (workspaceError) return invalid(workspaceError);
+        const e2eAttemptsConsumed = consumedAttemptsAfterWorkspaceTransition(current, verification);
+        if (!e2eAttemptsConsumed.success) return e2eAttemptsConsumed;
         return parseProgress({
-          loopState: { ...current.loopState, verification },
+          loopState: {
+            ...current.loopState,
+            e2eAttemptsConsumed: e2eAttemptsConsumed.data,
+            verification,
+          },
           phaseState: current.phaseState,
         });
       }
@@ -456,6 +463,35 @@ function validateWorkspaceTransition(
   return undefined;
 }
 
+function consumedAttemptsAfterWorkspaceTransition(
+  current: E2EDurableProgress,
+  next: LoopVerificationWorkspaceState | null
+): Result<number, E2EProgressError> {
+  const previous = current.loopState.verification;
+  const durableRuns = countDurableOuterE2ERuns(current.loopState.sessionAttempts);
+  const persisted = current.loopState.e2eAttemptsConsumed ?? 0;
+  if (previous === null) {
+    if (next === null || next.status !== 'preparing') {
+      return invalid('A new E2E budget charge requires one preparing workspace run.');
+    }
+    const consumed = Math.max(persisted, durableRuns) + 1;
+    if (consumed > CLEAN_ROOM_E2E_MAX_ATTEMPTS || next.attempt !== consumed) {
+      return invalid('Workspace preparation does not match the fixed durable E2E attempt budget.');
+    }
+    return ok(consumed);
+  }
+  return ok(Math.max(persisted, durableRuns, previous.attempt));
+}
+
+function countDurableOuterE2ERuns(attempts: readonly LoopSessionAttempt[]): number {
+  const runs = new Set<string>();
+  for (const attempt of attempts) {
+    if (attempt.purpose !== 'e2e') continue;
+    runs.add(attempt.verificationRunId ?? `attempt:${attempt.attemptId}`);
+  }
+  return runs.size;
+}
+
 function validWorkspaceShape(workspace: LoopVerificationWorkspaceState): boolean {
   switch (workspace.status) {
     case 'preparing':
@@ -577,8 +613,13 @@ function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
 
 function hasCanonicalLoopState(value: unknown, parsed: LoopState): boolean {
   if (!value || typeof value !== 'object') return false;
-  const raw = value as { sessionAttempts?: unknown; verification?: unknown };
+  const raw = value as {
+    e2eAttemptsConsumed?: unknown;
+    sessionAttempts?: unknown;
+    verification?: unknown;
+  };
   if (
+    raw.e2eAttemptsConsumed !== parsed.e2eAttemptsConsumed ||
     !Array.isArray(raw.sessionAttempts) ||
     raw.sessionAttempts.length !== parsed.sessionAttempts.length ||
     raw.sessionAttempts.some((attempt, index) =>

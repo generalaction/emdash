@@ -136,6 +136,45 @@ export const passedStage = {
   completedAt: '2026-07-12T00:30:00.000Z',
 };
 
+export function prerequisitePhases(reviewEnabled: boolean): LoopPhase[] {
+  const makePhase = (
+    id: string,
+    idx: number,
+    kind: 'work' | 'review',
+    conversationId: string
+  ): LoopPhase => ({
+    id,
+    loopId: loop.id,
+    idx,
+    name: kind === 'review' ? 'Terminal Review' : `Work ${idx + 1}`,
+    goal: kind === 'review' ? 'Review the complete change.' : 'Implement the requested change.',
+    status: 'passed',
+    attempts: 1,
+    conversationId,
+    criteria: { version: '1', criteria: [] },
+    lastError: null,
+    kind,
+    state: {
+      version: '2',
+      checkpointCommit: FEATURE_COMMIT,
+      handoff: null,
+      retryHandoffs: [],
+      result: passedStage,
+    },
+    createdAt: '2026-07-12T00:00:00.000Z',
+    updatedAt: '2026-07-12T00:15:00.000Z',
+  });
+  return reviewEnabled
+    ? [
+        makePhase('phase-work-1', 0, 'work', 'work-1'),
+        makePhase('phase-review', 1, 'review', 'review-1'),
+      ]
+    : [
+        makePhase('phase-work-1', 0, 'work', 'work-1'),
+        makePhase('phase-work-2', 1, 'work', 'work-2'),
+      ];
+}
+
 export const project = {
   projectId: loop.projectId,
   repoPath: '/tmp/project',
@@ -170,15 +209,12 @@ export const defaultInput: RunCleanRoomE2EGateInput = {
   provider: 'codex',
   model: 'gpt-5.6-sol',
   terminalGates: { review: true, e2e: true },
-  workPhaseResults: [passedStage, passedStage],
-  reviewStageResult: passedStage,
   goal: 'Finish ACP Loops v2.',
   acceptanceCriteria: ['The clean-room result is independently green.'],
   baseCommit: BASE_COMMIT,
   checkpointCommit: FEATURE_COMMIT,
   handoffs: [],
   intermediateFailures: [],
-  maxAttempts: 3,
 };
 
 export function loopWithTerminalGates(terminalGates: { review: boolean; e2e: boolean }): Loop {
@@ -489,6 +525,11 @@ export function makeHarness(scripts: readonly AttemptScript[], target = featureT
         );
       }),
     },
+    prerequisites: {
+      resolve: vi.fn(async (input) =>
+        ok({ phases: prerequisitePhases(input.terminalGates.review) })
+      ),
+    },
     progress: {
       read: vi.fn(async () =>
         durableProgress ? ok(durableProgress) : err({ message: 'No durable progress snapshot.' })
@@ -559,6 +600,10 @@ export function requiredChecksResult(input: {
       provider: 'codex',
       model: 'gpt-5.6-sol',
       taskEnvironment: input.taskEnvironment,
+    },
+    nativeEvidence: {
+      runId: input.verificationRunId,
+      artifacts: [],
     },
     sessionAttempts: [
       {

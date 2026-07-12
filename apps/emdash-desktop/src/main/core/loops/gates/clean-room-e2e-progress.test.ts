@@ -5,6 +5,7 @@ import type {
   LoopSessionTarget,
   LoopVerificationWorkspaceState,
 } from '@shared/core/loops/loop-state';
+import { CLEAN_ROOM_E2E_MAX_ATTEMPTS } from '@shared/core/loops/loop-state';
 import {
   copyE2EDurableProgress,
   reduceE2EProgress,
@@ -124,6 +125,91 @@ function activeProgress(): E2EDurableProgress {
 }
 
 describe('clean-room E2E durable progress reducer', () => {
+  it('copies the optional persisted budget exactly without normalizing aliases', () => {
+    const durable = baseProgress();
+    durable.loopState.e2eAttemptsConsumed = 2;
+
+    expect(copyE2EDurableProgress(durable).loopState.e2eAttemptsConsumed).toBe(2);
+    expect(() =>
+      copyE2EDurableProgress({
+        ...durable,
+        loopState: {
+          ...durable.loopState,
+          e2eAttemptsConsumed: '2' as unknown as number,
+        },
+      })
+    ).toThrow();
+  });
+
+  it('charges the fixed durable budget before any session can start and retains it after cleanup', () => {
+    const preparing = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'workspace',
+        verification: workspace('preparing'),
+      })
+    );
+
+    expect(preparing.loopState.e2eAttemptsConsumed).toBe(1);
+    expect(preparing.loopState.sessionAttempts).toEqual([]);
+
+    const cleared = unwrap(
+      reduceE2EProgress(preparing, {
+        kind: 'workspace',
+        verification: null,
+      })
+    );
+    expect(cleared.loopState.e2eAttemptsConsumed).toBe(1);
+    expect(cleared.loopState.verification).toBeNull();
+
+    const second = unwrap(
+      reduceE2EProgress(cleared, {
+        kind: 'workspace',
+        verification: workspace('preparing', {
+          verificationRunId: 'verification-run-2',
+          attempt: 2,
+        }),
+      })
+    );
+    expect(second.loopState.e2eAttemptsConsumed).toBe(2);
+  });
+
+  it('cannot raise or bypass the fixed budget after restart', () => {
+    const exhausted = baseProgress();
+    exhausted.loopState.e2eAttemptsConsumed = CLEAN_ROOM_E2E_MAX_ATTEMPTS;
+
+    expect(
+      reduceE2EProgress(exhausted, {
+        kind: 'workspace',
+        verification: workspace('preparing', {
+          verificationRunId: 'verification-run-4',
+          attempt: CLEAN_ROOM_E2E_MAX_ATTEMPTS + 1,
+        }),
+      }).success
+    ).toBe(false);
+  });
+
+  it('materializes historical outer-run consumption before charging the next workspace', () => {
+    const historical = baseProgress();
+    historical.loopState.sessionAttempts = [
+      runningAttempt({
+        status: 'failed',
+        finishedAt: NOW,
+        error: 'Historical E2E attempt failed.',
+      }),
+    ];
+
+    const next = unwrap(
+      reduceE2EProgress(historical, {
+        kind: 'workspace',
+        verification: workspace('preparing', {
+          verificationRunId: 'verification-run-2',
+          attempt: 2,
+        }),
+      })
+    );
+    expect(next.loopState.e2eAttemptsConsumed).toBe(2);
+  });
+
   it('atomically advances Loop and phase checkpoints, the attempt, and retained handoffs', () => {
     const completed = runningAttempt({
       status: 'completed',

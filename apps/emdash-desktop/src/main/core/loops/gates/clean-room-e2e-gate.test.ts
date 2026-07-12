@@ -20,7 +20,6 @@ import {
   loopWithTerminalGates,
   makeHarness,
   mutateRequiredChecksOnce,
-  passedStage,
   phase,
   project,
   requiredChecksResult,
@@ -148,6 +147,8 @@ describe('CleanRoomE2EGate', () => {
 
   it('never treats a correction as pass when the attempt cap is exhausted', async () => {
     const harness = makeHarness([
+      { finalText: 'unused' },
+      { finalText: 'unused' },
       {
         finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
         postHead: FIX_COMMIT,
@@ -155,20 +156,23 @@ describe('CleanRoomE2EGate', () => {
       },
     ]);
 
-    const result = await harness.gate.run({ ...defaultInput, maxAttempts: 1 });
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithState({ e2eAttemptsConsumed: 2 }),
+    });
 
     expect(result).toMatchObject({
       success: false,
       error: {
         type: 'attempts-exhausted',
         featureHead: FIX_COMMIT,
-        attempt: 1,
+        attempt: 3,
         intermediateFailures: [{ source: 'Clean-room E2E correction' }],
         stageResult: { status: 'failed' },
       },
     });
-    expect(harness.calls).not.toContain('checks:1');
-    expect(harness.calls).toContain('destroy:1');
+    expect(harness.calls).not.toContain('checks:3');
+    expect(harness.calls).toContain('destroy:3');
     expect(harness.dependencies.authority.inspectFeature).toHaveBeenCalledTimes(2);
     expect(vi.mocked(harness.dependencies.authority.inspectFeature).mock.calls).toEqual([
       [{ target: featureTarget, expectedFeatureHead: FIX_COMMIT }],
@@ -177,26 +181,20 @@ describe('CleanRoomE2EGate', () => {
   });
 
   it.each([
-    [{ review: false, e2e: false }, undefined, 'e2e-disabled'],
-    [{ review: true, e2e: false }, passedStage, 'e2e-disabled'],
-    [{ review: true, e2e: true }, undefined, 'review-incomplete'],
-    [{ review: false, e2e: true }, passedStage, 'review-order-invalid'],
-  ] as const)(
-    'rejects an invalid Review/E2E ordering',
-    async (terminalGates, reviewStageResult, type) => {
-      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    [{ review: false, e2e: false }, 'e2e-disabled'],
+    [{ review: true, e2e: false }, 'e2e-disabled'],
+  ] as const)('rejects a disabled E2E terminal gate', async (terminalGates, type) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
 
-      const result = await harness.gate.run({
-        ...defaultInput,
-        loop: loopWithTerminalGates(terminalGates),
-        terminalGates,
-        reviewStageResult,
-      });
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithTerminalGates(terminalGates),
+      terminalGates,
+    });
 
-      expect(result).toMatchObject({ success: false, error: { type, stage: 'precondition' } });
-      expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
-    }
-  );
+    expect(result).toMatchObject({ success: false, error: { type, stage: 'precondition' } });
+    expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+  });
 
   it('accepts E2E-only ordering when Review is disabled and no Review result exists', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
@@ -205,7 +203,6 @@ describe('CleanRoomE2EGate', () => {
       ...defaultInput,
       loop: loopWithTerminalGates({ review: false, e2e: true }),
       terminalGates: { review: false, e2e: true },
-      reviewStageResult: undefined,
     });
 
     expect(result).toMatchObject({
@@ -772,7 +769,7 @@ describe('CleanRoomE2EGate', () => {
     expect(settled).toBe(false);
     expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
 
-    deferred.resolve(err({ type: 'cancelled', message: 'checks stopped' }));
+    deferred.resolve(err({ type: 'cancelled', message: 'checks stopped', quiescent: true }));
     const result = await run;
 
     expect(result).toMatchObject({

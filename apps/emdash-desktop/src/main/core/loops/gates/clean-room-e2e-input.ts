@@ -1,11 +1,8 @@
 import z from 'zod';
 import { err, ok, type Result } from '@main/lib/result';
+import { loopPhaseStateInputSchema } from '@shared/core/loops/loop-phase-state';
 import {
-  loopPhaseStateInputSchema,
-  loopStageResultSchema,
-  type LoopStageResult,
-} from '@shared/core/loops/loop-phase-state';
-import {
+  CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   loopSessionTargetSchema,
   loopStateV1Schema,
   type LoopSessionAttempt,
@@ -38,6 +35,7 @@ import {
   isCanonicalTarget,
   redactPersistedText,
   safeCopyPromptHandoffs,
+  sameCanonicalJsonShape,
   serializedBytes,
   stabilizePlainSuccess,
   tryCopyPromptHandoff,
@@ -49,12 +47,11 @@ import type { RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
 import { copyE2EDurableProgress, type E2EDurableProgress } from './clean-room-e2e-progress';
 import { copyAttempt } from './clean-room-e2e-session-ledger';
 
-const MAX_ATTEMPTS = 64;
 const MAX_ID_LENGTH = 256;
 const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_SESSION_ATTEMPTS = 1_024;
-const MAX_SESSION_RECORDS_PER_E2E_ATTEMPT = 3;
+const MAX_SESSION_RECORDS_PER_E2E_ATTEMPT = 4;
 const MAX_VALIDATION_COMMANDS = 64;
 const MAX_VALIDATION_COMMAND_LENGTH = 4_096;
 const MAX_CRITERION_DESCRIPTION_LENGTH = 2_048;
@@ -66,8 +63,11 @@ export type NormalizedInput = RunCleanRoomE2EGateInput & {
   validationCommands: string[];
   criteria: LoopPhaseCriterion[];
   previousSessionAttempts: LoopSessionAttempt[];
+  e2eAttemptsConsumed: number;
   progress: { current: E2EDurableProgress };
 };
+
+export { CLEAN_ROOM_E2E_MAX_ATTEMPTS };
 
 export const validationCommandsSchema = z
   .array(z.string().trim().min(1).max(MAX_VALIDATION_COMMAND_LENGTH))
@@ -113,12 +113,6 @@ export function snapshotRunInput(input: RunCleanRoomE2EGateInput): RunCleanRoomE
   const task = stabilizePlainSuccess<{ id: string; name: string }>(input.task);
   const featureTarget = stabilizePlainSuccess<LoopSessionTarget>(input.featureTarget);
   const terminalGates = stabilizePlainSuccess<LoopTerminalGates>(input.terminalGates);
-  const workPhaseResults = stabilizePlainSuccess<LoopStageResult[]>(input.workPhaseResults);
-  const rawReviewStageResult = input.reviewStageResult;
-  const reviewStageResult =
-    rawReviewStageResult === undefined
-      ? undefined
-      : stabilizePlainSuccess<LoopStageResult>(rawReviewStageResult);
   const promptContext = stabilizePlainSuccess<LoopPromptContextInput>({
     goal: input.goal,
     acceptanceCriteria: input.acceptanceCriteria,
@@ -133,7 +127,6 @@ export function snapshotRunInput(input: RunCleanRoomE2EGateInput): RunCleanRoomE
   const project = snapshotProject(rawProject);
   const provider = input.provider;
   const model = input.model;
-  const maxAttempts = input.maxAttempts;
   const signal = input.signal;
   const deadlineAt = input.deadlineAt;
   if (
@@ -142,10 +135,8 @@ export function snapshotRunInput(input: RunCleanRoomE2EGateInput): RunCleanRoomE
     !task ||
     !featureTarget ||
     !terminalGates ||
-    !workPhaseResults ||
     !promptContext ||
-    !intermediateFailures ||
-    (rawReviewStageResult !== undefined && !reviewStageResult)
+    !intermediateFailures
   ) {
     throw new TypeError('Invalid clean-room E2E boundary snapshot.');
   }
@@ -159,10 +150,7 @@ export function snapshotRunInput(input: RunCleanRoomE2EGateInput): RunCleanRoomE
     provider,
     model,
     terminalGates,
-    workPhaseResults,
-    ...(reviewStageResult ? { reviewStageResult } : {}),
     intermediateFailures,
-    maxAttempts,
     ...(signal !== undefined ? { signal } : {}),
     ...(deadlineAt !== undefined ? { deadlineAt } : {}),
   };
@@ -194,23 +182,8 @@ export function normalizeInput(
     return err({ type: 'invalid-input', message: 'Invalid E2E provider.' });
   }
   const terminalGates = loopTerminalGatesSchema.safeParse(input.terminalGates);
-  const workPhaseResults = Array.isArray(input.workPhaseResults)
-    ? input.workPhaseResults.map((result) => loopStageResultSchema.safeParse(result))
-    : [];
-  const reviewStageResult =
-    input.reviewStageResult === undefined
-      ? undefined
-      : loopStageResultSchema.safeParse(input.reviewStageResult);
-  if (
-    !terminalGates.success ||
-    !Array.isArray(input.workPhaseResults) ||
-    input.workPhaseResults.length > MAX_ATTEMPTS ||
-    workPhaseResults.some((result) => !result.success) ||
-    (reviewStageResult !== undefined && !reviewStageResult.success) ||
-    input.workPhaseResults.some((result) => !hasCanonicalStageResult(result)) ||
-    (input.reviewStageResult !== undefined && !hasCanonicalStageResult(input.reviewStageResult))
-  ) {
-    return err({ type: 'invalid-input', message: 'Invalid terminal-gate stage authority.' });
+  if (!terminalGates.success) {
+    return err({ type: 'invalid-input', message: 'Invalid terminal-gate authority.' });
   }
   if (
     typeof input.model !== 'string' ||
@@ -219,13 +192,6 @@ export function normalizeInput(
     input.model.length > MAX_MODEL_LENGTH
   ) {
     return err({ type: 'invalid-input', message: 'Invalid E2E model.' });
-  }
-  if (
-    !Number.isInteger(input.maxAttempts) ||
-    input.maxAttempts < 1 ||
-    input.maxAttempts > MAX_ATTEMPTS
-  ) {
-    return err({ type: 'invalid-input', message: 'E2E maxAttempts must be between 1 and 64.' });
   }
   if (
     !input.loop ||
@@ -257,6 +223,7 @@ export function normalizeInput(
     !phaseCriteria.success ||
     !criteria.success ||
     !phaseState.success ||
+    !sameCanonicalJsonShape(input.loop.config, config.success ? config.data : undefined) ||
     !hasCanonicalPhaseCriteria(input.phase.criteria, criteria.success ? criteria.data : []) ||
     !hasCanonicalPersistedLoopState(input.loop.state) ||
     !hasCanonicalPhaseState(input.phase.state) ||
@@ -268,7 +235,11 @@ export function normalizeInput(
     });
   }
   const validationCommands = validationCommandsSchema.safeParse(config.data.validationCommands);
-  if (!validationCommands.success || !criteria.success) {
+  if (
+    !validationCommands.success ||
+    !criteria.success ||
+    !sameCanonicalJsonShape(config.data.validationCommands, validationCommands.data)
+  ) {
     return err({
       type: 'invalid-input',
       message: 'Loop E2E validation commands and criteria are invalid or unbounded.',
@@ -323,8 +294,12 @@ export function normalizeInput(
   if (input.signal !== undefined && !validAbortSignal(input.signal)) {
     return err({ type: 'invalid-input', message: 'Invalid E2E cancellation signal.' });
   }
-  const consumedAttempts = countDurableE2EAttempts(state.data.sessionAttempts, input.phase.id);
-  const remainingAttempts = Math.max(0, input.maxAttempts - consumedAttempts);
+  const consumedAttempts = countDurableE2EAttempts(
+    state.data.sessionAttempts,
+    input.phase.id,
+    state.data.e2eAttemptsConsumed
+  );
+  const remainingAttempts = Math.max(0, CLEAN_ROOM_E2E_MAX_ATTEMPTS - consumedAttempts);
   if (
     state.data.sessionAttempts.length + remainingAttempts * MAX_SESSION_RECORDS_PER_E2E_ATTEMPT >
     MAX_SESSION_ATTEMPTS
@@ -379,15 +354,13 @@ export function normalizeInput(
     provider: provider.data,
     model: normalizedModel,
     terminalGates: { ...terminalGates.data },
-    workPhaseResults: workPhaseResults.map((result) => result.data!),
-    ...(reviewStageResult?.success ? { reviewStageResult: reviewStageResult.data } : {}),
     intermediateFailures: persistedRetryHandoffs.map(copyPromptHandoff),
-    maxAttempts: input.maxAttempts,
     ...(input.signal ? { signal: input.signal } : {}),
     ...(input.deadlineAt !== undefined ? { deadlineAt: input.deadlineAt } : {}),
     validationCommands: [...validationCommands.data],
     criteria: criteria.data.map(copyCriterion),
     previousSessionAttempts: state.data.sessionAttempts.map(copyAttempt),
+    e2eAttemptsConsumed: consumedAttempts,
     progress: {
       current: copyE2EDurableProgress({
         loopState: state.data,
@@ -481,26 +454,12 @@ export function snapshotProject(project: CleanRoomProject): CleanRoomProject {
   };
 }
 
-export function hasCanonicalStageResult(value: unknown): boolean {
-  try {
-    if (!value || typeof value !== 'object') return false;
-    const candidate = value as Partial<LoopStageResult>;
-    return (
-      validTimestamp(candidate.completedAt) &&
-      typeof candidate.summary === 'string' &&
-      candidate.summary.length <= MAX_SUMMARY_LENGTH &&
-      redactPersistedText(candidate.summary) === candidate.summary
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function countDurableE2EAttempts(
   attempts: readonly LoopSessionAttempt[],
-  phaseId: string
+  phaseId: string,
+  persistedCount = 0
 ): number {
-  return durableE2EVerificationRunIds(attempts, phaseId).length;
+  return Math.max(persistedCount, durableE2EVerificationRunIds(attempts, phaseId).length);
 }
 
 export function durableE2EVerificationRunIds(
@@ -562,25 +521,6 @@ export function terminalPrecondition(
   }
   if (!input.terminalGates.e2e) {
     return { type: 'e2e-disabled', message: 'The E2E terminal gate is disabled.' };
-  }
-  if (
-    input.workPhaseResults.length === 0 ||
-    input.workPhaseResults.some((result) => result.status !== 'passed')
-  ) {
-    return { type: 'work-phases-incomplete', message: 'Every work phase must pass before E2E.' };
-  }
-  if (input.terminalGates.review) {
-    if (input.reviewStageResult?.status !== 'passed') {
-      return {
-        type: 'review-incomplete',
-        message: 'Enabled terminal Review must pass before E2E.',
-      };
-    }
-  } else if (input.reviewStageResult !== undefined) {
-    return {
-      type: 'review-order-invalid',
-      message: 'A Review result cannot be supplied when terminal Review is disabled.',
-    };
   }
   return undefined;
 }

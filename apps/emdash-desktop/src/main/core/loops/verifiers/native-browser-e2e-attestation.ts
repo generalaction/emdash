@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { redactAll } from '@emdash/shared/logger';
 import { err, ok, type Result } from '@main/lib/result';
 import {
@@ -26,6 +27,7 @@ import type {
   LoopEvidenceRunStatus,
   LoopEvidenceStorePort,
 } from '../evidence/loop-evidence-store';
+import { e2eCriteriaSchema } from '../gates/clean-room-e2e-input';
 import { buildLoopPhaseHandoff, type LoopPromptHandoff } from '../handoff-builder';
 import type { LoopExecutionTarget } from '../runtime/loop-execution-target';
 import {
@@ -91,7 +93,8 @@ export type NativeBrowserE2EAttestation = {
 export type NativeBrowserE2EAttestationError = {
   type: string;
   message: string;
-  quiescent: true;
+  quiescent: boolean;
+  recoveryRequired: boolean;
   sessionAttempts?: readonly LoopSessionAttempt[];
 };
 
@@ -112,6 +115,19 @@ export type NativeBrowserE2EExactSessionInput = {
 
 export type NativeBrowserE2EExactSession = NativeBrowserSessionHandle & {
   attemptId: string;
+  purpose: 'browser-verification';
+  phaseId: string;
+  taskEnvironment: Readonly<Record<string, string>>;
+  provider: LoopProviderId;
+  model: string;
+  checkpointCommit: string;
+};
+
+export type NativeBrowserE2EExactSessionError = NativeBrowserDependencyError & {
+  /** True only when the implementation proves that the failed start created no live session. */
+  quiescent: boolean;
+  recoveryRequired?: boolean;
+  sessionAttempts?: readonly LoopSessionAttempt[];
 };
 
 export type NativeBrowserE2EAttestationDependencies = {
@@ -122,7 +138,7 @@ export type NativeBrowserE2EAttestationDependencies = {
    */
   startExactSession(
     input: NativeBrowserE2EExactSessionInput
-  ): Promise<Result<NativeBrowserE2EExactSession, NativeBrowserDependencyError>>;
+  ): Promise<Result<NativeBrowserE2EExactSession, NativeBrowserE2EExactSessionError>>;
   browser: NativeBrowserVerifierDependencies['browser'];
   evidenceStore: LoopEvidenceStorePort;
   createVerifier(dependencies: NativeBrowserVerifierDependencies): LoopVerifier;
@@ -147,6 +163,24 @@ type ExactSessionCapture = {
   startedAt: string | null;
   accepted: boolean;
   authorityInvalid: boolean;
+  startInvocations: number;
+  startFailure: NativeBrowserE2EExactSessionError | null;
+  knownSessions: KnownSession[];
+};
+
+type KnownSession = {
+  session: NativeBrowserE2EExactSession;
+  settlement: Promise<SessionSettlement> | null;
+};
+
+type SessionSettlement = {
+  quiescent: boolean;
+  attempts: LoopSessionAttempt[];
+};
+
+type CapturedEvidenceRun = {
+  run: LoopEvidenceRunPort;
+  settled: boolean;
 };
 
 export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttestationPort {
@@ -160,10 +194,14 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
 
     const exact = validated.data;
     const artifacts: LoopArtifactReference[] = [];
+    const evidenceRuns: CapturedEvidenceRun[] = [];
     const session: ExactSessionCapture = {
       startedAt: null,
       accepted: false,
       authorityInvalid: false,
+      startInvocations: 0,
+      startFailure: null,
+      knownSessions: [],
     };
     let terminal: CapturedTerminal | null = null;
 
@@ -174,7 +212,8 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
       (value) => {
         terminal = value;
       },
-      this.dependencies.now
+      this.dependencies.now,
+      evidenceRuns
     );
     const nativeDependencies: NativeBrowserVerifierDependencies = {
       resolveTrustedBinding: async (bindingInput) => {
@@ -200,12 +239,15 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         });
       },
       startVerificationSession: async (startInput) => {
+        session.startInvocations += 1;
         if (
+          session.startInvocations !== 1 ||
           startInput.verificationRunId !== exact.verificationRunId ||
           !sameTarget(startInput.target, exact.target) ||
           !sameStringRecord(startInput.taskEnvironment, exact.taskEnvironment) ||
           startInput.loop.id !== exact.loop.id ||
-          startInput.phase.id !== exact.phase.id
+          startInput.phase.id !== exact.phase.id ||
+          controlStopped(exact)
         ) {
           session.authorityInvalid = true;
           return err({
@@ -215,42 +257,99 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         }
 
         session.startedAt = safeNow(this.dependencies.now);
-        const started = await this.dependencies.startExactSession({
-          loop: exact.loop,
-          phase: exact.phase,
-          sessionIdentity: { ...exact.sessionIdentity },
-          verificationRunId: exact.verificationRunId,
-          target: copyTarget(exact.target),
-          executionTarget: exact.executionTarget,
-          taskEnvironment: Object.freeze({ ...exact.taskEnvironment }),
-          provider: exact.provider,
-          model: exact.model,
-          checkpointCommit: exact.checkpointCommit,
-          signal: startInput.signal,
-          ...(exact.deadlineAt !== undefined ? { deadlineAt: exact.deadlineAt } : {}),
-        });
-        if (!started.success) return started;
-        if (
-          started.data.attemptId !== exact.sessionIdentity.attemptId ||
-          started.data.conversationId !== exact.sessionIdentity.conversationId ||
-          started.data.verificationRunId !== exact.verificationRunId ||
-          !sameTarget(started.data.target, exact.target) ||
-          !isAcpSessionDriver(started.data.driver)
-        ) {
-          await quiesceRejectedSession(started.data);
+        let started: Result<NativeBrowserE2EExactSession, NativeBrowserE2EExactSessionError>;
+        try {
+          started = await this.dependencies.startExactSession({
+            loop: exact.loop,
+            phase: exact.phase,
+            sessionIdentity: { ...exact.sessionIdentity },
+            verificationRunId: exact.verificationRunId,
+            target: copyTarget(exact.target),
+            executionTarget: exact.executionTarget,
+            taskEnvironment: Object.freeze({ ...exact.taskEnvironment }),
+            provider: exact.provider,
+            model: exact.model,
+            checkpointCommit: exact.checkpointCommit,
+            signal: startInput.signal,
+            ...(exact.deadlineAt !== undefined ? { deadlineAt: exact.deadlineAt } : {}),
+          });
+        } catch {
           session.authorityInvalid = true;
+          session.startFailure = {
+            kind: 'execution-error',
+            message: 'Exact native browser session start threw after receiving its authority.',
+            quiescent: false,
+            recoveryRequired: true,
+          };
+          return err({
+            kind: 'execution-error',
+            message: session.startFailure.message,
+          });
+        }
+        let startSucceeded: boolean;
+        try {
+          startSucceeded = started.success === true;
+        } catch {
+          session.startFailure = unreadableStartFailure();
+          session.authorityInvalid = true;
+          return err({ kind: 'execution-error', message: session.startFailure.message });
+        }
+        if (!startSucceeded) {
+          let rawFailure: unknown;
+          try {
+            rawFailure = (started as { success: false; error: unknown }).error;
+          } catch {
+            rawFailure = undefined;
+          }
+          const failure = stabilizeStartFailure(rawFailure);
+          session.startFailure = failure;
+          if (!failure.quiescent) session.authorityInvalid = true;
+          return err({ kind: failure.kind, message: failure.message });
+        }
+        let rawSession: unknown;
+        try {
+          rawSession = (started as { success: true; data: unknown }).data;
+        } catch {
+          rawSession = undefined;
+        }
+        const returnedSession = snapshotExactSession(rawSession, exact);
+        if (!returnedSession) {
+          session.authorityInvalid = true;
+          session.startFailure = unreadableStartFailure();
+          return err({ kind: 'execution-error', message: session.startFailure.message });
+        }
+        const knownSession: KnownSession = { session: returnedSession, settlement: null };
+        session.knownSessions.push(knownSession);
+        if (!exactSessionEchoes(rawSession, exact) || !isAcpSessionDriver(returnedSession.driver)) {
+          knownSession.settlement = settleKnownSession(
+            returnedSession,
+            exact,
+            session.startedAt,
+            this.dependencies.now
+          );
+          const settlement = await knownSession.settlement;
+          session.authorityInvalid = true;
+          session.startFailure = {
+            kind: 'authority-invalid',
+            message: settlement.quiescent
+              ? 'Native browser ACP session did not adopt its preallocated authority.'
+              : 'Native browser ACP session identity drifted and cancellation was not acknowledged.',
+            quiescent: settlement.quiescent,
+            recoveryRequired: !settlement.quiescent,
+            sessionAttempts: settlement.attempts,
+          };
           return err({
             kind: 'authority-invalid',
-            message: 'Native browser ACP session did not adopt its preallocated authority.',
+            message: session.startFailure.message,
           });
         }
         session.accepted = true;
         return ok({
           conversationId: exact.sessionIdentity.conversationId,
-          title: safeText(started.data.title, 'Native browser verification', 512),
+          title: safeText(returnedSession.title, 'Native browser verification', 512),
           verificationRunId: exact.verificationRunId,
           target: copyTarget(exact.target),
-          driver: started.data.driver,
+          driver: returnedSession.driver,
         });
       },
       browser: this.dependencies.browser,
@@ -259,6 +358,11 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
 
     let verifierResult: Awaited<ReturnType<LoopVerifier['run']>>;
     try {
+      if (controlStopped(exact)) {
+        return attestationError(controlErrorType(exact), controlErrorMessage(exact), {
+          quiescent: true,
+        });
+      }
       const verifier = this.dependencies.createVerifier(nativeDependencies);
       verifierResult = await verifier.run({
         loop: exact.loop,
@@ -275,43 +379,82 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           : {}),
       });
     } catch {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         'native-browser-execution-error',
         'Native browser attestation could not execute its approved verifier.',
-        buildInterruptedAttempt(exact, session, this.dependencies.now)
+        recovered
       );
     }
 
     if (session.authorityInvalid) {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         'session-authority-invalid',
-        'Native browser ACP session did not retain its preallocated identity.'
+        session.startFailure?.message ??
+          'Native browser ACP session did not retain its preallocated identity.',
+        recovered
       );
     }
 
     if (!terminal) {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         errorType(verifierResult.success ? null : verifierResult.error),
         verifierResult.success
           ? 'Native browser attestation ended without typed terminal evidence.'
           : safeText(verifierResult.error.message, 'Native browser attestation was rejected.'),
-        buildInterruptedAttempt(exact, session, this.dependencies.now)
+        recovered
       );
     }
 
     const capturedTerminal: CapturedTerminal = terminal;
     if (capturedTerminal.status === 'cancelled') {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         verifierResult.success ? 'native-browser-cancelled' : errorType(verifierResult.error),
-        'Native browser attestation was cancelled.',
-        buildTerminalAttempt(exact, session, 'cancelled', capturedTerminal.finishedAt)
+        verifierResult.success
+          ? 'Native browser attestation was cancelled.'
+          : safeText(verifierResult.error.message, 'Native browser attestation was cancelled.'),
+        recovered
       );
     }
     if (!verifierResult.success && verifierResult.error.kind !== 'command-failed') {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         errorType(verifierResult.error),
         safeText(verifierResult.error.message, 'Native browser attestation was rejected.'),
-        buildTerminalAttempt(exact, session, 'failed', capturedTerminal.finishedAt)
+        recovered
       );
     }
 
@@ -320,12 +463,20 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
       (status === 'passed' && !verifierResult.success) ||
       (status !== 'passed' && verifierResult.success) ||
       !session.accepted ||
-      session.startedAt === null
+      session.startedAt === null ||
+      session.startInvocations !== 1
     ) {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         'native-browser-terminal-invalid',
         'Native browser verifier result did not match its typed terminal evidence.',
-        buildInterruptedAttempt(exact, session, this.dependencies.now)
+        recovered
       );
     }
 
@@ -337,9 +488,17 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
       capturedTerminal.finishedAt
     );
     if (!sessionAttempt) {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        this.dependencies.now,
+        true
+      );
       return attestationError(
         'session-authority-invalid',
-        'Native browser ACP session did not produce canonical terminal authority.'
+        'Native browser ACP session did not produce canonical terminal authority.',
+        recovered
       );
     }
     const evidenceArtifacts = artifacts.slice(0, MAX_ARTIFACTS).map(copyArtifact);
@@ -385,52 +544,64 @@ type ValidatedAttestationInput = Omit<NativeBrowserE2EAttestationInput, 'loop'> 
 function validateInput(
   input: NativeBrowserE2EAttestationInput
 ): Result<ValidatedAttestationInput, NativeBrowserE2EAttestationError> {
-  const target = loopSessionTargetSchema.safeParse(input.target);
-  const checkpoint = loopCommitSchema.safeParse(input.checkpointCommit);
-  const criteria = input.criteria.map((criterion) => loopPhaseCriterionSchema.safeParse(criterion));
-  const config = newLoopConfigV2Schema.strict().safeParse(input.loop.config);
-  if (
-    !validId(input.loop.id) ||
-    !validId(input.phase.id) ||
-    input.phase.loopId !== input.loop.id ||
-    input.phase.kind !== 'e2e' ||
-    !validId(input.verificationRunId) ||
-    !validId(input.sessionIdentity.attemptId) ||
-    !validId(input.sessionIdentity.conversationId) ||
-    !validId(input.outerConversationId) ||
-    input.phase.conversationId !== input.outerConversationId ||
-    input.sessionIdentity.conversationId === input.outerConversationId ||
-    !target.success ||
-    !sameTarget(input.executionTarget, target.data) ||
-    !sameStringRecord(input.executionTarget.taskEnv, input.taskEnvironment) ||
-    input.taskEnvironment.EMDASH_TASK_PATH !== target.data.path ||
-    !checkpoint.success ||
-    typeof input.model !== 'string' ||
-    input.model !== input.model.trim() ||
-    input.model.length === 0 ||
-    input.model.length > MAX_MODEL_LENGTH ||
-    !config.success ||
-    config.data.provider !== input.provider ||
-    config.data.model !== input.model ||
-    input.criteria.length === 0 ||
-    input.criteria.length > 64 ||
-    criteria.some((criterion) => !criterion.success) ||
-    !input.criteria.some((criterion) => criterion.verifier === 'agent-browser') ||
-    (input.signal !== undefined && !isAbortSignal(input.signal)) ||
-    (input.deadlineAt !== undefined && !Number.isFinite(input.deadlineAt))
-  ) {
+  try {
+    const target = loopSessionTargetSchema.safeParse(input.target);
+    const checkpoint = loopCommitSchema.safeParse(input.checkpointCommit);
+    const criteria = e2eCriteriaSchema.safeParse(input.criteria);
+    const config = newLoopConfigV2Schema.strict().safeParse(input.loop.config);
+    if (
+      !validId(input.loop.id) ||
+      !validId(input.phase.id) ||
+      input.phase.loopId !== input.loop.id ||
+      input.phase.kind !== 'e2e' ||
+      !validId(input.verificationRunId) ||
+      !validId(input.sessionIdentity.attemptId) ||
+      !validId(input.sessionIdentity.conversationId) ||
+      !validId(input.outerConversationId) ||
+      input.phase.conversationId !== input.outerConversationId ||
+      input.sessionIdentity.conversationId === input.outerConversationId ||
+      !target.success ||
+      !sameExactTarget(input.target, target.data) ||
+      !sameExactTarget(
+        {
+          workspaceId: input.executionTarget.workspaceId,
+          path: input.executionTarget.path,
+          machine: input.executionTarget.machine,
+        },
+        target.data
+      ) ||
+      !sameStringRecord(input.executionTarget.taskEnv, input.taskEnvironment) ||
+      input.taskEnvironment.EMDASH_TASK_PATH !== target.data.path ||
+      !checkpoint.success ||
+      typeof input.model !== 'string' ||
+      input.model !== input.model.trim() ||
+      input.model.length === 0 ||
+      input.model.length > MAX_MODEL_LENGTH ||
+      !config.success ||
+      config.data.provider !== input.provider ||
+      config.data.model !== input.model ||
+      !criteria.success ||
+      !canonicalDeepEqual(input.criteria, criteria.data) ||
+      (input.signal !== undefined && !isAbortSignal(input.signal)) ||
+      (input.deadlineAt !== undefined &&
+        (!Number.isFinite(input.deadlineAt) || Date.now() >= input.deadlineAt)) ||
+      (input.signal !== undefined && signalAborted(input.signal))
+    ) {
+      throw new TypeError();
+    }
+    return ok({
+      ...input,
+      loop: { ...input.loop, config: config.data },
+      target: copyTarget(target.data),
+      taskEnvironment: Object.freeze({ ...input.taskEnvironment }),
+      criteria: criteria.data.map(copyCriterion),
+    });
+  } catch {
     return attestationError(
       'native-browser-input-invalid',
       'Native browser attestation requires exact canonical clean-room authority.'
     );
   }
-  return ok({
-    ...input,
-    loop: { ...input.loop, config: config.data },
-    target: copyTarget(target.data),
-    taskEnvironment: Object.freeze({ ...input.taskEnvironment }),
-    criteria: input.criteria.map(copyCriterion),
-  });
 }
 
 function wrapEvidenceStore(
@@ -438,7 +609,8 @@ function wrapEvidenceStore(
   input: NativeBrowserE2EAttestationInput,
   artifacts: LoopArtifactReference[],
   setTerminal: (terminal: CapturedTerminal) => void,
-  now: () => Date
+  now: () => Date,
+  capturedRuns: CapturedEvidenceRun[]
 ): LoopEvidenceStorePort {
   return {
     async beginRun(beginInput) {
@@ -450,17 +622,19 @@ function wrapEvidenceStore(
         throw new TypeError('Native browser evidence authority changed before execution.');
       }
       const run = await store.beginRun(beginInput);
-      return wrapEvidenceRun(run, input.verificationRunId, artifacts, setTerminal, now);
+      const captured: CapturedEvidenceRun = { run, settled: false };
+      capturedRuns.push(captured);
+      return wrapEvidenceRun(run, artifacts, setTerminal, now, captured);
     },
   };
 }
 
 function wrapEvidenceRun(
   run: LoopEvidenceRunPort,
-  verificationRunId: string,
   artifacts: LoopArtifactReference[],
   setTerminal: (terminal: CapturedTerminal) => void,
-  now: () => Date
+  now: () => Date,
+  captured: CapturedEvidenceRun
 ): LoopEvidenceRunPort {
   return {
     directory: run.directory,
@@ -477,7 +651,11 @@ function wrapEvidenceRun(
           byteLength: stored.byteLength,
           createdAt: safeNow(now),
         });
-        if (!artifact.success) {
+        if (
+          !artifact.success ||
+          /[\\/]/u.test(artifact.data.artifactId) ||
+          safeText(artifact.data.artifactId, 'opaque-artifact', 256) !== artifact.data.artifactId
+        ) {
           throw new TypeError('Native browser evidence returned invalid artifact metadata.');
         }
         artifacts.push(artifact.data);
@@ -486,13 +664,17 @@ function wrapEvidenceRun(
     },
     async finish(input) {
       await run.finish(input);
+      captured.settled = true;
       setTerminal({
         status: input.status,
         summary: safeText(input.summary, 'Native browser verification finished.'),
         finishedAt: safeNow(now),
       });
     },
-    abandon: () => run.abandon(),
+    async abandon() {
+      await run.abandon();
+      captured.settled = true;
+    },
   };
 }
 
@@ -514,38 +696,197 @@ function buildTerminalAttempt(
     checkpointBefore: input.checkpointCommit,
     ...(status === 'completed' ? { checkpointAfter: input.checkpointCommit } : {}),
     startedAt: session.startedAt,
-    finishedAt,
+    finishedAt: monotonicTimestamp(session.startedAt, finishedAt),
   });
   return parsed.success ? parsed.data : undefined;
 }
 
-function buildInterruptedAttempt(
+async function settleCapturedResources(
   input: NativeBrowserE2EAttestationInput,
   session: ExactSessionCapture,
-  now: () => Date
-): LoopSessionAttempt | undefined {
-  return buildTerminalAttempt(input, session, 'interrupted', safeNow(now));
+  evidenceRuns: CapturedEvidenceRun[],
+  now: () => Date,
+  cancelSessions: boolean
+): Promise<AttestationErrorOptions> {
+  const attempts: LoopSessionAttempt[] = [];
+  let quiescent = session.startFailure?.quiescent !== false;
+  for (const candidate of session.startFailure?.sessionAttempts ?? []) {
+    const copied = copyCanonicalAttempt(candidate);
+    if (copied) attempts.push(copied);
+  }
+  for (const known of session.knownSessions) {
+    if (cancelSessions && known.settlement === null) {
+      known.settlement = settleKnownSession(known.session, input, session.startedAt, now);
+    }
+    if (known.settlement !== null) {
+      const settlement = await known.settlement;
+      quiescent &&= settlement.quiescent;
+      attempts.push(...settlement.attempts);
+    }
+  }
+  for (const captured of evidenceRuns) {
+    if (captured.settled) continue;
+    let settled = false;
+    try {
+      await captured.run.finish({
+        status: 'failed',
+        summary: 'Native browser verifier stopped before terminal evidence.',
+      });
+      captured.settled = true;
+      settled = true;
+    } catch {
+      try {
+        await captured.run.abandon();
+        captured.settled = true;
+        settled = true;
+      } catch {
+        settled = false;
+      }
+    }
+    quiescent &&= settled;
+  }
+  if (session.startedAt !== null && attempts.length === 0) {
+    const interrupted = buildIdentityAttempt(
+      input,
+      input.sessionIdentity,
+      'interrupted',
+      session.startedAt,
+      safeNow(now),
+      'Native browser session start did not produce terminal authority.'
+    );
+    if (interrupted) attempts.push(interrupted);
+  }
+  return {
+    quiescent,
+    sessionAttempts: deduplicateAttempts(attempts),
+  };
 }
 
-async function quiesceRejectedSession(session: NativeBrowserE2EExactSession): Promise<void> {
-  if (!isAcpSessionDriver(session.driver) || typeof session.conversationId !== 'string') return;
+async function settleKnownSession(
+  session: NativeBrowserE2EExactSession,
+  input: NativeBrowserE2EAttestationInput,
+  startedAt: string | null,
+  now: () => Date
+): Promise<SessionSettlement> {
+  const finishedAt = safeNow(now);
+  const actualIdentity = readSessionIdentity(session);
+  const expectedIdentity = input.sessionIdentity;
+  const identities = [expectedIdentity];
+  if (
+    actualIdentity &&
+    (actualIdentity.attemptId !== expectedIdentity.attemptId ||
+      actualIdentity.conversationId !== expectedIdentity.conversationId)
+  ) {
+    identities.push(actualIdentity);
+  }
+  if (!isAcpSessionDriver(session.driver) || !actualIdentity || startedAt === null) {
+    return {
+      quiescent: false,
+      attempts: identities.flatMap((identity) => {
+        const attempt = buildIdentityAttempt(
+          input,
+          identity,
+          'interrupted',
+          startedAt ?? finishedAt,
+          finishedAt,
+          'Native browser session cancellation authority was unreadable.'
+        );
+        return attempt ? [attempt] : [];
+      }),
+    };
+  }
+  const cancellationByConversation = new Map<string, boolean>();
+  await Promise.all(
+    [...new Set(identities.map((identity) => identity.conversationId))].map(
+      async (conversationId) => {
+        let acknowledged = false;
+        try {
+          const cancelled = await session.driver.cancelPrompt(conversationId);
+          acknowledged = cancelled?.success === true;
+        } catch {
+          acknowledged = false;
+        }
+        cancellationByConversation.set(conversationId, acknowledged);
+      }
+    )
+  );
+  const attempts = identities.flatMap((identity) => {
+    const acknowledged = cancellationByConversation.get(identity.conversationId) === true;
+    const attempt = buildIdentityAttempt(
+      input,
+      identity,
+      acknowledged ? 'cancelled' : 'interrupted',
+      startedAt,
+      finishedAt,
+      acknowledged ? undefined : 'Native browser session cancellation was not acknowledged.'
+    );
+    return attempt ? [attempt] : [];
+  });
+  return {
+    quiescent:
+      attempts.length === identities.length &&
+      [...cancellationByConversation.values()].every(Boolean),
+    attempts,
+  };
+}
+
+function buildIdentityAttempt(
+  input: NativeBrowserE2EAttestationInput,
+  identity: NativeBrowserE2ESessionIdentity,
+  status: 'cancelled' | 'interrupted',
+  startedAt: string,
+  finishedAt: string,
+  error?: string
+): LoopSessionAttempt | undefined {
+  const parsed = loopSessionAttemptSchema.safeParse({
+    attemptId: identity.attemptId,
+    conversationId: identity.conversationId,
+    purpose: 'browser-verification',
+    phaseId: input.phase.id,
+    verificationRunId: input.verificationRunId,
+    target: copyTarget(input.target),
+    status,
+    checkpointBefore: input.checkpointCommit,
+    startedAt,
+    finishedAt: monotonicTimestamp(startedAt, finishedAt),
+    ...(error ? { error: safeText(error, 'Native browser session cleanup failed.', 4_096) } : {}),
+  });
+  return parsed.success ? parsed.data : undefined;
+}
+
+function readSessionIdentity(
+  session: NativeBrowserE2EExactSession
+): NativeBrowserE2ESessionIdentity | undefined {
   try {
-    await session.driver.cancelPrompt(session.conversationId);
+    if (!validId(session.attemptId) || !validId(session.conversationId)) return undefined;
+    return { attemptId: session.attemptId, conversationId: session.conversationId };
   } catch {
-    // The strict dependency contract requires rejected identity creation to settle fail-closed.
+    return undefined;
   }
 }
+
+type AttestationErrorOptions = {
+  quiescent: boolean;
+  sessionAttempts?: readonly LoopSessionAttempt[];
+};
 
 function attestationError(
   type: string,
   message: string,
-  attempt?: LoopSessionAttempt
+  options: AttestationErrorOptions = { quiescent: true }
 ): Result<never, NativeBrowserE2EAttestationError> {
+  const attempts = deduplicateAttempts(
+    (options.sessionAttempts ?? []).flatMap((attempt) => {
+      const copied = copyCanonicalAttempt(attempt);
+      return copied ? [copied] : [];
+    })
+  );
   return err({
-    type,
+    type: validErrorType(type) ? type : 'native-browser-rejected',
     message: safeText(message, 'Native browser attestation was rejected.'),
-    quiescent: true,
-    ...(attempt ? { sessionAttempts: [attempt] } : {}),
+    quiescent: options.quiescent,
+    recoveryRequired: !options.quiescent,
+    ...(attempts.length > 0 ? { sessionAttempts: attempts } : {}),
   });
 }
 
@@ -588,6 +929,250 @@ function copyCriterion(criterion: LoopPhaseCriterion): LoopPhaseCriterion {
 
 function copyTarget(target: LoopSessionTarget): LoopSessionTarget {
   return loopSessionTargetSchema.parse(target);
+}
+
+function exactSessionEchoes(value: unknown, input: NativeBrowserE2EAttestationInput): boolean {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const candidate = value as NativeBrowserE2EExactSession;
+    if (
+      !hasExactKeys(candidate, [
+        'attemptId',
+        'checkpointCommit',
+        'conversationId',
+        'driver',
+        'model',
+        'phaseId',
+        'provider',
+        'purpose',
+        'target',
+        'taskEnvironment',
+        'title',
+        'verificationRunId',
+      ]) ||
+      candidate.attemptId !== input.sessionIdentity.attemptId ||
+      candidate.conversationId !== input.sessionIdentity.conversationId ||
+      candidate.purpose !== 'browser-verification' ||
+      candidate.phaseId !== input.phase.id ||
+      candidate.verificationRunId !== input.verificationRunId ||
+      !sameExactTarget(candidate.target, input.target) ||
+      !sameExactStringRecord(candidate.taskEnvironment, input.taskEnvironment) ||
+      candidate.provider !== input.provider ||
+      candidate.model !== input.model ||
+      candidate.checkpointCommit !== input.checkpointCommit ||
+      typeof candidate.title !== 'string'
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function snapshotExactSession(
+  value: unknown,
+  input: NativeBrowserE2EAttestationInput
+): NativeBrowserE2EExactSession | undefined {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const attemptId = readProperty(value, 'attemptId');
+    const conversationId = readProperty(value, 'conversationId');
+    if (!validId(attemptId) || !validId(conversationId)) return undefined;
+    const title = readProperty(value, 'title');
+    const phaseId = readProperty(value, 'phaseId');
+    const verificationRunId = readProperty(value, 'verificationRunId');
+    const target = loopSessionTargetSchema.safeParse(readProperty(value, 'target'));
+    const taskEnvironment = readProperty(value, 'taskEnvironment');
+    const provider = readProperty(value, 'provider');
+    const model = readProperty(value, 'model');
+    const checkpointCommit = readProperty(value, 'checkpointCommit');
+    const driver = readProperty(value, 'driver');
+    return {
+      attemptId,
+      conversationId,
+      title: typeof title === 'string' ? title : 'Native browser verification',
+      purpose: 'browser-verification',
+      phaseId: validId(phaseId) ? phaseId : input.phase.id,
+      verificationRunId: validId(verificationRunId) ? verificationRunId : input.verificationRunId,
+      target: copyTarget(target.success ? target.data : input.target),
+      taskEnvironment: Object.freeze(
+        taskEnvironment && typeof taskEnvironment === 'object' && !Array.isArray(taskEnvironment)
+          ? { ...(taskEnvironment as Record<string, string>) }
+          : { ...input.taskEnvironment }
+      ),
+      provider: provider === 'claude' ? 'claude' : provider === 'codex' ? 'codex' : input.provider,
+      model: typeof model === 'string' ? model : input.model,
+      checkpointCommit:
+        typeof checkpointCommit === 'string' ? checkpointCommit : input.checkpointCommit,
+      driver: driver as LoopSessionDriver,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function readProperty(value: object, key: string): unknown {
+  try {
+    return (value as Record<string, unknown>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function unreadableStartFailure(): NativeBrowserE2EExactSessionError {
+  return {
+    kind: 'execution-error',
+    message: 'Exact native browser session start returned unreadable success authority.',
+    quiescent: false,
+    recoveryRequired: true,
+  };
+}
+
+function stabilizeStartFailure(value: unknown): NativeBrowserE2EExactSessionError {
+  try {
+    const stable = stabilizeJson(value, 512 * 1024);
+    if (!stable || typeof stable !== 'object' || Array.isArray(stable)) throw new TypeError();
+    const candidate = stable as Record<string, unknown>;
+    const attempts = Array.isArray(candidate.sessionAttempts)
+      ? candidate.sessionAttempts.slice(0, 3).flatMap((attempt) => {
+          const copied = copyCanonicalAttempt(attempt);
+          return copied && isTerminalAttempt(copied) ? [copied] : [];
+        })
+      : [];
+    const quiescent = candidate.quiescent === true && candidate.recoveryRequired !== true;
+    return {
+      kind: validErrorType(candidate.kind) ? candidate.kind : 'execution-error',
+      message: safeText(
+        candidate.message,
+        quiescent
+          ? 'Exact native browser session start failed atomically.'
+          : 'Exact native browser session start did not prove failure atomicity.'
+      ),
+      quiescent,
+      recoveryRequired: !quiescent,
+      ...(attempts.length > 0 ? { sessionAttempts: attempts } : {}),
+    };
+  } catch {
+    return {
+      kind: 'execution-error',
+      message: 'Exact native browser session start returned unreadable failure authority.',
+      quiescent: false,
+      recoveryRequired: true,
+    };
+  }
+}
+
+function copyCanonicalAttempt(value: unknown): LoopSessionAttempt | undefined {
+  try {
+    const parsed = loopSessionAttemptSchema.safeParse(value);
+    if (
+      !parsed.success ||
+      !canonicalDeepEqual(value, parsed.data) ||
+      !validTimestamp(parsed.data.startedAt) ||
+      (parsed.data.finishedAt !== undefined &&
+        (!validTimestamp(parsed.data.finishedAt) ||
+          Date.parse(parsed.data.finishedAt) < Date.parse(parsed.data.startedAt))) ||
+      (parsed.data.error !== undefined &&
+        safeText(parsed.data.error, 'Native browser session failed.', 4_096) !== parsed.data.error)
+    ) {
+      return undefined;
+    }
+    return parsed.data;
+  } catch {
+    return undefined;
+  }
+}
+
+function deduplicateAttempts(attempts: readonly LoopSessionAttempt[]): LoopSessionAttempt[] {
+  const seen = new Set<string>();
+  const result: LoopSessionAttempt[] = [];
+  for (const attempt of attempts) {
+    const copied = copyCanonicalAttempt(attempt);
+    if (!copied) continue;
+    const key = `${copied.attemptId}\u0000${copied.conversationId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(copied);
+    if (result.length >= 3) break;
+  }
+  return result;
+}
+
+function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
+  return (
+    ['completed', 'failed', 'cancelled', 'interrupted'].includes(attempt.status) &&
+    attempt.finishedAt !== undefined
+  );
+}
+
+function sameExactTarget(left: unknown, right: LoopSessionTarget): boolean {
+  try {
+    const parsed = loopSessionTargetSchema.safeParse(left);
+    return (
+      parsed.success && canonicalDeepEqual(left, parsed.data) && sameTarget(parsed.data, right)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function sameExactStringRecord(left: unknown, right: Readonly<Record<string, string>>): boolean {
+  try {
+    if (!left || typeof left !== 'object' || Array.isArray(left)) return false;
+    const entries = Object.entries(left);
+    return (
+      entries.every(([key, value]) => typeof value === 'string' && right[key] === value) &&
+      entries.length === Object.keys(right).length
+    );
+  } catch {
+    return false;
+  }
+}
+
+function canonicalDeepEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => canonicalDeepEqual(value, right[index]))
+    );
+  }
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && canonicalDeepEqual(leftRecord[key], rightRecord[key])
+    )
+  );
+}
+
+function hasExactKeys(value: unknown, expected: readonly string[]): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const sortedExpected = [...expected].sort();
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
+}
+
+function stabilizeJson(value: unknown, maxBytes: number): unknown {
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined || Buffer.byteLength(serialized, 'utf8') > maxBytes)
+      return undefined;
+    return JSON.parse(serialized) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 function sameTarget(left: unknown, right: unknown): boolean {
@@ -638,8 +1223,44 @@ function validId(value: unknown): value is string {
   );
 }
 
+function validErrorType(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/u.test(value);
+}
+
 function isAbortSignal(value: unknown): value is AbortSignal {
   return typeof AbortSignal !== 'undefined' && value instanceof AbortSignal;
+}
+
+function signalAborted(signal: AbortSignal): boolean {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted');
+    return descriptor?.get?.call(signal) === true;
+  } catch {
+    return true;
+  }
+}
+
+function controlStopped(input: Pick<NativeBrowserE2EAttestationInput, 'signal' | 'deadlineAt'>) {
+  return (
+    (input.signal !== undefined && signalAborted(input.signal)) ||
+    (input.deadlineAt !== undefined && Date.now() >= input.deadlineAt)
+  );
+}
+
+function controlErrorType(
+  input: Pick<NativeBrowserE2EAttestationInput, 'signal' | 'deadlineAt'>
+): string {
+  return input.signal !== undefined && signalAborted(input.signal)
+    ? 'native-browser-cancelled'
+    : 'native-browser-timed-out';
+}
+
+function controlErrorMessage(
+  input: Pick<NativeBrowserE2EAttestationInput, 'signal' | 'deadlineAt'>
+): string {
+  return input.signal !== undefined && signalAborted(input.signal)
+    ? 'Native browser attestation was cancelled before execution.'
+    : 'Native browser attestation deadline expired before execution.';
 }
 
 function isAcpSessionDriver(value: unknown): value is LoopSessionDriver {
@@ -662,6 +1283,22 @@ function safeNow(now: () => Date): string {
     // Fall through to a canonical timestamp for diagnostic-only attempt metadata.
   }
   return new Date().toISOString();
+}
+
+function validTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || value !== value.trim() || value.length > 64) return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function monotonicTimestamp(...values: string[]): string {
+  let latest: { value: string; time: number } | undefined;
+  for (const value of values) {
+    if (!validTimestamp(value)) continue;
+    const time = Date.parse(value);
+    if (!latest || time > latest.time) latest = { value, time };
+  }
+  return latest?.value ?? new Date().toISOString();
 }
 
 function safeText(value: unknown, fallback: string, limit = MAX_SUMMARY_LENGTH): string {

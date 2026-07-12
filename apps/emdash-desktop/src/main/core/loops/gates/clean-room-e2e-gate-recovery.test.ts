@@ -183,6 +183,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) =>
       err({
         message: 'checks rejected after nested verification',
+        quiescent: true,
         sessionAttempts: [nestedAttempt(input.sessionIdentity)],
       })
     );
@@ -599,7 +600,6 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const result = await harness.gate.run({
       ...defaultInput,
       loop: loopWithState({ sessionAttempts }),
-      maxAttempts: 1,
     });
 
     expect(result).toMatchObject({
@@ -662,11 +662,12 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
 
-  it('retains only the exact terminal nested attempt from a quiesced checks rejection', async () => {
+  it('retains the expected and distinct actual terminal attempts from a quiesced rejection', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) =>
       err({
         message: 'checks settled with terminal browser attempts',
+        quiescent: true,
         sessionAttempts: [
           nestedAttempt({
             ...input.sessionIdentity,
@@ -691,14 +692,15 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         sessionAttempts: [
           { purpose: 'e2e', status: 'failed' },
           { attemptId: 'browser-verification-run-1', status: 'failed' },
+          { attemptId: 'unallocated-nested-attempt', status: 'cancelled' },
         ],
       },
     });
     if (result.success) throw new Error('Expected required-check rejection.');
-    expect(JSON.stringify(result)).not.toContain('unallocated-nested-attempt');
+    expect(JSON.stringify(result)).toContain('unallocated-nested-attempt');
   });
 
-  it('normalizes only the exact nonterminal nested attempt after checks quiesce', async () => {
+  it('normalizes the expected and distinct actual nonterminal attempts after checks quiesce', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) => {
       const running = nestedAttempt({ ...input.sessionIdentity, status: 'running' });
@@ -711,6 +713,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       delete starting.finishedAt;
       return err({
         message: 'checks quiesced while nested attempts were nonterminal',
+        quiescent: true,
         sessionAttempts: [running, starting],
       });
     });
@@ -724,6 +727,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         sessionAttempts: [
           { purpose: 'e2e', status: 'failed' },
           { attemptId: 'browser-verification-run-1', status: 'interrupted' },
+          { attemptId: 'unallocated-nested-starting', status: 'interrupted' },
         ],
       },
     });
@@ -731,10 +735,9 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(result.error.sessionAttempts.slice(1).every((attempt) => attempt.finishedAt)).toBe(true);
   });
 
-  it('passes a current retry checkpoint, state, ledger, and one normalized command list to checks', async () => {
-    const rawValidationCommands = ['  pnpm run test  ', '\tpnpm run typecheck\n'];
+  it('passes a current retry checkpoint, state, ledger, and one canonical command list to checks', async () => {
     const normalizedValidationCommands = ['pnpm run test', 'pnpm run typecheck'];
-    const retryLoop = loopWithConfig({ validationCommands: rawValidationCommands });
+    const retryLoop = loopWithConfig({ validationCommands: normalizedValidationCommands });
     const harness = makeHarness([
       {
         finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
@@ -861,6 +864,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
   it('redacts sentinel and check-handoff secrets before retaining correction evidence', async () => {
     const secrets = ['sentinel-token-value', 'sentinel-cookie-value', 'handoff-password-value'];
     const harness = makeHarness([
+      { finalText: 'unused' },
       {
         finalText:
           '<<<LOOP:E2E_CORRECTION_READY token=sentinel-token-value session_cookie=sentinel-cookie-value>>>',
@@ -871,12 +875,12 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         finalText: 'Candidate green.\n<<<LOOP:E2E_PASSED>>>',
         checks: {
           ...requiredChecksResult({
-            target: cleanTargetFor(featureTarget, 2),
+            target: cleanTargetFor(featureTarget, 3),
             checkpointCommit: FIX_COMMIT,
-            verificationRunId: 'verification-run-2',
-            outerConversationId: 'e2e-conversation-2',
-            taskEnvironment: environment(cleanTargetFor(featureTarget, 2)),
-            attempt: 2,
+            verificationRunId: 'verification-run-3',
+            outerConversationId: 'e2e-conversation-3',
+            taskEnvironment: environment(cleanTargetFor(featureTarget, 3)),
+            attempt: 3,
             status: 'correctable',
           }),
           handoff: {
@@ -893,7 +897,10 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       },
     ]);
 
-    const result = await harness.gate.run({ ...defaultInput, maxAttempts: 2 });
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithState({ e2eAttemptsConsumed: 1 }),
+    });
     const persisted = JSON.stringify(result);
 
     expect(result).toMatchObject({
@@ -1080,7 +1087,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        type: 'cleanup-failed',
+        type: 'dependency-rejected',
         stage: 'quiescence',
         recoveryRequired: true,
         lastWorkspaceDestroyed: false,
@@ -1314,7 +1321,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     ]);
   });
 
-  it('retains only the preallocated nested attempt and proves the exact ledger capacity bound', async () => {
+  it('retains expected and actual nested attempts within the exact ledger capacity bound', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) => {
       const authority = input as typeof input & {
@@ -1326,11 +1333,17 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       };
       return err({
         message: 'checks rejected after nested verification',
+        quiescent: true,
         sessionAttempts: [
           nestedAttempt(exactIdentity),
           nestedAttempt({
             attemptId: 'unallocated-browser-attempt',
             conversationId: 'unallocated-browser-conversation',
+            phaseId: input.authority.phaseId,
+            verificationRunId: input.verificationRunId,
+            target: input.target,
+            checkpointBefore: input.checkpointCommit,
+            checkpointAfter: input.checkpointCommit,
           }),
         ],
       });
@@ -1338,8 +1351,10 @@ describe('CleanRoomE2EGate recovery and authority', () => {
 
     const result = await harness.gate.run({
       ...defaultInput,
-      loop: loopWithState({ sessionAttempts: historicalAttempts(1_021) }),
-      maxAttempts: 1,
+      loop: loopWithState({
+        e2eAttemptsConsumed: 2,
+        sessionAttempts: [...historicalAttempts(1_017), ...loop.state!.sessionAttempts],
+      }),
     });
 
     expect(result).toMatchObject({
@@ -1354,11 +1369,15 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       result.error.sessionAttempts.filter((attempt) => attempt.purpose === 'browser-verification')
     ).toEqual([
       expect.objectContaining({
-        attemptId: 'browser-verification-run-1',
-        conversationId: 'browser-conversation-run-1',
+        attemptId: 'browser-verification-run-3',
+        conversationId: 'browser-conversation-run-3',
+      }),
+      expect.objectContaining({
+        attemptId: 'unallocated-browser-attempt',
+        conversationId: 'unallocated-browser-conversation',
       }),
     ]);
-    expect(JSON.stringify(result)).not.toContain('unallocated-browser-attempt');
+    expect(JSON.stringify(result)).toContain('unallocated-browser-attempt');
     expect(harness.dependencies.cleanRoom.create).toHaveBeenCalledOnce();
   }, 15_000);
 
@@ -1581,7 +1600,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         },
       }));
 
-      const result = await harness.gate.run({ ...defaultInput, maxAttempts: 1 });
+      const result = await harness.gate.run(defaultInput);
 
       expect(result).toMatchObject({
         success: false,

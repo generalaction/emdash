@@ -6,6 +6,9 @@ const boundedPathSchema = z.string().trim().min(1).max(4096);
 const boundedMessageSchema = z.string().max(4096);
 const timestampSchema = z.string().trim().min(1).max(64);
 
+/** Fixed product policy for one clean-room E2E phase, including interrupted/recovered runs. */
+export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 3;
+
 export const loopCommitSchema = z
   .string()
   .regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i, 'Expected a full Git object ID');
@@ -101,6 +104,8 @@ export const loopStateV1Schema = z
     baseCommit: loopCommitSchema.nullable(),
     expectedFeatureHead: loopCommitSchema.nullable(),
     checkpointCommit: loopCommitSchema.nullable(),
+    /** Optional for backward-compatible reads; Lane E materializes it on the next workspace write. */
+    e2eAttemptsConsumed: z.number().int().nonnegative().max(64).optional(),
     sessionAttempts: z.array(loopSessionAttemptSchema).max(1024),
     verification: loopVerificationWorkspaceStateSchema.nullable(),
   })
