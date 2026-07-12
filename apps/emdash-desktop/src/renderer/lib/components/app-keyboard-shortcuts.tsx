@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
+import { useEffect } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import {
@@ -18,7 +19,7 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
+  const { exitZenMode, toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
@@ -42,6 +43,8 @@ export function AppKeyboardShortcuts() {
     if (!currentProjectId || !currentTaskId) return undefined;
     return getRegisteredTaskData(currentProjectId, currentTaskId)?.workspaceId ?? undefined;
   });
+
+  useEffect(() => () => exitZenMode(), [currentProjectId, currentTaskId, currentView, exitZenMode]);
 
   useHotkey(
     getHotkeyRegistration('commandPalette', keyboard),
@@ -84,7 +87,7 @@ export function AppKeyboardShortcuts() {
           : undefined
       );
     },
-    { enabled: zenModeHotkey !== null }
+    { enabled: zenModeHotkey !== null, ignoreInputs: true }
   );
 
   return null;

@@ -15,6 +15,7 @@ export interface WorkspaceLayoutContextValue {
   syncLeftOpenFromPanel: () => void;
   setCollapsed: (side: 'left', collapsed: boolean) => void;
   toggleLeft: () => void;
+  exitZenMode: () => void;
   toggleZenMode: (rightSidebar?: {
     isCollapsed: boolean;
     setCollapsed: (collapsed: boolean) => void;
@@ -35,6 +36,7 @@ export function useWorkspaceLayoutService() {
   const zenModeSnapshotRef = useRef<{
     leftOpen: boolean;
     rightCollapsed?: boolean;
+    setRightCollapsed?: (collapsed: boolean) => void;
   } | null>(null);
 
   const syncLeftOpenFromPanel = useCallback(() => {
@@ -65,26 +67,33 @@ export function useWorkspaceLayoutService() {
     setCollapsed('left', isLeftOpen);
   }, [setCollapsed, isLeftOpen]);
 
+  const exitZenMode = useCallback(() => {
+    const snapshot = zenModeSnapshotRef.current;
+    if (!snapshot) return;
+
+    setCollapsed('left', !snapshot.leftOpen);
+    if (snapshot.setRightCollapsed && snapshot.rightCollapsed !== undefined) {
+      snapshot.setRightCollapsed(snapshot.rightCollapsed);
+    }
+    zenModeSnapshotRef.current = null;
+  }, [setCollapsed]);
+
   const toggleZenMode = useCallback(
     (rightSidebar?: { isCollapsed: boolean; setCollapsed: (collapsed: boolean) => void }) => {
-      const snapshot = zenModeSnapshotRef.current;
-      if (snapshot) {
-        setCollapsed('left', !snapshot.leftOpen);
-        if (rightSidebar && snapshot.rightCollapsed !== undefined) {
-          rightSidebar.setCollapsed(snapshot.rightCollapsed);
-        }
-        zenModeSnapshotRef.current = null;
+      if (zenModeSnapshotRef.current) {
+        exitZenMode();
         return;
       }
 
       zenModeSnapshotRef.current = {
         leftOpen: isLeftOpen,
         rightCollapsed: rightSidebar?.isCollapsed,
+        setRightCollapsed: rightSidebar?.setCollapsed,
       };
       setCollapsed('left', true);
       rightSidebar?.setCollapsed(true);
     },
-    [isLeftOpen, setCollapsed]
+    [exitZenMode, isLeftOpen, setCollapsed]
   );
 
   return {
@@ -93,6 +102,7 @@ export function useWorkspaceLayoutService() {
     isLeftOpen,
     setCollapsed,
     toggleLeft,
+    exitZenMode,
     toggleZenMode,
   };
 }
