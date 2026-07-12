@@ -101,6 +101,7 @@ export function useModifierHeld(key: RevealModifier | null, delayMs = 250): bool
       stopForwardedModifier();
       stopForwardedShortcut();
       if (timer !== null) window.clearTimeout(timer);
+      setHeld(false);
     };
   }, [key, delayMs]);
 

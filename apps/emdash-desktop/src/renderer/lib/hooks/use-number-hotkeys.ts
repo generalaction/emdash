@@ -43,7 +43,6 @@ export function claimNumberHotkey(id: string, at: number = performance.now()): b
 export function dispatchNumberHotkey(event: KeyboardEvent): boolean {
   if (event.type !== 'keydown') return false;
   return dispatchMatchingHotkeys(event, {
-    dispatch: 'first',
     filter: (registration) => numberHotkeyCallbacks.has(registration.callback),
   });
 }
