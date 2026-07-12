@@ -32,8 +32,11 @@
       "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
       "@emdash/core/deps/runtime": ["../../packages/core/src/host-dependencies/runtime/index.ts"],
       "@emdash/core/exec": ["../../packages/core/src/exec/index.ts"],
+      "@emdash/core/files": ["../../packages/core/src/files/index.ts"],
       "@emdash/core/git": ["../../packages/core/src/git/index.ts"],
+      "@emdash/core/host": ["../../packages/core/src/host/index.ts"],
       "@emdash/core/mcp": ["../../packages/core/src/mcp/index.ts"],
+      "@emdash/core/path": ["../../packages/core/src/path/index.ts"],
       "@emdash/core/skills": ["../../packages/core/src/skills/index.ts"],
       "@emdash/core/workspace-server/agent-config": [
         "../../packages/core/src/workspace-server/agent-config/index.ts"
@@ -48,6 +51,9 @@
       "@emdash/runtime/agent-config": ["../../packages/runtime/src/agent-config/index.ts"],
       "@emdash/runtime/acp-agents/node": ["../../packages/runtime/src/acp-agents/node/index.ts"],
       "@emdash/runtime/acp-agents": ["../../packages/runtime/src/acp-agents/index.ts"],
+      "@emdash/runtime/files/node": ["../../packages/runtime/src/files/node/index.ts"],
+      "@emdash/runtime/files": ["../../packages/runtime/src/files/index.ts"],
+      "@emdash/runtime/git/node": ["../../packages/runtime/src/git/node/index.ts"],
       "@emdash/runtime/git": ["../../packages/runtime/src/git/index.ts"],
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger/context-node": ["../../packages/shared/src/logger/context-node.ts"],
@@ -63,6 +69,7 @@
       "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
       "@emdash/wire/process/node": ["../../packages/wire/src/process/node/index.ts"],
       "@emdash/wire/process": ["../../packages/wire/src/process/index.ts"],
+      "@emdash/wire/testing": ["../../packages/wire/src/testing/index.ts"],
       "@emdash/wire/util/process-runtime": [
         "../../packages/wire/src/util/process-runtime/index.ts"
       ],

@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { isFileNotFoundCode } from '@emdash/core/files';
-import { err, ok, withLease } from '@emdash/shared';
+import nodePath from 'node:path';
+import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
+import { RuntimeFileSystem } from '@main/core/files/runtime-files';
+import { fsErrorMessage } from '@main/core/files/scoped-file-system';
+import { RuntimeGit } from '@main/core/git/runtime-git';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { statAbsolute } from '@main/core/runtime/files-helpers';
-import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -13,6 +14,8 @@ import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
 import { getDirectoryStatus } from '../path-utils';
 import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
+
+const git = new RuntimeGit();
 
 export type CreateLocalProjectParams = {
   id?: string;
@@ -40,8 +43,10 @@ export async function createLocalProject(
     });
   }
 
-  const repositoryResult = await withLease(runtimeManager.acquire({ kind: 'local' }), (runtime) =>
-    ensureProjectRepository(runtime.git, params.path, params.initGitRepository)
+  const repositoryResult = await ensureProjectRepository(
+    git,
+    params.path,
+    params.initGitRepository
   );
   if (!repositoryResult.success) return repositoryResult;
   const gitInfo = repositoryResult.data;
@@ -86,25 +91,23 @@ export async function createLocalProject(
 }
 
 export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
-  const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
   try {
-    const pathEntry = await statAbsolute(runtimeLease.value.files, path);
+    const pathEntry = await new RuntimeFileSystem(nodePath.dirname(path)).stat(path);
     if (!pathEntry.success) {
-      const code = 'code' in pathEntry.error ? pathEntry.error.code : undefined;
-      if (isFileNotFoundCode(code)) {
+      if (pathEntry.error.type === 'not-found') {
         return { isDirectory: false, isGitRepo: false };
       }
       return {
         isDirectory: false,
         isGitRepo: false,
-        error: { type: 'inspect-failed', path, message: pathEntry.error.message },
+        error: { type: 'inspect-failed', path, message: fsErrorMessage(pathEntry.error) },
       };
     }
     if (pathEntry.data.type !== 'directory') {
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const inspection = await runtimeLease.value.git.inspectPath(path);
+    const inspection = await git.inspectPath(path);
     if (inspection.kind === 'inspect-failed') {
       return {
         isDirectory: true,
@@ -113,7 +116,11 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
       };
     }
     return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
-  } finally {
-    await runtimeLease.release();
+  } catch (error) {
+    return {
+      isDirectory: false,
+      isGitRepo: false,
+      error: { type: 'inspect-failed', path, message: String(error) },
+    };
   }
 }

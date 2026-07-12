@@ -7,21 +7,12 @@ export async function execute(
   args: Step.Args,
   ctx: StepContext
 ): Promise<Result<Step.Success, never>> {
-  const { branchName, baseRef } = args;
-  const key = `branch.${branchName}.base`;
-  try {
-    // Idempotent: skip if already set.
-    const { stdout } = await ctx.ctx.exec('git', ['config', '--get', key]).catch(() => ({
-      stdout: '',
-    }));
-    if (stdout.trim()) return ok({});
-
-    await ctx.ctx.exec('git', ['config', key, baseRef]);
-  } catch (error: unknown) {
+  const result = await ctx.gitRepository.setBranchBase(args.branchName, args.baseRef);
+  if (!result.success) {
     log.warn('setup-steps/set-branch-base: failed to set branch base config', {
-      branchName,
-      baseRef,
-      error: String(error),
+      branchName: args.branchName,
+      baseRef: args.baseRef,
+      error: result.error,
     });
   }
   return ok({});

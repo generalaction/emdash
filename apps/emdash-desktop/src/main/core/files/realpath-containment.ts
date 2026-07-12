@@ -1,8 +1,9 @@
-import { isFileNotFoundError, type FileError } from '@emdash/core/files';
+import type { FsError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
+import { isFileNotFoundError } from './scoped-file-system';
 
 export type RealPathFileSystem = {
-  realPath(path: string): Promise<Result<string, FileError>>;
+  realPath(path: string): Promise<Result<string, FsError>>;
 };
 
 export type RealPathPathOperations = {
@@ -21,7 +22,7 @@ export async function realPathNearestExisting(
   fileSystem: RealPathFileSystem,
   pathOperations: RealPathPathOperations,
   absPath: string
-): Promise<Result<string, FileError>> {
+): Promise<Result<string, FsError>> {
   let current = absPath;
   const tail: string[] = [];
 
@@ -53,7 +54,7 @@ export async function isRealPathContained(
   rootPath: string,
   candidatePath: string,
   options: RealPathContainmentOptions = {}
-): Promise<Result<boolean, FileError>> {
+): Promise<Result<boolean, FsError>> {
   const rootReal = await fileSystem.realPath(rootPath);
   if (!rootReal.success) return rootReal;
 

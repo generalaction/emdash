@@ -1,4 +1,5 @@
-import { FileSystem, isFileNotFoundError } from '@emdash/core/files';
+import { RuntimeFileSystem } from '@main/core/files/runtime-files';
+import { fsErrorMessage, isFileNotFoundError } from '@main/core/files/scoped-file-system';
 import { hasWorktreeGitMarker } from '@main/core/tasks/operations/task-lifecycle-utils';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
@@ -17,8 +18,6 @@ import {
 } from '../task-storage-rows';
 
 const MEASURE_CONCURRENCY = 4;
-
-const localFileSystem = new FileSystem();
 
 async function mapWithConcurrency<T, U>(
   items: readonly T[],
@@ -87,7 +86,7 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
     return { ...base, pathState: 'remote', canDelete: false };
   }
 
-  const usage = await localFileSystem.measureUsage(row.workspacePath);
+  const usage = await new RuntimeFileSystem(row.workspacePath).measureUsage(row.workspacePath);
   if (!usage.success) {
     if (isFileNotFoundError(usage.error)) {
       return { ...base, pathState: 'missing' };
@@ -95,7 +94,7 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
     return {
       ...base,
       pathState: 'error',
-      errors: [{ path: usage.error.path, message: usage.error.message }],
+      errors: [{ path: usage.error.path, message: fsErrorMessage(usage.error) }],
     };
   }
 

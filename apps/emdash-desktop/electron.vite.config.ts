@@ -17,9 +17,12 @@ const workspaceAliases = {
     '../../packages/core/src/host-dependencies/runtime/index.ts'
   ),
   '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
+  '@emdash/core/files': resolve('../../packages/core/src/files/index.ts'),
   '@emdash/core/git': resolve('../../packages/core/src/git/index.ts'),
+  '@emdash/core/host': resolve('../../packages/core/src/host/index.ts'),
   '@emdash/core/lib': resolve('../../packages/core/src/lib/index.ts'),
   '@emdash/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
+  '@emdash/core/path': resolve('../../packages/core/src/path/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
   '@emdash/core/skills': resolve('../../packages/core/src/skills/index.ts'),
@@ -44,6 +47,9 @@ const workspaceAliases = {
   '@emdash/runtime/agent-config': resolve('../../packages/runtime/src/agent-config/index.ts'),
   '@emdash/runtime/acp-agents/node': resolve('../../packages/runtime/src/acp-agents/node/index.ts'),
   '@emdash/runtime/acp-agents': resolve('../../packages/runtime/src/acp-agents/index.ts'),
+  '@emdash/runtime/files/node': resolve('../../packages/runtime/src/files/node/index.ts'),
+  '@emdash/runtime/files': resolve('../../packages/runtime/src/files/index.ts'),
+  '@emdash/runtime/git/node': resolve('../../packages/runtime/src/git/node/index.ts'),
   '@emdash/runtime/git': resolve('../../packages/runtime/src/git/index.ts'),
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve('../../packages/shared/src/logger/context-node.ts'),
@@ -59,6 +65,7 @@ const workspaceAliases = {
   '@emdash/wire/api': resolve('../../packages/wire/src/api/index.ts'),
   '@emdash/wire/process/node': resolve('../../packages/wire/src/process/node/index.ts'),
   '@emdash/wire/process': resolve('../../packages/wire/src/process/index.ts'),
+  '@emdash/wire/testing': resolve('../../packages/wire/src/testing/index.ts'),
   '@emdash/wire/util/mobx': resolve('../../packages/wire/src/util/mobx/index.ts'),
   '@emdash/wire/util/process-runtime': resolve(
     '../../packages/wire/src/util/process-runtime/index.ts'

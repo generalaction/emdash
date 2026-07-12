@@ -1,4 +1,4 @@
-import type { IFileSystem } from '@emdash/core/files';
+import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { SSH_PROJECT_STATE_DIR_NAME } from '@main/core/settings/worktree-defaults';
 import { log } from '@main/lib/logger';
 
@@ -16,7 +16,7 @@ function joinProjectPath(rootPath: string, relativePath: string): string {
  * Ensure the project's `.emdash/` runtime dir is git-ignored via `.git/info/exclude`.
  *
  * emdash keeps per-project state under `.emdash/` inside the repo: the SSH worktree
- * pool ({@link SSH_PROJECT_STATE_DIR_NAME}/worktrees), saved attachments, and uploaded
+ * worktree pool ({@link SSH_PROJECT_STATE_DIR_NAME}/worktrees), saved attachments, and uploaded
  * images. None of that belongs in the user's tree, so we exclude it locally rather than
  * touching a tracked `.gitignore`. `info/exclude` lives in the git common dir, so a single
  * entry on the main checkout also covers every linked task worktree.
@@ -25,7 +25,10 @@ function joinProjectPath(rootPath: string, relativePath: string): string {
  * worktrees / submodules use a `.git` file whose exclude is out of this fs's root) and
  * skips when `.emdash` is already ignored (e.g. via a global gitignore).
  */
-export async function ensureEmdashGitExcluded(fs: IFileSystem, repoPath: string): Promise<void> {
+export async function ensureEmdashGitExcluded(
+  fs: ScopedFileSystem,
+  repoPath: string
+): Promise<void> {
   const gitPath = joinProjectPath(repoPath, '.git');
   const excludePath = joinProjectPath(repoPath, GIT_EXCLUDE_PATH);
 
@@ -53,13 +56,13 @@ export async function ensureEmdashGitExcluded(fs: IFileSystem, repoPath: string)
   const next = base.length > 0 ? `${base}\n${IGNORE_PATTERN}\n` : `${IGNORE_PATTERN}\n`;
   const result = await fs.writeText(excludePath, next);
   if (!result.success) {
-    throw new Error(result.error.message);
+    throw new Error(fsErrorMessage(result.error));
   }
 }
 
 /** Fire-and-forget wrapper that never rejects; logs and moves on. */
 export function ensureEmdashGitExcludedSafe(
-  fs: IFileSystem,
+  fs: ScopedFileSystem,
   repoPath: string,
   projectId: string
 ): void {

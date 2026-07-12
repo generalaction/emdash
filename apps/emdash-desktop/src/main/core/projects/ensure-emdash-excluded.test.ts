@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { describe, expect, it, vi } from 'vitest';
+import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
 import { ensureEmdashGitExcluded } from './ensure-emdash-excluded';
 
 function statResult(path: string, type: 'file' | 'directory') {
@@ -20,10 +20,8 @@ function notFound(path: string) {
   return {
     success: false as const,
     error: {
-      type: 'fs-error' as const,
+      type: 'not-found' as const,
       path,
-      message: `Not found: ${path}`,
-      code: 'ENOENT',
     },
   };
 }
@@ -51,6 +49,7 @@ function makeFs(opts: {
         content: opts.excludeContent ?? '',
         truncated: opts.truncated ?? false,
         totalSize: 0,
+        etag: 'test-etag',
       },
     })),
     writeText,

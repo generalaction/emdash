@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
@@ -22,7 +22,7 @@ import type { ProjectSettingsStorage, StoredProjectSettings } from './project-se
 export type LegacyProjectSettingsMigrationArgs = {
   projectId: string;
   row: StoredProjectSettings | undefined;
-  configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined;
+  configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined;
   configPath: string;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
@@ -50,7 +50,7 @@ function normalizeLegacyDefaultBranch(
 }
 
 async function readLegacyProjectConfig(
-  configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined,
+  configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined,
   configPath: string
 ): Promise<
   | (BaseProjectSettings & {

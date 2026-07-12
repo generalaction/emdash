@@ -26,6 +26,8 @@ import { browserWebContentsRegistry } from './core/browser/browser-webcontents-r
 import { resetStaleAcpAgentStatuses } from './core/conversations/reset-stale-acp-agent-statuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { initializeFilesRuntimeProcess } from './core/files/runtime-process/host';
+import { initializeGitRuntimeProcess } from './core/git/runtime-process/host';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
@@ -160,6 +162,12 @@ void app.whenReady().then(async () => {
   });
   initializeAgentConfigRuntimeProcess().catch((e) => {
     log.error('Failed to start agent-config runtime process:', e);
+  });
+  initializeFilesRuntimeProcess().catch((e) => {
+    log.error('Failed to start Files runtime process:', e);
+  });
+  initializeGitRuntimeProcess().catch((e) => {
+    log.error('Failed to start Git runtime process:', e);
   });
   acpAgentStatusBridge.initialize();
 

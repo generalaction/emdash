@@ -1,6 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/git';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { events } from '@main/lib/events';
@@ -50,8 +49,7 @@ export async function buildTaskFromWorkspace(
   projectPath: string,
   settings: ProjectSettingsProvider,
   workspaceBranchName?: string,
-  workspaceSourceBranch?: GitBranchRef,
-  sshFilesRuntime?: IFilesRuntime
+  workspaceSourceBranch?: GitBranchRef
 ): Promise<BuildTaskResult> {
   const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
     task,
@@ -69,7 +67,6 @@ export async function buildTaskFromWorkspace(
       tmuxEnabled,
       shellSetup,
       taskEnvVars,
-      filesRuntime: sshFilesRuntime,
     });
 
   const taskProvider: TaskProvider = {

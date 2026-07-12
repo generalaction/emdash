@@ -7,20 +7,13 @@ export async function execute(
   args: Step.Args,
   ctx: StepContext
 ): Promise<Result<Step.Success, never>> {
-  const { branchName, remote, remoteBranch } = args;
-  try {
-    await ctx.ctx.exec('git', [
-      'branch',
-      `--set-upstream-to=${remote}/${remoteBranch}`,
-      branchName,
-    ]);
-  } catch (error: unknown) {
-    // Non-fatal: missing remote tracking branch is common for new branches.
+  const upstream = `${args.remote}/${args.remoteBranch}`;
+  const result = await ctx.gitRepository.setUpstream(args.branchName, upstream);
+  if (!result.success) {
     log.warn('setup-steps/set-branch-tracking: failed to set upstream', {
-      branchName,
-      remote,
-      remoteBranch,
-      error: String(error),
+      branchName: args.branchName,
+      upstream,
+      error: result.error,
     });
   }
   return ok({});

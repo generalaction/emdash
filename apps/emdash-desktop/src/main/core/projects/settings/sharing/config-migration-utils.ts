@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
+import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
@@ -35,7 +35,7 @@ export function projectPath(project: ProjectProvider, relPath: string): string {
 
 export function openProjectFileSystem(
   project: ProjectProvider
-): Result<IFileSystem, UpdateProjectSettingsError> {
+): Result<ScopedFileSystem, UpdateProjectSettingsError> {
   return ok(project.fileSystem);
 }
 
@@ -95,7 +95,7 @@ export async function applyProjectConfigMigration(
     `${JSON.stringify(data.settings, null, 2)}\n`
   );
   if (!written.success) {
-    return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${written.error.message}`);
+    return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);
   }
 
   const clearResult = await project.settings.patch({ clearShareableFields: data.fields });

@@ -1,28 +1,13 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { gitErrorMessage } from '@main/core/git/runtime-git';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/git-fetch';
 import type { StepContext } from './step-context';
 
 function destinationLocalBranch(refspec: string | undefined): string | undefined {
-  if (!refspec) return undefined;
-  const destination = refspec.split(':')[1];
-  if (!destination?.startsWith('refs/heads/')) return undefined;
-  return destination.slice('refs/heads/'.length);
-}
-
-function isCheckedOutBranchFetchError(message: string): boolean {
-  return /refusing to fetch into branch .+ checked out/i.test(message);
-}
-
-async function isBranchCheckedOut(branchName: string, ctx: StepContext): Promise<boolean> {
-  try {
-    const { stdout } = await ctx.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-    const branchLine = `branch refs/heads/${branchName}`;
-    return stdout
-      .split('\n\n')
-      .some((block) => block.split('\n').some((line) => line === branchLine));
-  } catch {
-    return false;
-  }
+  const destination = refspec?.split(':')[1];
+  return destination?.startsWith('refs/heads/')
+    ? destination.slice('refs/heads/'.length)
+    : undefined;
 }
 
 export async function execute(
@@ -30,23 +15,25 @@ export async function execute(
   ctx: StepContext
 ): Promise<Result<Step.Success, Step.Error>> {
   const { remote, refspec, force } = args;
-  const gitArgs = ['fetch', remote];
-  if (refspec) gitArgs.push(refspec);
-  if (force) gitArgs.push('--force');
+  const fetched = await ctx.gitRepository.fetch(remote, { refspec, force });
+  if (fetched.success) return ok({});
 
-  try {
-    await ctx.ctx.exec('git', gitArgs);
-    return ok({});
-  } catch (error: unknown) {
-    const message = (error as { stderr?: string })?.stderr ?? String(error);
-    const checkedOutBranch = destinationLocalBranch(refspec);
+  const checkedOutBranch = destinationLocalBranch(refspec);
+  if (checkedOutBranch) {
+    const worktrees = await ctx.gitRepository.listWorktrees();
     if (
-      checkedOutBranch &&
-      isCheckedOutBranchFetchError(message) &&
-      (await isBranchCheckedOut(checkedOutBranch, ctx))
+      worktrees.success &&
+      worktrees.data.some(
+        (worktree) => worktree.head.kind === 'branch' && worktree.head.name === checkedOutBranch
+      )
     ) {
       return ok({});
     }
-    return err({ type: 'fetch-failed', remote, refspec, message });
   }
+  return err({
+    type: 'fetch-failed',
+    remote,
+    refspec,
+    message: gitErrorMessage(fetched.error),
+  });
 }

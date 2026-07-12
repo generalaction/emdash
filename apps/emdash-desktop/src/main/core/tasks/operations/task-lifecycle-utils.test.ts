@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import {
@@ -13,14 +14,23 @@ import {
 
 const mocks = vi.hoisted(() => ({
   deleteWhere: vi.fn(),
-  createBoundExec: vi.fn(),
-  gitExec: vi.fn(),
+  fileSystemFactory: vi.fn(),
+  gitRepository: vi.fn(),
+  pruneWorktrees: vi.fn(),
   selectLimit: vi.fn(),
   deleteIndex: vi.fn(),
 }));
 
-vi.mock('@emdash/core/exec', () => ({
-  createBoundExec: mocks.createBoundExec,
+vi.mock('@main/core/files/runtime-files', () => ({
+  RuntimeFileSystem: vi.fn(function RuntimeFileSystem(rootPath: string) {
+    return mocks.fileSystemFactory(rootPath);
+  }),
+}));
+
+vi.mock('@main/core/git/runtime-git', () => ({
+  RuntimeGit: vi.fn(function RuntimeGit() {
+    return { repository: mocks.gitRepository };
+  }),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -50,8 +60,22 @@ describe('task lifecycle workspace cleanup', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mocks.deleteWhere.mockResolvedValue(undefined);
-    mocks.gitExec.mockResolvedValue({ stdout: '', stderr: '' });
-    mocks.createBoundExec.mockReturnValue({ exec: mocks.gitExec });
+    mocks.fileSystemFactory.mockReturnValue({
+      exists: async (targetPath: string) => {
+        try {
+          await access(targetPath);
+          return ok(true);
+        } catch {
+          return ok(false);
+        }
+      },
+      remove: async (targetPath: string) => {
+        await rm(targetPath, { recursive: true, force: true });
+        return ok();
+      },
+    });
+    mocks.gitRepository.mockReturnValue({ pruneWorktrees: mocks.pruneWorktrees });
+    mocks.pruneWorktrees.mockResolvedValue(ok());
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'emdash-task-cleanup-'));
   });
 
@@ -152,10 +176,8 @@ describe('task lifecycle workspace cleanup', () => {
     ).resolves.toEqual({ success: true, data: true });
 
     await expect(pathExists(worktreePath)).resolves.toBe(false);
-    expect(mocks.createBoundExec).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: projectPath })
-    );
-    expect(mocks.gitExec).toHaveBeenCalledWith(['worktree', 'prune'], { timeoutMs: 5_000 });
+    expect(mocks.gitRepository).toHaveBeenCalledWith(projectPath);
+    expect(mocks.pruneWorktrees).toHaveBeenCalledOnce();
   });
 
   it('refuses to remove the project root', async () => {
@@ -183,6 +205,6 @@ describe('task lifecycle workspace cleanup', () => {
     await mkdir(path.join(worktreePath, '.git'), { recursive: true });
 
     await expect(hasWorktreeGitMarker(worktreePath)).resolves.toBe(true);
-    expect(mocks.gitExec).not.toHaveBeenCalled();
+    expect(mocks.gitRepository).not.toHaveBeenCalled();
   });
 });

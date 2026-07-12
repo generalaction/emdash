@@ -1,6 +1,6 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
 import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
@@ -54,13 +54,16 @@ function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
       const content = files.get(filePath);
       if (content === undefined) {
         return err({
-          type: 'fs-error' as const,
+          type: 'not-found' as const,
           path: filePath,
-          message: `Missing file: ${filePath}`,
-          code: 'ENOENT',
         });
       }
-      return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
+      return ok({
+        content,
+        truncated: false,
+        totalSize: Buffer.byteLength(content),
+        etag: 'test-etag',
+      });
     }),
     writeText: vi.fn(async (filePath: string, content: string) => {
       files.set(filePath, content);
@@ -267,7 +270,7 @@ describe('shareProjectSettingsToConfig', () => {
       ...createMemoryFileSystem(),
       writeText: vi.fn(async (filePath: string) =>
         err({
-          type: 'fs-error' as const,
+          type: 'io' as const,
           path: filePath,
           message: 'permission denied',
         })
@@ -373,7 +376,12 @@ describe('shareProjectSettingsToConfig', () => {
     const fileSystem = {
       ...createMemoryFileSystem({ '.emdash.json': '{"shellSetup":' }),
       readText: vi.fn(async () =>
-        ok({ content: '{"shellSetup":', truncated: true, totalSize: 204_801 })
+        ok({
+          content: '{"shellSetup":',
+          truncated: true,
+          totalSize: 204_801,
+          etag: 'test-etag',
+        })
       ),
     };
     const project = {

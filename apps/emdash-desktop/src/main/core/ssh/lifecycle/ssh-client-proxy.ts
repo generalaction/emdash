@@ -14,8 +14,8 @@ type RemoteShellProfileState =
 /**
  * Stable reference to an ssh2 Client that survives reconnects.
  *
- * Services like SshFileSystem and SshGitService hold a SshClientProxy
- * rather than a raw Client. SshConnectionManager calls update() each time
+ * SSH-backed services hold a SshClientProxy rather than a raw Client.
+ * SshConnectionManager calls update() each time
  * a connection is established (including after reconnect) and invalidate()
  * when the connection drops. Callers that access proxy.client at call time
  * therefore always get the current live Client without needing to be

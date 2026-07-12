@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
+import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
@@ -23,7 +23,7 @@ export type ProjectConfigMigrator = {
   provider: ProjectConfigMigration['provider'];
   inspect: (
     project: ProjectProvider,
-    fileSystem: IFileSystem
+    fileSystem: ScopedFileSystem
   ) => Promise<ProjectConfigMigration | null>;
   migrate: (
     project: ProjectProvider,
@@ -83,7 +83,7 @@ export async function migrateProjectConfigFromProvider(
     const existingConfig = await fileSystem.data.exists(projectConfigPath(project));
     if (!existingConfig.success) {
       return writeConfigFailed(
-        `Could not check existing ${CONFIG_FILE}: ${existingConfig.error.message}`
+        `Could not check existing ${CONFIG_FILE}: ${fsErrorMessage(existingConfig.error)}`
       );
     }
     if (existingConfig.data) {

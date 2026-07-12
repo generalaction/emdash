@@ -1,11 +1,10 @@
 import path from 'node:path';
-import { createBoundExec } from '@emdash/core/exec';
-import { FileSystem, isFileNotFoundError } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
-import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
+import { RuntimeFileSystem } from '@main/core/files/runtime-files';
+import { fsErrorMessage, isFileNotFoundError } from '@main/core/files/scoped-file-system';
+import { RuntimeGit } from '@main/core/git/runtime-git';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import { getGitExecutable } from '@main/core/utils/exec';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
@@ -15,7 +14,7 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
 import type { ProjectProvider } from '../../projects/project-provider';
 
-const localFileSystem = new FileSystem();
+const git = new RuntimeGit();
 
 export type LocalWorkspaceCleanupTarget = {
   id?: string;
@@ -26,7 +25,7 @@ export type LocalWorkspaceCleanupTarget = {
 };
 
 export async function pathExists(filePath: string): Promise<boolean> {
-  const exists = await localFileSystem.exists(filePath);
+  const exists = await new RuntimeFileSystem(path.dirname(filePath)).exists(filePath);
   return exists.success && exists.data;
 }
 
@@ -65,12 +64,8 @@ async function workspaceHasRemainingTasks(
 
 async function pruneGitWorktrees(projectPath: string): Promise<void> {
   try {
-    const gitExec = createBoundExec({
-      file: getGitExecutable(),
-      cwd: projectPath,
-      env: { ...process.env, ...NON_INTERACTIVE_GIT_ENV },
-    });
-    await gitExec.exec(['worktree', 'prune'], { timeoutMs: 5_000 });
+    const result = await git.repository(projectPath).pruneWorktrees();
+    if (!result.success) throw new Error(String(result.error));
   } catch (error) {
     log.warn('git worktree prune failed after task worktree cleanup', {
       projectPath,
@@ -112,12 +107,14 @@ export async function removeOwnedLocalWorktreeDirectory(
 
   if (!isWorktreeWorkspace(workspace)) return ok(false);
 
-  const removal = await localFileSystem.remove(workspacePath, { recursive: true });
+  const removal = await new RuntimeFileSystem(path.dirname(workspacePath)).remove(workspacePath, {
+    recursive: true,
+  });
   if (!removal.success && !isFileNotFoundError(removal.error)) {
     return err({
       type: 'removal-failed',
       path: workspace.path,
-      message: removal.error.message,
+      message: fsErrorMessage(removal.error),
     });
   }
 

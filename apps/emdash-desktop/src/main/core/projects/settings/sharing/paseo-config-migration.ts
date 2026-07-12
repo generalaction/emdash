@@ -1,6 +1,6 @@
-import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -88,7 +88,7 @@ function addUnsupportedScripts(
 
 async function readPaseoMigrationData(
   project: ProjectProvider,
-  fileSystem: IFileSystem
+  fileSystem: ScopedFileSystem
 ): Promise<PaseoMigrationData> {
   const data: PaseoMigrationData = {
     settings: {},

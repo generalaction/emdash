@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { gitErrorMessage } from '@main/core/git/runtime-git';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/create-local-branch';
 import type { StepContext } from './step-context';
 
@@ -7,37 +8,23 @@ export async function execute(
   ctx: StepContext
 ): Promise<Result<Step.Success, Step.Error>> {
   const { branchName, fromRef, noTrack } = args;
-
-  // Check if branch already exists — treat as success (idempotent).
-  try {
-    await ctx.ctx.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`]);
+  const refs = await ctx.gitRepository.getRefs();
+  if (refs.branches.some((branch) => branch.type === 'local' && branch.branch === branchName)) {
     return ok({});
-  } catch {
-    // Branch does not exist yet — proceed to create it.
   }
 
-  const gitArgs = ['branch'];
-  if (noTrack) gitArgs.push('--no-track');
-  gitArgs.push(branchName, fromRef);
-
-  try {
-    await ctx.ctx.exec('git', gitArgs);
-    return ok({});
-  } catch (error: unknown) {
-    const stderr = (error as { stderr?: string })?.stderr ?? String(error);
-
-    if (stderr.includes('already exists')) {
-      return ok({});
-    }
-
-    if (
-      stderr.includes('not a valid object name') ||
-      stderr.includes('unknown revision') ||
-      stderr.includes('invalid reference')
-    ) {
-      return err({ type: 'ref-not-found', ref: fromRef });
-    }
-
-    return err({ type: 'create-failed', branchName, message: stderr });
-  }
+  const created = await ctx.gitRepository.createBranch({
+    name: branchName,
+    from: fromRef,
+    syncWithRemote: !noTrack && fromRef.includes('/'),
+    remote: !noTrack ? fromRef.split('/')[0] : undefined,
+  });
+  if (created.success) return ok({});
+  if (created.error.type === 'already_exists') return ok({});
+  if (created.error.type === 'invalid_base') return err({ type: 'ref-not-found', ref: fromRef });
+  return err({
+    type: 'create-failed',
+    branchName,
+    message: gitErrorMessage(created.error),
+  });
 }

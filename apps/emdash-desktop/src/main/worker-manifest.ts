@@ -14,6 +14,14 @@ export const desktopWorkers = {
     entry: 'src/main/core/fs-watch/runtime-process/entry.ts',
     file: 'fs-watch-runtime.js',
   },
+  files: {
+    entry: 'src/main/core/files/runtime-process/entry.ts',
+    file: 'files-runtime.js',
+  },
+  git: {
+    entry: 'src/main/core/git/runtime-process/entry.ts',
+    file: 'git-runtime.js',
+  },
 } as const;
 
 export type DesktopWorkerId = keyof typeof desktopWorkers;

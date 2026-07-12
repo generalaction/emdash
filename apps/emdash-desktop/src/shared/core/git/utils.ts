@@ -26,6 +26,7 @@ export function toRefString(ref: GitObjectRef): string {
 export function gitRefToString(ref: GitRef): string {
   if (ref.kind === 'head') return 'HEAD';
   if (ref.kind === 'staged') return 'STAGED';
+  if (ref.kind === 'unstaged') return 'UNSTAGED';
   return toRefString(ref);
 }
 
@@ -34,6 +35,7 @@ export function refsEqual(a: GitRef, b: GitRef): boolean {
   switch (a.kind) {
     case 'head':
     case 'staged':
+    case 'unstaged':
       return true;
     case 'branch': {
       const ab = a.branch;

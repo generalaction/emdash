@@ -1,11 +1,13 @@
 import { and, eq, ne } from 'drizzle-orm';
+import { RuntimeGit } from '@main/core/git/runtime-git';
 import { projectManager } from '@main/core/projects/project-manager';
-import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
+
+const git = new RuntimeGit();
 
 async function getTaskPreflight(
   projectId: string,
@@ -50,27 +52,20 @@ async function getTaskPreflight(
       try {
         const worktreePath = await project.worktreeService.getWorktree(provisionedBranch);
         if (worktreePath) {
-          const runtimeLease = await runtimeManager.acquire(project.defaultWorkspaceMachine);
-          try {
-            const worktreeLease = await runtimeLease.value.git.openWorktree(worktreePath);
-            try {
-              const status = await worktreeLease.value.getStatus();
-              if (status.kind === 'error') {
-                log.warn('getDeletePreflight: git status check failed', {
-                  taskId,
-                  error: status.message,
-                });
-              }
-              if (status.kind === 'ok') {
-                hasUncommittedChanges = status.staged.length > 0 || status.unstaged.length > 0;
-              }
-              hasUncommittedChanges = status.kind === 'too-many-files';
-            } finally {
-              await worktreeLease.release();
-            }
-          } finally {
-            await runtimeLease.release();
+          const status = await git.checkout(worktreePath).getStatus();
+          if (status.kind === 'error') {
+            log.warn('getDeletePreflight: git status check failed', {
+              taskId,
+              error: status.message,
+            });
           }
+          if (status.kind === 'ok') {
+            hasUncommittedChanges =
+              status.summary.staged > 0 ||
+              status.summary.unstaged > 0 ||
+              status.summary.untracked > 0;
+          }
+          if (status.kind === 'too-many-files') hasUncommittedChanges = true;
         }
       } catch (e) {
         log.warn('getDeletePreflight: git status check failed', { taskId, error: String(e) });

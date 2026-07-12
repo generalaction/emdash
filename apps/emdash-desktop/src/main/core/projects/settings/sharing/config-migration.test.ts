@@ -27,10 +27,8 @@ function createFs(initialFiles: Record<string, string>) {
       if (content === undefined) {
         return Promise.resolve(
           err({
-            type: 'fs-error' as const,
+            type: 'not-found' as const,
             path: filePath,
-            message: `Missing file: ${filePath}`,
-            code: 'ENOENT',
           })
         );
       }
@@ -39,6 +37,7 @@ function createFs(initialFiles: Record<string, string>) {
           content,
           truncated: false,
           totalSize: Buffer.byteLength(content),
+          etag: 'test-etag',
         })
       );
     }),

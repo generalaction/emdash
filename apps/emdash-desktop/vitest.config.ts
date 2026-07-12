@@ -106,6 +106,7 @@ const alias = {
   '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
   '@emdash/wire/process/node': resolve(__dirname, '../../packages/wire/src/process/node/index.ts'),
   '@emdash/wire/process': resolve(__dirname, '../../packages/wire/src/process/index.ts'),
+  '@emdash/wire/testing': resolve(__dirname, '../../packages/wire/src/testing/index.ts'),
   '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
   '@emdash/wire/util/process-runtime': resolve(
     __dirname,

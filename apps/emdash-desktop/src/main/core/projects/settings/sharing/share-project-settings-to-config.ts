@@ -1,4 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
+import { fsErrorMessage } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
@@ -30,14 +31,14 @@ export async function shareProjectSettingsToConfig(
     try {
       const exists = await target.fileSystem.exists(target.configPath);
       if (!exists.success) {
-        const message = `Could not check existing ${CONFIG_FILE}: ${exists.error.message}`;
+        const message = `Could not check existing ${CONFIG_FILE}: ${fsErrorMessage(exists.error)}`;
         log.warn('Failed to check project config before writing', exists.error);
         return writeConfigFailed(message);
       }
       if (exists.data) {
         const content = await target.fileSystem.readText(target.configPath);
         if (!content.success) {
-          const message = `Could not read existing ${CONFIG_FILE}: ${content.error.message}`;
+          const message = `Could not read existing ${CONFIG_FILE}: ${fsErrorMessage(content.error)}`;
           log.warn('Failed to read project config before writing', content.error);
           return writeConfigFailed(message);
         }
@@ -71,7 +72,7 @@ export async function shareProjectSettingsToConfig(
     );
     if (!written.success) {
       log.warn('Failed to write project config to repo', written.error);
-      return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${written.error.message}`);
+      return writeConfigFailed(`Could not write ${CONFIG_FILE}: ${fsErrorMessage(written.error)}`);
     }
 
     const clearResult = await project.settings.patch({ clearShareableFields: writtenFields });

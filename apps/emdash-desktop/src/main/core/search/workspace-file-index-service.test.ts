@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { err, ok } from '@emdash/shared';
+import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceFileEnumerator } from './workspace-file-index-service';
 import type {
   FileHit,
@@ -11,256 +12,193 @@ vi.mock('./workspace-file-index-store', () => ({
 }));
 
 describe('WorkspaceFileIndexService', () => {
-  beforeEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('delegates initialize and search to the store', async () => {
-    const store = new FakeStore();
-    store.searchResults = [{ path: '/repo/src/index.ts', filename: 'index.ts' }];
-    store.searchFilesResults = [{ path: '/repo/src/app.ts', filename: 'app.ts' }];
+  it('delegates initialization and inactive-workspace searches to the store', async () => {
+    const store = new MemoryIndexStore();
+    store.rows.set('workspace', ['/repo/src/index.ts']);
     const service = await createService(store);
 
     service.initialize();
 
     expect(store.evictedDays).toBe(14);
-    expect(service.search('ws-1', 'index')).toEqual([
+    expect(service.search('workspace', 'index')).toEqual([
       { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
-    expect(service.searchFiles('ws-1', 'ap', 5)).toEqual([
-      { path: '/repo/src/app.ts', filename: 'app.ts' },
-    ]);
-    expect(store.operations).toContain('search:index');
-    expect(store.operations).toContain('searchFiles:ap:5');
-  });
-
-  it('refreshes complete metadata on activation without enumerating', async () => {
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 1,
-      truncateReason: null,
-    });
-    const service = await createService(store);
-
-    await service.onWorkspaceActivated('ws-1', {
-      rootPath: '/repo',
-      enumerate: enumerator(() => {
-        throw new Error('should not enumerate');
-      }),
-    });
-
-    expect(store.operations).toEqual(['refresh:ws-1']);
-  });
-
-  it('reindexes when a complete index belongs to an old workspace root', async () => {
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/old-repo',
-      status: 'complete',
-      fileCount: 1,
-      truncateReason: null,
-    });
-    store.paths.set('ws-1', new Set(['/old-repo/stale.ts']));
-    const service = await createService(store);
-
-    await service.onWorkspaceActivated('ws-1', {
-      rootPath: '/repo',
-      enumerate: enumerator(() => ['/repo/fresh.ts']),
-    });
-
-    expect([...store.pathSet('ws-1')]).toEqual(['/repo/fresh.ts']);
-    expect(store.meta.get('ws-1')).toEqual({
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 1,
-      truncateReason: null,
-    });
-    expect(store.operations).toContain('deleteIndex:ws-1');
-  });
-
-  it('indexes from enumeration when metadata is missing', async () => {
-    const store = new FakeStore();
-    const service = await createService(store);
-
-    await service.onWorkspaceActivated('ws-1', {
-      rootPath: '/repo',
-      enumerate: enumerator(() => ['/repo/README.md', '/repo/src/index.ts']),
-    });
-
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/README.md', '/repo/src/index.ts']);
-    expect(store.meta.get('ws-1')).toEqual({
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 2,
-      truncateReason: null,
-    });
-  });
-
-  it('debounces and coalesces resync requests', async () => {
-    vi.useFakeTimers();
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 1,
-      truncateReason: null,
-    });
-    const service = await createService(store, { reindexDebounceMs: 5 });
-
-    await service.onWorkspaceActivated('ws-1', {
-      rootPath: '/repo',
-      enumerate: enumerator(() => ['/repo/fresh.ts']),
-    });
-    service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
-    service.onWorkspaceFileChange('ws-1', { kind: 'resync' });
-
-    await vi.advanceTimersByTimeAsync(5);
-
-    expect(store.operations.filter((op) => op.startsWith('sync:'))).toEqual([
-      'sync:/repo/fresh.ts',
-    ]);
-    expect(store.meta.get('ws-1')).toMatchObject({ status: 'complete', fileCount: 1 });
-  });
-
-  it('applies deletes before creates, ignores updates, and recounts once for subtree deletes', async () => {
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 3,
-      truncateReason: null,
-    });
-    store.paths.set('ws-1', new Set(['/repo/changed.ts', '/repo/dir/a.ts', '/repo/old.ts']));
-    const service = await createService(store);
-
-    service.onWorkspaceFileChange('ws-1', {
-      kind: 'changes',
-      changes: [
-        { kind: 'create', path: '/repo/new.ts', entryType: 'file' },
-        { kind: 'update', path: '/repo/missing.ts', entryType: 'file' },
-        { kind: 'delete', path: '/repo/old.ts', entryType: 'file' },
-        { kind: 'delete', path: '/repo/dir', entryType: 'unknown' },
-      ],
-    });
-
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/changed.ts', '/repo/new.ts']);
-    expect(store.operations).toEqual([
-      'transaction',
-      'count:ws-1',
-      'deletePath:/repo/old.ts',
-      'deleteSubtree:/repo/dir',
-      'count:ws-1',
-      'insert:/repo/new.ts',
-      'count:ws-1',
-      'record:complete:2',
+    expect(service.searchFiles('workspace', 'index', 5)).toEqual([
+      { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
   });
 
-  it('marks the index stale when creates would exceed the cap', async () => {
-    vi.useFakeTimers();
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 2,
-      truncateReason: null,
-    });
-    store.paths.set('ws-1', new Set(['/repo/a.ts', '/repo/b.ts']));
-    const service = await createService(store, { maxFiles: 2, reindexDebounceMs: 1_000 });
+  it('reindexes on activation even when a persisted index is complete', async () => {
+    const store = new MemoryIndexStore();
+    store.meta.set('workspace', completeMeta('/repo', 1));
+    store.rows.set('workspace', ['/repo/stale.ts']);
+    const service = await createService(store);
 
-    await service.onWorkspaceActivated('ws-1', {
+    await service.onWorkspaceActivated('workspace', {
       rootPath: '/repo',
-      enumerate: enumerator(() => ['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
-    });
-    service.onWorkspaceFileChange('ws-1', {
-      kind: 'changes',
-      changes: [
-        { kind: 'delete', path: '/repo/missing.ts', entryType: 'file' },
-        { kind: 'create', path: '/repo/c.ts', entryType: 'file' },
-      ],
+      enumerate: enumerator(['/repo/fresh.ts']),
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/a.ts', '/repo/b.ts']);
-    expect(store.meta.get('ws-1')).toMatchObject({ status: 'stale', fileCount: 2 });
+    expect(store.rows.get('workspace')).toEqual(['/repo/fresh.ts']);
+    expect(store.meta.get('workspace')).toEqual(completeMeta('/repo', 1));
   });
 
-  it('marks the index stale for symlink changes instead of indexing them incrementally', async () => {
-    vi.useFakeTimers();
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
-      rootPath: '/repo',
-      status: 'complete',
-      fileCount: 1,
-      truncateReason: null,
-    });
-    store.paths.set('ws-1', new Set(['/repo/a.ts']));
-    const service = await createService(store, { reindexDebounceMs: 1_000 });
+  it('deletes an index that belongs to an old workspace root', async () => {
+    const store = new MemoryIndexStore();
+    store.meta.set('workspace', completeMeta('/old-repo', 1));
+    store.rows.set('workspace', ['/old-repo/stale.ts']);
+    const service = await createService(store);
 
-    await service.onWorkspaceActivated('ws-1', {
+    await service.onWorkspaceActivated('workspace', {
       rootPath: '/repo',
-      enumerate: enumerator(() => ['/repo/a.ts']),
-    });
-    service.onWorkspaceFileChange('ws-1', {
-      kind: 'changes',
-      changes: [{ kind: 'create', path: '/repo/link', entryType: 'symlink' }],
+      enumerate: enumerator(['/repo/fresh.ts']),
     });
 
-    expect([...store.pathSet('ws-1')]).toEqual(['/repo/a.ts']);
-    expect(store.meta.get('ws-1')).toMatchObject({ status: 'stale', fileCount: 1 });
+    expect(store.deletedIndexes).toEqual(['workspace']);
+    expect(store.rows.get('workspace')).toEqual(['/repo/fresh.ts']);
+    expect(store.meta.get('workspace')).toEqual(completeMeta('/repo', 1));
   });
 
-  it('ignores incremental changes while the current index is truncated', async () => {
-    const store = new FakeStore();
-    store.meta.set('ws-1', {
+  it('records a truncated index when enumeration exceeds the file cap', async () => {
+    const store = new MemoryIndexStore();
+    const service = await createService(store, { maxFiles: 2 });
+
+    await service.onWorkspaceActivated('workspace', {
+      rootPath: '/repo',
+      enumerate: enumerator(['/repo/a.ts', '/repo/b.ts', '/repo/c.ts']),
+    });
+
+    expect(store.rows.get('workspace')).toEqual(['/repo/a.ts', '/repo/b.ts']);
+    expect(store.meta.get('workspace')).toEqual({
       rootPath: '/repo',
       status: 'truncated',
       fileCount: 2,
       truncateReason: 'maxEntries',
     });
-    store.paths.set('ws-1', new Set(['/repo/a.ts', '/repo/b.ts']));
+  });
+
+  it('leaves the existing index intact when enumeration cannot start', async () => {
+    const store = new MemoryIndexStore();
+    store.meta.set('workspace', completeMeta('/repo', 1));
+    store.rows.set('workspace', ['/repo/existing.ts']);
     const service = await createService(store);
 
-    service.onWorkspaceFileChange('ws-1', {
-      kind: 'changes',
-      changes: [{ kind: 'create', path: '/repo/c.ts', entryType: 'file' }],
+    await service.onWorkspaceActivated('workspace', {
+      rootPath: '/repo',
+      enumerate: () => err({ type: 'io', path: '/repo', message: 'enumeration failed' } as const),
     });
 
-    expect([...store.pathSet('ws-1')].sort()).toEqual(['/repo/a.ts', '/repo/b.ts']);
-    expect(store.operations).toEqual([]);
+    expect(store.rows.get('workspace')).toEqual(['/repo/existing.ts']);
+    expect(store.meta.get('workspace')).toEqual(completeMeta('/repo', 1));
+  });
+
+  it('refreshes a live workspace on search without a Files changes stream', async () => {
+    const store = new MemoryIndexStore();
+    const generations = [['/repo/first.ts'], ['/repo/first.ts', '/repo/second.ts']];
+    const enumerate = vi.fn(() => ok(iterate(generations.shift() ?? [])));
+    let now = 0;
+    const service = await createService(store, {
+      searchRefreshIntervalMs: 1,
+      now: () => now,
+    });
+
+    await service.onWorkspaceActivated('workspace', { rootPath: '/repo', enumerate });
+    expect(store.rows.get('workspace')).toEqual(['/repo/first.ts']);
+
+    now = 1;
+    expect(service.searchFiles('workspace', 'second')).toEqual([]);
+    await vi.waitFor(() => {
+      expect(store.rows.get('workspace')).toContain('/repo/second.ts');
+    });
+    expect(service.searchFiles('workspace', 'second')).toEqual([
+      { path: '/repo/second.ts', filename: 'second.ts' },
+    ]);
+    expect(enumerate).toHaveBeenCalledTimes(2);
+  });
+
+  it('reindexes the newest source when a workspace root changes mid-scan', async () => {
+    const store = new MemoryIndexStore();
+    const started = deferred<void>();
+    const release = deferred<void>();
+    const service = await createService(store);
+
+    const firstActivation = service.onWorkspaceActivated('workspace', {
+      rootPath: '/first',
+      enumerate: () => ok(blockedIteration('/first/old.ts', started, release)),
+    });
+    await started.promise;
+    await service.onWorkspaceActivated('workspace', {
+      rootPath: '/second',
+      enumerate: enumerator(['/second/new.ts']),
+    });
+    release.resolve();
+    await firstActivation;
+
+    expect(store.rows.get('workspace')).toEqual(['/second/new.ts']);
+    expect(store.meta.get('workspace')?.rootPath).toBe('/second');
+  });
+
+  it('does not refresh searches after the workspace is deactivated', async () => {
+    const store = new MemoryIndexStore();
+    const enumerate = vi.fn(enumerator(['/repo/a.ts']));
+    const service = await createService(store, { searchRefreshIntervalMs: 0 });
+
+    await service.onWorkspaceActivated('workspace', { rootPath: '/repo', enumerate });
+    service.onWorkspaceDeactivated('workspace');
+    service.searchFiles('workspace', 'a');
+
+    expect(enumerate).toHaveBeenCalledTimes(1);
   });
 });
 
-async function createService(
-  store: FakeStore,
-  options: { maxFiles?: number; reindexDebounceMs?: number } = {}
-) {
+type ServiceOptions = {
+  maxFiles?: number;
+  searchRefreshIntervalMs?: number;
+  now?: () => number;
+};
+
+async function createService(store: MemoryIndexStore, options: ServiceOptions = {}) {
   const { WorkspaceFileIndexService } = await import('./workspace-file-index-service');
   return new WorkspaceFileIndexService({ store, ...options });
 }
 
-function enumerator(readPaths: () => readonly string[]): WorkspaceFileEnumerator {
-  return () => ({
-    success: true as const,
-    data: (async function* () {
-      for (const path of readPaths()) {
-        yield path;
-      }
-    })(),
-  });
+function enumerator(paths: readonly string[]): WorkspaceFileEnumerator {
+  return () => ok(iterate(paths));
 }
 
-class FakeStore implements IWorkspaceFileIndexStore {
-  meta = new Map<string, FileIndexMeta>();
-  paths = new Map<string, Set<string>>();
-  operations: string[] = [];
+async function* iterate(paths: readonly string[]): AsyncIterable<string> {
+  yield* paths;
+}
+
+async function* blockedIteration(
+  path: string,
+  started: ReturnType<typeof deferred<void>>,
+  release: ReturnType<typeof deferred<void>>
+): AsyncIterable<string> {
+  started.resolve();
+  await release.promise;
+  yield path;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+function completeMeta(rootPath: string, fileCount: number): FileIndexMeta {
+  return { rootPath, status: 'complete', fileCount, truncateReason: null };
+}
+
+class MemoryIndexStore implements IWorkspaceFileIndexStore {
+  readonly meta = new Map<string, FileIndexMeta>();
+  readonly rows = new Map<string, string[]>();
+  readonly deletedIndexes: string[] = [];
   evictedDays: number | undefined;
-  searchResults: FileHit[] = [];
-  searchFilesResults: FileHit[] = [];
 
   transaction<T>(fn: () => T): T {
-    this.operations.push('transaction');
     return fn();
   }
 
@@ -269,60 +207,40 @@ class FakeStore implements IWorkspaceFileIndexStore {
   }
 
   recordMeta(workspaceId: string, meta: FileIndexMeta): void {
-    this.operations.push(`record:${meta.status}:${meta.fileCount}`);
     this.meta.set(workspaceId, meta);
   }
 
-  refreshMetaTimestamp(workspaceId: string): void {
-    this.operations.push(`refresh:${workspaceId}`);
-  }
+  refreshMetaTimestamp(): void {}
 
   syncRows(workspaceId: string, paths: string[]): void {
-    this.operations.push(`sync:${paths.join(',')}`);
-    this.paths.set(workspaceId, new Set(paths));
+    this.rows.set(workspaceId, paths);
   }
 
-  insertPath(workspaceId: string, path: string): boolean {
-    this.operations.push(`insert:${path}`);
-    const paths = this.pathSet(workspaceId);
-    const alreadyIndexed = paths.has(path);
-    paths.add(path);
-    return !alreadyIndexed;
+  searchFiles(workspaceId: string, query: string, limit: number): FileHit[] {
+    return this.hits(workspaceId, query).slice(0, limit);
   }
 
-  deletePath(workspaceId: string, path: string): boolean {
-    this.operations.push(`deletePath:${path}`);
-    return this.pathSet(workspaceId).delete(path);
+  search(workspaceId: string, query: string): FileHit[] {
+    return this.hits(workspaceId, query);
   }
 
-  deleteSubtree(workspaceId: string, path: string): void {
-    this.operations.push(`deleteSubtree:${path}`);
-    const paths = this.pathSet(workspaceId);
-    for (const indexedPath of [...paths]) {
-      if (indexedPath === path || indexedPath.startsWith(`${path}/`)) {
-        paths.delete(indexedPath);
-      }
-    }
+  insertPath(): boolean {
+    return false;
   }
+
+  deletePath(): boolean {
+    return false;
+  }
+
+  deleteSubtree(): void {}
 
   countIndexedFiles(workspaceId: string): number {
-    this.operations.push(`count:${workspaceId}`);
-    return this.pathSet(workspaceId).size;
-  }
-
-  search(_workspaceId: string, query: string): FileHit[] {
-    this.operations.push(`search:${query}`);
-    return this.searchResults;
-  }
-
-  searchFiles(_workspaceId: string, query: string, limit: number): FileHit[] {
-    this.operations.push(`searchFiles:${query}:${limit}`);
-    return this.searchFilesResults;
+    return this.rows.get(workspaceId)?.length ?? 0;
   }
 
   deleteIndex(workspaceId: string): void {
-    this.operations.push(`deleteIndex:${workspaceId}`);
-    this.paths.delete(workspaceId);
+    this.deletedIndexes.push(workspaceId);
+    this.rows.delete(workspaceId);
     this.meta.delete(workspaceId);
   }
 
@@ -330,12 +248,9 @@ class FakeStore implements IWorkspaceFileIndexStore {
     this.evictedDays = staleDays;
   }
 
-  pathSet(workspaceId: string): Set<string> {
-    let paths = this.paths.get(workspaceId);
-    if (!paths) {
-      paths = new Set();
-      this.paths.set(workspaceId, paths);
-    }
-    return paths;
+  private hits(workspaceId: string, query: string): FileHit[] {
+    return (this.rows.get(workspaceId) ?? [])
+      .filter((path) => path.includes(query))
+      .map((path) => ({ path, filename: path.slice(path.lastIndexOf('/') + 1) }));
   }
 }

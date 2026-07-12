@@ -1,16 +1,21 @@
-import type { IFileSystem } from '@emdash/core/files';
+import path from 'node:path';
 import type { GitBranchRef } from '@emdash/core/git';
 import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import { RuntimeFileSystem } from '@main/core/files/runtime-files';
+import { fsErrorMessage, type ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import {
+  gitErrorMessage,
+  type RuntimeGitCheckout,
+  type RuntimeGitRepository,
+} from '@main/core/git/runtime-git';
 import {
   ensureAbsoluteDir,
   isRealPathContained,
-  openFileSystem,
   realPathAbsolute,
 } from '@main/core/runtime/files-helpers';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import {
   isSafePreservePattern,
@@ -23,32 +28,34 @@ export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
 
-function fileErrorCause(error: { type?: string; message: string }): SerializedError {
-  return { name: error.type ?? 'FileError', message: error.message };
+function fileErrorCause(error: Parameters<typeof fsErrorMessage>[0]): SerializedError {
+  return { name: error.type, message: fsErrorMessage(error) };
 }
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
-  private readonly ctx: IExecutionContext;
-  private readonly files: IFilesRuntime;
+  private readonly gitRepository: RuntimeGitRepository;
+  private readonly gitCheckout: RuntimeGitCheckout;
+  private readonly repoFileSystem: ScopedFileSystem;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     repoPath: string;
-    ctx: IExecutionContext;
-    files: IFilesRuntime;
+    gitRepository: RuntimeGitRepository;
+    gitCheckout: RuntimeGitCheckout;
     projectSettings: ProjectSettingsProvider;
     resolveWorktreePoolPath: () => Promise<string>;
   }) {
     this.resolveWorktreePoolPath = args.resolveWorktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
-    this.ctx = args.ctx;
-    this.files = args.files;
+    this.gitRepository = args.gitRepository;
+    this.gitCheckout = args.gitCheckout;
+    this.repoFileSystem = new RuntimeFileSystem(args.repoPath);
 
-    this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+    void this.gitRepository.pruneWorktrees();
   }
 
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -58,22 +65,30 @@ export class WorktreeService {
   }
 
   private async isValidWorktree(worktreePath: string): Promise<boolean> {
-    // A linked worktree contains a .git FILE pointing to the main repo's worktrees
-    // directory.
-    const hasGitFile = await this.existsAbsolute(this.files.path.join(worktreePath, '.git'));
-    if (!hasGitFile) return false;
+    const worktrees = await this.listWorktrees();
+    const target = path.resolve(worktreePath);
+    return worktrees.some(
+      (worktree) => path.resolve(worktree.path) === target && !worktree.prunable
+    );
+  }
 
-    try {
-      const { stdout } = await this.ctx.exec('git', [
-        '-C',
-        worktreePath,
-        'rev-parse',
-        '--is-inside-work-tree',
-      ]);
-      return stdout.trim() === 'true';
-    } catch {
-      return false;
-    }
+  private async listWorktrees(): Promise<
+    Array<{
+      path: string;
+      head:
+        | { kind: 'branch'; name: string }
+        | { kind: 'detached' }
+        | { kind: 'unborn'; name: string };
+      prunable?: boolean;
+    }>
+  > {
+    const result = await this.gitRepository.listWorktrees();
+    if (!result.success) return [];
+    return result.data.map((worktree) => ({
+      path: nativePathFromHost(worktree.worktreePath),
+      head: worktree.head,
+      prunable: worktree.prunable,
+    }));
   }
 
   /** Returns the resolved path to the worktree pool directory. */
@@ -82,7 +97,8 @@ export class WorktreeService {
   }
 
   private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
-    const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
+    const poolPath = await this.resolveWorktreePoolPath();
+    const result = await ensureAbsoluteDir(path.dirname(poolPath), poolPath);
     return result.success
       ? ok()
       : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
@@ -90,7 +106,7 @@ export class WorktreeService {
 
   private async removePathForReuse(targetPath: string): Promise<void> {
     const poolPath = await this.resolveWorktreePoolPath();
-    const contained = await isRealPathContained(this.files, poolPath, targetPath, {
+    const contained = await isRealPathContained(poolPath, targetPath, {
       candidateMustExist: true,
     });
     if (!contained.success || !contained.data) {
@@ -124,10 +140,11 @@ export class WorktreeService {
   }
 
   private async existsAbsolute(absPath: string): Promise<boolean> {
-    if (!this.files.path.isAbsolute(absPath)) return false;
-    const opened = this.files.fileSystem();
-    if (!opened.success) return false;
-    const exists = await opened.data.exists(absPath);
+    if (!path.isAbsolute(absPath)) return false;
+    const rootPath = containsNativePath(this.repoPath, absPath)
+      ? this.repoPath
+      : path.dirname(absPath);
+    const exists = await new RuntimeFileSystem(rootPath).exists(absPath);
     return exists.success ? exists.data : false;
   }
 
@@ -135,33 +152,25 @@ export class WorktreeService {
     absPath: string,
     options?: { recursive?: boolean }
   ): Promise<Result<void, { message: string }>> {
-    if (!this.files.path.isAbsolute(absPath)) {
+    if (!path.isAbsolute(absPath)) {
       return err({ message: `Expected absolute path: ${absPath}` });
     }
-    const fs = openFileSystem(this.files);
-    if (!fs.success) return err({ message: fs.error.message });
-    const removed = await fs.data.remove(absPath, options);
-    if (!removed.success) return err({ message: removed.error.message });
+    const poolPath = await this.resolveWorktreePoolPath();
+    const rootPath = containsNativePath(poolPath, absPath) ? poolPath : path.dirname(absPath);
+    const removed = await new RuntimeFileSystem(rootPath).remove(absPath, options);
+    if (!removed.success) return err({ message: fsErrorMessage(removed.error) });
     return ok<void>();
   }
 
   async findBranchAnywhere(branchName: string): Promise<string | undefined> {
-    try {
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (!block.split('\n').some((line) => line === branchLine)) {
-          continue;
-        }
-        const match = /^worktree (.+)$/m.exec(block);
-        const candidatePath = match?.[1];
-        if (!candidatePath) continue;
-        if (await this.isValidWorktree(candidatePath)) {
-          return candidatePath;
-        }
-        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      }
-    } catch {}
+    const worktree = (await this.listWorktrees()).find(
+      (candidate) =>
+        candidate.head.kind === 'branch' &&
+        candidate.head.name === branchName &&
+        !candidate.prunable
+    );
+    if (worktree) return worktree.path;
+    void this.gitRepository.pruneWorktrees();
     return undefined;
   }
 
@@ -171,24 +180,26 @@ export class WorktreeService {
     if (!sourceBranch) return undefined;
 
     if (sourceBranch.type === 'local') {
-      const localRef = `refs/heads/${sourceBranch.branch}`;
-      try {
-        await this.ctx.exec('git', ['rev-parse', '--verify', localRef]);
-        return localRef;
-      } catch {
-        return undefined;
-      }
+      const refs = await this.gitRepository.getRefs();
+      return refs.branches.some(
+        (branch) => branch.type === 'local' && branch.branch === sourceBranch.branch
+      )
+        ? `refs/heads/${sourceBranch.branch}`
+        : undefined;
     }
 
     const remoteName = sourceBranch.remote.name;
-    await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
+    await this.gitRepository.fetch(remoteName);
     const remoteRef = `refs/remotes/${remoteName}/${sourceBranch.branch}`;
-    try {
-      await this.ctx.exec('git', ['rev-parse', '--verify', remoteRef]);
-      return remoteRef;
-    } catch {
-      return undefined;
-    }
+    const refs = await this.gitRepository.getRefs();
+    return refs.branches.some(
+      (branch) =>
+        branch.type === 'remote' &&
+        branch.remote.name === remoteName &&
+        branch.branch === sourceBranch.branch
+    )
+      ? remoteRef
+      : undefined;
   }
 
   private getBranchBaseConfigValue(sourceBranch: GitBranchRef | undefined): string | undefined {
@@ -202,26 +213,22 @@ export class WorktreeService {
     baseRef: string | undefined
   ): Promise<void> {
     if (!baseRef) return;
-    const key = `branch.${branchName}.base`;
-    try {
-      const { stdout } = await this.ctx.exec('git', ['config', '--get', key]);
-      if (stdout.trim()) return;
-    } catch {}
+    const current = await this.gitRepository.getBranchBase(branchName);
+    if (current.success && current.data) return;
 
-    try {
-      await this.ctx.exec('git', ['config', key, baseRef]);
-    } catch (error) {
+    const result = await this.gitRepository.setBranchBase(branchName, baseRef);
+    if (!result.success) {
       log.warn('WorktreeService: failed to set branch base metadata', {
         branchName,
         baseRef,
-        error: String(error),
+        error: gitErrorMessage(result.error),
       });
     }
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePoolPath = await this.resolveWorktreePoolPath();
-    const worktreePath = this.files.path.join(worktreePoolPath, branchName);
+    const worktreePath = path.join(worktreePoolPath, branchName);
     if (await this.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
       try {
@@ -231,22 +238,17 @@ export class WorktreeService {
       }
     }
 
-    try {
-      const realPoolPath = await realPathAbsolute(this.files, worktreePoolPath);
-      if (!realPoolPath.success) return undefined;
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (block.split('\n').some((line) => line === branchLine)) {
-          const match = /^worktree (.+)$/m.exec(block);
-          const candidatePath = match?.[1];
-          if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath))
-            continue;
-          if (await this.isValidWorktree(candidatePath)) return candidatePath;
-          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-        }
-      }
-    } catch {}
+    const realPoolPath = await realPathAbsolute(worktreePoolPath, worktreePoolPath);
+    if (!realPoolPath.success) return undefined;
+    const candidate = (await this.listWorktrees()).find(
+      (worktree) =>
+        worktree.head.kind === 'branch' &&
+        worktree.head.name === branchName &&
+        containsNativePath(realPoolPath.data, worktree.path) &&
+        !worktree.prunable
+    );
+    if (candidate) return candidate.path;
+    void this.gitRepository.pruneWorktrees();
     return undefined;
   }
 
@@ -274,7 +276,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) {
         await this.ensureBranchBaseConfig(branchName, baseConfigValue);
@@ -282,34 +284,39 @@ export class WorktreeService {
       }
       try {
         await this.removePathForReuse(targetPath);
-        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+        await this.gitRepository.pruneWorktrees();
       } catch (cause) {
         return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
     try {
-      let localExists = false;
-      try {
-        await this.ctx.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`]);
-        localExists = true;
-      } catch {}
+      const refs = await this.gitRepository.getRefs();
+      const localExists = refs.branches.some(
+        (branch) => branch.type === 'local' && branch.branch === branchName
+      );
 
       if (!localExists) {
         const sourceRef = await this.resolveSourceBaseRef(sourceBranch);
         if (!sourceRef) {
           return err({ type: 'branch-not-found', branch: sourceBranch?.branch ?? branchName });
         }
-        await this.ctx.exec('git', ['branch', '--no-track', branchName, sourceRef]);
+        const created = await this.gitRepository.createBranch({
+          name: branchName,
+          from: sourceRef,
+        });
+        if (!created.success) throw new Error(gitErrorMessage(created.error));
       }
       await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
-      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      const poolPath = await this.resolveWorktreePoolPath();
+      const parentDir = await ensureAbsoluteDir(poolPath, path.dirname(targetPath));
       if (!parentDir.success) {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
+      await this.gitRepository.pruneWorktrees();
+      const added = await this.gitRepository.addWorktree({ path: targetPath, ref: branchName });
+      if (!added.success) throw new Error(gitErrorMessage(added.error));
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
@@ -359,59 +366,58 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = this.files.path.join(await this.resolveWorktreePoolPath(), branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       try {
         await this.removePathForReuse(targetPath);
-        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+        await this.gitRepository.pruneWorktrees();
       } catch (cause) {
         return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
     try {
-      const parentDir = await ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath));
+      const poolPath = await this.resolveWorktreePoolPath();
+      const parentDir = await ensureAbsoluteDir(poolPath, path.dirname(targetPath));
       if (!parentDir.success) {
         return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
       }
       for (const remoteName of remoteCandidates) {
-        await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
+        await this.gitRepository.fetch(remoteName);
       }
-      let localExists = false;
-      try {
-        await this.ctx.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`]);
-        localExists = true;
-      } catch {}
+      const refs = await this.gitRepository.getRefs();
+      const localExists = refs.branches.some(
+        (branch) => branch.type === 'local' && branch.branch === branchName
+      );
 
       if (!localExists) {
-        let trackingRemote: string | undefined;
-        for (const remoteName of remoteCandidates) {
-          try {
-            await this.ctx.exec('git', [
-              'rev-parse',
-              '--verify',
-              `refs/remotes/${remoteName}/${branchName}`,
-            ]);
-            trackingRemote = remoteName;
-            break;
-          } catch {}
-        }
+        const trackingRemote = remoteCandidates.find((remoteName) =>
+          refs.branches.some(
+            (branch) =>
+              branch.type === 'remote' &&
+              branch.remote.name === remoteName &&
+              branch.branch === branchName
+          )
+        );
         if (!trackingRemote) {
           return err({ type: 'branch-not-found', branch: branchName });
         }
-        await this.ctx.exec('git', [
-          'branch',
-          '--track',
-          branchName,
-          `${trackingRemote}/${branchName}`,
-        ]);
+        const upstream = `${trackingRemote}/${branchName}`;
+        const created = await this.gitRepository.createBranch({
+          name: branchName,
+          from: upstream,
+        });
+        if (!created.success) throw new Error(gitErrorMessage(created.error));
+        const tracked = await this.gitRepository.setUpstream(branchName, upstream);
+        if (!tracked.success) throw new Error(gitErrorMessage(tracked.error));
       }
 
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
+      await this.gitRepository.pruneWorktrees();
+      const added = await this.gitRepository.addWorktree({ path: targetPath, ref: branchName });
+      if (!added.success) throw new Error(gitErrorMessage(added.error));
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
@@ -429,53 +435,43 @@ export class WorktreeService {
   }
 
   async moveWorktree(oldPath: string, newPath: string): Promise<void> {
-    await this.ctx.exec('git', ['worktree', 'move', oldPath, newPath]);
+    const moved = await this.gitRepository.moveWorktree(oldPath, newPath);
+    if (!moved.success) throw new Error(gitErrorMessage(moved.error));
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    await this.removePathForReuse(worktreePath).finally(() => {
-      this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-    });
+    const removed = await this.gitRepository.removeWorktree(worktreePath, true);
+    if (!removed.success && (await this.existsAbsolute(worktreePath))) {
+      await this.removePathForReuse(worktreePath);
+    }
+    await this.gitRepository.pruneWorktrees();
   }
 
-  private taskConfigFs(): IFileSystem | null {
-    const opened = this.files.fileSystem();
-    if (opened.success) return opened.data;
-    log.warn('WorktreeService: failed to open task config filesystem', opened.error);
-    return null;
+  private taskConfigFs(rootPath: string): ScopedFileSystem {
+    return new RuntimeFileSystem(rootPath);
   }
 
   private async isTrackedSourcePath(absPath: string): Promise<boolean> {
-    try {
-      const relPath = this.files.path.relative(this.repoPath, absPath);
-      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', relPath]);
-      return true;
-    } catch {
-      return false;
-    }
+    const relPath = path.relative(this.repoPath, absPath);
+    const tracked = await this.gitCheckout.isFileTracked(relPath);
+    return tracked.success && tracked.data;
   }
 
   private async copyPreservedFiles(targetPath: string): Promise<void> {
-    const taskFs = this.taskConfigFs();
-    if (!taskFs) return;
+    const taskFs = this.taskConfigFs(targetPath);
 
     const settings = await getEffectiveTaskSettings({
       projectSettings: this.projectSettings,
       taskFs,
-      taskConfigPath: this.files.path.join(targetPath, '.emdash.json'),
+      taskConfigPath: path.join(targetPath, '.emdash.json'),
     });
     const patterns = settings.preservePatterns ?? [];
-    const repoFs = this.files.fileSystem();
-    if (!repoFs.success) {
-      log.warn('WorktreeService: failed to open repo filesystem for preserved files', repoFs.error);
-      return;
-    }
     for (const pattern of patterns) {
-      if (!isSafePreservePattern(this.files.path, pattern)) {
+      if (!isSafePreservePattern(nativePathOperations, pattern)) {
         log.warn('WorktreeService: skipping unsafe preserve pattern', { pattern });
         continue;
       }
-      const matches = repoFs.data.glob([pattern], { cwd: this.repoPath, dot: true });
+      const matches = this.repoFileSystem.glob([pattern], { cwd: this.repoPath, dot: true });
       if (!matches.success) {
         log.warn('WorktreeService: failed to match preserve pattern', {
           pattern,
@@ -484,20 +480,29 @@ export class WorktreeService {
         continue;
       }
       for await (const absPath of matches.data) {
-        const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
+        const relPath = preservedRepoRelativePath(nativePathOperations, this.repoPath, absPath);
         if (!relPath || (await this.isTrackedSourcePath(absPath))) continue;
-        const stat = await repoFs.data.stat(absPath);
+        const stat = await this.repoFileSystem.stat(absPath);
         if (!stat.success || stat.data.type !== 'file') continue;
-        const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
+        const destPath = preservedDestinationPath(nativePathOperations, targetPath, relPath);
         if (!destPath) continue;
-        const contained = await isRealPathContained(this.files, targetPath, destPath);
+        const contained = await isRealPathContained(targetPath, destPath);
         if (!contained.success || !contained.data) {
           log.warn('WorktreeService: skipping preserved file with out-of-worktree destination', {
             destPath,
           });
           continue;
         }
-        const copied = await repoFs.data.copyFile(absPath, destPath);
+        const source = await this.repoFileSystem.readBytes(absPath);
+        if (!source.success) {
+          log.warn('WorktreeService: failed to copy preserved file', {
+            sourcePath: absPath,
+            destPath,
+            error: source.error,
+          });
+          continue;
+        }
+        const copied = await taskFs.writeBytes(destPath, source.data.bytes);
         if (!copied.success) {
           log.warn('WorktreeService: failed to copy preserved file', {
             sourcePath: absPath,
@@ -508,6 +513,18 @@ export class WorktreeService {
       }
     }
   }
+}
+
+const nativePathOperations = {
+  join: path.join,
+  isAbsolute: path.isAbsolute,
+  relative: path.relative,
+  contains: containsNativePath,
+};
+
+function containsNativePath(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 /**

@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { eq } from 'drizzle-orm';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
@@ -18,7 +18,7 @@ import type { ProjectProvider } from '../../project-provider';
 import { resolveWorkspace } from '../../utils';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
-  fileSystem: IFileSystem;
+  fileSystem: ScopedFileSystem;
   configPath: string;
 };
 
@@ -55,7 +55,7 @@ async function resolveTaskTarget(
   task: TaskTargetRow
 ): Promise<ProjectSettingsResolvedTarget | null> {
   let targetPath: string | null = null;
-  let fileSystem: IFileSystem | null = null;
+  let fileSystem: ScopedFileSystem | null = null;
   let configPath: string | null = null;
 
   if (task.workspaceId) {
@@ -163,6 +163,6 @@ export async function resolveProjectSettingsTarget(
   return null;
 }
 
-function resolveProjectFileSystem(project: ProjectProvider): IFileSystem | null {
+function resolveProjectFileSystem(project: ProjectProvider): ScopedFileSystem | null {
   return project.fileSystem;
 }

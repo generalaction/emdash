@@ -1,32 +1,41 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import nodePath from 'node:path';
-import { contains, FilesRuntime } from '@emdash/core/files';
+import path from 'node:path';
+import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isRealPathContained, realPathNearestExisting } from './files-helpers';
-import type { IFilesRuntime, RuntimePath } from './types';
+import {
+  isRealPathContained,
+  realPathNearestExisting,
+  type RealPathFileSystem,
+} from '../files/realpath-containment';
 
-const nativeMachinePath: RuntimePath = {
-  join: (...parts: string[]) => nodePath.join(...parts),
-  dirname: (value: string) => nodePath.dirname(value),
-  basename: (value: string) => nodePath.basename(value),
-  isAbsolute: (value: string) => nodePath.isAbsolute(value),
-  relative: (from: string, to: string) => nodePath.relative(from, to),
-  contains,
+const pathOperations = {
+  basename: path.basename,
+  dirname: path.dirname,
+  join: path.join,
+  contains(parent: string, child: string): boolean {
+    const relative = path.relative(parent, child);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  },
 };
 
-function makeFilesRuntime(): IFilesRuntime {
-  return Object.assign(new FilesRuntime(), { path: nativeMachinePath }) as IFilesRuntime;
-}
+const files: RealPathFileSystem = {
+  realPath: async (filePath) => {
+    try {
+      return ok(fs.realpathSync(filePath));
+    } catch {
+      return err({ type: 'not-found', path: filePath } as never);
+    }
+  },
+};
 
-describe('files-helpers realpath containment', () => {
+describe('realpath containment', () => {
   let root: string;
   let outside: string;
-  const files = makeFilesRuntime();
 
   beforeEach(() => {
-    root = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'fh-root-'));
-    outside = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'fh-out-'));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'fh-root-'));
+    outside = fs.mkdtempSync(path.join(os.tmpdir(), 'fh-out-'));
   });
 
   afterEach(() => {
@@ -35,39 +44,47 @@ describe('files-helpers realpath containment', () => {
   });
 
   it('treats a real path inside the root as contained', async () => {
-    fs.mkdirSync(nodePath.join(root, 'inside'));
+    fs.mkdirSync(path.join(root, 'inside'));
     const result = await isRealPathContained(
       files,
+      pathOperations,
       root,
-      nodePath.join(root, 'inside', 'file.txt')
+      path.join(root, 'inside', 'file.txt')
     );
     expect(result.success && result.data).toBe(true);
   });
 
-  it('rejects a write whose destination parent is a symlink escaping the root', async () => {
-    // A symlinked subdirectory inside the root pointing outside it must not let a
-    // write/copy land outside the worktree.
-    fs.symlinkSync(outside, nodePath.join(root, 'escape'), 'dir');
+  it('rejects a destination whose parent symlink escapes the root', async () => {
+    fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
     const result = await isRealPathContained(
       files,
+      pathOperations,
       root,
-      nodePath.join(root, 'escape', 'file.txt')
+      path.join(root, 'escape', 'file.txt')
     );
     expect(result.success && result.data).toBe(false);
   });
 
-  it('rejects removing an existing symlink that resolves outside the root', async () => {
-    fs.symlinkSync(outside, nodePath.join(root, 'escape'), 'dir');
-    const result = await isRealPathContained(files, root, nodePath.join(root, 'escape'), {
-      candidateMustExist: true,
-    });
+  it('rejects an existing symlink that resolves outside the root', async () => {
+    fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
+    const result = await isRealPathContained(
+      files,
+      pathOperations,
+      root,
+      path.join(root, 'escape'),
+      { candidateMustExist: true }
+    );
     expect(result.success && result.data).toBe(false);
   });
 
   it('resolves the nearest existing ancestor for a non-existent path', async () => {
-    fs.mkdirSync(nodePath.join(root, 'a'));
+    fs.mkdirSync(path.join(root, 'a'));
     const realRoot = fs.realpathSync(root);
-    const resolved = await realPathNearestExisting(files, nodePath.join(root, 'a', 'b', 'c.txt'));
-    expect(resolved.success && resolved.data).toBe(nodePath.join(realRoot, 'a', 'b', 'c.txt'));
+    const resolved = await realPathNearestExisting(
+      files,
+      pathOperations,
+      path.join(root, 'a', 'b', 'c.txt')
+    );
+    expect(resolved.success && resolved.data).toBe(path.join(realRoot, 'a', 'b', 'c.txt'));
   });
 });

@@ -1,7 +1,8 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
+import type { RuntimeGitCheckout, RuntimeGitRepository } from '@main/core/git/runtime-git';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 
 /**
  * Context passed to every workspace setup step executor.
@@ -9,14 +10,17 @@ import type { IFilesRuntime } from '@main/core/runtime/types';
  * step handlers self-contained and easy to unit-test.
  */
 export type StepContext = {
-  /** Execution context for running git commands (local or SSH). */
+  /** Execution context for non-domain setup commands. */
   ctx: IExecutionContext;
   /** Absolute path to the project repository root. */
   repoPath: string;
   /** Absolute path to the worktree pool directory where worktrees are created. */
   worktreePoolPath: string;
-  /** Runtime-owned files capability for the project machine. */
-  files: IFilesRuntime;
+  /** Project-root Files runtime capability. */
+  fileSystem: ScopedFileSystem;
+  /** Git runtime capabilities for the project repository and checkout. */
+  gitRepository: RuntimeGitRepository;
+  gitCheckout: RuntimeGitCheckout;
   /** Project settings provider (used by copy-preserved-files). */
   projectSettings: ProjectSettingsProvider;
   /** Worktree service that owns checkout validation, stale cleanup, and checkout creation. */

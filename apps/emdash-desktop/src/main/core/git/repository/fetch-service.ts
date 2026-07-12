@@ -1,5 +1,5 @@
-import { gitErrorMessage } from '@emdash/core/git';
 import { err } from '@emdash/shared';
+import { gitErrorMessage } from '@main/core/git/runtime-git';
 import { log } from '@main/lib/logger';
 import type { GitRepositoryService } from './service';
 

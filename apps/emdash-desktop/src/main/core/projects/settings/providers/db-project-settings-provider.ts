@@ -1,5 +1,5 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
@@ -37,7 +37,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     private readonly projectId: string,
     protected readonly projectPath: string,
     protected readonly defaultBranchFallback: string = 'main',
-    private readonly configReader: Pick<IFileSystem, 'exists' | 'readText'> | undefined,
+    private readonly configReader: Pick<ScopedFileSystem, 'exists' | 'readText'> | undefined,
     private readonly joinProjectPath: (rootPath: string, relPath: string) => string,
     private readonly options: DbProjectSettingsProviderOptions = {}
   ) {}

@@ -1,6 +1,11 @@
-import type { RuntimePath } from '@main/core/runtime/types';
+export type PathOperations = {
+  join(...parts: string[]): string;
+  isAbsolute(path: string): boolean;
+  relative(from: string, to: string): string;
+  contains(parent: string, child: string): boolean;
+};
 
-export function isSafePreservePattern(machinePath: RuntimePath, pattern: string): boolean {
+export function isSafePreservePattern(machinePath: PathOperations, pattern: string): boolean {
   const trimmed = pattern.trim();
   if (!trimmed) return false;
   if (looksAbsolute(machinePath, trimmed)) return false;
@@ -8,7 +13,7 @@ export function isSafePreservePattern(machinePath: RuntimePath, pattern: string)
 }
 
 export function preservedRepoRelativePath(
-  machinePath: RuntimePath,
+  machinePath: PathOperations,
   repoPath: string,
   absPath: string
 ): string | null {
@@ -21,7 +26,7 @@ export function preservedRepoRelativePath(
 }
 
 export function preservedDestinationPath(
-  machinePath: RuntimePath,
+  machinePath: PathOperations,
   targetPath: string,
   relPath: string
 ): string | null {
@@ -29,6 +34,6 @@ export function preservedDestinationPath(
   return machinePath.contains(targetPath, destPath) ? destPath : null;
 }
 
-function looksAbsolute(machinePath: RuntimePath, value: string): boolean {
+function looksAbsolute(machinePath: PathOperations, value: string): boolean {
   return machinePath.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\');
 }

@@ -12,7 +12,6 @@ import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSessionTree } from '@main/core/pty/tmux-reaper';
 import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
@@ -46,7 +45,6 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
-  private readonly filesRuntime: IFilesRuntime;
 
   constructor({
     projectId,
@@ -57,7 +55,6 @@ export class SshConversationProvider implements ConversationProvider {
     shellSetup,
     ctx,
     proxy,
-    filesRuntime,
   }: {
     projectId: string;
     taskPath: string;
@@ -67,7 +64,6 @@ export class SshConversationProvider implements ConversationProvider {
     shellSetup?: string;
     ctx: IExecutionContext;
     proxy: SshClientProxy;
-    filesRuntime: IFilesRuntime;
   }) {
     this.projectId = projectId;
     this.taskPath = taskPath;
@@ -77,7 +73,6 @@ export class SshConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
-    this.filesRuntime = filesRuntime;
   }
 
   async startSession(
@@ -120,7 +115,7 @@ export class SshConversationProvider implements ConversationProvider {
       await workspaceTrustService.maybeAutoTrust({
         providerId: conversation.providerId,
         workspacePath: this.taskPath,
-        host: { kind: 'ssh', ctx: this.ctx, files: this.filesRuntime },
+        host: { kind: 'remote' },
         force: conversation.autoApprove === true,
       });
 

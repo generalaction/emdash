@@ -1,8 +1,7 @@
-import type { IFileSystem, IFileTree } from '@emdash/core/files';
-import type { IGitWorktree } from '@emdash/core/git';
-import type { FileTreeProjector } from '@main/core/files/file-tree/projector';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';
+import type { RuntimeGitCheckout } from '@main/core/git/runtime-git';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { LifecycleScriptService } from './workspace-lifecycle-service';
 
@@ -10,10 +9,8 @@ export interface Workspace {
   readonly id: string;
   readonly path: string;
   readonly configPath: string;
-  readonly fileSystem: IFileSystem;
-  readonly fileTree: IFileTree;
-  readonly fileTreeProjector: FileTreeProjector;
-  readonly gitWorktree: IGitWorktree;
+  readonly fileSystem: ScopedFileSystem;
+  readonly gitCheckout: RuntimeGitCheckout;
   readonly settings: ProjectSettingsProvider;
   readonly lifecycleService: LifecycleScriptService;
   readonly gitRepository: GitRepositoryService;

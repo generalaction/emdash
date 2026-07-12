@@ -1,7 +1,7 @@
-import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
 import * as toml from 'smol-toml';
 import z from 'zod';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -84,7 +84,7 @@ function toCodexMigration(data: CodexMigrationData): ProjectConfigMigration | nu
 
 async function readCodexMigrationData(
   project: ProjectProvider,
-  fileSystem: IFileSystem
+  fileSystem: ScopedFileSystem
 ): Promise<CodexMigrationData> {
   const data: CodexMigrationData = {
     settings: {},

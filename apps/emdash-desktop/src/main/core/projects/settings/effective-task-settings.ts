@@ -1,4 +1,4 @@
-import type { IFileSystem } from '@emdash/core/files';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import {
   defaultShareableProjectSettings,
@@ -10,7 +10,7 @@ import type { ProjectSettingsProvider } from './provider';
 
 export async function getEffectiveTaskSettings(args: {
   projectSettings: ProjectSettingsProvider;
-  taskFs: Pick<IFileSystem, 'exists' | 'readText'>;
+  taskFs: Pick<ScopedFileSystem, 'exists' | 'readText'>;
   taskConfigPath: string;
 }): Promise<ProjectSettings> {
   const { projectSettings, taskFs, taskConfigPath } = args;

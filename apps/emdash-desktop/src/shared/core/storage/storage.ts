@@ -1,5 +1,6 @@
-import type { FileUsageError } from '@emdash/core/files';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
+
+export type FileUsageError = { path: string; message: string };
 
 export type StoragePathState =
   | 'measured'

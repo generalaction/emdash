@@ -3,9 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { joinMachinePath } from '@main/core/files/path-utils';
+import { fsErrorMessage } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
+import {
+  hostPathFromNative,
+  nativePathFromHost,
+  portablePath,
+  resolveRelativePath,
+} from '@shared/core/runtime/paths';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { SSH_PROJECT_STATE_DIR_NAME } from '../settings/worktree-defaults';
 import { taskSessionManager } from '../tasks/task-session-manager';
@@ -162,22 +168,29 @@ export const ptyController = createRPCController({
       // Writing to the root left every attached image behind as an untracked file
       // that dirtied `git status` and never got cleaned up (#2680).
       const uploadDir = `${SSH_PROJECT_STATE_DIR_NAME}/uploads`;
-      const uploadDirPath = joinMachinePath(workspace.path, uploadDir);
+      const workspaceRoot = hostPathFromNative(workspace.path);
+      const uploadDirRoot = resolveRelativePath(workspaceRoot, portablePath(uploadDir));
+      const uploadDirPath = nativePathFromHost(uploadDirRoot);
       const madeUploadDir = await workspace.fileSystem.mkdir(uploadDirPath, { recursive: true });
       if (!madeUploadDir.success) {
-        return err({ type: 'upload_failed' as const, message: madeUploadDir.error.message });
+        return err({
+          type: 'upload_failed' as const,
+          message: fsErrorMessage(madeUploadDir.error),
+        });
       }
 
       const remotePaths = await Promise.all(
         args.localPaths.map(async (localPath) => {
-          const remotePath = joinMachinePath(
-            uploadDirPath,
-            `${randomUUID()}-${basename(localPath)}`
+          const remotePath = nativePathFromHost(
+            resolveRelativePath(
+              uploadDirRoot,
+              portablePath(`${randomUUID()}-${basename(localPath)}`)
+            )
           );
           const bytes = await readFile(localPath);
           const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
           if (!written.success) {
-            throw new Error(written.error.message);
+            throw new Error(fsErrorMessage(written.error));
           }
           return remotePath;
         })

@@ -21,10 +21,7 @@ export interface IExecutionContext {
   /** The working directory all commands run in. Undefined/empty = no cwd constraint. */
   readonly root?: string;
 
-  /**
-   * True only for LocalExecutionContext. Used by GitService to decide
-   * whether to use CatFileBatch (local spawn) or git-show fallback (SSH).
-   */
+  /** True only when the context can spawn a local child process directly. */
   readonly supportsLocalSpawn: boolean;
 
   /** Run a command and buffer all output. Rejects on non-zero exit code. */

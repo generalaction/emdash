@@ -1,17 +1,11 @@
-import type { IFileSystem } from '@emdash/core/files';
-import type {
-  FetchError,
-  GitBranchRef,
-  GitHeadModel,
-  GitSequences,
-  IGitRuntime,
-} from '@emdash/core/git';
+import type { CheckoutHeadState, FetchError, GitBranchRef } from '@emdash/core/git';
 import type { IDisposable, IReleasable, Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';
+import type { RuntimeGit } from '@main/core/git/runtime-git';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import type { MachineRef } from '@main/core/runtime/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { SetupResult } from '@main/core/workspaces/workspace-setup-executor';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
@@ -56,11 +50,9 @@ type RunWorkspaceSetup = (args: {
  */
 export type ProjectProviderTransport = {
   readonly kind: string;
-  readonly projectMachine: MachineRef;
   readonly defaultWorkspaceType: WorkspaceType;
-  readonly defaultWorkspaceMachine: MachineRef;
   readonly ctx: IExecutionContext;
-  readonly fileSystem: IFileSystem;
+  readonly fileSystem: ScopedFileSystem;
   readonly projectConfigPath: string;
   /**
    * Transitional desktop-owned path helper. Remove once project config reads/writes
@@ -74,7 +66,7 @@ export type ProjectProviderTransport = {
   readonly configPathForDirectory: (directoryPath: string) => string;
   /**
    * Transitional provisioning hook. Workspace setup currently still runs in the
-   * desktop app with direct access to the machine runtime; this should move behind
+   * desktop app with direct access to local runtimes; this should move behind
    * the workspace server/core boundary and disappear from ProjectProvider.
    */
   readonly runWorkspaceSetup: RunWorkspaceSetup;
@@ -85,16 +77,14 @@ export class ProjectProvider implements IReleasable, IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
-  readonly projectMachine: MachineRef;
   readonly settings: ProjectSettingsProvider;
   readonly gitRepository: GitRepositoryService;
-  readonly fileSystem: IFileSystem;
+  readonly fileSystem: ScopedFileSystem;
   readonly projectConfigPath: string;
   readonly worktreeService: WorktreeService;
   readonly gitRepositoryFetchService: GitRepositoryFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
-  readonly defaultWorkspaceMachine: MachineRef;
 
   private readonly _ctx: IExecutionContext;
   private readonly _resolveProjectPath: (relativePath: string) => string;
@@ -108,13 +98,12 @@ export class ProjectProvider implements IReleasable, IDisposable {
     gitRepository: GitRepositoryService,
     worktreeService: WorktreeService,
     gitRepositoryFetchService: GitRepositoryFetchService,
-    private readonly _gitRuntime: IGitRuntime,
+    private readonly _gitRuntime: RuntimeGit,
     private readonly _releaseProjectLeases: () => void | Promise<void>
   ) {
     this.type = transport.kind;
     this.projectId = projectId;
     this.repoPath = repoPath;
-    this.projectMachine = transport.projectMachine;
     this._ctx = transport.ctx;
     this.settings = transport.settings;
     this.fileSystem = transport.fileSystem;
@@ -126,7 +115,6 @@ export class ProjectProvider implements IReleasable, IDisposable {
     this.worktreeService = worktreeService;
     this.gitRepositoryFetchService = gitRepositoryFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
-    this.defaultWorkspaceMachine = transport.defaultWorkspaceMachine;
   }
 
   get ctx(): IExecutionContext {
@@ -169,17 +157,12 @@ export class ProjectProvider implements IReleasable, IDisposable {
     }
   }
 
-  fetch(): Promise<Result<{ sequences: GitSequences }, FetchError>> {
+  fetch(): Promise<Result<void, FetchError>> {
     return this.gitRepositoryFetchService.fetch();
   }
 
-  async getProjectRootHead(): Promise<GitHeadModel> {
-    const lease = await this._gitRuntime.openWorktree(this.repoPath);
-    try {
-      return await lease.value.getHead();
-    } finally {
-      await lease.release();
-    }
+  getProjectRootHead(): Promise<CheckoutHeadState> {
+    return this._gitRuntime.checkout(this.repoPath).getHead();
   }
 
   async release(): Promise<void> {

@@ -1,10 +1,6 @@
-import {
-  type FileChange,
-  type FileChangeUpdate,
-  type FileEnumerationOptions,
-  type FileError,
-} from '@emdash/core/files';
+import type { FsError } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
+import type { FileExclusionPredicate } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import { collectWithBudget } from './collect-with-budget';
 import { createSearchIndexExclusion } from './search-index-exclusions';
@@ -17,12 +13,17 @@ import {
 const STALE_DAYS = 14;
 const DEFAULT_MAX_FILES = 50_000;
 const DEFAULT_REINDEX_TIMEOUT_MS = 30_000;
-const DEFAULT_REINDEX_DEBOUNCE_MS = 3_000;
+const DEFAULT_SEARCH_REFRESH_INTERVAL_MS = 15_000;
+
+type EnumerationOptions = {
+  exclude?: FileExclusionPredicate;
+  includeSymlinkFiles?: boolean;
+};
 
 export type WorkspaceFileEnumerator = (
   rootPath: string,
-  options?: FileEnumerationOptions
-) => Result<AsyncIterable<string>, FileError>;
+  options?: EnumerationOptions
+) => Result<AsyncIterable<string>, FsError>;
 
 export type WorkspaceFileIndexSource = {
   rootPath: string;
@@ -33,16 +34,16 @@ export type WorkspaceFileIndexServiceOptions = {
   store?: IWorkspaceFileIndexStore;
   maxFiles?: number;
   reindexTimeoutMs?: number;
-  reindexDebounceMs?: number;
+  searchRefreshIntervalMs?: number;
   now?: () => number;
 };
 
 export class WorkspaceFileIndexService {
   private readonly store: IWorkspaceFileIndexStore;
-  private reindexing = new Set<string>();
-  private pendingReindex = new Set<string>();
-  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private activeSources = new Map<string, WorkspaceFileIndexSource>();
+  private readonly reindexing = new Set<string>();
+  private readonly pendingReindex = new Set<string>();
+  private readonly activeSources = new Map<string, WorkspaceFileIndexSource>();
+  private readonly lastReindexAt = new Map<string, number>();
 
   constructor(private readonly options: WorkspaceFileIndexServiceOptions = {}) {
     this.store = options.store ?? new WorkspaceFileIndexStore();
@@ -52,51 +53,21 @@ export class WorkspaceFileIndexService {
     this.store.evict(STALE_DAYS);
   }
 
-  onWorkspaceFileChange(workspaceId: string, update: FileChangeUpdate): void {
-    if (update.kind === 'resync') {
-      this.scheduleReindex(workspaceId);
-      return;
-    }
-    if (update.changes.length === 0) return;
-
-    const meta = this.store.getMeta(workspaceId);
-    if (this.reindexing.has(workspaceId) || !meta) {
-      this.scheduleReindex(workspaceId);
-      return;
-    }
-    if (meta.status === 'stale') {
-      this.scheduleReindex(workspaceId);
-      return;
-    }
-    if (meta.status === 'truncated') return;
-
-    this.applyChanges(workspaceId, update.changes);
-  }
-
   async onWorkspaceActivated(workspaceId: string, source: WorkspaceFileIndexSource): Promise<void> {
     this.activeSources.set(workspaceId, source);
     const meta = this.store.getMeta(workspaceId);
-
-    if (meta && meta.rootPath !== source.rootPath) {
-      this.store.deleteIndex(workspaceId);
-      await this.reindex(workspaceId);
-      return;
-    }
-
-    if (meta?.status === 'complete') {
-      this.store.refreshMetaTimestamp(workspaceId);
-      return;
-    }
-
+    if (meta && meta.rootPath !== source.rootPath) this.store.deleteIndex(workspaceId);
     await this.reindex(workspaceId);
   }
 
   onWorkspaceDeactivated(workspaceId: string): void {
-    // Do not touch meta here: that would reset the staleness clock on every destroy
-    // and prevent eviction of stale entries for frequently-cycled workspaces.
     this.activeSources.delete(workspaceId);
     this.pendingReindex.delete(workspaceId);
-    this.clearDebounceTimer(workspaceId);
+    this.lastReindexAt.delete(workspaceId);
+  }
+
+  refreshWorkspace(workspaceId: string): Promise<void> {
+    return this.reindex(workspaceId);
   }
 
   deleteIndex(workspaceId: string): void {
@@ -104,10 +75,12 @@ export class WorkspaceFileIndexService {
   }
 
   searchFiles(workspaceId: string, query: string, limit = 20): FileHit[] {
+    this.refreshForSearch(workspaceId);
     return this.store.searchFiles(workspaceId, query, limit);
   }
 
   search(workspaceId: string, query: string): FileHit[] {
+    this.refreshForSearch(workspaceId);
     return this.store.search(workspaceId, query);
   }
 
@@ -116,15 +89,12 @@ export class WorkspaceFileIndexService {
       this.pendingReindex.add(workspaceId);
       return;
     }
-
     this.reindexing.add(workspaceId);
-
     try {
       do {
         this.pendingReindex.delete(workspaceId);
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
-
         const exclude = createSearchIndexExclusion(source.rootPath);
         const enumeration = source.enumerate(source.rootPath, { exclude });
         if (!enumeration.success) {
@@ -134,14 +104,15 @@ export class WorkspaceFileIndexService {
           });
           return;
         }
-
         const result = await collectWithBudget(filterExcluded(enumeration.data, exclude), {
           maxFiles: this.maxFiles,
           timeoutMs: this.reindexTimeoutMs,
           now: this.options.now,
         });
-        if (this.activeSources.get(workspaceId) !== source) return;
-
+        if (this.activeSources.get(workspaceId) !== source) {
+          this.pendingReindex.add(workspaceId);
+          continue;
+        }
         this.store.transaction(() => {
           this.store.syncRows(workspaceId, result.paths);
           this.store.recordMeta(workspaceId, {
@@ -151,132 +122,15 @@ export class WorkspaceFileIndexService {
             truncateReason: result.truncateReason ?? null,
           });
         });
-
-        const logPayload = {
-          workspaceId,
-          count: result.paths.length,
-          truncated: result.truncated,
-          truncateReason: result.truncateReason,
-        };
-        if (result.truncated) {
-          log.warn('WorkspaceFileIndexService: indexed partial workspace', logPayload);
-        } else {
-          log.info('WorkspaceFileIndexService: indexed workspace', logPayload);
-        }
+        this.lastReindexAt.set(workspaceId, this.now());
       } while (this.pendingReindex.has(workspaceId));
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: reindex failed', { workspaceId, error: String(e) });
+    } catch (error) {
+      log.warn('WorkspaceFileIndexService: reindex failed', {
+        workspaceId,
+        error: String(error),
+      });
     } finally {
       this.reindexing.delete(workspaceId);
-    }
-  }
-
-  private applyChanges(workspaceId: string, changes: FileChange[]): void {
-    let needsReindex = false;
-    const rootPath = this.metaRootPath(workspaceId);
-    const exclude = createSearchIndexExclusion(rootPath);
-    try {
-      this.store.transaction(() => {
-        let indexedFileCount = this.store.countIndexedFiles(workspaceId);
-        let needsCountRefresh = false;
-        const creates: string[] = [];
-
-        for (const change of changes) {
-          if (exclude(change.path)) continue;
-
-          if (change.kind === 'delete') {
-            if (change.entryType === 'file') {
-              if (this.store.deletePath(workspaceId, change.path)) {
-                indexedFileCount = Math.max(0, indexedFileCount - 1);
-              }
-            } else {
-              this.store.deleteSubtree(workspaceId, change.path);
-              needsCountRefresh = true;
-            }
-            continue;
-          }
-
-          if (change.entryType === 'directory') {
-            needsReindex = true;
-            continue;
-          }
-
-          if (change.entryType === 'symlink') {
-            needsReindex = true;
-            continue;
-          }
-
-          if (change.kind === 'create') {
-            creates.push(change.path);
-          }
-        }
-
-        if (needsCountRefresh) {
-          indexedFileCount = this.store.countIndexedFiles(workspaceId);
-        }
-
-        for (const path of creates) {
-          if (indexedFileCount >= this.maxFiles) {
-            needsReindex = true;
-            continue;
-          }
-
-          const added = this.store.insertPath(workspaceId, path);
-          if (added) indexedFileCount += 1;
-        }
-      });
-
-      if (needsReindex) {
-        this.markStale(workspaceId);
-        this.scheduleReindex(workspaceId);
-        return;
-      }
-
-      this.store.recordMeta(workspaceId, {
-        rootPath: this.metaRootPath(workspaceId),
-        status: 'complete',
-        fileCount: this.store.countIndexedFiles(workspaceId),
-        truncateReason: null,
-      });
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: incremental update failed', {
-        workspaceId,
-        error: String(e),
-      });
-      this.markStale(workspaceId);
-      this.scheduleReindex(workspaceId);
-    }
-  }
-
-  private scheduleReindex(workspaceId: string): void {
-    if (!this.activeSources.has(workspaceId)) return;
-    this.clearDebounceTimer(workspaceId);
-
-    this.debounceTimers.set(
-      workspaceId,
-      setTimeout(() => {
-        this.debounceTimers.delete(workspaceId);
-        void this.reindex(workspaceId);
-      }, this.reindexDebounceMs)
-    );
-  }
-
-  private clearDebounceTimer(workspaceId: string): void {
-    const timer = this.debounceTimers.get(workspaceId);
-    if (timer) clearTimeout(timer);
-    this.debounceTimers.delete(workspaceId);
-  }
-
-  private markStale(workspaceId: string): void {
-    try {
-      this.store.recordMeta(workspaceId, {
-        rootPath: this.metaRootPath(workspaceId),
-        status: 'stale',
-        fileCount: this.store.countIndexedFiles(workspaceId),
-        truncateReason: null,
-      });
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: markStale failed', { workspaceId, error: String(e) });
     }
   }
 
@@ -288,28 +142,26 @@ export class WorkspaceFileIndexService {
     return this.options.reindexTimeoutMs ?? DEFAULT_REINDEX_TIMEOUT_MS;
   }
 
-  private get reindexDebounceMs(): number {
-    return this.options.reindexDebounceMs ?? DEFAULT_REINDEX_DEBOUNCE_MS;
+  private refreshForSearch(workspaceId: string): void {
+    if (!this.activeSources.has(workspaceId) || this.reindexing.has(workspaceId)) return;
+    const lastReindex = this.lastReindexAt.get(workspaceId) ?? 0;
+    const interval = this.options.searchRefreshIntervalMs ?? DEFAULT_SEARCH_REFRESH_INTERVAL_MS;
+    if (this.now() - lastReindex < interval) return;
+    void this.reindex(workspaceId);
   }
 
-  private metaRootPath(workspaceId: string): string {
-    return (
-      this.activeSources.get(workspaceId)?.rootPath ??
-      this.store.getMeta(workspaceId)?.rootPath ??
-      ''
-    );
+  private now(): number {
+    return this.options.now?.() ?? Date.now();
   }
 }
 
 async function* filterExcluded(
-  paths: AsyncIterable<string>,
-  exclude: (absPath: string) => boolean
+  entries: AsyncIterable<string>,
+  exclude: FileExclusionPredicate
 ): AsyncIterable<string> {
-  for await (const path of paths) {
-    if (!exclude(path)) yield path;
+  for await (const entry of entries) {
+    if (!exclude(entry)) yield entry;
   }
 }
 
-export const workspaceFileIndexService = new WorkspaceFileIndexService({
-  store: new WorkspaceFileIndexStore(),
-});
+export const workspaceFileIndexService = new WorkspaceFileIndexService();

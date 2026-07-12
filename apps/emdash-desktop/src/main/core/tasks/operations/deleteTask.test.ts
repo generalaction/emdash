@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteTask } from './deleteTask';
 
@@ -9,16 +10,25 @@ const mocks = vi.hoisted(() => ({
   deleteIndex: vi.fn(),
   deleteWhere: vi.fn(),
   delViewState: vi.fn(),
-  createBoundExec: vi.fn(),
-  gitExec: vi.fn(),
+  fileSystemFactory: vi.fn(),
+  gitRepository: vi.fn(),
+  pruneWorktrees: vi.fn(),
   getProject: vi.fn(),
   getProjectById: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
 }));
 
-vi.mock('@emdash/core/exec', () => ({
-  createBoundExec: mocks.createBoundExec,
+vi.mock('@main/core/files/runtime-files', () => ({
+  RuntimeFileSystem: vi.fn(function RuntimeFileSystem(rootPath: string) {
+    return mocks.fileSystemFactory(rootPath);
+  }),
+}));
+
+vi.mock('@main/core/git/runtime-git', () => ({
+  RuntimeGit: vi.fn(function RuntimeGit() {
+    return { repository: mocks.gitRepository };
+  }),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -74,8 +84,22 @@ describe('deleteTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.deleteWhere.mockResolvedValue(undefined);
-    mocks.gitExec.mockResolvedValue({ stdout: '', stderr: '' });
-    mocks.createBoundExec.mockReturnValue({ exec: mocks.gitExec });
+    mocks.fileSystemFactory.mockReturnValue({
+      exists: async (targetPath: string) => {
+        try {
+          await access(targetPath);
+          return ok(true);
+        } catch {
+          return ok(false);
+        }
+      },
+      remove: async (targetPath: string) => {
+        await rm(targetPath, { recursive: true, force: true });
+        return ok();
+      },
+    });
+    mocks.gitRepository.mockReturnValue({ pruneWorktrees: mocks.pruneWorktrees });
+    mocks.pruneWorktrees.mockResolvedValue(ok());
     mocks.getProject.mockReturnValue(undefined);
     mocks.getProjectById.mockResolvedValue(undefined);
   });
@@ -142,10 +166,8 @@ describe('deleteTask', () => {
       await deleteTask('project-1', 'task-1');
 
       await expect(access(worktreePath)).rejects.toThrow();
-      expect(mocks.createBoundExec).toHaveBeenCalledWith(
-        expect.objectContaining({ cwd: projectPath })
-      );
-      expect(mocks.gitExec).toHaveBeenCalledWith(['worktree', 'prune'], { timeoutMs: 5_000 });
+      expect(mocks.gitRepository).toHaveBeenCalledWith(projectPath);
+      expect(mocks.pruneWorktrees).toHaveBeenCalledOnce();
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

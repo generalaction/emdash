@@ -1,6 +1,6 @@
-import type { IFileSystem } from '@emdash/core/files';
 import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
+import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
 import { getEffectiveTaskSettings } from './effective-task-settings';
 import type { ProjectSettingsProvider } from './provider';
 
@@ -18,6 +18,7 @@ function makeTaskFs(config: unknown | null): Pick<IFileSystem, 'exists' | 'readT
         content: JSON.stringify(config),
         truncated: false,
         totalSize: 0,
+        etag: 'test-etag',
       })
     ),
   };
@@ -62,7 +63,9 @@ describe('getEffectiveTaskSettings', () => {
       projectSettings: makeProjectSettings({ shellSetup: 'nvm use' }),
       taskFs: {
         exists: vi.fn(async () => ok(true)),
-        readText: vi.fn(async () => ok({ content: '{', truncated: false, totalSize: 1 })),
+        readText: vi.fn(async () =>
+          ok({ content: '{', truncated: false, totalSize: 1, etag: 'test-etag' })
+        ),
       },
       taskConfigPath,
     });
@@ -80,7 +83,12 @@ describe('getEffectiveTaskSettings', () => {
       taskFs: {
         exists: vi.fn(async () => ok(true)),
         readText: vi.fn(async () =>
-          ok({ content: '{"scripts":', truncated: true, totalSize: 204_801 })
+          ok({
+            content: '{"scripts":',
+            truncated: true,
+            totalSize: 204_801,
+            etag: 'test-etag',
+          })
         ),
       },
       taskConfigPath,

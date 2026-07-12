@@ -1,5 +1,4 @@
-import type { GitRemotesModel } from '@emdash/core/git';
-import type { GitRemote } from '@emdash/core/git';
+import type { GitRemote, GitRemotesState } from '@emdash/core/git';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
@@ -84,14 +83,14 @@ type SchedulerInternals = {
 function createProject(
   remotes: GitRemote[] = [{ name: 'origin', url: 'https://github.com/acme/repo.git' }]
 ) {
-  const remoteSubscribers: Array<(model: GitRemotesModel) => void> = [];
+  const remoteSubscribers: Array<(model: GitRemotesState) => void> = [];
   const unsubscribe = vi.fn();
   const project = {
     settings: {},
     ctx: {},
     gitRepository: {
       getRemotes: vi.fn().mockResolvedValue(remotes),
-      subscribeRemotes: vi.fn((cb: (model: GitRemotesModel) => void) => {
+      subscribeRemotes: vi.fn((cb: (model: GitRemotesState) => void) => {
         remoteSubscribers.push(cb);
         return unsubscribe;
       }),

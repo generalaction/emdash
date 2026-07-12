@@ -3,7 +3,6 @@ import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
-import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   formatProvisionTaskError,
@@ -321,10 +320,6 @@ export class WorkspaceBootstrapService {
           workDir,
           projectId: project.projectId,
           projectPath: project.repoPath,
-          workspaceRuntime: {
-            machine: project.defaultWorkspaceMachine,
-            manager: runtimeManager,
-          },
           settings: project.settings,
           logPrefix: 'WorkspaceBootstrapService',
           gitRepository: project.gitRepository,
@@ -357,8 +352,7 @@ export class WorkspaceBootstrapService {
         project.repoPath,
         project.settings,
         workspaceBranchName,
-        workspaceSourceBranch,
-        acquired.sshFilesRuntime
+        workspaceSourceBranch
       );
       buildSucceeded = true;
       return ok({

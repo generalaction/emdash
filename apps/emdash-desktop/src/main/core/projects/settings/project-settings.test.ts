@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { IFileSystem } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { ScopedFileSystem as IFileSystem } from '@main/core/files/scoped-file-system';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
@@ -31,14 +31,14 @@ function makeLocalConfigReader(projectPath: string): Pick<IFileSystem, 'exists' 
     readText: vi.fn(async (filePath: string) => {
       try {
         const content = fs.readFileSync(resolvePath(filePath), 'utf8');
-        return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
-      } catch {
-        return err({
-          type: 'fs-error' as const,
-          path: filePath,
-          message: `File not found: ${filePath}`,
-          code: 'ENOENT',
+        return ok({
+          content,
+          truncated: false,
+          totalSize: Buffer.byteLength(content),
+          etag: 'test-etag',
         });
+      } catch {
+        return err({ type: 'not-found' as const, path: filePath });
       }
     }),
   };
@@ -46,14 +46,36 @@ function makeLocalConfigReader(projectPath: string): Pick<IFileSystem, 'exists' 
 
 function makeLocalProvider(
   projectPath: string,
-  options?: ConstructorParameters<typeof LocalProjectSettingsProvider>[4]
+  options?: Omit<
+    ConstructorParameters<typeof LocalProjectSettingsProvider>[4],
+    'worktreeDirectoryFileSystem'
+  >
 ): LocalProjectSettingsProvider {
   return new LocalProjectSettingsProvider(
     projectId(),
     projectPath,
     'main',
     makeLocalConfigReader(projectPath),
-    options
+    {
+      ...options,
+      worktreeDirectoryFileSystem: {
+        mkdir: async (targetPath, mkdirOptions) => {
+          try {
+            fs.mkdirSync(targetPath, mkdirOptions);
+            return ok();
+          } catch (error) {
+            return err({ message: error instanceof Error ? error.message : String(error) });
+          }
+        },
+        realPath: async (targetPath) => {
+          try {
+            return ok(fs.realpathSync(targetPath));
+          } catch (error) {
+            return err({ message: error instanceof Error ? error.message : String(error) });
+          }
+        },
+      },
+    }
   );
 }
 
@@ -63,16 +85,14 @@ function makeSshConfigReader(
   return {
     exists: vi.fn(async () => ok(config !== null)),
     readText: vi.fn(async (filePath: string) => {
-      if (config === null) {
-        return err({
-          type: 'fs-error' as const,
-          path: filePath,
-          message: `File not found: ${filePath}`,
-          code: 'NOT_FOUND',
-        });
-      }
+      if (config === null) return err({ type: 'not-found' as const, path: filePath });
       const content = JSON.stringify(config);
-      return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
+      return ok({
+        content,
+        truncated: false,
+        totalSize: Buffer.byteLength(content),
+        etag: 'test-etag',
+      });
     }),
   };
 }

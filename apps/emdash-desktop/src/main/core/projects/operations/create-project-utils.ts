@@ -1,6 +1,9 @@
-import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
-import { gitErrorMessage } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
+import {
+  gitErrorMessage,
+  type RuntimeGit,
+  type RuntimeGitRepository,
+} from '@main/core/git/runtime-git';
 import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,
@@ -9,20 +12,21 @@ import {
 import type { CreateProjectError } from '@shared/projects';
 
 export async function resolveProjectBaseRef(
-  git: IGitRepository,
+  git: RuntimeGitRepository,
   detectedBaseRef: string
 ): Promise<string> {
   const remoteName = remoteNameFromQualifiedRef(detectedBaseRef);
   if (!remoteName) return detectedBaseRef;
 
   try {
-    const [gitDefaultBranch, refs] = await Promise.all([
+    const [defaultBranch, refs] = await Promise.all([
       git.getDefaultBranch(remoteName),
       git.getRefs(),
     ]);
+    if (!defaultBranch.success) throw new Error(gitErrorMessage(defaultBranch.error));
     return resolveBaseRefFromRemoteDefault({
       detectedBaseRef,
-      gitDefaultBranch,
+      gitDefaultBranch: defaultBranch.data,
       branches: refs.branches,
     });
   } catch (error) {
@@ -30,38 +34,27 @@ export async function resolveProjectBaseRef(
       detectedBaseRef,
       error,
     });
+    return detectedBaseRef;
   }
-
-  return detectedBaseRef;
 }
 
 export async function ensureProjectRepository(
-  git: IGitRuntime,
+  git: RuntimeGit,
   path: string,
   initGitRepository?: boolean
 ): Promise<Result<{ rootPath: string; baseRef: string }, CreateProjectError>> {
-  const ensured = await git.ensureRepository(path, { initIfMissing: initGitRepository ?? false });
-  if (!ensured.success) {
-    return err(ensured.error);
-  }
+  const ensured = await git.ensureRepository(path, initGitRepository ?? false);
+  if (!ensured.success) return err(ensured.error);
 
-  const repoLeaseResult = await git.openRepository(ensured.data.rootPath).then(
-    (lease) => ok(lease),
-    (error: unknown) => err(error)
-  );
-  if (!repoLeaseResult.success) {
+  try {
+    const repository = git.repository(ensured.data.rootPath);
+    const baseRef = await resolveProjectBaseRef(repository, ensured.data.baseRef);
+    return ok({ rootPath: ensured.data.rootPath, baseRef });
+  } catch (error) {
     return err({
       type: 'open-repository-failed',
       path: ensured.data.rootPath,
-      message: gitErrorMessage(repoLeaseResult.error),
+      message: gitErrorMessage(error),
     });
-  }
-  const repoLease = repoLeaseResult.data;
-
-  try {
-    const baseRef = await resolveProjectBaseRef(repoLease.value, ensured.data.baseRef);
-    return ok({ rootPath: ensured.data.rootPath, baseRef });
-  } finally {
-    await repoLease.release();
   }
 }

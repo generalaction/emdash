@@ -1,7 +1,7 @@
 import path from 'node:path';
-import type { IFileSystem } from '@emdash/core/files';
 import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { UpdateProjectSettingsError } from '@shared/projects';
@@ -20,7 +20,7 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
 
   constructor(
     projectId: string,
-    fs: Pick<IFileSystem, 'exists' | 'readText'>,
+    fs: Pick<ScopedFileSystem, 'exists' | 'readText'>,
     defaultBranchFallback: string = 'main',
     private readonly rootFs?: {
       mkdir(

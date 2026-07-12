@@ -1,6 +1,6 @@
-import type { IFileSystem } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+import type { ScopedFileSystem } from '@main/core/files/scoped-file-system';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -82,7 +82,7 @@ function toSupersetMigration(data: SupersetMigrationData): ProjectConfigMigratio
 
 async function readSupersetMigrationData(
   project: ProjectProvider,
-  fileSystem: IFileSystem
+  fileSystem: ScopedFileSystem
 ): Promise<SupersetMigrationData> {
   const data: SupersetMigrationData = {
     settings: {},

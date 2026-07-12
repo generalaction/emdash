@@ -1,5 +1,4 @@
 import { once } from '@emdash/shared';
-import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { Workspace } from './workspace';
 
 export type TeardownMode = 'detach' | 'terminate';
@@ -13,15 +12,12 @@ type WorkspaceHooks = {
 
 export type WorkspaceAcquireResult = {
   workspace: Workspace;
-  /** Transitional SSH-only capability for legacy SSH conversation adapters. */
-  sshFilesRuntime?: IFilesRuntime;
 };
 
 export type WorkspaceFactoryResult = WorkspaceAcquireResult & WorkspaceHooks;
 
 type WorkspaceEntry = {
   workspace: Workspace;
-  sshFilesRuntime?: IFilesRuntime;
   refCount: number;
   projectId: string;
   onDestroy?: (workspace: Workspace) => Promise<void>;
@@ -42,7 +38,7 @@ export class WorkspaceRegistry {
     const existing = this.entries.get(key);
     if (existing) {
       existing.refCount += 1;
-      return { workspace: existing.workspace, sshFilesRuntime: existing.sshFilesRuntime };
+      return { workspace: existing.workspace };
     }
 
     const inFlight = this.acquiring.get(key);
@@ -58,22 +54,17 @@ export class WorkspaceRegistry {
         const workspace = result.workspace;
         this.entries.set(key, {
           workspace,
-          sshFilesRuntime: result.sshFilesRuntime,
           refCount: 1,
           projectId,
           onDestroy: result.onDestroy,
           onDetach: result.onDetach,
           release: once(async () => {
             await workspace.dispose?.();
-            if (!workspace.dispose) {
-              await workspace.fileTree.dispose();
-              await workspace.gitWorktree.dispose();
-            }
           }),
         });
         result.onCreateSideEffect?.(workspace);
         await result.onCreate?.(workspace);
-        return { workspace, sshFilesRuntime: result.sshFilesRuntime };
+        return { workspace };
       })
       .finally(() => {
         this.acquiring.delete(key);
