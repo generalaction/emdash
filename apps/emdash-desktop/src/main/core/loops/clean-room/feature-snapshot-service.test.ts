@@ -303,6 +303,75 @@ describe('FeatureSnapshotService', () => {
     expect(fs.existsSync(path.join(verificationPath, 'ambiguous.txt'))).toBe(false);
   });
 
+  it('bounds recovery Git by one absolute deadline and starts nothing after expiry', async () => {
+    const expectedFeatureHead = await commitFile(
+      repoPath,
+      'recovery-deadline.txt',
+      'feature',
+      'feature'
+    );
+    const verificationPath = path.join(rootPath, 'replay-recovery-deadline');
+    await git(repoPath, [
+      'worktree',
+      'add',
+      '-b',
+      'verify/replay-recovery-deadline',
+      verificationPath,
+      baseCommit,
+    ]);
+    const delegate = new LocalExecutionContext({ root: repoPath });
+    const recoveryTimeouts: number[] = [];
+    let recoveryCalls = 0;
+    let recovering = false;
+    let nowSpy: ReturnType<typeof vi.spyOn> | undefined;
+    const context: IExecutionContext = {
+      root: repoPath,
+      supportsLocalSpawn: true,
+      exec: async (command, args = [], options) => {
+        if (args.includes('cherry-pick') && args.includes('--ff')) {
+          await delegate.exec(command, args, options);
+          recovering = true;
+          throw new Error('transport rejected after cherry-pick applied');
+        }
+        if (recovering) {
+          recoveryCalls += 1;
+          if (typeof options?.timeout === 'number') recoveryTimeouts.push(options.timeout);
+          const firstRecoveryNow = Date.now();
+          const result = await delegate.exec(command, args, options);
+          if (recoveryCalls === 1) {
+            nowSpy = vi.spyOn(Date, 'now').mockReturnValue(firstRecoveryNow + 30_001);
+          }
+          return result;
+        }
+        return delegate.exec(command, args, options);
+      },
+      execStreaming: (command, args, onChunk, options) =>
+        delegate.execStreaming(command, args, onChunk, options),
+      dispose: () => delegate.dispose(),
+    };
+
+    try {
+      const replayed = await new FeatureSnapshotService(context).replay({
+        verificationPath,
+        snapshot: {
+          baseCommit,
+          expectedFeatureHead,
+          replayCommits: [expectedFeatureHead],
+        },
+      });
+      expect(replayed).toMatchObject({
+        success: false,
+        error: { type: 'replay-recovery-required' },
+      });
+    } finally {
+      nowSpy?.mockRestore();
+    }
+    expect(recoveryCalls).toBe(1);
+    expect(recoveryTimeouts).toHaveLength(1);
+    expect(recoveryTimeouts[0]).toBeGreaterThan(0);
+    expect(recoveryTimeouts[0]).toBeLessThanOrEqual(30_000);
+  });
+
   it('returns cancellation only after an applied cherry-pick is rolled back exactly', async () => {
     const expectedFeatureHead = await commitFile(
       repoPath,
@@ -834,6 +903,87 @@ describe('FeatureSnapshotService', () => {
       'concurrent two'
     );
     expect(fs.existsSync(path.join(repoPath, 'fix-two-reset-race-fix.txt'))).toBe(false);
+  });
+
+  it('retries when HEAD moves after tree and index checks but before recovery attestation', async () => {
+    const { expectedFeatureHead, fixCommit } = await prepareFix('fix-stable-recovery');
+    const concurrentPath = path.join(rootPath, 'stable-recovery-worktree');
+    await git(repoPath, [
+      'worktree',
+      'add',
+      '-b',
+      'concurrent/stable-recovery',
+      concurrentPath,
+      expectedFeatureHead,
+    ]);
+    const concurrentOne = await commitFile(
+      concurrentPath,
+      'stable-one.txt',
+      'stable one',
+      'stable one'
+    );
+    const concurrentTwo = await commitFile(
+      concurrentPath,
+      'stable-two.txt',
+      'stable two',
+      'stable two'
+    );
+    const delegate = new LocalExecutionContext({ root: repoPath });
+    let resetBeforeForward = true;
+    let firstRecoverySyncCompleted = false;
+    let moveAfterChecks = true;
+    const racingContext: IExecutionContext = {
+      root: repoPath,
+      supportsLocalSpawn: true,
+      exec: async (command, args = [], options) => {
+        if (
+          resetBeforeForward &&
+          args.includes('read-tree') &&
+          args.at(-2) === expectedFeatureHead &&
+          args.at(-1) === fixCommit
+        ) {
+          resetBeforeForward = false;
+          await git(repoPath, ['reset', '--hard', concurrentOne]);
+        }
+        const result = await delegate.exec(command, args, options);
+        if (
+          args.includes('read-tree') &&
+          args.at(-2) === fixCommit &&
+          args.at(-1) === concurrentOne
+        ) {
+          firstRecoverySyncCompleted = true;
+        } else if (
+          firstRecoverySyncCompleted &&
+          moveAfterChecks &&
+          args.includes('diff') &&
+          args.includes('--cached') &&
+          args.at(-1) === concurrentOne
+        ) {
+          moveAfterChecks = false;
+          await git(repoPath, ['update-ref', 'refs/heads/main', concurrentTwo, concurrentOne]);
+        }
+        return result;
+      },
+      execStreaming: (command, args, onChunk, options) =>
+        delegate.execStreaming(command, args, onChunk, options),
+      dispose: () => delegate.dispose(),
+    };
+
+    const integrated = await new FeatureSnapshotService(racingContext).integrateFix({
+      featurePath: repoPath,
+      expectedFeatureHead,
+      fixCommit,
+    });
+
+    expect(integrated).toMatchObject({
+      success: false,
+      error: { type: 'fix-integration-failed' },
+    });
+    expect(moveAfterChecks).toBe(false);
+    expect(await git(repoPath, ['rev-parse', 'HEAD'])).toBe(concurrentTwo);
+    expect(await git(repoPath, ['status', '--porcelain'])).toBe('');
+    expect(fs.readFileSync(path.join(repoPath, 'stable-two.txt'), 'utf8')).toBe('stable two');
+    expect(fs.existsSync(path.join(repoPath, 'fix-stable-recovery-fix.txt'))).toBe(false);
   });
 
   it('converges after five consecutive ref movements during bounded tree recovery', async () => {

@@ -600,6 +600,99 @@ describe('WorktreeService', () => {
       expect(fs.readFileSync(path.join(result.data, 'feature.txt'), 'utf8')).toBe('base');
     });
 
+    it('attests an uppercase immutable commit case-insensitively', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout
+        .trim()
+        .toUpperCase();
+
+      const result = await makeService().createWorktreeAtCommit(
+        commit,
+        'emdash/loop-uppercase-head'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected uppercase commit attestation');
+      await expect(git(['rev-parse', 'HEAD'], { cwd: result.data })).resolves.toMatchObject({
+        stdout: `${commit.toLowerCase()}\n`,
+      });
+    });
+
+    it('attests canonical Windows-equivalent paths from NUL porcelain records', async () => {
+      const winPathApi: RuntimePath = {
+        join: (...parts: string[]) => path.win32.join(...parts),
+        dirname: (input: string) => path.win32.dirname(input),
+        basename: (input: string) => path.win32.basename(input),
+        isAbsolute: (input: string) => path.win32.isAbsolute(input),
+        relative: (from: string, to: string) => path.win32.relative(from, to),
+        contains: (parent: string, child: string) => {
+          const rel = path.win32.relative(parent, child);
+          return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.win32.sep}`));
+        },
+      };
+      const canonical = (value: string) => path.win32.normalize(value).toLowerCase();
+      const repoPath = 'C:\\Repo';
+      const poolPath = 'C:\\Worktrees\\Project';
+      const branch = 'emdash/loop-win-canonical';
+      const targetPath = path.win32.join(poolPath, branch);
+      const listedPath = 'c:/WORKTREES/PROJECT/emdash/loop-win-canonical';
+      const commit = 'a'.repeat(40);
+      let added = false;
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args[0] === 'worktree' && args[1] === 'add') added = true;
+        if (args[0] === '-C' && args.includes('--git-common-dir')) {
+          return { stdout: 'C:\\Repo\\.git\n', stderr: '' };
+        }
+        if (args[0] === '-C' && canonical(args[1]) === canonical(targetPath)) {
+          if (args[2] === 'symbolic-ref') {
+            return { stdout: `refs/heads/${branch}\n`, stderr: '' };
+          }
+          if (args[2] === 'rev-parse' && args[3] === '--is-inside-work-tree') {
+            return { stdout: 'true\n', stderr: '' };
+          }
+          if (args[2] === 'rev-parse' && args[3] === 'HEAD') {
+            return { stdout: `${commit}\n`, stderr: '' };
+          }
+        }
+        if (args[0] === 'worktree' && args[1] === 'list' && args.includes('-z') && added) {
+          return {
+            stdout: `worktree ${listedPath}\0HEAD ${commit.toUpperCase()}\0branch refs/heads/${branch}\0\0`,
+            stderr: '',
+          };
+        }
+        return { stdout: '', stderr: '' };
+      });
+      const service = new WorktreeService({
+        repoPath,
+        ctx: {
+          root: repoPath,
+          supportsLocalSpawn: false,
+          exec,
+          execStreaming: async () => {},
+          dispose: () => {},
+        },
+        files: makeFakeFilesRuntime({
+          pathApi: winPathApi,
+          existsAbsolute: async (candidate) =>
+            added &&
+            (canonical(candidate) === canonical(targetPath) ||
+              canonical(candidate) === canonical(path.win32.join(targetPath, '.git'))),
+          mkdirAbsolute: async () => {},
+          realPathAbsolute: async (candidate) => canonical(candidate),
+        }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolPath,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch);
+
+      expect(result).toEqual({ success: true, data: targetPath });
+      expect(exec).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'list', '--porcelain', '-z'],
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
+    });
+
     it('fails closed for an invalid or missing full commit without creating a branch', async () => {
       const missingCommit = 'f'.repeat(40);
 
@@ -658,7 +751,7 @@ describe('WorktreeService', () => {
         }
         if (args[0] === 'worktree' && args[1] === 'list' && added) {
           return {
-            stdout: `worktree ${targetPath}\nHEAD ${commit}\nbranch refs/heads/emdash/loop-verify-remote\n`,
+            stdout: `worktree ${targetPath}\0HEAD ${commit}\0branch refs/heads/emdash/loop-verify-remote\0\0`,
             stderr: '',
           };
         }
@@ -813,6 +906,84 @@ describe('WorktreeService', () => {
       expect(JSON.stringify(result)).not.toContain(targetPath);
     });
 
+    it('does not prune metadata or CAS-delete a branch when owned path removal fails', async () => {
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const branch = 'emdash/loop-removal-boundary';
+      const targetPath = path.join(poolDir, branch);
+      const controller = new AbortController();
+      const delegate = new LocalExecutionContext({ root: repoDir });
+      let added = false;
+      let removalFailed = false;
+      const forbiddenAfterRemoval: string[][] = [];
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: true,
+        exec: async (command, args = [], options) => {
+          if (
+            removalFailed &&
+            ((args[0] === 'worktree' && args[1] === 'prune') ||
+              (args[0] === 'update-ref' && args[1] === '-d'))
+          ) {
+            forbiddenAfterRemoval.push([...args]);
+          }
+          const result = await delegate.exec(command, args, options);
+          if (args[0] === 'worktree' && args[1] === 'add') added = true;
+          if (added && !controller.signal.aborted && args[0] === 'worktree' && args[1] === 'list') {
+            controller.abort();
+          }
+          return result;
+        },
+        execStreaming: (command, args, onChunk, options) =>
+          delegate.execStreaming(command, args, onChunk, options),
+        dispose: () => delegate.dispose(),
+      };
+      const runtime = Object.assign(new FilesRuntime(), { path: nativeMachinePath });
+      const opened = runtime.fileSystem();
+      if (!opened.success) throw new Error('expected local file system');
+      const fileSystem = new Proxy(opened.data, {
+        get(target, property, receiver) {
+          if (property === 'remove') {
+            return async (candidate: string) => {
+              if (candidate === targetPath) {
+                removalFailed = true;
+                return err({
+                  type: 'fs-error' as const,
+                  path: candidate,
+                  message: 'actor holds the path',
+                });
+              }
+              return target.remove.bind(target)(candidate, { recursive: true });
+            };
+          }
+          const value = Reflect.get(target, property, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }) as IFileSystem;
+      const service = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        files: Object.assign(runtime, { fileSystem: () => ok(fileSystem) }),
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await service.createWorktreeAtCommit(commit, branch, {
+        expectedTargetPath: targetPath,
+        signal: controller.signal,
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'worktree-rollback-incomplete' },
+      });
+      expect(removalFailed).toBe(true);
+      expect(forbiddenAfterRemoval).toEqual([]);
+      expect(fs.existsSync(targetPath)).toBe(true);
+      await expect(
+        git(['rev-parse', `refs/heads/${branch}`], { cwd: repoDir })
+      ).resolves.toMatchObject({ stdout: `${commit}\n` });
+    });
+
     it('uses owned-commit CAS and preserves a branch moved before rollback', async () => {
       const commit = 'd'.repeat(40);
       const movedCommit = 'e'.repeat(40);
@@ -855,7 +1026,7 @@ describe('WorktreeService', () => {
           attestationLists += 1;
           if (attestationLists === 1) controller.abort();
           return {
-            stdout: `worktree ${targetPath}\nHEAD ${branchHead}\nbranch refs/heads/${branch}\n`,
+            stdout: `worktree ${targetPath}\0HEAD ${branchHead}\0branch refs/heads/${branch}\0\0`,
             stderr: '',
           };
         }
@@ -981,6 +1152,14 @@ describe('WorktreeService', () => {
         });
       }
     );
+  });
+
+  it('finds a branch whose registered worktree path contains a newline', async () => {
+    const branch = 'task/newline-worktree';
+    const newlinePath = path.join(poolDir, 'line\nbreak');
+    await git(['worktree', 'add', '-b', branch, newlinePath], { cwd: repoDir });
+
+    await expect(makeService().findBranchAnywhere(branch)).resolves.toBe(newlinePath);
   });
 
   describe('copyPreservedFilesToWorktree', () => {

@@ -176,24 +176,37 @@ export class FeatureSnapshotService {
         await this.git(input.verificationPath, ['cherry-pick', '--ff', commit], input);
       } catch (cause) {
         const stopped = stoppedFailure(cause, input);
-        const observedHead = await this.readHeadForRecovery(input.verificationPath);
+        const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
+        const observedHead = await this.readHeadForRecovery(
+          input.verificationPath,
+          recoveryDeadlineAt
+        );
         let restored = false;
         if (observedHead.success && observedHead.data === commit) {
           restored = await this.rollbackReplayStep(
             input.verificationPath,
             branchRef.data,
             previousHead,
-            commit
+            commit,
+            recoveryDeadlineAt
           );
         } else if (observedHead.success && observedHead.data === previousHead) {
-          await this.gitForCleanup(input.verificationPath, ['cherry-pick', '--abort']).catch(
-            () => {}
+          await this.gitForCleanup(
+            input.verificationPath,
+            ['cherry-pick', '--abort'],
+            recoveryDeadlineAt
+          ).catch(() => {});
+          const afterAbort = await this.readHeadForRecovery(
+            input.verificationPath,
+            recoveryDeadlineAt
           );
-          const afterAbort = await this.readHeadForRecovery(input.verificationPath);
           restored = afterAbort.success && afterAbort.data === previousHead;
         }
         if (restored) {
-          const restoredState = await this.readReplayStateForRecovery(input.verificationPath);
+          const restoredState = await this.readReplayStateForRecovery(
+            input.verificationPath,
+            recoveryDeadlineAt
+          );
           restored = restoredState.success && restoredState.data === replayState.data;
         }
         if (!restored) {
@@ -339,14 +352,20 @@ export class FeatureSnapshotService {
       );
     } catch (cause) {
       const stopped = stoppedFailure(cause, input);
-      const observedRef = await this.readRefForRecovery(input.featurePath, branchRef.data);
+      const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
+      const observedRef = await this.readRefForRecovery(
+        input.featurePath,
+        branchRef.data,
+        recoveryDeadlineAt
+      );
       if (!observedRef.success) return err(recoveryRequired());
       if (observedRef.data === fix.data) {
         const rolledBack = await this.rollbackAmbiguousRefUpdate(
           input.featurePath,
           branchRef.data,
           expected.data,
-          fix.data
+          fix.data,
+          recoveryDeadlineAt
         );
         if (!rolledBack) return err(recoveryRequired());
         if (stopped) return err(stopped);
@@ -364,15 +383,21 @@ export class FeatureSnapshotService {
       });
     }
 
-    const owned = await this.readHeadForRecovery(input.featurePath);
+    const postCasDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
+    const owned = await this.readHeadForRecovery(input.featurePath, postCasDeadlineAt);
     if (!owned.success || owned.data !== fix.data) {
-      const ref = await this.readRefForRecovery(input.featurePath, branchRef.data);
+      const ref = await this.readRefForRecovery(
+        input.featurePath,
+        branchRef.data,
+        postCasDeadlineAt
+      );
       if (ref.success && ref.data === fix.data) {
         const rolledBack = await this.rollbackAmbiguousRefUpdate(
           input.featurePath,
           branchRef.data,
           expected.data,
-          fix.data
+          fix.data,
+          postCasDeadlineAt
         );
         return rolledBack
           ? err({
@@ -390,11 +415,13 @@ export class FeatureSnapshotService {
     try {
       await this.git(input.featurePath, ['read-tree', '-u', '-m', expected.data, fix.data], input);
     } catch (cause) {
+      const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
       const rolledBack = await this.rollbackIntegration(
         input.featurePath,
         branchRef.data,
         expected.data,
-        fix.data
+        fix.data,
+        recoveryDeadlineAt
       );
       if (!rolledBack) return err(recoveryRequired());
       const stopped = stoppedFailure(cause, input);
@@ -414,9 +441,14 @@ export class FeatureSnapshotService {
     );
     if (verified.success) return ok({ featureHead: fix.data });
 
-    const concurrentlyMoved = await this.readHeadForRecovery(input.featurePath);
+    const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
+    const concurrentlyMoved = await this.readHeadForRecovery(input.featurePath, recoveryDeadlineAt);
     if (concurrentlyMoved.success && concurrentlyMoved.data !== fix.data) {
-      const restored = await this.restoreWorktreeToCurrentHead(input.featurePath, fix.data);
+      const restored = await this.restoreWorktreeToCurrentHead(
+        input.featurePath,
+        fix.data,
+        recoveryDeadlineAt
+      );
       return restored
         ? err({
             type: 'fix-integration-failed',
@@ -429,7 +461,8 @@ export class FeatureSnapshotService {
       input.featurePath,
       branchRef.data,
       expected.data,
-      fix.data
+      fix.data,
+      recoveryDeadlineAt
     );
     return rolledBack ? verified : err(recoveryRequired());
   }
@@ -546,9 +579,12 @@ export class FeatureSnapshotService {
     return this.requireClean(path, control);
   }
 
-  private async readHeadForRecovery(path: string): Promise<Result<string, FeatureSnapshotError>> {
+  private async readHeadForRecovery(
+    path: string,
+    recoveryDeadlineAt: number
+  ): Promise<Result<string, FeatureSnapshotError>> {
     try {
-      const result = await this.gitForCleanup(path, ['rev-parse', 'HEAD']);
+      const result = await this.gitForCleanup(path, ['rev-parse', 'HEAD'], recoveryDeadlineAt);
       return ok(result.stdout.trim());
     } catch {
       return err(recoveryRequired());
@@ -557,10 +593,15 @@ export class FeatureSnapshotService {
 
   private async readRefForRecovery(
     path: string,
-    branchRef: string
+    branchRef: string,
+    recoveryDeadlineAt: number
   ): Promise<Result<string, FeatureSnapshotError>> {
     try {
-      const result = await this.gitForCleanup(path, ['rev-parse', '--verify', branchRef]);
+      const result = await this.gitForCleanup(
+        path,
+        ['rev-parse', '--verify', branchRef],
+        recoveryDeadlineAt
+      );
       return ok(result.stdout.trim());
     } catch {
       return err(recoveryRequired());
@@ -571,22 +612,27 @@ export class FeatureSnapshotService {
     path: string,
     branchRef: string,
     expectedFeatureHead: string,
-    fixCommit: string
+    fixCommit: string,
+    recoveryDeadlineAt: number
   ): Promise<boolean> {
     try {
-      await this.gitForCleanup(path, [
-        'update-ref',
-        '-m',
-        'emdash: roll back ambiguous Loop correction',
-        branchRef,
-        expectedFeatureHead,
-        fixCommit,
-      ]);
+      await this.gitForCleanup(
+        path,
+        [
+          'update-ref',
+          '-m',
+          'emdash: roll back ambiguous Loop correction',
+          branchRef,
+          expectedFeatureHead,
+          fixCommit,
+        ],
+        recoveryDeadlineAt
+      );
     } catch {
-      const ref = await this.readRefForRecovery(path, branchRef);
+      const ref = await this.readRefForRecovery(path, branchRef, recoveryDeadlineAt);
       if (!ref.success || ref.data !== expectedFeatureHead) return false;
     }
-    const ref = await this.readRefForRecovery(path, branchRef);
+    const ref = await this.readRefForRecovery(path, branchRef, recoveryDeadlineAt);
     return ref.success && ref.data === expectedFeatureHead;
   }
 
@@ -594,24 +640,29 @@ export class FeatureSnapshotService {
     path: string,
     branchRef: string,
     previousHead: string,
-    appliedCommit: string
+    appliedCommit: string,
+    recoveryDeadlineAt: number
   ): Promise<boolean> {
-    const symbolic = await this.readBranchRefForRecovery(path);
+    const symbolic = await this.readBranchRefForRecovery(path, recoveryDeadlineAt);
     if (!symbolic.success || symbolic.data !== branchRef) return false;
     try {
-      await this.gitForCleanup(path, [
-        'update-ref',
-        '-m',
-        'emdash: roll back ambiguous Loop replay',
-        branchRef,
-        previousHead,
-        appliedCommit,
-      ]);
+      await this.gitForCleanup(
+        path,
+        [
+          'update-ref',
+          '-m',
+          'emdash: roll back ambiguous Loop replay',
+          branchRef,
+          previousHead,
+          appliedCommit,
+        ],
+        recoveryDeadlineAt
+      );
     } catch {
-      const ref = await this.readRefForRecovery(path, branchRef);
+      const ref = await this.readRefForRecovery(path, branchRef, recoveryDeadlineAt);
       if (!ref.success || ref.data !== previousHead) return false;
     }
-    return this.restoreWorktreeToCurrentHead(path, appliedCommit);
+    return this.restoreWorktreeToCurrentHead(path, appliedCommit, recoveryDeadlineAt);
   }
 
   private async rollbackStoppedReplayStep(input: {
@@ -622,14 +673,16 @@ export class FeatureSnapshotService {
     expectedState: string;
     stopped: Extract<FeatureSnapshotError, { type: 'cancelled' | 'deadline-exceeded' }>;
   }): Promise<Result<never, FeatureSnapshotError>> {
+    const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
     const rolledBack = await this.rollbackReplayStep(
       input.path,
       input.branchRef,
       input.previousHead,
-      input.appliedCommit
+      input.appliedCommit,
+      recoveryDeadlineAt
     );
     const restoredState = rolledBack
-      ? await this.readReplayStateForRecovery(input.path)
+      ? await this.readReplayStateForRecovery(input.path, recoveryDeadlineAt)
       : undefined;
     if (!restoredState?.success || restoredState.data !== input.expectedState) {
       return err({
@@ -681,16 +734,21 @@ export class FeatureSnapshotService {
   }
 
   private async readReplayStateForRecovery(
-    path: string
+    path: string,
+    recoveryDeadlineAt: number
   ): Promise<Result<string, FeatureSnapshotError>> {
     try {
-      const status = await this.gitForCleanup(path, [
-        'status',
-        '--porcelain=v1',
-        '--untracked-files=normal',
-      ]);
-      const worktree = await this.gitForCleanup(path, ['diff', '--binary']);
-      const index = await this.gitForCleanup(path, ['diff', '--cached', '--binary']);
+      const status = await this.gitForCleanup(
+        path,
+        ['status', '--porcelain=v1', '--untracked-files=normal'],
+        recoveryDeadlineAt
+      );
+      const worktree = await this.gitForCleanup(path, ['diff', '--binary'], recoveryDeadlineAt);
+      const index = await this.gitForCleanup(
+        path,
+        ['diff', '--cached', '--binary'],
+        recoveryDeadlineAt
+      );
       return ok(`${status.stdout}\0${worktree.stdout}\0${index.stdout}`);
     } catch {
       return err({
@@ -705,56 +763,75 @@ export class FeatureSnapshotService {
     path: string,
     branchRef: string,
     expectedFeatureHead: string,
-    fixCommit: string
+    fixCommit: string,
+    recoveryDeadlineAt: number
   ): Promise<boolean> {
-    const head = await this.readHeadForRecovery(path);
+    const head = await this.readHeadForRecovery(path, recoveryDeadlineAt);
     if (!head.success || head.data !== fixCommit) return false;
-    const symbolic = await this.readBranchRefForRecovery(path);
+    const symbolic = await this.readBranchRefForRecovery(path, recoveryDeadlineAt);
     if (!symbolic.success || symbolic.data !== branchRef) return false;
     try {
-      await this.gitForCleanup(path, [
-        'update-ref',
-        '-m',
-        'emdash: roll back Loop correction',
-        branchRef,
-        expectedFeatureHead,
-        fixCommit,
-      ]);
+      await this.gitForCleanup(
+        path,
+        [
+          'update-ref',
+          '-m',
+          'emdash: roll back Loop correction',
+          branchRef,
+          expectedFeatureHead,
+          fixCommit,
+        ],
+        recoveryDeadlineAt
+      );
     } catch {
-      const ref = await this.readRefForRecovery(path, branchRef);
+      const ref = await this.readRefForRecovery(path, branchRef, recoveryDeadlineAt);
       if (!ref.success || ref.data !== expectedFeatureHead) return false;
     }
-    const ref = await this.readRefForRecovery(path, branchRef);
+    const ref = await this.readRefForRecovery(path, branchRef, recoveryDeadlineAt);
     if (!ref.success || ref.data !== expectedFeatureHead) return false;
-    return this.restoreWorktreeToCurrentHead(path, fixCommit);
+    return this.restoreWorktreeToCurrentHead(path, fixCommit, recoveryDeadlineAt);
   }
 
-  private async restoreWorktreeToCurrentHead(path: string, sourceTree: string): Promise<boolean> {
+  private async restoreWorktreeToCurrentHead(
+    path: string,
+    sourceTree: string,
+    recoveryDeadlineAt: number
+  ): Promise<boolean> {
     let currentSource = sourceTree;
-    const recoveryDeadline = Date.now() + RECOVERY_DEADLINE_MS;
-    for (
-      let attempt = 0;
-      attempt < RECOVERY_MAX_ATTEMPTS && Date.now() < recoveryDeadline;
-      attempt += 1
-    ) {
-      const currentHead = await this.readHeadForRecovery(path);
-      if (!currentHead.success || !FULL_COMMIT.test(currentHead.data)) return false;
-      if (await this.trackedStateMatches(path, currentHead.data)) return true;
+    for (let attempt = 0; attempt < RECOVERY_MAX_ATTEMPTS; attempt += 1) {
+      const firstHead = await this.readHeadForRecovery(path, recoveryDeadlineAt);
+      if (!firstHead.success || !FULL_COMMIT.test(firstHead.data)) return false;
+      const trackedStateMatches = await this.trackedStateMatches(
+        path,
+        firstHead.data,
+        recoveryDeadlineAt
+      );
+      const secondHead = await this.readHeadForRecovery(path, recoveryDeadlineAt);
+      if (!secondHead.success || !FULL_COMMIT.test(secondHead.data)) return false;
+      if (firstHead.data !== secondHead.data) continue;
+      if (trackedStateMatches) return true;
       try {
-        await this.gitForCleanup(path, ['read-tree', '-u', '-m', currentSource, currentHead.data]);
+        await this.gitForCleanup(
+          path,
+          ['read-tree', '-u', '-m', currentSource, firstHead.data],
+          recoveryDeadlineAt
+        );
       } catch {
         return false;
       }
-      currentSource = currentHead.data;
+      currentSource = firstHead.data;
     }
-    const finalHead = await this.readHeadForRecovery(path);
-    return finalHead.success && (await this.trackedStateMatches(path, finalHead.data));
+    return false;
   }
 
-  private async trackedStateMatches(path: string, commit: string): Promise<boolean> {
+  private async trackedStateMatches(
+    path: string,
+    commit: string,
+    recoveryDeadlineAt: number
+  ): Promise<boolean> {
     try {
-      await this.gitForCleanup(path, ['diff', '--quiet']);
-      await this.gitForCleanup(path, ['diff', '--cached', '--quiet', commit]);
+      await this.gitForCleanup(path, ['diff', '--quiet'], recoveryDeadlineAt);
+      await this.gitForCleanup(path, ['diff', '--cached', '--quiet', commit], recoveryDeadlineAt);
       return true;
     } catch {
       return false;
@@ -762,10 +839,15 @@ export class FeatureSnapshotService {
   }
 
   private async readBranchRefForRecovery(
-    path: string
+    path: string,
+    recoveryDeadlineAt: number
   ): Promise<Result<string, FeatureSnapshotError>> {
     try {
-      const result = await this.gitForCleanup(path, ['symbolic-ref', '--quiet', 'HEAD']);
+      const result = await this.gitForCleanup(
+        path,
+        ['symbolic-ref', '--quiet', 'HEAD'],
+        recoveryDeadlineAt
+      );
       const ref = result.stdout.trim();
       return ref.startsWith('refs/heads/') ? ok(ref) : err(recoveryRequired());
     } catch {
@@ -786,8 +868,12 @@ export class FeatureSnapshotService {
     });
   }
 
-  private gitForCleanup(path: string, args: string[]) {
-    return this.ctx.exec('git', ['-C', path, ...args], { timeout: GIT_TIMEOUT_MS });
+  private gitForCleanup(path: string, args: string[], recoveryDeadlineAt: number) {
+    const remaining = recoveryDeadlineAt - Date.now();
+    if (remaining <= 0) throw new Error('Feature snapshot recovery deadline was exceeded.');
+    return this.ctx.exec('git', ['-C', path, ...args], {
+      timeout: Math.min(GIT_TIMEOUT_MS, remaining),
+    });
   }
 }
 

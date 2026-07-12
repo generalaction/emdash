@@ -219,19 +219,29 @@ export class WorktreeService {
       }
       const mainCommonDir = await this.readCanonicalCommonDir(this.repoPath, control);
       const targetCommonDir = await this.readCanonicalCommonDir(targetPath, control);
-      if (!mainCommonDir || !targetCommonDir || mainCommonDir !== targetCommonDir) {
+      if (
+        !mainCommonDir ||
+        !targetCommonDir ||
+        !this.sameCanonicalPath(mainCommonDir, targetCommonDir)
+      ) {
         return invalidGeneratedWorktree();
       }
-      const listed = await this.gitForCreate(['worktree', 'list', '--porcelain'], control);
-      const found = listed.stdout.split(/\r?\n\r?\n/).some((block) => {
-        const lines = block.split(/\r?\n/);
-        return (
-          lines.includes(`worktree ${targetPath}`) &&
-          lines.includes(`branch ${ref}`) &&
-          (!expectedCommit || lines.includes(`HEAD ${expectedCommit}`))
-        );
-      });
-      return found ? ok() : invalidGeneratedWorktree();
+      const canonicalTarget = await this.canonicalWorktreePath(targetPath);
+      if (!canonicalTarget) return invalidGeneratedWorktree();
+      const records = await this.listRegisteredWorktrees(control);
+      for (const record of records) {
+        if (
+          record.branch !== ref ||
+          (expectedCommit && record.head?.toLowerCase() !== expectedCommit.toLowerCase())
+        ) {
+          continue;
+        }
+        const canonicalRecordPath = await this.canonicalWorktreePath(record.path);
+        if (canonicalRecordPath && this.sameCanonicalPath(canonicalRecordPath, canonicalTarget)) {
+          return ok();
+        }
+      }
+      return invalidGeneratedWorktree();
     } catch {
       return invalidGeneratedWorktree();
     }
@@ -255,6 +265,28 @@ export class WorktreeService {
     } catch {
       return undefined;
     }
+  }
+
+  private async listRegisteredWorktrees(
+    control?: CreateWorktreeOperationControl
+  ): Promise<GitWorktreeRecord[]> {
+    const args = ['worktree', 'list', '--porcelain', '-z'];
+    const listed = control
+      ? await this.gitForCreate(args, control)
+      : await this.ctx.exec('git', args);
+    const parsed = parseGitWorktreePorcelainZ(listed.stdout);
+    if (!parsed.success) throw new Error(parsed.error.message);
+    return parsed.data;
+  }
+
+  private async canonicalWorktreePath(candidate: string): Promise<string | undefined> {
+    if (!this.files.path.isAbsolute(candidate)) return undefined;
+    const canonical = await realPathAbsolute(this.files, candidate);
+    return canonical.success ? canonical.data : undefined;
+  }
+
+  private sameCanonicalPath(left: string, right: string): boolean {
+    return this.files.path.relative(left, right) === '';
   }
 
   private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
@@ -331,14 +363,10 @@ export class WorktreeService {
 
   async findBranchAnywhere(branchName: string): Promise<string | undefined> {
     try {
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (!block.split('\n').some((line) => line === branchLine)) {
-          continue;
-        }
-        const match = /^worktree (.+)$/m.exec(block);
-        const candidatePath = match?.[1];
+      const branchRef = `refs/heads/${branchName}`;
+      for (const record of await this.listRegisteredWorktrees()) {
+        if (record.branch !== branchRef) continue;
+        const candidatePath = await this.canonicalWorktreePath(record.path);
         if (!candidatePath) continue;
         if (await this.isValidWorktree(candidatePath)) {
           return candidatePath;
@@ -418,17 +446,15 @@ export class WorktreeService {
     try {
       const realPoolPath = await realPathAbsolute(this.files, worktreePoolPath);
       if (!realPoolPath.success) return undefined;
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (block.split('\n').some((line) => line === branchLine)) {
-          const match = /^worktree (.+)$/m.exec(block);
-          const candidatePath = match?.[1];
-          if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath))
-            continue;
-          if (await this.isValidWorktree(candidatePath)) return candidatePath;
-          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      const branchRef = `refs/heads/${branchName}`;
+      for (const record of await this.listRegisteredWorktrees()) {
+        if (record.branch !== branchRef) continue;
+        const candidatePath = await this.canonicalWorktreePath(record.path);
+        if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath)) {
+          continue;
         }
+        if (await this.isValidWorktree(candidatePath)) return candidatePath;
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       }
     } catch {}
     return undefined;
@@ -621,24 +647,21 @@ export class WorktreeService {
     poolPath: string
   ): Promise<Result<void, { message: string }>> {
     let failed = false;
-    let ownershipProven = false;
-    if (await this.existsAbsolute(targetPath)) {
-      const owned = await this.attestRollbackTarget(targetPath, branchName, ownedCommit, poolPath);
-      if (!owned) {
-        failed = true;
-      } else {
-        ownershipProven = true;
-        await this.removePathForReuseAtPool(poolPath, targetPath).catch(() => {
-          failed = true;
-        });
-      }
+    if (!(await this.existsAbsolute(targetPath))) {
+      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
+    }
+    const owned = await this.attestRollbackTarget(targetPath, branchName, ownedCommit, poolPath);
+    if (!owned) {
+      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
+    }
+    try {
+      await this.removePathForReuseAtPool(poolPath, targetPath);
+    } catch {
+      return err({ message: 'Generated worktree rollback path could not be removed.' });
     }
     await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {
       failed = true;
     });
-    if (!ownershipProven) {
-      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
-    }
     try {
       const ref = `refs/heads/${branchName}`;
       const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(objectname)', ref]);
@@ -1142,6 +1165,65 @@ export class WorktreeService {
       control
     );
   }
+}
+
+type GitWorktreeRecord = {
+  path: string;
+  head?: string;
+  branch?: string;
+};
+
+function parseGitWorktreePorcelainZ(
+  output: string
+): Result<GitWorktreeRecord[], { message: string }> {
+  const records: GitWorktreeRecord[] = [];
+  let current: GitWorktreeRecord | undefined;
+
+  for (const field of output.split('\0')) {
+    if (field === '') {
+      if (current) {
+        records.push(current);
+        current = undefined;
+      }
+      continue;
+    }
+    if (field.startsWith('worktree ')) {
+      const worktreePath = field.slice('worktree '.length);
+      if (current || !worktreePath) return invalidWorktreeList();
+      current = { path: worktreePath };
+      continue;
+    }
+    if (!current) return invalidWorktreeList();
+    if (field.startsWith('HEAD ')) {
+      const head = field.slice('HEAD '.length);
+      if (current.head || !FULL_COMMIT_PATTERN.test(head)) return invalidWorktreeList();
+      current.head = head;
+      continue;
+    }
+    if (field.startsWith('branch ')) {
+      const branch = field.slice('branch '.length);
+      if (current.branch || !branch.startsWith('refs/heads/')) return invalidWorktreeList();
+      current.branch = branch;
+      continue;
+    }
+    if (
+      field === 'bare' ||
+      field === 'detached' ||
+      field === 'locked' ||
+      field.startsWith('locked ') ||
+      field === 'prunable' ||
+      field.startsWith('prunable ')
+    ) {
+      continue;
+    }
+    return invalidWorktreeList();
+  }
+  if (current) return invalidWorktreeList();
+  return ok(records);
+}
+
+function invalidWorktreeList(): Result<never, { message: string }> {
+  return err({ message: 'Git worktree registration data could not be parsed safely.' });
 }
 
 function invalidGeneratedWorktree(): Result<never, GeneratedWorktreeValidationError> {
