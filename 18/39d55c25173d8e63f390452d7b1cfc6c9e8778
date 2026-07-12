@@ -1,0 +1,38 @@
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_5042184d420779::t_79b4bfae2fb14c 1,106,110,114-121
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_5042184d420779::t_b02b7ea5111817 121
+  s_5042184d420779::t_3380134430060c 108,110-114,117-118,122,137,180-187,189-191,193-207,296
+  s_5042184d420779::t_7cf147e7b34361 28,146-157,159,165-168
+apps/emdash-desktop/src/renderer/features/mcp/components/McpView.tsx
+  s_5042184d420779::t_05852859e54905 176,183
+  s_5042184d420779::t_673b6c45d5e0f6 177
+  s_5042184d420779::t_79b4bfae2fb14c 26,49-52,126,154,168-170
+  s_5042184d420779::t_402eef44dde2b9 12-19,79-80
+  s_5042184d420779::t_f783ba6b7a30fe 76
+  s_5042184d420779::t_e8a73bfc7def9f 84-85,88-89
+  s_5042184d420779::t_fa718d301bd1d3 81,178-179
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_5042184d420779::t_ec4c4b71d00270 74-77,122-132,135-145,158-161,170-180,183-193,206-223,227-236,267,269,372-382,385-395
+  s_5042184d420779::t_d79026ca0f7540 237-260,268,270-277,329-363
+  s_5042184d420779::t_468aa7698fbad4 287,312
+  s_5042184d420779::t_607cef3cbbeb59 278-286,288-311,313-328
+apps/emdash-desktop/src/renderer/features/mcp/components/useMcps.ts
+  s_5042184d420779::t_79b4bfae2fb14c 34-38,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "1839d55c25173d8e63f390452d7b1cfc6c9e8778",
+  "prompts": {},
+  "sessions": {
+    "s_5042184d420779": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f577f-5f9d-7021-91c0-a4737731f0df",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
