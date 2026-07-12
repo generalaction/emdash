@@ -8,6 +8,7 @@ import {
   type ReviewGateDependencies,
   type ReviewGateDependencyError,
   type ReviewRequiredGateResult,
+  type ReviewSessionCancellation,
   type ReviewSessionInfo,
   type ReviewWorkspaceSnapshot,
   type RunTerminalReviewGateInput,
@@ -64,6 +65,8 @@ type HarnessOptions = {
   promptFailure?: ReviewGateDependencyError;
   correctionFailure?: ReviewGateDependencyError;
   requiredGateFailure?: ReviewGateDependencyError;
+  cancellationFailure?: ReviewGateDependencyError;
+  cancellationResult?: ReviewSessionCancellation;
 };
 
 function snapshot(
@@ -150,7 +153,21 @@ function makeHarness(options: HarnessOptions = {}): {
             finalText: options.finalText ?? 'Review passed.\n<<<LOOP:REVIEW_PASSED>>>',
           })
   );
-  const cancelReviewSession = vi.fn(async () => undefined);
+  const cancelReviewSession = vi.fn(
+    async (input: {
+      conversationId: string;
+      target: LoopSessionTarget;
+    }): Promise<Result<ReviewSessionCancellation, ReviewGateDependencyError>> =>
+      options.cancellationFailure
+        ? err(options.cancellationFailure)
+        : ok(
+            options.cancellationResult ?? {
+              conversationId: input.conversationId,
+              target: input.target,
+              quiescent: true,
+            }
+          )
+  );
   const runRequiredGate = vi.fn(
     async (): Promise<Result<ReviewRequiredGateResult, ReviewGateDependencyError>> =>
       options.requiredGateFailure
@@ -195,6 +212,19 @@ function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
     promise,
     resolve: (value) => resolvePromise?.(value),
   };
+}
+
+function settlementTracker<T>(promise: Promise<T>): () => boolean {
+  let settled = false;
+  void promise.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    }
+  );
+  return () => settled;
 }
 
 describe('TerminalReviewGate', () => {
@@ -417,6 +447,89 @@ describe('TerminalReviewGate', () => {
           status: 'failed',
           summary: 'Terminal Review failed: focused tests are still red',
         },
+      },
+    });
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('returns a validated correction as recovery authority when the Review sentinel fails', async () => {
+    const { gate, dependencies } = makeHarness({
+      finalText: 'Review incomplete.\n<<<LOOP:REVIEW_FAILED integration test is red>>>',
+      snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT)],
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'review-failed',
+        checkpointCommit: CORRECTION_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('returns a validated correction as recovery authority for a malformed sentinel', async () => {
+    const { gate, dependencies } = makeHarness({
+      finalText: 'Review response omitted its terminal sentinel.',
+      snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT)],
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'malformed-sentinel',
+        checkpointCommit: CORRECTION_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a changed HEAD before reporting a dirty Review workspace', async () => {
+    const { gate, dependencies } = makeHarness({
+      snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT, false)],
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dirty-workspace',
+        checkpointCommit: CORRECTION_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('marks recovery required when an observed correction cannot be attested', async () => {
+    const { gate, dependencies } = makeHarness({
+      snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT)],
+      correctionFailure: dependencyError('correction attestation unavailable'),
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'correction',
+        checkpointCommit: CHECKPOINT_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: true,
       },
     });
     expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
@@ -771,15 +884,18 @@ describe('TerminalReviewGate', () => {
     vi.mocked(dependencies.session.startFreshReviewSession).mockReturnValueOnce(held.promise);
 
     const running = gate.run({ ...defaultInput, signal: controller.signal });
+    const hasSettled = settlementTracker(running);
     await vi.waitFor(() =>
       expect(dependencies.session.startFreshReviewSession).toHaveBeenCalledTimes(1)
     );
     controller.abort();
-    const result = await running;
+    await Promise.resolve();
+    expect(hasSettled()).toBe(false);
     held.resolve(ok({ conversationId: 'late-review-conversation', target: sshTarget }));
     await vi.waitFor(() =>
       expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1)
     );
+    const result = await running;
 
     expect(result).toMatchObject({
       success: false,
@@ -802,14 +918,33 @@ describe('TerminalReviewGate', () => {
         resolvePrompt = resolve;
       }
     );
+    const heldCancellation =
+      deferred<Result<ReviewSessionCancellation, ReviewGateDependencyError>>();
     const { gate, dependencies } = makeHarness();
     vi.mocked(dependencies.session.sendReviewPrompt).mockReturnValueOnce(heldPrompt);
+    vi.mocked(dependencies.session.cancelReviewSession).mockReturnValueOnce(
+      heldCancellation.promise
+    );
 
     const running = gate.run({ ...defaultInput, signal: controller.signal });
+    const hasSettled = settlementTracker(running);
     await vi.waitFor(() => expect(dependencies.session.sendReviewPrompt).toHaveBeenCalledTimes(1));
     controller.abort();
+    await vi.waitFor(() =>
+      expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1)
+    );
+    await Promise.resolve();
+    expect(hasSettled()).toBe(false);
+    heldCancellation.resolve(
+      ok({
+        conversationId: 'fresh-review-conversation',
+        target: localTarget,
+        quiescent: true,
+      })
+    );
     const result = await running;
     resolvePrompt?.(ok({ finalText: 'late\n<<<LOOP:REVIEW_PASSED>>>' }));
+    await Promise.resolve();
 
     expect(result).toMatchObject({
       success: false,
@@ -823,10 +958,127 @@ describe('TerminalReviewGate', () => {
       conversationId: 'fresh-review-conversation',
       target: localTarget,
     });
+    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
     expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
   });
 
-  it('cancels exactly once when correction validation is held and then settles late', async () => {
+  it('surfaces prompt-quiescence rejection as a typed cleanup failure', async () => {
+    const { gate, dependencies } = makeHarness({
+      promptFailure: dependencyError('prompt transport failed'),
+      cancellationFailure: dependencyError('prompt did not quiesce'),
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'prompt',
+        message: 'Review session quiescence failed: prompt did not quiesce',
+      },
+    });
+    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a quiescence acknowledgement bound to a different target', async () => {
+    const { gate, dependencies } = makeHarness({
+      promptFailure: dependencyError('prompt transport failed'),
+      cancellationResult: {
+        conversationId: 'fresh-review-conversation',
+        target: sshTarget,
+        quiescent: true,
+      },
+    });
+
+    const result = await gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'cleanup-failed', stage: 'prompt' },
+    });
+    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks workspace authority only after a cancelled prompt acknowledges quiescence', async () => {
+    const controller = new AbortController();
+    const heldCancellation =
+      deferred<Result<ReviewSessionCancellation, ReviewGateDependencyError>>();
+    const { gate, dependencies } = makeHarness({
+      snapshots: [snapshot(localTarget), snapshot(localTarget, CORRECTION_COMMIT)],
+    });
+    vi.mocked(dependencies.session.sendReviewPrompt).mockImplementationOnce(
+      () => new Promise(() => undefined)
+    );
+    vi.mocked(dependencies.session.cancelReviewSession).mockReturnValueOnce(
+      heldCancellation.promise
+    );
+
+    const running = gate.run({ ...defaultInput, signal: controller.signal });
+    const hasSettled = settlementTracker(running);
+    await vi.waitFor(() => expect(dependencies.session.sendReviewPrompt).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await vi.waitFor(() =>
+      expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1)
+    );
+    expect(hasSettled()).toBe(false);
+    heldCancellation.resolve(
+      ok({
+        conversationId: 'fresh-review-conversation',
+        target: localTarget,
+        quiescent: true,
+      })
+    );
+    const result = await running;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cancelled',
+        stage: 'prompt',
+        checkpointCommit: CORRECTION_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(2);
+    expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
+    expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
+  });
+
+  it('re-inspects authority when cancellation races the first post-prompt inspection', async () => {
+    const controller = new AbortController();
+    const held = deferred<Result<ReviewWorkspaceSnapshot, ReviewGateDependencyError>>();
+    const { gate, dependencies } = makeHarness();
+    vi.mocked(dependencies.checkpoint.inspectWorkspace)
+      .mockResolvedValueOnce(ok(snapshot(localTarget)))
+      .mockReturnValueOnce(held.promise)
+      .mockResolvedValueOnce(ok(snapshot(localTarget, CORRECTION_COMMIT)));
+
+    const running = gate.run({ ...defaultInput, signal: controller.signal });
+    await vi.waitFor(() =>
+      expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(2)
+    );
+    controller.abort();
+    const result = await running;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cancelled',
+        stage: 'post-review',
+        checkpointCommit: CORRECTION_COMMIT,
+        observedHead: CORRECTION_COMMIT,
+        recoveryRequired: false,
+      },
+    });
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(3);
+    expect(dependencies.checkpoint.validateCorrection).toHaveBeenCalledTimes(1);
+    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('can stop a held read-only correction validation without cancelling a settled prompt', async () => {
     const controller = new AbortController();
     const held = deferred<Result<ReviewCorrectionValidation, ReviewGateDependencyError>>();
     const { gate, dependencies } = makeHarness({
@@ -847,7 +1099,7 @@ describe('TerminalReviewGate', () => {
       success: false,
       error: { type: 'cancelled', stage: 'correction' },
     });
-    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+    expect(dependencies.session.cancelReviewSession).not.toHaveBeenCalled();
     expect(dependencies.requiredGate.run).not.toHaveBeenCalled();
   });
 
@@ -858,9 +1110,11 @@ describe('TerminalReviewGate', () => {
     vi.mocked(dependencies.requiredGate.run).mockReturnValueOnce(held.promise);
 
     const running = gate.run({ ...defaultInput, signal: controller.signal });
+    const hasSettled = settlementTracker(running);
     await vi.waitFor(() => expect(dependencies.requiredGate.run).toHaveBeenCalledTimes(1));
     controller.abort();
-    const result = await running;
+    await Promise.resolve();
+    expect(hasSettled()).toBe(false);
     held.resolve(
       ok({
         target: localTarget,
@@ -868,14 +1122,49 @@ describe('TerminalReviewGate', () => {
         summary: 'Late gate pass.',
       })
     );
-    await Promise.resolve();
+    const result = await running;
 
     expect(result).toMatchObject({
       success: false,
       error: { type: 'cancelled', stage: 'required-gate' },
     });
     expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
-    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(2);
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(3);
+  });
+
+  it('waits for required-gate abort settlement before reporting its late mutation', async () => {
+    const controller = new AbortController();
+    const held = deferred<Result<ReviewRequiredGateResult, ReviewGateDependencyError>>();
+    const { gate, dependencies } = makeHarness({
+      snapshots: [
+        snapshot(localTarget),
+        snapshot(localTarget),
+        snapshot(localTarget, OTHER_COMMIT),
+      ],
+    });
+    vi.mocked(dependencies.requiredGate.run).mockReturnValueOnce(held.promise);
+
+    const running = gate.run({ ...defaultInput, signal: controller.signal });
+    const hasSettled = settlementTracker(running);
+    await vi.waitFor(() => expect(dependencies.requiredGate.run).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await Promise.resolve();
+    expect(hasSettled()).toBe(false);
+    held.resolve(
+      ok({
+        target: localTarget,
+        checkpointCommit: CHECKPOINT_COMMIT,
+        summary: 'Late gate mutated the workspace.',
+      })
+    );
+    const result = await running;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'checkpoint-drift', stage: 'required-gate' },
+    });
+    expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(3);
   });
 
   it('cancels exactly once when final workspace inspection is held', async () => {
@@ -885,7 +1174,8 @@ describe('TerminalReviewGate', () => {
     vi.mocked(dependencies.checkpoint.inspectWorkspace)
       .mockResolvedValueOnce(ok(snapshot(localTarget)))
       .mockResolvedValueOnce(ok(snapshot(localTarget)))
-      .mockReturnValueOnce(held.promise);
+      .mockReturnValueOnce(held.promise)
+      .mockResolvedValueOnce(ok(snapshot(localTarget, OTHER_COMMIT)));
 
     const running = gate.run({ ...defaultInput, signal: controller.signal });
     await vi.waitFor(() =>
@@ -898,9 +1188,16 @@ describe('TerminalReviewGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'cancelled', stage: 'finalize' },
+      error: {
+        type: 'checkpoint-drift',
+        stage: 'finalize',
+        checkpointCommit: CHECKPOINT_COMMIT,
+        observedHead: OTHER_COMMIT,
+        recoveryRequired: true,
+      },
     });
     expect(dependencies.session.cancelReviewSession).toHaveBeenCalledTimes(1);
+    expect(dependencies.checkpoint.inspectWorkspace).toHaveBeenCalledTimes(4);
   });
 
   it('cancels the fresh session when a held Review prompt reaches its deadline', async () => {

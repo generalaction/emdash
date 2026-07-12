@@ -80,6 +80,10 @@ export type CancelReviewSessionInput = {
   target: LoopSessionTarget;
 };
 
+export type ReviewSessionCancellation = CancelReviewSessionInput & {
+  quiescent: true;
+};
+
 export type ReviewRequiredGateResult = {
   target: LoopSessionTarget;
   checkpointCommit: string;
@@ -94,7 +98,10 @@ export interface ReviewSessionPort {
   sendReviewPrompt(
     input: SendReviewPromptInput
   ): Promise<Result<{ finalText: string }, ReviewGateDependencyError>>;
-  cancelReviewSession(input: CancelReviewSessionInput): void | Promise<void>;
+  /** Settles only after the prompt cannot mutate the workspace or emit another accepted result. */
+  cancelReviewSession(
+    input: CancelReviewSessionInput
+  ): Promise<Result<ReviewSessionCancellation, ReviewGateDependencyError>>;
 }
 
 export interface ReviewCheckpointPort {
@@ -110,6 +117,7 @@ export interface ReviewCheckpointPort {
 }
 
 export interface ReviewRequiredGatePort {
+  /** On abort/deadline, settles only after its command and all workspace mutations are quiescent. */
   run(
     input: ReviewWorkspaceOperationInput
   ): Promise<Result<ReviewRequiredGateResult, ReviewGateDependencyError>>;
@@ -158,7 +166,8 @@ export type ReviewGateErrorType =
   | 'stale-conversation'
   | 'malformed-sentinel'
   | 'review-failed'
-  | 'required-gate-failed';
+  | 'required-gate-failed'
+  | 'cleanup-failed';
 
 export type ReviewGateStage =
   | 'precondition'
@@ -175,6 +184,8 @@ export type ReviewGateError = {
   stage: ReviewGateStage;
   message: string;
   checkpointCommit: string;
+  observedHead?: string;
+  recoveryRequired?: boolean;
   conversationId?: string;
   stageResult: LoopStageResult;
 };
@@ -194,6 +205,10 @@ type DependencyFailure =
   | {
       type: 'dependency-rejected';
       message: string;
+    }
+  | {
+      type: 'cleanup-failed';
+      message: string;
     };
 
 type ControlledOutcome<T> =
@@ -203,7 +218,21 @@ type ControlledOutcome<T> =
 
 type ReviewRunCancellation = {
   authoritativeTarget: LoopSessionTarget;
-  conversationIds: Set<string>;
+  promises: Map<
+    string,
+    Promise<Result<void, Extract<DependencyFailure, { type: 'cleanup-failed' }>>>
+  >;
+};
+
+type StopQuiescence<T> = (
+  operation: Promise<ControlledOutcome<T>>
+) => Promise<Result<void, Extract<DependencyFailure, { type: 'cleanup-failed' }>>>;
+
+type ReconciledReviewHead = {
+  checkpointCommit: string;
+  correctionApplied: boolean;
+  observedHead: string;
+  clean: boolean;
 };
 
 export class TerminalReviewGate {
@@ -224,7 +253,7 @@ export class TerminalReviewGate {
     const input = parsedInput.data;
     const cancellation: ReviewRunCancellation = {
       authoritativeTarget: input.target,
-      conversationIds: new Set<string>(),
+      promises: new Map(),
     };
     let acceptedCheckpoint = input.checkpointCommit;
 
@@ -293,13 +322,16 @@ export class TerminalReviewGate {
           provider: input.provider,
           model: input.model,
         }),
-      (lateSession) => this.cancelSession(lateSession, cancellation)
+      (operation) => this.quiesceStartedSession(operation, cancellation)
     );
     if (!started.success) {
       return this.dependencyFail(started.error, 'session-start', acceptedCheckpoint);
     }
     if (!isReviewSessionInfo(started.data)) {
-      this.cancelSession(started.data, cancellation);
+      const quiesced = await this.quiesceSession(started.data, cancellation);
+      if (!quiesced.success) {
+        return this.dependencyFail(quiesced.error, 'session-start', acceptedCheckpoint);
+      }
       return this.fail(
         'dependency-rejected',
         'session-start',
@@ -310,7 +342,10 @@ export class TerminalReviewGate {
     const session = started.data;
 
     if (!validConversationId(session.conversationId)) {
-      this.cancelSession(session, cancellation);
+      const quiesced = await this.quiesceSession(session, cancellation);
+      if (!quiesced.success) {
+        return this.dependencyFail(quiesced.error, 'session-start', acceptedCheckpoint);
+      }
       return this.fail(
         'dependency-rejected',
         'session-start',
@@ -319,7 +354,15 @@ export class TerminalReviewGate {
       );
     }
     if (!sameTarget(session.target, input.target)) {
-      this.cancelSession(session, cancellation);
+      const quiesced = await this.quiesceSession(session, cancellation);
+      if (!quiesced.success) {
+        return this.dependencyFail(
+          quiesced.error,
+          'session-start',
+          acceptedCheckpoint,
+          session.conversationId
+        );
+      }
       return this.fail(
         'target-drift',
         'session-start',
@@ -329,7 +372,15 @@ export class TerminalReviewGate {
       );
     }
     if (input.previousConversationIds.includes(session.conversationId)) {
-      this.cancelSession(session, cancellation);
+      const quiesced = await this.quiesceSession(session, cancellation);
+      if (!quiesced.success) {
+        return this.dependencyFail(
+          quiesced.error,
+          'session-start',
+          acceptedCheckpoint,
+          session.conversationId
+        );
+      }
       return this.fail(
         'stale-conversation',
         'session-start',
@@ -339,28 +390,114 @@ export class TerminalReviewGate {
       );
     }
 
-    const promptResult = await this.callDependency(input, 'Review prompt', () =>
-      this.dependencies.session.sendReviewPrompt({
-        conversationId: session?.conversationId ?? '',
-        target: copyTarget(input.target),
-        prompt: input.reviewPrompt,
-        signal: input.signal,
-        deadlineAt: input.deadlineAt,
-      })
+    const promptResult = await this.callDependency(
+      input,
+      'Review prompt',
+      () =>
+        this.dependencies.session.sendReviewPrompt({
+          conversationId: session.conversationId,
+          target: copyTarget(input.target),
+          prompt: input.reviewPrompt,
+          signal: input.signal,
+          deadlineAt: input.deadlineAt,
+        }),
+      () => this.quiesceSession(session, cancellation)
     );
     if (!promptResult.success) {
-      this.cancelSession(session, cancellation);
-      return this.dependencyFail(
-        promptResult.error,
-        'prompt',
+      const quiesced = await this.quiesceSession(session, cancellation);
+      const failure = quiesced.success
+        ? this.dependencyFail(
+            promptResult.error,
+            'prompt',
+            acceptedCheckpoint,
+            session.conversationId
+          )
+        : this.dependencyFail(quiesced.error, 'prompt', acceptedCheckpoint, session.conversationId);
+      const recoveryInput = { ...input, signal: undefined, deadlineAt: undefined };
+      const postQuiescence = await this.inspectUncontrolled(
+        recoveryInput,
+        acceptedCheckpoint,
+        'prompt'
+      );
+      if (!postQuiescence.success) return quiesced.success ? postQuiescence : failure;
+      const reconciled = await this.reconcileReviewHead(
+        recoveryInput,
+        postQuiescence.data,
         acceptedCheckpoint,
         session.conversationId
       );
+      if (!reconciled.success) return reconciled;
+      acceptedCheckpoint = reconciled.data.checkpointCommit;
+      if (!reconciled.data.clean) {
+        return this.withRecovery(
+          this.fail(
+            'dirty-workspace',
+            'prompt',
+            'The Review workspace must be clean at the checkpoint boundary.',
+            acceptedCheckpoint,
+            session.conversationId
+          ),
+          acceptedCheckpoint,
+          reconciled.data.observedHead,
+          false
+        );
+      }
+      return this.withRecovery(failure, acceptedCheckpoint, reconciled.data.observedHead, false);
     }
 
     const postReview = await this.inspectWorkspace(input, acceptedCheckpoint, 'post-review');
     if (!postReview.success) {
-      this.cancelIfStopped(session, postReview.error, cancellation);
+      if (postReview.error.type === 'cancelled' || postReview.error.type === 'deadline-exceeded') {
+        const quiesced = await this.quiesceSession(session, cancellation);
+        if (!quiesced.success) {
+          return this.dependencyFail(
+            quiesced.error,
+            'post-review',
+            acceptedCheckpoint,
+            session.conversationId
+          );
+        }
+        const recoveryInput = { ...input, signal: undefined, deadlineAt: undefined };
+        const postQuiescence = await this.inspectUncontrolled(
+          recoveryInput,
+          acceptedCheckpoint,
+          'post-review'
+        );
+        if (!postQuiescence.success) return postQuiescence;
+        const reconciled = await this.reconcileReviewHead(
+          recoveryInput,
+          postQuiescence.data,
+          acceptedCheckpoint,
+          session.conversationId
+        );
+        if (!reconciled.success) return reconciled;
+        acceptedCheckpoint = reconciled.data.checkpointCommit;
+        if (!reconciled.data.clean) {
+          return this.withRecovery(
+            this.fail(
+              'dirty-workspace',
+              'post-review',
+              'The Review workspace must be clean at the checkpoint boundary.',
+              acceptedCheckpoint,
+              session.conversationId
+            ),
+            acceptedCheckpoint,
+            reconciled.data.observedHead,
+            false
+          );
+        }
+        return this.withRecovery(
+          err(
+            this.withConversation(
+              this.withCheckpoint(postReview.error, acceptedCheckpoint),
+              session.conversationId
+            )
+          ),
+          acceptedCheckpoint,
+          reconciled.data.observedHead,
+          false
+        );
+      }
       return err(
         this.withConversation(
           this.withCheckpoint(postReview.error, acceptedCheckpoint),
@@ -368,114 +505,132 @@ export class TerminalReviewGate {
         )
       );
     }
-    const postReviewAuthority = validateSnapshot(postReview.data, input.target, undefined, true);
-    if (postReviewAuthority) {
-      return this.fail(
-        postReviewAuthority.type,
-        'post-review',
-        postReviewAuthority.message,
+    const reconciled = await this.reconcileReviewHead(
+      input,
+      postReview.data,
+      acceptedCheckpoint,
+      session.conversationId
+    );
+    if (!reconciled.success) return reconciled;
+    acceptedCheckpoint = reconciled.data.checkpointCommit;
+    const correctionApplied = reconciled.data.correctionApplied;
+
+    if (!reconciled.data.clean) {
+      return this.withRecovery(
+        this.fail(
+          'dirty-workspace',
+          'post-review',
+          'The Review workspace must be clean at the checkpoint boundary.',
+          acceptedCheckpoint,
+          session.conversationId
+        ),
         acceptedCheckpoint,
-        session.conversationId
+        reconciled.data.observedHead,
+        false
       );
     }
 
     if (typeof promptResult.data.finalText !== 'string') {
-      return this.fail(
-        'malformed-sentinel',
-        'prompt',
-        'The terminal Review response was not text.',
+      return this.withRecovery(
+        this.fail(
+          'malformed-sentinel',
+          'prompt',
+          'The terminal Review response was not text.',
+          acceptedCheckpoint,
+          session.conversationId
+        ),
         acceptedCheckpoint,
-        session.conversationId
+        reconciled.data.observedHead,
+        false
       );
     }
     const sentinel = parseTerminalReviewSentinel(promptResult.data.finalText);
     if (!sentinel) {
-      return this.fail(
-        'malformed-sentinel',
-        'prompt',
-        'The terminal Review response contained a missing, malformed, or conflicting sentinel.',
+      return this.withRecovery(
+        this.fail(
+          'malformed-sentinel',
+          'prompt',
+          'The terminal Review response contained a missing, malformed, or conflicting sentinel.',
+          acceptedCheckpoint,
+          session.conversationId
+        ),
         acceptedCheckpoint,
-        session.conversationId
+        reconciled.data.observedHead,
+        false
       );
     }
     if (sentinel.kind === 'failed') {
-      return this.fail(
-        'review-failed',
-        'prompt',
-        sentinel.reason,
+      return this.withRecovery(
+        this.fail(
+          'review-failed',
+          'prompt',
+          sentinel.reason,
+          acceptedCheckpoint,
+          session.conversationId,
+          `Terminal Review failed: ${sentinel.reason}`
+        ),
         acceptedCheckpoint,
-        session.conversationId,
-        `Terminal Review failed: ${sentinel.reason}`
+        reconciled.data.observedHead,
+        false
       );
     }
 
-    const reviewedHead = normalizeCommit(postReview.data.headCommit);
-    let correctionApplied = false;
-    if (!sameCommit(reviewedHead, acceptedCheckpoint)) {
-      const previousCheckpoint = acceptedCheckpoint;
-      const correction = await this.callDependency(input, 'Review correction validation', () =>
-        this.dependencies.checkpoint.validateCorrection({
-          ...workspaceInput(input, reviewedHead),
-          previousCheckpointCommit: previousCheckpoint,
-        })
-      );
-      if (!correction.success) {
-        if (
-          correction.error.type === 'cancelled' ||
-          correction.error.type === 'deadline-exceeded'
-        ) {
-          this.cancelSession(session, cancellation);
-        }
-        return this.dependencyFail(
-          correction.error,
-          'correction',
-          acceptedCheckpoint,
-          session.conversationId
-        );
-      }
-      const correctionAuthority = validateCorrection(
-        correction.data,
-        input.target,
-        input.baseCommit,
-        previousCheckpoint,
-        reviewedHead
-      );
-      if (correctionAuthority) {
-        return this.fail(
-          correctionAuthority.type,
-          'correction',
-          correctionAuthority.message,
-          acceptedCheckpoint,
-          session.conversationId
-        );
-      }
-      acceptedCheckpoint = reviewedHead;
-      correctionApplied = true;
-    }
-
-    const requiredGate = await this.callDependency(input, 'Required gate rerun', () =>
-      this.dependencies.requiredGate.run(workspaceInput(input, acceptedCheckpoint))
+    const requiredGate = await this.callDependency(
+      input,
+      'Required gate rerun',
+      () => this.dependencies.requiredGate.run(workspaceInput(input, acceptedCheckpoint)),
+      (operation) => this.quiesceRequiredGate(operation, session, cancellation)
     );
     if (!requiredGate.success) {
-      if (
+      const failure =
         requiredGate.error.type === 'cancelled' ||
-        requiredGate.error.type === 'deadline-exceeded'
-      ) {
-        this.cancelSession(session, cancellation);
-        return this.controlFail(
-          requiredGate.error,
-          'required-gate',
+        requiredGate.error.type === 'deadline-exceeded' ||
+        requiredGate.error.type === 'cleanup-failed'
+          ? this.dependencyFail(
+              requiredGate.error,
+              'required-gate',
+              acceptedCheckpoint,
+              session.conversationId
+            )
+          : this.fail(
+              'required-gate-failed',
+              'required-gate',
+              requiredGate.error.message,
+              acceptedCheckpoint,
+              session.conversationId
+            );
+      const postQuiescence = await this.inspectUncontrolled(
+        input,
+        acceptedCheckpoint,
+        'required-gate'
+      );
+      if (!postQuiescence.success) {
+        return requiredGate.error.type === 'cleanup-failed' ? failure : postQuiescence;
+      }
+      const observedHead = validCommit(postQuiescence.data.headCommit)
+        ? normalizeCommit(postQuiescence.data.headCommit)
+        : acceptedCheckpoint;
+      const postAuthority = validateSnapshot(
+        postQuiescence.data,
+        input.target,
+        acceptedCheckpoint,
+        true
+      );
+      if (postAuthority) {
+        return this.withRecovery(
+          this.fail(
+            postAuthority.type,
+            'required-gate',
+            postAuthority.message,
+            acceptedCheckpoint,
+            session.conversationId
+          ),
           acceptedCheckpoint,
-          session.conversationId
+          observedHead,
+          !sameCommit(observedHead, acceptedCheckpoint)
         );
       }
-      return this.fail(
-        'required-gate-failed',
-        'required-gate',
-        requiredGate.error.message,
-        acceptedCheckpoint,
-        session.conversationId
-      );
+      return this.withRecovery(failure, acceptedCheckpoint, observedHead, false);
     }
     const gateAuthority = validateRequiredGate(requiredGate.data, input.target, acceptedCheckpoint);
     if (gateAuthority) {
@@ -490,7 +645,60 @@ export class TerminalReviewGate {
 
     const finalWorkspace = await this.inspectWorkspace(input, acceptedCheckpoint, 'finalize');
     if (!finalWorkspace.success) {
-      this.cancelIfStopped(session, finalWorkspace.error, cancellation);
+      if (
+        finalWorkspace.error.type === 'cancelled' ||
+        finalWorkspace.error.type === 'deadline-exceeded'
+      ) {
+        const quiesced = await this.quiesceSession(session, cancellation);
+        if (!quiesced.success) {
+          return this.dependencyFail(
+            quiesced.error,
+            'finalize',
+            acceptedCheckpoint,
+            session.conversationId
+          );
+        }
+        const postQuiescence = await this.inspectUncontrolled(
+          input,
+          acceptedCheckpoint,
+          'finalize'
+        );
+        if (!postQuiescence.success) return postQuiescence;
+        const observedHead = validCommit(postQuiescence.data.headCommit)
+          ? normalizeCommit(postQuiescence.data.headCommit)
+          : acceptedCheckpoint;
+        const postAuthority = validateSnapshot(
+          postQuiescence.data,
+          input.target,
+          acceptedCheckpoint,
+          true
+        );
+        if (postAuthority) {
+          return this.withRecovery(
+            this.fail(
+              postAuthority.type,
+              'finalize',
+              postAuthority.message,
+              acceptedCheckpoint,
+              session.conversationId
+            ),
+            acceptedCheckpoint,
+            observedHead,
+            !sameCommit(observedHead, acceptedCheckpoint)
+          );
+        }
+        return this.withRecovery(
+          err(
+            this.withConversation(
+              this.withCheckpoint(finalWorkspace.error, acceptedCheckpoint),
+              session.conversationId
+            )
+          ),
+          acceptedCheckpoint,
+          observedHead,
+          false
+        );
+      }
       return err(
         this.withConversation(
           this.withCheckpoint(finalWorkspace.error, acceptedCheckpoint),
@@ -532,6 +740,88 @@ export class TerminalReviewGate {
     });
   }
 
+  private async inspectUncontrolled(
+    input: NormalizedReviewGateInput,
+    checkpointCommit: string,
+    stage: ReviewGateStage
+  ): Promise<Result<ReviewWorkspaceSnapshot, ReviewGateError>> {
+    return this.inspectWorkspace(
+      { ...input, signal: undefined, deadlineAt: undefined },
+      checkpointCommit,
+      stage
+    );
+  }
+
+  private async reconcileReviewHead(
+    input: NormalizedReviewGateInput,
+    snapshot: ReviewWorkspaceSnapshot,
+    checkpointCommit: string,
+    conversationId: string
+  ): Promise<Result<ReconciledReviewHead, ReviewGateError>> {
+    const snapshotAuthority = validateSnapshot(snapshot, input.target, undefined, false);
+    if (snapshotAuthority) {
+      return this.fail(
+        snapshotAuthority.type,
+        'post-review',
+        snapshotAuthority.message,
+        checkpointCommit,
+        conversationId
+      );
+    }
+
+    const observedHead = normalizeCommit(snapshot.headCommit);
+    if (sameCommit(observedHead, checkpointCommit)) {
+      return ok({
+        checkpointCommit,
+        correctionApplied: false,
+        observedHead,
+        clean: snapshot.clean === true,
+      });
+    }
+
+    const correction = await this.callDependency(input, 'Review correction validation', () =>
+      this.dependencies.checkpoint.validateCorrection({
+        ...workspaceInput(input, observedHead),
+        previousCheckpointCommit: checkpointCommit,
+      })
+    );
+    if (!correction.success) {
+      return this.withRecovery(
+        this.dependencyFail(correction.error, 'correction', checkpointCommit, conversationId),
+        checkpointCommit,
+        observedHead,
+        true
+      );
+    }
+    const correctionAuthority = validateCorrection(
+      correction.data,
+      input.target,
+      input.baseCommit,
+      checkpointCommit,
+      observedHead
+    );
+    if (correctionAuthority) {
+      return this.withRecovery(
+        this.fail(
+          correctionAuthority.type,
+          'correction',
+          correctionAuthority.message,
+          checkpointCommit,
+          conversationId
+        ),
+        checkpointCommit,
+        observedHead,
+        true
+      );
+    }
+    return ok({
+      checkpointCommit: observedHead,
+      correctionApplied: true,
+      observedHead,
+      clean: snapshot.clean === true,
+    });
+  }
+
   private async inspectWorkspace(
     input: NormalizedReviewGateInput,
     checkpointCommit: string,
@@ -548,7 +838,7 @@ export class TerminalReviewGate {
     input: NormalizedReviewGateInput,
     label: string,
     operation: () => Promise<Result<T, ReviewGateDependencyError>>,
-    onLateSuccess?: (value: T) => void
+    quiesceAfterStop?: StopQuiescence<T>
   ): Promise<Result<T, DependencyFailure>> {
     const stopped = controlFailure(input);
     if (stopped) return err(stopped);
@@ -568,15 +858,10 @@ export class TerminalReviewGate {
 
     const controlled = await raceWithControl(operationPromise, input);
     if (controlled.kind === 'stopped') {
-      void operationPromise.then((late) => {
-        if (late.kind === 'completed' && isDependencyResult<T>(late.value) && late.value.success) {
-          try {
-            onLateSuccess?.(late.value.data);
-          } catch {
-            // Late cleanup is best effort and cannot change the settled typed result.
-          }
-        }
-      });
+      if (quiesceAfterStop) {
+        const quiesced = await quiesceAfterStop(operationPromise);
+        if (!quiesced.success) return err(quiesced.error);
+      }
       return err(controlled.failure);
     }
     if (controlled.kind === 'thrown') {
@@ -594,7 +879,10 @@ export class TerminalReviewGate {
 
     const stoppedAfterSettle = controlFailure(input);
     if (stoppedAfterSettle) {
-      if (controlled.value.success) onLateSuccess?.(controlled.value.data);
+      if (quiesceAfterStop) {
+        const quiesced = await quiesceAfterStop(operationPromise);
+        if (!quiesced.success) return err(quiesced.error);
+      }
       return err(stoppedAfterSettle);
     }
     if (!controlled.value.success) {
@@ -614,6 +902,9 @@ export class TerminalReviewGate {
   ): Result<never, ReviewGateError> {
     if (failure.type === 'cancelled' || failure.type === 'deadline-exceeded') {
       return this.controlFail(failure, stage, checkpointCommit, conversationId);
+    }
+    if (failure.type === 'cleanup-failed') {
+      return this.fail('cleanup-failed', stage, failure.message, checkpointCommit, conversationId);
     }
     return this.fail(
       'dependency-rejected',
@@ -670,32 +961,80 @@ export class TerminalReviewGate {
     };
   }
 
-  private cancelSession(session: unknown, cancellation: ReviewRunCancellation): void {
-    if (!session || typeof session !== 'object') return;
+  private quiesceSession(
+    session: unknown,
+    cancellation: ReviewRunCancellation
+  ): Promise<Result<void, Extract<DependencyFailure, { type: 'cleanup-failed' }>>> {
+    const failed = (message: string) =>
+      err({
+        type: 'cleanup-failed' as const,
+        message: `Review session quiescence failed: ${message}`,
+      });
+    if (!session || typeof session !== 'object') {
+      return Promise.resolve(failed('session metadata is unavailable.'));
+    }
     const conversationId = (session as Partial<ReviewSessionInfo>).conversationId;
-    if (!validConversationId(conversationId)) return;
-    if (cancellation.conversationIds.has(conversationId)) return;
-    cancellation.conversationIds.add(conversationId);
-    try {
-      void Promise.resolve(
+    if (!validConversationId(conversationId)) {
+      return Promise.resolve(failed('conversation identity is invalid.'));
+    }
+    const existing = cancellation.promises.get(conversationId);
+    if (existing) return existing;
+
+    const promise = Promise.resolve()
+      .then(() =>
         this.dependencies.session.cancelReviewSession({
           conversationId,
           target: copyTarget(cancellation.authoritativeTarget),
         })
-      ).catch(() => undefined);
-    } catch {
-      // Cancellation is best effort; the original typed failure remains authoritative.
-    }
+      )
+      .then((result) => {
+        if (!isDependencyResult<ReviewSessionCancellation>(result)) {
+          return failed('dependency returned an invalid acknowledgement.');
+        }
+        if (!result.success) return failed(result.error.message);
+        if (
+          result.data.quiescent !== true ||
+          result.data.conversationId !== conversationId ||
+          !sameTarget(result.data.target, cancellation.authoritativeTarget)
+        ) {
+          return failed('acknowledgement did not match the authoritative session target.');
+        }
+        return ok(undefined);
+      })
+      .catch((cause) => failed(errorMessage(cause)));
+    cancellation.promises.set(conversationId, promise);
+    return promise;
   }
 
-  private cancelIfStopped(
-    session: ReviewSessionInfo,
-    error: ReviewGateError,
+  private async quiesceStartedSession(
+    operation: Promise<ControlledOutcome<ReviewSessionInfo>>,
     cancellation: ReviewRunCancellation
-  ): void {
-    if (error.type === 'cancelled' || error.type === 'deadline-exceeded') {
-      this.cancelSession(session, cancellation);
+  ): Promise<Result<void, Extract<DependencyFailure, { type: 'cleanup-failed' }>>> {
+    const settled = await operation;
+    if (settled.kind !== 'completed') {
+      return err({
+        type: 'cleanup-failed',
+        message: 'Fresh Review session start did not return quiescent session metadata.',
+      });
     }
+    if (!isDependencyResult<ReviewSessionInfo>(settled.value)) {
+      return err({
+        type: 'cleanup-failed',
+        message: 'Fresh Review session start returned an invalid result during quiescence.',
+      });
+    }
+    if (!settled.value.success) return ok(undefined);
+    return this.quiesceSession(settled.value.data, cancellation);
+  }
+
+  private async quiesceRequiredGate(
+    operation: Promise<ControlledOutcome<ReviewRequiredGateResult>>,
+    session: ReviewSessionInfo,
+    cancellation: ReviewRunCancellation
+  ): Promise<Result<void, Extract<DependencyFailure, { type: 'cleanup-failed' }>>> {
+    const sessionQuiescence = this.quiesceSession(session, cancellation);
+    await operation;
+    return sessionQuiescence;
   }
 
   private withCheckpoint(error: ReviewGateError, checkpointCommit: string): ReviewGateError {
@@ -704,6 +1043,21 @@ export class TerminalReviewGate {
 
   private withConversation(error: ReviewGateError, conversationId: string): ReviewGateError {
     return { ...error, conversationId };
+  }
+
+  private withRecovery<T>(
+    result: Result<T, ReviewGateError>,
+    checkpointCommit: string,
+    observedHead: string,
+    recoveryRequired: boolean
+  ): Result<T, ReviewGateError> {
+    if (result.success) return result;
+    return err({
+      ...result.error,
+      checkpointCommit,
+      observedHead,
+      recoveryRequired,
+    });
   }
 }
 
