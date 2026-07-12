@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_7a3e31eac5f91e::t_26968b862f7ed5 199-289
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_7a3e31eac5f91e::t_818bc62996f5a6 176
+  s_7a3e31eac5f91e::t_0397051c6b50c3 177-178
+  s_7a3e31eac5f91e::t_d4a16efc97650b 108-113
+  s_7a3e31eac5f91e::t_39b09a85ebb4d4 324-334,339-340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "bbc2a845b7c984c893d45e5ec19bc6faf9a5909d",
+  "prompts": {},
+  "sessions": {
+    "s_7a3e31eac5f91e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c21ac9d2-65e4-4f7c-a697-f77017f4320c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
