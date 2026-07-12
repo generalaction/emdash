@@ -620,6 +620,115 @@ describe('FeatureSnapshotService', () => {
     expect(fs.readFileSync(path.join(repoPath, 'fix.txt'), 'utf8')).toBe('fix');
   });
 
+  it('rolls back when the deadline lands after final integration verification', async () => {
+    const { expectedFeatureHead, fixCommit } = await prepareFix('fix-final-verify-deadline');
+    const delegate = new LocalExecutionContext({ root: repoPath });
+    const deadlineAt = Date.now() + 60_000;
+    let statusReads = 0;
+    let nowSpy: ReturnType<typeof vi.spyOn> | undefined;
+    const delayedContext: IExecutionContext = {
+      root: repoPath,
+      supportsLocalSpawn: true,
+      exec: async (command, args = [], options) => {
+        const result = await delegate.exec(command, args, options);
+        if (args.includes('status') && args.includes('--porcelain')) {
+          statusReads += 1;
+          if (statusReads === 2) {
+            nowSpy = vi.spyOn(Date, 'now').mockReturnValue(deadlineAt + 1);
+          }
+        }
+        return result;
+      },
+      execStreaming: (command, args, onChunk, options) =>
+        delegate.execStreaming(command, args, onChunk, options),
+      dispose: () => delegate.dispose(),
+    };
+
+    try {
+      const integrated = await new FeatureSnapshotService(delayedContext).integrateFix({
+        featurePath: repoPath,
+        expectedFeatureHead,
+        fixCommit,
+        deadlineAt,
+      });
+      expect(integrated).toMatchObject({
+        success: false,
+        error: { type: 'deadline-exceeded' },
+      });
+    } finally {
+      nowSpy?.mockRestore();
+    }
+
+    expect(statusReads).toBe(2);
+    expect(await git(repoPath, ['rev-parse', 'HEAD'])).toBe(expectedFeatureHead);
+    expect(await git(repoPath, ['status', '--porcelain'])).toBe('');
+    expect(fs.existsSync(path.join(repoPath, 'fix-final-verify-deadline-fix.txt'))).toBe(false);
+  }, 30_000);
+
+  it('fails closed when the ref moves before post-verification deadline rollback', async () => {
+    const { expectedFeatureHead, fixCommit } = await prepareFix('fix-final-verify-race');
+    const concurrentPath = path.join(rootPath, 'fix-final-verify-concurrent');
+    await git(repoPath, [
+      'worktree',
+      'add',
+      '-b',
+      'concurrent/fix-final-verify',
+      concurrentPath,
+      expectedFeatureHead,
+    ]);
+    const concurrentHead = await commitFile(
+      concurrentPath,
+      'concurrent-final-verify.txt',
+      'concurrent',
+      'concurrent final verification movement'
+    );
+    const delegate = new LocalExecutionContext({ root: repoPath });
+    const deadlineAt = Date.now() + 60_000;
+    let statusReads = 0;
+    let nowSpy: ReturnType<typeof vi.spyOn> | undefined;
+    const racingContext: IExecutionContext = {
+      root: repoPath,
+      supportsLocalSpawn: true,
+      exec: async (command, args = [], options) => {
+        const result = await delegate.exec(command, args, options);
+        if (args.includes('status') && args.includes('--porcelain')) {
+          statusReads += 1;
+          if (statusReads === 2) {
+            await git(repoPath, ['reset', '--hard', concurrentHead]);
+            nowSpy = vi.spyOn(Date, 'now').mockReturnValue(deadlineAt + 1);
+          }
+        }
+        return result;
+      },
+      execStreaming: (command, args, onChunk, options) =>
+        delegate.execStreaming(command, args, onChunk, options),
+      dispose: () => delegate.dispose(),
+    };
+
+    try {
+      const integrated = await new FeatureSnapshotService(racingContext).integrateFix({
+        featurePath: repoPath,
+        expectedFeatureHead,
+        fixCommit,
+        deadlineAt,
+      });
+      expect(integrated).toMatchObject({
+        success: false,
+        error: { type: 'fix-integration-recovery-required' },
+      });
+    } finally {
+      nowSpy?.mockRestore();
+    }
+
+    expect(statusReads).toBe(2);
+    expect(await git(repoPath, ['rev-parse', 'HEAD'])).toBe(concurrentHead);
+    expect(await git(repoPath, ['status', '--porcelain'])).toBe('');
+    expect(fs.readFileSync(path.join(repoPath, 'concurrent-final-verify.txt'), 'utf8')).toBe(
+      'concurrent'
+    );
+    expect(fs.existsSync(path.join(repoPath, 'fix-final-verify-race-fix.txt'))).toBe(false);
+  }, 30_000);
+
   it('leaves an injected ancestor reset untouched when the expected-head ref CAS loses', async () => {
     const expectedFeatureHead = await commitFile(repoPath, 'feature.txt', 'feature', 'feature');
     const verificationPath = path.join(rootPath, 'fix-race');

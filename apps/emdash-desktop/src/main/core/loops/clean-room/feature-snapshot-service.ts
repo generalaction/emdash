@@ -439,7 +439,19 @@ export class FeatureSnapshotService {
       fix.data,
       input
     );
-    if (verified.success) return ok({ featureHead: fix.data });
+    if (verified.success) {
+      const stoppedAfterVerification = operationFailure(input);
+      if (!stoppedAfterVerification) return ok({ featureHead: fix.data });
+      const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
+      const rolledBack = await this.rollbackIntegration(
+        input.featurePath,
+        branchRef.data,
+        expected.data,
+        fix.data,
+        recoveryDeadlineAt
+      );
+      return rolledBack ? err(stoppedAfterVerification) : err(recoveryRequired());
+    }
 
     const recoveryDeadlineAt = Date.now() + RECOVERY_DEADLINE_MS;
     const concurrentlyMoved = await this.readHeadForRecovery(input.featurePath, recoveryDeadlineAt);

@@ -652,7 +652,7 @@ export class CleanRoomWorkspaceService {
     if (!fixCheckpointed.success) return fixCheckpointed;
     let result;
     try {
-      result = await this.awaitCleanupPrerequisite(
+      const integration = this.trackCleanupPrerequisite(
         input.cleanRoom.cleanupId,
         snapshotService.integrateFix({
           featurePath: identity.data.featureTarget.path,
@@ -661,8 +661,9 @@ export class CleanRoomWorkspaceService {
           signal: input.signal,
           deadlineAt,
         }),
-        control
+        'resource'
       );
+      result = await awaitWithCleanRoomQuiescentMutationControl(integration, control);
     } catch (cause) {
       const stoppedFailure = stoppedCleanRoomFailure(cause, control);
       if (stoppedFailure) return err(stoppedFailure);
@@ -1274,7 +1275,8 @@ class CleanRoomOperationStopped extends Error {
 
 function awaitWithCleanRoomControl<T>(
   operation: Promise<T>,
-  control: CleanRoomOperationControl
+  control: CleanRoomOperationControl,
+  recheckControlOnResolution = true
 ): Promise<T> {
   const stopped = cleanRoomOperationFailure(control.signal, control.deadlineAt);
   if (stopped) return Promise.reject(new CleanRoomOperationStopped(stopped));
@@ -1312,12 +1314,21 @@ function awaitWithCleanRoomControl<T>(
 
     operation.then(
       (value) => {
-        const failure = cleanRoomOperationFailure(control.signal, control.deadlineAt);
+        const failure = recheckControlOnResolution
+          ? cleanRoomOperationFailure(control.signal, control.deadlineAt)
+          : undefined;
         finish(() => (failure ? reject(new CleanRoomOperationStopped(failure)) : resolve(value)));
       },
       (cause) => finish(() => reject(cause))
     );
   });
+}
+
+function awaitWithCleanRoomQuiescentMutationControl<T>(
+  operation: Promise<T>,
+  control: CleanRoomOperationControl
+): Promise<T> {
+  return awaitWithCleanRoomControl(operation, control, false);
 }
 
 function stoppedCleanRoomFailure(

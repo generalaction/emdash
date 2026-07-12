@@ -80,6 +80,7 @@ function makeHarness(
     holdStartup?: boolean;
     holdFixAttestation?: boolean;
     holdFixIntegration?: boolean;
+    expireAfterFixIntegrationCheck?: boolean;
     holdJournalSave?: { call: number; phase: 'before-apply' | 'after-apply' };
     throwAfterJournalSaveAt?: number;
     afterCapture?: () => void;
@@ -104,11 +105,15 @@ function makeHarness(
   const startupStarted = deferred();
   const fixAttestationStarted = deferred();
   const fixIntegrationStarted = deferred();
+  const fixIntegrationSettled = deferred();
   const journalSaveStarted = deferred();
   let branchHead: string | null = null;
   let worktreeExists = false;
   let actorBytes: string | undefined;
   let preservedBytes: string | undefined;
+  let integratedFeatureHead = FEATURE;
+  let integratedFixBytes = false;
+  let integrationClockSpy: ReturnType<typeof vi.spyOn> | undefined;
   const machine = options.machine ?? ({ kind: 'local' } satisfies MachineRef);
   const featureMachine = options.featureMachine ?? machine;
   const sourceCapability =
@@ -277,11 +282,38 @@ function makeHarness(
       if (result.success) branchHead = result.data.replayedThroughCommit;
       return result;
     }),
-    integrateFix: vi.fn(async () => {
-      fixIntegrationStarted.resolve();
-      if (options.holdFixIntegration) await fixIntegrationGate.promise;
-      return ok({ featureHead: '4'.repeat(40) });
-    }),
+    integrateFix: vi.fn(
+      async (integrationInput: {
+        expectedFeatureHead: string;
+        fixCommit: string;
+        deadlineAt?: number;
+      }) => {
+        integratedFeatureHead = integrationInput.fixCommit;
+        integratedFixBytes = true;
+        fixIntegrationStarted.resolve();
+        if (options.holdFixIntegration) await fixIntegrationGate.promise;
+        if (
+          integrationInput.deadlineAt !== undefined &&
+          integrationInput.deadlineAt <= Date.now()
+        ) {
+          integratedFeatureHead = integrationInput.expectedFeatureHead;
+          integratedFixBytes = false;
+          fixIntegrationSettled.resolve();
+          return err({
+            type: 'deadline-exceeded' as const,
+            message: 'Feature snapshot deadline was exceeded.',
+          });
+        }
+        if (options.expireAfterFixIntegrationCheck && integrationInput.deadlineAt !== undefined) {
+          await Promise.resolve();
+          integrationClockSpy = vi
+            .spyOn(Date, 'now')
+            .mockReturnValue(integrationInput.deadlineAt + 1);
+        }
+        fixIntegrationSettled.resolve();
+        return ok({ featureHead: '4'.repeat(40) });
+      }
+    ),
   };
   const waitForRequiredStartup = vi.fn(async () => {
     order.push('startup-ready');
@@ -435,6 +467,7 @@ function makeHarness(
       startup: startupStarted,
       fixAttestation: fixAttestationStarted,
       fixIntegration: fixIntegrationStarted,
+      fixIntegrationSettled,
       journalSave: journalSaveStarted,
     },
     setBranchHead: (head: string | null) => {
@@ -443,6 +476,11 @@ function makeHarness(
     readActorBytes: () => actorBytes,
     readPreservedBytes: () => preservedBytes,
     hasWorktree: () => worktreeExists,
+    readIntegratedFeatureState: () => ({
+      head: integratedFeatureHead,
+      fixBytes: integratedFixBytes,
+    }),
+    restoreIntegrationClock: () => integrationClockSpy?.mockRestore(),
   };
 }
 
@@ -1462,6 +1500,36 @@ describe('CleanRoomWorkspaceService', () => {
     );
   });
 
+  it('linearizes quiescent mutation success before the outer deadline timer', async () => {
+    const harness = makeHarness({ expireAfterFixIntegrationCheck: true });
+    const created = await harness.service.create(harness.input);
+    if (!created.success) throw new Error('expected clean room');
+    const fixCommit = '5'.repeat(40);
+    harness.setBranchHead(fixCommit);
+
+    const integrated = await (async () => {
+      try {
+        return await harness.service.integrateFix({
+          cleanRoom: created.data,
+          featureTarget: harness.featureTarget,
+          expectedFeatureHead: FEATURE,
+          fixCommit,
+          project: harness.project,
+          timeoutMs: 60_000,
+        });
+      } finally {
+        harness.restoreIntegrationClock();
+      }
+    })();
+
+    expect(integrated).toEqual({ success: true, data: { featureHead: '4'.repeat(40) } });
+    expect(harness.readIntegratedFeatureState()).toEqual({
+      head: fixCommit,
+      fixBytes: true,
+    });
+    await expect(harness.service.destroy(created.data, harness.project)).resolves.toEqual(ok());
+  });
+
   it('enforces the absolute deadline while fix attestation is held', async () => {
     const harness = makeHarness({ holdFixAttestation: true });
     const created = await harness.service.create(harness.input);
@@ -1518,7 +1586,15 @@ describe('CleanRoomWorkspaceService', () => {
         });
         await harness.started.fixIntegration.promise;
         await vi.advanceTimersByTimeAsync(60_001);
-        return await integration;
+        const result = await integration;
+        expect(harness.readIntegratedFeatureState()).toEqual({
+          head: fixCommit,
+          fixBytes: true,
+        });
+        harness.gates.fixIntegration.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+        await harness.started.fixIntegrationSettled.promise;
+        return result;
       } finally {
         vi.useRealTimers();
       }
@@ -1528,8 +1604,10 @@ describe('CleanRoomWorkspaceService', () => {
       success: false,
       error: { type: 'deadline-exceeded' },
     });
-    harness.gates.fixIntegration.resolve();
-    await new Promise((resolve) => setImmediate(resolve));
+    expect(harness.readIntegratedFeatureState()).toEqual({
+      head: FEATURE,
+      fixBytes: false,
+    });
 
     await expect(harness.service.destroy(created.data, harness.project)).resolves.toEqual(ok());
   });
