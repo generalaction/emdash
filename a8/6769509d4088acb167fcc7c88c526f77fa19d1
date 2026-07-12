@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/task-context-menu.tsx
+  s_ba34bb242521ab::t_f8d17afdde47c4 91-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a86769509d4088acb167fcc7c88c526f77fa19d1",
+  "prompts": {},
+  "sessions": {
+    "s_ba34bb242521ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f77efef2-b691-47f3-803a-10c950aa89f8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
