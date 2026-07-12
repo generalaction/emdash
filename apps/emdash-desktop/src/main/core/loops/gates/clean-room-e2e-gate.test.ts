@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@main/lib/result';
-import type { LoopSessionTarget, LoopState } from '@shared/core/loops/loop-state';
+import type {
+  LoopSessionAttempt,
+  LoopSessionTarget,
+  LoopState,
+} from '@shared/core/loops/loop-state';
 import type { Loop, LoopConfigV2, LoopPhase, LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomPendingCleanup } from '../clean-room/cleanup-journal';
@@ -10,6 +14,7 @@ import {
   type E2ERequiredChecksResult,
   type RunCleanRoomE2EGateInput,
 } from './clean-room-e2e-gate';
+import { reduceE2EProgress } from './clean-room-e2e-progress';
 
 const BASE_COMMIT = '1'.repeat(40);
 const FEATURE_COMMIT = '2'.repeat(40);
@@ -142,7 +147,7 @@ function environment(target: LoopSessionTarget): Readonly<Record<string, string>
     EMDASH_PORT: '50100',
     EMDASH_ROOT_PATH: project.repoPath,
     EMDASH_TASK_ID: loop.taskId,
-    EMDASH_TASK_NAME: 'loop-task',
+    EMDASH_TASK_NAME: 'Loop task',
     EMDASH_TASK_PATH: target.path,
   };
 }
@@ -158,7 +163,6 @@ const defaultInput: RunCleanRoomE2EGateInput = {
   terminalGates: { review: true, e2e: true },
   workPhaseResults: [passedStage, passedStage],
   reviewStageResult: passedStage,
-  previousConversationIds: ['work-1', 'work-2', 'review-1'],
   goal: 'Finish ACP Loops v2.',
   acceptanceCriteria: ['The clean-room result is independently green.'],
   baseCommit: BASE_COMMIT,
@@ -190,6 +194,88 @@ function loopWithState(overrides: Partial<LoopState>): Loop {
     throw new Error('Expected a v1 Loop state test fixture.');
   }
   return { ...loop, state: { ...loop.state, ...overrides } };
+}
+
+function cleanTargetFor(target: LoopSessionTarget, attempt = 1): LoopSessionTarget {
+  return {
+    workspaceId: `verification-workspace-${attempt}`,
+    path:
+      target.machine.kind === 'local'
+        ? `/tmp/verification-workspace-${attempt}`
+        : `/srv/emdash/verification-workspace-${attempt}`,
+    machine: { ...target.machine },
+  };
+}
+
+function whitespaceAlias(target: LoopSessionTarget): LoopSessionTarget {
+  return {
+    workspaceId: ` ${target.workspaceId} `,
+    path: ` ${target.path} `,
+    machine:
+      target.machine.kind === 'local'
+        ? { kind: 'local' }
+        : { kind: 'ssh', connectionId: ` ${target.machine.connectionId} ` },
+  };
+}
+
+function makePendingCleanup(
+  target: LoopSessionTarget = {
+    workspaceId: 'loop-verify-1',
+    path: '/tmp/loop-verify-1',
+    machine: { kind: 'local' },
+  },
+  expectedFeatureHead = FEATURE_COMMIT
+): CleanRoomPendingCleanup {
+  return {
+    version: '1',
+    cleanupId: 'cleanup-loop-verify-1',
+    verificationRunId: 'verification-run-1',
+    attempt: 1,
+    projectId: project.projectId,
+    workspaceId: target.workspaceId,
+    target: { path: target.path, machine: { ...target.machine } },
+    featureTarget,
+    branchName: `emdash/${target.workspaceId}`,
+    baseCommit: BASE_COMMIT,
+    expectedFeatureHead,
+    worktreeOwnership: 'attested',
+    teardownRequired: true,
+    branchHead: expectedFeatureHead,
+    completed: { teardown: false, worktree: false, branch: false },
+    revision: 1,
+  };
+}
+
+function historicalAttempts(count: number): LoopSessionAttempt[] {
+  return Array.from({ length: count }, (_, index) => ({
+    attemptId: `historical-attempt-${index}`,
+    conversationId: `historical-conversation-${index}`,
+    purpose: 'work' as const,
+    phaseId: `historical-phase-${index}`,
+    target: featureTarget,
+    status: 'completed' as const,
+    checkpointBefore: BASE_COMMIT,
+    checkpointAfter: FEATURE_COMMIT,
+    startedAt: '2026-07-12T00:01:00.000Z',
+    finishedAt: '2026-07-12T00:02:00.000Z',
+  }));
+}
+
+function nestedAttempt(
+  overrides: Partial<LoopSessionAttempt> & Pick<LoopSessionAttempt, 'attemptId' | 'conversationId'>
+): LoopSessionAttempt {
+  return {
+    purpose: 'browser-verification',
+    phaseId: phase.id,
+    verificationRunId: 'verification-run-1',
+    target: cleanTargetFor(featureTarget),
+    status: 'completed',
+    checkpointBefore: FEATURE_COMMIT,
+    checkpointAfter: FEATURE_COMMIT,
+    startedAt: '2026-07-12T01:01:00.000Z',
+    finishedAt: '2026-07-12T01:01:30.000Z',
+    ...overrides,
+  };
 }
 
 type AttemptScript = {
@@ -312,8 +398,8 @@ function makeHarness(scripts: readonly AttemptScript[], target = featureTarget):
       startFreshE2ESession: vi.fn(async (input) => {
         calls.push(`start:${attempt}`);
         return ok({
-          attemptId: `e2e-attempt-${attempt}`,
-          conversationId: `e2e-conversation-${attempt}`,
+          attemptId: input.attemptId,
+          conversationId: input.conversationId,
           purpose: input.purpose,
           phaseId: input.phaseId,
           verificationRunId: input.verificationRunId,
@@ -349,12 +435,12 @@ function makeHarness(scripts: readonly AttemptScript[], target = featureTarget):
         return ok(
           scripted ??
             requiredChecksResult({
-              loopId: input.loop.id,
-              phaseId: input.phase.id,
+              loopId: input.authority.loopId,
+              phaseId: input.authority.phaseId,
               target: input.target,
               checkpointCommit: input.checkpointCommit,
               verificationRunId: input.verificationRunId,
-              outerConversationId: input.conversationId,
+              outerConversationId: input.authority.outerConversationId,
               validationCommands: input.validationCommands ?? VALIDATION_COMMANDS,
               criteria: input.criteria ?? E2E_CRITERIA,
               taskEnvironment: input.taskEnvironment,
@@ -363,7 +449,14 @@ function makeHarness(scripts: readonly AttemptScript[], target = featureTarget):
         );
       }),
     },
+    progress: {
+      commit: vi.fn(async (input) => reduceE2EProgress(input.expected, input.transition)),
+    },
     createVerificationRunId: (nextAttempt) => `verification-run-${nextAttempt}`,
+    createSessionIdentity: ({ attempt: nextAttempt }) => ({
+      attemptId: `e2e-attempt-${nextAttempt}`,
+      conversationId: `e2e-conversation-${nextAttempt}`,
+    }),
     now: () => new Date('2026-07-12T01:02:03.000Z'),
   };
 
@@ -460,6 +553,109 @@ function mutateRequiredChecksOnce(
     const result = await original(input);
     return result.success ? ok(mutate(result.data)) : result;
   });
+}
+
+type TargetEchoPort =
+  | 'binding'
+  | 'session'
+  | 'prompt'
+  | 'checks'
+  | 'native'
+  | 'nested'
+  | 'cancel'
+  | 'release'
+  | 'final';
+
+function arrangeWhitespaceTargetEcho(
+  harness: Harness,
+  port: TargetEchoPort,
+  cleanTarget: LoopSessionTarget,
+  feature: LoopSessionTarget
+): void {
+  const cleanAlias = whitespaceAlias(cleanTarget);
+  switch (port) {
+    case 'binding': {
+      const acquire = vi.mocked(harness.dependencies.execution.acquire);
+      const original = acquire.getMockImplementation()!;
+      acquire.mockImplementationOnce(async (input) => {
+        const result = await original(input);
+        if (!result.success) return result;
+        return ok({
+          ...result.data,
+          target: cleanAlias,
+          executionTarget: {
+            ...result.data.executionTarget,
+            ...cleanAlias,
+          },
+        });
+      });
+      return;
+    }
+    case 'session': {
+      const start = vi.mocked(harness.dependencies.session.startFreshE2ESession);
+      const original = start.getMockImplementation()!;
+      start.mockImplementationOnce(async (input) => {
+        const result = await original(input);
+        return result.success ? ok({ ...result.data, target: cleanAlias }) : result;
+      });
+      return;
+    }
+    case 'prompt': {
+      const prompt = vi.mocked(harness.dependencies.session.sendE2EPrompt);
+      const original = prompt.getMockImplementation()!;
+      prompt.mockImplementationOnce(async (input) => {
+        const result = await original(input);
+        return result.success ? ok({ ...result.data, target: cleanAlias }) : result;
+      });
+      return;
+    }
+    case 'checks':
+      mutateRequiredChecksOnce(harness, (result) => ({
+        ...result,
+        target: cleanAlias,
+        executionTarget: cleanAlias,
+      }));
+      return;
+    case 'native':
+      mutateRequiredChecksOnce(harness, (result) => ({
+        ...result,
+        nativePreview: { ...result.nativePreview, target: cleanAlias },
+      }));
+      return;
+    case 'nested':
+      mutateRequiredChecksOnce(harness, (result) => ({
+        ...result,
+        sessionAttempts: [{ ...result.sessionAttempts[0]!, target: cleanAlias }],
+      }));
+      return;
+    case 'cancel': {
+      const cancel = vi.mocked(harness.dependencies.session.cancelE2ESession);
+      const original = cancel.getMockImplementation()!;
+      cancel.mockImplementationOnce(async (input) => {
+        const result = await original(input);
+        return result.success ? ok({ ...result.data, target: cleanAlias }) : result;
+      });
+      return;
+    }
+    case 'release': {
+      const release = vi.mocked(harness.dependencies.execution.release);
+      const original = release.getMockImplementation()!;
+      release.mockImplementationOnce(async (input) => {
+        const result = await original(input);
+        return result.success ? ok({ ...result.data, target: cleanAlias }) : result;
+      });
+      return;
+    }
+    case 'final':
+      vi.mocked(harness.dependencies.authority.inspectFeature).mockResolvedValueOnce(
+        ok({
+          target: whitespaceAlias(feature),
+          headCommit: FEATURE_COMMIT,
+          clean: true,
+          branchAttached: true,
+        })
+      );
+  }
 }
 
 describe('CleanRoomE2EGate', () => {
@@ -1176,7 +1372,13 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'cancelled', stage: 'prompt', lastWorkspaceDestroyed: true },
+      error: {
+        type: 'cancelled',
+        stage: 'prompt',
+        lastWorkspaceDestroyed: true,
+        sessionAttempts: [{ purpose: 'e2e', status: 'cancelled' }],
+        stageResult: { status: 'cancelled' },
+      },
     });
     expect(harness.dependencies.requiredChecks.run).not.toHaveBeenCalled();
     expect(harness.calls).toContain('release:1');
@@ -1311,7 +1513,7 @@ describe('CleanRoomE2EGate', () => {
         verificationRunId: 'verification-run-1',
         attempt: 1,
         target: {
-          workspaceId: 'verification-workspace-1',
+          workspaceId: 'loop-verify-1',
           path: '/tmp/verification-workspace-1',
           machine: { kind: 'local' },
         },
@@ -1864,15 +2066,18 @@ describe('CleanRoomE2EGate', () => {
         lastWorkspaceDestroyed: true,
         sessionAttempts: [
           {
-            target: {
-              workspaceId: 'verification-workspace-1',
-              path: '/tmp/verification-workspace-1',
-              machine: { kind: 'local' },
-            },
+            attemptId: 'e2e-attempt-1',
+            conversationId: 'e2e-conversation-1',
             status: 'failed',
           },
         ],
       },
+    });
+    if (result.success) throw new Error('Expected stale session rejection.');
+    expect(result.error.sessionAttempts).toHaveLength(1);
+    expect(result.error.sessionAttempts[0]).not.toMatchObject({
+      attemptId: 'work-attempt-1',
+      conversationId: 'work-1',
     });
     expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
     expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
@@ -2252,7 +2457,7 @@ describe('CleanRoomE2EGate', () => {
     );
   });
 
-  it('skips feature reconciliation when post-integration cleanup cannot prove authority', async () => {
+  it('reconciles feature authority while preserving post-integration release failure', async () => {
     const harness = makeHarness([
       {
         finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
@@ -2274,11 +2479,16 @@ describe('CleanRoomE2EGate', () => {
         featureHead: FIX_COMMIT,
         recoveryRequired: true,
         lastWorkspaceDestroyed: false,
+        intermediateFailures: [{ source: 'Clean-room E2E correction' }],
       },
     });
     expect(harness.dependencies.cleanRoom.integrateFix).toHaveBeenCalledOnce();
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
-    expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
+    expect(harness.dependencies.authority.inspectFeature).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.dependencies.authority.inspectFeature).mock.calls[0]?.[0]).toEqual({
+      target: featureTarget,
+      expectedFeatureHead: FIX_COMMIT,
+    });
   });
 
   it('rejects a malformed AbortSignal before creating a clean room', async () => {
@@ -2301,9 +2511,9 @@ describe('CleanRoomE2EGate', () => {
     const checks = vi.mocked(harness.dependencies.requiredChecks.run);
     const original = checks.getMockImplementation()!;
     checks.mockImplementationOnce(async (input) => {
-      expect(input.phase.conversationId).toBe('e2e-conversation-1');
-      input.loop.id = 'mutated-copy';
-      input.phase.id = 'mutated-copy';
+      expect(input.authority.outerConversationId).toBe('e2e-conversation-1');
+      input.authority.loopId = 'mutated-copy';
+      input.authority.phaseId = 'mutated-copy';
       return original(input);
     });
 
@@ -2429,4 +2639,780 @@ describe('CleanRoomE2EGate', () => {
     if (result.success) throw new Error('Expected cleanup failure.');
     expect(result.error).not.toHaveProperty('pendingCleanup');
   });
+
+  it('preserves an exact Lane-W cleanup record returned by clean-room creation', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const pendingCleanup = makePendingCleanup();
+    vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce(
+      err({
+        type: 'cleanup-failed',
+        message: 'creation failed after durable worktree allocation',
+        pendingCleanup,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+    pendingCleanup.revision = 99;
+    pendingCleanup.completed.worktree = true;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingCleanup: {
+          cleanupId: 'cleanup-loop-verify-1',
+          verificationRunId: 'verification-run-1',
+          projectId: project.projectId,
+          workspaceId: 'loop-verify-1',
+          expectedFeatureHead: FEATURE_COMMIT,
+          revision: 1,
+          completed: { teardown: false, worktree: false, branch: false },
+        },
+      },
+    });
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'a malformed result',
+      (harness: Harness) =>
+        vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce({} as never),
+    ],
+    [
+      'a rejected transport',
+      (harness: Harness) =>
+        vi
+          .mocked(harness.dependencies.cleanRoom.create)
+          .mockRejectedValueOnce(new Error('create transport disconnected')),
+    ],
+  ] as const)('reports unknown recovery when creation has %s', async (_name, arrange) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    arrange(harness);
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'a callable duck type',
+      Object.assign(() => undefined, {
+        aborted: false,
+        addEventListener: () => undefined,
+        removeEventListener: (): void => undefined,
+      }),
+    ],
+    [
+      'a listener that throws when called',
+      {
+        aborted: false,
+        addEventListener: () => {
+          throw new Error('hostile listener');
+        },
+        removeEventListener: (): void => undefined,
+      },
+    ],
+    [
+      'an aborted getter that throws',
+      Object.defineProperty({}, 'aborted', {
+        enumerable: true,
+        get: () => {
+          throw new Error('hostile aborted getter');
+        },
+      }),
+    ],
+  ] as const)('rejects %s as an AbortSignal before clean-room creation', async (_name, signal) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+
+    const run = harness.gate.run({ ...defaultInput, signal: signal as AbortSignal });
+
+    await expect(run).resolves.toMatchObject({
+      success: false,
+      error: { type: 'invalid-input', stage: 'precondition', attempt: 0 },
+    });
+    expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'a throwing success accessor',
+      Object.defineProperty({}, 'success', {
+        enumerable: true,
+        get: () => {
+          throw new Error('hostile success accessor');
+        },
+      }),
+    ],
+    [
+      'a throwing error accessor',
+      Object.defineProperties(
+        {},
+        {
+          success: { enumerable: true, value: false },
+          error: {
+            enumerable: true,
+            get: () => {
+              throw new Error('hostile error accessor');
+            },
+          },
+        }
+      ),
+    ],
+  ] as const)('contains %s from a live prompt dependency', async (_name, malformedResult) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockResolvedValueOnce(
+      malformedResult as never
+    );
+
+    const run = harness.gate.run(defaultInput);
+
+    await expect(run).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'prompt',
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('contains rejection coercion that throws after a live session starts', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const hostileCause = {
+      toString: () => {
+        throw new Error('hostile rejection coercion');
+      },
+    };
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockRejectedValueOnce(hostileCause);
+
+    const run = harness.gate.run(defaultInput);
+
+    await expect(run).resolves.toMatchObject({
+      success: false,
+      error: {
+        type: 'dependency-rejected',
+        stage: 'prompt',
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('keeps cleanup failure primary and reconciles after correction integration rejects', async () => {
+    const harness = makeHarness([
+      {
+        finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+    ]);
+    vi.mocked(harness.dependencies.cleanRoom.integrateFix).mockResolvedValueOnce(
+      err({ message: 'integration disconnected after attempting the merge' })
+    );
+    vi.mocked(harness.dependencies.execution.release).mockResolvedValueOnce(
+      err({ message: 'execution release failed' })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        featureHead: FEATURE_COMMIT,
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+      },
+    });
+    expect(harness.dependencies.authority.inspectFeature).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.dependencies.authority.inspectFeature).mock.calls[0]?.[0]).toEqual({
+      target: featureTarget,
+      expectedFeatureHead: FEATURE_COMMIT,
+    });
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('keeps bound destroy authority primary and reconciles after invalid integration success', async () => {
+    const harness = makeHarness([
+      {
+        finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+    ]);
+    const cleanupTarget: LoopSessionTarget = {
+      workspaceId: 'loop-verify-1',
+      path: '/tmp/loop-verify-1',
+      machine: { kind: 'local' },
+    };
+    const create = vi.mocked(harness.dependencies.cleanRoom.create);
+    const originalCreate = create.getMockImplementation()!;
+    create.mockImplementationOnce(async (input) => {
+      const created = await originalCreate(input);
+      return created.success
+        ? ok({
+            ...created.data,
+            target: cleanupTarget,
+            branchName: 'emdash/loop-verify-1',
+          })
+        : created;
+    });
+    const pendingCleanup = makePendingCleanup(cleanupTarget);
+    vi.mocked(harness.dependencies.cleanRoom.integrateFix).mockResolvedValueOnce(
+      ok(undefined as never)
+    );
+    vi.mocked(harness.dependencies.cleanRoom.destroy).mockResolvedValueOnce(
+      err({ message: 'destroy failed', pendingCleanup })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        featureHead: FEATURE_COMMIT,
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingCleanup: {
+          cleanupId: 'cleanup-loop-verify-1',
+          verificationRunId: 'verification-run-1',
+        },
+      },
+    });
+    expect(harness.dependencies.authority.inspectFeature).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.dependencies.authority.inspectFeature).mock.calls[0]?.[0]).toEqual({
+      target: featureTarget,
+      expectedFeatureHead: FEATURE_COMMIT,
+    });
+  });
+
+  it('retains a correctable required-check handoff before cleanup failure', async () => {
+    const cleanTarget = cleanTargetFor(featureTarget);
+    const harness = makeHarness([
+      {
+        finalText: 'Candidate green.\n<<<LOOP:E2E_PASSED>>>',
+        checks: requiredChecksResult({
+          target: cleanTarget,
+          checkpointCommit: FEATURE_COMMIT,
+          verificationRunId: 'verification-run-1',
+          outerConversationId: 'e2e-conversation-1',
+          taskEnvironment: environment(cleanTarget),
+          status: 'correctable',
+        }),
+      },
+    ]);
+    vi.mocked(harness.dependencies.execution.release).mockResolvedValueOnce(
+      err({ message: 'release failed after checks' })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        intermediateFailures: [
+          {
+            source: 'Authoritative E2E checks',
+            handoff: {
+              summary: 'The native preview exposed a correctable dialog bug.',
+            },
+          },
+        ],
+      },
+    });
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it('reserves worst-case outer and nested ledger capacity before creating a clean room', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const sessionAttempts = historicalAttempts(1_023);
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithState({ sessionAttempts }),
+      maxAttempts: 1,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'invalid-input', stage: 'precondition', attempt: 0 },
+    });
+    expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects historical verification-run ID reuse before clean-room creation', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    if (!loop.state || loop.state.version !== '1') throw new Error('Expected Loop state fixture.');
+    const historical = nestedAttempt({
+      attemptId: 'historical-browser-attempt',
+      conversationId: 'historical-browser-conversation',
+      target: featureTarget,
+      verificationRunId: 'verification-run-1',
+    });
+    const sessionAttempts = [...loop.state.sessionAttempts, historical];
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithState({ sessionAttempts }),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'invalid-verification-run', stage: 'create', attempt: 1 },
+    });
+    expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+  });
+
+  it('marks a deadline-stopped controlled prompt as interrupted in the append delta', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type PromptResult = Awaited<
+      ReturnType<CleanRoomE2EGateDependencies['session']['sendE2EPrompt']>
+    >;
+    const deferred = Promise.withResolvers<PromptResult>();
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockReturnValueOnce(deferred.promise);
+
+    const run = harness.gate.run({ ...defaultInput, deadlineAt: Date.now() + 200 });
+    await vi.waitFor(() =>
+      expect(harness.dependencies.session.sendE2EPrompt).toHaveBeenCalledOnce()
+    );
+    const result = await run;
+    deferred.resolve(err({ type: 'deadline-exceeded', message: 'prompt stopped' }));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'deadline-exceeded',
+        stage: 'prompt',
+        lastWorkspaceDestroyed: true,
+        sessionAttempts: [{ purpose: 'e2e', status: 'interrupted' }],
+        stageResult: { status: 'interrupted' },
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('retains fresh terminal nested attempts from a quiesced required-check rejection', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const terminalAttempts = [
+      nestedAttempt({
+        attemptId: 'nested-failed',
+        conversationId: 'nested-failed-conversation',
+        status: 'failed',
+        error: 'native assertion failed',
+      }),
+      nestedAttempt({
+        attemptId: 'nested-cancelled',
+        conversationId: 'nested-cancelled-conversation',
+        status: 'cancelled',
+        error: 'native assertion cancelled',
+      }),
+      nestedAttempt({
+        attemptId: 'nested-interrupted',
+        conversationId: 'nested-interrupted-conversation',
+        status: 'interrupted',
+        error: 'native assertion interrupted',
+      }),
+    ];
+    vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
+      err({
+        message: 'checks settled with terminal browser attempts',
+        sessionAttempts: [
+          ...terminalAttempts,
+          nestedAttempt({
+            attemptId: 'work-attempt-1',
+            conversationId: 'historical-duplicate',
+            status: 'failed',
+          }),
+        ],
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'required-checks',
+        sessionAttempts: [
+          { purpose: 'e2e', status: 'failed' },
+          { attemptId: 'nested-failed', status: 'failed' },
+          { attemptId: 'nested-cancelled', status: 'cancelled' },
+          { attemptId: 'nested-interrupted', status: 'interrupted' },
+        ],
+      },
+    });
+    if (result.success) throw new Error('Expected required-check rejection.');
+    expect(result.error.sessionAttempts.map((attempt) => attempt.attemptId)).not.toContain(
+      'work-attempt-1'
+    );
+  });
+
+  it('normalizes fresh nonterminal nested attempts to interrupted after checks quiesce', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const running = nestedAttempt({
+      attemptId: 'nested-running',
+      conversationId: 'nested-running-conversation',
+      status: 'running',
+    });
+    const starting = nestedAttempt({
+      attemptId: 'nested-starting',
+      conversationId: 'nested-starting-conversation',
+      status: 'starting',
+    });
+    delete running.finishedAt;
+    delete starting.finishedAt;
+    vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
+      err({
+        message: 'checks quiesced while nested attempts were nonterminal',
+        sessionAttempts: [running, starting],
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'required-checks',
+        sessionAttempts: [
+          { purpose: 'e2e', status: 'failed' },
+          { attemptId: 'nested-running', status: 'interrupted' },
+          { attemptId: 'nested-starting', status: 'interrupted' },
+        ],
+      },
+    });
+    if (result.success) throw new Error('Expected required-check rejection.');
+    expect(result.error.sessionAttempts.slice(1).every((attempt) => attempt.finishedAt)).toBe(true);
+  });
+
+  it('passes a current retry checkpoint, state, ledger, and one normalized command list to checks', async () => {
+    const rawValidationCommands = ['  pnpm run test  ', '\tpnpm run typecheck\n'];
+    const normalizedValidationCommands = ['pnpm run test', 'pnpm run typecheck'];
+    const retryLoop = loopWithConfig({ validationCommands: rawValidationCommands });
+    const harness = makeHarness([
+      {
+        finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+      { finalText: 'Fresh pass.\n<<<LOOP:E2E_PASSED>>>' },
+    ]);
+    const checks = vi.mocked(harness.dependencies.requiredChecks.run);
+    const originalChecks = checks.getMockImplementation()!;
+    let received: Parameters<CleanRoomE2EGateDependencies['requiredChecks']['run']>[0] | undefined;
+    checks.mockImplementationOnce(async (input) => {
+      received = input;
+      return originalChecks(input);
+    });
+
+    const result = await harness.gate.run({ ...defaultInput, loop: retryLoop });
+
+    expect(result).toMatchObject({ success: true, data: { featureHead: FIX_COMMIT, attempts: 2 } });
+    expect(received).toBeDefined();
+    expect(received?.checkpointCommit).toBe(FIX_COMMIT);
+    expect(received?.validationCommands).toEqual(normalizedValidationCommands);
+    expect(received?.authority.progress.loopState).toMatchObject({
+      expectedFeatureHead: FIX_COMMIT,
+      checkpointCommit: FIX_COMMIT,
+      verification: {
+        verificationRunId: 'verification-run-2',
+        attempt: 2,
+        target: cleanTargetFor(featureTarget, 2),
+        replayedThroughCommit: FIX_COMMIT,
+        expectedFeatureHead: FIX_COMMIT,
+      },
+    });
+    expect(received?.authority.progress.loopState.sessionAttempts.slice(-2)).toMatchObject([
+      {
+        attemptId: 'e2e-attempt-1',
+        status: 'completed',
+        checkpointAfter: FIX_COMMIT,
+      },
+      {
+        attemptId: 'e2e-attempt-2',
+        status: 'running',
+        checkpointBefore: FIX_COMMIT,
+      },
+    ]);
+  });
+
+  it('rejects a trusted task environment with the wrong task name before session creation', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const acquire = vi.mocked(harness.dependencies.execution.acquire);
+    const original = acquire.getMockImplementation()!;
+    acquire.mockImplementationOnce(async (input) => {
+      const result = await original(input);
+      if (!result.success) return result;
+      const taskEnvironment = {
+        ...result.data.taskEnvironment,
+        EMDASH_TASK_NAME: 'different task',
+      };
+      return ok({
+        ...result.data,
+        taskEnvironment,
+        executionTarget: { ...result.data.executionTarget, taskEnv: taskEnvironment },
+      });
+    });
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'task-environment-invalid',
+        stage: 'execution',
+        lastWorkspaceDestroyed: true,
+      },
+    });
+    expect(harness.dependencies.session.startFreshE2ESession).not.toHaveBeenCalled();
+    expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('redacts dependency secrets from every persisted failure string', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const secrets = ['loop-token-value', 'loop-password-value', 'loop-cookie-value'];
+    vi.mocked(harness.dependencies.session.sendE2EPrompt).mockResolvedValueOnce(
+      err({
+        message:
+          'token=loop-token-value password=loop-password-value session_cookie=loop-cookie-value',
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+    const persisted = JSON.stringify(result);
+
+    expect(result).toMatchObject({ success: false, error: { stage: 'prompt' } });
+    for (const secret of secrets) expect(persisted).not.toContain(secret);
+    expect(persisted).toContain('[REDACTED');
+  });
+
+  it('redacts required-check secrets from persisted success summaries', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const secrets = ['summary-token-value', 'summary-password-value', 'summary-cookie-value'];
+    mutateRequiredChecksOnce(harness, (result) => ({
+      ...result,
+      requiredTestsSummary: 'token=summary-token-value password=summary-password-value',
+      nativePreview: {
+        ...result.nativePreview,
+        summary: 'session_cookie=summary-cookie-value',
+      },
+    }));
+
+    const result = await harness.gate.run(defaultInput);
+    const persisted = JSON.stringify(result);
+
+    expect(result.success).toBe(true);
+    for (const secret of secrets) expect(persisted).not.toContain(secret);
+    expect(persisted).toContain('[REDACTED');
+  });
+
+  it('redacts sentinel and check-handoff secrets before retaining correction evidence', async () => {
+    const secrets = ['sentinel-token-value', 'sentinel-cookie-value', 'handoff-password-value'];
+    const harness = makeHarness([
+      {
+        finalText:
+          '<<<LOOP:E2E_CORRECTION_READY token=sentinel-token-value session_cookie=sentinel-cookie-value>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+      {
+        finalText: 'Candidate green.\n<<<LOOP:E2E_PASSED>>>',
+        checks: {
+          ...requiredChecksResult({
+            target: cleanTargetFor(featureTarget, 2),
+            checkpointCommit: FIX_COMMIT,
+            verificationRunId: 'verification-run-2',
+            outerConversationId: 'e2e-conversation-2',
+            taskEnvironment: environment(cleanTargetFor(featureTarget, 2)),
+            attempt: 2,
+            status: 'correctable',
+          }),
+          handoff: {
+            source: 'Authoritative E2E checks',
+            handoff: {
+              summary: 'password=handoff-password-value',
+              risks: ['session_cookie=sentinel-cookie-value'],
+              remainingWork: ['token=sentinel-token-value'],
+              artifacts: [],
+              createdAt: '2026-07-12T01:01:30.000Z',
+            },
+          },
+        },
+      },
+    ]);
+
+    const result = await harness.gate.run({ ...defaultInput, maxAttempts: 2 });
+    const persisted = JSON.stringify(result);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'attempts-exhausted',
+        intermediateFailures: [
+          { source: 'Clean-room E2E correction' },
+          { source: 'Authoritative E2E checks' },
+        ],
+      },
+    });
+    for (const secret of secrets) expect(persisted).not.toContain(secret);
+    expect(persisted).toContain('[REDACTED');
+  });
+
+  const targetEchoMachines = [
+    { name: 'local', target: featureTarget, inputProject: project },
+    {
+      name: 'SSH',
+      target: sshFeatureTarget,
+      inputProject: {
+        ...project,
+        defaultWorkspaceMachine: sshFeatureTarget.machine,
+      } as unknown as CleanRoomProject,
+    },
+  ] as const;
+  const targetEchoPorts = [
+    {
+      port: 'binding',
+      errorType: 'execution-target-drift',
+      stage: 'execution',
+      releaseCount: 0,
+      destroyCount: 0,
+      destroyed: false,
+    },
+    {
+      port: 'session',
+      errorType: 'session-authority-invalid',
+      stage: 'session-start',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+    {
+      port: 'prompt',
+      errorType: 'prompt-authority-invalid',
+      stage: 'prompt',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+    {
+      port: 'checks',
+      errorType: 'required-checks-authority-invalid',
+      stage: 'required-checks',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+    {
+      port: 'native',
+      errorType: 'native-verifier-authority-invalid',
+      stage: 'required-checks',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+    {
+      port: 'nested',
+      errorType: 'native-verifier-ledger-invalid',
+      stage: 'required-checks',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+    {
+      port: 'cancel',
+      errorType: 'dependency-rejected',
+      stage: 'quiescence',
+      releaseCount: 0,
+      destroyCount: 0,
+      destroyed: false,
+    },
+    {
+      port: 'release',
+      errorType: 'cleanup-failed',
+      stage: 'cleanup',
+      releaseCount: 1,
+      destroyCount: 0,
+      destroyed: false,
+    },
+    {
+      port: 'final',
+      errorType: 'feature-head-drift',
+      stage: 'finalize',
+      releaseCount: 1,
+      destroyCount: 1,
+      destroyed: true,
+    },
+  ] as const satisfies readonly {
+    port: TargetEchoPort;
+    errorType: string;
+    stage: string;
+    releaseCount: number;
+    destroyCount: number;
+    destroyed: boolean;
+  }[];
+
+  for (const machine of targetEchoMachines) {
+    for (const expectation of targetEchoPorts) {
+      it(`rejects a whitespace-normalized ${machine.name} ${expectation.port} target echo`, async () => {
+        const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }], machine.target);
+        arrangeWhitespaceTargetEcho(
+          harness,
+          expectation.port,
+          cleanTargetFor(machine.target),
+          machine.target
+        );
+
+        const result = await harness.gate.run({
+          ...defaultInput,
+          project: machine.inputProject,
+          featureTarget: machine.target,
+        });
+
+        expect(result).toMatchObject({
+          success: false,
+          error: {
+            type: expectation.errorType,
+            stage: expectation.stage,
+            lastWorkspaceDestroyed: expectation.destroyed,
+          },
+        });
+        expect(harness.dependencies.execution.release).toHaveBeenCalledTimes(
+          expectation.releaseCount
+        );
+        expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledTimes(
+          expectation.destroyCount
+        );
+      });
+    }
+  }
 });
