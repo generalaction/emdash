@@ -56,7 +56,11 @@ describe('LoopEvidenceStore', () => {
             {
               level: 'error',
               source: 'network',
-              message: 'Set-Cookie: sessionid=observed-cookie-secret; HttpOnly',
+              message:
+                'Set-Cookie: sessionid=observed-cookie-secret; HttpOnly\n' +
+                '{"cookie":"opaque-evidence-7319"}\n' +
+                '{\\"set-cookie\\":\\"opaque-evidence-8427\\"}\n' +
+                'Accept cookies to continue',
               redacted: true,
             },
           ],
@@ -82,6 +86,9 @@ describe('LoopEvidenceStore', () => {
     expect(events).not.toContain('hunter2');
     expect(events).not.toContain('intermediate-cookie-secret');
     expect(events).not.toContain('observed-cookie-secret');
+    expect(events).not.toContain('opaque-evidence-7319');
+    expect(events).not.toContain('opaque-evidence-8427');
+    expect(events).toContain('Accept cookies to continue');
     expect(events).not.toContain('?token=');
     expect(events).not.toContain('#private');
     expect(events).not.toContain('file:///');

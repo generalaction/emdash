@@ -1510,7 +1510,10 @@ describe('native browser verifier', () => {
             kind: 'accessibility-snapshot',
             snapshot:
               'token=super-secret file:///home/devuser/private data:text/plain,secret ' +
-              'javascript:alert(secret)\nSet-Cookie: sessionid=snapshot-cookie-secret',
+              'javascript:alert(secret)\nSet-Cookie: sessionid=snapshot-cookie-secret\n' +
+              '{"cookie":"opaque-value-7319"}\n' +
+              '{\\"set-cookie\\":\\"opaque-value-8427\\"}\n' +
+              'Accept cookies to continue',
             truncated: false,
           },
         },
@@ -1557,6 +1560,9 @@ describe('native browser verifier', () => {
     expect(prompts).not.toContain('BearerSecret');
     expect(prompts).not.toContain('snapshot-cookie-secret');
     expect(prompts).not.toContain('diagnostic-cookie-secret');
+    expect(prompts).not.toContain('opaque-value-7319');
+    expect(prompts).not.toContain('opaque-value-8427');
+    expect(prompts).toContain('Accept cookies to continue');
     expect(prompts).not.toContain('file:///');
     expect(prompts).not.toContain('data:text');
     expect(prompts).not.toContain('javascript:');
@@ -1568,6 +1574,9 @@ describe('native browser verifier', () => {
     );
     expect(evidenceCalls).not.toContain('snapshot-cookie-secret');
     expect(evidenceCalls).not.toContain('diagnostic-cookie-secret');
+    expect(evidenceCalls).not.toContain('opaque-value-7319');
+    expect(evidenceCalls).not.toContain('opaque-value-8427');
+    expect(evidenceCalls).toContain('Accept cookies to continue');
   });
 
   it('stores screenshot bytes only as a sensitive app-data artifact', async () => {

@@ -60,7 +60,7 @@ const nativeBrowserTerminalPattern =
 const sensitiveTargetPattern =
   /password|passphrase|secret|token|authorization|api[_ -]?key|cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid/iu;
 const cookieAssignmentPattern =
-  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b\s*[:=]\s*[^\r\n]*/giu;
+  /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b(?:(?:\\?["'])|\s){0,8}[:=]\s*[^\r\n]*/giu;
 
 export type NativeBrowserTerminalOutcome =
   | { kind: 'passed' }
