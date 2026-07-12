@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_f118e76a621480::t_bedcbb4397d7a7 4-7,73,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "7536455daf171d76b5e1b6b31fd0df9879fc4c4e",
+  "prompts": {},
+  "sessions": {
+    "s_f118e76a621480": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f576c-f5b7-7db1-805e-e3c882c67538",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
