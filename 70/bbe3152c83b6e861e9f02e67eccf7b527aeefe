@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/layout/layout-provider.tsx
+  s_ffd5d86d22ae3e::t_76f65e2455b4b0 18,39,70-80,83-84,91,96,105
+apps/emdash-desktop/src/renderer/lib/components/app-keyboard-shortcuts.tsx
+  s_ffd5d86d22ae3e::t_76f65e2455b4b0 3,22,47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "70bbe3152c83b6e861e9f02e67eccf7b527aeefe",
+  "prompts": {},
+  "sessions": {
+    "s_ffd5d86d22ae3e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033o3v6t4CB3XwYFHDpkYY",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
