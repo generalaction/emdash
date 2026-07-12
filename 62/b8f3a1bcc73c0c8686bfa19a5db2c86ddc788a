@@ -1,0 +1,33 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_d202043608f393::t_c22d2d7d601524 321-342
+apps/emdash-desktop/src/renderer/lib/layout/layout-provider.tsx
+  s_c54dd7dc1cc76b::t_4385eef5d4acee 73-74
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_d202043608f393::t_c22d2d7d601524 453-455
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_d202043608f393::t_c22d2d7d601524 17,135-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "62b8f3a1bcc73c0c8686bfa19a5db2c86ddc788a",
+  "prompts": {},
+  "sessions": {
+    "s_c54dd7dc1cc76b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033o3XCxBnk7ohvX8zs1pq",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d202043608f393": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033o3Wh8gKUGFtGifG4Jgf",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
