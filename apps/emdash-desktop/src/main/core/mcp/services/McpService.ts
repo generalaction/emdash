@@ -105,7 +105,12 @@ export class McpService {
         .slice(0, 12);
 
       const results = await Promise.all(
-        matches.map((entry) => this.loadIntegrationsShDomain(entry))
+        matches.map((entry) =>
+          this.loadIntegrationsShDomain(entry).catch((error) => {
+            log.warn(`integrations.sh domain fetch failed for "${entry.domain}"`, error);
+            return [];
+          })
+        )
       );
       const entries = results.flat().slice(0, 24);
       this.integrationsShSearchCache.set(normalizedQuery, {
@@ -168,7 +173,9 @@ export class McpService {
           key: `integrations-sh-${domainEntry.domain}-${surface.slug}`,
           name: surface.name,
           description: domainEntry.description,
-          docsUrl: surface.docs ?? `https://integrations.sh/${encodedDomain}/${surface.slug}/`,
+          docsUrl:
+            toSafeHttpUrl(surface.docs) ??
+            `https://integrations.sh/${encodedDomain}/${surface.slug}/`,
           iconUrl: domainEntry.icon,
           defaultConfig,
           credentialKeys: [],
@@ -314,17 +321,23 @@ function isIntegrationsShMcpSurface(value: unknown): value is IntegrationsShMcpS
   );
 }
 
+function toSafeHttpUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function toIntegrationsShDefaultConfig(
   surface: IntegrationsShMcpSurface
 ): Record<string, unknown> | null {
   if (surface.url) {
-    try {
-      const url = new URL(surface.url);
-      if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
-      return { type: 'http', url: url.toString() };
-    } catch {
-      return null;
-    }
+    const url = toSafeHttpUrl(surface.url);
+    return url ? { type: 'http', url } : null;
   }
   if (surface.command?.trim()) {
     return { type: 'stdio', command: surface.command.trim(), args: surface.args ?? [] };

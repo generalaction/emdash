@@ -196,6 +196,97 @@ describe('McpService', () => {
 
       await expect(service.searchIntegrationsSh('unsafe')).resolves.toEqual([]);
     });
+
+    it('keeps results from healthy domains when another domain fetch fails', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                data: [
+                  {
+                    domain: 'flaky.example',
+                    icon: 'https://integrations.sh/logo/flaky.example',
+                    formats: { mcp: 1 },
+                    popularity: 200,
+                    description: 'Example tracker',
+                  },
+                  {
+                    domain: 'healthy.example',
+                    icon: 'https://integrations.sh/logo/healthy.example',
+                    formats: { mcp: 1 },
+                    popularity: 100,
+                    description: 'Example tracker',
+                  },
+                ],
+              })
+            )
+          )
+          .mockRejectedValueOnce(new Error('network down'))
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                surfaces: [
+                  {
+                    type: 'mcp',
+                    slug: 'healthy',
+                    name: 'Healthy MCP',
+                    url: 'https://mcp.healthy.example/mcp',
+                  },
+                ],
+              })
+            )
+          )
+      );
+
+      await expect(service.searchIntegrationsSh('tracker')).resolves.toEqual([
+        expect.objectContaining({ key: 'integrations-sh-healthy.example-healthy' }),
+      ]);
+    });
+
+    it('falls back to the integrations.sh docs page for non-http docs URLs', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                data: [
+                  {
+                    domain: 'docs.example',
+                    icon: 'https://integrations.sh/logo/docs.example',
+                    formats: { mcp: 1 },
+                    popularity: 1,
+                    description: 'Docs example',
+                  },
+                ],
+              })
+            )
+          )
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                surfaces: [
+                  {
+                    type: 'mcp',
+                    slug: 'docs',
+                    name: 'Docs MCP',
+                    docs: 'file:///etc/passwd',
+                    url: 'https://mcp.docs.example/mcp',
+                  },
+                ],
+              })
+            )
+          )
+      );
+
+      await expect(service.searchIntegrationsSh('docs')).resolves.toEqual([
+        expect.objectContaining({ docsUrl: 'https://integrations.sh/docs.example/docs/' }),
+      ]);
+    });
   });
 
   describe('loadAll', () => {
