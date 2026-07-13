@@ -217,7 +217,7 @@ describe('pluginRegistry', () => {
       '--dangerously-skip-permissions',
       '--model',
       'Claude Opus 4.6 (Thinking)',
-      '-i',
+      '-p',
       'Fix the bug',
     ]);
   });
