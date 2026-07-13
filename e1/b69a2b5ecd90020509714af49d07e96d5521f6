@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_612a161889f705::t_bdcba11ac47ddb 50
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_612a161889f705::t_bdcba11ac47ddb 56
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_612a161889f705::t_b23c5aa8c5f3a2 153-154,167-168
+packages/core/src/agents/spawn-context.test.ts
+  s_612a161889f705::t_b23c5aa8c5f3a2 13-14,34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e1b69a2b5ecd90020509714af49d07e96d5521f6",
+  "prompts": {},
+  "sessions": {
+    "s_612a161889f705": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f59e6-12cd-7500-ae74-54075199caea",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
