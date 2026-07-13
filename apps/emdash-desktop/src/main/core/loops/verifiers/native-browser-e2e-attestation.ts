@@ -7,6 +7,7 @@ import {
   type LoopArtifactReference,
 } from '@shared/core/loops/loop-phase-state';
 import {
+  CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS,
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
@@ -43,7 +44,6 @@ const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_ARTIFACTS = 64;
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
-const MAX_NATIVE_SESSION_ATTEMPTS = 64;
 const cookieAssignmentPattern =
   /\b(?:cookies?|set[_ -]?cookie|session[_ -]?(?:cookie|id)|sessionid)\b[\\'"\s]*[:=][\s\S]*/giu;
 const posixAbsolutePathPattern = /(^|[\s("'=])\/(?:[^\s"'<>]|\\ )+/gmu;
@@ -212,6 +212,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
     const exact = validated.data;
     const artifacts: LoopArtifactReference[] = [];
     const evidenceRuns: CapturedEvidenceRun[] = [];
+    const timestampNow = createMonotonicTimestampSource(this.dependencies.now);
     const session: ExactSessionCapture = {
       startedAt: null,
       accepted: false,
@@ -233,7 +234,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
       (value) => {
         terminal = value;
       },
-      this.dependencies.now,
+      timestampNow,
       evidenceRuns
     );
     const nativeDependencies: NativeBrowserVerifierDependencies = {
@@ -277,7 +278,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           });
         }
 
-        session.startedAt = safeNow(this.dependencies.now);
+        session.startedAt = timestampNow();
         let started: Result<NativeBrowserE2EExactSession, NativeBrowserE2EExactSessionError>;
         try {
           started = await this.dependencies.startExactSession({
@@ -327,7 +328,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
           const stabilized = stabilizeStartFailure(
             rawFailure,
             exact,
-            session.startedAt ?? safeNow(this.dependencies.now)
+            session.startedAt ?? timestampNow()
           );
           session.startFailure = stabilized.failure;
           session.startFailureAuthorityComplete = stabilized.complete;
@@ -355,7 +356,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
             returnedSession,
             exact,
             session.startedAt,
-            this.dependencies.now
+            timestampNow
           );
           const settlement = await knownSession.settlement;
           session.authorityInvalid = true;
@@ -413,7 +414,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -428,7 +429,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -444,7 +445,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -462,7 +463,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -478,7 +479,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -500,7 +501,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -511,13 +512,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
     }
 
     const summary = safeText(capturedTerminal.summary, defaultSummary(status));
-    const settled = await settleCapturedResources(
-      exact,
-      session,
-      evidenceRuns,
-      this.dependencies.now,
-      true
-    );
+    const settled = await settleCapturedResources(exact, session, evidenceRuns, timestampNow, true);
     const exactSessionSettled = settled.sessionAttempts?.some(
       (candidate) =>
         candidate.attemptId === exact.sessionIdentity.attemptId &&
@@ -542,7 +537,7 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
         exact,
         session,
         evidenceRuns,
-        this.dependencies.now,
+        timestampNow,
         true
       );
       return attestationError(
@@ -738,7 +733,7 @@ function wrapEvidenceStore(
   input: NativeBrowserE2EAttestationInput,
   artifacts: LoopArtifactReference[],
   setTerminal: (terminal: CapturedTerminal) => void,
-  now: () => Date,
+  timestampNow: () => string,
   capturedRuns: CapturedEvidenceRun[]
 ): LoopEvidenceStorePort {
   return {
@@ -753,7 +748,7 @@ function wrapEvidenceStore(
       const run = await store.beginRun(beginInput);
       const captured: CapturedEvidenceRun = { run, settled: false };
       capturedRuns.push(captured);
-      return wrapEvidenceRun(run, artifacts, setTerminal, now, captured);
+      return wrapEvidenceRun(run, artifacts, setTerminal, timestampNow, captured);
     },
   };
 }
@@ -762,7 +757,7 @@ function wrapEvidenceRun(
   run: LoopEvidenceRunPort,
   artifacts: LoopArtifactReference[],
   setTerminal: (terminal: CapturedTerminal) => void,
-  now: () => Date,
+  timestampNow: () => string,
   captured: CapturedEvidenceRun
 ): LoopEvidenceRunPort {
   return {
@@ -782,7 +777,7 @@ function wrapEvidenceRun(
           kind: 'screenshot',
           mimeType,
           byteLength: stored.byteLength,
-          createdAt: safeNow(now),
+          createdAt: timestampNow(),
         });
         if (
           !artifact.success ||
@@ -801,7 +796,7 @@ function wrapEvidenceRun(
       setTerminal({
         status: input.status,
         summary: safeText(input.summary, 'Native browser verification finished.'),
-        finishedAt: safeNow(now),
+        finishedAt: timestampNow(),
       });
     },
     async abandon() {
@@ -838,16 +833,16 @@ async function settleCapturedResources(
   input: NativeBrowserE2EAttestationInput,
   session: ExactSessionCapture,
   evidenceRuns: CapturedEvidenceRun[],
-  now: () => Date,
+  timestampNow: () => string,
   cancelSessions: boolean
 ): Promise<AttestationErrorOptions> {
   const attempts: LoopSessionAttempt[] = [];
-  const recoveredStart = await settleStartFailureSessions(input, session, now);
+  const recoveredStart = await settleStartFailureSessions(input, session, timestampNow);
   let quiescent = recoveredStart.quiescent;
   attempts.push(...recoveredStart.attempts);
   for (const known of session.knownSessions) {
     if (cancelSessions && known.settlement === null) {
-      known.settlement = settleKnownSession(known.session, input, session.startedAt, now);
+      known.settlement = settleKnownSession(known.session, input, session.startedAt, timestampNow);
     }
   }
   const knownSettlements = await Promise.all(
@@ -884,7 +879,7 @@ async function settleCapturedResources(
       input.sessionIdentity,
       'interrupted',
       session.startedAt,
-      safeNow(now),
+      timestampNow(),
       'Native browser session start did not produce terminal authority.'
     );
     if (interrupted) attempts.push(interrupted);
@@ -898,7 +893,7 @@ async function settleCapturedResources(
 async function settleStartFailureSessions(
   input: NativeBrowserE2EAttestationInput,
   session: ExactSessionCapture,
-  now: () => Date
+  timestampNow: () => string
 ): Promise<SessionSettlement> {
   const failure = session.startFailure;
   if (!failure) return { quiescent: true, attempts: [] };
@@ -915,10 +910,10 @@ async function settleStartFailureSessions(
     };
   }
 
-  const startedAt = session.startedAt ?? safeNow(now);
+  const startedAt = session.startedAt ?? timestampNow();
   const identities = distinctNativeRecoveryIdentities([
     { ...input.sessionIdentity, startedAt },
-    ...unsettled.map((attempt) => ({
+    ...reported.map((attempt) => ({
       attemptId: attempt.attemptId,
       conversationId: attempt.conversationId,
       startedAt: attempt.startedAt,
@@ -931,7 +926,7 @@ async function settleStartFailureSessions(
   const settled = await Promise.all(
     cancellations.map(async ({ identity, result }) => ({ identity, acknowledged: await result }))
   );
-  const finishedAt = safeNow(now);
+  const finishedAt = timestampNow();
   const recoveredAttempts = settled.flatMap(({ identity, acknowledged }) => {
     const attempt = buildIdentityAttempt(
       input,
@@ -946,9 +941,10 @@ async function settleStartFailureSessions(
   return {
     quiescent:
       session.startFailureAuthorityComplete &&
+      identities.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
       settled.length === identities.length &&
       settled.every(({ acknowledged }) => acknowledged),
-    attempts: [...terminal, ...recoveredAttempts],
+    attempts: recoveredAttempts,
   };
 }
 
@@ -981,9 +977,8 @@ async function settleKnownSession(
   session: NativeBrowserE2EExactSession,
   input: NativeBrowserE2EAttestationInput,
   startedAt: string | null,
-  now: () => Date
+  timestampNow: () => string
 ): Promise<SessionSettlement> {
-  const finishedAt = safeNow(now);
   const actualIdentity = readSessionIdentity(session);
   const expectedIdentity = input.sessionIdentity;
   const identities = [expectedIdentity];
@@ -995,6 +990,7 @@ async function settleKnownSession(
     identities.push(actualIdentity);
   }
   if (!isAcpSessionDriver(session.driver) || !actualIdentity || startedAt === null) {
+    const finishedAt = timestampNow();
     return {
       quiescent: false,
       attempts: identities.flatMap((identity) => {
@@ -1025,6 +1021,7 @@ async function settleKnownSession(
       }
     )
   );
+  const finishedAt = timestampNow();
   const attempts = identities.flatMap((identity) => {
     const acknowledged = cancellationByConversation.get(identity.conversationId) === true;
     const attempt = buildIdentityAttempt(
@@ -1263,7 +1260,7 @@ function stabilizeStartFailure(
     const rawAttempts = candidate.sessionAttempts;
     let allAttemptsCanonical = true;
     const attempts = Array.isArray(rawAttempts)
-      ? rawAttempts.slice(0, MAX_NATIVE_SESSION_ATTEMPTS - 1).flatMap((attempt) => {
+      ? rawAttempts.slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS).flatMap((attempt) => {
           const copied = copyCanonicalAttempt(attempt);
           if (copied && attemptMatchesExactAuthority(copied, input)) return [copied];
           allAttemptsCanonical = false;
@@ -1274,7 +1271,7 @@ function stabilizeStartFailure(
     const complete =
       rawAttempts === undefined ||
       (Array.isArray(rawAttempts) &&
-        rawAttempts.length < MAX_NATIVE_SESSION_ATTEMPTS &&
+        rawAttempts.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
         attempts.length === rawAttempts.length &&
         allAttemptsCanonical);
     const allReportedTerminal = attempts.every(isTerminalAttempt);
@@ -1377,7 +1374,7 @@ function deduplicateAttempts(attempts: readonly LoopSessionAttempt[]): LoopSessi
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(copied);
-    if (result.length >= MAX_NATIVE_SESSION_ATTEMPTS) break;
+    if (result.length >= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS) break;
   }
   return result;
 }
@@ -1574,15 +1571,19 @@ function controlErrorMessage(
 }
 
 function isAcpSessionDriver(value: unknown): value is LoopSessionDriver {
-  if (!value || typeof value !== 'object') return false;
-  const driver = value as Partial<LoopSessionDriver>;
-  return (
-    driver.kind === 'acp' &&
-    typeof driver.startPhaseSession === 'function' &&
-    typeof driver.startVerificationSession === 'function' &&
-    typeof driver.sendPrompt === 'function' &&
-    typeof driver.cancelPrompt === 'function'
-  );
+  try {
+    if (!value || typeof value !== 'object') return false;
+    const driver = value as Partial<LoopSessionDriver>;
+    return (
+      driver.kind === 'acp' &&
+      typeof driver.startPhaseSession === 'function' &&
+      typeof driver.startVerificationSession === 'function' &&
+      typeof driver.sendPrompt === 'function' &&
+      typeof driver.cancelPrompt === 'function'
+    );
+  } catch {
+    return false;
+  }
 }
 
 function safeNow(now: () => Date): string {
@@ -1593,6 +1594,14 @@ function safeNow(now: () => Date): string {
     // Fall through to a canonical timestamp for diagnostic-only attempt metadata.
   }
   return new Date().toISOString();
+}
+
+function createMonotonicTimestampSource(now: () => Date): () => string {
+  let latest: string | undefined;
+  return () => {
+    latest = monotonicTimestamp(latest ?? '', safeNow(now));
+    return latest;
+  };
 }
 
 function validTimestamp(value: unknown): value is string {

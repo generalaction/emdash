@@ -864,6 +864,46 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['a non-undefined success payload', () => ok({ unexpected: 'destruction authority' }) as never],
+    [
+      'a throwing success payload getter',
+      () =>
+        Object.defineProperty({ success: true }, 'data', {
+          enumerable: true,
+          get: () => {
+            throw new Error('hostile destruction success getter');
+          },
+        }) as never,
+    ],
+  ] as const)('retains durable workspace authority for %s', async (_name, makeResult) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.cleanRoom.destroy).mockResolvedValueOnce(makeResult());
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'cleanup',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: {
+          cleanupId: 'cleanup-loop-verify-1',
+          verificationRunId: 'verification-run-1',
+        },
+      },
+    });
+    const workspaceCleared = vi
+      .mocked(harness.dependencies.progress.commit)
+      .mock.calls.some(
+        ([input]) => input.transition.kind === 'workspace' && input.transition.verification === null
+      );
+    expect(workspaceCleared).toBe(false);
+    expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
+  });
+
   it('destroys a late-created workspace after abort without acquiring execution', async () => {
     const controller = new AbortController();
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);

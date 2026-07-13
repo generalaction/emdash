@@ -8,6 +8,11 @@ const timestampSchema = z.string().trim().min(1).max(64);
 
 /** Fixed product policy for one clean-room E2E phase, including interrupted/recovered runs. */
 export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 3;
+/** Bounded hostile-result authority retained and cancelled for one session-start boundary. */
+export const CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS = 64;
+/** One outer identity, one preallocated nested identity, and every bounded reported actual. */
+export const CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT =
+  CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS + 2;
 
 export const loopCommitSchema = z
   .string()

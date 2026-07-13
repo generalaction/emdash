@@ -627,6 +627,23 @@ export class CleanRoomE2EGate {
       );
     }
 
+    const stoppedBeforeDependencies = controlFailure(input);
+    if (stoppedBeforeDependencies) {
+      return err(
+        this.failure(
+          input,
+          stoppedBeforeDependencies.type,
+          'precondition',
+          stoppedBeforeDependencies.message,
+          {
+            featureHead: input.checkpointCommit,
+            attempt: 0,
+            sessionAttempts: [],
+          }
+        )
+      );
+    }
+
     const prerequisites = await this.callDependency(
       'E2E durable prerequisites',
       () =>
@@ -1539,7 +1556,12 @@ export class CleanRoomE2EGate {
               'Recreate the clean room and independently re-run every required check.',
             ],
             artifacts: [],
-            createdAt: safeNow(this.dependencies.now),
+            createdAt: monotonicCorrectionHandoffTimestamp(
+              input,
+              sessionAttempts,
+              intermediateFailures,
+              safeNow(this.dependencies.now)
+            ),
           },
         });
         intermediateFailures.push(correctionHandoff);
@@ -2017,6 +2039,17 @@ export class CleanRoomE2EGate {
         stabilizePlainSuccess<E2ERequiredChecksResult>
       );
       if (!checked.success) {
+        const quiescenceUnproven =
+          checked.error.quiescent !== true || checked.error.recoveryRequired === true;
+        markOuterAttempt(
+          sessionAttempts,
+          outerLedgerIndex,
+          quiescenceUnproven ? 'interrupted' : 'failed',
+          safeDate(this.dependencies.now),
+          {
+            error: checked.error.message,
+          }
+        );
         const nestedSettled = await this.settleNestedAttemptAuthority(
           input,
           active,
@@ -2034,17 +2067,6 @@ export class CleanRoomE2EGate {
             pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
           });
         }
-        const quiescenceUnproven =
-          checked.error.quiescent !== true || checked.error.recoveryRequired === true;
-        markOuterAttempt(
-          sessionAttempts,
-          outerLedgerIndex,
-          quiescenceUnproven ? 'interrupted' : 'failed',
-          safeDate(this.dependencies.now),
-          {
-            error: checked.error.message,
-          }
-        );
         if (quiescenceUnproven) {
           const terminalPersisted = await this.syncSessionProgress(
             input,
@@ -2100,6 +2122,15 @@ export class CleanRoomE2EGate {
         nestedStarting.data
       );
       if (checksError) {
+        markOuterAttempt(
+          sessionAttempts,
+          outerLedgerIndex,
+          'failed',
+          safeDate(this.dependencies.now),
+          {
+            error: checksError.message,
+          }
+        );
         const nestedSettled = await this.settleNestedAttemptAuthority(
           input,
           active,
@@ -2117,15 +2148,6 @@ export class CleanRoomE2EGate {
             pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
           });
         }
-        markOuterAttempt(
-          sessionAttempts,
-          outerLedgerIndex,
-          'failed',
-          safeDate(this.dependencies.now),
-          {
-            error: checksError.message,
-          }
-        );
         const cleanup = await this.cleanupActive(input, active, featureHead, sessionAttempts);
         if (!cleanup.success) return cleanup;
         return err(
@@ -2879,28 +2901,37 @@ export class CleanRoomE2EGate {
     attempt: number,
     sessionAttempts: readonly LoopSessionAttempt[]
   ): Promise<Result<void, CleanRoomE2EGateError>> {
+    const historicalCount = input.previousSessionAttempts.length;
+    const desiredLength = historicalCount + sessionAttempts.length;
+    const durableLength = input.progress.current.loopState.sessionAttempts.length;
+    if (durableLength < historicalCount || durableLength > desiredLength) {
+      return err(
+        this.failure(
+          input,
+          'progress-authority-invalid',
+          'progress',
+          'Durable session progress contains an unexpected append-only suffix.',
+          { featureHead, attempt, sessionAttempts: [...sessionAttempts] }
+        )
+      );
+    }
     const desired = [
       ...input.previousSessionAttempts.map(copyAttempt),
       ...sessionAttempts.map(copyAttempt),
     ];
-    for (let index = 0; index < desired.length; index += 1) {
-      const current = input.progress.current.loopState.sessionAttempts[index];
-      const next = desired[index];
-      if (current && JSON.stringify(current) === JSON.stringify(next)) continue;
+    if (
+      JSON.stringify(input.progress.current.loopState.sessionAttempts) !== JSON.stringify(desired)
+    ) {
       const committed = await this.commitProgress(
         input,
-        {
-          kind: 'session-attempt',
-          ...(current ? { previous: current } : {}),
-          next,
-        },
+        { kind: 'session-attempts', next: desired },
         featureHead,
         attempt,
         sessionAttempts
       );
       if (!committed.success) return committed;
     }
-    if (input.progress.current.loopState.sessionAttempts.length !== desired.length) {
+    if (input.progress.current.loopState.sessionAttempts.length !== desiredLength) {
       return err(
         this.failure(
           input,
@@ -3125,6 +3156,45 @@ export class CleanRoomE2EGate {
         )
       );
     }
+    if (destroyed.data !== undefined) {
+      const invalidDestruction = {
+        type: 'untrusted-settlement',
+        message: 'Clean-room destruction returned invalid success authority.',
+      };
+      await this.commitWorkspaceProgress(
+        input,
+        verificationProgress({
+          verificationRunId: cleanRoom.verificationRunId,
+          attempt,
+          status: 'cleanup-failed',
+          baseCommit: cleanRoom.baseCommit,
+          featureHead,
+          updatedAt: safeNow(this.dependencies.now),
+          cleanRoom,
+          cleanupStatus: 'failed',
+          cleanupError: invalidDestruction.message,
+        }),
+        featureHead,
+        attempt,
+        sessionAttempts
+      );
+      return err(
+        this.dependencyFailure(
+          input,
+          invalidDestruction,
+          'cleanup',
+          featureHead,
+          attempt,
+          sessionAttempts,
+          {
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          },
+          true
+        )
+      );
+    }
     if (!progress.success) {
       const retry = await this.prepareCleanupProgress(
         input,
@@ -3330,6 +3400,32 @@ function monotonicTerminalStageResult(
     ...result,
     completedAt: monotonicTimestamp(...timestamps),
   });
+}
+
+function monotonicCorrectionHandoffTimestamp(
+  input: NormalizedInput,
+  attempts: readonly LoopSessionAttempt[],
+  intermediateFailures: readonly LoopPromptHandoff[],
+  currentTimestamp: string
+): string {
+  const timestamps: Array<string | undefined> = [currentTimestamp];
+  for (const attempt of input.previousSessionAttempts) {
+    timestamps.push(attempt.startedAt, attempt.finishedAt);
+  }
+  for (const attempt of attempts) timestamps.push(attempt.startedAt, attempt.finishedAt);
+
+  const addHandoff = (handoff: LoopPhaseHandoff | null | undefined): void => {
+    if (!handoff) return;
+    timestamps.push(handoff.createdAt);
+    for (const artifact of handoff.artifacts) timestamps.push(artifact.createdAt);
+  };
+  for (const prior of input.handoffs) addHandoff(prior.handoff);
+  for (const prior of intermediateFailures) addHandoff(prior.handoff);
+  addHandoff(input.progress.current.phaseState?.handoff);
+  for (const retry of input.progress.current.phaseState?.retryHandoffs ?? []) {
+    addHandoff(retry.handoff);
+  }
+  return monotonicTimestamp(...timestamps);
 }
 
 function preflightAggregateE2EPrompt(input: NormalizedInput): string | undefined {

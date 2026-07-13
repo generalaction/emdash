@@ -3,6 +3,7 @@ import { err, ok, type Result } from '@main/lib/result';
 import { loopPhaseStateInputSchema } from '@shared/core/loops/loop-phase-state';
 import {
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+  CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
   loopSessionTargetSchema,
   loopStateInputSchema,
   loopStateV2Schema,
@@ -52,7 +53,6 @@ const MAX_ID_LENGTH = 256;
 const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
 const MAX_SESSION_ATTEMPTS = 1_024;
-const MAX_SESSION_RECORDS_PER_E2E_ATTEMPT = 4;
 const MAX_VALIDATION_COMMANDS = 64;
 const MAX_VALIDATION_COMMAND_LENGTH = 4_096;
 const MAX_CRITERION_DESCRIPTION_LENGTH = 2_048;
@@ -302,7 +302,8 @@ export function normalizeInput(
   );
   const remainingAttempts = Math.max(0, CLEAN_ROOM_E2E_MAX_ATTEMPTS - consumedAttempts);
   if (
-    state.data.sessionAttempts.length + remainingAttempts * MAX_SESSION_RECORDS_PER_E2E_ATTEMPT >
+    state.data.sessionAttempts.length +
+      remainingAttempts * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT >
     MAX_SESSION_ATTEMPTS
   ) {
     return err({

@@ -8,6 +8,7 @@ import {
   type LoopArtifactReference,
 } from '@shared/core/loops/loop-phase-state';
 import {
+  CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS,
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
@@ -151,10 +152,12 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
           ? (stable as Record<string, unknown>)
           : {};
       const attempts = Array.isArray(error.sessionAttempts)
-        ? error.sessionAttempts.slice(0, 3).flatMap((attempt) => {
-            const copied = canonicalAttempt(attempt);
-            return copied ? [copied] : [];
-          })
+        ? error.sessionAttempts
+            .slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)
+            .flatMap((attempt) => {
+              const copied = canonicalAttempt(attempt);
+              return copied ? [copied] : [];
+            })
         : [];
       return requiredChecksError(
         validErrorType(error.type)
@@ -220,7 +223,7 @@ export class CleanRoomE2ERequiredChecksAdapter implements E2ERequiredChecksPort 
       );
     }
     if (nativeSettlement.success !== true) {
-      return copyNativeError(nativeSettlement.error);
+      return copyNativeError(nativeSettlement.error, input);
     }
     const nativeData = nativeSettlement.data;
     const exactNative = validateNativeAttestation(nativeData, input);
@@ -428,9 +431,7 @@ function validateContext(
     const phaseCriteria = loopPhaseCriteriaV1Schema.strict().safeParse(value.phase.criteria);
     const loopState = loopStateV2Schema.safeParse(value.loop.state);
     const phaseState =
-      value.phase.state === null || value.phase.state === undefined
-        ? null
-        : loopPhaseStateInputSchema.safeParse(value.phase.state);
+      value.phase.state === null ? null : loopPhaseStateInputSchema.safeParse(value.phase.state);
     if (
       value.loop.id !== input.authority.loopId ||
       value.loop.projectId !== input.authority.projectId ||
@@ -454,16 +455,21 @@ function validateContext(
       !sameCriteria(phaseCriteria.data.criteria, input.criteria) ||
       !loopState.success ||
       !canonicalDeepEqual(value.loop.state, loopState.data) ||
-      phaseState === null ||
-      !phaseState.success ||
-      !canonicalDeepEqual(value.phase.state, phaseState.data) ||
-      phaseState.data.result !== null ||
+      (phaseState !== null &&
+        (!phaseState.success || !canonicalDeepEqual(value.phase.state, phaseState.data)))
+    ) {
+      return invalidContext();
+    }
+    const exactPhaseState = phaseState === null ? null : phaseState.data;
+    if (
+      (exactPhaseState !== null &&
+        (exactPhaseState.result !== null ||
+          exactPhaseState.checkpointCommit !== input.checkpointCommit)) ||
       !sameE2EDurableProgress(
-        { loopState: loopState.data, phaseState: phaseState.data },
+        { loopState: loopState.data, phaseState: exactPhaseState },
         input.authority.progress
       ) ||
       input.authority.progress.loopState.checkpointCommit !== input.checkpointCommit ||
-      input.authority.progress.phaseState?.checkpointCommit !== input.checkpointCommit ||
       !validActiveVerificationContext(loopState.data, input)
     ) {
       return invalidContext();
@@ -479,7 +485,7 @@ function validateContext(
           ...value.phase,
           conversationId: input.authority.outerConversationId,
           criteria: phaseCriteria.data,
-          state: phaseState.data,
+          state: exactPhaseState,
         },
       })
     );
@@ -634,9 +640,9 @@ function validRequestEnvelope(input: Parameters<E2ERequiredChecksPort['run']>[0]
       canonicalDeepEqual(input.criteria, parsedCriteria.data) &&
       progressLoopState.success &&
       canonicalDeepEqual(input.authority.progress.loopState, progressLoopState.data) &&
-      progressPhaseState !== null &&
-      progressPhaseState.success &&
-      canonicalDeepEqual(input.authority.progress.phaseState, progressPhaseState.data) &&
+      (progressPhaseState === null ||
+        (progressPhaseState.success &&
+          canonicalDeepEqual(input.authority.progress.phaseState, progressPhaseState.data))) &&
       (input.signal === undefined || isAbortSignal(input.signal)) &&
       (input.signal === undefined || !signalAborted(input.signal)) &&
       (input.deadlineAt === undefined ||
@@ -733,7 +739,10 @@ function validateNativeAttestation(
   }
 }
 
-function copyNativeError(error: unknown): Result<never, E2ERequiredChecksError> {
+function copyNativeError(
+  error: unknown,
+  input: Parameters<E2ERequiredChecksPort['run']>[0]
+): Result<never, E2ERequiredChecksError> {
   const stable = stabilizeJson(error, MAX_STABLE_NATIVE_BYTES);
   if (!stable || typeof stable !== 'object' || Array.isArray(stable)) {
     return requiredChecksError(
@@ -752,8 +761,20 @@ function copyNativeError(error: unknown): Result<never, E2ERequiredChecksError> 
   ];
   const rawAttempts = candidate.sessionAttempts;
   const attempts = Array.isArray(rawAttempts)
-    ? rawAttempts.map((attempt) => canonicalAttempt(attempt))
+    ? rawAttempts
+        .slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)
+        .map((attempt) => canonicalAttempt(attempt))
     : [];
+  const validAttempts = attempts.flatMap((attempt) =>
+    attempt && nativeFailureAttemptMatchesInput(attempt, input) ? [attempt] : []
+  );
+  const attemptsComplete =
+    rawAttempts === undefined ||
+    (Array.isArray(rawAttempts) &&
+      rawAttempts.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
+      validAttempts.length === rawAttempts.length);
+  const quiescentAttemptsAreTerminal =
+    candidate.quiescent !== true || validAttempts.every(isTerminalAttempt);
   if (
     !hasExactKeys(candidate, expectedKeys) ||
     !validErrorType(candidate.type) ||
@@ -761,22 +782,60 @@ function copyNativeError(error: unknown): Result<never, E2ERequiredChecksError> 
     typeof candidate.quiescent !== 'boolean' ||
     typeof candidate.recoveryRequired !== 'boolean' ||
     candidate.recoveryRequired === candidate.quiescent ||
-    (rawAttempts !== undefined &&
-      (!Array.isArray(rawAttempts) || rawAttempts.length > 3 || attempts.includes(undefined)))
+    !attemptsComplete ||
+    !quiescentAttemptsAreTerminal
   ) {
     return requiredChecksError(
       'native-browser-authority-invalid',
       'Native browser verification returned inconsistent recovery authority.',
       false,
-      attempts.flatMap((attempt) => (attempt ? [attempt] : []))
+      validAttempts
     );
   }
   return requiredChecksError(
     candidate.type,
     safeText(candidate.message, 'Native browser verification was rejected.'),
     candidate.quiescent,
-    attempts as LoopSessionAttempt[]
+    validAttempts
   );
+}
+
+function nativeFailureAttemptMatchesInput(
+  attempt: LoopSessionAttempt,
+  input: Parameters<E2ERequiredChecksPort['run']>[0]
+): boolean {
+  return (
+    attempt.purpose === 'browser-verification' &&
+    attempt.phaseId === input.authority.phaseId &&
+    attempt.verificationRunId === input.verificationRunId &&
+    attempt.checkpointBefore === input.checkpointCommit &&
+    (attempt.checkpointAfter === undefined || attempt.checkpointAfter === input.checkpointCommit) &&
+    attempt.conversationId !== input.authority.outerConversationId &&
+    sameExactTarget(attempt.target, input.target) &&
+    validFailureAttemptState(attempt)
+  );
+}
+
+function validFailureAttemptState(attempt: LoopSessionAttempt): boolean {
+  if (attempt.status === 'starting' || attempt.status === 'running') {
+    return (
+      attempt.finishedAt === undefined &&
+      attempt.checkpointAfter === undefined &&
+      attempt.error === undefined
+    );
+  }
+  if (attempt.status === 'completed') {
+    return (
+      attempt.finishedAt !== undefined &&
+      attempt.checkpointAfter !== undefined &&
+      attempt.error === undefined
+    );
+  }
+  return attempt.finishedAt !== undefined && attempt.checkpointAfter === undefined;
+}
+
+function isTerminalAttempt(attempt: LoopSessionAttempt): boolean {
+  return ['completed', 'failed', 'cancelled', 'interrupted'].includes(attempt.status);
 }
 
 function requiredChecksError(
@@ -785,12 +844,22 @@ function requiredChecksError(
   quiescent: boolean,
   sessionAttempts: readonly LoopSessionAttempt[] = []
 ): Result<never, E2ERequiredChecksError> {
+  const attempts = sessionAttempts
+    .slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)
+    .flatMap((attempt) => {
+      const copied = canonicalAttempt(attempt);
+      return copied ? [copied] : [];
+    });
+  const attemptsComplete =
+    sessionAttempts.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
+    attempts.length === sessionAttempts.length;
+  const exactQuiescence = quiescent && attemptsComplete;
   const error: E2ERequiredChecksError & { quiescent: boolean; recoveryRequired: boolean } = {
     type: validErrorType(type) ? type : 'native-browser-rejected',
     message: safeText(message, 'Native browser verification was rejected.'),
-    quiescent,
-    recoveryRequired: !quiescent,
-    ...(sessionAttempts.length > 0 ? { sessionAttempts: sessionAttempts.slice(0, 3) } : {}),
+    quiescent: exactQuiescence,
+    recoveryRequired: !exactQuiescence,
+    ...(attempts.length > 0 ? { sessionAttempts: attempts } : {}),
   };
   return err(error);
 }

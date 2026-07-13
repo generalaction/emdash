@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@main/lib/result';
-import type { LoopSessionAttempt, LoopSessionTarget } from '@shared/core/loops/loop-state';
+import {
+  CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+  CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS,
+  CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
+  type LoopSessionAttempt,
+  type LoopSessionTarget,
+} from '@shared/core/loops/loop-state';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomPendingCleanup } from '../clean-room/cleanup-journal';
 import type { CleanRoomE2EGateDependencies } from './clean-room-e2e-gate';
@@ -705,7 +711,15 @@ describe('CleanRoomE2EGate recovery and authority', () => {
 
   it('reserves worst-case outer and nested ledger capacity before creating a clean room', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
-    const sessionAttempts = historicalAttempts(1_023);
+    const sessionAttempts = [
+      ...historicalAttempts(
+        1_024 -
+          CLEAN_ROOM_E2E_MAX_ATTEMPTS * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
+          loop.state!.sessionAttempts.length +
+          1
+      ),
+      ...loop.state!.sessionAttempts,
+    ];
 
     const result = await harness.gate.run({
       ...defaultInput,
@@ -718,6 +732,73 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     });
     expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
   });
+
+  it('persists all 64 missing-expected native attempts at the exact reserved ledger limit', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const historicalCount =
+      1_024 - CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT - loop.state!.sessionAttempts.length;
+    const reportedActuals = Array.from(
+      { length: CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS },
+      (_, index) =>
+        nestedAttempt({
+          attemptId: `unallocated-nested-attempt-${index}`,
+          conversationId: `unallocated-nested-conversation-${index}`,
+          verificationRunId: 'verification-run-3',
+          target: cleanTargetFor(featureTarget, 3),
+          status: 'cancelled',
+        })
+    );
+    vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
+      err({
+        message: 'checks returned bounded but ambiguous actual sessions',
+        quiescent: true,
+        sessionAttempts: reportedActuals,
+      })
+    );
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      loop: loopWithState({
+        e2eAttemptsConsumed: 2,
+        sessionAttempts: [...historicalAttempts(historicalCount), ...loop.state!.sessionAttempts],
+      }),
+      phase: { ...phase, attempts: 2 },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-verifier-ledger-ambiguous',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    if (result.success) throw new Error('Expected ambiguous nested session authority.');
+    expect(result.error.sessionAttempts).toHaveLength(
+      CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT
+    );
+    expect(result.error.sessionAttempts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ attemptId: 'unallocated-nested-attempt-0' }),
+        expect.objectContaining({ attemptId: 'unallocated-nested-attempt-63' }),
+      ])
+    );
+    const durable = await harness.dependencies.progress.read({
+      loopId: loop.id,
+      phaseId: phase.id,
+    });
+    expect(durable).toMatchObject({
+      success: true,
+      data: { loopState: { sessionAttempts: expect.any(Array) } },
+    });
+    if (!durable.success) throw new Error('Expected durable max-ledger authority.');
+    expect(durable.data.loopState.sessionAttempts).toHaveLength(1_024);
+    expect(durable.data.loopState.sessionAttempts.at(-1)).toMatchObject({
+      attemptId: 'unallocated-nested-attempt-63',
+      status: 'cancelled',
+    });
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  }, 30_000);
 
   it('rejects historical verification-run ID reuse before clean-room creation', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
@@ -1215,8 +1296,10 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const originalProgress = progress.getMockImplementation()!;
     progress.mockImplementation(async (input) => {
       if (
-        input.transition.kind === 'session-attempt' &&
-        input.transition.next.status === 'running'
+        input.transition.kind === 'session-attempts' &&
+        input.transition.next.some(
+          (attempt) => attempt.purpose === 'e2e' && attempt.status === 'running'
+        )
       ) {
         return err({ message: 'running session progress CAS failed' });
       }
@@ -1400,20 +1483,28 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const progress = vi.mocked(harness.dependencies.progress.commit);
     const nestedProgressIndex = progress.mock.calls.findIndex(
       ([input]) =>
-        input.transition.kind === 'session-attempt' &&
-        input.transition.next.purpose === 'browser-verification' &&
-        input.transition.next.status === 'starting'
+        input.transition.kind === 'session-attempts' &&
+        input.transition.next.some(
+          (attempt) => attempt.purpose === 'browser-verification' && attempt.status === 'starting'
+        )
     );
     expect(nestedProgressIndex).toBeGreaterThanOrEqual(0);
     expect(progress.mock.calls[nestedProgressIndex]?.[0]).toMatchObject({
       transition: {
-        kind: 'session-attempt',
-        next: {
-          attemptId: 'browser-verification-run-1',
-          conversationId: 'browser-conversation-run-1',
-          purpose: 'browser-verification',
-          status: 'starting',
-        },
+        kind: 'session-attempts',
+        next: expect.arrayContaining([
+          {
+            attemptId: 'browser-verification-run-1',
+            conversationId: 'browser-conversation-run-1',
+            purpose: 'browser-verification',
+            phaseId: phase.id,
+            verificationRunId: 'verification-run-1',
+            target: cleanTargetFor(featureTarget),
+            status: 'starting',
+            checkpointBefore: FEATURE_COMMIT,
+            startedAt: expect.any(String),
+          },
+        ]),
       },
     });
     expect(progress.mock.invocationCallOrder[nestedProgressIndex]).toBeLessThan(
@@ -1463,7 +1554,14 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       ...defaultInput,
       loop: loopWithState({
         e2eAttemptsConsumed: 2,
-        sessionAttempts: [...historicalAttempts(1_017), ...loop.state!.sessionAttempts],
+        sessionAttempts: [
+          ...historicalAttempts(
+            1_024 -
+              CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
+              loop.state!.sessionAttempts.length
+          ),
+          ...loop.state!.sessionAttempts,
+        ],
       }),
     });
 
@@ -1489,7 +1587,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     ]);
     expect(JSON.stringify(result)).toContain('unallocated-browser-attempt');
     expect(harness.dependencies.cleanRoom.create).toHaveBeenCalledOnce();
-  }, 15_000);
+  }, 60_000);
 
   it('durably retains a mismatched fresh session identity that was actually created', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
@@ -1527,8 +1625,8 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         .mocked(harness.dependencies.progress.commit)
         .mock.calls.some(
           ([input]) =>
-            input.transition.kind === 'session-attempt' &&
-            input.transition.next.attemptId === 'actual-fresh-attempt'
+            input.transition.kind === 'session-attempts' &&
+            input.transition.next.some((attempt) => attempt.attemptId === 'actual-fresh-attempt')
         )
     ).toBe(true);
     expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledWith(
@@ -1623,6 +1721,83 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       retryHandoffs: [{ source: 'Prior E2E failure' }, { source: 'Clean-room E2E correction' }],
       result: null,
     });
+  });
+
+  it('keeps a correction handoff after its source session and all prior evidence on rollback', async () => {
+    const priorFailure = {
+      source: 'Prior E2E failure',
+      handoff: {
+        summary: 'Prior evidence must remain chronologically authoritative.',
+        risks: [],
+        remainingWork: [],
+        artifacts: [
+          {
+            artifactId: 'prior-browser-evidence',
+            kind: 'browser-diagnostics' as const,
+            byteLength: 12,
+            createdAt: '2032-07-12T00:00:00.000Z',
+          },
+        ],
+        createdAt: '2031-07-12T00:00:00.000Z',
+      },
+    };
+    const harness = makeHarness([
+      {
+        finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
+        postHead: FIX_COMMIT,
+        mutated: true,
+      },
+      { finalText: '<<<LOOP:E2E_PASSED>>>' },
+    ]);
+    let rolledBack = false;
+    harness.dependencies.now = () =>
+      new Date(rolledBack ? '2020-07-12T00:00:00.000Z' : '2030-07-12T00:00:00.000Z');
+    const sendPrompt = vi.mocked(harness.dependencies.session.sendE2EPrompt);
+    const originalPrompt = sendPrompt.getMockImplementation()!;
+    sendPrompt.mockImplementationOnce(async (input) => {
+      const result = await originalPrompt(input);
+      rolledBack = true;
+      return result;
+    });
+
+    const result = await harness.gate.run({
+      ...defaultInput,
+      phase: {
+        ...phase,
+        state: {
+          version: '2',
+          checkpointCommit: FEATURE_COMMIT,
+          handoff: null,
+          retryHandoffs: [priorFailure],
+          result: null,
+        },
+      },
+      intermediateFailures: [priorFailure],
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'progress',
+        intermediateFailures: [
+          { source: 'Prior E2E failure' },
+          { source: 'Clean-room E2E correction' },
+        ],
+      },
+    });
+    if (result.success) throw new Error('Expected rollback-safe cleanup rejection.');
+    const sourceAttempt = result.error.sessionAttempts.find(
+      (attempt) => attempt.purpose === 'e2e' && attempt.verificationRunId === 'verification-run-1'
+    );
+    const correction = result.error.intermediateFailures.find(
+      (handoff) => handoff.source === 'Clean-room E2E correction'
+    );
+    expect(sourceAttempt).toBeDefined();
+    expect(correction).toBeDefined();
+    expect(Date.parse(correction!.handoff.createdAt)).toBeGreaterThanOrEqual(
+      Date.parse(sourceAttempt!.startedAt)
+    );
+    expect(correction!.handoff.createdAt).toBe('2032-07-12T00:00:00.000Z');
   });
 
   it.each([

@@ -76,6 +76,21 @@ const phaseState: LoopPhaseState = {
   retryHandoffs: [],
   result: null,
 };
+const retryPhaseState: LoopPhaseState = {
+  ...phaseState,
+  retryHandoffs: [
+    {
+      source: 'Prior clean-room correction',
+      handoff: {
+        summary: 'The prior clean-room attempt requested one correction.',
+        risks: ['The current checkpoint still needs native verification.'],
+        remainingWork: ['Verify the corrected checkpoint.'],
+        artifacts: [],
+        createdAt: '2026-07-12T00:30:00.000Z',
+      },
+    },
+  ],
+};
 const loop: Loop = {
   id: 'loop-1',
   projectId: 'project-1',
@@ -333,6 +348,33 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
     }
   );
 
+  it.each([
+    ['a normal first attempt with null phase state', null],
+    ['the exact current retry phase state', retryPhaseState],
+  ] as const)('composes required checks from %s', async (_label, currentPhaseState) => {
+    const harness = makeHarness();
+    const runInput = input();
+    runInput.authority.progress = {
+      loopState,
+      phaseState: currentPhaseState,
+    };
+    harness.resolveContext.mockResolvedValueOnce(
+      ok({
+        loop,
+        phase: { ...phase, state: currentPhaseState },
+      })
+    );
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(result).toMatchObject({ success: true, data: { status: 'passed' } });
+    expect(harness.native.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: expect.objectContaining({ state: currentPhaseState }),
+      })
+    );
+  });
+
   it('runs native verification once even when validation commands fail, then returns failed', async () => {
     const harness = makeHarness({ validationFails: true, nativeStatus: 'correctable' });
 
@@ -490,6 +532,112 @@ describe('CleanRoomE2ERequiredChecksAdapter', () => {
     });
     expect(JSON.stringify(result)).not.toContain('/private/app-data');
     expect(JSON.stringify(result)).not.toContain('token=secret');
+  });
+
+  it('preserves all 64 bounded native failure identities even when none is expected', async () => {
+    const attempts = Array.from({ length: 64 }, (_, index) => ({
+      ...sessionAttempt('interrupted'),
+      attemptId: `actual-attempt-${index}`,
+      conversationId: `actual-conversation-${index}`,
+    }));
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        err({
+          type: 'native-browser-cleanup-failed',
+          message: 'Native browser cleanup could not prove quiescence.',
+          quiescent: false,
+          recoveryRequired: true,
+          sessionAttempts: attempts,
+        })
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-cleanup-failed',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+    if (result.success) throw new Error('Expected native recovery authority.');
+    expect(result.error.sessionAttempts).toEqual(attempts);
+    expect(result.error.sessionAttempts).toHaveLength(64);
+    expect(result.error.sessionAttempts).not.toContainEqual(
+      expect.objectContaining({ attemptId: 'browser-attempt-1' })
+    );
+  });
+
+  it('marks 65 reported native identities invalid and retains the bounded recovery set', async () => {
+    const attempts = Array.from({ length: 65 }, (_, index) => ({
+      ...sessionAttempt('interrupted'),
+      attemptId: `overbound-attempt-${index}`,
+      conversationId: `overbound-conversation-${index}`,
+    }));
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        err({
+          type: 'native-browser-cleanup-failed',
+          message: 'Native browser returned too many recovery identities.',
+          quiescent: true,
+          recoveryRequired: false,
+          sessionAttempts: attempts,
+        })
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+    if (result.success) throw new Error('Expected invalid native recovery authority.');
+    expect(result.error.sessionAttempts).toEqual(attempts.slice(0, 64));
+    expect(result.error.sessionAttempts).toHaveLength(64);
+  });
+
+  it('forces recovery for a malformed bounded native failure list without losing valid entries', async () => {
+    const valid = {
+      ...sessionAttempt('interrupted'),
+      attemptId: 'valid-actual-attempt',
+      conversationId: 'valid-actual-conversation',
+    };
+    const malformed = {
+      ...sessionAttempt('interrupted'),
+      attemptId: 'alien-attempt',
+      conversationId: 'alien-conversation',
+      phaseId: 'alien-phase',
+    };
+    const harness = makeHarness({
+      nativeRun: vi.fn(async () =>
+        err({
+          type: 'native-browser-rejected',
+          message: 'Native browser returned drifted session authority.',
+          quiescent: true,
+          recoveryRequired: false,
+          sessionAttempts: [valid, malformed],
+        })
+      ),
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toEqual(
+      err({
+        type: 'native-browser-authority-invalid',
+        message: 'Native browser verification returned inconsistent recovery authority.',
+        quiescent: false,
+        recoveryRequired: true,
+        sessionAttempts: [valid],
+      })
+    );
   });
 
   it('maps a thrown native operation to explicit recovery instead of rejecting', async () => {

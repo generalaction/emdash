@@ -689,6 +689,154 @@ describe('NativeBrowserE2EAttestationService', () => {
     });
   });
 
+  it('cancels every terminal-shaped actual identity from an explicitly nonquiescent start', async () => {
+    const cancelPrompt = vi.fn(async () => ok(undefined));
+    const harness = makeHarness('passed', {
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn<NativeBrowserE2EAttestationDependencies['startExactSession']>(
+        async (startInput) =>
+          err({
+            kind: 'create-failed',
+            message: 'Exact start reported a terminal-shaped identity but requires recovery.',
+            quiescent: false,
+            recoveryRequired: true,
+            sessionAttempts: [
+              {
+                attemptId: 'terminal-actual-attempt',
+                conversationId: 'terminal-actual-conversation',
+                purpose: 'browser-verification',
+                phaseId: startInput.phase.id,
+                verificationRunId: startInput.verificationRunId,
+                target: startInput.target,
+                status: 'failed',
+                checkpointBefore: startInput.checkpointCommit,
+                startedAt: '2026-07-12T01:02:01.000Z',
+                finishedAt: '2026-07-12T01:02:02.000Z',
+                error: 'Start failed after allocating the actual identity.',
+              },
+            ],
+          })
+      ),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(cancelPrompt).toHaveBeenCalledTimes(2);
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
+    expect(cancelPrompt).toHaveBeenCalledWith('terminal-actual-conversation');
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        quiescent: true,
+        recoveryRequired: false,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'browser-attempt-1',
+            conversationId: 'browser-conversation-1',
+            status: 'cancelled',
+          }),
+          expect.objectContaining({
+            attemptId: 'terminal-actual-attempt',
+            conversationId: 'terminal-actual-conversation',
+            status: 'cancelled',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it('retains a distinct actual identity when hostile driver property access throws', async () => {
+    const hostileDriver = {
+      kind: 'acp',
+      startPhaseSession: vi.fn(),
+      startVerificationSession: vi.fn(),
+      sendPrompt: vi.fn(),
+    } as unknown as LoopSessionDriver;
+    Object.defineProperty(hostileDriver, 'cancelPrompt', {
+      enumerable: true,
+      get: () => {
+        throw new Error('hostile cancelPrompt getter');
+      },
+    });
+    const harness = makeHarness('passed', {
+      sessionIdentity: {
+        attemptId: 'hostile-driver-actual-attempt',
+        conversationId: 'hostile-driver-actual-conversation',
+      },
+      sessionOverrides: { driver: hostileDriver },
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'browser-attempt-1',
+            conversationId: 'browser-conversation-1',
+            status: 'interrupted',
+          }),
+          expect.objectContaining({
+            attemptId: 'hostile-driver-actual-attempt',
+            conversationId: 'hostile-driver-actual-conversation',
+            status: 'interrupted',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it('samples recovered-session finishedAt only after all cancellation acknowledgements settle', async () => {
+    const cancellation = Promise.withResolvers<ReturnType<typeof ok<void>>>();
+    const cancelPrompt = vi.fn(() => cancellation.promise);
+    const now = vi
+      .fn<() => Date>()
+      .mockReturnValueOnce(new Date('2026-07-12T01:00:00.000Z'))
+      .mockReturnValue(new Date('2026-07-12T02:00:00.000Z'));
+    const harness = makeHarness('passed', {
+      now,
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn(async () =>
+        err({
+          kind: 'create-failed',
+          message: 'Exact start requires acknowledged cancellation.',
+          quiescent: false,
+          recoveryRequired: true,
+        })
+      ),
+    });
+    let returned = false;
+    const run = harness.service.run(input()).then((result) => {
+      returned = true;
+      return result;
+    });
+
+    await vi.waitFor(() => expect(cancelPrompt).toHaveBeenCalledOnce());
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(returned).toBe(false);
+    cancellation.resolve(ok(undefined));
+    const result = await run;
+
+    expect(now).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        quiescent: true,
+        sessionAttempts: [
+          expect.objectContaining({
+            startedAt: '2026-07-12T01:00:00.000Z',
+            finishedAt: '2026-07-12T02:00:00.000Z',
+          }),
+        ],
+      },
+    });
+  });
+
   it('salvages cancellation authority from a malformed nonterminal start attempt', async () => {
     const cancelPrompt = vi.fn(async () => ok(undefined));
     const harness = makeHarness('passed', {
@@ -891,6 +1039,37 @@ describe('NativeBrowserE2EAttestationService', () => {
     if (!result.success) throw new Error('Expected an attestation.');
     expect(Date.parse(result.data.sessionAttempt.finishedAt!)).toBeGreaterThanOrEqual(
       Date.parse(result.data.sessionAttempt.startedAt)
+    );
+  });
+
+  it('keeps evidence artifacts and correction handoff chronology monotonic under clock rollback', async () => {
+    const timestamps = [
+      new Date('2026-07-12T04:00:00.000Z'),
+      new Date('2026-07-12T03:00:00.000Z'),
+      new Date('2026-07-12T02:00:00.000Z'),
+      new Date('2026-07-12T01:00:00.000Z'),
+    ];
+    let timestampIndex = 0;
+    const harness = makeHarness('correctable', {
+      now: () => timestamps[Math.min(timestampIndex++, timestamps.length - 1)]!,
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(result).toMatchObject({ success: true, data: { status: 'correctable' } });
+    if (!result.success || !result.data.handoff) {
+      throw new Error('Expected a correction handoff.');
+    }
+    const artifactCreatedAt = result.data.evidence.artifacts[0]?.createdAt;
+    if (!artifactCreatedAt) throw new Error('Expected native screenshot evidence.');
+    expect(Date.parse(artifactCreatedAt)).toBeGreaterThanOrEqual(
+      Date.parse(result.data.sessionAttempt.startedAt)
+    );
+    expect(Date.parse(result.data.handoff.handoff.createdAt)).toBeGreaterThanOrEqual(
+      Date.parse(artifactCreatedAt)
+    );
+    expect(Date.parse(result.data.sessionAttempt.finishedAt!)).toBeGreaterThanOrEqual(
+      Date.parse(result.data.handoff.handoff.createdAt)
     );
   });
 });

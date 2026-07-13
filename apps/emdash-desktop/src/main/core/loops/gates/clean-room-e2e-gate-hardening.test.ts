@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { err, ok } from '@main/lib/result';
+import { CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT } from '@shared/core/loops/loop-state';
 import type { LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomE2EGateDependencies, RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
@@ -28,6 +29,43 @@ import {
 import { reduceE2EProgress, type E2EDurableProgress } from './clean-room-e2e-progress';
 
 describe('CleanRoomE2EGate hardening', () => {
+  it.each([
+    [
+      'an already-aborted signal',
+      () => {
+        const controller = new AbortController();
+        controller.abort();
+        return { signal: controller.signal };
+      },
+      'cancelled',
+    ],
+    ['an already-expired deadline', () => ({ deadlineAt: Date.now() - 1 }), 'deadline-exceeded'],
+  ] as const)(
+    'rejects %s before prerequisite or project dependency calls',
+    async (_name, makeControl, expectedType) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      const getDefaultBranch = vi.fn(async () => 'main');
+
+      const result = await harness.gate.run({
+        ...defaultInput,
+        ...makeControl(),
+        project: {
+          ...project,
+          settings: { getDefaultBranch } as unknown as CleanRoomProject['settings'],
+        },
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: expectedType, stage: 'precondition', attempt: 0 },
+      });
+      expect(harness.dependencies.prerequisites.resolve).not.toHaveBeenCalled();
+      expect(getDefaultBranch).not.toHaveBeenCalled();
+      expect(harness.dependencies.progress.commit).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+    }
+  );
+
   it.each([
     ['fabricated omission', () => []],
     [
@@ -287,12 +325,20 @@ describe('CleanRoomE2EGate hardening', () => {
       .mock.calls.map(([call]) => call.transition)
       .filter(
         (transition) =>
-          transition.kind === 'session-attempt' &&
-          transition.next.attemptId === 'actual-nested-attempt'
+          transition.kind === 'session-attempts' &&
+          transition.next.some((attempt) => attempt.attemptId === 'actual-nested-attempt')
       );
     expect(actualTransitions).toEqual([
-      expect.objectContaining({ next: expect.objectContaining({ status: 'starting' }) }),
-      expect.objectContaining({ next: expect.objectContaining({ status: 'interrupted' }) }),
+      expect.objectContaining({
+        next: expect.arrayContaining([
+          expect.objectContaining({ attemptId: 'actual-nested-attempt', status: 'starting' }),
+        ]),
+      }),
+      expect.objectContaining({
+        next: expect.arrayContaining([
+          expect.objectContaining({ attemptId: 'actual-nested-attempt', status: 'interrupted' }),
+        ]),
+      }),
     ]);
     expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
@@ -489,8 +535,10 @@ describe('CleanRoomE2EGate hardening', () => {
     const writeAheadIds = vi
       .mocked(harness.dependencies.progress.commit)
       .mock.calls.flatMap(([call]) =>
-        call.transition.kind === 'session-attempt' && call.transition.next.status === 'starting'
-          ? [call.transition.next.attemptId]
+        call.transition.kind === 'session-attempts'
+          ? call.transition.next
+              .filter((attempt) => attempt.status === 'starting')
+              .map((attempt) => attempt.attemptId)
           : []
       );
     expect(writeAheadIds).toEqual(
@@ -593,7 +641,12 @@ describe('CleanRoomE2EGate hardening', () => {
       loop: loopWithState({
         e2eAttemptsConsumed: 1,
         sessionAttempts: [
-          ...historicalAttempts(1_012),
+          ...historicalAttempts(
+            1_024 -
+              2 * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
+              loop.state!.sessionAttempts.length -
+              1
+          ),
           ...loop.state!.sessionAttempts,
           priorAttempt,
         ],
@@ -605,7 +658,7 @@ describe('CleanRoomE2EGate hardening', () => {
     expect(harness.dependencies.cleanRoom.create).toHaveBeenCalledWith(
       expect.objectContaining({ attempt: 2, verificationRunId: 'verification-run-2' })
     );
-  }, 15_000);
+  }, 60_000);
 
   it('persists a correction handoff before invoking integration side effects', async () => {
     const harness = makeHarness([

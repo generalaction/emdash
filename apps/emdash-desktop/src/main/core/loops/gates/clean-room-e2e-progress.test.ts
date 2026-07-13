@@ -90,6 +90,14 @@ function startingAttempt(overrides: Partial<LoopSessionAttempt> = {}): LoopSessi
   return runningAttempt({ status: 'starting', ...overrides });
 }
 
+function batchStartingAttempt(index: number): LoopSessionAttempt {
+  return startingAttempt({
+    attemptId: `browser-attempt-${index}`,
+    conversationId: `browser-conversation-${index}`,
+    purpose: 'browser-verification',
+  });
+}
+
 function unwrap(progress: ReturnType<typeof reduceE2EProgress>): E2EDurableProgress {
   expect(progress.success).toBe(true);
   if (!progress.success) throw new Error(progress.error.message);
@@ -529,6 +537,67 @@ describe('clean-room E2E durable progress reducer', () => {
         }).success
       ).toBe(false);
     }
+  });
+
+  it('atomically appends and terminalizes a bounded 64-identity session batch', () => {
+    const starting = Array.from({ length: 64 }, (_, index) => batchStartingAttempt(index));
+    const appended = unwrap(
+      reduceE2EProgress(baseProgress(), { kind: 'session-attempts', next: starting })
+    );
+    expect(appended.loopState.sessionAttempts).toHaveLength(64);
+
+    const terminal = starting.map((attempt) => ({
+      ...attempt,
+      status: 'cancelled' as const,
+      finishedAt: '2026-07-12T20:01:00.000Z',
+      error: 'The bounded actual session was cancelled.',
+    }));
+    const settled = unwrap(
+      reduceE2EProgress(appended, { kind: 'session-attempts', next: terminal })
+    );
+    expect(settled.loopState.sessionAttempts).toEqual(terminal);
+  });
+
+  it('rejects hostile batch truncation, prefix drift, illegal suffixes, and overflow', () => {
+    const first = batchStartingAttempt(0);
+    const second = batchStartingAttempt(1);
+    const appended = unwrap(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempts',
+        next: [first, second],
+      })
+    );
+    const invalidBatches: readonly (readonly LoopSessionAttempt[])[] = [
+      [first],
+      [second, first],
+      [{ ...first, target: { ...target, path: '/tmp/foreign-workspace' } }, second],
+      [
+        first,
+        second,
+        {
+          ...batchStartingAttempt(2),
+          status: 'cancelled',
+          finishedAt: '2026-07-12T20:01:00.000Z',
+          error: 'Cannot append a terminal identity.',
+        },
+      ],
+      [first, second, batchStartingAttempt(0)],
+    ];
+    for (const next of invalidBatches) {
+      expect(reduceE2EProgress(appended, { kind: 'session-attempts', next }).success).toBe(false);
+    }
+
+    const nonCanonical = [{ ...first, unexpected: true } as unknown as LoopSessionAttempt, second];
+    expect(
+      reduceE2EProgress(appended, { kind: 'session-attempts', next: nonCanonical }).success
+    ).toBe(false);
+    expect(
+      reduceE2EProgress(baseProgress(), {
+        kind: 'session-attempts',
+        next: Array.from({ length: 1_025 }, (_, index) => batchStartingAttempt(index)),
+      }).success
+    ).toBe(false);
+    expect(appended.loopState.sessionAttempts).toEqual([first, second]);
   });
 
   it('cannot advance a checkpoint by appending an absent completed attempt', () => {

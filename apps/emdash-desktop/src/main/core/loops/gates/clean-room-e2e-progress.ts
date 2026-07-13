@@ -46,6 +46,11 @@ export type E2EProgressTransition =
       next: LoopSessionAttempt;
     }
   | {
+      /** Atomically replaces the complete append-only ledger from the CAS expected snapshot. */
+      kind: 'session-attempts';
+      next: readonly LoopSessionAttempt[];
+    }
+  | {
       kind: 'checkpoint-advanced';
       previousHead: string;
       featureHead: string;
@@ -182,6 +187,66 @@ export function reduceE2EProgress(
         }
         return parseProgress({
           loopState: { ...current.loopState, sessionAttempts: attempts },
+          phaseState: current.phaseState,
+        });
+      }
+      case 'session-attempts': {
+        const rawNext = transition.next;
+        if (!Array.isArray(rawNext) || rawNext.length > 1_024) {
+          return invalid('Session attempt batch exceeds the bounded durable ledger.');
+        }
+        const next = rawNext.map((attempt) => loopSessionAttemptSchema.parse(attempt));
+        if (
+          next.some(
+            (attempt, index) =>
+              !hasCanonicalAttemptFields(rawNext[index], attempt) || !validAttemptState(attempt)
+          )
+        ) {
+          return invalid(
+            'Session attempt batch authority is non-canonical or internally inconsistent.'
+          );
+        }
+
+        const previous = current.loopState.sessionAttempts;
+        if (next.length < previous.length) {
+          return invalid('Session attempt batch cannot truncate the durable ledger.');
+        }
+        for (let index = 0; index < previous.length; index += 1) {
+          const prior = previous[index]!;
+          const candidate = next[index]!;
+          if (
+            prior.attemptId !== candidate.attemptId ||
+            prior.conversationId !== candidate.conversationId ||
+            (JSON.stringify(prior) !== JSON.stringify(candidate) &&
+              !validAttemptReplacement(prior, candidate))
+          ) {
+            return invalid(
+              'Session attempt batch must preserve its exact prefix and legal lifecycle.'
+            );
+          }
+        }
+
+        const knownAttemptIds = new Set(previous.map((attempt) => attempt.attemptId));
+        const knownConversationIds = new Set(previous.map((attempt) => attempt.conversationId));
+        for (const appended of next.slice(previous.length)) {
+          if (
+            appended.status !== 'starting' ||
+            (appended.purpose !== 'e2e' && appended.purpose !== 'browser-verification') ||
+            appended.phaseId === undefined ||
+            appended.verificationRunId === undefined ||
+            appended.checkpointBefore === undefined ||
+            knownAttemptIds.has(appended.attemptId) ||
+            knownConversationIds.has(appended.conversationId)
+          ) {
+            return invalid(
+              'Session attempt batch append must contain only fresh starting identities.'
+            );
+          }
+          knownAttemptIds.add(appended.attemptId);
+          knownConversationIds.add(appended.conversationId);
+        }
+        return parseProgress({
+          loopState: { ...current.loopState, sessionAttempts: next },
           phaseState: current.phaseState,
         });
       }

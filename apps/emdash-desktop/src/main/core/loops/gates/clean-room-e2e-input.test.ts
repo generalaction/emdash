@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { LoopSessionAttempt } from '@shared/core/loops/loop-state';
+import {
+  CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
+  type LoopSessionAttempt,
+} from '@shared/core/loops/loop-state';
 import type { RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
 import {
   BASE_COMMIT,
@@ -78,19 +81,20 @@ describe('clean-room E2E input authority', () => {
     expect(result.data).not.toHaveProperty('maxAttempts');
   });
 
-  it('reserves four durable session records for every remaining E2E run', () => {
+  it('reserves the bounded worst-case session records for every remaining E2E run', () => {
+    const exactCapacity = 1_024 - CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT;
     const fits = safeNormalizeInput({
       ...defaultInput,
       loop: loopWithState({
         e2eAttemptsConsumed: 2,
-        sessionAttempts: historicalAttempts(1_020),
+        sessionAttempts: historicalAttempts(exactCapacity),
       }),
     });
     const overflows = safeNormalizeInput({
       ...defaultInput,
       loop: loopWithState({
         e2eAttemptsConsumed: 2,
-        sessionAttempts: historicalAttempts(1_021),
+        sessionAttempts: historicalAttempts(exactCapacity + 1),
       }),
     });
 

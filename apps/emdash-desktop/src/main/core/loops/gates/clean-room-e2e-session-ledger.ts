@@ -1,4 +1,5 @@
 import {
+  CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
   type LoopSessionAttempt,
@@ -193,7 +194,7 @@ export function settlePreallocatedNestedAttempt(
         ? (value as { sessionAttempts?: unknown }).sessionAttempts
         : undefined;
     if (Array.isArray(candidates)) {
-      for (const candidate of candidates.slice(0, 3)) {
+      for (const candidate of candidates.slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)) {
         const adopted = normalizeNestedAttempt(
           candidate,
           starting,
@@ -252,8 +253,10 @@ export function collectNestedAttemptSettlement(
         ? (value as { sessionAttempts?: unknown }).sessionAttempts
         : undefined;
     if (Array.isArray(candidates)) {
-      if (candidates.length > 4) ambiguousActual = true;
-      for (const candidate of candidates.slice(0, 4)) {
+      if (candidates.length > CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS) {
+        ambiguousActual = true;
+      }
+      for (const candidate of candidates.slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)) {
         const normalized = normalizeNestedAttemptCandidate(
           candidate,
           starting,
