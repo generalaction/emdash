@@ -1,8 +1,8 @@
 # Structured Concurrency
 
-`Scope.run()` tracks asynchronous work under the same owner as subscriptions,
-processes, timers, and other resources. Use it when work must not outlive the
-feature that started it.
+Shared `Scope.run()` from `@emdash/shared/concurrency` tracks asynchronous work
+under the same owner as subscriptions, processes, timers, and other resources.
+Wire uses it when work must not outlive the feature that started it.
 
 ```ts
 const scope = createScope({ label: 'session:abc', logger, clock });

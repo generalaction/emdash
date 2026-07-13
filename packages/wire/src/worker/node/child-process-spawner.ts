@@ -1,6 +1,6 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import type { Unsubscribe } from '@emdash/shared';
-import type { Scope } from '../../util';
+import type { Scope } from '@emdash/shared/concurrency';
 import { listen, type EventEmitterLike } from '../events';
 import type { ProcessExit, WorkerProcess, WorkerProcessSpawner, WorkerProcessSpec } from '../types';
 

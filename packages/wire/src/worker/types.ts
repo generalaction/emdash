@@ -1,12 +1,12 @@
 import type { Unsubscribe } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type { WireInstrumentation } from '../observability';
-import type { Clock, RetrySchedule } from '../scheduling';
 import type { Middleware } from '../util';
-import type { Scope } from '../util/scope';
 
 export type WorkerStdioStream = 'stdout' | 'stderr';
 

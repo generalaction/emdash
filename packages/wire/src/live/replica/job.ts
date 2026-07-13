@@ -1,4 +1,6 @@
 import type { PendingLease, Unsubscribe } from '@emdash/shared';
+import { createResourceCache } from '@emdash/shared/concurrency';
+import { stableStringify } from '@emdash/shared/util';
 import type { z } from 'zod';
 import type { LiveJobClientHandle } from '../../api/client';
 import type {
@@ -9,9 +11,7 @@ import type {
   JobResult,
 } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
-import { createResourceCache } from '../../util/resource-cache';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
-import { stableStringify } from '../mutations';
 import { liveJobStateSchema } from '../protocol';
 import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { LiveState } from '../state';

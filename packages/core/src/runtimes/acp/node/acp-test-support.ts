@@ -8,8 +8,8 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
+import { createScope } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
-import { createScope } from '@emdash/wire/util';
 import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import type {
   AcpFs,

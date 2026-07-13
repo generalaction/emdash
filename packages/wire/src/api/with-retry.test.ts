@@ -1,6 +1,6 @@
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { ManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { retrySchedules } from '../scheduling';
-import { ManualClock } from '../testing';
 import { compose } from '../util';
 import { withRetry } from './with-retry';
 import { withTimeout } from './with-timeout';

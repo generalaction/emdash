@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { ResourceCache } from '../../util/resource-cache';
+import type { ResourceCache } from '@emdash/shared/concurrency';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../protocol';
 
 export function resourceCachedLiveSource<K, T>(
@@ -34,6 +34,3 @@ export function resourceCachedLiveSource<K, T>(
     },
   };
 }
-
-/** @deprecated Use resourceCachedLiveSource. */
-export const managedLiveSource = resourceCachedLiveSource;

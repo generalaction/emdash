@@ -1,4 +1,5 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
+import { systemClock } from '@emdash/shared/scheduling';
 import { z } from 'zod';
 import { LiveJob } from '../../src/live/job/index';
 import {
@@ -7,7 +8,6 @@ import {
   type LiveSnapshot,
   type LiveUpdate,
 } from '../../src/live/protocol/index';
-import { systemClock } from '../../src/scheduling';
 
 const inputSchema = z.object({ name: z.string() });
 const progressSchema = z.object({ step: z.string() });

@@ -1,4 +1,4 @@
-import { runWithTimeout, TimeoutError, type Clock } from '../scheduling';
+import { runWithTimeout, TimeoutError, type Clock } from '@emdash/shared/scheduling';
 import { WireError } from './protocol';
 
 export type WithTimeoutOptions = {

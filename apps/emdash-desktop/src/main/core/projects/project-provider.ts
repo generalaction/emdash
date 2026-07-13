@@ -1,5 +1,5 @@
 import type { GitBranchRef, RepositorySelector } from '@emdash/core/runtimes/git/api';
-import type { IDisposable, IReleasable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FilesClientScope } from '@main/core/files/runtime-process/client';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -73,7 +73,7 @@ export type ProjectProviderTransport = {
   readonly settings: ProjectSettingsProvider;
 };
 
-export class ProjectProvider implements IReleasable, IDisposable {
+export class ProjectProvider implements Disposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;

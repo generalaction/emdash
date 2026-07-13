@@ -1,5 +1,5 @@
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { waitFor } from '../testing';
 import {
   BLOB_CHUNK_SIZE,
   BLOB_MAX_CREDIT,

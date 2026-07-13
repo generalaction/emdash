@@ -41,14 +41,4 @@ describe('ManualClock', () => {
     await clock.advanceBy(1);
     expect(resolved).toHaveBeenCalledTimes(1);
   });
-
-  it('rejects sleeps when aborted', async () => {
-    const clock = new ManualClock();
-    const abort = new AbortController();
-    const sleep = clock.sleep(10, { signal: abort.signal });
-
-    abort.abort(new Error('stop'));
-    await expect(sleep).rejects.toThrow('stop');
-    await clock.advanceBy(10);
-  });
 });

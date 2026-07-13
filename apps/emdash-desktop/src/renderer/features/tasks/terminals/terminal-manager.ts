@@ -1,4 +1,4 @@
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
@@ -10,7 +10,7 @@ import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import { type CreateTerminalParams, type Terminal } from '@shared/core/terminals/terminals';
 import { nextTerminalName } from './terminal-tabs';
 
-export class TerminalManagerStore implements IDisposable {
+export class TerminalManagerStore implements Disposable {
   readonly projectId: string;
   readonly taskId: string;
   /** Data layer: plain Terminal records loaded from the main process. */

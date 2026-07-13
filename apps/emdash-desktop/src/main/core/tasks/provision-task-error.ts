@@ -1,6 +1,6 @@
+import { TimeoutError } from '@emdash/shared/scheduling';
 import { match, P } from 'ts-pattern';
 import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
-import { TimeoutSignal } from '../projects/utils';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 
 export const TASK_TIMEOUT_MS = 600_000;
@@ -21,13 +21,14 @@ export function toProvisionError(
   step: ProvisionStep | null = null
 ): ProvisionTaskError {
   if (isProvisionTaskError(e)) return e;
-  if (e instanceof TimeoutSignal)
-    return { type: 'timeout', message: e.message, timeout: e.ms, step };
+  if (e instanceof TimeoutError)
+    return { type: 'timeout', message: e.message, timeout: e.durationMs, step };
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
 export function toTeardownError(e: unknown): TeardownTaskError {
-  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
+  if (e instanceof TimeoutError)
+    return { type: 'timeout', message: e.message, timeout: e.durationMs };
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 

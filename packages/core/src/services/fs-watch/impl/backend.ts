@@ -1,4 +1,4 @@
-import type { Scope } from '@emdash/wire/util';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { WatchEvent } from '@services/fs-watch/api';
 
 export type WatchKey = {

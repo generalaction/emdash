@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
-import type { LiveLog } from '@emdash/wire';
 import {
   createAsyncCache,
   createResourceCache,
   type AsyncCache,
   type ResourceCache,
   type Scope,
-} from '@emdash/wire/util';
+} from '@emdash/shared/concurrency';
+import type { LiveLog } from '@emdash/wire';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@runtimes/agent-config/api';
 import type { AgentAuthStatus, AgentHostError } from '@services/agent-plugins/api/plugins';
 import { PtyRegistry, type PtyExitInfo, type PtySession } from '@services/pty/api';

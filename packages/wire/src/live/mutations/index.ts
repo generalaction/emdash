@@ -14,7 +14,6 @@ export {
   type LiveModelHostOptions,
 } from './host';
 export { type LiveStateRef } from './model-ref';
-export { stableStringify } from './registry';
 export {
   createResourceLiveModelHost,
   type ResourceLiveModelHost,

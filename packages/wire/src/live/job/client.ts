@@ -1,8 +1,8 @@
 import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { WireInstrumentation } from '../../observability';
-import { systemClock, type Clock } from '../../scheduling';
 import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
 import { LiveStateClient } from '../state';
 

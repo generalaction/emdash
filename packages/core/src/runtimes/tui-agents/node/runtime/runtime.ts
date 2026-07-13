@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import { LiveLog, type LiveSource } from '@emdash/wire';
-import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
 import type {
   TuiAgentStartInput,
   TuiInputError,

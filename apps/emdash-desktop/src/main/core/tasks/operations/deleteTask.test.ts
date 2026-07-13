@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   deleteWhere: vi.fn(),
   delViewState: vi.fn(),
   fileSystemFactory: vi.fn(),
+  forceRemoveTask: vi.fn(),
   gitRepository: vi.fn(),
   pruneWorktrees: vi.fn(),
   getProject: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@main/core/projects/operations/getProjects', () => ({
 
 vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: {
+    forceRemoveTask: mocks.forceRemoveTask,
     teardownTask: mocks.teardownTask,
   },
 }));
@@ -112,6 +114,23 @@ describe('deleteTask', () => {
 
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1');
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1:tabs');
+  });
+
+  it('force-removes retained lifecycle ownership when teardown fails and delete continues', async () => {
+    mocks.getProject.mockReturnValue({});
+    mocks.teardownTask.mockResolvedValue({
+      success: false,
+      error: { message: 'teardown failed' },
+    });
+    mocks.selectLimit.mockResolvedValueOnce([{ id: 'task-1', workspaceId: null }]);
+
+    await deleteTask('project-1', 'task-1');
+
+    expect(mocks.forceRemoveTask).toHaveBeenCalledWith(
+      'task-1',
+      'deleteTask continued after teardown failure'
+    );
+    expect(mocks.deleteWhere).toHaveBeenCalledOnce();
   });
 
   it('preserves the workspace file index when an archived sibling still references the workspace', async () => {

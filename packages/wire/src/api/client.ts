@@ -1,4 +1,5 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
+import { retry as retryOperation, retrySchedules } from '@emdash/shared/scheduling';
 import { eventFromUpdate } from '../live/event-stream';
 import { createMutationId, type LiveMutationResult } from '../live/mutations';
 import type {
@@ -8,7 +9,6 @@ import type {
   LiveSource,
   LiveUpdate,
 } from '../live/protocol';
-import { retry as retryOperation, retrySchedules } from '../scheduling';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,

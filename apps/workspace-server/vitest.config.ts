@@ -22,6 +22,16 @@ export default defineConfig({
       ),
       '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
+      '@emdash/shared/scheduling': resolve(
+        __dirname,
+        '../../packages/shared/src/scheduling/index.ts'
+      ),
+      '@emdash/shared/concurrency': resolve(
+        __dirname,
+        '../../packages/shared/src/concurrency/index.ts'
+      ),
+      '@emdash/shared/util': resolve(__dirname, '../../packages/shared/src/util/index.ts'),
+      '@emdash/shared/testing': resolve(__dirname, '../../packages/shared/src/testing/index.ts'),
       '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
       '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/api/index.ts'),
       '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),

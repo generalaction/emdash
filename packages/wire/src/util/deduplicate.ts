@@ -1,5 +1,5 @@
-import { stableStringify } from '../live/mutations';
-import { abortReason } from '../scheduling';
+import { abortReason } from '@emdash/shared/scheduling';
+import { stableStringify } from '@emdash/shared/util';
 
 export type DeduplicateOptions<I> = {
   key?: (input: I) => string;

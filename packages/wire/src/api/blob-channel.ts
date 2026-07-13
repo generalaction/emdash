@@ -1,5 +1,5 @@
-import { systemClock, type Clock, type TimerHandle } from '../scheduling';
-import { createMailbox, MailboxClosedError } from '../util/mailbox';
+import { createMailbox, MailboxClosedError } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import { WireError, type WireFileMeta, type WireTransport } from './protocol';
 
 export const BLOB_CHUNK_SIZE = 64 * 1024;

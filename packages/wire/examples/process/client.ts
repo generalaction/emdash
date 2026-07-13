@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { ReplicaState } from '../../src/index';
-import { retrySchedules } from '../../src/scheduling';
-import { createScope } from '../../src/util';
 import { createWireWorkerHost, type WireWorker } from '../../src/worker';
 import { childProcessSpawner } from '../../src/worker/node';
 import { processExampleApi } from './contract';

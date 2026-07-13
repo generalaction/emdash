@@ -1,7 +1,7 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import { err, isErr, isOk } from '@emdash/shared';
+import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
-import { acquireResourceAsResult } from '@emdash/wire/util';
 import {
   FakeAcpAgent,
   FakeAcpProcessHost,

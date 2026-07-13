@@ -1,9 +1,9 @@
-import type { IDisposable } from '@emdash/shared';
 import {
   createBoundedBuffer,
   type BoundedBuffer,
   type BoundedBufferOverflow,
 } from './bounded-buffer';
+import type { Disposable } from './disposable';
 
 export type MailboxOverflow = 'suspend' | 'reject' | 'drop-oldest' | 'drop-newest';
 export type MailboxState = 'open' | 'closing' | 'closed' | 'failed';
@@ -21,7 +21,7 @@ export type CreateMailboxOptions<T> = {
   onDrop?: (value: T) => void;
 };
 
-export interface Mailbox<T> extends AsyncIterable<T>, IDisposable {
+export interface Mailbox<T> extends AsyncIterable<T>, Disposable {
   readonly state: MailboxState;
   readonly size: number;
   readonly capacity: number;

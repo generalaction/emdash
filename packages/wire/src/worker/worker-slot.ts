@@ -1,10 +1,10 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { type Run, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import { retrySchedules, runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
 import { client as createClient, type ContractClient } from '../api/client';
 import { connect, type Connection } from '../api/connect';
 import type { Contract, ContractDefinitions } from '../api/define';
-import { retrySchedules, runWithTimeout, systemClock, type Clock } from '../scheduling';
-import { type Run, type Scope } from '../util';
 import { WorkerLink } from './link';
 import { forwardWorkerLogs } from './logging';
 import { WORKER_SHUTDOWN_SIGNAL } from './protocol';

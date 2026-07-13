@@ -1,8 +1,6 @@
 import { constants } from 'node:fs';
 import { cp, lstat, mkdir, open, rename, rm, rmdir, stat, unlink } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BlobSource, LiveJobContext, WireFile } from '@emdash/wire';
 import {
@@ -36,6 +34,7 @@ import type {
 import type { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
 import { expectedFsError, toFsError } from '@runtimes/files/node/api/errors';
 import type { RootResource } from '@runtimes/files/node/root/root-resource';
+import { glob } from 'glob';
 import { enumerateFiles } from './enumerate';
 import { measurePathUsage } from './measure-usage';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
@@ -43,14 +42,6 @@ import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
 const PROGRESS_BATCH_SIZE = 100;
-type GlobCallback = (error: Error | null, matches: string[]) => void;
-type GlobFunction = (
-  pattern: string,
-  options: Record<string, unknown>,
-  callback: GlobCallback
-) => void;
-const require = createRequire(import.meta.url);
-const globAsync = promisify(require('glob') as GlobFunction);
 
 export class FileSystemRuntime {
   constructor(private readonly allocations: FilesAllocationGraph) {}
@@ -281,7 +272,7 @@ export class FileSystemRuntime {
         const pending: PortableRelativePath[] = [];
         const matches = await Promise.all(
           input.patterns.map((pattern) =>
-            globAsync(pattern, {
+            glob(pattern, {
               absolute: false,
               cwd: cwd.data.realPath,
               dot: input.options.dot ?? false,

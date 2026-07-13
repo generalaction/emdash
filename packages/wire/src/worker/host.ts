@@ -1,5 +1,5 @@
+import { systemClock } from '@emdash/shared/scheduling';
 import type { ContractDefinitions } from '../api/define';
-import { systemClock } from '../scheduling';
 import type {
   WireWorker,
   WireWorkerDefinition,

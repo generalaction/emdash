@@ -1,5 +1,4 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { IInitializable } from '@emdash/shared';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
@@ -34,7 +33,7 @@ export type ProjectSettingsHooks = {
   }) => void | Promise<void>;
 };
 
-export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, IInitializable {
+export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   private readonly _hooks = new HookCore<ProjectSettingsHooks>((name, e) =>
     log.error(`ProjectSettingsService: ${String(name)} hook error`, e)
   );

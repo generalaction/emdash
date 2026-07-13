@@ -1,10 +1,11 @@
 import { ok } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveLog } from '../live/log';
 import { createLiveModelHost } from '../live/mutations';
 import { createLiveModelReplica, ReplicaState } from '../live/replica';
-import { createTestWire, waitFor } from '../testing';
+import { createTestWire } from '../testing';
 import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
 
 const stateSchema = z.object({ count: z.number() });

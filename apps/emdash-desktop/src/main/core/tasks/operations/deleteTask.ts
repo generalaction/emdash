@@ -38,6 +38,13 @@ export async function deleteTask(
     if (teardownResult && !teardownResult.success) {
       log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
     }
+
+    if (!teardownResult || !teardownResult.success) {
+      await taskSessionManager.forceRemoveTask(
+        taskId,
+        'deleteTask continued after teardown failure'
+      );
+    }
   }
 
   // Load workspace row before deleting it (we may need workspace metadata for cleanup).

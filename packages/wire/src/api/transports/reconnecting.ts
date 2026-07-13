@@ -1,7 +1,11 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { retrySchedules, systemClock, type Clock, type RetrySchedule } from '../../scheduling';
-import { createScope, type Scope } from '../../util';
-import { createBoundedBuffer } from '../../util/bounded-buffer';
+import { createBoundedBuffer, createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  retrySchedules,
+  systemClock,
+  type Clock,
+  type RetrySchedule,
+} from '@emdash/shared/scheduling';
 import type { WireMessage, WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {

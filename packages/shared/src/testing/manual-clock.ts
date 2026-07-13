@@ -4,8 +4,8 @@ import {
   type Clock,
   type ScheduleOptions,
   type SleepOptions,
+  type TimerHandle,
 } from '../scheduling';
-import type { TimerHandle } from '../scheduling/timer-handle';
 
 type ManualTimer = {
   id: number;

@@ -1,5 +1,5 @@
-import type { Lease, PendingLease, Result } from '@emdash/shared';
-import { err, ok, once } from '@emdash/shared';
+import { once, type Lease, type PendingLease } from '../lifecycle';
+import { err, ok, type Result } from '../result';
 import { systemClock, type Clock, type TimerHandle } from '../scheduling';
 import { createScope, type Scope } from './scope';
 

@@ -1,4 +1,4 @@
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
@@ -80,7 +80,7 @@ async function handleSessionEvent(
   });
 }
 
-class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHookServiceHooks> {
+class AgentHookService implements Disposable, Hookable<AgentHookServiceHooks> {
   private server = new HookServer();
   private readonly observedStatuses = new Map<string, AgentStatus>();
   private readonly disposers: Array<() => void> = [];

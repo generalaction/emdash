@@ -1,4 +1,3 @@
-import type { ILifecycle } from '@emdash/shared';
 import { computed, makeObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -8,7 +7,7 @@ import { releaseFileModelManager } from '../editor/stores/file-model-manager';
 import { GitCheckoutStore } from './git-checkout-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 
-export class WorkspaceStore implements ILifecycle {
+export class WorkspaceStore {
   readonly workspaceId: string;
   readonly path: string;
   readonly gitRepository: GitRepositoryStore;

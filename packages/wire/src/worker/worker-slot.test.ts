@@ -1,10 +1,11 @@
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import { createManualClock, createStubLogger } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createController } from '../api/controller';
 import { defineContract, procedure } from '../api/define';
-import { retrySchedules } from '../scheduling';
-import { createManualClock, createStubLogger, FakeWorkerProcessSpawner } from '../testing';
-import { createScope } from '../util';
+import { FakeWorkerProcessSpawner } from '../testing';
 import { createWireWorkerHost } from './host';
 import { serveWireWorker } from './serve';
 import type { WorkerParentPort } from './types';

@@ -1,4 +1,4 @@
-import { createMailbox, createScope } from '../../src/util';
+import { createMailbox, createScope } from '@emdash/shared/concurrency';
 
 async function main(): Promise<void> {
   const scope = createScope({ label: 'mailbox-example' });

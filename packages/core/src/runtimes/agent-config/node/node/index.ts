@@ -1,7 +1,7 @@
 import os from 'node:os';
+import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { createScope } from '@emdash/wire/util';
 import { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
 import {
   AgentPluginHost,

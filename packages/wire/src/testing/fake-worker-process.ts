@@ -1,5 +1,5 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import type { Scope } from '../util';
+import type { Scope } from '@emdash/shared/concurrency';
 import type {
   ProcessExit,
   WorkerParentPort,

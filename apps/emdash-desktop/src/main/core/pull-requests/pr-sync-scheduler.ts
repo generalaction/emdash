@@ -1,4 +1,4 @@
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import {
@@ -23,7 +23,7 @@ const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  * Wires sync coordinator to application lifecycle events.
  * Called from project providers at mount, unmount, provision, and repository remote changes.
  */
-export class PrSyncScheduler implements IInitializable, IDisposable {
+export class PrSyncScheduler implements Disposable {
   /** Per-project set of interval handles for light sync polling. */
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */

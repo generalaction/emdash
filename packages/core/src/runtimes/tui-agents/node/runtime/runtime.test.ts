@@ -1,6 +1,7 @@
+import { createScope } from '@emdash/shared/concurrency';
+import { createStubLogger, waitFor } from '@emdash/shared/testing';
 import { ReplicaState } from '@emdash/wire';
-import { createStubLogger, createTestWire, waitFor } from '@emdash/wire/testing';
-import { createScope } from '@emdash/wire/util';
+import { createTestWire } from '@emdash/wire/testing';
 import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import {
   tuiAgentsContract,

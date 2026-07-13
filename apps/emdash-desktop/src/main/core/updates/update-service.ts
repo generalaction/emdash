@@ -1,4 +1,4 @@
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
@@ -46,7 +46,7 @@ export interface UpdateState {
   releaseNotes?: string;
 }
 
-class UpdateService implements IInitializable, IDisposable {
+class UpdateService implements Disposable {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
   private currentCheckPromise: Promise<UpdateInfo | null> | null = null;

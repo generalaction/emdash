@@ -86,6 +86,41 @@ or normalization utilities.
 
 Primitives may depend on other primitives, but those dependencies must remain acyclic.
 
+## Shared Foundations
+
+`@emdash/shared` owns package-level foundations that are below Core, Wire, desktop,
+workspace-server, and tests. Do not move these into Core primitives just because Core uses them:
+
+- `@emdash/shared/concurrency` owns `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
+  `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable helpers.
+- `@emdash/shared/scheduling` owns `Clock`, `TimerHandle`, timeout helpers, retry schedules,
+  and `retry()`.
+- `@emdash/shared/testing` owns `ManualClock`, deferred promises, `waitFor()`, and stub logger
+  helpers.
+- `@emdash/shared/util` owns stable generic utilities such as `stableStringify()`.
+
+Core primitives should hold Emdash domain vocabulary, portable contracts, and narrowly scoped
+domain behavior. Shared foundations should hold reusable lifecycle, concurrency, scheduling,
+testing, result, logging, and utility behavior that has no Core domain ownership.
+
+Choose lifecycle primitives by ownership shape:
+
+- Use `Scope` for cleanup ordering, cancellation, child ownership, and tracked async work.
+- Use `LifecycleRegistry` for keyed local resources with explicit `start()`, `stop()`,
+  `register()`, queryable state, typed start/stop results, and state-change observers.
+- Use `ResourceCache` when resource lifetime is lease-driven through `acquire()` and `release()`,
+  optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
+  `AsyncCache` for cached async values without finalizers.
+- Use Wire `WorkerSlot` when supervising a process-hosted Wire contract with a stable client,
+  readiness, restart backoff, and process generations.
+- Use Wire `LiveJob` when work must be visible over the Wire protocol as a cancellable job with
+  progress, terminal state, retention, and remote client handles.
+
+`LifecycleRegistry` is not a replacement for `Scope`: it uses scopes internally for each entry,
+but its public job is lifecycle state and explicit transitions. It is also not a `ResourceCache`
+because it does not ref-count demand or create resources through leases. It remains local and
+protocol-free, unlike `WorkerSlot` and `LiveJob`.
+
 ## Standard Module Shape
 
 Each module uses platform surfaces rather than mixing portable and host-specific exports:

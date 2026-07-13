@@ -1,5 +1,4 @@
 import { isDeepEqual } from '@emdash/shared';
-import type { IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
@@ -11,7 +10,7 @@ import { computeDelta, computeTrueOverrides, isPlainObject, mergeDeep } from './
 export type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 export { AppSettingsKeys } from '@shared/core/app-settings';
 
-export class SettingsStore implements IInitializable {
+export class SettingsStore {
   private cache: Partial<AppSettings> = {};
 
   private async readRaw(key: AppSettingsKey): Promise<unknown> {

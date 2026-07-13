@@ -1,7 +1,7 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import { isErr, toSerializedError } from '@emdash/shared';
+import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { createResourceCache, type ResourceCache, type Scope } from '@emdash/wire/util';
 import type { AcpProcessHost } from '@runtimes/acp/api';
 import { acpErr } from '@runtimes/acp/api';
 import type {

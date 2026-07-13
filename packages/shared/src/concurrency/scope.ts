@@ -1,6 +1,6 @@
-import type { IDisposable } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '../scheduling';
+import type { Disposable } from './disposable';
 
 export type ScopeCleanup = () => void | Promise<void>;
 export type ScopeState = 'open' | 'closing' | 'closed';
@@ -46,7 +46,7 @@ export interface Scope {
   readonly signal: AbortSignal;
   readonly log: Logger;
   add(cleanup: ScopeCleanup): void;
-  use<T extends IDisposable>(resource: T): T;
+  use<T extends Disposable>(resource: T): T;
   child(label?: string): Scope;
   run<A>(
     label: string,
@@ -130,7 +130,7 @@ class ScopeImpl implements Scope {
     this.data.cleanups.push(cleanup);
   }
 
-  use<T extends IDisposable>(resource: T): T {
+  use<T extends Disposable>(resource: T): T {
     this.add(() => resource.dispose());
     return resource;
   }

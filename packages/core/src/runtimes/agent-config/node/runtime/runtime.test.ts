@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { noopLogger } from '@emdash/shared/logger';
-import { createScope } from '@emdash/wire/util';
 import type { McpServer } from '@primitives/mcp/api';
 import type {
   AgentAuthContext,

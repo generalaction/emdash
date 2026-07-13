@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { WireInstrumentation } from '../../observability';
-import { systemClock, type Clock } from '../../scheduling';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import type { LiveStateProduceOptions, LiveState } from './server';
 

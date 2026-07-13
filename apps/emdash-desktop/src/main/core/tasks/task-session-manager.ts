@@ -1,5 +1,10 @@
-import { LifecycleMap } from '@emdash/shared';
 import { ok, type Result } from '@emdash/shared';
+import {
+  LifecycleRegistry,
+  type LifecycleRegistryState,
+  type LifecycleRegistryStateChange,
+} from '@emdash/shared/concurrency';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -15,7 +20,6 @@ import type {
   TaskProvider,
   WorkspaceProviderData,
 } from '../projects/project-provider';
-import { withTimeout } from '../projects/utils';
 import {
   formatProvisionTaskError,
   formatTeardownTaskError,
@@ -32,6 +36,13 @@ export type WorkspaceHint = {
 };
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
+type TaskStartInput = { taskId: string; stored: StoredTask };
+type TaskLifecycleState = LifecycleRegistryState<StoredTask, ProvisionTaskError, TeardownTaskError>;
+type TaskLifecycleStateChange = LifecycleRegistryStateChange<
+  StoredTask,
+  ProvisionTaskError,
+  TeardownTaskError
+>;
 
 export type TaskManagerHooks = {
   'task:provisioned': (info: {
@@ -100,18 +111,20 @@ class TaskSessionManager {
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
-  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError, TeardownTaskError>(
-    {
-      postTeardown: (taskId, stored) => {
-        this._tasksByProject.get(stored.projectId)?.delete(taskId);
-        this._hooks.callHookBackground('task:torn-down', {
-          projectId: stored.projectId,
-          taskId,
-          workspaceId: stored.persistData.workspaceId,
-        });
-      },
-    }
-  );
+  private readonly _lifecycle = new LifecycleRegistry<
+    TaskStartInput,
+    StoredTask,
+    ProvisionTaskError,
+    TaskTeardownMode,
+    TeardownTaskError
+  >({
+    label: 'task-session-manager',
+    keyOf: (input) => input.taskId,
+    start: async (input) => ok(input.stored),
+    stop: async (taskId, stored, mode) => this.stopTask(taskId, stored, mode ?? 'terminate'),
+    onStateChanged: (change) => this.handleLifecycleStateChanged(change),
+    onObserverError: ({ error }) => log.error('TaskManager: lifecycle observer error', error),
+  });
   private readonly _tasksByProject = new Map<string, Set<string>>();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
@@ -139,8 +152,7 @@ class TaskSessionManager {
       ctx,
     };
 
-    // Use provision() for deduplication: if already active, returns existing immediately.
-    await this._lifecycle.provision(taskId, async () => ok(stored));
+    await this._lifecycle.register(taskId, stored);
 
     const byProject = this._tasksByProject.get(projectId) ?? new Set<string>();
     byProject.add(taskId);
@@ -159,29 +171,11 @@ class TaskSessionManager {
     taskId: string,
     mode: TaskTeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    const result = this._lifecycle.teardown(
-      taskId,
-      async ({ taskProvider, persistData, projectId, ctx }) => {
-        try {
-          await withTimeout(
-            executeTeardown(taskProvider, persistData.workspaceId, mode),
-            TASK_TIMEOUT_MS
-          );
-          return ok();
-        } catch (e) {
-          log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
-          await cleanupDetachedSessions(projectId, taskId, ctx).catch((cleanupError) => {
-            log.warn('TaskManager: fallback cleanup failed', {
-              taskId,
-              error: String(cleanupError),
-            });
-          });
-          return { success: false as const, error: toTeardownError(e) };
-        }
-      }
-    );
+    return this._lifecycle.stop(taskId, mode);
+  }
 
-    return result ?? ok();
+  async forceRemoveTask(taskId: string, reason?: unknown): Promise<void> {
+    await this._lifecycle.forceRemove(taskId, reason);
   }
 
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
@@ -200,9 +194,8 @@ class TaskSessionManager {
         })
       );
       // Remove entries from lifecycle maps without running workspace teardown.
-      this._tasksByProject.delete(projectId);
       await Promise.all(
-        taskIds.map((id) => this._lifecycle.teardown(id, async () => ok()) ?? Promise.resolve(ok()))
+        taskIds.map((id) => this.forceRemoveTask(id, 'project detached task sessions'))
       );
     } else {
       // teardownTask handles _tasksByProject cleanup in onFinally.
@@ -223,17 +216,92 @@ class TaskSessionManager {
   }
 
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {
-    const s = this._lifecycle.bootstrapStatus(taskId);
-    if (s.status === 'error')
-      return { status: 'error', message: formatProvisionTaskError(s.error) };
-    return s;
+    const state = this._lifecycle.state(taskId);
+    switch (state.kind) {
+      case 'ready':
+      case 'stopping':
+      case 'stop-failed':
+        return { status: 'ready' };
+      case 'starting':
+        return { status: 'bootstrapping' };
+      case 'start-failed':
+        return { status: 'error', message: formatProvisionTaskError(state.error) };
+      case 'idle':
+      case 'disposed':
+        return { status: 'not-started' };
+    }
   }
 
   getTeardownStatus(taskId: string): TaskBootstrapStatus {
-    const s = this._lifecycle.teardownStatus(taskId);
-    if (s.status === 'error') return { status: 'error', message: formatTeardownTaskError(s.error) };
-    return s;
+    const state = this._lifecycle.state(taskId);
+    switch (state.kind) {
+      case 'stopping':
+        return { status: 'bootstrapping' };
+      case 'stop-failed':
+        return { status: 'error', message: formatTeardownTaskError(state.error) };
+      case 'idle':
+      case 'starting':
+      case 'ready':
+      case 'start-failed':
+      case 'disposed':
+        return { status: 'not-started' };
+    }
+  }
+
+  private async stopTask(
+    taskId: string,
+    { taskProvider, persistData, projectId, ctx }: StoredTask,
+    mode: TaskTeardownMode
+  ): Promise<Result<void, TeardownTaskError>> {
+    try {
+      await runWithTimeout(() => executeTeardown(taskProvider, persistData.workspaceId, mode), {
+        timeoutMs: TASK_TIMEOUT_MS,
+      });
+      return ok();
+    } catch (e) {
+      log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
+      await cleanupDetachedSessions(projectId, taskId, ctx).catch((cleanupError) => {
+        log.warn('TaskManager: fallback cleanup failed', {
+          taskId,
+          error: String(cleanupError),
+        });
+      });
+      return { success: false as const, error: toTeardownError(e) };
+    }
+  }
+
+  private handleLifecycleStateChanged(change: TaskLifecycleStateChange): void {
+    const stored = taskFromState(change.previous);
+    if (!stored || !isRemovedState(change.current)) return;
+
+    const byProject = this._tasksByProject.get(stored.projectId);
+    byProject?.delete(change.key);
+    if (byProject?.size === 0) this._tasksByProject.delete(stored.projectId);
+
+    this._hooks.callHookBackground('task:torn-down', {
+      projectId: stored.projectId,
+      taskId: change.key,
+      workspaceId: stored.persistData.workspaceId,
+    });
   }
 }
 
 export const taskSessionManager = new TaskSessionManager();
+
+function taskFromState(state: TaskLifecycleState): StoredTask | undefined {
+  switch (state.kind) {
+    case 'ready':
+    case 'stopping':
+    case 'stop-failed':
+      return state.value;
+    case 'idle':
+    case 'starting':
+    case 'start-failed':
+    case 'disposed':
+      return undefined;
+  }
+}
+
+function isRemovedState(state: TaskLifecycleState): boolean {
+  return state.kind === 'idle' || state.kind === 'disposed';
+}

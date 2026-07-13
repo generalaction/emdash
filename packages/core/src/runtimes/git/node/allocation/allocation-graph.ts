@@ -1,5 +1,5 @@
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
-import { createResourceCache, type ResourceCache } from '@emdash/wire/util';
+import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import { KeyedMutex } from '@primitives/lib/api';
 import type { CheckoutSelector, GitResolutionError, RepositorySelector } from '@runtimes/git/api';
 import { CheckoutResource } from '@runtimes/git/node/checkout/checkout-resource';

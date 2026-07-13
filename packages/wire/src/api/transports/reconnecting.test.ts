@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { deferred } from '../../testing';
 import type { WireMessage, WireTransport } from '../protocol';
 import { reconnectingTransport } from './reconnecting';
 

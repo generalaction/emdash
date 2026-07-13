@@ -5,8 +5,8 @@ import {
   type AuthStatusModelState,
 } from '@emdash/core/runtimes/agent-config/api';
 import type { Result } from '@emdash/shared';
+import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
 import { ReplicaLog, ReplicaState } from '@emdash/wire';
-import { createScope, type Run, type Scope } from '@emdash/wire/util';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import type { Terminal } from '@xterm/xterm';
 import {

@@ -1,6 +1,6 @@
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '../concurrency/disposable';
 
-export interface TimerHandle extends IDisposable {
+export interface TimerHandle extends Disposable {
   readonly active: boolean;
 }
 

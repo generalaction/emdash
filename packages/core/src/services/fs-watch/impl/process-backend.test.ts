@@ -1,6 +1,6 @@
-import { retrySchedules } from '@emdash/wire/scheduling';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
-import { createScope } from '@emdash/wire/util';
 import { serveWireWorker, type WorkerParentPort } from '@emdash/wire/worker';
 import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
 import { spawnFsWatchWorker } from '@services/fs-watch/worker/spawn';

@@ -1,5 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import type { BoundExec } from '@services/exec/api';
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -19,7 +19,7 @@ export class CatFileBatchProcessError extends Error {
 }
 
 /** Persistent `git cat-file --batch` process with a strictly serialized request queue. */
-export class CatFileBatch implements IDisposable {
+export class CatFileBatch implements Disposable {
   private readonly exec: BoundExec;
   private disposed = false;
   private proc: ChildProcessWithoutNullStreams | null = null;

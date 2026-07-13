@@ -1,10 +1,11 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventStreamHost } from '../live/event-stream';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../live/protocol';
-import { createTestWire, waitFor } from '../testing';
+import { createTestWire } from '../testing';
 import {
   defineContract,
   downloadFile,

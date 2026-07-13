@@ -1,6 +1,6 @@
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { waitFor } from '../../testing';
 import { LiveStateClient, type LiveChangeMeta } from './client';
 import { LiveState } from './server';
 

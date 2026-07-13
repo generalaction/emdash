@@ -1,4 +1,5 @@
 import { err, ok } from '@emdash/shared';
+import { deferred, type Deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -10,7 +11,7 @@ import {
   mutation,
 } from '../../index';
 import type { LiveModelReplica } from '../../live/replica';
-import { createTestWire, deferred, type Deferred, waitFor } from '../../testing';
+import { createTestWire } from '../../testing';
 import { OptimisticLiveModel } from './optimistic-live-model';
 
 const keySchema = z.object({ id: z.string() });

@@ -1,9 +1,10 @@
 import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
 import { createLiveJobReplica } from '../live/replica';
-import { createTestWire, deferred } from '../testing';
+import { createTestWire } from '../testing';
 import { defineContract, liveJob } from './define';
 
 const jobContract = defineContract({

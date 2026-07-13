@@ -1,6 +1,7 @@
+import { ManualClock, deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ManualClock, createTestWire, deferred } from '../testing';
+import { createTestWire } from '../testing';
 import { compose } from '../util';
 import { defineContract, procedure } from './define';
 import { WireError } from './protocol';

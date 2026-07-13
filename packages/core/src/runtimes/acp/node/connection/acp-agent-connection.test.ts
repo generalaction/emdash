@@ -1,5 +1,5 @@
 import { isErr, isOk } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/wire/util';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { FakeAcpAgent, FakeAcpProcessHost } from '@runtimes/acp/node/acp-test-support';
 import type { AgentHostAcpSpawn, IAcpBehavior } from '@services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';

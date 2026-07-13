@@ -29,4 +29,11 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
   if (teardownResult && !teardownResult.success) {
     log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
   }
+
+  if (!teardownResult || !teardownResult.success) {
+    await taskSessionManager.forceRemoveTask(
+      taskId,
+      'archiveTask continued after teardown failure'
+    );
+  }
 }

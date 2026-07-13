@@ -1,4 +1,4 @@
-import { createScope, type Scope } from '@emdash/wire/util';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
   createWireWorkerHost,
   type WorkerProcessSpawner,

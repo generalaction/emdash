@@ -23,7 +23,7 @@ import { execSync, execFileSync } from 'node:child_process';
 import { resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAcpAgentConnection } from '@emdash/core/runtimes/acp/node';
-import { createScope } from '@emdash/wire/util';
+import { createScope } from '@emdash/shared/concurrency';
 import { pluginRegistry } from '../../src/agents/registry';
 import { Recorder } from './acp/recorder';
 import { buildRecordingClient } from './acp/recording-client';

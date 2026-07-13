@@ -1,5 +1,5 @@
 import { err } from '@emdash/shared';
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { previewServerEventChannel } from '@shared/core/preview-servers/events';
@@ -24,7 +24,7 @@ type ManualForwardInput = {
   preferredLocalPort?: number;
 };
 
-export class PreviewServerStore implements IDisposable {
+export class PreviewServerStore implements Disposable {
   readonly serversResource: Resource<Map<string, PreviewServer>, PreviewServerEvent>;
 
   private readonly projectId: string;

@@ -1,11 +1,11 @@
 # Scheduling
 
-`@emdash/wire/scheduling` centralizes time, retry, and cancellation-sensitive
-waits. Runtime code should depend on `Clock` instead of calling platform timer
-APIs directly.
+`@emdash/shared/scheduling` centralizes time, retry, and
+cancellation-sensitive waits. Wire uses these Shared primitives, and runtime
+code should depend on `Clock` instead of calling platform timer APIs directly.
 
 ```ts
-import { retry, retrySchedules, systemClock } from '@emdash/wire/scheduling';
+import { retry, retrySchedules, systemClock } from '@emdash/shared/scheduling';
 
 await retry(
   () => transport.connect(),
@@ -65,7 +65,7 @@ cancellation.
 
 ## ManualClock
 
-Tests should import `ManualClock` from `@emdash/wire/testing`. It preserves FIFO
+Tests should import `ManualClock` from `@emdash/shared/testing`. It preserves FIFO
 ordering for timers with the same deadline and flushes resumed promise
 microtasks while advancing:
 

@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { compose, deduplicate, type Scope } from '@emdash/wire/util';
+import { compose, deduplicate } from '@emdash/wire/util';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type {
   DependencyDescriptor,

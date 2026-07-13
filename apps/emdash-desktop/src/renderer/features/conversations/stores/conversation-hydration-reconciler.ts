@@ -1,4 +1,4 @@
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 
 export type ConversationSessionAdapter = {
   hydrateConversation(conversationId: string): Promise<void>;
@@ -25,7 +25,7 @@ type Entry = {
   dehydrateRetryTimer: ReturnType<typeof setTimeout> | null;
 };
 
-export class ConversationHydrationReconciler implements IDisposable {
+export class ConversationHydrationReconciler implements Disposable {
   private readonly taskId: string;
   private readonly getConversations: () => ConversationSessionAdapter | undefined;
   private readonly log: Logger;

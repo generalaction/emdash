@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
+import { waitFor } from '@emdash/shared/testing';
 import {
   client,
   connect,
@@ -10,7 +11,6 @@ import {
   serve,
   streamTransport,
 } from '@emdash/wire';
-import { waitFor } from '@emdash/wire/testing';
 import type { PortableRelativePath } from '@primitives/path/api';
 import { filesContract } from '@runtimes/files/api';
 import { FilesRuntime } from '@runtimes/files/node/files-runtime';

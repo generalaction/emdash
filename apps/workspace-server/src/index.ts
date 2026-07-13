@@ -1,7 +1,7 @@
 import { workspaceWireContract } from '@emdash/core/workspace-server';
+import { createScope } from '@emdash/shared/concurrency';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import { createScope } from '@emdash/wire/util';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { defineAcpWorkspaceRuntimeWorker } from './acp/host';

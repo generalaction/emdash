@@ -1,4 +1,3 @@
-import type { IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
@@ -17,7 +16,7 @@ type PromptLibraryKV = {
 
 const promptLibraryKV = new KV<PromptLibraryKV>('prompt-library');
 
-export class PromptLibraryService implements IInitializable {
+export class PromptLibraryService {
   private seedPromise: Promise<void> | null = null;
 
   private async readPrompts(): Promise<PromptLibraryPrompt[]> {

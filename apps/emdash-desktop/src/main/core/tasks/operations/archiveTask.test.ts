@@ -3,6 +3,7 @@ import { archiveTask } from './archiveTask';
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
+  forceRemoveTask: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
   updateSet: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@main/db/client', () => ({
 
 vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: {
+    forceRemoveTask: mocks.forceRemoveTask,
     teardownTask: mocks.teardownTask,
   },
 }));
@@ -71,5 +73,26 @@ describe('archiveTask', () => {
       task_id: 'task-1',
     });
     expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
+  });
+
+  it('force-removes retained lifecycle ownership when teardown fails and archive continues', async () => {
+    mocks.selectLimit.mockResolvedValueOnce([
+      {
+        id: 'task-1',
+        workspaceId: 'workspace-1',
+        status: 'done',
+      },
+    ]);
+    mocks.teardownTask.mockResolvedValue({
+      success: false,
+      error: { message: 'teardown failed' },
+    });
+
+    await archiveTask('project-1', 'task-1');
+
+    expect(mocks.forceRemoveTask).toHaveBeenCalledWith(
+      'task-1',
+      'archiveTask continued after teardown failure'
+    );
   });
 });

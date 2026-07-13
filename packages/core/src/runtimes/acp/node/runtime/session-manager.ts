@@ -10,8 +10,8 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Lease, Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
+import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { acquireResourceAsResult } from '@emdash/wire/util';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,

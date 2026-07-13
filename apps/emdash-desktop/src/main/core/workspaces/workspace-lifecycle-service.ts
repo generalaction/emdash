@@ -1,4 +1,4 @@
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type { Pty, PtyExitInfo } from '../pty/pty';
@@ -50,7 +50,7 @@ function terminalInputForScript(script: string, exit: boolean, windowsCmdExit: b
   return windowsCmdExit ? `${scriptBeforeExit}\rexit\r` : `${scriptBeforeExit}; exit\r`;
 }
 
-export class LifecycleScriptService implements IDisposable {
+export class LifecycleScriptService implements Disposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;

@@ -5,7 +5,7 @@ shape; middleware wraps handlers or controllers at the composition site.
 
 ```ts
 import { createController, withRetry, withTimeout } from '@emdash/wire/api';
-import { retrySchedules } from '@emdash/wire/scheduling';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { compose } from '@emdash/wire/util';
 
 const loadStats = compose(
@@ -114,8 +114,8 @@ controller middleware when the policy belongs to the served boundary.
 
 ## Timeout
 
-`withTimeout({ timeoutMs, clock? })` is handler middleware backed by
-`runWithTimeout()` from `@emdash/wire/scheduling`. It derives a child
+`withTimeout({ timeoutMs, clock? })` is handler middleware backed by Shared
+`runWithTimeout()` from `@emdash/shared/scheduling`. It derives a child
 `AbortSignal`, passes that signal to the wrapped handler, and converts an expired
 deadline to `WireError` code `TIMEOUT`.
 
@@ -134,8 +134,8 @@ the wire call rejects with `CANCELLED`.
 
 ## Retry
 
-`withRetry()` is handler middleware backed by `retry()` from
-`@emdash/wire/scheduling`. It requires an explicit `shouldRetry` classifier:
+`withRetry()` is handler middleware backed by Shared `retry()` from
+`@emdash/shared/scheduling`. It requires an explicit `shouldRetry` classifier:
 
 ```ts
 const loadRemote = compose(rawLoadRemote, [

@@ -1,7 +1,7 @@
+import { createStubLogger } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import type { Controller } from '../api/controller';
 import { loggingTransport, memoryTransportPair } from '../api/transports';
-import { createStubLogger } from '../testing';
 import { loggerInstrumentation } from './logger-instrumentation';
 import { withLogging } from './with-logging';
 

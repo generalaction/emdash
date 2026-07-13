@@ -1,4 +1,4 @@
-import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveCursor } from '../protocol';
 
 type CursorWaiter = {

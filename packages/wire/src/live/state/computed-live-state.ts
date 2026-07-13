@@ -1,5 +1,5 @@
 import { isDeepEqual, type Unsubscribe } from '@emdash/shared';
-import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveCursor, LiveSource, LiveUpdate } from '../protocol';
 import { LiveState } from './server';
 

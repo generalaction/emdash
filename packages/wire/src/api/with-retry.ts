@@ -1,4 +1,4 @@
-import { retry, type RetryOptions } from '../scheduling';
+import { retry, type RetryOptions } from '@emdash/shared/scheduling';
 
 type SignalContext = {
   signal?: AbortSignal;

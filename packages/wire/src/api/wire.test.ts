@@ -1,10 +1,11 @@
 import { err, ok, type Unsubscribe } from '@emdash/shared';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { ReplicaState } from '../live/replica';
-import { createTestWire, deferred, waitFor } from '../testing';
+import { createTestWire } from '../testing';
 import { client } from './client';
 import { connect } from './connect';
 import { createController, encodeTopic } from './controller';

@@ -1,8 +1,8 @@
 import type { Client, SessionUpdate } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
-import type { Scope } from '@emdash/wire/util';
 import type {
   AcpProcessHandle,
   AcpProcessHost,

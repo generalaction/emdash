@@ -1,12 +1,13 @@
 import type { PendingLease } from '@emdash/shared';
+import { createResourceCache } from '@emdash/shared/concurrency';
+import { stableStringify } from '@emdash/shared/util';
 import type {
   MutationCallOptions,
   LiveModelClientHandle,
   LiveClientHandle,
 } from '../../api/client';
 import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '../../api/define';
-import { createResourceCache } from '../../util/resource-cache';
-import { stableStringify, type LiveMutationResult } from '../mutations';
+import type { LiveMutationResult } from '../mutations';
 import type { LiveSource } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import {

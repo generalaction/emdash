@@ -1,8 +1,8 @@
-import type { PendingLease } from '@emdash/shared';
+import type { PendingLease } from '../lifecycle';
 import { createResourceCache, type ResourceCache } from './resource-cache';
 import type { Scope } from './scope';
 
-const sharedKey = Symbol('wire.shared-resource');
+const sharedKey = Symbol('shared-resource');
 
 export interface SharedResource<T> {
   acquire(): PendingLease<T>;

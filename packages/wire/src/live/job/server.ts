@@ -1,6 +1,6 @@
 import { toSerializedError, type Result } from '@emdash/shared';
-import { systemClock, type Clock, type TimerHandle } from '../../scheduling';
-import { createScope, type Run, type Scope } from '../../util';
+import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveJobState, LiveSnapshot, LiveSource } from '../protocol';
 import { LiveState } from '../state';
 

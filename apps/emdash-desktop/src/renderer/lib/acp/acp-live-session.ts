@@ -17,14 +17,8 @@ import {
 } from '@emdash/core/runtimes/acp/api/client';
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
-import {
-  ReplicaLog,
-  ReplicaState,
-  TimeoutError,
-  runWithTimeout,
-  type BlobSource,
-  type LiveClientHandle,
-} from '@emdash/wire';
+import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
+import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
 import { createImmutableMobxStore, createMobxLogStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
 import {

@@ -1,6 +1,6 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
 import type { EventStreamEndpointDef, EventStreamEvent, EventStreamKey } from '../../api/define';
-import { stableStringify } from '../mutations';
 import type {
   EventStreamDelta,
   EventStreamSnapshotData,

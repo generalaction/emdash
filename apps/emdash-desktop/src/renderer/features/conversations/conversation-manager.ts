@@ -1,4 +1,4 @@
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 // TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
@@ -22,7 +22,7 @@ import {
 } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 
-export class ConversationManagerStore implements IDisposable {
+export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;

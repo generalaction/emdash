@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { app } from 'electron';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
@@ -23,7 +23,7 @@ const MAX_EVENT_TS_MS = 9_999_999_999_999;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GENERIC_NUMBER = 1_000_000;
 
-class TelemetryService implements IInitializable, IDisposable {
+class TelemetryService implements Disposable {
   private enabled = true;
   private apiKey: string | undefined;
   private host: string | undefined;

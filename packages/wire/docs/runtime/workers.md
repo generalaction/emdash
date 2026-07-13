@@ -33,7 +33,7 @@ flowchart LR
 ```ts
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { createScope } from '@emdash/wire/util';
+import { createScope } from '@emdash/shared/concurrency';
 import { api } from './contract';
 import { workerPath } from './worker-manifest';
 

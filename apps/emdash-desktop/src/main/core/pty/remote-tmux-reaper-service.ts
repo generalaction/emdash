@@ -1,4 +1,4 @@
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
 import { log } from '@main/lib/logger';
@@ -14,7 +14,7 @@ import { reconcileProjectTmuxSessions } from './tmux-reconcile';
  * Preserve-on-close resumability is untouched: only sessions that no longer map
  * to any DB entity are removed.
  */
-export class RemoteTmuxReaperService implements IInitializable, IDisposable {
+export class RemoteTmuxReaperService implements Disposable {
   private _unsubscribe: (() => void) | null = null;
 
   initialize(): void {

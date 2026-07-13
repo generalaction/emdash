@@ -1,4 +1,5 @@
-import { eventFromUpdate, stableStringify } from '@emdash/wire';
+import { stableStringify } from '@emdash/shared/util';
+import { eventFromUpdate } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import type { fsWatchContract, FsWatchStreamEvent } from '@services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';

@@ -1,5 +1,5 @@
-import { systemClock } from '../../src/scheduling';
-import { createScope, describeScope } from '../../src/util';
+import { createScope, describeScope } from '@emdash/shared/concurrency';
+import { systemClock } from '@emdash/shared/scheduling';
 
 async function main(): Promise<void> {
   const events: string[] = [];

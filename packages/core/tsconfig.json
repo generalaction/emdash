@@ -14,8 +14,11 @@
     "lib": ["ES2022"],
     "types": ["node"],
     "paths": {
+      "@emdash/shared/scheduling": ["../shared/src/scheduling/index.ts"],
+      "@emdash/shared/concurrency": ["../shared/src/concurrency/index.ts"],
+      "@emdash/shared/util": ["../shared/src/util/index.ts"],
+      "@emdash/shared/testing": ["../shared/src/testing/index.ts"],
       "@emdash/wire/api": ["../wire/src/api/index.ts"],
-      "@emdash/wire/scheduling": ["../wire/src/scheduling/index.ts"],
       "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
       "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire/worker": ["../wire/src/worker/index.ts"],

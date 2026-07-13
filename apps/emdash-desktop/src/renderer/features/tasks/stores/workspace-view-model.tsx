@@ -1,4 +1,3 @@
-import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DefaultConversationSeeder } from '@renderer/features/conversations/default-conversation-seeder';
 import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
@@ -36,7 +35,7 @@ export type RendererKind =
   | 'terminal'
   | 'other-file';
 
-export class WorkspaceViewModel implements ILifecycle {
+export class WorkspaceViewModel {
   sidebarTab: SidebarTab;
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';

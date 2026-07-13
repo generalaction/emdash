@@ -1,8 +1,8 @@
+import { createScope } from '@emdash/shared/concurrency';
 import { type Controller } from '../api/controller';
 import { serve } from '../api/serve';
 import type { ValidatePolicy } from '../api/with-validation';
 import { compose } from '../util';
-import { createScope } from '../util/scope';
 import { parentPortTransport, isWorkerSignal, WORKER_READY_SIGNAL } from './protocol';
 import type { ServeWireWorkerContext, ServeWireWorkerOptions, WorkerParentPort } from './types';
 

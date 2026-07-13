@@ -1,4 +1,4 @@
-import { createScope } from '@emdash/wire/util';
+import { createScope } from '@emdash/shared/concurrency';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import type { IAcpBehavior } from '@services/agent-plugins/api/plugins/capabilities/acp';

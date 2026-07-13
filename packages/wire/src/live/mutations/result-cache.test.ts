@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { deferred } from '../../testing';
 import { MutationResultCache } from './result-cache';
 
 describe('MutationResultCache', () => {

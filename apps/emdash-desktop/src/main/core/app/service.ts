@@ -2,7 +2,7 @@ import { exec } from 'node:child_process';
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
-import type { IDisposable, IInitializable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
@@ -83,7 +83,7 @@ type RemoteTerminalLaunchAttempt = {
   args: string[];
 };
 
-class AppService implements IInitializable, IDisposable {
+class AppService implements Disposable {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;

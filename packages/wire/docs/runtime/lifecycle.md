@@ -1,10 +1,13 @@
 # Lifecycle Utilities
 
-`Scope` and the resource cache primitives are dependency-light lifecycle utilities exported
-from `@emdash/wire/util`. Scheduling utilities are exported separately from
-`@emdash/wire/scheduling`.
+`Scope`, `LifecycleRegistry`, and the resource cache primitives are
+dependency-light Shared lifecycle utilities exported from
+`@emdash/shared/concurrency`. Scheduling utilities are exported separately from
+`@emdash/shared/scheduling`. Wire uses these primitives, but they do not define
+Wire protocol messages.
 
 - `Scope` owns cleanup and async work for a tree of resources.
+- `LifecycleRegistry` owns explicit keyed start/stop state machines.
 - `Clock` owns sleeps, deadlines, retry backoff, and disposable timers.
 - `ResourceCache` turns keyed demand into retained resources with ref-counted leases.
 - `SharedResource` is the unkeyed form for one lazily created resource.
@@ -20,7 +23,7 @@ Use a scope when a feature creates more than one disposable resource and those
 resources should die together:
 
 ```ts
-import { createScope } from '@emdash/wire/util';
+import { createScope } from '@emdash/shared/concurrency';
 
 const scope = createScope({ label: 'conversation:abc', logger });
 
@@ -131,6 +134,60 @@ renderer bindings, and async setup. Use `add()` or `use()` for finalizers. Use
 For the full lifecycle model and invariants, see
 [Structured concurrency](./structured-concurrency.md).
 
+## LifecycleRegistry
+
+Use `LifecycleRegistry` when a feature owns a keyed set of resources that are
+started and stopped by explicit commands and callers need observable lifecycle
+state:
+
+```ts
+import { LifecycleRegistry } from '@emdash/shared/concurrency';
+import { ok } from '@emdash/shared/result';
+
+const runtimes = new LifecycleRegistry<
+  { workspaceId: string },
+  Runtime,
+  StartRuntimeError,
+  { reason: string },
+  StopRuntimeError
+>({
+  label: 'workspace-runtimes',
+  scope: appScope,
+  keyOf: (input) => input.workspaceId,
+  start: async (input, scope, signal) => {
+    const runtime = await createRuntime(input.workspaceId, { signal });
+    scope.add(() => runtime.dispose());
+    return ok(runtime);
+  },
+  stop: async (_key, runtime, context, _scope, signal) => {
+    await runtime.stop({ reason: context?.reason, signal });
+    return ok(undefined);
+  },
+  onStateChanged: ({ key, current }) => {
+    logger.info('runtime state changed', { key, state: current.kind });
+  },
+});
+```
+
+Selection guidance:
+
+- Use `Scope` for ownership, cancellation, cleanup ordering, and async work that
+  must not outlive its feature. It is not a keyed start/stop registry.
+- Use `LifecycleRegistry` for local keyed resources with explicit `start()`,
+  `stop()`, `register()`, `state()`, and state-change observation.
+- Use `ResourceCache` when demand is lease-driven and the resource should exist
+  only while consumers hold leases or while an idle TTL retains it.
+- Use `WorkerSlot` when the resource is a Wire worker process with a stable typed
+  client, readiness, supervision, restart backoff, and child process generations.
+- Use `LiveJob` when callers need a Wire-visible cancellable job with progress,
+  terminal state, retention, and remote client handles.
+
+`LifecycleRegistry` differs from `Scope` by modeling resource state rather than
+general cleanup. It differs from `ResourceCache` by not ref-counting leases or
+creating resources on demand from `acquire()`. It differs from `WorkerSlot` and
+`LiveJob` by staying local and protocol-free: it does not supervise processes,
+serve clients, publish progress, or retain terminal job state.
+
 ## Mailbox Ownership
 
 Use `Mailbox` when local producers and one consumer need an explicit bounded
@@ -138,7 +195,7 @@ handoff. Register it with the owning scope, then run the consumer loop under the
 same scope:
 
 ```ts
-import { createMailbox } from '@emdash/wire/util';
+import { createMailbox } from '@emdash/shared/concurrency';
 
 const mailbox = sessionScope.use(createMailbox<Event>({ capacity: 256 }));
 
@@ -178,7 +235,7 @@ using it: a live topic binding, a renderer view model, a preview server, or a
 process-backed session.
 
 ```ts
-import { createResourceCache } from '@emdash/wire/util';
+import { createResourceCache } from '@emdash/shared/concurrency';
 
 const sessions = createResourceCache({
   scope: runtimeScope,
@@ -266,8 +323,8 @@ const bindings = createResourceCache({
 });
 ```
 
-`ManagedSource` remains exported as a deprecated compatibility adapter. New code
-should use `ResourceCache`, `SharedResource`, or `AsyncCache`.
+Use `ResourceCache`, `SharedResource`, or `AsyncCache` for new shared lifetime
+work. Avoid adding compatibility lifecycle adapters around new code.
 
 See [../../examples/scope/client.ts](../../examples/scope/client.ts) and
 [../../examples/resource-cache/client.ts](../../examples/resource-cache/client.ts).

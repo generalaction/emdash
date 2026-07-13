@@ -1,8 +1,9 @@
 import { filesContract, type FileContentModel } from '@emdash/core/runtimes/files/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { createLiveModelHost, defineContract } from '@emdash/wire';
-import { createTestWire, waitFor } from '@emdash/wire/testing';
+import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/core/git/types';
 import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
