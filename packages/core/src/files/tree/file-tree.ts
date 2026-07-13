@@ -233,9 +233,10 @@ export class FileTree implements IFileTree {
 
     const loading = this.loadDirectoryScopeInternal(scope);
     this.scopeLoads.set(scope, loading);
-    void loading.finally(() => {
+    const clearLoading = () => {
       if (this.scopeLoads.get(scope) === loading) this.scopeLoads.delete(scope);
-    });
+    };
+    void loading.then(clearLoading, clearLoading);
     return loading;
   }
 
@@ -254,6 +255,7 @@ export class FileTree implements IFileTree {
       sort: true,
     });
     if (!listed.success) return listed;
+    if (this.disposed) return ok({});
     const listedEntries = listed.data.kind === 'entries' ? listed.data.entries : [];
 
     const listedPaths = new Set(listedEntries.map((entry) => entry.path));
@@ -279,10 +281,12 @@ export class FileTree implements IFileTree {
         return annotated;
       })
     );
+    if (this.disposed) return ok({});
     const loaded = await this.collection.loadScope(scope, async () =>
       ok(nodes.map((node) => [node.id, node] as const))
     );
     if (!loaded.success) return loaded;
+    if (this.disposed) return ok({});
     sequence = Math.max(sequence, loaded.data);
 
     if (dirNode && !dirNode.childrenLoaded) {
