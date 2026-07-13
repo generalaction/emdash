@@ -92,6 +92,7 @@ export class AgentSkillsManager {
     }
     const { frontmatter } = parseFrontmatter(payload.skillMdContent);
     let canonicalCreated = false;
+    let provenanceWritten = false;
     try {
       if (
         await skillEntryExists(
@@ -119,6 +120,7 @@ export class AgentSkillsManager {
           skillShPath: payload.skillShPath,
         };
         await writeSkillShInstalls(this.deps.agentHost.fs, installs);
+        provenanceWritten = true;
       }
       const targets = payload.targets ?? { mode: 'all' };
       await setSkillTargets(this.deps.agentHost.fs, installId, targets);
@@ -130,14 +132,16 @@ export class AgentSkillsManager {
       );
       return ok(await this.refresh());
     } catch (error) {
-      await this.removeSkillMirrorsFromAgents(installId, frontmatter.name || installId).catch(
-        () => {}
-      );
-      await removeSkillTargets(this.deps.agentHost.fs, installId).catch(() => {});
       if (canonicalCreated) {
+        await this.removeSkillMirrorsFromAgents(installId, frontmatter.name || installId).catch(
+          () => {}
+        );
+        await removeSkillTargets(this.deps.agentHost.fs, installId).catch(() => {});
         await this.deps.agentHost.fs.delete(`${SKILLS_ROOT}/${installId}`).catch(() => {});
       }
-      await removeSkillShInstall(this.deps.agentHost.fs, installId).catch(() => {});
+      if (provenanceWritten) {
+        await removeSkillShInstall(this.deps.agentHost.fs, installId).catch(() => {});
+      }
       return err(toIoError(error));
     }
   }
@@ -193,9 +197,9 @@ export class AgentSkillsManager {
       await this.reconcileSkillMirrors(input.name, input.name, skillContent, targets);
       return ok(await this.refresh());
     } catch (error) {
-      await this.removeSkillMirrorsFromAgents(input.name, input.name).catch(() => {});
-      await removeSkillTargets(this.deps.agentHost.fs, input.name).catch(() => {});
       if (canonicalCreated) {
+        await this.removeSkillMirrorsFromAgents(input.name, input.name).catch(() => {});
+        await removeSkillTargets(this.deps.agentHost.fs, input.name).catch(() => {});
         await this.deps.agentHost.fs.delete(`${SKILLS_ROOT}/${input.name}`).catch(() => {});
       }
       return err(toIoError(error));
@@ -436,21 +440,13 @@ async function writeSkillShInstalls(
 
 async function getSkillDirectoryIdentity(fs: PluginFs, skillDir: string): Promise<string> {
   const parts: string[] = [];
-  const visit = async (relativeDir: string, entries?: string[]): Promise<void> => {
+  const visit = async (relativeDir: string): Promise<void> => {
     const currentDir = relativeDir ? `${skillDir}/${relativeDir}` : skillDir;
-    const sortedEntries = (entries ?? (await fs.list(currentDir))).sort((a, b) =>
-      a.localeCompare(b)
-    );
+    const sortedEntries = (await fs.list(currentDir)).sort((a, b) => a.localeCompare(b));
     for (const entry of sortedEntries) {
       if (!relativeDir && entry === MANAGED_MIRROR_MARKER) continue;
       const relativePath = relativeDir ? `${relativeDir}/${entry}` : entry;
       const entryPath = `${skillDir}/${relativePath}`;
-      const childEntries = await fs.list(entryPath);
-      if (childEntries.length > 0) {
-        parts.push(`d:${relativePath}\0`);
-        await visit(relativePath, childEntries);
-        continue;
-      }
       try {
         const content = await fs.read(entryPath);
         if (content !== null) {
@@ -458,9 +454,10 @@ async function getSkillDirectoryIdentity(fs: PluginFs, skillDir: string): Promis
           continue;
         }
       } catch {
-        // PluginFs has no stat primitive; a failed read after an empty listing is an empty directory.
+        // PluginFs represents directories through list(); reading one may fail with EISDIR.
       }
       parts.push(`d:${relativePath}\0`);
+      await visit(relativePath);
     }
   };
   await visit('');
