@@ -25,7 +25,7 @@ export function SetupStepPreview({ steps }: SetupStepPreviewProps) {
         <ol className="flex flex-col gap-0.5 border-t border-border px-2.5 py-2">
           {steps.map((step, i) => (
             <li key={i} className="flex items-start gap-2 text-xs text-foreground-muted">
-              <span className="mt-px shrink-0 font-mono text-foreground-passive">{i + 1}.</span>
+              <span className="mt-px shrink-0 font-sans text-foreground-passive">{i + 1}.</span>
               <span>{step}</span>
             </li>
           ))}

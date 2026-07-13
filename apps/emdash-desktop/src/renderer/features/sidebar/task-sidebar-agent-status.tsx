@@ -63,7 +63,7 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
     <Slot>
       <RelativeTime
         value={instant}
-        className="font-mono text-xs text-foreground-passive tabular-nums"
+        className="font-sans text-xs text-foreground-passive tabular-nums"
         compact
       />
     </Slot>

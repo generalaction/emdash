@@ -60,9 +60,9 @@ export function DependencyInstallationUpdateCard({
   const versionArrow =
     usedInstallation.version && usedInstallation.latestVersion ? (
       <span className="flex items-center gap-1 text-xs text-foreground-muted">
-        <span className="font-mono">{usedInstallation.version}</span>
+        <span className="font-sans">{usedInstallation.version}</span>
         <ArrowRight className="h-3 w-3 shrink-0" />
-        <span className="font-mono">{usedInstallation.latestVersion}</span>
+        <span className="font-sans">{usedInstallation.latestVersion}</span>
       </span>
     ) : null;
 
