@@ -200,6 +200,9 @@ export const toolbar = style({
 export const toolbarLeft = style({ display: 'flex', alignItems: 'center', gap: '0.375rem' });
 export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: '0.25rem' });
 
+// Keep the active provider/model label readable when other toolbar controls are present.
+export const modelTrigger = style({ flexShrink: 0 });
+
 // ── Agent trigger ─────────────────────────────────────────────────────────────
 
 export const agentTrigger = style({
