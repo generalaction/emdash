@@ -1,0 +1,24 @@
+packages/core/src/agents/agent-env.ts
+  s_9fd0254e91af86::t_5d222ff2890977 79-80
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_9fd0254e91af86::t_c5f3a618d2b053 97
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_9fd0254e91af86::t_bfb37dbe96917c 134-135
+  s_9fd0254e91af86::t_233102cbf594ae 155-157,170-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5497bcb675c15aa8474485ff26de054890b53a35",
+  "prompts": {},
+  "sessions": {
+    "s_9fd0254e91af86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "078f8b69-d0fc-4f23-940e-9156a6089aa0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
