@@ -91,8 +91,9 @@ Primitives may depend on other primitives, but those dependencies must remain ac
 `@emdash/shared` owns package-level foundations that are below Core, Wire, desktop,
 workspace-server, and tests. Do not move these into Core primitives just because Core uses them:
 
-- `@emdash/shared/concurrency` owns `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
-  `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable helpers.
+- `@emdash/shared/concurrency` owns `Scope`, `Run`, `LifecycleRegistry`, `Machine`, machine
+  effect drivers, `Mailbox`, `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers,
+  and disposable helpers.
 - `@emdash/shared/scheduling` owns `Clock`, `TimerHandle`, timeout helpers, retry schedules,
   and `retry()`.
 - `@emdash/shared/testing` owns `ManualClock`, deferred promises, `waitFor()`, and stub logger
@@ -108,6 +109,8 @@ Choose lifecycle primitives by ownership shape:
 - Use `Scope` for cleanup ordering, cancellation, child ownership, and tracked async work.
 - Use `LifecycleRegistry` for keyed local resources with explicit `start()`, `stop()`,
   `register()`, queryable state, typed start/stop results, and state-change observers.
+- Use `Machine` for local command/event/effect protocols where commands decide domain events,
+  events evolve state, and host-owned effect interpreters keep side effects explicit.
 - Use `ResourceCache` when resource lifetime is lease-driven through `acquire()` and `release()`,
   optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
   `AsyncCache` for cached async values without finalizers.

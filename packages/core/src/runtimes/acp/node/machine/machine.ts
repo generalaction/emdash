@@ -1,5 +1,6 @@
-import type { Result } from '@emdash/shared';
+import type { Result, Unsubscribe } from '@emdash/shared';
 import { ok } from '@emdash/shared';
+import { createMachine, type Machine, type MachineBatch } from '@emdash/shared/concurrency';
 import type {
   AcpPermissionRequest,
   AcpRuntimeError,
@@ -427,80 +428,91 @@ export function projectSessionState(s: SessionMachineState): SessionState {
 }
 
 export class SessionMachine {
-  private _state: SessionMachineState;
+  private readonly machine: Machine<
+    SessionMachineState,
+    Command,
+    DomainEvent,
+    Effect,
+    AcpRuntimeError,
+    SessionMachineContext
+  >;
 
   constructor(conversationId: string) {
-    this._state = initialMachineState(conversationId);
+    this.machine = createMachine(
+      {
+        decide,
+        evolve,
+      },
+      initialMachineState(conversationId)
+    );
   }
 
   get phase(): SessionPhase {
-    return this._state.phase;
+    return this.machine.current().phase;
   }
   get lifecycle(): SessionLifecycle {
-    return phaseToLifecycle(this._state.phase);
+    return phaseToLifecycle(this.machine.current().phase);
   }
   get pendingPermissions(): readonly AcpPermissionRequest[] {
-    return this._state.pendingPermissions;
+    return this.machine.current().pendingPermissions;
   }
   get nextTurnIndex(): number {
-    return this._state.nextTurnIndex;
+    return this.machine.current().nextTurnIndex;
   }
   get lastStopReason(): StopReason | null {
-    return this._state.lastStopReason;
+    return this.machine.current().lastStopReason;
   }
   get queuedPrompts(): readonly QueuedPrompt[] {
-    return this._state.queuedPrompts;
+    return this.machine.current().queuedPrompts;
   }
   get agentTurnActive(): boolean {
-    return this._state.agentTurnActive;
+    return this.machine.current().agentTurnActive;
   }
   get backgroundAgentCount(): number {
-    return this._state.backgroundAgentCount;
+    return this.machine.current().backgroundAgentCount;
   }
   get isWorking(): boolean {
-    return this._state.phase.kind === 'working' || this._state.phase.kind === 'cancelling';
+    const phase = this.machine.current().phase;
+    return phase.kind === 'working' || phase.kind === 'cancelling';
   }
   get canSubmit(): boolean {
     return isPromptReady(this.lifecycle);
   }
   get canCancel(): boolean {
+    const state = this.machine.current();
     return (
-      this._state.phase.kind === 'working' ||
-      this._state.agentTurnActive ||
-      this._state.backgroundAgentCount > 0
+      state.phase.kind === 'working' || state.agentTurnActive || state.backgroundAgentCount > 0
     );
   }
   get isGenerating(): boolean {
-    return this.isWorking || this._state.agentTurnActive || this._state.backgroundAgentCount > 0;
+    const state = this.machine.current();
+    return this.isWorking || state.agentTurnActive || state.backgroundAgentCount > 0;
   }
 
   dispatch(
     cmd: Command,
     ctx: SessionMachineContext = emptySessionMachineContext()
   ): Result<Effect[], AcpRuntimeError> {
-    const decision = decide(this._state, cmd, ctx);
-    if (!decision.success) return decision;
-    const allEffects: Effect[] = [];
-    for (const event of decision.data) {
-      const { state, effects } = evolve(this._state, event);
-      this._state = state;
-      allEffects.push(...effects);
-    }
-    return ok(allEffects);
+    const result = this.machine.dispatch(cmd, ctx);
+    return result.success ? ok([...result.data]) : result;
   }
 
   apply(...events: DomainEvent[]): Effect[] {
-    const allEffects: Effect[] = [];
-    for (const event of events) {
-      const { state, effects } = evolve(this._state, event);
-      this._state = state;
-      allEffects.push(...effects);
-    }
-    return allEffects;
+    return [...this.machine.apply(...events)];
   }
 
   sessionState(): SessionState {
-    return projectSessionState(this._state);
+    return projectSessionState(this.machine.current());
+  }
+
+  current(): SessionMachineState {
+    return this.machine.current();
+  }
+
+  subscribe(
+    listener: (batch: MachineBatch<SessionMachineState, Command, DomainEvent, Effect>) => void
+  ): Unsubscribe {
+    return this.machine.subscribe(listener);
   }
 }
 // The state machine for the ACP Session

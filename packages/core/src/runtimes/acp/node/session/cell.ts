@@ -8,6 +8,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
+import { createMachineEffectDriver, type MachineEffectDriver } from '@emdash/shared/concurrency';
 import type {
   AcpCancelTurnError,
   AcpPermissionRequest,
@@ -63,8 +64,7 @@ export class SessionCell {
   private _acpSessionId: string;
   private quiesceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastRunningAgentCount = 0;
-  private effectQueue: Effect[] = [];
-  private interpretingEffects = false;
+  private readonly effectDriver: MachineEffectDriver<Effect>;
   private draft: PromptDraft | null = null;
   private draftRev = 0;
 
@@ -77,6 +77,21 @@ export class SessionCell {
       providerId: deps.providerId,
       acpSessionId: deps.acpSessionId,
       createdAt: new Date().toISOString(),
+    });
+    this.effectDriver = createMachineEffectDriver({
+      interpret: (effect) => this.interpretEffect(effect),
+      onDrain: ({ effects }) => {
+        if (effects.some(isSessionStateEffect)) {
+          this.deps.callbacks?.onSessionStateChanged?.();
+        }
+      },
+      onInterpreterError: ({ error, effect }) => {
+        this.deps.logger.warn('SessionCell: effect handler failed', {
+          conversationId: this.conversationId,
+          effect,
+          error,
+        });
+      },
     });
   }
 
@@ -417,6 +432,7 @@ export class SessionCell {
 
   dispose(): void {
     this.clearQuiesce();
+    this.effectDriver.dispose();
     this.permissions.drain(this.machine.pendingPermissions);
   }
 
@@ -441,55 +457,44 @@ export class SessionCell {
     this.interpretEffects(this.machine.apply(event));
   }
 
-  private interpretEffects(effects: Effect[]): void {
-    this.effectQueue.push(...effects);
-    if (this.interpretingEffects) return;
+  private interpretEffects(effects: readonly Effect[]): void {
+    this.effectDriver.run(effects);
+  }
 
-    this.interpretingEffects = true;
-    let stateChanged = false;
-    try {
-      while (this.effectQueue.length > 0) {
-        const effect = this.effectQueue.shift()!;
-        switch (effect.type) {
-          case 'state':
-          case 'permissionRequest':
-            stateChanged = true;
-            break;
-          case 'permissionResolved':
-            stateChanged = true;
-            if (effect.cancelled) this.permissions.cancel(effect.requestId);
-            break;
-          case 'closed':
-            this.deps.callbacks?.onClosed?.(effect.exitCode);
-            break;
-          case 'agentEvent':
-            this.deps.callbacks?.onAgentEvent?.(effect.phase);
-            break;
-          case 'settleAgents':
-            this.settleRunningAgents(effect.scope, effect.status);
-            break;
-          case 'sendPrompt':
-            this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
-            void this.sendPromptInternal(effect.prompt).then((result) => {
-              if (!result.success) {
-                this.deps.logger.warn('SessionCell: failed to send queued prompt', {
-                  conversationId: this.conversationId,
-                  error: result.error,
-                });
-              }
-            });
-            break;
-          case 'warn':
-            this.deps.logger.warn(`SessionCell: ${effect.message}`, {
+  private interpretEffect(effect: Effect): void {
+    switch (effect.type) {
+      case 'state':
+      case 'permissionRequest':
+        break;
+      case 'permissionResolved':
+        if (effect.cancelled) this.permissions.cancel(effect.requestId);
+        break;
+      case 'closed':
+        this.deps.callbacks?.onClosed?.(effect.exitCode);
+        break;
+      case 'agentEvent':
+        this.deps.callbacks?.onAgentEvent?.(effect.phase);
+        break;
+      case 'settleAgents':
+        this.settleRunningAgents(effect.scope, effect.status);
+        break;
+      case 'sendPrompt':
+        this.deps.callbacks?.onSendQueuedPrompt?.(effect.prompt);
+        void this.sendPromptInternal(effect.prompt).then((result) => {
+          if (!result.success) {
+            this.deps.logger.warn('SessionCell: failed to send queued prompt', {
               conversationId: this.conversationId,
+              error: result.error,
             });
-            break;
-        }
-      }
-    } finally {
-      this.interpretingEffects = false;
+          }
+        });
+        break;
+      case 'warn':
+        this.deps.logger.warn(`SessionCell: ${effect.message}`, {
+          conversationId: this.conversationId,
+        });
+        break;
     }
-    if (stateChanged) this.deps.callbacks?.onSessionStateChanged?.();
   }
 
   private async sendPromptInternal(
@@ -746,6 +751,14 @@ function machineOutcome(
 function outcomeFromStopReason(stopReason: StopReason): TranscriptTurnOutcome {
   if (stopReason === 'cancelled') return { kind: 'cancelled', reason: stopReason };
   return { kind: 'done', reason: stopReason };
+}
+
+function isSessionStateEffect(effect: Effect): boolean {
+  return (
+    effect.type === 'state' ||
+    effect.type === 'permissionRequest' ||
+    effect.type === 'permissionResolved'
+  );
 }
 
 function toStopReason(reason: TranscriptTurnOutcome['reason']): StopReason {

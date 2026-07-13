@@ -80,6 +80,8 @@ live, and worker surfaces.
     explicit gap callbacks after reattach.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
     retention, and contract job handles.
+  - [Machine bindings](./live/machine-binding.md): projecting Shared machines into
+    Wire `LiveState` without creating a second observation protocol.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
   - [Replicas](./live/replicas.md): `LiveModelReplica`, `LiveLogReplica`,

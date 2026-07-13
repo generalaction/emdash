@@ -5,13 +5,17 @@ export {
   BatchedLiveState,
   ComputedLiveState,
   LiveState,
+  bindMachineToLiveState,
   microtaskScheduler,
   timerScheduler,
   type BatchedLiveStateOptions,
+  type BindMachineToLiveStateOptions,
   type ComputedLiveStateOptions,
   type FlushScheduler,
   type LiveChangeMeta,
   type LiveStateProduceOptions,
+  type MachineLiveStateBinding,
+  type MachineStateSource,
   type Mutator,
 } from './state';
 export { LiveLog, type LiveLogOptions } from './log';

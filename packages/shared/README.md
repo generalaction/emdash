@@ -7,9 +7,9 @@ process behavior.
 
 ## Foundation Exports
 
-- `@emdash/shared/concurrency`: `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
-  `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable
-  helpers.
+- `@emdash/shared/concurrency`: `Scope`, `Run`, `LifecycleRegistry`, `Machine`,
+  machine effect drivers, `Mailbox`, `ResourceCache`, `SharedResource`,
+  `AsyncCache`, bounded buffers, and disposable helpers.
 - `@emdash/shared/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
   `runWithTimeout()`, `TimeoutError`, retry schedules, and `retry()`.
 - `@emdash/shared/testing`: `ManualClock`, `createDeferred()`, `waitFor()`, and
@@ -27,6 +27,11 @@ Use `LifecycleRegistry` when a feature owns a keyed set of local resources with
 explicit `start()` and `stop()` commands, typed start/stop results, queryable
 state, and state-change observers. It is a state registry, not a lease cache or
 protocol primitive.
+
+Use `Machine` when a feature owns a local command/event/effect protocol: commands
+decide domain events, events evolve state, and effects are interpreted at the
+host boundary. Machines are protocol-free; bind them to Wire `LiveState` only at
+the Wire layer.
 
 Use `ResourceCache` when resource lifetime is demand-driven: consumers call
 `acquire()`, hold leases, release them, and optionally benefit from an idle TTL.

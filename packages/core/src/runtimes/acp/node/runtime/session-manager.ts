@@ -12,6 +12,7 @@ import type { Lease, Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import { bindMachineToLiveState, type MachineLiveStateBinding } from '@emdash/wire';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
@@ -53,6 +54,7 @@ import {
   type AcpConnectionSource,
   type PooledAcpProcess,
 } from '@runtimes/acp/node/connection/source';
+import { projectSessionState } from '@runtimes/acp/node/machine/machine';
 import { SessionCell, type AcpChatHistory } from '@runtimes/acp/node/session/cell';
 import type { SessionCellCallbacks } from '@runtimes/acp/node/session/cell-deps';
 import {
@@ -74,8 +76,8 @@ interface SessionRecord {
   connectionLease: Lease<PooledAcpProcess>;
   cell: SessionCell;
   live: SessionLiveModels;
+  machineStateBinding: MachineLiveStateBinding;
   lastSynced: {
-    sessionState?: SessionState;
     config?: SessionConfigState;
     usage?: SessionUsage | null;
     plan?: PlanState | null;
@@ -485,14 +487,20 @@ export class SessionManager implements InboundRouter {
       logger: this.deps.logger,
       callbacks,
     });
+    const live = createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState);
+    const machineStateBinding = bindMachineToLiveState({
+      machine: cell.machine,
+      liveState: live.states.state,
+      project: projectSessionState,
+    });
     Object.assign(record, {
       input,
       processKey: connection.key,
       connectionLease,
       cell,
-      live: createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState),
+      live,
+      machineStateBinding,
       lastSynced: {
-        sessionState: cell.sessionState,
         config: cell.config,
         usage: cell.usage,
         plan: null,
@@ -516,8 +524,6 @@ export class SessionManager implements InboundRouter {
 
   private syncRecord(record: SessionRecord): void {
     const state = record.cell.sessionState;
-    publishLiveModelState(record.live.states.state, state, record.lastSynced.sessionState);
-    record.lastSynced.sessionState = state;
 
     const config = record.cell.config;
     publishLiveModelState(record.live.states.config, config, record.lastSynced.config);
@@ -591,6 +597,7 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(conversationId);
     if (!record) return;
     record.cell.dispose();
+    record.machineStateBinding.dispose();
     this.unregisterRoutes(record.processKey, conversationId);
     this.cells.delete(conversationId);
     this.terminals.disposeConversation(conversationId);
