@@ -26,6 +26,18 @@ function fakeBase() {
 
 const AUTH: GitHubGitAuth = { host: 'github.com', token: 'tok' };
 
+/** Find the extraheader key/value pair regardless of which GIT_CONFIG index it landed on. */
+function extraHeader(env: Record<string, string> | undefined) {
+  if (!env) return undefined;
+  const keyEntry = Object.entries(env).find(
+    ([name, value]) =>
+      name.startsWith('GIT_CONFIG_KEY_') && value === 'http.https://github.com/.extraheader'
+  );
+  if (!keyEntry) return undefined;
+  const index = keyEntry[0].slice('GIT_CONFIG_KEY_'.length);
+  return { count: env.GIT_CONFIG_COUNT, value: env[`GIT_CONFIG_VALUE_${index}`] };
+}
+
 describe('GitHubAuthExecutionContext', () => {
   it('injects host-scoped auth env for git network operations', async () => {
     const { base, exec } = fakeBase();
@@ -34,8 +46,9 @@ describe('GitHubAuthExecutionContext', () => {
     await ctx.exec('git', ['fetch', 'origin']);
 
     const opts = exec.mock.calls[0][2] as ExecOptions;
-    expect(opts.env?.GIT_CONFIG_KEY_0).toBe('http.https://github.com/.extraheader');
-    expect(opts.env?.GIT_CONFIG_VALUE_0).toContain('Authorization: Basic ');
+    const header = extraHeader(opts.env);
+    expect(header?.count).toBeDefined();
+    expect(header?.value).toContain('Authorization: Basic ');
   });
 
   it('does not inject for local git operations', async () => {
@@ -78,7 +91,7 @@ describe('GitHubAuthExecutionContext', () => {
 
     const opts = exec.mock.calls[0][2] as ExecOptions;
     expect(opts.env?.FOO).toBe('bar');
-    expect(opts.env?.GIT_CONFIG_COUNT).toBe('1');
+    expect(extraHeader(opts.env)?.value).toContain('Authorization: Basic ');
   });
 
   it('delegates root, supportsLocalSpawn and dispose to the base context', () => {
