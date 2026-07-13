@@ -1,0 +1,21 @@
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_789f7b6454e1b1::t_c25217c797c2cb 838
+packages/ui/src/react/components/chat-composer/chat-composer.css.ts
+  s_789f7b6454e1b1::t_c25217c797c2cb 203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "53ef1d6acb0cf65b923d13429227cb5edb564d75",
+  "prompts": {},
+  "sessions": {
+    "s_789f7b6454e1b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f59d5-ad28-7050-94da-67ec78416ea2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
