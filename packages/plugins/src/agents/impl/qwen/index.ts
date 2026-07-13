@@ -47,7 +47,7 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   acp: createNativeAcpBehavior(() => ({
-    args: ['--acp', '--experimental-skills'],
+    args: ['--acp'],
   })),
   prompt: {
     buildCommand: (ctx) =>

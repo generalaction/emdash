@@ -53,7 +53,7 @@ const nativeAcpProviders: Array<{
     args: [],
   },
   { id: 'qoder', args: ['--acp'] },
-  { id: 'qwen', args: ['--acp', '--experimental-skills'] },
+  { id: 'qwen', args: ['--acp'] },
 ];
 
 describe('native ACP provider behaviors', () => {

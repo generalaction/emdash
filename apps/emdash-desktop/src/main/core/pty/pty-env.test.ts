@@ -144,6 +144,9 @@ describe('buildAgentEnv provider env forwarding', () => {
       QWEN_SANDBOX: '1',
       QWEN_CODE_SUPPRESS_YOLO_WARNING: '1',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
+      GEMINI_MODEL: 'gemini-2.5-pro',
+      GOOGLE_MODEL: 'gemini-2.5-pro',
+      GOOGLE_GENAI_USE_VERTEXAI: 'true',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
