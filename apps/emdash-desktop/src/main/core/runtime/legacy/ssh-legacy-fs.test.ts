@@ -313,4 +313,34 @@ describe('SshFileSystem.watch', () => {
     expect(events).toEqual([{ type: 'create', entryType: 'symlink', path: 'linked' }]);
     watcher.close();
   });
+
+  it('does not overlap polls or emit after the watcher closes', async () => {
+    vi.useFakeTimers();
+
+    let finishDelayedPoll: (() => void) | undefined;
+    const delayedPoll = new Promise<void>((resolve) => {
+      finishDelayedPoll = resolve;
+    });
+    const fs = new SshFileSystem({} as never, '/repo');
+    const list = vi.spyOn(fs, 'list').mockImplementation(async () => {
+      if (list.mock.calls.length === 1) {
+        return listResult([fileEntry('notes.md', 1_000)]);
+      }
+      await delayedPoll;
+      return listResult([fileEntry('notes.md', 2_000)]);
+    });
+
+    const events: Array<{ type: string; entryType: string; path: string }> = [];
+    const watcher = fs.watch((batch) => events.push(...batch), { debounceMs: 10 });
+    watcher.update(['']);
+
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(40);
+    watcher.close();
+    finishDelayedPoll?.();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(events).toEqual([]);
+  });
 });
