@@ -1,0 +1,19 @@
+agents/integrations/providers.md
+  s_934806f8641f32::t_1141bc7a8799a1 10,12,14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "76e9949ea49b0f307ca4b92d064e4e559fad7184",
+  "prompts": {},
+  "sessions": {
+    "s_934806f8641f32": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f59d7-cef2-7823-b090-b132c287b920",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
