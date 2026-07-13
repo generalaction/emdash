@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_a41828c7aba693::t_c33b1886e0dbb2 148-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b2555abb34312efc205dfd8a694341eb6b2b79c3",
+  "prompts": {},
+  "sessions": {
+    "s_a41828c7aba693": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otLiWJKItugdIxhgczE",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

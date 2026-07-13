@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_8ae849a1ea2a0f::t_9c5229ea9c4a94 1218
+apps/emdash-desktop/src/main/core/skills/controller.ts
+  s_8ae849a1ea2a0f::t_88919e14f27414 13-14
+apps/emdash-desktop/src/renderer/features/skills/components/CreateSkillModal.tsx
+  s_8ae849a1ea2a0f::t_95335ef91c8586 18,35
+packages/runtime/src/agent-config/api/procedures.ts
+  s_8ae849a1ea2a0f::t_7fe791493a4e46 3,81-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "7309e32dddbbdec6e28ddf617174cd48762f6bae",
+  "prompts": {},
+  "sessions": {
+    "s_8ae849a1ea2a0f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cb0-4421-72d3-96db-356c7664e277",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

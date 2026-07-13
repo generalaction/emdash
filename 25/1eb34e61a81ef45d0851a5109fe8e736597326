@@ -1,0 +1,64 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_bbe93672a78948::t_d68139fa71425e 1241
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_a5df99e458f4cc::t_6758b079a2daed 94,108,133-139,183,190,196-200,222,224-244,260-273,376-379,436-438,440,446-447,450,462,464-475
+  s_bbe93672a78948::t_d68139fa71425e 31,288-311,439,441-445,448-449,451-461,463
+  s_13aa5e36d30010::t_fb1bac3afbb098 140
+packages/core/src/skills/skill-targets.ts
+  s_a5df99e458f4cc::t_6758b079a2daed 6,13-19,40,42-54,61-62,71-72,76-77
+packages/core/src/skills/skill-mirrors.test.ts
+  s_13aa5e36d30010::t_fb1bac3afbb098 201-203,206,210,216-238,243-244,248-254
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_4bf10acab6f8e6::t_834f9ac62f6d7d 196
+  s_13aa5e36d30010::t_fb1bac3afbb098 224-227,229,231-264
+  s_dbdf03624dd9bd::t_c2285612f93a03 265-287
+  s_bbe93672a78948::t_d68139fa71425e 101-107,228,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "251eb34e61a81ef45d0851a5109fe8e736597326",
+  "prompts": {},
+  "sessions": {
+    "s_13aa5e36d30010": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otdlon4qHO6w9wL1dg4",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_4bf10acab6f8e6": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otsiGMHtXEc5bDho4Fa",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a5df99e458f4cc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otcU1BdHEE6BapK49c7",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bbe93672a78948": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ots43tIealFAHQ8MOAA",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_dbdf03624dd9bd": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otte07cIWhxAUccu9TX",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

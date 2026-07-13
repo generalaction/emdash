@@ -1,0 +1,388 @@
+packages/runtime/src/agent-config/runtime/runtime.test.ts
+  s_327665bb5fac8c::t_5bbf4ebd81fff3 149,167,194,214,231,257,270,283,308,325,350,377
+  s_327665bb5fac8c::t_def1ab4e16be62 284-286,305-307
+  s_327665bb5fac8c::t_e2951c5cb168bd 326-328,347-349
+  s_327665bb5fac8c::t_aea6ba1d15889a 351-353,374-376
+agents/architecture/acp-runtime.md
+  s_44f843489c7b9c::t_67cfe2855158b1 71-75,84,86-93
+agents/architecture/workspace-server.md
+  s_44f843489c7b9c::t_96ab7f2548e29a 9-11
+agents/integrations/providers.md
+  s_44f843489c7b9c::t_3516b8a77aab83 10,12,14,16
+apps/emdash-desktop/electron.vite.config.ts
+  s_44f843489c7b9c::t_cdd286c1a00719 5,29-34,61-62,74-77
+apps/emdash-desktop/package.json
+  s_44f843489c7b9c::t_dd61c0f8b534e5 3
+apps/emdash-desktop/src/assets/images/mcp/executor.svg
+  s_44f843489c7b9c::t_cc88720b82c1b0 1
+apps/emdash-desktop/src/main/app/app-scope.ts
+  s_44f843489c7b9c::t_e401d5b526d6c2 1-4
+apps/emdash-desktop/src/main/app/shutdown.ts
+  s_44f843489c7b9c::t_e8e6a183794ae6 2-4,15,54,57-59
+apps/emdash-desktop/src/main/core/acp/agent-status-bridge.ts
+  s_44f843489c7b9c::t_4b2aa33adcde32 9,38
+apps/emdash-desktop/src/main/core/acp/runtime-process/host.ts
+  s_44f843489c7b9c::t_01fcc7388e8b59 2-9,11,14,18-19,21-36,38,40-41,45,51,54-55,58-75,78-85,92
+apps/emdash-desktop/src/main/core/agent-config/runtime-process/host.ts
+  s_44f843489c7b9c::t_b88fba1d1d4c91 1-11,15-30,34-35,49,56
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_44f843489c7b9c::t_0c5fbaeba16047 129
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_44f843489c7b9c::t_0cbe532d361fd4 143-157
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_44f843489c7b9c::t_2527413bed4d58 9
+apps/emdash-desktop/src/main/core/fs-watch/runtime-process/entry.ts
+  s_44f843489c7b9c::t_f5d7d04a222120 1-3
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_44f843489c7b9c::t_be69aa957075c1 135-138
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_44f843489c7b9c::t_b34fd81fda040d 12,14,20,87-94,97,105,114-115
+apps/emdash-desktop/src/main/worker-manifest.ts
+  s_44f843489c7b9c::t_66f4ad5af59b0c 1-32
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationsView.tsx
+  s_44f843489c7b9c::t_fbfe6537c7b4a7 20,54-64,70-72,74,112
+apps/emdash-desktop/src/renderer/features/command-palette/command-icons.ts
+  s_44f843489c7b9c::t_909c27e9748a8f 2,66
+apps/emdash-desktop/src/renderer/features/conversations/create-conversation-modal.tsx
+  s_44f843489c7b9c::t_4ee7845e7951b4 9,50-53,65,78,180
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_44f843489c7b9c::t_2c791b24221d35 43,78,145-147,330-377
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_44f843489c7b9c::t_d2190dcab3b284 8,50,80,439-456
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_44f843489c7b9c::t_8eab635c58cdad 5,13,17-20,24-25,46,67-68,140-141,231-240,255-329
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-toolbar.tsx
+  s_44f843489c7b9c::t_938ca6eef234ea 15,33-68
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-resource.ts
+  s_44f843489c7b9c::t_fdf503b2ff3e91 8-13,41,74,85,107-110,155
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_44f843489c7b9c::t_28c64ec37c0722 12,33-35
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_44f843489c7b9c::t_0a7b8600631cbf 11,41,43-51
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-loading.test.ts
+  s_44f843489c7b9c::t_e0a23df04d55c9 1-65
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-loading.ts
+  s_44f843489c7b9c::t_703d327493d8a5 1-18
+apps/emdash-desktop/src/renderer/lib/components/external-link-choice-dialog.test.ts
+  s_44f843489c7b9c::t_97291b10c0a7a2 1-26
+apps/emdash-desktop/src/renderer/lib/components/external-link-choice-dialog.tsx
+  s_44f843489c7b9c::t_9b2fe13f9d7e0c 1-2,11,18,26,30-49,57-83
+apps/emdash-desktop/src/renderer/lib/editor/html-renderer.tsx
+  s_44f843489c7b9c::t_3b8843e5ef7bdc 20-24,55-66
+apps/emdash-desktop/src/renderer/lib/open-external-link.test.ts
+  s_44f843489c7b9c::t_3fd14f6fabf09b 1-94
+apps/emdash-desktop/src/renderer/lib/open-external-link.tsx
+  s_44f843489c7b9c::t_0f47be03ce865d 2,22,36-58
+apps/emdash-desktop/src/shared/commands.ts
+  s_44f843489c7b9c::t_9f587ebd0150af 266-274
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_44f843489c7b9c::t_a9cc0bcd4463ea 410,481,505,561-570
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_44f843489c7b9c::t_9c8b4e6c6d50ba 148-154
+apps/emdash-desktop/tsconfig.json
+  s_44f843489c7b9c::t_6ea4dba410baf7 18-23,65-66
+apps/emdash-desktop/vitest.config.ts
+  s_44f843489c7b9c::t_e81d77c08c5c3d 39-46,108-109
+apps/workspace-server/docs/client-connection.md
+  s_44f843489c7b9c::t_9d8c39c67c6f86 140-142
+apps/workspace-server/docs/daemon.md
+  s_44f843489c7b9c::t_d31b95058b081a 127-128,131,142-144
+apps/workspace-server/src/acp/host.ts
+  s_44f843489c7b9c::t_6684d6a5ea3c6f 2-4,6,10-12,14-15,17-20
+apps/workspace-server/src/worker-manifest.json
+  s_44f843489c7b9c::t_e97baf4dbfc364 1-6
+apps/workspace-server/src/worker-manifest.ts
+  s_44f843489c7b9c::t_c47bdbfb603feb 1-18
+apps/workspace-server/tsconfig.json
+  s_44f843489c7b9c::t_a7375a9963f327 31,35
+apps/workspace-server/tsdown.config.ts
+  s_44f843489c7b9c::t_ac9fde9082212c 1,3-12,17
+apps/workspace-server/vitest.config.ts
+  s_44f843489c7b9c::t_d4b30ffe5d9e1f 61
+packages/core/package.json
+  s_44f843489c7b9c::t_30bd96ee8218da 52-58
+packages/core/src/agents/agent-env.ts
+  s_44f843489c7b9c::t_90e74b43b81d99 2,64,71-73,82-87,95
+packages/core/src/agents/plugins/index.ts
+  s_44f843489c7b9c::t_898beac4d5db8a 120-128
+packages/core/src/agents/plugins/plugin-host.test.ts
+  s_44f843489c7b9c::t_aa1270277870b8 1-3,7,106-192,198-205,226,242-247,252-278
+packages/core/src/agents/plugins/plugin-host.ts
+  s_44f843489c7b9c::t_56fbd5e488d876 1,3-17,38-63,65-106,149-314
+packages/core/src/agents/spawn-context.ts
+  s_44f843489c7b9c::t_c179fab565ac99 2,31-50,60,66
+packages/core/src/files/changes/changes.test.ts
+  s_44f843489c7b9c::t_45796f6273faf4 5-10
+packages/core/src/files/changes/changes.ts
+  s_44f843489c7b9c::t_620a90391e95d5 3
+packages/core/src/files/files-runtime.test.ts
+  s_44f843489c7b9c::t_bd1f716331afb9 5-10
+packages/core/src/files/files-runtime.ts
+  s_44f843489c7b9c::t_1cd40d709abb4c 3-6,36-41
+packages/core/src/files/fs/file-system.ts
+  s_44f843489c7b9c::t_0c6d12e5178a5c 5
+packages/core/src/files/tree/file-tree.test.ts
+  s_44f843489c7b9c::t_669829d9b4e49a 6
+packages/core/src/files/tree/file-tree.ts
+  s_44f843489c7b9c::t_db9f2c19383e99 4
+packages/core/src/files/tree/watch/classifier.test.ts
+  s_44f843489c7b9c::t_8d979431328682 5
+packages/core/src/files/tree/watch/classifier.ts
+  s_44f843489c7b9c::t_08a4a1d2411e29 3
+packages/core/src/git/git-repository.test.ts
+  s_44f843489c7b9c::t_3ae42edeb49177 7-8,64-67,71,146
+packages/core/src/git/git-repository.ts
+  s_44f843489c7b9c::t_56001ef216b8bb 5-6
+packages/core/src/git/git-runtime.test.ts
+  s_44f843489c7b9c::t_e7b24953b16150 8
+packages/core/src/git/git-runtime.ts
+  s_44f843489c7b9c::t_c81b0898dca4c8 5-8,66-71
+packages/core/src/git/git-worktree.test.ts
+  s_44f843489c7b9c::t_d2552136ce3490 7-8,74-77,81,212,273,333,399,429,500
+packages/core/src/git/git-worktree.ts
+  s_44f843489c7b9c::t_5b76c8407a1798 6
+packages/core/src/git/watch/classifier.ts
+  s_44f843489c7b9c::t_8d2d0dcfa032af 2
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_44f843489c7b9c::t_b24701442601ec 136-160
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_44f843489c7b9c::t_1cbe8fb59bd6b6 41-43,667-671,687-688,711-715,762-763,765,780,808-812,850-851,853,868
+packages/core/src/host-dependencies/runtime/index.ts
+  s_44f843489c7b9c::t_a3c8f658e0bc2c 39
+packages/core/src/services/fs-watch/api/contract.ts
+  s_44f843489c7b9c::t_619bf1e4983ae4 1-45
+packages/core/src/services/fs-watch/api/index.ts
+  s_44f843489c7b9c::t_1b31177ef035b7 1-19
+packages/core/src/services/fs-watch/api/models.ts
+  s_44f843489c7b9c::t_79d9271c97b890 17-19
+packages/core/src/services/fs-watch/impl/backend.ts
+  s_44f843489c7b9c::t_85a1c48cd04e4c 1-19
+packages/core/src/services/fs-watch/impl/controller.ts
+  s_44f843489c7b9c::t_728247226594ee 1-101
+packages/core/src/services/fs-watch/impl/native-backend.ts
+  s_44f843489c7b9c::t_7776467f24e06b 1-26
+packages/core/src/services/fs-watch/impl/native-watch.ts
+  s_44f843489c7b9c::t_93bc27a0181e65 4,9-10,22,33-34,41,62
+packages/core/src/services/fs-watch/impl/process-backend.test.ts
+  s_44f843489c7b9c::t_d8d0b201a338d8 1-17,19-105,107-118,121-186,188-202,205,209-211,214,216-220,225-226,229-230,232,234-239,242-244,248-263,266-306
+packages/core/src/services/fs-watch/impl/process-backend.ts
+  s_44f843489c7b9c::t_31bcefa34eaa3b 1-109
+packages/core/src/services/fs-watch/impl/watch-service.test.ts
+  s_44f843489c7b9c::t_15d87a01a97918 4-10,26-96,98,143,165,184,192-225
+packages/core/src/services/fs-watch/impl/watch-service.ts
+  s_44f843489c7b9c::t_4417d3d778db3b 1-137
+packages/core/src/services/fs-watch/worker/index.ts
+  s_44f843489c7b9c::t_cab6cc2438d759 1-2
+packages/core/src/services/fs-watch/worker/process-entry.ts
+  s_44f843489c7b9c::t_ef351bc7e68651 1-33
+packages/core/src/services/fs-watch/worker/spawn.ts
+  s_44f843489c7b9c::t_b903619a7b23bc 1-28
+packages/core/src/workspace-server/agent-config/schemas.ts
+  s_44f843489c7b9c::t_78fd2f51fa11e9 148
+packages/core/tsdown.config.ts
+  s_44f843489c7b9c::t_eebc3659aa4b38 14-15
+packages/plugins/package.json
+  s_44f843489c7b9c::t_b31d789cf595e9 65
+packages/plugins/src/agents/impl/index.test.ts
+  s_44f843489c7b9c::t_211604cbddc4a0 359-417
+packages/plugins/src/agents/impl/mimocode/index.test.ts
+  s_44f843489c7b9c::t_bc3ffd5acb1960 6,13-26,28-30
+packages/plugins/src/agents/impl/mimocode/index.ts
+  s_44f843489c7b9c::t_128b170f078229 43-74
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_44f843489c7b9c::t_4eccd579d8a6a2 42
+packages/plugins/src/agents/impl/oh-my-pi/icon.ts
+  s_44f843489c7b9c::t_e9596e29e575c7 1-22
+packages/plugins/src/agents/impl/oh-my-pi/index.ts
+  s_44f843489c7b9c::t_91c0cbdbd86547 1-123
+packages/plugins/src/agents/impl/oh-my-pi/plugin-file.test.ts
+  s_44f843489c7b9c::t_e740fc7c5881f5 1-44
+packages/plugins/src/agents/impl/oh-my-pi/plugin-file.ts
+  s_44f843489c7b9c::t_11b70ff4f432d3 1-76
+packages/plugins/src/agents/impl/zero/icon.ts
+  s_44f843489c7b9c::t_8e1d188b1f281e 1-12
+packages/plugins/src/agents/impl/zero/index.test.ts
+  s_44f843489c7b9c::t_8ac0b6a7d69843 1-57
+packages/plugins/src/agents/impl/zero/index.ts
+  s_44f843489c7b9c::t_b8289d4ad27320 1-35
+packages/plugins/src/agents/registry.ts
+  s_44f843489c7b9c::t_459fab1d8fbbd0 31,37,72,78
+packages/plugins/tooling/fixtures/create-acp-transcript.ts
+  s_44f843489c7b9c::t_894624f997dc3d 26,115-121,127-132,134-135,141,143,146,149,273
+packages/plugins/tsconfig.json
+  s_44f843489c7b9c::t_004dd1b8869b37 13
+packages/runtime/src/acp-agents/acp-test-support.ts
+  s_44f843489c7b9c::t_3ca610b2b7d271 26,29,326-330,338-345,355-356,393-419
+packages/runtime/src/acp-agents/agent-ports/agent-client.ts
+  s_44f843489c7b9c::t_b975d5c692530a 22,28,33,37,48
+packages/runtime/src/acp-agents/connection/acp-agent-connection.test.ts
+  s_44f843489c7b9c::t_b50cb566da974c 1-3,19-30,33,35-36,42-45,47-49,53-56,63-64,66-71,74,81-83,86,90,93,95-142,156-159,174-178
+packages/runtime/src/acp-agents/connection/acp-agent-connection.ts
+  s_44f843489c7b9c::t_59c0d92a32c1b8 1,10,13-14,18-31,35-36,40-42,52-53,55-57,59-62,67-70,73,78,80-84,88-93,96,103-122,124-162,164-168,171-172
+packages/runtime/src/acp-agents/connection/source.test.ts
+  s_44f843489c7b9c::t_0c749833eda236 2-3,7,31-35,38,100,119-179
+packages/runtime/src/acp-agents/connection/source.ts
+  s_44f843489c7b9c::t_20cca4d6119993 1-3,5-10,13-17,21,26,29-31,34,38,48,66,93-98,107-117,129,132-135
+packages/runtime/src/acp-agents/index.ts
+  s_44f843489c7b9c::t_3d1200a2908e89 2,7,9
+packages/runtime/src/acp-agents/node/boot.ts
+  s_44f843489c7b9c::t_1cd58818a0eca0 3,5,9,11-14,32,34-49,51,73,75-76
+packages/runtime/src/acp-agents/runtime/runtime.ts
+  s_44f843489c7b9c::t_fe4dd27049ded4 58
+packages/runtime/src/acp-agents/runtime/session-manager.test.ts
+  s_44f843489c7b9c::t_fb803a4bf2efa7 270-289
+packages/runtime/src/acp-agents/runtime/session-manager.ts
+  s_44f843489c7b9c::t_1613c605bdd33a 53,122,137,147,402,431,443
+packages/runtime/src/acp-agents/runtime/types.ts
+  s_44f843489c7b9c::t_42b6942a8196ce 27
+packages/runtime/src/agent-config/api/procedures.ts
+  s_44f843489c7b9c::t_f144b7f4b841a3 35
+packages/runtime/src/agent-config/node/boot.ts
+  s_44f843489c7b9c::t_2601da79819c1d 9-14,17,30,34-37,39,41-46,48,57,60-61
+packages/runtime/src/agent-config/node/index.ts
+  s_44f843489c7b9c::t_a8e8f26fff290e 8,10,13,27,29-31,33,35-40,42,48
+packages/runtime/src/agent-config/node/install-command-runner.test.ts
+  s_44f843489c7b9c::t_97736b8273e9f0 1-55
+packages/runtime/src/agent-config/node/install-command-runner.ts
+  s_44f843489c7b9c::t_e74f3e9fa15b69 1,7,9,14-30,32,34-43
+packages/runtime/src/agent-config/runtime/auth.ts
+  s_44f843489c7b9c::t_17bac2fb30a084 2-3,7-12,29,34,36-41,45,47,50-51,55,57-58,61-62,71-79,91,96,113-116,119-121,124,130,132,139-141,147-149,169,172-173,181-186,188,204,210-211,213,218,220,223-250,253-254,257-264,266,268-269,272,276,286,288-292,297-298,312-313,338,343-344,347-350,353-354,357-361,372,375-381
+packages/runtime/src/agent-config/runtime/install.ts
+  s_44f843489c7b9c::t_3948e47646adc6 5,32,38,40,42,44,80,85,93-102,105,121,126-129,146,152
+packages/runtime/src/agent-config/runtime/mcp.ts
+  s_44f843489c7b9c::t_168d8ed4d4cd28 37,45-46,55-56,70-71,82,84,86-88,99-103,106,128,159-162
+packages/runtime/src/agent-config/runtime/runtime.ts
+  s_44f843489c7b9c::t_dd7a98baf974c3 55-56,59-65,113,190-191
+packages/runtime/src/agent-config/runtime/types.ts
+  s_44f843489c7b9c::t_5e400e2b29330d 1-3,7,13,17-18
+packages/runtime/src/tui-agents/index.ts
+  s_44f843489c7b9c::t_a1567e6db94290 2
+packages/runtime/src/tui-agents/runtime/runtime.test.ts
+  s_44f843489c7b9c::t_5fcca51973313e 8,17,114-115,243-250,252,292-296,312-338
+packages/runtime/src/tui-agents/runtime/runtime.ts
+  s_44f843489c7b9c::t_b1c712ae8562c0 169,250,259-260,377,379
+packages/runtime/src/tui-agents/runtime/types.ts
+  s_44f843489c7b9c::t_c259aea54afa53 8
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_44f843489c7b9c::t_f76531283e30f8 862
+packages/wire/docs/README.md
+  s_44f843489c7b9c::t_e62b701bd6f608 4-5,24,37-43,55-56,68-69,85-86,115-116,128
+packages/wire/docs/api/clients.md
+  s_44f843489c7b9c::t_19f8025f1bee90 28-29,42-48,67-69,77-79,83,88-93,100-108,129-131
+packages/wire/docs/api/contracts.md
+  s_44f843489c7b9c::t_4514a0377689de 84-107
+packages/wire/docs/api/errors.md
+  s_44f843489c7b9c::t_59ee4a0d6d32cf 88-116
+packages/wire/docs/api/serving.md
+  s_44f843489c7b9c::t_3f9a337beef04a 29-30,95-96,222-231
+packages/wire/docs/live/event-stream.md
+  s_44f843489c7b9c::t_755dee0da06dad 1-120
+packages/wire/docs/runtime/lifecycle.md
+  s_44f843489c7b9c::t_66840651994487 121-122,149-151,163-180
+packages/wire/docs/runtime/process-host.md
+  s_44f843489c7b9c::t_a4268f3ee67530 95,99-102
+packages/wire/docs/runtime/process-runtimes.md
+  s_44f843489c7b9c::t_39133aa6291d12 3,7-11,22,25,42,51
+packages/wire/docs/runtime/workers.md
+  s_44f843489c7b9c::t_7ea210c9a80dee 1-139
+packages/wire/examples/README.md
+  s_44f843489c7b9c::t_ab1cd94c1166c7 68
+packages/wire/examples/event-stream/client.ts
+  s_44f843489c7b9c::t_8664e163e0f049 1-49
+packages/wire/examples/live-job/client.ts
+  s_44f843489c7b9c::t_29fe373336524f 31,43
+packages/wire/examples/live-job/server.ts
+  s_44f843489c7b9c::t_f4eaa58f00a0d4 75-79,82-86
+packages/wire/examples/process/runtime.ts
+  s_44f843489c7b9c::t_7dfdc31c19056d 2,8
+packages/wire/package.json
+  s_44f843489c7b9c::t_5e9ad0960f6d5e 48-51,69
+packages/wire/src/api/client.ts
+  s_44f843489c7b9c::t_46ada543d28287 2,4-10,26-28,87-104,172-178,180-191,274-276,297-317,375-379,436-439
+packages/wire/src/api/connect.ts
+  s_44f843489c7b9c::t_d8a01c205d8a58 11-17,29,45,47,92-104,301,308-309,318-319,341,343,355-356,360-361,363-372,377-402,413-423
+packages/wire/src/api/controller.ts
+  s_44f843489c7b9c::t_b0c65b55a7863e 3,17,21,34-35,118-126,136-146,253-265,495-519,556
+packages/wire/src/api/define.ts
+  s_44f843489c7b9c::t_73945908c0402e 36-46,135,173-178,281-287,442-443,489
+packages/wire/src/api/event-stream.test.ts
+  s_44f843489c7b9c::t_b8372f35024436 1-100
+packages/wire/src/api/forward.test.ts
+  s_44f843489c7b9c::t_b252c9cb94bcdf 1-245
+packages/wire/src/api/forward.ts
+  s_44f843489c7b9c::t_7dc57d4327cfb7 1-114
+packages/wire/src/api/index.ts
+  s_44f843489c7b9c::t_7a5ec780ff0297 6
+packages/wire/src/api/protocol.ts
+  s_44f843489c7b9c::t_0f9891a474fa1a 70-81,127-128,201-208
+packages/wire/src/api/serve.ts
+  s_44f843489c7b9c::t_2b819516f3ac4e 19-24,30,183,187-192,217,219-223,225-267,272-278,316-317
+packages/wire/src/api/wire.test.ts
+  s_44f843489c7b9c::t_f5eb79c19e1e99 12,175-286,501-550
+packages/wire/src/api/with-validation.ts
+  s_44f843489c7b9c::t_0a0e0889058063 99
+packages/wire/src/live/event-stream/client.ts
+  s_44f843489c7b9c::t_c99c768cf539be 1-5
+packages/wire/src/live/event-stream/event-stream.test.ts
+  s_44f843489c7b9c::t_3ff04ad8029c6f 1-124
+packages/wire/src/live/event-stream/index.ts
+  s_44f843489c7b9c::t_437b26dc3e08dc 1-9
+packages/wire/src/live/event-stream/server.ts
+  s_44f843489c7b9c::t_9aef3a2cb512ba 1-141
+packages/wire/src/live/index.ts
+  s_44f843489c7b9c::t_773d670ae253ba 16-24
+packages/wire/src/live/job/live-job.test.ts
+  s_44f843489c7b9c::t_e4dae4302620c2 24,40,47-48,66,89,104,127,148-151,160,271
+packages/wire/src/live/protocol/index.ts
+  s_44f843489c7b9c::t_ac18017572c449 50-58,61-64,81-90
+packages/wire/src/live/replica/source.ts
+  s_44f843489c7b9c::t_61f71423664de8 3,19-20,22-29,32
+packages/wire/src/live/replica/state.ts
+  s_44f843489c7b9c::t_674b5cdae2c1a5 60-62
+packages/wire/src/util/managed-source.test.ts
+  s_44f843489c7b9c::t_fc8031659ed74d 4,167-218
+packages/wire/src/util/managed-source.ts
+  s_44f843489c7b9c::t_fbe1f102f06ba5 15-16,56-58,62-65,81,83-84,89,95,129,139-153
+packages/wire/src/util/process-runtime/index.ts
+  s_44f843489c7b9c::t_92dcb56eeda245 4,6,10
+packages/wire/src/util/process-runtime/process-runtime.test.ts
+  s_44f843489c7b9c::t_d12f926cc62968 21,23,177-205,215
+packages/wire/src/util/process-runtime/process-runtime.ts
+  s_44f843489c7b9c::t_dcefe1e4d73280 9,54,93-97,99-105,134,136,140,143,166-170,174-177,210-229,320,349
+packages/wire/src/worker/index.ts
+  s_44f843489c7b9c::t_039401753982ac 1-2
+packages/wire/src/worker/lazy-worker.ts
+  s_44f843489c7b9c::t_49e31309df8ee1 1-45
+packages/wire/src/worker/spawn-worker.ts
+  s_44f843489c7b9c::t_1d1f7ac3746770 1-109
+packages/wire/src/worker/worker.test.ts
+  s_44f843489c7b9c::t_614419771df747 1-235
+packages/wire/tsdown.config.ts
+  s_44f843489c7b9c::t_bd6420470f7adf 13
+pnpm-lock.yaml
+  s_44f843489c7b9c::t_ed7a67752dfb92 610-612
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "8b728329e3243d4e34cc20f1ee21e1f8429ddd1c",
+  "prompts": {},
+  "sessions": {
+    "s_327665bb5fac8c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otEoUiQbVulSgoQkNxZ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_44f843489c7b9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a144763e-fcbf-4545-96e5-6bc0372ae690",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
