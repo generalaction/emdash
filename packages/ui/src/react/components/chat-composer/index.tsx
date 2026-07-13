@@ -860,7 +860,7 @@ export function ChatComposer({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        lineHeight: 1,
+                        lineHeight: 1.25,
                       }}
                     >
                       {selected?.name ?? 'Model…'}
