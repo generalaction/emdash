@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/continue/index.ts
+  s_7250d5f193e0cf::t_f65cfb19b4f6e7 58,72
+packages/plugins/src/agents/impl/continue/index.test.ts
+  s_7250d5f193e0cf::t_a38e3f89108c60 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "81152d63505a5fead9f7fe17dca1b713afb1dd77",
+  "prompts": {},
+  "sessions": {
+    "s_7250d5f193e0cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f59f7-8201-7aa2-8115-f02652605b68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
