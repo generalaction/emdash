@@ -471,9 +471,10 @@ class LegacySshFileTree implements IFileTree {
 
     const loading = this.loadDirectoryScopeInternal(scope);
     this.scopeLoads.set(scope, loading);
-    void loading.finally(() => {
+    const clearLoading = () => {
       if (this.scopeLoads.get(scope) === loading) this.scopeLoads.delete(scope);
-    });
+    };
+    void loading.then(clearLoading, clearLoading);
     return loading;
   }
 
@@ -489,6 +490,7 @@ class LegacySshFileTree implements IFileTree {
     const dirPath = dirNode?.path ?? this.rootPath;
     const listed = await this.listChildren(dirPath);
     if (!listed.success) return listed;
+    if (this.disposed) return ok({});
 
     const listedPaths = new Set(listed.data.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
@@ -499,6 +501,7 @@ class LegacySshFileTree implements IFileTree {
       ok(nodes.map((node) => [node.id, node] as const))
     );
     if (!loaded.success) return loaded;
+    if (this.disposed) return ok({});
     sequence = Math.max(sequence, loaded.data);
 
     if (dirNode && !dirNode.childrenLoaded) {
