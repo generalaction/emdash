@@ -1,0 +1,89 @@
+packages/plugins/src/agents/impl/continue/index.test.ts
+  s_3a596bf85f6bba::t_6e9e3d616569ca 1-47
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_3a596bf85f6bba::t_c6221149f938e7 3,76-80,86,105-110,114
+  s_3a596bf85f6bba::t_369012b4f2fe18 83
+packages/plugins/src/agents/impl/continue/index.ts
+  s_3a596bf85f6bba::t_3943a9df759dcb 58
+  s_3a596bf85f6bba::t_6e9e3d616569ca 2,51-55,72-73,77
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_3a596bf85f6bba::t_65d9825e4135be 54-63,88-91
+  s_7250d5f193e0cf::t_092671330c3d66 85
+packages/plugins/src/agents/impl/junie/index.ts
+  s_3a596bf85f6bba::t_6e9e3d616569ca 2,45-89,108-109,114
+  s_3a596bf85f6bba::t_44066fad96be64 111
+  s_3a596bf85f6bba::t_3943a9df759dcb 92
+packages/plugins/src/agents/impl/junie/index.test.ts
+  s_3a596bf85f6bba::t_ac7ecfe44ef79d 24-31
+  s_3a596bf85f6bba::t_6e9e3d616569ca 1-23,32-65
+packages/plugins/src/agents/impl/auggie/index.test.ts
+  s_7250d5f193e0cf::t_092671330c3d66 37-38
+  s_3a596bf85f6bba::t_09e4aeb8bd5a98 32,44
+  s_3a596bf85f6bba::t_fe678bf6a543d4 33-36,39-43,45-48,76-85,87-88
+  s_3a596bf85f6bba::t_78dd816bf5f6e1 86
+  s_3a596bf85f6bba::t_e0811594619a1a 89
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_7250d5f193e0cf::t_092671330c3d66 219-223
+  s_3a596bf85f6bba::t_6e9e3d616569ca 160-176,200
+  s_7250d5f193e0cf::t_527d1a351c18fc 214-217,224-230,270-280
+  s_7250d5f193e0cf::t_ab9a1d337270ae 261-263
+  s_3a596bf85f6bba::t_3e45b16b3253c0 201-213,218,231-260,264-269,281-290,294-304
+  s_3a596bf85f6bba::t_3681c05368831c 291-293
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_3a596bf85f6bba::t_09e4aeb8bd5a98 32
+  s_7250d5f193e0cf::t_092671330c3d66 47,52
+  s_3a596bf85f6bba::t_fe678bf6a543d4 2-6,29-31,33-46,48-51,53-73,101,105
+packages/plugins/src/agents/impl/mistral/index.test.ts
+  s_3a596bf85f6bba::t_37d5f17aefe416 1-57
+packages/plugins/src/agents/impl/charm/index.ts
+  s_3a596bf85f6bba::t_09e4aeb8bd5a98 44-45
+  s_3a596bf85f6bba::t_c24250ac18f955 14-18,56
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_3a596bf85f6bba::t_3681c05368831c 12
+  s_3a596bf85f6bba::t_48a0c5f49a58d8 87-106,108-111,113-139,142-145,160-164,192-211
+  s_7250d5f193e0cf::t_092671330c3d66 107,140-141,146-149,154,156-159
+  s_7250d5f193e0cf::t_ab9a1d337270ae 112,155
+  s_7250d5f193e0cf::t_527d1a351c18fc 165-191,212
+  s_7250d5f193e0cf::t_0f04cb4a29d0ac 3,150-153
+  s_fb4725285f1486::t_9031c2a3629b2b 213-214
+packages/plugins/src/agents/impl/index.test.ts
+  s_3a596bf85f6bba::t_26831a4f92540e 284
+packages/plugins/src/agents/impl/charm/index.test.ts
+  s_3a596bf85f6bba::t_c24250ac18f955 42-55,66,74-88
+  s_3a596bf85f6bba::t_09e4aeb8bd5a98 19
+packages/plugins/src/agents/impl/cursor/index.test.ts
+  s_3a596bf85f6bba::t_37d5f17aefe416 1-27,29-37,39-65
+  s_7250d5f193e0cf::t_092671330c3d66 28,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "9ca81bcb5d75e99a1491d50e6f216a305880df75",
+  "prompts": {},
+  "sessions": {
+    "s_3a596bf85f6bba": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f57eb-bd34-7f82-af09-60175dd0a4d7",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_7250d5f193e0cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f59f7-8201-7aa2-8115-f02652605b68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fb4725285f1486": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a02-0959-7b53-8e29-be9da84b2748",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
