@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/pi/index.ts
+  s_0380f034c06640::t_f029c9ea914267 2,18
+packages/plugins/src/agents/impl/pi/acp.test.ts
+  s_0380f034c06640::t_f029c9ea914267 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "f735c6ee35c0eab459a2ddf2345a0de776684851",
+  "prompts": {},
+  "sessions": {
+    "s_0380f034c06640": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5bb2-5293-77a2-9dac-4c6f80a31723",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
