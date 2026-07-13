@@ -1,12 +1,12 @@
 import { ReplicaState } from '@emdash/wire';
 import { createStubLogger, createTestWire, waitFor } from '@emdash/wire/testing';
 import { createScope } from '@emdash/wire/util';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import {
   tuiAgentsContract,
   tuiNotificationListSchema,
   tuiSessionListSchema,
 } from '@runtimes/tui-agents/api';
-import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';
 import {
   AgentPluginHost,

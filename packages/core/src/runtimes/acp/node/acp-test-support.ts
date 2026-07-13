@@ -10,6 +10,7 @@ import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
 import { noopLogger } from '@emdash/shared/logger';
 import { createScope } from '@emdash/wire/util';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import type {
   AcpFs,
   AcpProcessHandle,
@@ -19,7 +20,6 @@ import type {
 } from '@runtimes/acp/api';
 import type { AgentTerminalHooks } from '@runtimes/acp/node/agent-ports/terminal-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from '@runtimes/acp/node/runtime/types';
-import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import {
   AgentPluginHost,
   createPluginRegistry,

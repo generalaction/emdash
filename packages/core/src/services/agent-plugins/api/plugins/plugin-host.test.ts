@@ -1,4 +1,6 @@
 import { createScope } from '@emdash/wire/util';
+import type { IExecutionContext } from '@primitives/exec/api';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import type { IAcpBehavior } from '@services/agent-plugins/api/plugins/capabilities/acp';
 import type { IAgentAuthBehavior } from '@services/agent-plugins/api/plugins/capabilities/auth';
 import type { CanonicalHookEvent } from '@services/agent-plugins/api/plugins/capabilities/hooks';
@@ -7,8 +9,6 @@ import type {
   AgentCommand,
   CommandContext,
 } from '@services/agent-plugins/api/plugins/capabilities/prompt';
-import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
 

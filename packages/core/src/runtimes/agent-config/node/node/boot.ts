@@ -34,7 +34,9 @@ export function bootAgentConfigRuntimeProcess(options: BootAgentConfigRuntimePro
       const spawner = new NodePtySpawner();
       const runtimeScope = scope.child('agent-config-runtime');
       const exec = new NodeExecutionContext({ env });
-      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+      const dependencyDescriptors = options.pluginRegistry
+        .getAll()
+        .map(buildDescriptorFromProvider);
       const dependencyManager = new HostDependencyManager(exec, {
         dependencies: dependencyDescriptors,
         getDependencyDescriptor: (id) =>

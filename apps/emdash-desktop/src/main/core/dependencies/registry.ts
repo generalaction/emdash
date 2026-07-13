@@ -1,5 +1,8 @@
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
-import { CORE_DEPENDENCIES, type DependencyDescriptor } from '@emdash/core/services/host-dependencies/node';
+import {
+  CORE_DEPENDENCIES,
+  type DependencyDescriptor,
+} from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 
 export { buildDescriptorFromProvider };

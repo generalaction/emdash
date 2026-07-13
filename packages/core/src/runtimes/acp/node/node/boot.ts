@@ -41,7 +41,9 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       const attachmentStore = new LocalAttachmentStore(attachmentsDir);
       const homeDir = os.homedir();
       const exec = new NodeExecutionContext({ env });
-      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+      const dependencyDescriptors = options.pluginRegistry
+        .getAll()
+        .map(buildDescriptorFromProvider);
       const dependencyManager = new HostDependencyManager(exec, {
         dependencies: dependencyDescriptors,
         getDependencyDescriptor: (id) =>

@@ -161,4 +161,11 @@ export interface HostDependencyManagerPort {
 }
 
 export type { DependencyStatus, ProbeResult };
-export type { InstallMethod, InstallOption, Platform, UninstallStrategy, UpdatesDescriptor, UpdateStrategy };
+export type {
+  InstallMethod,
+  InstallOption,
+  Platform,
+  UninstallStrategy,
+  UpdatesDescriptor,
+  UpdateStrategy,
+};

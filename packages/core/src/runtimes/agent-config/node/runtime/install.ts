@@ -1,5 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
+import {
+  type DependencyInstallError,
+  type DependencyState,
+  type DependencyUninstallError,
+  type HostDependencyManagerPort,
+} from '@primitives/host-dependencies/api';
 import type {
   AgentConfigEntry,
   AgentConfigList,
@@ -10,12 +16,6 @@ import type {
 } from '@runtimes/agent-config/api';
 import type { AgentConfigAgentsModel } from '@runtimes/agent-config/node/state/live-models';
 import { publishLiveModelState } from '@runtimes/agent-config/node/state/live-models';
-import {
-  type DependencyInstallError,
-  type DependencyState,
-  type DependencyUninstallError,
-  type HostDependencyManagerPort,
-} from '@primitives/host-dependencies/api';
 import type { AgentConfigRuntimeDeps } from './types';
 
 type InstallStrategy =
