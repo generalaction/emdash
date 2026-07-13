@@ -26,6 +26,13 @@ export const gitFetchImpl = implement(gitFetchStep, async (args, ctx) => {
   ) {
     return stepOk();
   }
+  if (isStaleRefUpdateMessage(message)) {
+    return stepErr('permanent', {
+      type: 'fetch-failed',
+      code: 'stale_ref_update',
+      message,
+    });
+  }
 
   const failure = gitFailure('fetch-failed', result.error);
   return stepErr(failure.failureClass, failure.error);
@@ -40,6 +47,16 @@ function destinationLocalBranch(refspec: string | undefined): string | undefined
 
 function isCheckedOutBranchFetchError(message: string): boolean {
   return /refusing to fetch into branch .+ checked out/i.test(message);
+}
+
+function isStaleRefUpdateMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('incorrect old value provided') ||
+    (normalized.includes('cannot lock ref') &&
+      normalized.includes(' is at ') &&
+      normalized.includes(' but expected '))
+  );
 }
 
 async function isBranchCheckedOut(

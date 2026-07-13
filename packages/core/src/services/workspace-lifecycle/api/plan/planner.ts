@@ -34,7 +34,12 @@ export function compileBootstrapPlan(
     if (fromBranch.type === 'remote') {
       const remoteName = fromBranch.remote.name;
       const fromRef = `${remoteName}/${fromBranch.branch}`;
-      steps.push(step('git-fetch', { remote: remoteName }));
+      steps.push(
+        step('git-fetch', {
+          remote: remoteName,
+          refspec: `+refs/heads/${fromBranch.branch}:refs/remotes/${remoteName}/${fromBranch.branch}`,
+        })
+      );
       steps.push({
         ...step('create-local-branch', { branchName, fromRef, noTrack: true }),
       });

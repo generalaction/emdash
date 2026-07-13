@@ -79,6 +79,16 @@ describe('negotiateProtocol', () => {
       const result = negotiateProtocol(PROTOCOL_VERSION);
       expect(result.compatible).toBe(true);
     });
+
+    it('keeps 3.0 clients compatible with the additive error code', () => {
+      const result = negotiateProtocol('3.0.0');
+
+      expect(result).toEqual({
+        compatible: true,
+        agreedVersion: '3.0.0',
+        agreedMinor: 0,
+      });
+    });
   });
 });
 
