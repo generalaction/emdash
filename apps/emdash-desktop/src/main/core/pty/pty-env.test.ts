@@ -150,6 +150,11 @@ describe('buildAgentEnv provider env forwarding', () => {
       CODEX_ACCESS_TOKEN: 'do-not-pass',
       GOOSE_TERMINAL: 'do-not-pass',
       TOOLBOX_ACTION: 'do-not-pass',
+      OPENCODE_CONFIG: '/tmp/do-not-pass-opencode-config.json',
+      OPENCODE_CONFIG_DIR: '/tmp/do-not-pass-opencode-config-dir',
+      // Only govern `opencode serve`/`opencode web`, which emdash never spawns.
+      OPENCODE_SERVER_PASSWORD: 'do-not-pass',
+      OPENCODE_SERVER_USERNAME: 'do-not-pass',
     });
 
     const { buildAgentEnv } = await loadPtyEnv();
@@ -162,6 +167,10 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
     expect(env.GOOSE_TERMINAL).toBeUndefined();
     expect(env.TOOLBOX_ACTION).toBeUndefined();
+    expect(env.OPENCODE_CONFIG).toBeUndefined();
+    expect(env.OPENCODE_CONFIG_DIR).toBeUndefined();
+    expect(env.OPENCODE_SERVER_PASSWORD).toBeUndefined();
+    expect(env.OPENCODE_SERVER_USERNAME).toBeUndefined();
   });
 
   it('adds provider vars while keeping hook variables authoritative', async () => {
