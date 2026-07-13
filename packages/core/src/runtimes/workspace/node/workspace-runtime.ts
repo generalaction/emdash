@@ -26,12 +26,9 @@ import {
   type WorkspaceTopology,
   workspaceContract,
 } from '@runtimes/workspace/api';
+import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
+import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
 import type { IWatchService } from '@services/fs-watch/api';
-import {
-  type BootstrapProgress,
-  type RunPhaseInput,
-  WorkspaceLifecycleManager,
-} from '@services/workspace-lifecycle/api';
 import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activity';
 import { createWorkspaceMachine, type WorkspaceMachine } from './machine/machine';
 import { nativePathFromWorkspace } from './provisioning/paths';

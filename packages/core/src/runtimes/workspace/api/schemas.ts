@@ -3,7 +3,7 @@ import {
   bootstrapContextSchema,
   lenientBootstrapPlanSchema,
   workspaceRefSchema,
-} from '@services/workspace-lifecycle/api';
+} from '@runtimes/workspace/api/provisioning';
 import { z } from 'zod';
 
 export const workspaceKeySchema = hostFileRefSchema;

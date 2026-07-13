@@ -2,9 +2,11 @@ import path from 'node:path';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
+  compileBootstrapPlan,
   normalizeLegacyWorkspaceAutomation,
   workspaceContract,
   type ActivateWorkspaceInput,
+  type BootstrapGitIntent,
   type ProvisionWorkspaceInput,
   type RunWorkspaceScriptInput,
   type WorkspaceLifecyclePlans,
@@ -12,10 +14,6 @@ import {
   type WorkspaceOperationResult,
   type WorkspaceError,
 } from '@emdash/core/runtimes/workspace/api';
-import {
-  compileBootstrapPlan,
-  type BootstrapGitIntent,
-} from '@emdash/core/services/workspace-lifecycle/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { eq, sql } from 'drizzle-orm';

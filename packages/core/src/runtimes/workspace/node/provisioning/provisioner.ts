@@ -7,7 +7,7 @@ import type {
   WorkspaceError,
   WorkspaceTopology,
 } from '@runtimes/workspace/api';
-import { runGit } from '@services/workspace-lifecycle/api';
+import { runGit } from './lifecycle';
 import { nativePathFromWorkspace, resolveNativePath, workspaceFromNativePath } from './paths';
 
 export type WorkspaceProvisioner = {
