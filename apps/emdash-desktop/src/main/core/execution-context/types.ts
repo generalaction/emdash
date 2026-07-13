@@ -10,6 +10,12 @@ export interface ExecOptions {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
+  /**
+   * Extra environment variables merged into the child process env. Applied to
+   * `git` commands (used to inject a scoped credential for network operations).
+   * Merged after the non-interactive git env, so it can override those defaults.
+   */
+  env?: Record<string, string>;
 }
 
 /**
