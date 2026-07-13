@@ -119,6 +119,37 @@ describe('SkillsService uninstall and sync safety', () => {
     ]);
   });
 
+  it('keeps skills with identical metadata but different supporting files distinct', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      writeSkill(homeDir, '.claude/skills', 'reviewer', 'Reviewer'),
+      writeSkill(homeDir, '.codex/skills', 'reviewer', 'Reviewer'),
+    ]);
+    await Promise.all([
+      fs.promises.writeFile(
+        path.join(homeDir, '.claude/skills/reviewer/instructions.txt'),
+        'Claude instructions'
+      ),
+      fs.promises.writeFile(
+        path.join(homeDir, '.codex/skills/reviewer/instructions.txt'),
+        'Codex instructions'
+      ),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    const installed = await service.getInstalledSkills();
+
+    expect(installed).toHaveLength(2);
+    const expectedPaths = await Promise.all([
+      fs.promises.realpath(path.join(homeDir, '.claude/skills/reviewer')),
+      fs.promises.realpath(path.join(homeDir, '.codex/skills/reviewer')),
+    ]);
+    expect(installed.map((skill) => skill.localPath).sort((a, b) => a.localeCompare(b))).toEqual(
+      expectedPaths.sort((a, b) => a.localeCompare(b))
+    );
+  });
+
   it('does not uninstall a skill managed outside Emdash', async () => {
     const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
     tempDirs.push(homeDir);
@@ -228,6 +259,26 @@ describe('SkillsService uninstall and sync safety', () => {
       mode: 'providers',
       providerIds: ['codex'],
     });
+  });
+
+  it('rejects target changes when an unmanaged skill blocks a mirror', async () => {
+    const homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-'));
+    tempDirs.push(homeDir);
+    await Promise.all([
+      writeSkill(homeDir, '.agentskills', 'reviewer', 'Emdash reviewer'),
+      writeSkill(homeDir, '.codex/skills', 'reviewer', 'Codex-owned reviewer'),
+    ]);
+    const service = new SkillsService({ homeDir });
+
+    await expect(
+      service.setTargets('reviewer', {
+        mode: 'providers',
+        providerIds: ['codex'],
+      })
+    ).rejects.toThrow('an unmanaged skill already exists');
+    expect(
+      (await service.getInstalledSkills()).find((skill) => skill.managedByEmdash)?.targets
+    ).toEqual({ mode: 'all' });
   });
 
   it('adopts a skill installed outside Emdash and syncs it to additional agents', async () => {

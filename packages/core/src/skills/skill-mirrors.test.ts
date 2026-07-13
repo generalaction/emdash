@@ -126,6 +126,26 @@ describe('skill mirrors', () => {
     expect(await pluginFs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
   });
 
+  it('replaces an existing symlink with a managed copy when symlinks are unavailable', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+    const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
+    await pluginFs.write('.agentskills/reviewer/SKILL.md', content);
+    await pluginFs.symlink?.(canonicalPath, '.claude/skills/reviewer');
+    pluginFs.symlink = undefined;
+
+    const mirrored = await mirrorSkill(pluginFs, {
+      relativeDir: '.claude/skills',
+      installName: 'reviewer',
+      frontmatterName: 'reviewer',
+      content,
+      canonicalPath,
+    });
+
+    expect(mirrored).toBe('reviewer');
+    expect(await pluginFs.readLink?.('.claude/skills/reviewer')).toBeNull();
+    expect(await pluginFs.read('.claude/skills/reviewer/SKILL.md')).toBe(content);
+  });
+
   it('does not copy over an unmanaged entry created after the ownership check', async () => {
     const pluginFs = createLocalPluginFs(homeDir);
     const canonicalPath = path.join(homeDir, '.agentskills/reviewer');
@@ -176,5 +196,36 @@ describe('skill mirrors', () => {
       JSON.stringify({ version: 1, skills: { reviewer: { mode: 'providers' } } })
     );
     await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
+  });
+
+  it('serializes concurrent target updates', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+    const write = pluginFs.write;
+    let writeCount = 0;
+    pluginFs.write = async (targetPath, value) => {
+      writeCount += 1;
+      if (writeCount === 1) await new Promise((resolve) => setTimeout(resolve, 20));
+      await write(targetPath, value);
+    };
+
+    await Promise.all([
+      setSkillTargets(pluginFs, 'reviewer', {
+        mode: 'providers',
+        providerIds: ['claude'],
+      }),
+      setSkillTargets(pluginFs, 'tester', {
+        mode: 'providers',
+        providerIds: ['codex'],
+      }),
+    ]);
+
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['claude'],
+    });
+    await expect(getSkillTargets(pluginFs, 'tester')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['codex'],
+    });
   });
 });

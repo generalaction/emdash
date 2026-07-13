@@ -72,12 +72,6 @@ export function createRemotePluginFs(
       }
     },
 
-    async symlink(target: string, linkPath: string): Promise<void> {
-      const abs = resolveSafe(linkPath);
-      await ctx.exec('mkdir', ['-p', path.posix.dirname(abs)]);
-      await ctx.exec('ln', ['-s', target, abs]);
-    },
-
     async readLink(value: string): Promise<string | null> {
       const abs = resolveSafe(value);
       try {

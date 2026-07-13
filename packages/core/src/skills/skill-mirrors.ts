@@ -122,7 +122,8 @@ export async function mirrorSkill(
   const currentTarget = await readLink(fs, mirrorPath);
   if (
     currentTarget !== null &&
-    normalizePath(currentTarget) === normalizePath(options.canonicalPath)
+    normalizePath(currentTarget) === normalizePath(options.canonicalPath) &&
+    fs.symlink
   ) {
     return mirrorName;
   }

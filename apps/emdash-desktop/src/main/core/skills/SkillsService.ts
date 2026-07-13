@@ -251,7 +251,7 @@ export class SkillsService {
           const content = await fs.promises.readFile(skillMdPath, 'utf-8');
           const { frontmatter } = parseFrontmatter(content);
           const skillName = (frontmatter.name || entry.name).toLowerCase();
-          const identity = `${skillName}:${createHash('sha256').update(content).digest('hex')}`;
+          const identity = `${skillName}:${await this.hashSkillDirectory(skillDir)}`;
           const providerIds = providersByDir.get(relativeDir) ?? [];
           const canonical = relativeDir === EMDASH_SKILLS_DIR;
           const ownership =
@@ -381,6 +381,7 @@ export class SkillsService {
     }
     const tmpDir = `${skillDir}.tmp-${Date.now()}`;
     let finalDirCreated = false;
+    let frontmatterName = installName;
     try {
       const candidateNames = [
         ...this.getInstallNameCandidates(skill),
@@ -424,13 +425,9 @@ export class SkillsService {
       }
 
       const { frontmatter } = parseFrontmatter(content);
+      frontmatterName = frontmatter.name || installName;
       await setSkillTargets(createPluginFs(this.homeDir), installName, targets);
-      await this.reconcileSkillMirrors(
-        installName,
-        frontmatter.name || installName,
-        content,
-        targets
-      );
+      await this.reconcileSkillMirrors(installName, frontmatterName, content, targets);
 
       // Invalidate cache
       this.catalogCache = null;
@@ -448,6 +445,7 @@ export class SkillsService {
       };
     } catch (error) {
       // Clean up partial install
+      await this.removeSkillMirrorsFromAgents(installName, frontmatterName).catch(() => {});
       await removeSkillTargets(createPluginFs(this.homeDir), installName).catch(() => {});
       await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
       if (finalDirCreated) {
@@ -601,6 +599,9 @@ export class SkillsService {
         targets,
       };
     } catch (error) {
+      await this.removeSkillMirrorsFromAgents(installName, frontmatter.name || installName).catch(
+        () => {}
+      );
       await removeSkillTargets(createPluginFs(this.homeDir), installName).catch(() => {});
       await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
       if (finalDirCreated) {
@@ -621,13 +622,27 @@ export class SkillsService {
     );
     const { frontmatter } = parseFrontmatter(content);
     const pluginFs = createPluginFs(this.homeDir);
+    const previousTargets = await getSkillTargets(pluginFs, installName);
     await setSkillTargets(pluginFs, installName, targets);
-    await this.reconcileSkillMirrors(
-      installName,
-      frontmatter.name || installName,
-      content,
-      targets
-    );
+    try {
+      await this.reconcileSkillMirrors(
+        installName,
+        frontmatter.name || installName,
+        content,
+        targets
+      );
+    } catch (error) {
+      await setSkillTargets(pluginFs, installName, previousTargets);
+      await this.reconcileSkillMirrors(
+        installName,
+        frontmatter.name || installName,
+        content,
+        previousTargets
+      ).catch((rollbackError) => {
+        log.warn(`Failed to restore mirrors for skill "${installName}"`, rollbackError);
+      });
+      throw error;
+    }
     this.catalogCache = null;
   }
 
@@ -771,19 +786,17 @@ export class SkillsService {
 
     await Promise.all(
       targets.map(async (relativeDir) => {
-        try {
-          const mirrored = await mirrorSkill(pluginFs, {
-            relativeDir,
-            installName,
-            frontmatterName,
-            content,
-            canonicalPath,
-          });
-          if (!mirrored) {
-            log.warn(`Skipped unmanaged skill conflict at ${path.join(this.homeDir, relativeDir)}`);
-          }
-        } catch (error) {
-          log.warn(`Failed to mirror skill "${installName}" to ${relativeDir}`, error);
+        const mirrored = await mirrorSkill(pluginFs, {
+          relativeDir,
+          installName,
+          frontmatterName,
+          content,
+          canonicalPath,
+        });
+        if (!mirrored) {
+          throw new Error(
+            `Cannot mirror skill "${installName}" to ${relativeDir}: an unmanaged skill already exists`
+          );
         }
       })
     );
@@ -1217,6 +1230,31 @@ export class SkillsService {
     } catch {
       return false;
     }
+  }
+
+  private async hashSkillDirectory(skillDir: string): Promise<string> {
+    const hash = createHash('sha256');
+    const visit = async (currentDir: string, relativeDir: string): Promise<void> => {
+      const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        const relativePath = path.join(relativeDir, entry.name);
+        const entryPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          hash.update(`d:${relativePath}\0`);
+          await visit(entryPath, relativePath);
+        } else if (entry.isSymbolicLink()) {
+          hash.update(`l:${relativePath}\0${await fs.promises.readlink(entryPath)}\0`);
+        } else if (entry.isFile()) {
+          hash.update(`f:${relativePath}\0`);
+          hash.update(await fs.promises.readFile(entryPath));
+          hash.update('\0');
+        }
+      }
+    };
+
+    await visit(skillDir, '');
+    return hash.digest('hex');
   }
 
   private isSafeSkillShPath(skillPath: string): boolean {
