@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildStandardCommand, continueMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -48,9 +48,14 @@ export const plugin = definePlugin(
         },
       },
     },
+    mcp: {
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
     prompt: {
       kind: 'argv',
-      flag: '',
+      flag: '-p',
     },
     sessions: {
       kind: 'resumable',
@@ -64,8 +69,10 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--auto',
-        initialPromptFlag: '',
+        initialPromptFlag: '-p',
+        modelFlag: '--model',
         resumeFlag: '--resume',
       }),
   },
+  mcp: continueMcpAdapter(),
 });

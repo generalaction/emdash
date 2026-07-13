@@ -1,5 +1,6 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
+import { mcpServerToRegistration, registrationToMcpServer } from '../../../mcp/registration';
 import type { PluginFs } from '../../runtime/fs';
 import {
   codexMcpAdapter,
@@ -8,6 +9,7 @@ import {
   droidMcpAdapter,
   grokMcpAdapter,
   mimocodeMcpAdapter,
+  mistralMcpAdapter,
   opencodeMcpAdapter,
   passthroughMcpAdapter,
 } from './mcp';
@@ -79,6 +81,134 @@ describe('createMcpAdapter (single path)', () => {
     await adapter.removeServer(fs, 'gone');
     const result = await adapter.readServers(fs);
     expect(result.map((r) => r.name)).toEqual(['keep']);
+  });
+});
+
+// ── Mistral Vibe adapter ────────────────────────────────────────────────────
+
+describe('mistralMcpAdapter', () => {
+  const adapter = mistralMcpAdapter('.vibe/config.toml');
+
+  it('writes Vibe MCP servers as TOML array entries without replacing other config', async () => {
+    const fs = createMemoryFs({
+      '.vibe/config.toml': 'active_model = "mistral-medium-3.5"\n',
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'local',
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem'],
+      },
+      {
+        name: 'remote',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+
+    const parsed = parseTOML((await fs.read('.vibe/config.toml'))!) as Record<string, unknown>;
+    expect(parsed.active_model).toBe('mistral-medium-3.5');
+    expect(parsed.mcp_servers).toEqual([
+      {
+        name: 'local',
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem'],
+      },
+      {
+        name: 'remote',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+  });
+
+  it('reads native streamable HTTP entries and preserves their transport on a round trip', async () => {
+    const fs = createMemoryFs({
+      '.vibe/config.toml': [
+        '[[mcp_servers]]',
+        'name = "remote"',
+        'transport = "streamable-http"',
+        'url = "https://example.com/mcp"',
+        '',
+      ].join('\n'),
+    });
+
+    const servers = await adapter.readServers(fs);
+    expect(servers).toEqual([
+      {
+        name: 'remote',
+        transport: 'http',
+        type: 'streamable-http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+
+    const canonicalRegistrations = servers.map((server) =>
+      mcpServerToRegistration(registrationToMcpServer(server, ['mistral']))
+    );
+    await adapter.writeServers(fs, canonicalRegistrations);
+
+    const parsed = parseTOML((await fs.read('.vibe/config.toml'))!) as Record<string, unknown>;
+    expect(parsed.mcp_servers).toEqual([
+      {
+        name: 'remote',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+  });
+
+  it('preserves an existing native HTTP transport through the canonical save path', async () => {
+    const fs = createMemoryFs({
+      '.vibe/config.toml': [
+        '[[mcp_servers]]',
+        'name = "legacy-http"',
+        'transport = "http"',
+        'url = "https://example.com/mcp"',
+        '',
+      ].join('\n'),
+    });
+
+    const servers = await adapter.readServers(fs);
+    const canonicalRegistrations = servers.map((server) =>
+      mcpServerToRegistration(registrationToMcpServer(server, ['mistral']))
+    );
+    await adapter.writeServers(fs, canonicalRegistrations);
+
+    const parsed = parseTOML((await fs.read('.vibe/config.toml'))!) as Record<string, unknown>;
+    expect(parsed.mcp_servers).toEqual([
+      {
+        name: 'legacy-http',
+        transport: 'http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+  });
+
+  it('removes only the requested Vibe MCP server', async () => {
+    const fs = createMemoryFs({
+      '.vibe/config.toml': [
+        '[[mcp_servers]]',
+        'name = "keep"',
+        'transport = "stdio"',
+        'command = "node"',
+        '',
+        '[[mcp_servers]]',
+        'name = "gone"',
+        'transport = "stdio"',
+        'command = "npx"',
+        '',
+      ].join('\n'),
+    });
+
+    await adapter.removeServer(fs, 'gone');
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      { name: 'keep', transport: 'stdio', command: 'node' },
+    ]);
   });
 });
 
