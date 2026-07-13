@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/native-acp.test.ts
+  s_de17fbadd4ac82::t_d18be0d499bcd9 56
+packages/core/src/agents/agent-env.ts
+  s_de17fbadd4ac82::t_a1b5a1905082f4 39,47-48
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_de17fbadd4ac82::t_970c8ec141cbe2 50
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_de17fbadd4ac82::t_34a907c31efc33 147-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "527f0dbde79128d140803a0a38094f46741fd98f",
+  "prompts": {},
+  "sessions": {
+    "s_de17fbadd4ac82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6704f374-dc4a-4c71-9d74-7d4201e525d9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
