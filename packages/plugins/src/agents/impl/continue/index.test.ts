@@ -22,7 +22,7 @@ describe('Continue provider', () => {
 
     expect(command).toEqual({
       command: 'cn',
-      args: ['--auto', '--model', 'anthropic/claude-4-sonnet', '-p', 'Fix the test suite'],
+      args: ['--auto', '--model', 'anthropic/claude-4-sonnet', '--prompt', 'Fix the test suite'],
       env: {},
     });
   });
