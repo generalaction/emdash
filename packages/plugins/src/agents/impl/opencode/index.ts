@@ -94,6 +94,7 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         extraEnv: ctx.autoApprove ? { OPENCODE_PERMISSION: '{"*":"allow"}' } : {},
         initialPromptFlag: '--prompt',
+        modelFlag: '--model',
         resumeFlag: '--session',
         sessionIdFlag: '--session',
         sessionIdOnResumeOnly: true,

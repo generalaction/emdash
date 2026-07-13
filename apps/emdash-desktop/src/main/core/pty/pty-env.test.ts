@@ -131,6 +131,8 @@ describe('buildAgentEnv provider env forwarding', () => {
       GOOSE_PROVIDER: 'openai',
       GOOSE_MODEL: 'gpt-5.1',
       GOOSE_PROVIDER__HOST: 'https://goose.example.test',
+      OPENCODE_CONFIG: '/tmp/opencode-config.json',
+      OPENCODE_CONFIG_DIR: '/tmp/opencode-config-dir',
       OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
       OMP_AUTH_BROKER_URL: 'https://broker.example.test',
       PI_CODING_AGENT_DIR: '/tmp/omp-agent',
@@ -150,6 +152,9 @@ describe('buildAgentEnv provider env forwarding', () => {
       CODEX_ACCESS_TOKEN: 'do-not-pass',
       GOOSE_TERMINAL: 'do-not-pass',
       TOOLBOX_ACTION: 'do-not-pass',
+      // Only govern `opencode serve`/`opencode web`, which emdash never spawns.
+      OPENCODE_SERVER_PASSWORD: 'do-not-pass',
+      OPENCODE_SERVER_USERNAME: 'do-not-pass',
     });
 
     const { buildAgentEnv } = await loadPtyEnv();
@@ -162,6 +167,8 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
     expect(env.GOOSE_TERMINAL).toBeUndefined();
     expect(env.TOOLBOX_ACTION).toBeUndefined();
+    expect(env.OPENCODE_SERVER_PASSWORD).toBeUndefined();
+    expect(env.OPENCODE_SERVER_USERNAME).toBeUndefined();
   });
 
   it('adds provider vars while keeping hook variables authoritative', async () => {
