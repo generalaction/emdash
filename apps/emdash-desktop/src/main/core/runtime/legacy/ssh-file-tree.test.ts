@@ -192,4 +192,42 @@ describe('LegacySshFilesRuntime file tree', () => {
     await opened.data.release();
     await runtime.dispose();
   });
+
+  it('settles an in-flight directory load when the remote tree is disposed', async () => {
+    let markDirectoryLoadStarted: (() => void) | undefined;
+    const directoryLoadStarted = new Promise<void>((resolve) => {
+      markDirectoryLoadStarted = resolve;
+    });
+    let finishDirectoryLoad: (() => void) | undefined;
+    const directoryLoadFinished = new Promise<void>((resolve) => {
+      finishDirectoryLoad = resolve;
+    });
+
+    vi.spyOn(SshFileSystem.prototype, 'list').mockImplementation(async (dirPath = '/repo') => {
+      if (dirPath === '/repo') return listResult([dirEntry('/repo/src')]);
+      markDirectoryLoadStarted?.();
+      await directoryLoadFinished;
+      return listResult([]);
+    });
+
+    const runtime = new LegacySshFilesRuntime({} as never);
+    const opened = await runtime.openTree('/repo');
+    expect(opened.success).toBe(true);
+    if (!opened.success) return;
+
+    const snapshot = await opened.data.value.getSnapshot();
+    expect(snapshot.success).toBe(true);
+    if (!snapshot.success) return;
+    const src = snapshot.data.entries.find(([, node]) => node.path === '/repo/src')?.[1];
+    expect(src).toBeDefined();
+    if (!src) return;
+
+    const loading = opened.data.value.registerDir(src.id);
+    await directoryLoadStarted;
+    await opened.data.release();
+    finishDirectoryLoad?.();
+
+    await expect(loading).resolves.toEqual({ success: true, data: {} });
+    await runtime.dispose();
+  });
 });
