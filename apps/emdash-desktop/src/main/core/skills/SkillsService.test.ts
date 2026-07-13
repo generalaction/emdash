@@ -145,7 +145,10 @@ describe('SkillsService uninstall and sync safety', () => {
       fs.promises.realpath(path.join(homeDir, '.claude/skills/reviewer')),
       fs.promises.realpath(path.join(homeDir, '.codex/skills/reviewer')),
     ]);
-    expect(installed.map((skill) => skill.localPath).sort((a, b) => a.localeCompare(b))).toEqual(
+    const localPaths = installed
+      .map((skill) => skill.localPath)
+      .filter((localPath): localPath is string => localPath !== undefined);
+    expect(localPaths.sort((a, b) => a.localeCompare(b))).toEqual(
       expectedPaths.sort((a, b) => a.localeCompare(b))
     );
   });
