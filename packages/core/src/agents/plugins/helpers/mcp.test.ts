@@ -1,9 +1,10 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
-import { mcpServerToRegistration, registrationToMcpServer } from '../../../mcp/registration';
+import { mergeMcpServerRegistration, registrationToMcpServer } from '../../../mcp/registration';
 import type { PluginFs } from '../../runtime/fs';
 import {
   codexMcpAdapter,
+  continueMcpAdapter,
   createMcpAdapter,
   crushMcpAdapter,
   droidMcpAdapter,
@@ -133,6 +134,16 @@ describe('mistralMcpAdapter', () => {
         'name = "remote"',
         'transport = "streamable-http"',
         'url = "https://example.com/mcp"',
+        'prompt = "Use the remote tools"',
+        'disabled = true',
+        'startup_timeout_sec = 15',
+        'tool_timeout_sec = 120',
+        'sampling_enabled = false',
+        'disabled_tools = ["delete_record"]',
+        '',
+        '[mcp_servers.auth]',
+        'type = "oauth"',
+        'scopes = ["tools:read"]',
         '',
       ].join('\n'),
     });
@@ -144,11 +155,18 @@ describe('mistralMcpAdapter', () => {
         transport: 'http',
         type: 'streamable-http',
         url: 'https://example.com/mcp',
+        prompt: 'Use the remote tools',
+        disabled: true,
+        startup_timeout_sec: 15,
+        tool_timeout_sec: 120,
+        sampling_enabled: false,
+        disabled_tools: ['delete_record'],
+        auth: { type: 'oauth', scopes: ['tools:read'] },
       },
     ]);
 
     const canonicalRegistrations = servers.map((server) =>
-      mcpServerToRegistration(registrationToMcpServer(server, ['mistral']))
+      mergeMcpServerRegistration(server, registrationToMcpServer(server, ['mistral']))
     );
     await adapter.writeServers(fs, canonicalRegistrations);
 
@@ -158,6 +176,13 @@ describe('mistralMcpAdapter', () => {
         name: 'remote',
         transport: 'streamable-http',
         url: 'https://example.com/mcp',
+        prompt: 'Use the remote tools',
+        disabled: true,
+        startup_timeout_sec: 15,
+        tool_timeout_sec: 120,
+        sampling_enabled: false,
+        disabled_tools: ['delete_record'],
+        auth: { type: 'oauth', scopes: ['tools:read'] },
       },
     ]);
   });
@@ -175,7 +200,7 @@ describe('mistralMcpAdapter', () => {
 
     const servers = await adapter.readServers(fs);
     const canonicalRegistrations = servers.map((server) =>
-      mcpServerToRegistration(registrationToMcpServer(server, ['mistral']))
+      mergeMcpServerRegistration(server, registrationToMcpServer(server, ['mistral']))
     );
     await adapter.writeServers(fs, canonicalRegistrations);
 
@@ -209,6 +234,40 @@ describe('mistralMcpAdapter', () => {
     await expect(adapter.readServers(fs)).resolves.toEqual([
       { name: 'keep', transport: 'stdio', command: 'node' },
     ]);
+  });
+});
+
+// ── Continue adapter ────────────────────────────────────────────────────────
+
+describe('continueMcpAdapter', () => {
+  it('preserves envFile through the canonical save path', async () => {
+    const adapter = continueMcpAdapter('.continue/mcpServers/emdash.json');
+    const fs = createMemoryFs({
+      '.continue/mcpServers/emdash.json': jsonFile({
+        mcpServers: {
+          local: {
+            command: 'node',
+            args: ['server.js'],
+            envFile: '~/.continue/secrets.env',
+          },
+        },
+      }),
+    });
+
+    const servers = await adapter.readServers(fs);
+    const canonicalRegistrations = servers.map((server) =>
+      mergeMcpServerRegistration(server, registrationToMcpServer(server, ['continue']))
+    );
+    await adapter.writeServers(fs, canonicalRegistrations);
+
+    const parsed = JSON.parse((await fs.read('.continue/mcpServers/emdash.json'))!) as {
+      mcpServers: Record<string, Record<string, unknown>>;
+    };
+    expect(parsed.mcpServers.local).toMatchObject({
+      command: 'node',
+      args: ['server.js'],
+      envFile: '~/.continue/secrets.env',
+    });
   });
 });
 
