@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  pi-acp@0.0.31:
+    hash: 7c34f8f3b2a1e8c4fbaab390b1d3438555e4fc1f63170f2347f3c0707da6a945
+    path: patches/pi-acp@0.0.31.patch
+
 importers:
 
   .:
@@ -594,6 +599,9 @@ importers:
       jira.js:
         specifier: ^5.4.0
         version: 5.4.0
+      pi-acp:
+        specifier: ^0.0.31
+        version: 0.0.31(patch_hash=7c34f8f3b2a1e8c4fbaab390b1d3438555e4fc1f63170f2347f3c0707da6a945)
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
@@ -853,6 +861,11 @@ packages:
   '@agentclientprotocol/codex-acp@1.0.2':
     resolution: {integrity: sha512-4CxkkqyeX62TBzv4RW5N3TI/4oy7QaWWzOBnwH5VGWa2UdhIg7qwvudyKFv0aOdJfWHcRSNZ3y8c0idaUquZfQ==}
     hasBin: true
+
+  '@agentclientprotocol/sdk@0.26.0':
+    resolution: {integrity: sha512-ialrcI+RzKOYe+fw+TfpyTdRmEoqIkXLlwbTi6XgaXXfdhNcdod7TmE1VsTnG3yTlox8TMTSMQgWbLLbz3r86Q==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@agentclientprotocol/sdk@1.1.0':
     resolution: {integrity: sha512-NT2KqphUJ3w6EksUL51ZhJgIYgq/ZLGcBPkyMKgRSO5PMVwe9DnKKX+Htnvk6KHh6dUuh34UHK4gKp+4te1Mdg==}
@@ -7451,6 +7464,11 @@ packages:
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
+  pi-acp@0.0.31:
+    resolution: {integrity: sha512-LZm1EUV/ax27V+m3pjvK2QvhCfHNTFZsKLNwplVlFuyaSKOFTVdh3IRwfbtM5xqaDe0wmToosI6g3DgScx5aGA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -9188,6 +9206,9 @@ packages:
   zod@3.24.4:
     resolution: {integrity: sha512-OdqJE9UDRPwWsrHjLN2F8bPxvwJBK22EHLWtanu0LSYr5YqzsaaW3RMgmjwr8Rypg5k+meEJdSPXJZXE/yqOMg==}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -9231,6 +9252,10 @@ snapshots:
       open: 11.0.0
       vscode-jsonrpc: 8.2.1
       zod: 4.4.3
+
+  '@agentclientprotocol/sdk@0.26.0(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
 
   '@agentclientprotocol/sdk@1.1.0(zod@4.4.3)':
     dependencies:
@@ -16302,6 +16327,11 @@ snapshots:
 
   pend@1.2.0: {}
 
+  pi-acp@0.0.31(patch_hash=7c34f8f3b2a1e8c4fbaab390b1d3438555e4fc1f63170f2347f3c0707da6a945):
+    dependencies:
+      '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
+      zod: 3.25.76
+
   picocolors@1.1.1: {}
 
   picomatch-browser@2.2.6: {}
@@ -18184,6 +18214,8 @@ snapshots:
       zod: 4.4.3
 
   zod@3.24.4: {}
+
+  zod@3.25.76: {}
 
   zod@4.4.3: {}
 
