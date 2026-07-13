@@ -835,7 +835,6 @@ export function ChatComposer({
                 disabled={disabled}
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
-                className={styles.modelTrigger}
                 triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
                   <span
