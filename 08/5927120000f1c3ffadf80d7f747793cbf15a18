@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_fb4725285f1486::t_b841b28ea9046c 153-154,170-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "085927120000f1c3ffadf80d7f747793cbf15a18",
+  "prompts": {},
+  "sessions": {
+    "s_fb4725285f1486": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a02-0959-7b53-8e29-be9da84b2748",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
