@@ -1,4 +1,3 @@
-import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import type { DependencyId } from '@emdash/core/deps/runtime';
 import type { SkillTargetSelection } from '@emdash/core/skills';
 import { pluginRegistry } from '@emdash/plugins/agents';
@@ -11,10 +10,8 @@ export const skillsController = createRPCController({
   getProviders: async () => {
     const providers = pluginRegistry
       .getAll()
-      .filter(
-        (provider: CLIAgentPluginProvider) => provider.capabilities.skills.kind === 'supported'
-      )
-      .map((provider: CLIAgentPluginProvider) => ({
+      .filter((provider) => provider.capabilities.skills.kind === 'supported')
+      .map((provider) => ({
         id: provider.metadata.id,
         name: provider.metadata.name,
         installed:

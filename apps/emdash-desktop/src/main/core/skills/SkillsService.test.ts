@@ -305,7 +305,6 @@ describe('SkillsService uninstall and sync safety', () => {
       canonicalPath
     );
 
-    // The original, unmanaged directory is never touched even though it wasn't a selected target.
     await expect(
       fs.promises.readFile(path.join(homeDir, '.claude/skills/reviewer/SKILL.md'), 'utf-8')
     ).resolves.toContain('Review changes');

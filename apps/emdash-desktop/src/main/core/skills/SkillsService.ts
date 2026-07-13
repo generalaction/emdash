@@ -1215,11 +1215,7 @@ export class SkillsService {
   }
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {
-    return this.isPathInsideRoot(candidatePath, this.skillsRoot);
-  }
-
-  private isPathInsideRoot(candidatePath: string, root: string): boolean {
-    const relativePath = path.relative(root, candidatePath);
+    const relativePath = path.relative(this.skillsRoot, candidatePath);
     return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
   }
 

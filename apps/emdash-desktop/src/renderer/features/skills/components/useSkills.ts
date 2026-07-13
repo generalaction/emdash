@@ -5,12 +5,7 @@ import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type {
-  CatalogIndex,
-  CatalogSkill,
-  SkillProvider,
-  SkillTargetSelection,
-} from '@shared/core/skills/types';
+import type { CatalogIndex, CatalogSkill, SkillTargetSelection } from '@shared/core/skills/types';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
@@ -34,7 +29,7 @@ export function useSkills() {
     queryKey: ['skills', 'providers'],
     queryFn: async () => {
       const result = await rpc.skills.getProviders();
-      return result.data as SkillProvider[];
+      return result.data;
     },
   });
 

@@ -15,7 +15,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { SkillProvider, SkillTargetSelection } from '@shared/core/skills/types';
+import type { SkillTargetSelection } from '@shared/core/skills/types';
 import { isValidSkillName } from '@shared/core/skills/validation';
 import { SkillProviderSelect } from './SkillProviderSelect';
 
@@ -32,7 +32,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
 
   const { data: providers = [] } = useQuery({
     queryKey: ['skills', 'providers'],
-    queryFn: async () => (await rpc.skills.getProviders()).data as SkillProvider[],
+    queryFn: async () => (await rpc.skills.getProviders()).data,
   });
 
   useCloseGuard(isCreating);
