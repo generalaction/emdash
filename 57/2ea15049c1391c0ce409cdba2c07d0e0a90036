@@ -1,0 +1,34 @@
+pnpm-workspace.yaml
+  s_e0c3423f923bca::t_87f7ca54ee1690 4-6
+packages/plugins/src/agents/impl/pi/index.ts
+  s_e0c3423f923bca::t_867e005303f7d6 67
+  s_e0c3423f923bca::t_78129b44ab6a14 65-66
+  s_e0c3423f923bca::t_af4dde29046ff0 1,8,14-19,29-31,58-64,68-71
+packages/plugins/src/agents/impl/claude/acp.test.ts
+  s_e0c3423f923bca::t_716f08126b7bcb 33,35
+packages/plugins/src/agents/impl/pi/acp.test.ts
+  s_e0c3423f923bca::t_867e005303f7d6 33
+  s_e0c3423f923bca::t_af4dde29046ff0 1-32,34-51
+packages/plugins/package.json
+  s_e0c3423f923bca::t_02b1e36e47a0cb 59
+patches/pi-acp@0.0.31.patch
+  s_e0c3423f923bca::t_1bf91e9974ad78 1-12
+pnpm-lock.yaml
+  s_e0c3423f923bca::t_a1125c65e18861 7-11,602-604,865-869,7467-7471,9209-9211,9256-9259,16330-16334,18218-18219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "572ea15049c1391c0ce409cdba2c07d0e0a90036",
+  "prompts": {},
+  "sessions": {
+    "s_e0c3423f923bca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5b67-fd2a-7e53-923a-41656b17e243",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
