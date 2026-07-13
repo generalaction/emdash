@@ -10,6 +10,8 @@ describe('createSpawnContextResolver', () => {
         PATH: '/bin',
         SHELL: '/bin/zsh',
         ANTHROPIC_API_KEY: 'secret',
+        GOOGLE_GENAI_USE_VERTEXAI: 'true',
+        GOOGLE_MODEL: 'gemini-2.5-pro',
         UNRELATED: 'ignored',
       },
       homeDir: '/fallback',
@@ -29,6 +31,8 @@ describe('createSpawnContextResolver', () => {
         ANTHROPIC_API_KEY: 'secret',
       },
     });
+    expect(result.data.agentEnv).not.toHaveProperty('GOOGLE_GENAI_USE_VERTEXAI');
+    expect(result.data.agentEnv).not.toHaveProperty('GOOGLE_MODEL');
     expect(result.data.agentEnv).not.toHaveProperty('UNRELATED');
   });
 

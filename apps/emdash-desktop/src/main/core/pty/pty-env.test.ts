@@ -145,13 +145,13 @@ describe('buildAgentEnv provider env forwarding', () => {
       QWEN_CODE_SUPPRESS_YOLO_WARNING: '1',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
       GEMINI_MODEL: 'gemini-2.5-pro',
-      GOOGLE_MODEL: 'gemini-2.5-pro',
-      GOOGLE_GENAI_USE_VERTEXAI: 'true',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
       CODEX_ACCESS_TOKEN: 'do-not-pass',
       GOOSE_TERMINAL: 'do-not-pass',
+      GOOGLE_GENAI_USE_VERTEXAI: 'true',
+      GOOGLE_MODEL: 'gemini-2.5-pro',
       TOOLBOX_ACTION: 'do-not-pass',
     });
 
@@ -164,6 +164,8 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.CLAUDE_PROJECT_DIR).toBeUndefined();
     expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
     expect(env.GOOSE_TERMINAL).toBeUndefined();
+    expect(env.GOOGLE_GENAI_USE_VERTEXAI).toBeUndefined();
+    expect(env.GOOGLE_MODEL).toBeUndefined();
     expect(env.TOOLBOX_ACTION).toBeUndefined();
   });
 
