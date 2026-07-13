@@ -1,0 +1,19 @@
+packages/runtime/src/agent-config/runtime/skills.ts
+  s_60eab50c0b0dc1::t_a1695b049d8c88 95,123,136-139,142-144,201-202,443,445,457,460
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "07e7e300d6bd8a691dd16000c9c2bee7ba1fd1de",
+  "prompts": {},
+  "sessions": {
+    "s_60eab50c0b0dc1": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033otxDNo8NMTkJRywIMSX",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
