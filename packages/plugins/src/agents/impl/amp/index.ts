@@ -42,17 +42,21 @@ export const plugin = definePlugin(
     models: {
       kind: 'selectable',
       modelOptions: {
-        smart: {
-          name: 'Smart',
-          modelFeatures: { intelligence: 4, speed: 4 },
+        low: {
+          name: 'Low',
+          modelFeatures: { intelligence: 2, speed: 5 },
         },
-        rush: {
-          name: 'Rush',
-          modelFeatures: { intelligence: 3, speed: 5 },
+        medium: {
+          name: 'Medium',
+          modelFeatures: { intelligence: 3, speed: 4 },
         },
-        deep: {
-          name: 'Deep',
-          modelFeatures: { intelligence: 5, speed: 3 },
+        high: {
+          name: 'High',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        ultra: {
+          name: 'Ultra',
+          modelFeatures: { intelligence: 5, speed: 2 },
         },
       },
     },

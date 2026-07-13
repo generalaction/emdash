@@ -240,9 +240,10 @@ describe('pluginRegistry', () => {
     expect(amp.capabilities.models).toMatchObject({
       kind: 'selectable',
       modelOptions: {
-        smart: { name: 'Smart' },
-        rush: { name: 'Rush' },
-        deep: { name: 'Deep' },
+        low: { name: 'Low' },
+        medium: { name: 'Medium' },
+        high: { name: 'High' },
+        ultra: { name: 'Ultra' },
       },
     });
 
@@ -252,10 +253,10 @@ describe('pluginRegistry', () => {
       initialPrompt: '',
       sessionId: 'conv-1',
       isResuming: false,
-      model: 'deep',
+      model: 'ultra',
     });
 
-    expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'deep']);
+    expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'ultra']);
   });
 
   it('exposes Mistral Vibe models and passes the selected model through env', () => {
