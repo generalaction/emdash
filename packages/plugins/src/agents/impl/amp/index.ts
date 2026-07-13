@@ -8,6 +8,12 @@ import {
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
+const LEGACY_MODEL_ALIASES: Record<string, string> = {
+  deep: 'ultra',
+  rush: 'low',
+  smart: 'high',
+};
+
 // Amp thread ids are prefixed with 'T-'; only accept those for resume.
 const validateSessionId = (id: string) => id.startsWith('T-');
 import { icon } from './icon';
@@ -77,15 +83,18 @@ export const plugin = definePlugin(
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        autoApproveFlag: '--dangerously-allow-all',
-        initialPromptViaStdinPipe: true,
-        extraEnv: { PLUGINS: 'all' },
-        resumeFlag: 'threads continue',
-        sessionIdFlag: 'threads continue',
-        sessionIdOnResumeOnly: true,
-        modelFlag: '-m',
-      }),
+      buildStandardCommand(
+        { ...ctx, model: LEGACY_MODEL_ALIASES[ctx.model] ?? ctx.model },
+        {
+          autoApproveFlag: '--dangerously-allow-all',
+          initialPromptViaStdinPipe: true,
+          extraEnv: { PLUGINS: 'all' },
+          resumeFlag: 'threads continue',
+          sessionIdFlag: 'threads continue',
+          sessionIdOnResumeOnly: true,
+          modelFlag: '-m',
+        }
+      ),
   },
   mcp: ampMcpAdapter(),
   plugins: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),

@@ -257,6 +257,17 @@ describe('pluginRegistry', () => {
     });
 
     expect(result.args).toEqual(['--dangerously-allow-all', '-m', 'ultra']);
+
+    const legacy = amp.behavior.prompt!.buildCommand({
+      cli: 'amp',
+      autoApprove: true,
+      initialPrompt: '',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: 'deep',
+    });
+
+    expect(legacy.args).toEqual(['--dangerously-allow-all', '-m', 'ultra']);
   });
 
   it('exposes Mistral Vibe models and passes the selected model through env', () => {
