@@ -38,6 +38,13 @@ describe('WorkerLink', () => {
     expect(() => link.post({ kind: 'cancel', id: 'call' })).toThrow(WireError);
     link.markReady(1);
     link.post({ kind: 'cancel', id: 'call' });
-    expect(process.parentMessages).toEqual([{ kind: 'cancel', id: 'call' }]);
+    expect(process.parentMessages).toEqual([
+      {
+        kind: 'wire-worker-frame',
+        channel: 'runtime',
+        payload: { kind: 'cancel', id: 'call' },
+      },
+      { kind: 'cancel', id: 'call' },
+    ]);
   });
 });

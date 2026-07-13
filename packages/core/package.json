@@ -105,10 +105,6 @@
       "types": "./dist/services-fs-watch-node.d.mts",
       "default": "./dist/services-fs-watch-node.mjs"
     },
-    "./services/fs-watch/node/process": {
-      "types": "./dist/services-fs-watch-node-process.d.mts",
-      "default": "./dist/services-fs-watch-node-process.mjs"
-    },
     "./services/fs-watch/worker": {
       "types": "./dist/services-fs-watch-worker.d.mts",
       "default": "./dist/services-fs-watch-worker.mjs"
@@ -121,10 +117,6 @@
       "types": "./dist/runtimes-git-node.d.mts",
       "default": "./dist/runtimes-git-node.mjs"
     },
-    "./runtimes/git/node/process": {
-      "types": "./dist/runtimes-git-node-process.d.mts",
-      "default": "./dist/runtimes-git-node-process.mjs"
-    },
     "./runtimes/files/api": {
       "types": "./dist/runtimes-files-api.d.mts",
       "default": "./dist/runtimes-files-api.mjs"
@@ -132,10 +124,6 @@
     "./runtimes/files/node": {
       "types": "./dist/runtimes-files-node.d.mts",
       "default": "./dist/runtimes-files-node.mjs"
-    },
-    "./runtimes/files/node/process": {
-      "types": "./dist/runtimes-files-node-process.d.mts",
-      "default": "./dist/runtimes-files-node-process.mjs"
     },
     "./runtimes/acp/api": {
       "types": "./dist/runtimes-acp-api.d.mts",
@@ -149,10 +137,6 @@
       "types": "./dist/runtimes-acp-node.d.mts",
       "default": "./dist/runtimes-acp-node.mjs"
     },
-    "./runtimes/acp/node/process": {
-      "types": "./dist/runtimes-acp-node-process.d.mts",
-      "default": "./dist/runtimes-acp-node-process.mjs"
-    },
     "./runtimes/agent-config/api": {
       "types": "./dist/runtimes-agent-config-api.d.mts",
       "default": "./dist/runtimes-agent-config-api.mjs"
@@ -160,10 +144,6 @@
     "./runtimes/agent-config/node": {
       "types": "./dist/runtimes-agent-config-node.d.mts",
       "default": "./dist/runtimes-agent-config-node.mjs"
-    },
-    "./runtimes/agent-config/node/process": {
-      "types": "./dist/runtimes-agent-config-node-process.d.mts",
-      "default": "./dist/runtimes-agent-config-node-process.mjs"
     },
     "./runtimes/tui-agents/api": {
       "types": "./dist/runtimes-tui-agents-api.d.mts",
@@ -180,10 +160,6 @@
     "./runtimes/workspace/node": {
       "types": "./dist/runtimes-workspace-node.d.mts",
       "default": "./dist/runtimes-workspace-node.mjs"
-    },
-    "./runtimes/workspace/node/process": {
-      "types": "./dist/runtimes-workspace-node-process.d.mts",
-      "default": "./dist/runtimes-workspace-node-process.mjs"
     },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",

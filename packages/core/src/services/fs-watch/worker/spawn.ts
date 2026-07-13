@@ -6,10 +6,10 @@ import {
 } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import type { IWatchService } from '@services/fs-watch/api';
-import { fsWatchContract } from '@services/fs-watch/api';
 import type { WatchBackend } from '@services/fs-watch/impl/backend';
 import { processWatchBackend } from '@services/fs-watch/impl/process-backend';
 import { createWatchService } from '@services/fs-watch/impl/watch-service';
+import { fsWatchComponent } from '@services/fs-watch/node/component';
 
 export type SpawnFsWatchWorkerOptions = {
   entry: string;
@@ -26,14 +26,13 @@ export function spawnFsWatchWorker(options: SpawnFsWatchWorkerOptions): IWatchSe
     scope: scope.child('fs-watch-worker-host'),
     processSpawner: options.processSpawner ?? childProcessSpawner(),
   });
-  const worker = workerHost.define({
+  const worker = workerHost.create(fsWatchComponent, {
     name: 'fs-watch',
-    contract: fsWatchContract,
+    executable: options.entry,
+    env: options.env,
+    dependencies: {},
+    config: {},
     supervision: options.supervision,
-    process: () => ({
-      entry: options.entry,
-      env: options.env,
-    }),
   });
   const backend: WatchBackend = {
     ...processWatchBackend({

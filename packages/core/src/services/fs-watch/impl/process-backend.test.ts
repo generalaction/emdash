@@ -1,10 +1,18 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
-import { serveWireWorker, type WorkerParentPort } from '@emdash/wire/worker';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
+import { defineWireComponent } from '@emdash/wire/component';
+import { isWorkerSignal, runWireComponentWorker, type WorkerParentPort } from '@emdash/wire/worker';
+import {
+  fsWatchContract,
+  type IWatchService,
+  type WatchEvent,
+  type WatchHandle,
+  type WatchOptions,
+} from '@services/fs-watch/api';
 import { spawnFsWatchWorker } from '@services/fs-watch/worker/spawn';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { createFsWatchController } from './controller';
 
 describe('processWatchBackend', () => {
@@ -80,17 +88,27 @@ describe('processWatchBackend', () => {
 });
 
 async function startChild(
-  process: { childPort: WorkerParentPort },
+  process: { childPort: WorkerParentPort; childMessages: unknown[] },
   service: IWatchService
 ): Promise<void> {
-  await serveWireWorker(
-    ({ scope }) =>
-      createFsWatchController({
+  void runWireComponentWorker(
+    defineWireComponent({
+      id: 'fs-watch',
+      contract: fsWatchContract,
+      requirements: {},
+      configSchema: z.object({}),
+      create: ({ instance, scope }) =>
+        instance({
         scope,
-        service,
-      }),
+          controller: createFsWatchController({
+            scope,
+            service,
+          }),
+        }),
+    }),
     { port: process.childPort, exit: () => {} }
   );
+  await waitFor(() => process.childMessages.some((message) => isWorkerSignal(message, 'ready')));
 }
 
 class FakeWatchService implements IWatchService {
@@ -156,6 +174,7 @@ async function flush(): Promise<void> {
 async function waitFor(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     await flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     if (predicate()) return;
   }
   throw new Error('Timed out waiting for predicate');

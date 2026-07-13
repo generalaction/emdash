@@ -7,6 +7,8 @@ describe('@emdash/core/runtimes/git/node public exports', () => {
       'GitRuntime',
       'createGitController',
       'createGitProcedures',
+      'gitComponent',
+      'gitComponentConfigSchema',
     ]);
   });
 });

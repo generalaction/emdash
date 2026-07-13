@@ -1,7 +1,9 @@
 import { dirname, join } from 'node:path';
-import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import type { ContractClient } from '@emdash/wire/api';
 import type { WireWorkerHost } from '@emdash/wire/worker';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { daemonPaths } from '../daemon/paths';
 import { workspaceWorkerPath } from '../worker-manifest';
 
@@ -14,15 +16,13 @@ export function defineAcpWorkspaceRuntimeWorker(
   }
 ) {
   const paths = daemonPaths(options.socketPath);
-  return host.define({
+  return host.create(createAcpComponent({ pluginRegistry }), {
     name: 'acp',
-    contract: acpApiContract,
-    process: () => ({
-      entry: workspaceWorkerPath('acp'),
-      env: {
-        ...process.env,
-        EMDASH_ACP_ATTACHMENTS_DIR: join(dirname(paths.socketPath), 'acp-attachments'),
-      },
-    }),
+    executable: workspaceWorkerPath('acp'),
+    env: process.env,
+    dependencies: {},
+    config: {
+      attachmentsDir: join(dirname(paths.socketPath), 'acp-attachments'),
+    },
   });
 }

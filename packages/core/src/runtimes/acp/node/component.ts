@@ -1,11 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
-import { initProcessLogging } from '@emdash/shared/logger/node';
+import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { validation } from '@emdash/wire/api';
-import { serveWireWorker, workerValidatePolicy, type WorkerParentPort } from '@emdash/wire/worker';
+import { defineWireComponent } from '@emdash/wire/component';
+import { z } from 'zod';
 import { acpApiContract } from '@runtimes/acp/api';
 import { createAcpController } from '@runtimes/acp/node/api/controller';
+import { ChildAcpProcessHost } from '@runtimes/acp/node/node/child-process-host';
+import { LocalAttachmentStore } from '@runtimes/acp/node/node/local-attachment-store';
 import { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
 import type { AcpRuntimeDeps } from '@runtimes/acp/node/runtime/types';
 import {
@@ -16,34 +18,31 @@ import {
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
 import { NodeExecutionContext } from '@services/exec/api';
 import { HostDependencyManager } from '@services/host-dependencies/node';
-import { ChildAcpProcessHost } from './child-process-host';
-import { LocalAttachmentStore } from './local-attachment-store';
 
-export type BootAcpRuntimeProcessOptions = {
+export const acpComponentConfigSchema = z.object({
+  attachmentsDir: z.string().min(1),
+});
+
+export type CreateAcpComponentOptions = {
   pluginRegistry: PluginRegistry<CLIAgentPluginProvider>;
   env?: NodeJS.ProcessEnv;
-  port?: WorkerParentPort;
-  exit?: (code: number) => void;
+  logger?: Logger;
 };
 
-export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): void {
-  const env = options.env ?? process.env;
-  const logger = initProcessLogging({ name: 'acp-agents-runtime', env });
-
-  void serveWireWorker(
-    ({ scope }) => {
-      const attachmentsDir = env.EMDASH_ACP_ATTACHMENTS_DIR;
-      if (!attachmentsDir) {
-        throw new Error('ACP runtime process started without EMDASH_ACP_ATTACHMENTS_DIR');
-      }
-
+export function createAcpComponent(options: CreateAcpComponentOptions) {
+  return defineWireComponent({
+    id: 'acp',
+    contract: acpApiContract,
+    requirements: {},
+    configSchema: acpComponentConfigSchema,
+    create: ({ config, instance, logger, scope }) => {
+      const env = options.env ?? process.env;
+      const runtimeLogger = options.logger ?? logger;
       const childHost = new ChildAcpProcessHost();
-      const attachmentStore = new LocalAttachmentStore(attachmentsDir);
+      const attachmentStore = new LocalAttachmentStore(config.attachmentsDir);
       const homeDir = os.homedir();
       const exec = new NodeExecutionContext({ env });
-      const dependencyDescriptors = options.pluginRegistry
-        .getAll()
-        .map(buildDescriptorFromProvider);
+      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
       const dependencyManager = new HostDependencyManager(exec, {
         dependencies: dependencyDescriptors,
         getDependencyDescriptor: (id) =>
@@ -78,17 +77,14 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
           };
         },
         attachmentStore,
-        logger,
+        logger: runtimeLogger,
       } satisfies AcpRuntimeDeps);
 
       scope.add(() => acp.dispose());
-      return createAcpController(acp);
+      return instance({
+        scope,
+        controller: createAcpController(acp),
+      });
     },
-    {
-      port: options.port,
-      exit: options.exit,
-      logger,
-      middleware: [validation(acpApiContract, workerValidatePolicy(env))],
-    }
-  );
+  });
 }

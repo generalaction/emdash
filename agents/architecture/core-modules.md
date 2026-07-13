@@ -51,6 +51,11 @@ Runtimes are peers. **A runtime must never depend on another runtime**, includin
 API surface. Shared vocabulary belongs in a primitive. Shared active behavior belongs in a service.
 Cross-runtime workflows are composed by the application host, not by either runtime.
 
+Node runtime implementations that expose a Wire contract should also provide a `WireComponent`
+definition from their `node/` surface. The component is the deployment wrapper: it declares typed
+requirements, validates config at the creation/worker boundary, and creates the existing runtime and
+controller. It must not auto-locate other services or recursively construct dependencies.
+
 ### Services
 
 A service is a focused, injectable capability that can be reused by runtimes.
@@ -68,6 +73,10 @@ implementations are composed by a runtime or host.
 
 Examples include filesystem watching, PTY management, host dependency detection, and other
 cross-domain host capabilities.
+
+Services that need to run in process or out of process use the same `WireComponent` convention as
+runtimes. The distinction between runtime and service remains architectural ownership, not a
+different hosting primitive.
 
 ### Primitives
 
@@ -115,7 +124,8 @@ Choose lifecycle primitives by ownership shape:
   optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
   `AsyncCache` for cached async values without finalizers.
 - Use Wire `WorkerSlot` when supervising a process-hosted Wire contract with a stable client,
-  readiness, restart backoff, and process generations.
+  readiness, restart backoff, and process generations. Application code should reach it through
+  `WireWorkerHost.create(component, ...)` or `spawn(component, ...)`.
 - Use Wire `LiveJob` when work must be visible over the Wire protocol as a cancellable job with
   progress, terminal state, retention, and remote client handles.
 

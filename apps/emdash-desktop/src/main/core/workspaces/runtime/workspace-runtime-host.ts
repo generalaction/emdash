@@ -1,9 +1,11 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
-import { workspaceContract, type WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { createWorkspaceController, WorkspaceRuntime } from '@emdash/core/runtimes/workspace/node';
+import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
+import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
 import { createScope } from '@emdash/shared/concurrency';
-import { client, connect, memoryTransportPair, serve, type ContractClient } from '@emdash/wire/api';
+import type { WireComponentInstance } from '@emdash/wire/component';
+import type { ContractClient } from '@emdash/wire/api';
 import { log } from '@main/lib/logger';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 
@@ -11,9 +13,7 @@ export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
 
 type WorkspaceRuntimeHost = {
   scope: ReturnType<typeof createScope>;
-  pair: ReturnType<typeof memoryTransportPair>;
-  controller: ReturnType<typeof createWorkspaceController>;
-  stopServing: () => void;
+  instance: WireComponentInstance<WorkspaceContract>;
   client: WorkspaceRuntimeClient;
 };
 
@@ -38,26 +38,28 @@ function ensureHost(): WorkspaceRuntimeHost {
   if (host) return host;
 
   const scope = createScope({ label: 'workspace-runtime' });
-  const runtime = new WorkspaceRuntime({
+  const watcher = fsWatchComponent.create({
     scope,
-    onError: (context, error) => log.warn(`Workspace runtime ${context}`, { error }),
+    dependencies: {},
+    config: {},
+    validate: 'inputs',
   });
-  const pair = memoryTransportPair();
-  const controller = createWorkspaceController(runtime, { validate: 'inputs' });
-  const stopServing = serve(pair.right, controller);
-
-  scope.add(async () => {
-    stopServing();
-    await controller.dispose?.();
-    pair.disconnect();
+  const instance = workspaceComponent.create({
+    scope,
+    dependencies: {
+      watcher: watcher.client,
+    },
+    config: {},
+    logger: log,
+    validate: 'inputs',
   });
+  scope.add(() => watcher.dispose());
+  scope.add(() => instance.dispose());
 
   host = {
     scope,
-    pair,
-    controller,
-    stopServing,
-    client: client(workspaceContract, connect(pair.left)),
+    instance,
+    client: instance.client,
   };
   return host;
 }

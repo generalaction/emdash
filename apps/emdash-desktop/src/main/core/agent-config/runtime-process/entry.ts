@@ -1,4 +1,5 @@
-import { bootAgentConfigRuntimeProcess } from '@emdash/core/runtimes/agent-config/node/process';
+import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
 import { pluginRegistry } from '@emdash/plugins/agents';
 
-bootAgentConfigRuntimeProcess({ pluginRegistry });
+void runWireComponentWorker(createAgentConfigComponent({ pluginRegistry }));

@@ -217,6 +217,7 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
       generationScope.add(
         forwardWorkerLogs(process, this.options.logger, { source: `${this.name}-runtime` })
       );
+      await this.options.definition.setup?.({ generation, process, scope: generationScope });
 
       await Promise.race([
         this.waitForReady(generation, signal),
@@ -245,6 +246,7 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
   }
 
   private waitForReady(generation: number, signal: AbortSignal): Promise<void> {
+    if (this.link.hasReadySignal(generation)) return Promise.resolve();
     return runWithTimeout(
       (timeoutSignal) =>
         new Promise<void>((resolve, reject) => {

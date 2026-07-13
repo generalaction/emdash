@@ -1,5 +1,6 @@
 export * from './activity';
 export * from './api/controller';
+export * from './component';
 export * from './machine/machine';
 export * from './provisioning/paths';
 export * from './provisioning/provisioner';

@@ -1,3 +1,4 @@
-import { bootFilesRuntimeProcess } from '@emdash/core/runtimes/files/node/process';
+import { filesComponent } from '@emdash/core/runtimes/files/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
 
-bootFilesRuntimeProcess();
+void runWireComponentWorker(filesComponent);

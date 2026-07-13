@@ -39,6 +39,7 @@
       "@emdash/shared/testing": ["../../packages/shared/src/testing/index.ts"],
       "@emdash/shared": ["../../packages/shared/src/index.ts"],
       "@emdash/wire/api": ["../../packages/wire/src/api/index.ts"],
+      "@emdash/wire/component": ["../../packages/wire/src/component/index.ts"],
       "@emdash/wire/testing": ["../../packages/wire/src/testing/index.ts"],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
       "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],

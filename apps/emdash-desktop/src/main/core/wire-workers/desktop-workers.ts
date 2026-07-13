@@ -1,11 +1,16 @@
 import { join } from 'node:path';
 import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import {
   agentConfigContract,
   type AgentConfigContract,
 } from '@emdash/core/runtimes/agent-config/api';
+import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/api';
+import { filesComponent } from '@emdash/core/runtimes/files/node';
 import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
+import { gitComponent } from '@emdash/core/runtimes/git/node';
+import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
 import {
   exposeWireToWindows,
   forwardController,
@@ -15,6 +20,7 @@ import {
 import { compose } from '@emdash/wire/util';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
@@ -44,62 +50,90 @@ function createMessageChannel() {
   return { port1: channel.port1, port2: channel.port2 };
 }
 
-export const acpWorker = host.define({
+const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
+const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
+
+const fsWatchWorker = host.create(fsWatchComponent, {
+  name: 'fs-watch',
+  executable: desktopWorkerPath('fs-watch'),
+  env: process.env,
+  dependencies: {},
+  config: {},
+});
+
+export const acpWorker = host.create(acpComponent, {
   name: 'acp',
-  contract: acpApiContract,
-  process: () => ({
-    entry: desktopWorkerPath('acp'),
-    env: {
-      ...process.env,
-      EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
-    },
-  }),
+  executable: desktopWorkerPath('acp'),
+  env: process.env,
+  dependencies: {},
+  config: {
+    attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
+  },
 });
 
 export const acpClient: AcpRuntimeClient = withSessionIdPersistence(acpWorker.client);
 
-export const agentConfigWorker = host.define({
+export const agentConfigWorker = host.create(agentConfigComponent, {
   name: 'agent-config',
-  contract: agentConfigContract,
-  process: () => ({
-    entry: desktopWorkerPath('agent-config'),
-    env: process.env,
-  }),
+  executable: desktopWorkerPath('agent-config'),
+  env: process.env,
+  dependencies: {},
+  config: {},
 });
 
 export const agentConfigClient: AgentConfigRuntimeClient = agentConfigWorker.client;
 
-export const filesWorker = host.define({
+export const filesWorker = host.create(filesComponent, {
   name: 'files',
-  contract: filesContract,
-  process: () => ({
-    entry: desktopWorkerPath('files'),
-    env: process.env,
-  }),
+  executable: desktopWorkerPath('files'),
+  env: process.env,
+  dependencies: {
+    watcher: fsWatchWorker.client,
+  },
+  config: {},
 });
 
 export const filesClient: FilesRuntimeClient = filesWorker.client;
 
-export const gitWorker = host.define({
+export const gitWorker = host.create(gitComponent, {
   name: 'git',
-  contract: gitContract,
-  process: () => ({
-    entry: desktopWorkerPath('git'),
+  executable: desktopWorkerPath('git'),
+  env: {
+    ...process.env,
+    ...NON_INTERACTIVE_GIT_ENV,
+    LC_ALL: 'C',
+    LANG: 'C',
+    LANGUAGE: 'C',
+  },
+  dependencies: {
+    watcher: fsWatchWorker.client,
+  },
+  config: {
+    executable: getGitExecutable(),
     env: {
       ...process.env,
       ...NON_INTERACTIVE_GIT_ENV,
-      EMDASH_GIT_EXECUTABLE: getGitExecutable(),
       LC_ALL: 'C',
       LANG: 'C',
       LANGUAGE: 'C',
     },
-  }),
+  },
 });
 
 export const gitClient: GitRuntimeClient = gitWorker.client;
 
 if (typeof ipcMain?.handle === 'function') {
   installRendererWire();
+}
+
+export async function ensureFilesWorkerReady(): Promise<void> {
+  await fsWatchWorker.ready();
+  await filesWorker.ready();
+}
+
+export async function ensureGitWorkerReady(): Promise<void> {
+  await fsWatchWorker.ready();
+  await gitWorker.ready();
 }
 
 export function disposeDesktopWireWorkers(): Promise<void> {
@@ -180,7 +214,7 @@ function installRendererWire(): void {
       {
         channel: FILES_WIRE_CHANNEL,
         beforeOpen: async () => {
-          await filesWorker.ready();
+          await ensureFilesWorkerReady();
         },
       }
     )
@@ -195,7 +229,7 @@ function installRendererWire(): void {
       {
         channel: GIT_WIRE_CHANNEL,
         beforeOpen: async () => {
-          await gitWorker.ready();
+          await ensureGitWorkerReady();
         },
       }
     )

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { type WorkspaceRuntime, workspaceJobError } from '@emdash/core/runtimes/workspace/node';
+import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { workspaceJobError } from '@emdash/core/runtimes/workspace/node';
 import {
   negotiateProtocol,
   PROTOCOL_VERSION,
@@ -13,6 +14,7 @@ import {
   type LiveModelDef,
   type LiveModelProvider,
 } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
 import type { WorkspaceAcpRuntimeClient } from '../acp/host';
 
 export type WorkspaceWireControllerDeps = {
@@ -20,7 +22,7 @@ export type WorkspaceWireControllerDeps = {
   daemonId?: string;
   startedAt?: number;
   acp?: WorkspaceAcpRuntimeClient;
-  workspace?: WorkspaceRuntime;
+  workspace?: ContractClient<WorkspaceContract>;
 };
 
 const defaultStartedAt = Date.now();
@@ -242,36 +244,18 @@ function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract
 }
 
 function createWorkspaceProxy(
-  runtime: WorkspaceRuntime
+  client: ContractClient<WorkspaceContract>
 ): NonNullable<ContractImpl<typeof workspaceWireContract>['workspace']> {
   return {
-    workspace: runtime.host,
-    reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
-    provision: {
-      run: (input, ctx) => runtime.provision(input, ctx),
-      toError: workspaceJobError,
-    },
-    convert: {
-      run: (input, ctx) => runtime.convert(input, ctx),
-      toError: workspaceJobError,
-    },
-    activate: {
-      run: (input, ctx) => runtime.activate(input, ctx),
-      toError: workspaceJobError,
-    },
-    deactivate: {
-      run: (input, ctx) => runtime.deactivate(input, ctx),
-      toError: workspaceJobError,
-    },
-    teardown: {
-      run: (input, ctx) => runtime.teardown(input, ctx),
-      toError: workspaceJobError,
-    },
-    runScript: {
-      run: (input, ctx) => runtime.runScript(input, ctx),
-      toError: workspaceJobError,
-    },
-    scriptOutput: (key) => runtime.scriptOutput(key),
+    workspace: client.workspace,
+    reconcile: (input, meta) => client.reconcile(input, meta),
+    provision: client.provision,
+    convert: client.convert,
+    activate: client.activate,
+    deactivate: client.deactivate,
+    teardown: client.teardown,
+    runScript: client.runScript,
+    scriptOutput: (key) => client.scriptOutput.handle(key).asLiveSource(),
   };
 }
 

@@ -1,9 +1,12 @@
 # Workers
 
-A worker is a named, process-hosted wire contract owned by a `WireWorkerHost`.
-The host registers logical workers, while each worker has one `WorkerSlot` that
-owns readiness, supervision, reconnects, graceful shutdown, and the stable typed
-client. Low-level spawners create exactly one process generation.
+A worker is a named, process-hosted `WireComponent` owned by a `WireWorkerHost`.
+The host creates logical workers, while each worker has one `WorkerSlot` that owns readiness,
+supervision, reconnects, graceful shutdown, and the stable typed client. Low-level spawners create
+exactly one process generation.
+
+See [Components](./components.md) for the authored component shape, local creation examples,
+dependency requirements, and testing guidance. This page focuses on process supervision.
 
 ## Layers
 
@@ -14,19 +17,21 @@ flowchart LR
   Slot --> Link["WorkerLink"]
   Slot --> Spawner["WorkerProcessSpawner"]
   Spawner --> Process["WorkerProcess"]
-  Process --> Serve["serveWireWorker"]
-  Serve --> Controller["Controller"]
+  Process --> Runner["runWireComponentWorker"]
+  Runner --> Controller["Component Controller"]
+  Host --> Deps["Explicit dependency channels"]
 ```
 
-- `WireWorkerHost` is a registry and ownership boundary. Composition roots inject
-  a `WorkerProcessSpawner`, logger, clock, and defaults.
+- `WireWorkerHost` is a process ownership boundary. Composition roots inject a
+  `WorkerProcessSpawner`, logger, clock, and defaults.
 - `WorkerSlot` is the only multi-generation state machine. It keeps one stable
   connection/client while child processes restart underneath it.
 - `WorkerProcessSpawner` is platform-specific and creates one generation. Use
   `@emdash/wire/worker/node` for Node child processes or
   `@emdash/wire/worker/electron` for Electron utility processes.
-- `serveWireWorker()` is the child-side IPC bridge. Controller middleware such as
-  validation and logging is passed explicitly by the child boot file.
+- `runWireComponentWorker(component)` is the child-side IPC bridge. It bootstraps typed config,
+  connects explicit dependency clients, creates the component, serves its controller, and signals
+  readiness.
 
 ## Parent Side
 
@@ -34,7 +39,7 @@ flowchart LR
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { createScope } from '@emdash/shared/concurrency';
-import { api } from './contract';
+import { counterComponent } from './component';
 import { workerPath } from './worker-manifest';
 
 const scope = createScope({ label: 'main' });
@@ -43,13 +48,11 @@ const host = createWireWorkerHost({
   processSpawner: childProcessSpawner(),
 });
 
-const worker = host.define({
+const worker = host.create(counterComponent, {
   name: 'counter',
-  contract: api,
-  process: () => ({
-    entry: workerPath('counter'),
-    env: process.env,
-  }),
+  executable: workerPath('counter'),
+  dependencies: {},
+  config: {},
 });
 
 await worker.ready();
@@ -63,36 +66,20 @@ process restarts. `worker.ready()` starts the process and waits for the child
 ready signal. Calls fail fast while the worker is unavailable; Wire does not
 buffer requests during downtime.
 
-Startup and exposure are explicit composition-site decisions. For eager startup,
-run `worker.ready()` under an owning scope. For Electron windows, compose a
-forwarding controller and use `exposeWireToWindows()` with a `beforeOpen` hook
+Startup and exposure are explicit composition-site decisions. For eager startup, run
+`worker.ready()` under an owning scope or call `host.spawn(component, options)`. For Electron
+windows, compose a forwarding controller and use `exposeWireToWindows()` with a `beforeOpen` hook
 that awaits `worker.ready()`.
 
 ## Child Side
 
 ```ts
-import { initProcessLogging } from '@emdash/shared/logger/node';
-import { createController, validation } from '@emdash/wire/api';
-import { serveWireWorker, workerValidatePolicy } from '@emdash/wire/worker';
-import { api } from './contract';
+import { runWireComponentWorker } from '@emdash/wire/worker';
+import { counterComponent } from './component';
 
-const env = process.env;
-const logger = initProcessLogging({ name: 'counter-runtime', env });
-
-void serveWireWorker(
-  ({ scope }) => {
-    scope.add(() => console.log('counter worker disposed'));
-    return createController(api, {
-      increment: () => 1,
-    });
-  },
-  {
-    logger,
-    middleware: [validation(api, workerValidatePolicy(env))],
-  }
-);
+void runWireComponentWorker(counterComponent);
 ```
 
-The child helper resolves the parent IPC channel, serves wire messages, sends the
-ready signal after the controller is installed, disposes the child scope on
-shutdown/disconnect, and exits with code `1` if initialization fails.
+The child helper resolves the parent IPC channel, requests bootstrap config and dependency channels,
+serves wire messages, sends the ready signal after the component controller is installed, disposes
+the child scope on shutdown/disconnect, and exits with code `1` if creation fails.

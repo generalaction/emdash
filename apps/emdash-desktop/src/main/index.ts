@@ -40,8 +40,8 @@ import { viewStateService } from './core/view-state/view-state-service';
 import {
   acpWorker,
   agentConfigWorker,
-  filesWorker,
-  gitWorker,
+  ensureFilesWorkerReady,
+  ensureGitWorkerReady,
 } from './core/wire-workers/desktop-workers';
 import { initializeDatabase } from './db/initialize';
 import { events } from './lib/events';
@@ -165,10 +165,10 @@ void app.whenReady().then(async () => {
   agentConfigWorker.ready().catch((e) => {
     log.error('Failed to start agent-config runtime process:', e);
   });
-  filesWorker.ready().catch((e) => {
+  ensureFilesWorkerReady().catch((e) => {
     log.error('Failed to start Files runtime process:', e);
   });
-  gitWorker.ready().catch((e) => {
+  ensureGitWorkerReady().catch((e) => {
     log.error('Failed to start Git runtime process:', e);
   });
   acpAgentStatusBridge.initialize();

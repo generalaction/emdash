@@ -1,4 +1,5 @@
-import { bootAcpRuntimeProcess } from '@emdash/core/runtimes/acp/node/process';
+import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
 import { pluginRegistry } from '@emdash/plugins/agents';
 
-bootAcpRuntimeProcess({ pluginRegistry });
+void runWireComponentWorker(createAcpComponent({ pluginRegistry }));

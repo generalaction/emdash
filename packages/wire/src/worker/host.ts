@@ -1,7 +1,10 @@
 import { systemClock } from '@emdash/shared/scheduling';
 import type { ContractDefinitions } from '../api/define';
+import type { WireComponentDefinition, WireComponentRequirements } from '../component';
+import { setupComponentWorkerGeneration } from './component-bridge';
 import type {
   WireWorker,
+  WireComponentWorkerCreateOptions,
   WireWorkerDefinition,
   WireWorkerHost,
   WireWorkerHostOptions,
@@ -21,7 +24,7 @@ class WireWorkerHostImpl implements WireWorkerHost {
     return this.options.scope;
   }
 
-  define<Defs extends ContractDefinitions>(
+  private defineSlot<Defs extends ContractDefinitions>(
     definition: WireWorkerDefinition<Defs>
   ): WireWorker<Defs> {
     if (this.workers.has(definition.name)) {
@@ -47,6 +50,54 @@ class WireWorkerHostImpl implements WireWorkerHost {
     });
 
     return slot;
+  }
+
+  create<
+    Id extends string,
+    Defs extends ContractDefinitions,
+    Requirements extends WireComponentRequirements,
+    Config,
+  >(
+    component: WireComponentDefinition<Id, Defs, Requirements, Config>,
+    options: WireComponentWorkerCreateOptions<Requirements>
+  ): WireWorker<Defs> {
+    return this.defineSlot({
+      name: options.name ?? component.id,
+      contract: component.contract,
+      process: () => ({
+        entry: options.executable,
+        args: options.args,
+        env: options.env,
+        cwd: options.cwd,
+      }),
+      setup: ({ process, scope }) => {
+        setupComponentWorkerGeneration({
+          component,
+          dependencies: options.dependencies,
+          config: options.config,
+          process,
+          scope,
+        });
+      },
+      supervision: options.supervision,
+      readyTimeoutMs: options.readyTimeoutMs,
+      shutdownGraceMs: options.shutdownGraceMs,
+      instrumentation: options.instrumentation,
+    });
+  }
+
+  async spawn<
+    Id extends string,
+    Defs extends ContractDefinitions,
+    Requirements extends WireComponentRequirements,
+    Config,
+  >(
+    component: WireComponentDefinition<Id, Defs, Requirements, Config>,
+    options: WireComponentWorkerCreateOptions<Requirements>
+  ): Promise<WireWorker<Defs>> {
+    const worker = this.create(component, options);
+    await worker.ready();
+    return worker;
   }
 
   get(name: string): WireWorker<ContractDefinitions> | undefined {

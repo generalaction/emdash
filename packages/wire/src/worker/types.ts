@@ -5,6 +5,11 @@ import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
+import type {
+  ProvidedWireComponentRequirements,
+  WireComponentDefinition,
+  WireComponentRequirements,
+} from '../component';
 import type { WireInstrumentation } from '../observability';
 import type { Middleware } from '../util';
 
@@ -68,6 +73,23 @@ export type WireWorkerDefinition<Defs extends ContractDefinitions> = {
   name: string;
   contract: Contract<Defs>;
   process: () => WorkerProcessSpec;
+  setup?(context: { generation: number; process: WorkerProcess; scope: Scope }): void | Promise<void>;
+  supervision?: WorkerSupervision;
+  readyTimeoutMs?: number;
+  shutdownGraceMs?: number;
+  instrumentation?: WireInstrumentation;
+};
+
+export type WireComponentWorkerCreateOptions<
+  Requirements extends WireComponentRequirements,
+> = {
+  name?: string;
+  executable: string;
+  args?: readonly string[];
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  dependencies: ProvidedWireComponentRequirements<Requirements>;
+  config: unknown;
   supervision?: WorkerSupervision;
   readyTimeoutMs?: number;
   shutdownGraceMs?: number;
@@ -88,9 +110,24 @@ export type WireWorkerHostOptions = {
 
 export interface WireWorkerHost {
   readonly scope: Scope;
-  define<Defs extends ContractDefinitions>(
-    definition: WireWorkerDefinition<Defs>
+  create<
+    Id extends string,
+    Defs extends ContractDefinitions,
+    Requirements extends WireComponentRequirements,
+    Config,
+  >(
+    component: WireComponentDefinition<Id, Defs, Requirements, Config>,
+    options: WireComponentWorkerCreateOptions<Requirements>
   ): WireWorker<Defs>;
+  spawn<
+    Id extends string,
+    Defs extends ContractDefinitions,
+    Requirements extends WireComponentRequirements,
+    Config,
+  >(
+    component: WireComponentDefinition<Id, Defs, Requirements, Config>,
+    options: WireComponentWorkerCreateOptions<Requirements>
+  ): Promise<WireWorker<Defs>>;
   get(name: string): WireWorker<ContractDefinitions> | undefined;
   dispose(): Promise<void>;
 }

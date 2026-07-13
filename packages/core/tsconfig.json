@@ -19,6 +19,7 @@
       "@emdash/shared/util": ["../shared/src/util/index.ts"],
       "@emdash/shared/testing": ["../shared/src/testing/index.ts"],
       "@emdash/wire/api": ["../wire/src/api/index.ts"],
+      "@emdash/wire/component": ["../wire/src/component/index.ts"],
       "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
       "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire/worker": ["../wire/src/worker/index.ts"],

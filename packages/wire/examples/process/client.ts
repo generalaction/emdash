@@ -2,9 +2,11 @@ import { fileURLToPath } from 'node:url';
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { ReplicaState } from '../../src/index';
-import { createWireWorkerHost, type WireWorker } from '../../src/worker';
+import type { WireWorker } from '../../src/worker';
+import { createWireWorkerHost } from '../../src/worker';
 import { childProcessSpawner } from '../../src/worker/node';
-import { processExampleApi } from './contract';
+import { processExampleComponent } from './component';
+import type { processExampleApi } from './contract';
 
 async function main(): Promise<void> {
   const scope = createScope({ label: 'process-example' });
@@ -12,12 +14,11 @@ async function main(): Promise<void> {
     scope,
     processSpawner: childProcessSpawner(),
   });
-  const worker = host.define({
+  const worker = host.create(processExampleComponent, {
     name: 'process-example',
-    contract: processExampleApi,
-    process: () => ({
-      entry: fileURLToPath(new URL('./runtime.ts', import.meta.url)),
-    }),
+    executable: fileURLToPath(new URL('./runtime.ts', import.meta.url)),
+    dependencies: {},
+    config: {},
     supervision: {
       restart: 'on-failure',
       schedule: retrySchedules.sequence([50]),

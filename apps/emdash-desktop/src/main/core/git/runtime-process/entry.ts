@@ -1,7 +1,4 @@
-import { bootGitRuntimeProcess } from '@emdash/core/runtimes/git/node/process';
+import { gitComponent } from '@emdash/core/runtimes/git/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
 
-bootGitRuntimeProcess({
-  runtime: {
-    executable: process.env.EMDASH_GIT_EXECUTABLE,
-  },
-});
+void runWireComponentWorker(gitComponent);

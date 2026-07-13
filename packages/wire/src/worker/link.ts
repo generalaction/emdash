@@ -1,5 +1,6 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import { isWireMessage, WireError, type WireMessage, type WireTransport } from '../api/protocol';
+import { isWireWorkerFrame, RUNTIME_CHANNEL } from './component-protocol';
 import { isWorkerSignal } from './protocol';
 import type { ProcessExit, WorkerProcess } from './types';
 
@@ -7,6 +8,7 @@ type ActiveGeneration = {
   generation: number;
   process: WorkerProcess;
   ready: boolean;
+  readySignaled: boolean;
 };
 
 export class WorkerLink implements WireTransport {
@@ -23,6 +25,11 @@ export class WorkerLink implements WireTransport {
     if (this.closed || !active?.ready) {
       throw new WireError('DISCONNECTED', 'Wire worker is not ready');
     }
+    active.process.send({
+      kind: 'wire-worker-frame',
+      channel: RUNTIME_CHANNEL,
+      payload: message,
+    });
     active.process.send(message);
   }
 
@@ -42,16 +49,27 @@ export class WorkerLink implements WireTransport {
     return this.readyEmitter.subscribe(cb);
   }
 
+  hasReadySignal(generation: number): boolean {
+    return this.active?.generation === generation && this.active.readySignaled;
+  }
+
   attach(generation: number, process: WorkerProcess): void {
     if (this.closed) return;
-    this.active = { generation, process, ready: false };
+    this.active = { generation, process, ready: false, readySignaled: false };
   }
 
   handleMessage(generation: number, message: unknown): void {
     const active = this.active;
     if (!active || active.generation !== generation || this.closed) return;
     if (isWorkerSignal(message, 'ready')) {
+      active.readySignaled = true;
       this.readyEmitter.emit(generation);
+      return;
+    }
+    if (isWireWorkerFrame(message)) {
+      if (message.channel === RUNTIME_CHANNEL && isWireMessage(message.payload)) {
+        this.messageEmitter.emit(message.payload);
+      }
       return;
     }
     if (isWireMessage(message)) this.messageEmitter.emit(message);

@@ -1,3 +1,4 @@
-import { runFsWatchWorkerProcess } from '@emdash/core/services/fs-watch/worker';
+import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import { runWireComponentWorker } from '@emdash/wire/worker';
 
-runFsWatchWorkerProcess();
+void runWireComponentWorker(fsWatchComponent);

@@ -25,6 +25,10 @@
       "types": "./dist/api.d.mts",
       "default": "./dist/api.mjs"
     },
+    "./component": {
+      "types": "./dist/component.d.mts",
+      "default": "./dist/component.mjs"
+    },
     "./observability": {
       "types": "./dist/observability.d.mts",
       "default": "./dist/observability.mjs"

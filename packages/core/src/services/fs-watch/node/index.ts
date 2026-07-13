@@ -23,3 +23,5 @@ export function createNativeWatchService(
     onError: options.onError,
   });
 }
+
+export { fsWatchComponent, fsWatchComponentConfigSchema } from './component';

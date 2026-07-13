@@ -1,22 +1,4 @@
-import { createController, createLiveModelHost } from '../../src/index';
-import { serveWireWorker } from '../../src/worker';
-import { processExampleApi } from './contract';
+import { runWireComponentWorker } from '../../src/worker';
+import { processExampleComponent } from './component';
 
-const counters = createLiveModelHost(processExampleApi.counter);
-const counter = counters.create(undefined, { counter: { count: 0 } }).states.counter;
-
-void serveWireWorker(() =>
-  createController(processExampleApi, {
-    ping: (value) => `pong:${value}`,
-    increment: () => {
-      counter.produce((draft) => {
-        draft.count += 1;
-      });
-      return counter.snapshot().data.count;
-    },
-    crash: () => {
-      setTimeout(() => process.exit(1), 0);
-    },
-    counter: counters,
-  })
-);
+void runWireComponentWorker(processExampleComponent);

@@ -13,6 +13,7 @@ export default defineConfig({
       '@emdash/shared/util': resolve(__dirname, '../shared/src/util/index.ts'),
       '@emdash/shared/testing': resolve(__dirname, '../shared/src/testing/index.ts'),
       '@emdash/wire/api': resolve(__dirname, '../wire/src/api/index.ts'),
+      '@emdash/wire/component': resolve(__dirname, '../wire/src/component/index.ts'),
       '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),
       '@emdash/wire/util': resolve(__dirname, '../wire/src/util/index.ts'),
       '@emdash/wire/worker/node': resolve(__dirname, '../wire/src/worker/node/index.ts'),

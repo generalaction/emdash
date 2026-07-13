@@ -32,12 +32,15 @@ flowchart TB
     instrumentation[Instrumentation and logging]
   end
   subgraph workers [Wire workers]
+    component[WireComponent]
     workerHost[WireWorkerHost]
   end
   shared --> api --> live
   observability --> api
   observability --> live
+  component --> api
   workerHost --> api
+  workerHost --> component
 ```
 
 The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
@@ -46,8 +49,10 @@ replicas. Low-level `*Client` followers track cursors and resync, while
 materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
 client handles directly or wrap them in replicas. The API layer turns those
 primitives into a contract with typed procedure calls and live topic client
-handles. Worker hosting is Wire-specific because it serves Wire contracts across
-processes. Generic lifecycle, scheduling, concurrency, testing, and stable
+handles. `WireComponent` is the reusable contract implementation pattern: it
+declares explicit typed requirements, validates config at the creation boundary,
+and can be created in-process or hosted in a worker. Worker hosting is Wire-specific because it
+serves components across processes. Generic lifecycle, scheduling, concurrency, testing, and stable
 utility primitives live in `@emdash/shared` and are documented here where Wire
 uses them. Observability hooks are cross-cutting and can be attached to API,
 live, and worker surfaces.
@@ -101,8 +106,12 @@ live, and worker surfaces.
   - [Mailbox and Broadcast](./runtime/mailbox-and-broadcast.md): Shared bounded
     local async handoff, overflow policy, guarantees, and the deferred Broadcast
     contract.
+  - [Components](./runtime/components.md): `defineWireComponent()`, explicit
+    requirements, in-process creation, worker deployment, and non-DI composition
+    rules.
   - [Workers](./runtime/workers.md): `WireWorkerHost`, `WorkerSlot`,
-    one-generation spawners, child serving, and process-hosted contracts.
+    one-generation spawners, `runWireComponentWorker()`, and process-hosted
+    components.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -122,6 +131,8 @@ Use narrower subpath exports at app boundaries:
 
 - `@emdash/wire/live`: live primitives, live model hosts, and mutation settling.
 - `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
+- `@emdash/wire/component`: `defineWireComponent()`, requirement helpers, component
+  instance types, and explicit component composition types.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
 - `@emdash/wire/testing`: Wire test helpers such as `createTestWire()` and fake
@@ -131,8 +142,9 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
-- `@emdash/wire/worker`: `WireWorkerHost`, `WorkerSlot`, `serveWireWorker()`,
-  worker signal types, supervision types, and process contracts.
+- `@emdash/wire/worker`: `WireWorkerHost`, `WorkerSlot`,
+  `runWireComponentWorker()`, worker signal types, supervision types, and process
+  contracts.
 - `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
 - `@emdash/wire/worker/electron`: Electron utility-process spawners.
 
