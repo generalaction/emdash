@@ -17,7 +17,6 @@ import {
 const mocks = vi.hoisted(() => ({
   getProjectSshConnectionId: vi.fn(),
   setProviderOverride: vi.fn(),
-  chatUiFeature: true,
   editorText: '',
   editorApi: {
     focus: vi.fn(),
@@ -100,10 +99,6 @@ vi.mock('@renderer/lib/stores/use-agents', () => ({
       },
     ],
   }),
-}));
-
-vi.mock('@renderer/lib/hooks/useFeatureFlag', () => ({
-  useFeatureFlag: () => mocks.chatUiFeature,
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
