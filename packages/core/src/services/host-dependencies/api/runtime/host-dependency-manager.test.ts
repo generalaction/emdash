@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import type { IExecutionContext } from '@services/exec/api/execution-context';
+import type { IExecutionContext } from '@primitives/exec/api';
 import { describe, expect, it, vi } from 'vitest';
 import { HostDependencyManager } from './host-dependency-manager';
 import type { InstallMethodDetector } from './method-detection';

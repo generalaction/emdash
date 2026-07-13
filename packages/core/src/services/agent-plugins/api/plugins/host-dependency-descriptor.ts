@@ -1,9 +1,9 @@
-import type { CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import type {
   DependencyDescriptor,
   DependencyStatus,
   ProbeResult,
-} from '@services/host-dependencies/api/runtime';
+} from '@primitives/host-dependencies/api';
+import type { CLIAgentPluginProvider } from './index';
 
 function agentResolveStatus(result: ProbeResult): DependencyStatus {
   if (result.path !== null) return 'available';

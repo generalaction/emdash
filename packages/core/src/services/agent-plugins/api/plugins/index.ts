@@ -6,6 +6,7 @@ import {
   type CapabilityDescriptors,
   type ResolvedCapabilityDescriptors,
 } from '@emdash/shared/plugins';
+import { hostDependencyCapability } from '@primitives/host-dependencies/api';
 import { acpCapability } from '@services/agent-plugins/api/plugins/capabilities/acp';
 import { authCapability } from '@services/agent-plugins/api/plugins/capabilities/auth';
 import { autoApproveCapability } from '@services/agent-plugins/api/plugins/capabilities/auto-approve';
@@ -17,7 +18,6 @@ import { pluginsCapability } from '@services/agent-plugins/api/plugins/capabilit
 import { promptCapability } from '@services/agent-plugins/api/plugins/capabilities/prompt';
 import { sessionsCapability } from '@services/agent-plugins/api/plugins/capabilities/sessions';
 import { trustCapability } from '@services/agent-plugins/api/plugins/capabilities/trust';
-import { hostDependencyCapability } from '@services/host-dependencies/api/capability';
 import z from 'zod';
 
 export const PLUGIN_CAPABILITIES = {
@@ -110,7 +110,7 @@ export type {
   AgentAuthStatus,
   IAgentAuthBehavior,
 } from '@services/agent-plugins/api/plugins/capabilities/auth';
-export type { IHostDependencyBehavior } from '@services/host-dependencies/api/capability';
+export type { IHostDependencyBehavior } from '@primitives/host-dependencies/api';
 export type { IHooksBehavior } from '@services/agent-plugins/api/plugins/capabilities/hooks';
 export type {
   IMcpBehavior,
@@ -123,6 +123,7 @@ export type {
   TrustContext,
 } from '@services/agent-plugins/api/plugins/capabilities/trust';
 export { AgentPluginHost } from './plugin-host';
+export { buildDescriptorFromProvider } from './host-dependency-descriptor';
 export type {
   AgentHostAcpSpawn,
   AgentHostDeps,

@@ -1,6 +1,12 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate, type Scope } from '@emdash/wire/util';
+import type { IExecutionContext } from '@primitives/exec/api';
+import type {
+  DependencyDescriptor,
+  HostDependencyManagerPort,
+  Platform,
+} from '@primitives/host-dependencies/api';
 import type { PluginFs } from '@primitives/plugin-fs/api';
 import type {
   AcpSpawnResult,
@@ -22,9 +28,7 @@ import {
   type SpawnContextError,
   type SpawnContextResolver,
 } from '@services/agent-plugins/api/spawn-context';
-import type { IExecutionContext } from '@services/exec/api';
-import { buildDescriptorFromProvider } from '@services/host-dependencies/api/descriptor-from-provider';
-import { HostDependencyManager, type Platform } from '@services/host-dependencies/node';
+import { buildDescriptorFromProvider } from './host-dependency-descriptor';
 import type { CLIAgentPluginProvider } from './index';
 
 export type ResolvedAcpProvider = {
@@ -49,6 +53,7 @@ export type AgentHostDeps = {
   scope: Scope;
   registry: PluginRegistry<CLIAgentPluginProvider>;
   exec: IExecutionContext;
+  dependencies: HostDependencyManagerPort;
   fs: PluginFs;
   env: Record<string, string | undefined>;
   homeDir: string;
@@ -72,11 +77,11 @@ export type AgentHostAcpSpawn = AcpSpawnResult & {
 };
 
 export class AgentPluginHost {
-  readonly dependencies: HostDependencyManager;
+  readonly dependencies: HostDependencyManagerPort;
 
   private readonly scope: Scope;
   private readonly registry: PluginRegistry<CLIAgentPluginProvider>;
-  private readonly descriptors: ReturnType<typeof buildDescriptorFromProvider>[];
+  private readonly descriptors: DependencyDescriptor[];
   private readonly spawnContext: SpawnContextResolver;
   private readonly checkAuthStatusOnce: (
     providerId: string
@@ -86,12 +91,7 @@ export class AgentPluginHost {
     this.scope = deps.scope.child('agent-host');
     this.registry = deps.registry;
     this.descriptors = deps.registry.getAll().map(buildDescriptorFromProvider);
-    this.dependencies = new HostDependencyManager(deps.exec, {
-      platform: deps.platform,
-      dependencies: this.descriptors,
-      getDependencyDescriptor: (id) => this.descriptors.find((descriptor) => descriptor.id === id),
-      logger: this.scope.log,
-    });
+    this.dependencies = deps.dependencies;
     this.scope.use(deps.exec);
     this.spawnContext = createSpawnContextResolver({
       resolveCli: (providerId) => this.resolveCli(providerId),

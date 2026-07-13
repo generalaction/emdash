@@ -1,6 +1,9 @@
 export type {
+  AttachmentRef,
   EnrichHook,
   NormalizedDiff,
   NormalizedEvent,
   NormalizedToolStatus,
-} from '@primitives/acp-transcript/api';
+  PlanEntryInput,
+  SessionUsage,
+} from './normalized-event';

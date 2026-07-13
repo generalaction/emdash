@@ -18,7 +18,7 @@ import type {
   SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { EnrichHook } from '@runtimes/acp/api/reducer/normalized-event';
+import type { EnrichHook } from '@primitives/acp-transcript/api';
 import z from 'zod';
 
 export type AcpSpawnContext = {

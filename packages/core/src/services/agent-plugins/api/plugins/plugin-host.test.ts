@@ -7,7 +7,8 @@ import type {
   AgentCommand,
   CommandContext,
 } from '@services/agent-plugins/api/plugins/capabilities/prompt';
-import type { IExecutionContext } from '@services/exec/api';
+import type { IExecutionContext } from '@primitives/exec/api';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
 
@@ -202,10 +203,36 @@ function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
     scope: createScope({ label: 'test' }),
     registry,
     exec: fakeExec(),
+    dependencies: fakeDependencies(),
     fs: memoryFs(),
     env: { HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' },
     homeDir: '/home/test',
   });
+}
+
+function fakeDependencies(): HostDependencyManagerPort {
+  const state = {
+    id: 'test',
+    category: 'agent' as const,
+    status: 'available' as const,
+    version: null,
+    path: 'test',
+    checkedAt: 0,
+  };
+  return {
+    platform: 'linux',
+    onStatusUpdated: { subscribe: () => () => {} },
+    initialize() {},
+    getAll: () => new Map([[state.id, state]]),
+    get: () => state,
+    getByCategory: () => [state],
+    getHostDependency: () => undefined,
+    probe: async () => state,
+    probeCategory: async () => {},
+    getInstallOptions: () => [],
+    install: async () => ({ success: true, data: state }),
+    uninstall: async () => ({ success: true, data: { ...state, status: 'missing', path: null } }),
+  } as unknown as HostDependencyManagerPort;
 }
 
 function plugin(

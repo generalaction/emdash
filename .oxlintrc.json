@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["eslint", "typescript", "react"],
-  "jsPlugins": ["./tooling/oxlint-plugin.js"],
+  "jsPlugins": ["./tooling/oxlint/index.js"],
   "env": {
     "browser": true,
     "node": true,
@@ -45,7 +45,8 @@
     "typescript/no-redundant-type-constituents": "off",
     "typescript/no-useless-default-assignment": "off",
     "typescript/restrict-template-expressions": "off",
-    "typescript/unbound-method": "off"
+    "typescript/unbound-method": "off",
+    "emdash/core-module-boundaries": "error"
   },
   "overrides": [
     {

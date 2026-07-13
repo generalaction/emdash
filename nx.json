@@ -8,6 +8,7 @@
     "sharedGlobals": [
       "{workspaceRoot}/.oxlintrc.json",
       "{workspaceRoot}/.oxfmtrc.json",
+      "{workspaceRoot}/tooling/oxlint/**/*",
       "{workspaceRoot}/pnpm-lock.yaml"
     ]
   },

@@ -1,5 +1,22 @@
-import type { McpServerRegistration } from '@services/agent-plugins/api/plugins';
 import type { McpServer } from './schemas';
+
+export type McpTransport = 'stdio' | 'http';
+
+export type McpServerRegistration = {
+  name: string;
+  transport?: McpTransport;
+  type?: string;
+  command?: string;
+  args?: string[];
+  url?: string;
+  headers?: Record<string, string>;
+  env?: Record<string, string>;
+  enabled?: boolean;
+  cwd?: string;
+  timeout?: number;
+  oauth?: Record<string, unknown> | false;
+  [key: string]: unknown;
+};
 
 /** Convert a plugin registration to the canonical Emdash McpServer shape. */
 export function registrationToMcpServer(

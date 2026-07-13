@@ -37,6 +37,18 @@
       "types": "./dist/primitives-mcp-api.d.mts",
       "default": "./dist/primitives-mcp-api.mjs"
     },
+    "./primitives/acp-transcript/api": {
+      "types": "./dist/primitives-acp-transcript-api.d.mts",
+      "default": "./dist/primitives-acp-transcript-api.mjs"
+    },
+    "./primitives/exec/api": {
+      "types": "./dist/primitives-exec-api.d.mts",
+      "default": "./dist/primitives-exec-api.mjs"
+    },
+    "./primitives/host-dependencies/api": {
+      "types": "./dist/primitives-host-dependencies-api.d.mts",
+      "default": "./dist/primitives-host-dependencies-api.mjs"
+    },
     "./primitives/agent-env/api": {
       "types": "./dist/primitives-agent-env-api.d.mts",
       "default": "./dist/primitives-agent-env-api.mjs"

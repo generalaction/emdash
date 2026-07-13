@@ -60,10 +60,11 @@ A service may:
 - own a bounded resource or lifecycle;
 - provide a swappable port with Node or browser implementations;
 - expose a Wire contract when it must run out of process; and
-- depend on primitives and lower-level services.
+- depend on primitives.
 
-A service must not depend on a runtime. Service-to-service dependencies must remain acyclic,
-explicit, and injected rather than resolved through global registries.
+A service must not depend on a runtime or another service. Shared contracts, vocabulary, and
+portable ports that need to cross service boundaries belong in primitives. Concrete service
+implementations are composed by a runtime or host.
 
 Examples include filesystem watching, PTY management, host dependency detection, and other
 cross-domain host capabilities.
@@ -197,8 +198,7 @@ The allowed dependency direction is:
 flowchart BT
   PrimitiveA[Primitive] --> PrimitiveB[Lower-level primitive]
   Service[Service] --> PrimitiveA
-  ServiceHigh[Higher-level service] --> Service
-  Runtime[Runtime] --> ServiceHigh
+  Runtime[Runtime] --> Service
   Runtime --> PrimitiveA
   Host[Desktop or workspace-server host] --> Runtime
 ```
@@ -215,8 +215,8 @@ Across modules:
 
 - runtimes may import services and primitives;
 - runtimes may not import other runtimes;
-- services may import primitives and explicitly lower-level services;
-- services may not import runtimes;
+- services may import primitives only;
+- services may not import runtimes or other services;
 - primitives may import only primitives;
 - `browser/` may not import `node/`; and
 - `api/` may not import either platform surface.

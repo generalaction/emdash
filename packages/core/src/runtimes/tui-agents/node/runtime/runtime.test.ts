@@ -6,6 +6,7 @@ import {
   tuiNotificationListSchema,
   tuiSessionListSchema,
 } from '@runtimes/tui-agents/api';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';
 import {
   AgentPluginHost,
@@ -244,6 +245,7 @@ function createHarness(
     scope: createScope({ label: 'test-tui', logger }),
     registry,
     exec: fakeExec(),
+    dependencies: fakeDependencies('agent'),
     fs: fakePluginFs(),
     env: { HOME: '/home/test', PATH: '/bin' },
     homeDir: '/home/test',
@@ -254,6 +256,31 @@ function createHarness(
     logger,
   };
   return { runtime: new TuiAgentsRuntime(deps), spawner };
+}
+
+function fakeDependencies(path: string): HostDependencyManagerPort {
+  const state = {
+    id: 'test',
+    category: 'agent' as const,
+    status: 'available' as const,
+    version: null,
+    path,
+    checkedAt: 0,
+  };
+  return {
+    platform: 'linux',
+    onStatusUpdated: { subscribe: () => () => {} },
+    initialize() {},
+    getAll: () => new Map([[state.id, state]]),
+    get: () => state,
+    getByCategory: () => [state],
+    getHostDependency: () => undefined,
+    probe: async () => state,
+    probeCategory: async () => {},
+    getInstallOptions: () => [],
+    install: async () => ({ success: true, data: state }),
+    uninstall: async () => ({ success: true, data: { ...state, status: 'missing', path: null } }),
+  } as unknown as HostDependencyManagerPort;
 }
 
 function startInput(

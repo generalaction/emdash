@@ -10,8 +10,13 @@ import type {
   McpServerRegistration,
   PluginFs,
 } from '@services/agent-plugins/api/plugins';
-import { AgentPluginHost, createPluginRegistry } from '@services/agent-plugins/api/plugins';
+import {
+  AgentPluginHost,
+  buildDescriptorFromProvider,
+  createPluginRegistry,
+} from '@services/agent-plugins/api/plugins';
 import type { ExecContextOptions, IExecutionContext } from '@services/exec/api';
+import { HostDependencyManager } from '@services/host-dependencies/node';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentConfigRuntime } from './runtime';
@@ -393,10 +398,18 @@ function makeRuntime(
   } as unknown as CLIAgentPluginProvider);
   const logger = options.logger ?? noopLogger;
   const scope = createScope({ label: 'test-agent-config', logger });
+  const dependencyDescriptors = registry.getAll().map(buildDescriptorFromProvider);
+  const dependencyManager = new HostDependencyManager(exec, {
+    dependencies: dependencyDescriptors,
+    getDependencyDescriptor: (id) =>
+      dependencyDescriptors.find((descriptor) => descriptor.id === id),
+    logger,
+  });
   const agentHost = new AgentPluginHost({
     scope,
     registry,
     exec,
+    dependencies: dependencyManager,
     fs,
     env: {
       PATH: '/bin',

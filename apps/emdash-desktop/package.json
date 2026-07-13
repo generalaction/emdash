@@ -43,7 +43,7 @@
     "run:docker-ssh": "docker compose up --build -d",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
-    "lint": "oxlint .",
+    "lint": "node --test ../../tooling/oxlint/rules/*.test.js && oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"

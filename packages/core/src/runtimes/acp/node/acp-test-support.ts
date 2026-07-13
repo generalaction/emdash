@@ -19,6 +19,7 @@ import type {
 } from '@runtimes/acp/api';
 import type { AgentTerminalHooks } from '@runtimes/acp/node/agent-ports/terminal-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from '@runtimes/acp/node/runtime/types';
+import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
 import {
   AgentPluginHost,
   createPluginRegistry,
@@ -339,10 +340,36 @@ export function testPluginHost(
     scope: createScope({ label: 'test-acp' }),
     registry,
     exec: fakeExec(),
+    dependencies: fakeDependencies(providerId),
     fs: fakePluginFs(),
     env: { PATH: '/bin', HOME: '/home/test' },
     homeDir: '/home/test',
   });
+}
+
+function fakeDependencies(providerId: string): HostDependencyManagerPort {
+  const state = {
+    id: providerId,
+    category: 'agent' as const,
+    status: 'available' as const,
+    version: null,
+    path: providerId,
+    checkedAt: 0,
+  };
+  return {
+    platform: 'linux',
+    onStatusUpdated: { subscribe: () => () => {} },
+    initialize() {},
+    getAll: () => new Map([[state.id, state]]),
+    get: () => state,
+    getByCategory: () => [state],
+    getHostDependency: () => undefined,
+    probe: async () => state,
+    probeCategory: async () => {},
+    getInstallOptions: () => [],
+    install: async () => ({ success: true, data: state }),
+    uninstall: async () => ({ success: true, data: { ...state, status: 'missing', path: null } }),
+  } as unknown as HostDependencyManagerPort;
 }
 
 export function makeAcpHarness(options: AcpHarnessOptions = {}) {

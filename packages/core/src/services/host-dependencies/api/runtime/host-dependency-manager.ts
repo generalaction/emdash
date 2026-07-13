@@ -1,7 +1,7 @@
 import { Emitter, err, ok, type Result } from '@emdash/shared';
 import { log as consoleLogger, type Logger } from '@emdash/shared/logger';
-import type { IExecutionContext } from '@services/exec/api/execution-context';
-import type { InstallMethod, Platform } from '@services/host-dependencies/api/capability';
+import type { IExecutionContext } from '@primitives/exec/api';
+import type { InstallMethod, Platform } from '@primitives/host-dependencies/api';
 import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
 import { createInstallMethodDetector, type InstallMethodDetector } from './method-detection';
 import {

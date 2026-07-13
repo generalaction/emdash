@@ -14,8 +14,8 @@ import {
   type DependencyInstallError,
   type DependencyState,
   type DependencyUninstallError,
-  type HostDependencyManager,
-} from '@services/host-dependencies/node';
+  type HostDependencyManagerPort,
+} from '@primitives/host-dependencies/api';
 import type { AgentConfigRuntimeDeps } from './types';
 
 type InstallStrategy =
@@ -26,7 +26,7 @@ type UninstallStrategy =
   | { kind: 'custom'; command: string };
 
 export class AgentInstallManager {
-  private readonly manager: HostDependencyManager;
+  private readonly manager: HostDependencyManagerPort;
   private readonly providersById: Map<
     string,
     ReturnType<AgentConfigRuntimeDeps['agentHost']['getAll']>[number]

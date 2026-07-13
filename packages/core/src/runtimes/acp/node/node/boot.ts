@@ -8,9 +8,14 @@ import { acpApiContract } from '@runtimes/acp/api';
 import { createAcpController } from '@runtimes/acp/node/api/controller';
 import { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
 import type { AcpRuntimeDeps } from '@runtimes/acp/node/runtime/types';
-import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
+import {
+  AgentPluginHost,
+  buildDescriptorFromProvider,
+  type CLIAgentPluginProvider,
+} from '@services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
 import { NodeExecutionContext } from '@services/exec/api';
+import { HostDependencyManager } from '@services/host-dependencies/node';
 import { ChildAcpProcessHost } from './child-process-host';
 import { LocalAttachmentStore } from './local-attachment-store';
 
@@ -35,10 +40,19 @@ export function bootAcpRuntimeProcess(options: BootAcpRuntimeProcessOptions): vo
       const childHost = new ChildAcpProcessHost();
       const attachmentStore = new LocalAttachmentStore(attachmentsDir);
       const homeDir = os.homedir();
+      const exec = new NodeExecutionContext({ env });
+      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+      const dependencyManager = new HostDependencyManager(exec, {
+        dependencies: dependencyDescriptors,
+        getDependencyDescriptor: (id) =>
+          dependencyDescriptors.find((descriptor) => descriptor.id === id),
+        logger: scope.log,
+      });
       const agentHost = new AgentPluginHost({
         scope,
         registry: options.pluginRegistry,
-        exec: new NodeExecutionContext({ env }),
+        exec,
+        dependencies: dependencyManager,
         fs: createLocalPluginFs(homeDir),
         env,
         homeDir,

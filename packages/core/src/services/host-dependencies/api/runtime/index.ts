@@ -49,4 +49,3 @@ export {
   resolveRealpath,
   runVersionProbe,
 } from './probe';
-export { buildDescriptorFromProvider } from '@services/host-dependencies/api/descriptor-from-provider';

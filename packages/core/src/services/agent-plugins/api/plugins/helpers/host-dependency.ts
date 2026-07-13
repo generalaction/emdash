@@ -2,7 +2,7 @@ import type {
   HostDependencyDescriptor,
   InstallOption,
   Platform,
-} from '@services/host-dependencies/api/capability';
+} from '@primitives/host-dependencies/api';
 
 /** Build a single homebrew InstallOption fragment — composable via npmDependency extraOptions. */
 export function homebrewOption(opts: {

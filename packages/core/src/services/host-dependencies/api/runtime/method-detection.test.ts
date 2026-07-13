@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@services/exec/api/execution-context';
+import type { IExecutionContext } from '@primitives/exec/api';
 import { describe, expect, it } from 'vitest';
 import { createInstallMethodDetector } from './method-detection';
 import type { Provenance } from './types';

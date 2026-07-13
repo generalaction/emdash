@@ -1,5 +1,5 @@
-import type { IExecutionContext } from '@services/exec/api/execution-context';
-import type { Platform } from '@services/host-dependencies/api/capability';
+import type { IExecutionContext } from '@primitives/exec/api';
+import type { Platform } from '@primitives/host-dependencies/api';
 import { toPlatform } from './install-options';
 import type { ProbeResult } from './types';
 
