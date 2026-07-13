@@ -124,12 +124,7 @@ export class AgentSkillsManager {
       }
       const targets = payload.targets ?? { mode: 'all' };
       await setSkillTargets(this.deps.agentHost.fs, installId, targets);
-      await this.reconcileSkillMirrors(
-        installId,
-        frontmatter.name || installId,
-        payload.skillMdContent,
-        targets
-      );
+      await this.reconcileSkillMirrors(installId, frontmatter.name || installId, targets);
       return ok(await this.refresh());
     } catch (error) {
       if (canonicalCreated) {
@@ -194,7 +189,7 @@ export class AgentSkillsManager {
       canonicalCreated = true;
       const targets = input.targets ?? { mode: 'all' };
       await setSkillTargets(this.deps.agentHost.fs, input.name, targets);
-      await this.reconcileSkillMirrors(input.name, input.name, skillContent, targets);
+      await this.reconcileSkillMirrors(input.name, input.name, targets);
       return ok(await this.refresh());
     } catch (error) {
       if (canonicalCreated) {
@@ -226,18 +221,12 @@ export class AgentSkillsManager {
       const previousTargets = await getSkillTargets(this.deps.agentHost.fs, installName);
       await setSkillTargets(this.deps.agentHost.fs, installName, targets);
       try {
-        await this.reconcileSkillMirrors(
-          installName,
-          frontmatter.name || installName,
-          content,
-          targets
-        );
+        await this.reconcileSkillMirrors(installName, frontmatter.name || installName, targets);
       } catch (error) {
         await setSkillTargets(this.deps.agentHost.fs, installName, previousTargets);
         await this.reconcileSkillMirrors(
           installName,
           frontmatter.name || installName,
-          content,
           previousTargets
         ).catch((rollbackError) => {
           this.deps.logger.warn(`Failed to restore mirrors for skill "${installName}"`, {
@@ -266,12 +255,7 @@ export class AgentSkillsManager {
         if (!content) continue;
         const { frontmatter } = parseFrontmatter(content);
         const targets = await getSkillTargets(this.deps.agentHost.fs, installName);
-        await this.reconcileSkillMirrors(
-          installName,
-          frontmatter.name || installName,
-          content,
-          targets
-        );
+        await this.reconcileSkillMirrors(installName, frontmatter.name || installName, targets);
       } catch (error) {
         this.deps.logger.warn(`Failed to mirror canonical skill "${installName}"`, { error });
       }
@@ -281,7 +265,6 @@ export class AgentSkillsManager {
   private async reconcileSkillMirrors(
     installName: string,
     frontmatterName: string,
-    content: string,
     selection: SkillTargetSelection
   ): Promise<void> {
     const targets =
@@ -304,8 +287,8 @@ export class AgentSkillsManager {
         relativeDir,
         installName,
         frontmatterName,
-        content,
         canonicalPath: `${this.deps.agentHost.homeDir}/${SKILLS_ROOT}/${installName}`,
+        canonicalDir: `${SKILLS_ROOT}/${installName}`,
       });
       if (!mirrored) {
         throw new Error(

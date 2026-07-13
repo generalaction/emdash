@@ -30,15 +30,15 @@ describe('skill mirrors', () => {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath,
+      canonicalDir: '.agentskills/reviewer',
     });
     await mirrorSkill(pluginFs, {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath,
+      canonicalDir: '.agentskills/reviewer',
     });
 
     expect(mirrored).toBe('reviewer');
@@ -62,8 +62,8 @@ describe('skill mirrors', () => {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
+      canonicalDir: '.agentskills/reviewer',
     });
     await removeSkillMirrors(pluginFs, {
       relativeDir: '.claude/skills',
@@ -86,8 +86,8 @@ describe('skill mirrors', () => {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
+      canonicalDir: '.agentskills/reviewer',
     });
     await removeSkillMirrors(pluginFs, {
       relativeDir: '.claude/skills',
@@ -102,19 +102,40 @@ describe('skill mirrors', () => {
 
   it('uses an ownership-marked copy when requested', async () => {
     const pluginFs = createLocalPluginFs(homeDir);
+    await pluginFs.write('.agentskills/reviewer/SKILL.md', content);
+    await pluginFs.write('.agentskills/reviewer/scripts/review.sh', '#!/bin/sh\necho review\n');
 
     await mirrorSkill(pluginFs, {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
+      canonicalDir: '.agentskills/reviewer',
       mode: 'copy',
     });
 
     expect(await pluginFs.read('.claude/skills/reviewer/SKILL.md')).toBe(content);
+    expect(await pluginFs.read('.claude/skills/reviewer/scripts/review.sh')).toBe(
+      '#!/bin/sh\necho review\n'
+    );
     expect(await pluginFs.read('.claude/skills/reviewer/.emdash-managed.json')).toContain(
       '"managedBy": "emdash"'
+    );
+
+    await pluginFs.delete('.agentskills/reviewer/scripts');
+    await pluginFs.write('.agentskills/reviewer/prompts/review.md', 'Review carefully');
+    await mirrorSkill(pluginFs, {
+      relativeDir: '.claude/skills',
+      installName: 'reviewer',
+      frontmatterName: 'reviewer',
+      canonicalPath: path.join(homeDir, '.agentskills/reviewer'),
+      canonicalDir: '.agentskills/reviewer',
+      mode: 'copy',
+    });
+
+    expect(await pluginFs.read('.claude/skills/reviewer/scripts/review.sh')).toBeNull();
+    expect(await pluginFs.read('.claude/skills/reviewer/prompts/review.md')).toBe(
+      'Review carefully'
     );
 
     await removeSkillMirrors(pluginFs, {
@@ -137,8 +158,8 @@ describe('skill mirrors', () => {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath,
+      canonicalDir: '.agentskills/reviewer',
     });
 
     expect(mirrored).toBe('reviewer');
@@ -159,8 +180,8 @@ describe('skill mirrors', () => {
       relativeDir: '.claude/skills',
       installName: 'reviewer',
       frontmatterName: 'reviewer',
-      content,
       canonicalPath,
+      canonicalDir: '.agentskills/reviewer',
     });
 
     expect(mirrored).toBeNull();

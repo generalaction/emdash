@@ -427,7 +427,7 @@ export class SkillsService {
       const { frontmatter } = parseFrontmatter(content);
       frontmatterName = frontmatter.name || installName;
       await setSkillTargets(createPluginFs(this.homeDir), installName, targets);
-      await this.reconcileSkillMirrors(installName, frontmatterName, content, targets);
+      await this.reconcileSkillMirrors(installName, frontmatterName, targets);
 
       // Invalidate cache
       this.catalogCache = null;
@@ -517,7 +517,7 @@ export class SkillsService {
 
     await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent);
     await setSkillTargets(createPluginFs(this.homeDir), name, targets);
-    await this.reconcileSkillMirrors(name, name, skillContent, targets);
+    await this.reconcileSkillMirrors(name, name, targets);
 
     // Invalidate cache
     this.catalogCache = null;
@@ -576,12 +576,7 @@ export class SkillsService {
       finalDirCreated = true;
 
       await setSkillTargets(createPluginFs(this.homeDir), installName, targets);
-      await this.reconcileSkillMirrors(
-        installName,
-        frontmatter.name || installName,
-        content,
-        targets
-      );
+      await this.reconcileSkillMirrors(installName, frontmatter.name || installName, targets);
 
       // Invalidate cache
       this.catalogCache = null;
@@ -625,18 +620,12 @@ export class SkillsService {
     const previousTargets = await getSkillTargets(pluginFs, installName);
     await setSkillTargets(pluginFs, installName, targets);
     try {
-      await this.reconcileSkillMirrors(
-        installName,
-        frontmatter.name || installName,
-        content,
-        targets
-      );
+      await this.reconcileSkillMirrors(installName, frontmatter.name || installName, targets);
     } catch (error) {
       await setSkillTargets(pluginFs, installName, previousTargets);
       await this.reconcileSkillMirrors(
         installName,
         frontmatter.name || installName,
-        content,
         previousTargets
       ).catch((rollbackError) => {
         log.warn(`Failed to restore mirrors for skill "${installName}"`, rollbackError);
@@ -747,12 +736,7 @@ export class SkillsService {
         );
         const { frontmatter } = parseFrontmatter(content);
         const targets = await getSkillTargets(createPluginFs(this.homeDir), entry.name);
-        await this.reconcileSkillMirrors(
-          entry.name,
-          frontmatter.name || entry.name,
-          content,
-          targets
-        );
+        await this.reconcileSkillMirrors(entry.name, frontmatter.name || entry.name, targets);
       } catch (error) {
         log.warn(`Failed to mirror canonical skill "${entry.name}"`, error);
       }
@@ -762,7 +746,6 @@ export class SkillsService {
   private async reconcileSkillMirrors(
     installName: string,
     frontmatterName: string,
-    content: string,
     selection: SkillTargetSelection
   ): Promise<void> {
     const pluginFs = createPluginFs(this.homeDir);
@@ -790,8 +773,8 @@ export class SkillsService {
           relativeDir,
           installName,
           frontmatterName,
-          content,
           canonicalPath,
+          canonicalDir: `${EMDASH_SKILLS_DIR}/${installName}`,
         });
         if (!mirrored) {
           throw new Error(

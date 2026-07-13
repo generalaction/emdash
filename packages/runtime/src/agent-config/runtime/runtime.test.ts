@@ -133,6 +133,17 @@ class MemoryPluginFs implements PluginFs {
     }
     return [...entries].sort();
   }
+
+  async copyDirectory(sourcePath: string, targetPath: string): Promise<boolean> {
+    if (await this.exists(targetPath)) return false;
+    const sourcePrefix = `${sourcePath}/`;
+    for (const [path, content] of [...this.files.entries()]) {
+      if (path.startsWith(sourcePrefix)) {
+        this.files.set(`${targetPath}/${path.slice(sourcePrefix.length)}`, content);
+      }
+    }
+    return true;
+  }
 }
 
 describe('AgentConfigRuntime', () => {
@@ -198,6 +209,25 @@ describe('AgentConfigRuntime', () => {
     const removed = await runtime.removeSkill('reviewer');
     expect(removed).toEqual(ok([]));
     expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
+    await runtime.dispose();
+  });
+
+  it('copies supporting files when symlinks are unavailable', async () => {
+    const { runtime, fs } = makeRuntime();
+    await fs.write('.claude/settings.json', '{}');
+    await runtime.createSkill({
+      name: 'reviewer',
+      description: 'Review changes',
+      targets: { mode: 'providers', providerIds: [] },
+    });
+    await fs.write('.agentskills/reviewer/scripts/review.sh', '#!/bin/sh\necho review\n');
+
+    const synced = await runtime.setSkillTargets('reviewer', { mode: 'all' });
+
+    expect(synced.success).toBe(true);
+    expect(await fs.read('.claude/skills/reviewer/scripts/review.sh')).toBe(
+      '#!/bin/sh\necho review\n'
+    );
     await runtime.dispose();
   });
 

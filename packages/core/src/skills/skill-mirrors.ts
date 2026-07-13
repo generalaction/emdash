@@ -10,8 +10,8 @@ export type MirrorSkillOptions = {
   relativeDir: string;
   installName: string;
   frontmatterName: string;
-  content: string;
   canonicalPath: string;
+  canonicalDir: string;
   mode?: SkillMirrorMode;
 };
 
@@ -103,13 +103,23 @@ async function writeManagedCopy(
   fs: PluginFs,
   mirrorPath: string,
   installName: string,
-  content: string
-): Promise<void> {
-  await fs.write(joinPath(mirrorPath, 'SKILL.md'), content);
-  await fs.write(
-    joinPath(mirrorPath, MANAGED_MARKER),
-    `${JSON.stringify({ managedBy: 'emdash', installName }, null, 2)}\n`
-  );
+  canonicalDir: string
+): Promise<boolean> {
+  if (!fs.copyDirectory) {
+    throw new Error('Plugin fs does not support directory copies');
+  }
+  const copied = await fs.copyDirectory(canonicalDir, mirrorPath);
+  if (!copied) return false;
+  try {
+    await fs.write(
+      joinPath(mirrorPath, MANAGED_MARKER),
+      `${JSON.stringify({ managedBy: 'emdash', installName }, null, 2)}\n`
+    );
+    return true;
+  } catch (error) {
+    await fs.delete(mirrorPath).catch(() => {});
+    throw error;
+  }
 }
 
 export async function mirrorSkill(
@@ -124,14 +134,6 @@ export async function mirrorSkill(
     currentTarget !== null &&
     normalizePath(currentTarget) === normalizePath(options.canonicalPath) &&
     fs.symlink
-  ) {
-    return mirrorName;
-  }
-  if (
-    currentTarget === null &&
-    (options.mode === 'copy' || !fs.symlink) &&
-    (await isManagedCopy(fs, mirrorPath, options.installName)) &&
-    (await fs.read(joinPath(mirrorPath, 'SKILL.md'))) === options.content
   ) {
     return mirrorName;
   }
@@ -150,8 +152,9 @@ export async function mirrorSkill(
     }
   }
 
-  await writeManagedCopy(fs, mirrorPath, options.installName, options.content);
-  return mirrorName;
+  return (await writeManagedCopy(fs, mirrorPath, options.installName, options.canonicalDir))
+    ? mirrorName
+    : null;
 }
 
 export async function removeSkillMirrors(

@@ -57,6 +57,32 @@ export function createLocalPluginFs(root: string): PluginFs {
       }
     },
 
+    async copyDirectory(sourcePath: string, targetPath: string): Promise<boolean> {
+      const source = resolveSafe(sourcePath);
+      const target = resolveSafe(targetPath);
+      await fs.mkdir(dirname(target), { recursive: true });
+      try {
+        await fs.mkdir(target);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+        throw error;
+      }
+      try {
+        for (const entry of await fs.readdir(source)) {
+          await fs.cp(join(source, entry), join(target, entry), {
+            recursive: true,
+            dereference: false,
+            preserveTimestamps: true,
+            verbatimSymlinks: true,
+          });
+        }
+        return true;
+      } catch (error) {
+        await fs.rm(target, { force: true, recursive: true }).catch(() => {});
+        throw error;
+      }
+    },
+
     async symlink(target: string, linkPath: string): Promise<void> {
       const absLinkPath = resolveSafe(linkPath);
       await fs.mkdir(dirname(absLinkPath), { recursive: true });

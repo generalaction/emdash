@@ -83,15 +83,21 @@ export class SshExecutionContext implements IExecutionContext {
           stderr += d.toString('utf-8');
         });
 
-        stream.on('close', (code: number | null) => {
+        stream.on('close', (code: number | null | undefined, signal?: string) => {
           combined.removeEventListener('abort', onAbort);
           if (settled) return;
           settled = true;
-          if ((code ?? 0) === 0) {
+          if (code === 0) {
             resolve({ stdout, stderr });
           } else {
+            const fallbackMessage =
+              code === null
+                ? `Process terminated by signal ${signal ?? 'unknown'}`
+                : code === undefined
+                  ? 'SSH process closed without exit status'
+                  : `Process exited with code ${code}`;
             reject(
-              Object.assign(new Error(stderr || `Process exited with code ${code}`), {
+              Object.assign(new Error(stderr || fallbackMessage), {
                 stdout,
                 stderr,
               })
