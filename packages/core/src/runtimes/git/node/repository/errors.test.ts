@@ -34,6 +34,35 @@ describe('repository failures', () => {
     ).toMatchObject({ success: false, error: { type: 'not_found', prNumber: 42 } });
   });
 
+  it.each([
+    'error: fetching ref refs/remotes/origin/main failed: incorrect old value provided',
+    "cannot lock ref 'refs/remotes/origin/main': is at bbbb but expected aaaa",
+  ])('classifies stale ref updates at the Git process boundary: %s', (stderr) => {
+    expect(repositoryFailures.fetch(execError(stderr), 'origin')).toEqual({
+      success: false,
+      error: {
+        type: 'git_error',
+        code: 'stale_ref_update',
+        message: stderr,
+        stderr,
+      },
+    });
+  });
+
+  it('keeps unrelated lock-file failures as generic Git errors', () => {
+    const stderr =
+      "cannot lock ref 'refs/remotes/origin/main': Unable to create 'main.lock': File exists";
+
+    expect(repositoryFailures.fetch(execError(stderr), 'origin')).toEqual({
+      success: false,
+      error: {
+        type: 'git_error',
+        message: stderr,
+        stderr,
+      },
+    });
+  });
+
   it('rethrows failures that did not come from Git execution', () => {
     const bug = new TypeError('classifier bug');
     expect(() => repositoryFailures.fetch(bug, 'origin')).toThrow(bug);

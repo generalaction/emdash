@@ -23,6 +23,14 @@ export const gitErr = {
   commandFailed(message: string, stderr?: string): Err<GitExecError> {
     return failure({ type: 'git_error', message, ...(stderr ? { stderr } : {}) });
   },
+  staleRefUpdate(message: string, stderr?: string): Err<GitExecError> {
+    return failure({
+      type: 'git_error',
+      code: 'stale_ref_update',
+      message,
+      ...(stderr ? { stderr } : {}),
+    });
+  },
   resolutionFailed(path: HostAbsolutePath, message: string): Err<GitResolutionError> {
     return failure({ type: 'resolution_failed', path, message });
   },

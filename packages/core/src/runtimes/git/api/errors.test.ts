@@ -25,6 +25,22 @@ describe('gitErr', () => {
     expect(gitCommandErrorSchema.parse(result.error)).toEqual(result.error);
   });
 
+  it('constructs stale ref updates as typed Git execution failures', () => {
+    const result = gitErr.staleRefUpdate(
+      "cannot lock ref 'refs/remotes/origin/main': is at bbbb but expected aaaa"
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'git_error',
+        code: 'stale_ref_update',
+        message: "cannot lock ref 'refs/remotes/origin/main': is at bbbb but expected aaaa",
+      },
+    });
+    expect(gitCommandErrorSchema.parse(result.error)).toEqual(result.error);
+  });
+
   it('constructs operation-specific not-found failures without conflating their shapes', () => {
     const pullRequest = gitErr.prNotFound(42, 'pull request not found').error;
     const branch = gitErr.branchNotFound('topic', 'branch not found').error;

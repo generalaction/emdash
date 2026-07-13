@@ -37,7 +37,13 @@ describe('compileBootstrapPlan', () => {
 
     expect(compiled.workspacePath).toBe('/repo-worktrees/task-branch');
     expect(compiled.plan.steps.map((entry) => entry.step)).toEqual([
-      { kind: 'git-fetch', args: { remote: 'origin' } },
+      {
+        kind: 'git-fetch',
+        args: {
+          remote: 'origin',
+          refspec: '+refs/heads/main:refs/remotes/origin/main',
+        },
+      },
       {
         kind: 'create-local-branch',
         args: { branchName: 'task-branch', fromRef: 'origin/main', noTrack: true },

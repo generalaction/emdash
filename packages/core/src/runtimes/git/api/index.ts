@@ -44,6 +44,7 @@ export type {
   FetchPrForReviewError,
   GitCommandError,
   GitExecError,
+  GitExecErrorCode,
   GitOperationError,
   GitResolutionError,
   MergeError,

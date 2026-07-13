@@ -36,10 +36,12 @@ export async function execute(
       return ok({});
     }
   }
+  const code = fetched.error.type === 'git_error' ? fetched.error.code : undefined;
   return err({
     type: 'fetch-failed',
     remote,
     refspec,
+    ...(code ? { code } : {}),
     message: gitErrorMessage(fetched.error),
   });
 }

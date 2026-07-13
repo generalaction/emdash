@@ -42,6 +42,9 @@ export const repositoryFailures = {
   fetch(error: unknown, remote: string | undefined): Err<FetchError> {
     const failure = gitFailure(error);
     const message = failure.message.toLowerCase();
+    if (isStaleRefUpdateMessage(message)) {
+      return gitErr.staleRefUpdate(failure.message, failure.stderr || undefined);
+    }
     if (
       message.includes('no remote repository specified') ||
       message.includes('no remote configured')
@@ -158,3 +161,12 @@ export const repositoryFailures = {
     );
   },
 } as const;
+
+function isStaleRefUpdateMessage(message: string): boolean {
+  return (
+    message.includes('incorrect old value provided') ||
+    (message.includes('cannot lock ref') &&
+      message.includes(' is at ') &&
+      message.includes(' but expected '))
+  );
+}

@@ -86,4 +86,33 @@ describe('git-fetch setup step', () => {
       error: { type: 'fetch-failed', message: 'fetch failed' },
     });
   });
+
+  it('surfaces a typed stale-ref failure without retrying', async () => {
+    const message = "cannot lock ref 'refs/remotes/origin/main': is at bbbb but expected aaaa";
+    const fetch = vi.fn(async () =>
+      err({ type: 'git_error' as const, code: 'stale_ref_update' as const, message })
+    );
+    const listWorktrees = vi.fn();
+
+    const result = await execute(
+      {
+        remote: 'origin',
+        refspec: '+refs/heads/main:refs/remotes/origin/main',
+      },
+      makeCtx({ fetch, listWorktrees })
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'fetch-failed',
+        code: 'stale_ref_update',
+        remote: 'origin',
+        refspec: '+refs/heads/main:refs/remotes/origin/main',
+        message,
+      },
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(listWorktrees).not.toHaveBeenCalled();
+  });
 });

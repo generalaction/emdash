@@ -59,7 +59,13 @@ export function compileSetupSpec(
       const remoteName = fromBranch.remote.name;
       const fromRef = `${remoteName}/${fromBranch.branch}`;
 
-      steps.push({ kind: 'git-fetch', args: { remote: remoteName } });
+      steps.push({
+        kind: 'git-fetch',
+        args: {
+          remote: remoteName,
+          refspec: `+refs/heads/${fromBranch.branch}:refs/remotes/${remoteName}/${fromBranch.branch}`,
+        },
+      });
       steps.push({
         kind: 'create-local-branch',
         args: { branchName, fromRef, noTrack: true },

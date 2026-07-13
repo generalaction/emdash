@@ -24,10 +24,13 @@ export const bootstrapStepWarningSchema = z.object({
   message: z.string(),
 });
 
+export const bootstrapErrorCodeSchema = z.enum(['stale_ref_update']);
+
 export const bootstrapErrorSchema = z.object({
   stepId: z.string().optional(),
   stepKind: z.string().optional(),
   type: z.string(),
+  code: bootstrapErrorCodeSchema.optional(),
   message: z.string(),
   resolutions: z.array(z.string()).optional(),
 });

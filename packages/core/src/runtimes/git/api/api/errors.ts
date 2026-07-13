@@ -5,8 +5,12 @@ import { z } from 'zod';
 const messageError = <Type extends string>(type: Type) =>
   z.object({ type: z.literal(type), message: z.string() });
 
+export const gitExecErrorCodeSchema = z.enum(['stale_ref_update']);
+export type GitExecErrorCode = z.infer<typeof gitExecErrorCodeSchema>;
+
 export const gitExecErrorSchema = z.object({
   type: z.literal('git_error'),
+  code: gitExecErrorCodeSchema.optional(),
   message: z.string(),
   stderr: z.string().optional(),
 });
