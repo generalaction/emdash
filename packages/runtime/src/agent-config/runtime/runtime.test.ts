@@ -98,7 +98,13 @@ class MemoryPluginFs implements PluginFs {
   private readonly files = new Map<string, string>();
 
   async read(path: string): Promise<string | null> {
-    return this.files.get(path) ?? null;
+    const content = this.files.get(path);
+    if (content !== undefined) return content;
+    const prefix = `${path}/`;
+    if ([...this.files.keys()].some((key) => key.startsWith(prefix))) {
+      throw new Error(`EISDIR: ${path}`);
+    }
+    return null;
   }
 
   async write(path: string, content: string): Promise<void> {
@@ -187,6 +193,7 @@ describe('AgentConfigRuntime', () => {
     expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBeNull();
     const synced = await runtime.setSkillTargets('reviewer', { mode: 'all' });
     expect(synced.success).toBe(true);
+    if (synced.success) expect(synced.data).toHaveLength(1);
     expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toContain('name: "reviewer"');
     const removed = await runtime.removeSkill('reviewer');
     expect(removed).toEqual(ok([]));
@@ -211,6 +218,70 @@ describe('AgentConfigRuntime', () => {
     const removed = await runtime.removeSkill('reviewer');
     expect(removed.success).toBe(false);
     expect(await fs.read('.agents/skills/reviewer/SKILL.md')).toBe(sharedSkill);
+    await runtime.dispose();
+  });
+
+  it('keeps agent-specific skills distinct when their supporting files differ', async () => {
+    const { runtime, fs } = makeRuntime();
+    const skillMd = '---\nname: reviewer\ndescription: Review changes\n---\n';
+    await fs.write('.agents/skills/reviewer/SKILL.md', skillMd);
+    await fs.write('.agents/skills/reviewer/scripts/review.md', 'shared instructions');
+    await fs.write('.claude/skills/reviewer/SKILL.md', skillMd);
+    await fs.write('.claude/skills/reviewer/scripts/review.md', 'claude instructions');
+
+    const installed = await runtime.skills.refresh();
+
+    expect(installed).toHaveLength(2);
+    expect(installed.map((skill) => skill.localPath)).toEqual([
+      '/home/ada/.agents/skills/reviewer',
+      '/home/ada/.claude/skills/reviewer',
+    ]);
+    await runtime.dispose();
+  });
+
+  it('rejects target changes when an unmanaged skill blocks a mirror', async () => {
+    const { runtime, fs } = makeRuntime();
+    await fs.write('.claude/settings.json', '{}');
+    const created = await runtime.createSkill({
+      name: 'reviewer',
+      description: 'Review changes',
+      targets: { mode: 'providers', providerIds: [] },
+    });
+    expect(created.success).toBe(true);
+    await fs.write('.claude/skills/reviewer/SKILL.md', 'unmanaged');
+
+    const synced = await runtime.setSkillTargets('reviewer', { mode: 'all' });
+
+    expect(synced.success).toBe(false);
+    expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBe('unmanaged');
+    const refreshed = await runtime.skills.refresh();
+    expect(refreshed.find((skill) => skill.managedByEmdash)?.targets).toEqual({
+      mode: 'providers',
+      providerIds: [],
+    });
+    await runtime.dispose();
+  });
+
+  it('rolls back a new skill when an unmanaged mirror appears during creation', async () => {
+    const { runtime, fs } = makeRuntime();
+    await fs.write('.claude/settings.json', '{}');
+    const write = fs.write.bind(fs);
+    fs.write = async (targetPath, content) => {
+      await write(targetPath, content);
+      if (targetPath === '.agentskills/.emdash/skill-targets/reviewer.json') {
+        await write('.claude/skills/reviewer/SKILL.md', 'unmanaged');
+      }
+    };
+
+    const created = await runtime.createSkill({
+      name: 'reviewer',
+      description: 'Review changes',
+      targets: { mode: 'all' },
+    });
+
+    expect(created.success).toBe(false);
+    expect(await fs.read('.agentskills/reviewer/SKILL.md')).toBeNull();
+    expect(await fs.read('.claude/skills/reviewer/SKILL.md')).toBe('unmanaged');
     await runtime.dispose();
   });
 

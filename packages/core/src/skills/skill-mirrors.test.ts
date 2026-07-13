@@ -198,34 +198,59 @@ describe('skill mirrors', () => {
     await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
   });
 
-  it('serializes concurrent target updates', async () => {
-    const pluginFs = createLocalPluginFs(homeDir);
-    const write = pluginFs.write;
-    let writeCount = 0;
-    pluginFs.write = async (targetPath, value) => {
-      writeCount += 1;
-      if (writeCount === 1) await new Promise((resolve) => setTimeout(resolve, 20));
-      await write(targetPath, value);
-    };
+  it('preserves concurrent target updates from separate plugin fs instances', async () => {
+    const firstPluginFs = createLocalPluginFs(homeDir);
+    const secondPluginFs = createLocalPluginFs(homeDir);
 
     await Promise.all([
-      setSkillTargets(pluginFs, 'reviewer', {
+      setSkillTargets(firstPluginFs, 'reviewer', {
         mode: 'providers',
         providerIds: ['claude'],
       }),
-      setSkillTargets(pluginFs, 'tester', {
+      setSkillTargets(secondPluginFs, 'tester', {
         mode: 'providers',
         providerIds: ['codex'],
       }),
     ]);
 
+    await expect(getSkillTargets(firstPluginFs, 'reviewer')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['claude'],
+    });
+    await expect(getSkillTargets(secondPluginFs, 'tester')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['codex'],
+    });
+    await expect(firstPluginFs.read('.agentskills/.emdash/skill-targets.json')).resolves.toBeNull();
+  });
+
+  it('reads legacy targets until a per-skill update or deletion overrides them', async () => {
+    const pluginFs = createLocalPluginFs(homeDir);
+    await pluginFs.write(
+      '.agentskills/.emdash/skill-targets.json',
+      JSON.stringify({
+        version: 1,
+        skills: {
+          reviewer: { mode: 'providers', providerIds: ['claude'] },
+        },
+      })
+    );
+
     await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({
       mode: 'providers',
       providerIds: ['claude'],
     });
-    await expect(getSkillTargets(pluginFs, 'tester')).resolves.toEqual({
+
+    await setSkillTargets(pluginFs, 'reviewer', {
       mode: 'providers',
       providerIds: ['codex'],
     });
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({
+      mode: 'providers',
+      providerIds: ['codex'],
+    });
+
+    await removeSkillTargets(pluginFs, 'reviewer');
+    await expect(getSkillTargets(pluginFs, 'reviewer')).resolves.toEqual({ mode: 'all' });
   });
 });

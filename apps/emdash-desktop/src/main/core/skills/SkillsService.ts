@@ -1238,6 +1238,7 @@ export class SkillsService {
       const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
       entries.sort((a, b) => a.name.localeCompare(b.name));
       for (const entry of entries) {
+        if (!relativeDir && entry.name === '.emdash-managed.json') continue;
         const relativePath = path.join(relativeDir, entry.name);
         const entryPath = path.join(currentDir, entry.name);
         if (entry.isDirectory()) {

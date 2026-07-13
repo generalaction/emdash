@@ -3,13 +3,20 @@ import { skillTargetSelectionSchema } from './schemas';
 import type { SkillTargetSelection } from './types';
 
 const TARGETS_PATH = '.agentskills/.emdash/skill-targets.json';
+const TARGETS_DIR = '.agentskills/.emdash/skill-targets';
 
 type SkillTargetsFile = {
   version: 1;
   skills: Record<string, SkillTargetSelection>;
 };
 
-let mutationQueue = Promise.resolve();
+type SkillTargetFile =
+  | { version: 1; targets: SkillTargetSelection }
+  | { version: 1; deleted: true };
+
+function targetPath(installName: string): string {
+  return `${TARGETS_DIR}/${encodeURIComponent(installName)}.json`;
+}
 
 async function readTargetsFile(fs: PluginFs): Promise<SkillTargetsFile> {
   const raw = await fs.read(TARGETS_PATH);
@@ -30,23 +37,29 @@ async function readTargetsFile(fs: PluginFs): Promise<SkillTargetsFile> {
   }
 }
 
-function updateTargetsFile(
+async function readSkillTargetFile(
   fs: PluginFs,
-  update: (file: SkillTargetsFile) => boolean | void
-): Promise<void> {
-  const operation = mutationQueue.then(async () => {
-    const file = await readTargetsFile(fs);
-    if (update(file) === false) return;
-    await fs.write(TARGETS_PATH, `${JSON.stringify(file, null, 2)}\n`);
-  });
-  mutationQueue = operation.catch(() => {});
-  return operation;
+  installName: string
+): Promise<SkillTargetSelection | null | undefined> {
+  const raw = await fs.read(targetPath(installName));
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as { version?: unknown; targets?: unknown; deleted?: unknown };
+    if (parsed.version !== 1) return undefined;
+    if (parsed.deleted === true) return null;
+    const result = skillTargetSelectionSchema.safeParse(parsed.targets);
+    return result.success ? result.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function getSkillTargets(
   fs: PluginFs,
   installName: string
 ): Promise<SkillTargetSelection> {
+  const targets = await readSkillTargetFile(fs, installName);
+  if (targets !== undefined) return targets ?? { mode: 'all' };
   return (await readTargetsFile(fs)).skills[installName] ?? { mode: 'all' };
 }
 
@@ -55,14 +68,11 @@ export async function setSkillTargets(
   installName: string,
   targets: SkillTargetSelection
 ): Promise<void> {
-  await updateTargetsFile(fs, (file) => {
-    file.skills[installName] = targets;
-  });
+  const file: SkillTargetFile = { version: 1, targets };
+  await fs.write(targetPath(installName), `${JSON.stringify(file, null, 2)}\n`);
 }
 
 export async function removeSkillTargets(fs: PluginFs, installName: string): Promise<void> {
-  await updateTargetsFile(fs, (file) => {
-    if (!(installName in file.skills)) return false;
-    delete file.skills[installName];
-  });
+  const file: SkillTargetFile = { version: 1, deleted: true };
+  await fs.write(targetPath(installName), `${JSON.stringify(file, null, 2)}\n`);
 }
