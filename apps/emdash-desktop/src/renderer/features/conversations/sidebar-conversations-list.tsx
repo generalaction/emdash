@@ -236,7 +236,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
-        <MicroLabel>Conversations</MicroLabel>
+        <MicroLabel className="font-medium">Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />
         </Button>
