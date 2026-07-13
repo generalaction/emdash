@@ -1,0 +1,19 @@
+agents/integrations/providers.md
+  s_e0c3423f923bca::t_716f08126b7bcb 10,12,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "1979ff722535941b28fe727ebdc81e38eb29199b",
+  "prompts": {},
+  "sessions": {
+    "s_e0c3423f923bca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5b67-fd2a-7e53-923a-41656b17e243",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
