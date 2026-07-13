@@ -6,6 +6,7 @@ import { getProjectSshConnectionId } from '@renderer/features/projects/stores/pr
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { useAgents } from '@renderer/lib/stores/use-agents';
@@ -46,7 +47,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [useAcpOverride, setUseAcpOverride] = useState(false);
+  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
+    'initial-conversation:chat-ui-enabled',
+    true
+  );
   const chatUiEnabled = useFeatureFlag('chat-ui');
   useCloseGuard(isSubmitting);
 
@@ -58,7 +62,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
 
   const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
   const showAcpToggle = chatUiEnabled && agentSupportsAcp(selectedAgent?.capabilities);
-  const useAcp = showAcpToggle && useAcpOverride;
+  const useAcp = showAcpToggle && useChatUiPreference;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
   const title = providerId
@@ -71,12 +75,11 @@ export const CreateConversationModal = observer(function CreateConversationModal
       )
     : 'Conversation';
 
-  // Reset model and ACP override when the provider changes (ids are provider-specific).
+  // Reset model when the provider changes (ids are provider-specific).
   const handleProviderChange = useCallback(
     (next: typeof providerId) => {
       setProviderOverride(next);
       setSelectedModel(null);
-      setUseAcpOverride(false);
     },
     [setProviderOverride]
   );
@@ -174,7 +177,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
           {showAcpToggle ? (
             <Field>
               <div className="flex items-center gap-2">
-                <Switch checked={useAcp} onCheckedChange={setUseAcpOverride} />
+                <Switch checked={useAcp} onCheckedChange={setUseChatUiPreference} />
                 <FieldLabel>Use chat UI</FieldLabel>
               </div>
             </Field>

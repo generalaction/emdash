@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
+import { desktopWorkerBuildInputs } from './src/main/worker-manifest';
 
 const workspaceAliases = {
   '@emdash/core/acp/client': resolve('../../packages/core/src/acp/client.ts'),
@@ -25,6 +26,12 @@ const workspaceAliases = {
   '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
   '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
   '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
+  '@emdash/core/services/fs-watch/api': resolve(
+    '../../packages/core/src/services/fs-watch/api/index.ts'
+  ),
+  '@emdash/core/services/fs-watch/worker': resolve(
+    '../../packages/core/src/services/fs-watch/worker/index.ts'
+  ),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/runtime/agent-config/node': resolve(
@@ -51,6 +58,8 @@ const workspaceAliases = {
   '@emdash/wire/util/process-runtime': resolve(
     '../../packages/wire/src/util/process-runtime/index.ts'
   ),
+  '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),
+  '@emdash/wire/worker': resolve('../../packages/wire/src/worker/index.ts'),
   '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };
 
@@ -62,8 +71,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          'acp-runtime': resolve('src/main/core/acp/runtime-process/entry.ts'),
-          'agent-config-runtime': resolve('src/main/core/agent-config/runtime-process/entry.ts'),
+          ...desktopWorkerBuildInputs(),
+        },
+        output: {
+          entryFileNames: '[name].js',
         },
       },
     },

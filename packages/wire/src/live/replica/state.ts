@@ -54,10 +54,12 @@ export class ReplicaState<T> implements LiveSource {
         onApplied: (update) => this.handleApplied(update),
       }
     );
-    this.ready = handle.snapshot().then((snapshot) => this.seed(snapshot));
     this.detachPromise = handle.attach((update) => this.applyUpdate(update), {
       onReattach: () => void this.refresh(),
     });
+    this.ready = Promise.all([handle.snapshot(), this.detachPromise]).then(([snapshot]) =>
+      this.seed(snapshot)
+    );
   }
 
   current(): T {

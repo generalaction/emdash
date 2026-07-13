@@ -16,12 +16,18 @@ export type ServeOptions = {
   logger?: Logger;
 };
 
+type ServerAttachment = {
+  ready: Promise<void>;
+  unsubscribe?: Unsubscribe;
+  disposed: boolean;
+};
+
 export function serve(
   transport: WireTransport,
   controller: Controller,
   options: ServeOptions = {}
 ): Unsubscribe {
-  const attached = new Map<string, Unsubscribe>();
+  const attached = new Map<string, ServerAttachment>();
   const calls = new Map<string, AbortController>();
   const blobProducers = new Map<string, BlobProducer>();
   const blobConsumers = new Map<string, BlobConsumer>();
@@ -174,8 +180,14 @@ export function serve(
   }
 
   function detachAll(): void {
-    for (const detach of attached.values()) detach();
+    for (const attachment of attached.values()) disposeAttachment(attachment);
     attached.clear();
+  }
+
+  function disposeAttachment(attachment: ServerAttachment): void {
+    if (attachment.disposed) return;
+    attachment.disposed = true;
+    attachment.unsubscribe?.();
   }
 
   function closeAllBlobChannels(): void {
@@ -202,24 +214,68 @@ export function serve(
         replySnapshot(message.id, message.topic);
         break;
       case 'attach':
-        replyRequest(message.id, (signal) => {
+        replyRequest(message.id, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
-          if (attached.has(message.topic)) return undefined;
+          const existing = attached.get(message.topic);
+          if (existing) {
+            await existing.ready;
+            return undefined;
+          }
           const source = requireLiveSource(controller, message.topic);
-          attached.set(
-            message.topic,
-            source.subscribe((update) => post({ kind: 'update', topic: message.topic, update }))
-          );
-          instrumentation?.topicAttach?.({
-            topic: message.topic,
-            attachmentCount: attached.size,
-          });
+          const attachment: ServerAttachment = {
+            ready: Promise.resolve(),
+            disposed: false,
+          };
+          attached.set(message.topic, attachment);
+          attachment.ready = Promise.resolve(
+            source.subscribe((update) => post({ kind: 'update', topic: message.topic, update }), {
+              onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+              onError: (error, context) => {
+                post({
+                  kind: 'topic-error',
+                  topic: message.topic,
+                  error: serializeWireError(error),
+                  retrying: context.retrying,
+                });
+                if (!context.retrying && attached.get(message.topic) === attachment) {
+                  attached.delete(message.topic);
+                  disposeAttachment(attachment);
+                }
+              },
+            })
+          )
+            .then((unsubscribe) => {
+              if (
+                attachment.disposed ||
+                signal.aborted ||
+                attached.get(message.topic) !== attachment
+              ) {
+                unsubscribe();
+                return;
+              }
+              attachment.unsubscribe = unsubscribe;
+              instrumentation?.topicAttach?.({
+                topic: message.topic,
+                attachmentCount: attached.size,
+              });
+            })
+            .catch((error) => {
+              if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+              throw error;
+            });
+          await attachment.ready;
+          if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
           return undefined;
         });
         break;
       case 'detach':
-        attached.get(message.topic)?.();
-        attached.delete(message.topic);
+        {
+          const attachment = attached.get(message.topic);
+          if (attachment) {
+            attached.delete(message.topic);
+            disposeAttachment(attachment);
+          }
+        }
         instrumentation?.topicDetach?.({
           topic: message.topic,
           attachmentCount: attached.size,
@@ -257,6 +313,8 @@ export function serve(
         break;
       case 'result':
       case 'update':
+      case 'topic-gap':
+      case 'topic-error':
         break;
     }
   }

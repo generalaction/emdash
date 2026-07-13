@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { KeyedOp } from '../../../lib';
-import type { WatchEvent } from '../../../watch';
+import type { WatchEvent } from '../../../services/fs-watch/api';
 import type { RootPathPolicy } from '../../path-policy';
 import type { TreeDirectoryReader, DirectoryEntry } from '../directory-reader';
 import { isExpandableFileNode, type FileNode, type NodeId } from '../models/tree';

@@ -45,6 +45,10 @@
       "types": "./dist/process-runtime.d.mts",
       "default": "./dist/process-runtime.mjs"
     },
+    "./worker": {
+      "types": "./dist/worker.d.mts",
+      "default": "./dist/worker.mjs"
+    },
     "./process": {
       "types": "./dist/process.d.mts",
       "default": "./dist/process.mjs"
@@ -62,6 +66,7 @@
     "example:live-state": "tsx examples/live-state/client.ts",
     "example:batched-state": "tsx examples/batched-state/client.ts",
     "example:live-log": "tsx examples/live-log/client.ts",
+    "example:event-stream": "tsx examples/event-stream/client.ts",
     "example:live-job": "tsx examples/live-job/client.ts",
     "example:scope": "tsx examples/scope/client.ts",
     "example:managed-source": "tsx examples/managed-source/client.ts",

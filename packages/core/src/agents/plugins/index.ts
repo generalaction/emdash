@@ -117,7 +117,15 @@ export type { ISessionsBehavior } from './capabilities/sessions';
 export type { SkillsDescriptor } from './capabilities/skills';
 export type { ITrustBehavior, TrustContext } from './capabilities/trust';
 export { AgentPluginHost } from './plugin-host';
-export type { ResolvedAcpProvider, ResolvedAuthProvider, ResolvedTuiProvider } from './plugin-host';
+export type {
+  AgentHostAcpSpawn,
+  AgentHostDeps,
+  AgentHostError,
+  AgentHostLoginCommand,
+  ResolvedAcpProvider,
+  ResolvedAuthProvider,
+  ResolvedTuiProvider,
+} from './plugin-host';
 
 // Typed registry factory
 export { createPluginRegistry, type PluginRegistry } from '@emdash/shared/plugins';

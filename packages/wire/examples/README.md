@@ -65,7 +65,7 @@ Examples:
 - `replica/` demonstrates a cached middle hop with `createLiveModelReplica()`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
   hooks, redacted debug payload logging, and live-client resync diagnostics.
-- `process/` demonstrates `spawnRuntime()` and `serveProcessRuntime()` running a
+- `process/` demonstrates `spawnRuntime()` and `serveWorkerProcess()` running a
   typed controller in a subprocess with restart resync.
 - `optimistic-live-model/` demonstrates `OptimisticLiveModel` deriving previews
   from inline group mutation handlers and rolling back rejected mutations.

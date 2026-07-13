@@ -166,7 +166,7 @@ export class TuiAgentsRuntime {
   }): Result<void, TuiSessionControlError> {
     const config = this.configs.get(input.conversationId);
     const provider = config
-      ? this.deps.pluginHost.resolveTuiProvider(config.input.providerId)
+      ? this.deps.agentHost.resolveTuiProvider(config.input.providerId)
       : null;
     this.notifications.emitHookEvent(input.conversationId, provider, input.eventType, input.body);
     return ok(undefined);
@@ -237,9 +237,6 @@ export class TuiAgentsRuntime {
     if (!providerResult.success) throw new Error(JSON.stringify(providerResult.error));
 
     const provider = providerResult.data;
-    const spawnContextResult = await this.deps.spawnContext.resolve(config.input.providerId);
-    if (!spawnContextResult.success) throw new Error(JSON.stringify(spawnContextResult.error));
-    const spawnContext = spawnContextResult.data;
     const isResuming = config.intent === 'resume';
     const resumeState =
       isResuming ||
@@ -250,8 +247,7 @@ export class TuiAgentsRuntime {
           })
         : null;
     const startedAt = Date.now();
-    const command = provider.buildCommand({
-      cli: spawnContext.cli,
+    const commandResult = await this.deps.agentHost.buildPromptCommand(config.input.providerId, {
       extraArgs: config.input.extraArgs,
       autoApprove: config.input.autoApprove ?? false,
       initialPrompt: isResuming ? undefined : config.input.initialPrompt,
@@ -260,6 +256,8 @@ export class TuiAgentsRuntime {
       isResuming,
       model: config.input.model ?? '',
     });
+    if (!commandResult.success) throw new Error(JSON.stringify(commandResult.error));
+    const command = commandResult.data;
 
     session.config = config;
     session.provider = provider;
@@ -284,7 +282,6 @@ export class TuiAgentsRuntime {
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
           TERM_PROGRAM: 'emdash',
-          ...spawnContext.agentEnv,
           ...command.env,
           ...config.input.providerVars,
           ...this.hookEnv(config.input),
@@ -377,9 +374,9 @@ export class TuiAgentsRuntime {
   }
 
   private resolveProvider(providerId: string): Result<ResolvedTuiProvider, TuiStartSessionError> {
-    const provider = this.deps.pluginHost.resolveTuiProvider(providerId);
+    const provider = this.deps.agentHost.resolveTuiProvider(providerId);
     if (provider) return ok(provider);
-    return this.deps.pluginHost.get(providerId)
+    return this.deps.agentHost.get(providerId)
       ? err({ type: 'no-command', providerId })
       : err({ type: 'unknown-provider', providerId });
   }

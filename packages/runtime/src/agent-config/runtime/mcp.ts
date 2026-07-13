@@ -34,7 +34,7 @@ export class AgentMcpConfigManager {
       return err({ type: 'invalid-state', message: `Invalid server name: "${server.name}"` });
     }
     for (const providerId of server.providers) {
-      if (!this.deps.pluginHost.get(providerId))
+      if (!this.deps.agentHost.get(providerId))
         return err({ type: 'unknown-provider', providerId });
     }
     try {
@@ -42,9 +42,8 @@ export class AgentMcpConfigManager {
         const selectedProviders = new Set(server.providers);
         for (const provider of this.getMcpProviders()) {
           const agentId = provider.metadata.id;
-          const behavior = provider.behavior.mcp;
-          if (!behavior) continue;
-          let regs = await behavior.readServers(this.deps.pluginFs).catch(() => []);
+          const read = await this.deps.agentHost.readMcpServers(agentId);
+          let regs = read.success ? read.data : [];
           const idx = regs.findIndex((reg) => reg.name === server.name);
           if (selectedProviders.has(agentId)) {
             const next = mcpServerToRegistration(server);
@@ -53,7 +52,8 @@ export class AgentMcpConfigManager {
           } else if (idx >= 0) {
             regs.splice(idx, 1);
           }
-          await behavior.writeServers?.(this.deps.pluginFs, regs);
+          const write = await this.deps.agentHost.writeMcpServers(agentId, regs);
+          if (!write.success) throw new Error(agentHostErrorMessage(write.error));
         }
         await this.refresh();
         return ok();
@@ -67,9 +67,8 @@ export class AgentMcpConfigManager {
     try {
       return await this.withWriteLock(async () => {
         for (const provider of this.getMcpProviders()) {
-          const behavior = provider.behavior.mcp;
-          if (!behavior) continue;
-          await behavior.removeServer?.(this.deps.pluginFs, name);
+          const result = await this.deps.agentHost.removeMcpServer(provider.metadata.id, name);
+          if (!result.success) throw new Error(agentHostErrorMessage(result.error));
         }
         await this.refresh();
         return ok();
@@ -80,12 +79,13 @@ export class AgentMcpConfigManager {
   }
 
   async listForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
-    const provider = this.deps.pluginHost.get(providerId);
+    const provider = this.deps.agentHost.get(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });
-    const behavior = provider.behavior.mcp;
-    if (!behavior) return ok([]);
+    if (provider.capabilities.mcp.kind !== 'supported' || !provider.behavior.mcp) return ok([]);
     try {
-      const regs = await behavior.readServers(this.deps.pluginFs);
+      const result = await this.deps.agentHost.readMcpServers(providerId);
+      if (!result.success) return err(toIoError(agentHostErrorMessage(result.error)));
+      const regs = result.data;
       return ok(regs.map((reg) => registrationToMcpServer(reg, [providerId])));
     } catch (error) {
       return err(toIoError(error));
@@ -96,16 +96,14 @@ export class AgentMcpConfigManager {
     const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
     for (const provider of this.getMcpProviders()) {
       const agentId = provider.metadata.id;
-      const behavior = provider.behavior.mcp;
-      if (!behavior) continue;
-      let regs;
-      try {
-        regs = await behavior.readServers(this.deps.pluginFs);
-      } catch (error) {
-        this.deps.logger.warn(`Failed to read MCP config for ${agentId}:`, { error });
+      const result = await this.deps.agentHost.readMcpServers(agentId);
+      if (!result.success) {
+        this.deps.logger.warn(`Failed to read MCP config for ${agentId}:`, {
+          error: agentHostErrorMessage(result.error),
+        });
         continue;
       }
-      for (const reg of regs) {
+      for (const reg of result.data) {
         const server = registrationToMcpServer(reg, [agentId]);
         const existing = serversByName.get(reg.name);
         if (existing) {
@@ -127,7 +125,7 @@ export class AgentMcpConfigManager {
   }
 
   private getMcpProviders() {
-    return this.deps.pluginHost
+    return this.deps.agentHost
       .getAll()
       .filter(
         (provider) => provider.capabilities.mcp.kind === 'supported' && provider.behavior.mcp
@@ -157,4 +155,8 @@ export class AgentMcpConfigManager {
 
 function toIoError(error: unknown): AgentConfigMcpError {
   return { type: 'io', message: error instanceof Error ? error.message : String(error) };
+}
+
+function agentHostErrorMessage(error: { type: string; message?: string }): string {
+  return error.message ?? error.type;
 }

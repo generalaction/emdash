@@ -10,6 +10,7 @@ export default defineConfig({
     util: 'src/util/index.ts',
     mobx: 'src/util/mobx/index.ts',
     'process-runtime': 'src/util/process-runtime/index.ts',
+    worker: 'src/worker/index.ts',
     process: 'src/process/index.ts',
     'process-node': 'src/process/node/index.ts',
   },

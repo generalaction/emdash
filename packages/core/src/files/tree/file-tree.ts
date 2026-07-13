@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { KeyedMutex, LiveCollection, type KeyedOp } from '../../lib';
-import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
+import type { IWatchService, WatchEvent, WatchHandle } from '../../services/fs-watch/api';
 import { createRootPathPolicy, type RootPathPolicy } from '../path-policy';
 import { createTreeDirectoryReader, type TreeDirectoryReader } from './directory-reader';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';

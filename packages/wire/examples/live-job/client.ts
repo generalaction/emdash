@@ -28,7 +28,7 @@ async function runSuccessfulJob(): Promise<void> {
   });
   client.onProgress((progress) => console.log('job progress:', progress.step));
   client.seed(await fetchSuccessfulSnapshot(jobId));
-  const detach = attachSuccessful(jobId, (update) => client.applyUpdate(update));
+  const detach = await attachSuccessful(jobId, (update) => client.applyUpdate(update));
 
   console.log('job result:', await client.result);
   detach();
@@ -40,7 +40,7 @@ async function runCancelledJob(): Promise<void> {
     refetchSnapshot: () => fetchCancellableSnapshot(jobId),
   });
   client.seed(await fetchCancellableSnapshot(jobId));
-  const detach = attachCancellable(jobId, (update) => client.applyUpdate(update));
+  const detach = await attachCancellable(jobId, (update) => client.applyUpdate(update));
 
   const result = client.result.catch((error: unknown) => error);
   cancelCancellableJob(jobId);

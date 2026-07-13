@@ -73,8 +73,8 @@ export class AgentSkillsManager {
 
   private async refreshNow(): Promise<CatalogSkill[]> {
     const installed = await getInstalledSkills(
-      this.deps.pluginFs,
-      this.deps.homeDir,
+      this.deps.agentHost.fs,
+      this.deps.agentHost.homeDir,
       this.getSkillProvidersByDir()
     );
     this.publish(installed);
@@ -93,13 +93,13 @@ export class AgentSkillsManager {
     try {
       if (
         await skillEntryExists(
-          this.deps.pluginFs,
+          this.deps.agentHost.fs,
           [installId, payload.id, frontmatter.name].filter(isValidSkillName)
         )
       ) {
         return err({ type: 'invalid-state', message: `Skill "${payload.id}" already exists` });
       }
-      await this.deps.pluginFs.write(
+      await this.deps.agentHost.fs.write(
         `${SKILLS_ROOT}/${installId}/SKILL.md`,
         payload.skillMdContent
       );
@@ -109,16 +109,16 @@ export class AgentSkillsManager {
         payload.catalogSkillId &&
         payload.skillShPath
       ) {
-        const installs = await readSkillShInstalls(this.deps.pluginFs);
+        const installs = await readSkillShInstalls(this.deps.agentHost.fs);
         installs[installId] = {
           sourceRef: payload.sourceRef,
           catalogSkillId: payload.catalogSkillId,
           skillShPath: payload.skillShPath,
         };
-        await writeSkillShInstalls(this.deps.pluginFs, installs);
+        await writeSkillShInstalls(this.deps.agentHost.fs, installs);
       }
       const targets = payload.targets ?? { mode: 'all' };
-      await setSkillTargets(this.deps.pluginFs, installId, targets);
+      await setSkillTargets(this.deps.agentHost.fs, installId, targets);
       await this.reconcileSkillMirrors(
         installId,
         frontmatter.name || installId,
@@ -137,7 +137,7 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${name}"` });
     }
     try {
-      const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${name}/SKILL.md`);
+      const content = await this.deps.agentHost.fs.read(`${SKILLS_ROOT}/${name}/SKILL.md`);
       if (!content) {
         return err({
           type: 'invalid-state',
@@ -146,12 +146,12 @@ export class AgentSkillsManager {
       }
       const { frontmatter } = parseFrontmatter(content);
       await this.removeSkillMirrorsFromAgents(name, frontmatter.name || name);
-      await this.deps.pluginFs.delete(`${SKILLS_ROOT}/${name}`);
-      await removeSkillTargets(this.deps.pluginFs, name);
-      const installs = await readSkillShInstalls(this.deps.pluginFs);
+      await this.deps.agentHost.fs.delete(`${SKILLS_ROOT}/${name}`);
+      await removeSkillTargets(this.deps.agentHost.fs, name);
+      const installs = await readSkillShInstalls(this.deps.agentHost.fs);
       if (installs[name]) {
         delete installs[name];
-        await writeSkillShInstalls(this.deps.pluginFs, installs);
+        await writeSkillShInstalls(this.deps.agentHost.fs, installs);
       }
       return ok(await this.refresh());
     } catch (error) {
@@ -170,13 +170,13 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${input.name}"` });
     }
     try {
-      if (await skillEntryExists(this.deps.pluginFs, [input.name])) {
+      if (await skillEntryExists(this.deps.agentHost.fs, [input.name])) {
         return err({ type: 'invalid-state', message: `Skill "${input.name}" already exists` });
       }
       const skillContent = generateSkillMd(input.name, input.description, input.content);
-      await this.deps.pluginFs.write(`${SKILLS_ROOT}/${input.name}/SKILL.md`, skillContent);
+      await this.deps.agentHost.fs.write(`${SKILLS_ROOT}/${input.name}/SKILL.md`, skillContent);
       const targets = input.targets ?? { mode: 'all' };
-      await setSkillTargets(this.deps.pluginFs, input.name, targets);
+      await setSkillTargets(this.deps.agentHost.fs, input.name, targets);
       await this.reconcileSkillMirrors(input.name, input.name, skillContent, targets);
       return ok(await this.refresh());
     } catch (error) {
@@ -193,7 +193,7 @@ export class AgentSkillsManager {
       return err({ type: 'invalid-state', message: `Invalid skill name: "${installName}"` });
     }
     try {
-      const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
+      const content = await this.deps.agentHost.fs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
       if (!content) {
         return err({
           type: 'invalid-state',
@@ -201,7 +201,7 @@ export class AgentSkillsManager {
         });
       }
       const { frontmatter } = parseFrontmatter(content);
-      await setSkillTargets(this.deps.pluginFs, installName, targets);
+      await setSkillTargets(this.deps.agentHost.fs, installName, targets);
       await this.reconcileSkillMirrors(
         installName,
         frontmatter.name || installName,
@@ -221,12 +221,12 @@ export class AgentSkillsManager {
   }
 
   private async syncCanonicalSkillsToAgents(): Promise<void> {
-    for (const installName of await this.deps.pluginFs.list(SKILLS_ROOT)) {
+    for (const installName of await this.deps.agentHost.fs.list(SKILLS_ROOT)) {
       if (!isValidSkillName(installName)) continue;
-      const content = await this.deps.pluginFs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
+      const content = await this.deps.agentHost.fs.read(`${SKILLS_ROOT}/${installName}/SKILL.md`);
       if (!content) continue;
       const { frontmatter } = parseFrontmatter(content);
-      const targets = await getSkillTargets(this.deps.pluginFs, installName);
+      const targets = await getSkillTargets(this.deps.agentHost.fs, installName);
       await this.reconcileSkillMirrors(
         installName,
         frontmatter.name || installName,
@@ -244,28 +244,28 @@ export class AgentSkillsManager {
   ): Promise<void> {
     const targets =
       selection.mode === 'all'
-        ? await getAvailableSkillMirrorDirs(this.deps.pluginFs)
+        ? await getAvailableSkillMirrorDirs(this.deps.agentHost.fs)
         : this.getProviderMirrorDirs(selection.providerIds);
     const targetSet = new Set(targets);
     await Promise.all(
       AGENT_SKILLS_DIRS.filter((relativeDir) => !targetSet.has(relativeDir)).map((relativeDir) =>
-        removeSkillMirrors(this.deps.pluginFs, {
+        removeSkillMirrors(this.deps.agentHost.fs, {
           relativeDir,
           installName,
           frontmatterName,
-          canonicalRoot: `${this.deps.homeDir}/${SKILLS_ROOT}`,
+          canonicalRoot: `${this.deps.agentHost.homeDir}/${SKILLS_ROOT}`,
         })
       )
     );
     await Promise.all(
       targets.map(async (relativeDir) => {
         try {
-          await mirrorSkill(this.deps.pluginFs, {
+          await mirrorSkill(this.deps.agentHost.fs, {
             relativeDir,
             installName,
             frontmatterName,
             content,
-            canonicalPath: `${this.deps.homeDir}/${SKILLS_ROOT}/${installName}`,
+            canonicalPath: `${this.deps.agentHost.homeDir}/${SKILLS_ROOT}/${installName}`,
           });
         } catch (error) {
           this.deps.logger.warn(`Failed to mirror skill "${installName}" to ${relativeDir}`, {
@@ -278,7 +278,7 @@ export class AgentSkillsManager {
 
   private getSkillProvidersByDir(): Map<string, string[]> {
     const providersByDir = new Map<string, string[]>();
-    for (const provider of this.deps.pluginHost.getAll()) {
+    for (const provider of this.deps.agentHost.getAll()) {
       const capability = provider.capabilities.skills;
       if (capability.kind !== 'supported') continue;
       for (const location of capability.locations) {
@@ -292,7 +292,7 @@ export class AgentSkillsManager {
 
   private getProviderMirrorDirs(providerIds: string[]): string[] {
     const selected = new Set(providerIds);
-    return this.deps.pluginHost
+    return this.deps.agentHost
       .getAll()
       .filter((provider) => selected.has(provider.metadata.id))
       .flatMap((provider) =>
@@ -308,10 +308,10 @@ export class AgentSkillsManager {
     installName: string,
     frontmatterName: string
   ): Promise<void> {
-    await removeAllSkillMirrors(this.deps.pluginFs, {
+    await removeAllSkillMirrors(this.deps.agentHost.fs, {
       installName,
       frontmatterName,
-      canonicalRoot: `${this.deps.homeDir}/${SKILLS_ROOT}`,
+      canonicalRoot: `${this.deps.agentHost.homeDir}/${SKILLS_ROOT}`,
     });
   }
 }

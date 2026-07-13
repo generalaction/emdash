@@ -6,6 +6,7 @@ import type { Controller } from '../../api/controller';
 import type { Contract, ContractDefinitions } from '../../api/define';
 import { isWireMessage, type WireTransport } from '../../api/protocol';
 import { serve, type ServeOptions } from '../../api/serve';
+import type { ValidatePolicy } from '../../api/with-validation';
 import type { WireInstrumentation } from '../../observability';
 import type { ManagedProcess, ProcessHost, ProcessSpec } from '../../process/types';
 import { createScope, type Scope } from '../scope';
@@ -50,7 +51,7 @@ export type ProcessRuntimePort = {
   onDisconnect(cb: () => void): Unsubscribe;
 };
 
-export type ServeProcessRuntimeOptions = ServeOptions & {
+export type ServeWorkerProcessOptions = ServeOptions & {
   logger?: Logger;
   /**
    * Test seam for running the child-side helper without a real Node fork or
@@ -89,23 +90,19 @@ export async function spawnRuntime<Defs extends ContractDefinitions>(
     restartedEmitter.emit();
   });
 
-  const transport: WireTransport = {
-    post(message) {
-      managed.send(message);
+  const transport = createRuntimeTransport(
+    {
+      send: (message) => managed.send(message),
+      onMessage: (cb) => managed.onMessage(cb),
+      onDisconnect: (cb) => managed.onExit(() => cb()),
     },
-    onMessage(cb) {
-      return managed.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return managed.onExit(() => cb());
-    },
-    onReconnect(cb) {
-      reconnectListeners.add(cb);
-      return () => reconnectListeners.delete(cb);
-    },
-  };
+    {
+      onReconnect(cb) {
+        reconnectListeners.add(cb);
+        return () => reconnectListeners.delete(cb);
+      },
+    }
+  );
 
   const connection = connect(transport, { instrumentation: options.instrumentation });
   const runtimeClient = client(options.contract, connection);
@@ -134,28 +131,16 @@ export async function spawnRuntime<Defs extends ContractDefinitions>(
   return handle;
 }
 
-export async function serveProcessRuntime(
+export async function serveWorkerProcess(
   init: (scope: Scope) => Controller | Promise<Controller>,
-  options: ServeProcessRuntimeOptions = {}
+  options: ServeWorkerProcessOptions = {}
 ): Promise<void> {
   const port = options.port ?? resolveParentPort();
   const exit = options.exit ?? ((code: number) => process.exit(code));
-  const scope = createScope({ label: 'process-runtime', logger: options.logger });
+  const scope = createScope({ label: 'worker-process', logger: options.logger });
   let exiting = false;
 
-  const transport: WireTransport = {
-    post(message) {
-      port.send(message);
-    },
-    onMessage(cb) {
-      return port.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return port.onDisconnect(cb);
-    },
-  };
+  const transport = createRuntimeTransport(port);
 
   const shutdown = async (code: number): Promise<void> => {
     if (exiting) return;
@@ -178,8 +163,16 @@ export async function serveProcessRuntime(
     port.send(READY_SIGNAL);
   } catch (error) {
     await scope.dispose();
-    throw error;
+    const logger = options.logger ?? scope.log;
+    logger.error('worker process failed to start', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    exit(1);
   }
+}
+
+export function workerValidatePolicy(env: NodeJS.ProcessEnv = process.env): ValidatePolicy {
+  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
 export function forwardRuntimeLogs(
@@ -211,6 +204,26 @@ export function forwardRuntimeLogs(
   return () => {
     unsubscribeStdio();
     unsubscribeExit();
+  };
+}
+
+function createRuntimeTransport(
+  port: ProcessRuntimePort,
+  options: Pick<WireTransport, 'onReconnect'> = {}
+): WireTransport {
+  return {
+    post(message) {
+      port.send(message);
+    },
+    onMessage(cb) {
+      return port.onMessage((message) => {
+        if (isWireMessage(message)) cb(message);
+      });
+    },
+    onDisconnect(cb) {
+      return port.onDisconnect(cb);
+    },
+    onReconnect: options.onReconnect,
   };
 }
 
@@ -304,7 +317,7 @@ function isRuntimeSignal(
 
 function resolveParentPort(): ProcessRuntimePort {
   if (typeof process === 'undefined') {
-    throw new Error('serveProcessRuntime requires an IPC channel to the parent process');
+    throw new Error('serveWorkerProcess requires an IPC channel to the parent process');
   }
 
   const currentProcess = process as NodeJS.Process & {
@@ -333,7 +346,7 @@ function resolveParentPort(): ProcessRuntimePort {
   }
 
   if (typeof currentProcess.send !== 'function') {
-    throw new Error('serveProcessRuntime requires an IPC channel to the parent process');
+    throw new Error('serveWorkerProcess requires an IPC channel to the parent process');
   }
 
   return {

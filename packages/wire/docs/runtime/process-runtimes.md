@@ -1,8 +1,13 @@
 # Process Runtimes
 
-`spawnRuntime()` and `serveProcessRuntime()` pair a `ProcessHost` with the wire
+`spawnRuntime()` and `serveWorkerProcess()` pair a `ProcessHost` with the wire
 API layer so a bound controller can run in a subprocess with one call on each
 side. They are exported from `@emdash/wire/util/process-runtime`.
+
+For application workers, prefer the higher-level parent-side helpers documented
+in [Workers](./workers.md). They add entry resolution, default supervision,
+scope-owned lifecycle logs, and lazy spawning while keeping child-side wire setup
+explicit.
 
 Use this pattern when a child process can recreate its authoritative state after
 a restart and clients can resync through live snapshots.
@@ -14,10 +19,10 @@ returns it:
 
 ```ts
 import { createController, createLiveModelHost } from '@emdash/wire';
-import { serveProcessRuntime } from '@emdash/wire/util/process-runtime';
+import { serveWorkerProcess } from '@emdash/wire/util/process-runtime';
 import { api } from './contract';
 
-void serveProcessRuntime((scope) => {
+void serveWorkerProcess((scope) => {
   const counters = createLiveModelHost(api.counter);
   const instance = counters.create(undefined, { counter: { count: 0 } });
   scope.add(() => console.log('runtime scope disposed'));
@@ -34,7 +39,7 @@ void serveProcessRuntime((scope) => {
 });
 ```
 
-`serveProcessRuntime()`:
+`serveWorkerProcess()`:
 
 - Detects the parent channel: Node `fork()` IPC or Electron utility-process
   `parentPort`.
@@ -43,6 +48,7 @@ void serveProcessRuntime((scope) => {
 - Sends a `ready` signal after the controller is served.
 - Disposes the root scope on the runtime shutdown signal or parent disconnect,
   then exits.
+- Logs startup failures and exits with code 1 through the provided `exit` seam.
 
 Register all child resources on the supplied scope. It is the only shutdown path
 for graceful runtime disposal.

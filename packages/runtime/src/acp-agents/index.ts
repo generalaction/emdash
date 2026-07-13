@@ -1,17 +1,13 @@
 export { createAcpAgentConnection } from './connection/acp-agent-connection';
-export type { AcpAgentConnection } from './connection/acp-agent-connection';
+export type { AcpAgentConnection, AcpConnectionError } from './connection/acp-agent-connection';
 export { AcpRuntime } from './runtime/runtime';
 export { SessionManager } from './runtime/session-manager';
 export type { AttachmentStore, StoredAttachment } from './runtime/attachment-store';
 export type { AcpRuntimeDeps, AcpStartInput, ResolveAcpProvider } from './runtime/types';
-export {
-  createAcpConnectionSource,
-  makeAcpConnectionKey,
-  projectAcpConnectionEntry,
-} from './connection/source';
+export { createAcpConnectionSource, makeAcpConnectionKey } from './connection/source';
 export type {
+  AcpConnectionContext,
   AcpConnectionEntry,
-  AcpConnectionError,
   AcpConnectionSource,
   AcquireAcpConnectionInput,
 } from './connection/source';

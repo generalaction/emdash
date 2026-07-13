@@ -1,141 +1,95 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { acpApiContract, acpHostContract } from '@emdash/core/acp';
-import { ok } from '@emdash/shared';
-import { createController, exposeWireToWindows, serve, withValidation } from '@emdash/wire/api';
-import { processTransport, type ManagedProcess } from '@emdash/wire/process';
-import { childProcessHost } from '@emdash/wire/process/node';
-import { forwardRuntimeLogs, spawnRuntime } from '@emdash/wire/util/process-runtime';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
+import {
+  exposeWireToWindows,
+  forwardController,
+  withValidation,
+  type ContractClient,
+} from '@emdash/wire/api';
+import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
+import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { log } from '@main/lib/logger';
+import { desktopWorkerPath } from '@main/worker-manifest';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';
 
-type AcpRuntimeHandle = Awaited<ReturnType<typeof spawnAcpRuntime>>;
-export type AcpRuntimeClient = AcpRuntimeHandle['client'];
+export type AcpRuntimeClient = ContractClient<AcpApiContract>;
+type AcpRuntimeHandle = WorkerHandle<AcpApiContract> & { readonly client: AcpRuntimeClient };
 
-let handlePromise: Promise<AcpRuntimeHandle> | null = null;
+const acpRuntimeScope = appScope.child('acp-runtime-host');
+const acpWorker = lazyWorker(
+  () => ({
+    name: 'acp',
+    contract: acpApiContract,
+    entry: desktopWorkerPath('acp'),
+    scope: acpRuntimeScope,
+    env: {
+      ...process.env,
+      EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
+    },
+  }),
+  {
+    onSpawned: (handle) => installRendererWire(withSessionIdPersistence(handle.client)),
+  }
+);
+
 let rendererWireDispose: (() => void) | null = null;
-let hostWireDispose: (() => void) | null = null;
 
-export function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
-  if (handlePromise) return handlePromise;
-  handlePromise = spawnAcpRuntime().then((handle) => {
-    installHostWire(handle);
-    installRendererWire(handle.client);
-    app.once('before-quit', () => {
-      void disposeAcpRuntimeProcess();
-    });
-    return handle;
-  });
-  return handlePromise;
-}
-
-export async function getAcpRuntimeHandle(): Promise<AcpRuntimeHandle> {
-  return initializeAcpRuntimeProcess();
+export async function initializeAcpRuntimeProcess(): Promise<AcpRuntimeHandle> {
+  return decorateAcpRuntimeHandle(await acpWorker.get());
 }
 
 export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  return (await getAcpRuntimeHandle()).client;
+  return (await initializeAcpRuntimeProcess()).client;
 }
 
 export async function disposeAcpRuntimeProcess(): Promise<void> {
   rendererWireDispose?.();
   rendererWireDispose = null;
-  hostWireDispose?.();
-  hostWireDispose = null;
-  const handle = await handlePromise;
-  handlePromise = null;
-  await handle?.dispose();
+  await acpWorker.dispose();
 }
 
-async function spawnAcpRuntime() {
-  const entry = resolveRuntimeEntry();
-  log.info('ACP runtime child process entry resolved', { entry });
-  const handle = await spawnRuntime({
-    host: childProcessHost(),
-    contract: acpApiContract,
-    spec: {
-      entry,
-      env: {
-        ...process.env,
-        EMDASH_ACP_ATTACHMENTS_DIR: join(app.getPath('userData'), 'acp-attachments'),
-      },
-      supervision: { restart: 'on-failure', backoffMs: [250, 1_000, 2_500], maxRestarts: 5 },
+function decorateAcpRuntimeHandle(handle: WorkerHandle<AcpApiContract>): AcpRuntimeHandle {
+  return { ...handle, client: withSessionIdPersistence(handle.client) };
+}
+
+function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
+  return {
+    ...client,
+    startSession: async (input, meta) => {
+      const result = await client.startSession(input, meta);
+      if (result.success) {
+        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
+      }
+      return result;
     },
-    onProcess: attachAcpRuntimeLogging,
-  });
-  handle.onRestarted(() => {
-    log.info('ACP runtime child process restarted');
-  });
-  return handle;
-}
-
-function attachAcpRuntimeLogging(process: ManagedProcess): void {
-  forwardRuntimeLogs(process, log, { source: 'acp-runtime' });
-  process.onExit((exit) => {
-    log.warn('ACP runtime child process exited', exit);
-  });
-}
-
-function installHostWire(handle: AcpRuntimeHandle): void {
-  hostWireDispose?.();
-  const transport = processTransport(handle.process);
-  const controller = withValidation(
-    acpHostContract,
-    createController(acpHostContract, {
-      persistSessionId: async ({ conversationId, sessionId }) => {
-        const result = await setSessionId(conversationId, sessionId);
-        if (!result.success) {
-          log.warn('ACP runtime failed to persist session id', {
-            conversationId,
-            error: result.error,
-          });
-        }
-      },
-    }),
-    runtimeWireValidationPolicy()
-  );
-  const disposeServer = serve(transport, controller);
-  hostWireDispose = () => {
-    disposeServer();
-    transport.close?.();
+    resumeSession: async (input, meta) => {
+      const result = await client.resumeSession(input, meta);
+      if (result.success) {
+        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
+      }
+      return result;
+    },
   };
+}
+
+async function persistReturnedSessionId(conversationId: string, sessionId: string): Promise<void> {
+  const result = await setSessionId(conversationId, sessionId);
+  if (!result.success) {
+    log.warn('ACP runtime failed to persist returned session id', {
+      conversationId,
+      error: result.error,
+    });
+  }
 }
 
 function installRendererWire(client: AcpRuntimeClient): void {
   rendererWireDispose?.();
   const controller = withValidation(
     acpApiContract,
-    createController(acpApiContract, {
-      startSession: (input, meta) => client.startSession(input, meta),
-      resumeSession: (input, meta) => client.resumeSession(input, meta),
-      stopSession: (input, meta) => client.stopSession(input, meta),
-      sendPrompt: (input, meta) => client.sendPrompt(input, meta),
-      queuePrompt: (input, meta) => client.queuePrompt(input, meta),
-      editQueuedPrompt: (input, meta) => client.editQueuedPrompt(input, meta),
-      deleteQueuedPrompt: (input, meta) => client.deleteQueuedPrompt(input, meta),
-      changeQueuePromptOrder: (input, meta) => client.changeQueuePromptOrder(input, meta),
-      cancelTurn: (input, meta) => client.cancelTurn(input, meta),
-      setModelOption: (input, meta) => client.setModelOption(input, meta),
-      setModeOption: (input, meta) => client.setModeOption(input, meta),
-      resolvePermission: (input, meta) => client.resolvePermission(input, meta),
-      setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
-      exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
-      exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
-      uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),
-      downloadAttachment: async (input, meta) => {
-        const result = await client.downloadAttachment(input, meta);
-        if (!result.success) return result;
-        return ok({ meta: result.data.meta, source: result.data.chunks() });
-      },
-      deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
-      getHistory: (input, meta) => client.getHistory(input, meta),
-      sessions: client.sessions,
-      session: client.session,
-      terminalOutput: client.terminalOutput,
-    }),
+    forwardController(acpApiContract, client),
     runtimeWireValidationPolicy()
   );
   rendererWireDispose = exposeWireToWindows(
@@ -153,15 +107,4 @@ function installRendererWire(client: AcpRuntimeClient): void {
 
 function runtimeWireValidationPolicy() {
   return import.meta.env.DEV ? 'full' : 'inputs';
-}
-
-function resolveRuntimeEntry(): string {
-  const candidates = [join(__dirname, 'acp-runtime.js'), join(__dirname, 'acp-runtime.mjs')];
-  const entry = candidates.find((candidate) => existsSync(candidate));
-  if (!entry) {
-    throw new Error(
-      `ACP runtime child process entry is missing. Checked: ${candidates.join(', ')}`
-    );
-  }
-  return entry;
 }

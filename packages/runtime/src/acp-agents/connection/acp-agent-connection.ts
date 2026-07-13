@@ -1,4 +1,4 @@
-import type { Client, InitializeResponse, SessionUpdate } from '@agentclientprotocol/sdk';
+import type { Client, SessionUpdate } from '@agentclientprotocol/sdk';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -7,114 +7,167 @@ import type {
   SpawnFailedError,
 } from '@emdash/core/acp';
 import { acpErr, decodeSessionUpdate } from '@emdash/core/acp';
-import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
-import type { SpawnContextError, SpawnContextResolver } from '@emdash/core/agents/spawn-context';
-import { type Logger, noopLogger } from '@emdash/core/lib';
+import type { AcpAgentApi, AgentHostAcpSpawn, IAcpBehavior } from '@emdash/core/agents/plugins';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
+import type { Scope } from '@emdash/wire/util';
 
 type AcpAgentProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 
+type ProcessClosed =
+  | {
+      kind: 'exit';
+      exitCode: number | null;
+    }
+  | {
+      kind: 'error';
+      error: Error;
+      exitCode: number | null;
+    };
+
+export type AcpConnectionError = SpawnFailedError | InitializeFailedError;
+export type AcpSessionUpdateNormalizer = (raw: SessionUpdate) => NormalizedEvent;
+
 /** Live connection to one spawned agent process. */
 export interface AcpAgentConnection {
-  handle: AcpProcessHandle;
   agent: AcpAgentApi;
-  normalize: (raw: SessionUpdate) => NormalizedEvent;
-  /** Resolves with agent capabilities once initialize completes, or an error if it fails. */
-  initialized: Promise<Result<{ supportsLoadSession: boolean }, InitializeFailedError>>;
+  normalize: AcpSessionUpdateNormalizer;
+  supportsLoadSession: boolean;
 }
 
 /**
- * Spin up an agent process and return a live connection to it.
- * Returns an Err if the spawn or connection phase fails; initialize failures
- * are reported through `AcpAgentConnection.initialized` so the process can be
- * registered before the handshake completes.
+ * Spin up an agent process, initialize it, and return a ready connection.
+ * Setup failures are reported as Result errors; `onClosed` is reserved for
+ * unexpected exits after the connection is ready.
  */
 export async function createAcpAgentConnection(
   deps: {
     host: AcpAgentProcessHost;
-    spawnContext: SpawnContextResolver;
     behavior: IAcpBehavior;
     logger?: Logger;
   },
   args: {
     providerId: string;
-    cwd: string;
+    spawn: AgentHostAcpSpawn;
+    scope: Scope;
     /** Factory called once; the runtime passes its buildAgentClient result here. */
-    buildClient: (agent: AcpAgentApi) => Client;
-    /** Called when the process exits unexpectedly or initialize fails. */
-    onClosed: () => void;
+    buildClient: (agent: AcpAgentApi, normalize: AcpSessionUpdateNormalizer) => Client;
+    /** Called when a ready process exits unexpectedly. */
+    onClosed: (exitCode: number | null) => void;
   }
-): Promise<Result<AcpAgentConnection, SpawnFailedError>> {
-  const { providerId, cwd, buildClient, onClosed } = args;
-  const { host, spawnContext, behavior, logger = noopLogger } = deps;
+): Promise<Result<AcpAgentConnection, AcpConnectionError>> {
+  const { providerId, spawn, scope, buildClient, onClosed } = args;
+  const { host, behavior, logger = noopLogger } = deps;
+  const connectionScope = scope.child(`acp-connection:${providerId}`);
 
   let handle: AcpProcessHandle;
   try {
-    const contextResult = await spawnContext.resolve(providerId);
-    if (!contextResult.success) throw new Error(spawnContextErrorMessage(contextResult.error));
-    const { cli, agentEnv } = contextResult.data;
-    const {
-      command,
-      args: spawnArgs,
-      env: envOverlay,
-    } = behavior.buildSpawn({ cwd, env: agentEnv, cli });
-
     handle = await host.spawn({
-      command,
-      args: spawnArgs,
-      env: { ...agentEnv, ...envOverlay },
-      cwd,
+      command: spawn.command,
+      args: spawn.args,
+      env: spawn.env,
+      cwd: spawn.cwd,
     });
   } catch (e) {
+    await connectionScope.dispose();
     return acpErr.spawnFailed(toSerializedError(e));
   }
 
   if (handle.stderr) {
-    handle.stderr.on('data', (data: Buffer) => {
+    const onStderr = (data: Buffer): void => {
       logger.debug('createAcpAgentConnection: agent stderr', { text: data.toString().trim() });
+    };
+    handle.stderr.on('data', onStderr);
+    connectionScope.add(() => {
+      handle.stderr?.off?.('data', onStderr);
+      handle.stderr?.removeListener?.('data', onStderr);
     });
   }
 
-  handle.onExit(() => onClosed());
-  handle.onError((err) => {
-    logger.error('createAcpAgentConnection: agent process error', { error: err.message });
-    onClosed();
+  connectionScope.add(() => {
+    try {
+      handle.kill('SIGTERM');
+    } catch {
+      // Ignore teardown errors; process may have already exited.
+    }
   });
 
-  const connection = behavior.connect({ stdin: handle.stdin, stdout: handle.stdout }, buildClient);
+  const processClosed = onceProcessClosed(handle, logger);
 
   const normalize = (raw: SessionUpdate): NormalizedEvent => {
     const base = decodeSessionUpdate(raw);
     return behavior.enrich ? behavior.enrich(base, raw) : base;
   };
 
-  const supportsTerminal = typeof host.spawnTerminal === 'function';
-  const initialized: AcpAgentConnection['initialized'] = connection
-    .initialize({
-      protocolVersion: 1,
-      clientInfo: { name: 'emdash', version: '1' },
-      clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: supportsTerminal,
-      },
-    })
-    .then((resp: InitializeResponse) => {
-      const supportsLoadSession = resp.agentCapabilities?.loadSession === true;
-      logger.debug('createAcpAgentConnection: initialized', { supportsLoadSession });
-      return ok({ supportsLoadSession });
-    })
-    .catch((e: unknown) => {
-      logger.error('createAcpAgentConnection: initialize failed', {
-        error: e instanceof Error ? e.message : String(e),
-      });
-      onClosed();
-      return acpErr.initializeFailed(toSerializedError(e));
-    });
+  let connection: AcpAgentApi;
+  try {
+    connection = behavior.connect({ stdin: handle.stdin, stdout: handle.stdout }, (agent) =>
+      buildClient(agent, normalize)
+    );
+  } catch (e) {
+    await connectionScope.dispose();
+    return acpErr.initializeFailed(toSerializedError(e));
+  }
 
-  return ok({ handle, agent: connection, normalize, initialized });
+  try {
+    const initialized = await Promise.race([
+      initializeAgent(connection, host),
+      processClosed.then(failClosedBeforeReady),
+    ]);
+    const supportsLoadSession = initialized.agentCapabilities?.loadSession === true;
+    logger.debug('createAcpAgentConnection: initialized', { supportsLoadSession });
+    void processClosed.then((closed) => {
+      if (connectionScope.disposed) return;
+      onClosed(exitCodeFromClosed(closed));
+    });
+    return ok({ agent: connection, normalize, supportsLoadSession });
+  } catch (e) {
+    logger.error('createAcpAgentConnection: initialize failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    await connectionScope.dispose();
+    return acpErr.initializeFailed(toSerializedError(e));
+  }
 }
 
-function spawnContextErrorMessage(error: SpawnContextError): string {
-  return 'message' in error ? error.message : error.type;
+function onceProcessClosed(handle: AcpProcessHandle, logger: Logger): Promise<ProcessClosed> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (closed: ProcessClosed): void => {
+      if (settled) return;
+      settled = true;
+      resolve(closed);
+    };
+
+    handle.onExit((exitCode) => {
+      settle({ kind: 'exit', exitCode });
+    });
+    handle.onError((error) => {
+      logger.error('createAcpAgentConnection: agent process error', { error: error.message });
+      settle({ kind: 'error', error, exitCode: handle.exitCode });
+    });
+  });
+}
+
+function initializeAgent(agent: AcpAgentApi, host: AcpAgentProcessHost) {
+  return agent.initialize({
+    protocolVersion: 1,
+    clientInfo: { name: 'emdash', version: '1' },
+    clientCapabilities: {
+      fs: { readTextFile: true, writeTextFile: true },
+      terminal: typeof host.spawnTerminal === 'function',
+    },
+  });
+}
+
+function failClosedBeforeReady(closed: ProcessClosed): never {
+  if (closed.kind === 'error') throw closed.error;
+  throw new Error(
+    `ACP agent process exited before initialize completed (code ${closed.exitCode ?? 'null'})`
+  );
+}
+
+function exitCodeFromClosed(closed: ProcessClosed): number | null {
+  return closed.exitCode;
 }

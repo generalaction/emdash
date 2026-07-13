@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
+import type { IWatchService, WatchEvent, WatchHandle } from '../../services/fs-watch/api';
 import { FilesRuntime } from '../files-runtime';
 import { FileTree } from './file-tree';
 import type { FileNode } from './models/tree';
