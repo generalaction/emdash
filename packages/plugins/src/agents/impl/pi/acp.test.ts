@@ -26,7 +26,7 @@ describe('pi acp behavior', () => {
 
     expect(result.command).toBe(process.execPath);
     expect(result.args).toHaveLength(1);
-    expect(result.args[0]).toContain('pi-acp');
+    expect(result.args[0]).toMatch(/pi-acp[/\\]dist[/\\]index\.js$/);
     expect(result.env).toEqual({
       ELECTRON_RUN_AS_NODE: '1',
       PI_ACP_PI_COMMAND: '/usr/local/bin/pi',

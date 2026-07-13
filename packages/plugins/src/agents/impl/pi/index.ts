@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -14,7 +15,7 @@ import { icon } from './icon';
 const _require = createRequire(import.meta.url);
 
 function resolvePiAcpEntry(): string {
-  return _require.resolve('pi-acp');
+  return join(dirname(_require.resolve('pi-acp/package.json')), 'dist/index.js');
 }
 
 export const plugin = definePlugin(
