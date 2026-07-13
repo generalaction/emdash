@@ -80,7 +80,7 @@ export const plugin = definePlugin(
     },
     prompt: {
       kind: 'argv',
-      flag: '-i',
+      flag: '-p',
     },
     sessions: {
       kind: 'resumable',
@@ -94,7 +94,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--dangerously-skip-permissions',
-        initialPromptFlag: '-i',
+        initialPromptFlag: '-p',
         sessionIdFlag: '--conversation=',
         sessionIdAlways: true,
         modelFlag: '--model',
