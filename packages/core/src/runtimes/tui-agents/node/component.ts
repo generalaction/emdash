@@ -2,7 +2,6 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent } from '@emdash/wire/component';
-import { z } from 'zod';
 import { tuiAgentsContract } from '@runtimes/tui-agents/api';
 import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';
 import { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
@@ -15,6 +14,7 @@ import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers
 import { NodeExecutionContext } from '@services/exec/api';
 import { HostDependencyManager } from '@services/host-dependencies/node';
 import { NodePtySpawner } from '@services/pty/node';
+import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   hook: z.object({ port: z.number().int().positive(), token: z.string() }).optional(),
@@ -37,7 +37,9 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       const runtimeLogger = options.logger ?? logger;
       const homeDir = os.homedir();
       const exec = new NodeExecutionContext({ env });
-      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+      const dependencyDescriptors = options.pluginRegistry
+        .getAll()
+        .map(buildDescriptorFromProvider);
       const dependencyManager = new HostDependencyManager(exec, {
         dependencies: dependencyDescriptors,
         getDependencyDescriptor: (id) =>

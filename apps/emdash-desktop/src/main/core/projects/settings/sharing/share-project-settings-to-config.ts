@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
-import { fileKey, fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-process/client';
+import { fileKey, fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';

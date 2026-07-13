@@ -64,7 +64,8 @@ according to the caller's `validate` policy.
 ## Explicit Requirements
 
 Requirements are plain object keys. A component can require another Wire contract with
-`requireContract(contract)` or a validated value with `requireValue(schema)`.
+`requireContract(contract)`. Deployment values such as paths, limits, executable names, and feature
+flags belong in typed component config, not dependency requirements.
 
 There is no container, provider registry, singleton policy, recursive construction, or automatic
 resolution. Composition roots create or spawn the dependencies they want and pass dependency clients
@@ -89,9 +90,9 @@ const clock = defineWireComponent({
 
 ## In-Process Creation
 
-`component.create({ scope, dependencies, config, validate })` creates a child scope, validates config
-once, wires a memory transport, serves the controller, and returns a typed client. Disposing the
-instance stops the in-memory server and disposes the component scope.
+`component.create({ scope, dependencies, config, validate })` validates config and dependency keys,
+creates a child scope, wires a memory transport, serves the controller, and returns a typed client.
+Disposing the instance stops the in-memory server and disposes the component scope.
 
 Controller factories used by components should return unvalidated controllers. The component
 creation or worker serving boundary applies validation once.
@@ -130,7 +131,7 @@ instance or the parent scope releases the component resources.
 `WireWorkerHost.create(component, options)` returns a lazy supervised worker with a stable typed
 client. `spawn(component, options)` eagerly starts it and waits for readiness.
 
-Worker component IPC uses framed logical channels:
+Worker component IPC uses internal framed logical channels:
 
 - `runtime` for the served component contract.
 - bootstrap messages for config and readiness.

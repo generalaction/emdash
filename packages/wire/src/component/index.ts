@@ -1,9 +1,7 @@
 export { defineWireComponent } from './define';
-export { requireContract, requireValue } from './requirements';
-export { componentControllerSymbol, wireComponentSymbol } from './symbols';
+export { requireContract } from './requirements';
 export type {
   DefineWireComponentOptions,
-  InternalWireComponentInstance,
   ProvidedWireComponentRequirements,
   ResolvedWireComponentRequirements,
   WireComponentContractRequirement,
@@ -13,5 +11,4 @@ export type {
   WireComponentInstance,
   WireComponentRequirement,
   WireComponentRequirements,
-  WireComponentValueRequirement,
 } from './types';

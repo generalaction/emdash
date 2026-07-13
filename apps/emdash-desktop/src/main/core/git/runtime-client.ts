@@ -3,17 +3,16 @@ import type {
   GitFilePath,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
-import { err, ok, type Result } from '@emdash/shared';
-import {
-  createLiveJobReplica,
-  LiveJobFailedError,
-  type JobError,
-  type JobInput,
-  type JobProgress,
-  type JobResult,
-  type LiveJobClientHandle,
-  type LiveJobEndpointDef,
+import { ok, type Result } from '@emdash/shared';
+import type {
+  JobError,
+  JobInput,
+  JobProgress,
+  JobResult,
+  LiveJobClientHandle,
+  LiveJobEndpointDef,
 } from '@emdash/wire';
+import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
 import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
 
 export function repositorySelector(nativePath: string): RepositorySelector {
@@ -35,29 +34,13 @@ export async function mutationResult<Data, Error>(
   return result.success ? ok(result.data.data) : result;
 }
 
-export async function runGitJob<Def extends LiveJobEndpointDef>(
+export function runGitJob<Def extends LiveJobEndpointDef>(
   definition: Def,
   handle: LiveJobClientHandle<Def>,
   input: JobInput<Def>,
   onProgress?: (progress: JobProgress<Def>) => void
 ): Promise<Result<JobResult<Def>, JobError<Def>>> {
-  const jobs = createLiveJobReplica(definition, handle);
-  const lease = await jobs.start(input);
-  try {
-    const job = await lease.ready();
-    const unsubscribe = onProgress ? job.onProgress(onProgress) : undefined;
-    try {
-      return ok(await job.result);
-    } catch (error) {
-      if (error instanceof LiveJobFailedError) return err(error.error as JobError<Def>);
-      throw error;
-    } finally {
-      unsubscribe?.();
-    }
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
+  return runRuntimeLiveJob(definition, handle, input, onProgress);
 }
 
 export function gitErrorMessage(error: unknown): string {

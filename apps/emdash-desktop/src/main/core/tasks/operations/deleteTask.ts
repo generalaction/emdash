@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { mutationResult } from '@main/core/git/runtime-process/client';
+import { mutationResult } from '@main/core/git/runtime-client';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';

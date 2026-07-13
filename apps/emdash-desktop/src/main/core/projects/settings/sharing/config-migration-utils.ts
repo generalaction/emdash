@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-process/client';
+import { fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,

@@ -17,20 +17,20 @@ import {
   runFilesJob,
   singleFileChunk,
   type FilesClientScope,
-} from '@main/core/files/runtime-process/client';
-import type { FilesRuntimeClient } from '@main/core/files/runtime-process/host';
+} from '@main/core/files/runtime-client';
 import {
   gitErrorMessage,
   gitFilePath,
   mutationResult,
   runGitJob,
-} from '@main/core/git/runtime-process/client';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
+} from '@main/core/git/runtime-client';
 import {
   ensureAbsoluteDir,
   isRealPathContained,
   realPathAbsolute,
 } from '@main/core/runtime/files-helpers';
+import type { FilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';

@@ -19,11 +19,11 @@ not mix cross-session routing with per-session state projection.
   provider/workspace and can host multiple ACP sessions.
 - Models under `packages/core/src/acp/models/` are the shared vocabulary for
   reducer output, live model state, and the public ACP API contract.
-- Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps
-  the contract, models, reducer vocabulary, errors, and transport ports.
-- Node host adapters live behind explicit Node-only subpaths:
-  `@emdash/core/runtimes/acp/node/process` for the ACP child-process bootstrap and attachment
-  store, and `@emdash/core/services/pty/node` for the lazy `node-pty` spawner.
+- Runtime implementation code lives under `packages/core/src/runtimes/acp/node/`; the portable
+  contract and client models stay under `packages/core/src/runtimes/acp/api/`.
+- The Node surface exports `createAcpComponent()`. App-owned worker entries call
+  `runWireComponentWorker(createAcpComponent(...))`; `@emdash/core` does not export
+  process bootstrap helpers.
 
 ```mermaid
 flowchart TD
@@ -83,16 +83,14 @@ designed.
 
 Desktop-local ACP and workspace-server ACP both register logical workers through
 `WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
-process entry calls
-`bootAcpRuntimeProcess()` from `@emdash/core/runtimes/acp/node/process`, which constructs
-`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
-`LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
-runtime process's plugin registry, execution context, plugin filesystem, env, home
-directory, host dependency manager, and spawn-context cache; ACP-specific
-resources such as process handles, ACP ports, terminal management, attachment
-storage, and session cells stay inside the ACP runtime. Each host owns a worker
-manifest that maps the ACP worker id to the emitted child-process entry path for
-that host's build.
+process entry calls `runWireComponentWorker(createAcpComponent(...))`, which constructs
+`AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`, and
+`LocalAttachmentStore`. The `AgentPluginHost` owns the runtime process's plugin registry,
+execution context, plugin filesystem, env, home directory, host dependency manager, and
+spawn-context cache; ACP-specific resources such as process handles, ACP ports, terminal
+management, attachment storage, and session cells stay inside the ACP runtime. Each host owns a
+worker manifest that maps the ACP worker id to the emitted child-process entry path for that host's
+build.
 
 Desktop composes the ACP client and renderer exposure in
 `apps/emdash-desktop/src/main/core/wire-workers/desktop-workers.ts`: the raw

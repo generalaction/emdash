@@ -1,11 +1,10 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
-import { z } from 'zod';
 import { gitContract } from '@runtimes/git/api';
 import { createGitController } from '@runtimes/git/node/api/controller';
 import { GitRuntime } from '@runtimes/git/node/git-runtime';
 import { fsWatchContract } from '@services/fs-watch/api';
-import { processWatchBackend } from '@services/fs-watch/impl/process-backend';
-import { createWatchService } from '@services/fs-watch/impl/watch-service';
+import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
+import { z } from 'zod';
 
 export const gitComponentConfigSchema = z.object({
   executable: z.string().min(1).optional(),
@@ -24,13 +23,10 @@ export const gitComponent = defineWireComponent({
   },
   configSchema: gitComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
-    const watcher = createWatchService({
-      backend: processWatchBackend({
-        client: dependencies.watcher,
-        onError: (context, error) => logger.warn(context, { error }),
-      }),
+    const watcher = createProcessWatchServiceFromDependency({
+      client: dependencies.watcher,
+      logger,
       scope,
-      onError: (context, error) => logger.warn(context, { error }),
     });
     const runtime = new GitRuntime({
       watcher,

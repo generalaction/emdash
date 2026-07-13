@@ -3,7 +3,7 @@ import {
   nativeFilePath,
   runFilesJob,
   type FilesClientScope,
-} from '@main/core/files/runtime-process/client';
+} from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import { nativePathFromHost, portablePath } from '@shared/core/runtime/paths';
 import { collectWithBudget } from './collect-with-budget';

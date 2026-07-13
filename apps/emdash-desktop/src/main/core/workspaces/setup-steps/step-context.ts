@@ -1,9 +1,9 @@
 import type { CheckoutSelector, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FilesClientScope } from '@main/core/files/runtime-process/client';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
+import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 
 /**
  * Context passed to every workspace setup step executor.

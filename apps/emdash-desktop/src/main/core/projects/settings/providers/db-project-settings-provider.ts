@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { fileKey, type FilesClientScope } from '@main/core/files/runtime-process/client';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';

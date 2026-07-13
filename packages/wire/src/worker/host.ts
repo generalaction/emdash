@@ -59,7 +59,7 @@ class WireWorkerHostImpl implements WireWorkerHost {
     Config,
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
-    options: WireComponentWorkerCreateOptions<Requirements>
+    options: WireComponentWorkerCreateOptions<Requirements, Config>
   ): WireWorker<Defs> {
     return this.defineSlot({
       name: options.name ?? component.id,
@@ -93,15 +93,11 @@ class WireWorkerHostImpl implements WireWorkerHost {
     Config,
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
-    options: WireComponentWorkerCreateOptions<Requirements>
+    options: WireComponentWorkerCreateOptions<Requirements, Config>
   ): Promise<WireWorker<Defs>> {
     const worker = this.create(component, options);
     await worker.ready();
     return worker;
-  }
-
-  get(name: string): WireWorker<ContractDefinitions> | undefined {
-    return this.workers.get(name);
   }
 
   dispose(): Promise<void> {

@@ -27,11 +27,8 @@ const mocks = vi.hoisted(() => ({
 }));
 const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 
-vi.mock('@main/core/files/runtime-process/host', () => ({
+vi.mock('@main/core/wire-workers/accessors', () => ({
   getFilesRuntimeClient: async () => clients.files,
-}));
-
-vi.mock('@main/core/git/runtime-process/host', () => ({
   getGitRuntimeClient: async () => clients.git,
 }));
 

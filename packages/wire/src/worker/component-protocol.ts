@@ -27,9 +27,7 @@ export type WireComponentBootstrapResponse = {
   dependencies: Record<string, WireComponentBootstrapDependency>;
 };
 
-export type WireComponentBootstrapDependency =
-  | { kind: 'contract'; channel: string }
-  | { kind: 'value'; value: unknown };
+export type WireComponentBootstrapDependency = { kind: 'contract'; channel: string };
 
 export function isWireWorkerFrame(message: unknown): message is WireWorkerFrame {
   return (

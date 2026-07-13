@@ -1,6 +1,6 @@
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import { ok, type Result } from '@emdash/shared';
-import { runGitJob } from '@main/core/git/runtime-process/client';
+import { runGitJob } from '@main/core/git/runtime-client';
 import { log } from '@main/lib/logger';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/push-branch';
 import type { StepContext } from './step-context';

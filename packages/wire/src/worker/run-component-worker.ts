@@ -5,12 +5,14 @@ import { connect } from '../api/connect';
 import type { ContractDefinitions } from '../api/define';
 import { serve } from '../api/serve';
 import {
-  componentControllerSymbol,
-  type InternalWireComponentInstance,
   type ResolvedWireComponentRequirements,
   type WireComponentDefinition,
   type WireComponentRequirements,
 } from '../component';
+import {
+  componentControllerSymbol,
+  type InternalWireComponentInstance,
+} from '../component/internal';
 import {
   isWireComponentBootstrapResponse,
   parentPortChannelTransport,
@@ -21,6 +23,8 @@ import {
 import { WORKER_READY_SIGNAL, isWorkerSignal } from './protocol';
 import type { WorkerParentPort } from './types';
 import { workerValidatePolicy } from './validation';
+
+const BOOTSTRAP_RETRY_MS = 50;
 
 export type RunWireComponentWorkerOptions = {
   port?: WorkerParentPort;
@@ -46,9 +50,11 @@ export async function runWireComponentWorker<
     await scope.dispose();
     exit(code);
   };
-  scope.add(port.onMessage((message) => {
-    if (isWorkerSignal(message, 'shutdown')) void shutdown(0);
-  }));
+  scope.add(
+    port.onMessage((message) => {
+      if (isWorkerSignal(message, 'shutdown')) void shutdown(0);
+    })
+  );
   scope.add(port.onDisconnect(() => void shutdown(0)));
 
   try {
@@ -66,7 +72,6 @@ export async function runWireComponentWorker<
       instance[componentControllerSymbol]
     );
     scope.add(stopServing);
-    scope.add(() => instance.dispose());
     port.send(WORKER_READY_SIGNAL);
   } catch (error) {
     await scope.dispose(error);
@@ -96,21 +101,31 @@ function requestBootstrap(
       cleanup();
       resolve(message);
     });
+    const unsubscribeDisconnect = port.onDisconnect(() => {
+      cleanup();
+      reject(new Error('Component worker bootstrap cancelled because the parent disconnected'));
+    });
     const onAbort = (): void => {
       cleanup();
       reject(signal.reason ?? new Error('Component worker bootstrap cancelled'));
     };
     signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
     function cleanup(): void {
+      if (done) return;
       done = true;
       if (retry) clearTimeout(retry);
       unsubscribe();
+      unsubscribeDisconnect();
       signal.removeEventListener('abort', onAbort);
     }
     function send(): void {
       if (done) return;
       port.send(request);
-      retry = setTimeout(send, 0);
+      retry = setTimeout(send, BOOTSTRAP_RETRY_MS);
     }
     send();
   });
@@ -130,13 +145,11 @@ function buildDependencies<
   for (const [key, requirement] of Object.entries(component.requirements)) {
     const supplied = bootstrap[key];
     if (!supplied) throw new Error(`Missing bootstrap dependency '${key}'`);
-    if (requirement.kind === 'contract') {
-      if (supplied.kind !== 'contract') throw new Error(`Dependency '${key}' is not a contract`);
-      dependencies[key] = client(requirement.contract, connect(parentPortChannelTransport(port, supplied.channel)));
-    } else {
-      if (supplied.kind !== 'value') throw new Error(`Dependency '${key}' is not a value`);
-      dependencies[key] = requirement.schema.parse(supplied.value);
-    }
+    if (supplied.kind !== 'contract') throw new Error(`Dependency '${key}' is not a contract`);
+    dependencies[key] = client(
+      requirement.contract,
+      connect(parentPortChannelTransport(port, supplied.channel))
+    );
   }
   return dependencies as ResolvedWireComponentRequirements<Requirements>;
 }

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { gitErrorMessage, mutationResult } from '@main/core/git/runtime-process/client';
+import { gitErrorMessage, mutationResult } from '@main/core/git/runtime-client';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/ensure-remote';
 import type { StepContext } from './step-context';
 

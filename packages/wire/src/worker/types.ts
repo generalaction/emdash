@@ -3,7 +3,6 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
-import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type {
   ProvidedWireComponentRequirements,
@@ -11,7 +10,6 @@ import type {
   WireComponentRequirements,
 } from '../component';
 import type { WireInstrumentation } from '../observability';
-import type { Middleware } from '../util';
 
 export type WorkerStdioStream = 'stdout' | 'stderr';
 
@@ -73,7 +71,11 @@ export type WireWorkerDefinition<Defs extends ContractDefinitions> = {
   name: string;
   contract: Contract<Defs>;
   process: () => WorkerProcessSpec;
-  setup?(context: { generation: number; process: WorkerProcess; scope: Scope }): void | Promise<void>;
+  setup?(context: {
+    generation: number;
+    process: WorkerProcess;
+    scope: Scope;
+  }): void | Promise<void>;
   supervision?: WorkerSupervision;
   readyTimeoutMs?: number;
   shutdownGraceMs?: number;
@@ -82,6 +84,7 @@ export type WireWorkerDefinition<Defs extends ContractDefinitions> = {
 
 export type WireComponentWorkerCreateOptions<
   Requirements extends WireComponentRequirements,
+  Config,
 > = {
   name?: string;
   executable: string;
@@ -89,7 +92,7 @@ export type WireComponentWorkerCreateOptions<
   env?: Record<string, string | undefined>;
   cwd?: string;
   dependencies: ProvidedWireComponentRequirements<Requirements>;
-  config: unknown;
+  config: Config;
   supervision?: WorkerSupervision;
   readyTimeoutMs?: number;
   shutdownGraceMs?: number;
@@ -117,7 +120,7 @@ export interface WireWorkerHost {
     Config,
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
-    options: WireComponentWorkerCreateOptions<Requirements>
+    options: WireComponentWorkerCreateOptions<Requirements, Config>
   ): WireWorker<Defs>;
   spawn<
     Id extends string,
@@ -126,9 +129,8 @@ export interface WireWorkerHost {
     Config,
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
-    options: WireComponentWorkerCreateOptions<Requirements>
+    options: WireComponentWorkerCreateOptions<Requirements, Config>
   ): Promise<WireWorker<Defs>>;
-  get(name: string): WireWorker<ContractDefinitions> | undefined;
   dispose(): Promise<void>;
 }
 
@@ -136,17 +138,4 @@ export type WorkerParentPort = {
   send(message: unknown): void;
   onMessage(cb: (message: unknown) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
-};
-
-export type ServeWireWorkerOptions = {
-  logger?: Logger;
-  instrumentation?: WireInstrumentation;
-  middleware?: readonly Middleware<Controller>[];
-  port?: WorkerParentPort;
-  exit?: (code: number) => void;
-};
-
-export type ServeWireWorkerContext = {
-  scope: Scope;
-  logger: Logger;
 };

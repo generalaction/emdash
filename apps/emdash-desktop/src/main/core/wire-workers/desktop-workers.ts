@@ -11,7 +11,10 @@ import { filesComponent } from '@emdash/core/runtimes/files/node';
 import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent } from '@emdash/core/runtimes/git/node';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import {
+  type Contract,
+  type ContractDefinitions,
   exposeWireToWindows,
   forwardController,
   validation,
@@ -20,7 +23,6 @@ import {
 import { compose } from '@emdash/wire/util';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { pluginRegistry } from '@emdash/plugins/agents';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
@@ -28,10 +30,12 @@ import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-intera
 import { getGitExecutable } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
-import { FILES_WIRE_CHANNEL, GIT_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
-
-const ACP_WIRE_CHANNEL = 'acp-wire';
-const AGENT_CONFIG_WIRE_CHANNEL = 'agent-config-wire';
+import {
+  ACP_WIRE_CHANNEL,
+  AGENT_CONFIG_WIRE_CHANNEL,
+  FILES_WIRE_CHANNEL,
+  GIT_WIRE_CHANNEL,
+} from '@shared/core/runtime/wire-channels';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -52,6 +56,13 @@ function createMessageChannel() {
 
 const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
 const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
+const GIT_RUNTIME_ENV = {
+  ...process.env,
+  ...NON_INTERACTIVE_GIT_ENV,
+  LC_ALL: 'C',
+  LANG: 'C',
+  LANGUAGE: 'C',
+};
 
 const fsWatchWorker = host.create(fsWatchComponent, {
   name: 'fs-watch',
@@ -98,25 +109,13 @@ export const filesClient: FilesRuntimeClient = filesWorker.client;
 export const gitWorker = host.create(gitComponent, {
   name: 'git',
   executable: desktopWorkerPath('git'),
-  env: {
-    ...process.env,
-    ...NON_INTERACTIVE_GIT_ENV,
-    LC_ALL: 'C',
-    LANG: 'C',
-    LANGUAGE: 'C',
-  },
+  env: GIT_RUNTIME_ENV,
   dependencies: {
     watcher: fsWatchWorker.client,
   },
   config: {
     executable: getGitExecutable(),
-    env: {
-      ...process.env,
-      ...NON_INTERACTIVE_GIT_ENV,
-      LC_ALL: 'C',
-      LANG: 'C',
-      LANGUAGE: 'C',
-    },
+    env: GIT_RUNTIME_ENV,
   },
 });
 
@@ -175,63 +174,50 @@ function runtimeWireValidationPolicy() {
 }
 
 function installRendererWire(): void {
-  workerScope.add(
-    exposeWireToWindows(
-      { ipcMain, createMessageChannel },
-      compose(forwardController(acpApiContract, acpClient), [
-        validation(acpApiContract, runtimeWireValidationPolicy()),
-      ]),
-      {
-        channel: ACP_WIRE_CHANNEL,
-        beforeOpen: async () => {
-          await acpWorker.ready();
-        },
-      }
-    )
-  );
+  exposeRuntimeToRenderer({
+    channel: ACP_WIRE_CHANNEL,
+    contract: acpApiContract,
+    client: acpClient,
+    beforeOpen: () => acpWorker.ready(),
+  });
+  exposeRuntimeToRenderer({
+    channel: AGENT_CONFIG_WIRE_CHANNEL,
+    contract: agentConfigContract,
+    client: agentConfigClient,
+    beforeOpen: () => agentConfigWorker.ready(),
+  });
+  exposeRuntimeToRenderer({
+    channel: FILES_WIRE_CHANNEL,
+    contract: filesContract,
+    client: filesClient,
+    beforeOpen: ensureFilesWorkerReady,
+  });
+  exposeRuntimeToRenderer({
+    channel: GIT_WIRE_CHANNEL,
+    contract: gitContract,
+    client: gitClient,
+    beforeOpen: ensureGitWorkerReady,
+  });
+}
 
+function exposeRuntimeToRenderer<Defs extends ContractDefinitions>({
+  channel,
+  contract,
+  client,
+  beforeOpen,
+}: {
+  channel: string;
+  contract: Contract<Defs>;
+  client: ContractClient<Defs>;
+  beforeOpen(): Promise<void>;
+}): void {
   workerScope.add(
     exposeWireToWindows(
       { ipcMain, createMessageChannel },
-      compose(forwardController(agentConfigContract, agentConfigClient), [
-        validation(agentConfigContract, runtimeWireValidationPolicy()),
+      compose(forwardController(contract, client), [
+        validation(contract, runtimeWireValidationPolicy()),
       ]),
-      {
-        channel: AGENT_CONFIG_WIRE_CHANNEL,
-        beforeOpen: async () => {
-          await agentConfigWorker.ready();
-        },
-      }
-    )
-  );
-
-  workerScope.add(
-    exposeWireToWindows(
-      { ipcMain, createMessageChannel },
-      compose(forwardController(filesContract, filesClient), [
-        validation(filesContract, runtimeWireValidationPolicy()),
-      ]),
-      {
-        channel: FILES_WIRE_CHANNEL,
-        beforeOpen: async () => {
-          await ensureFilesWorkerReady();
-        },
-      }
-    )
-  );
-
-  workerScope.add(
-    exposeWireToWindows(
-      { ipcMain, createMessageChannel },
-      compose(forwardController(gitContract, gitClient), [
-        validation(gitContract, runtimeWireValidationPolicy()),
-      ]),
-      {
-        channel: GIT_WIRE_CHANNEL,
-        beforeOpen: async () => {
-          await ensureGitWorkerReady();
-        },
-      }
+      { channel, beforeOpen }
     )
   );
 }

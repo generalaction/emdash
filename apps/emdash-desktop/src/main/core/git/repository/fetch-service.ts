@@ -4,8 +4,8 @@ import {
   type RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
-import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-process/client';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
+import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-client';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { log } from '@main/lib/logger';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;

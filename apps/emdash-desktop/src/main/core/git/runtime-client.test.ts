@@ -1,6 +1,11 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
-import { checkoutSelector, gitFilePath, mutationResult, repositorySelector } from './client';
+import {
+  checkoutSelector,
+  gitFilePath,
+  mutationResult,
+  repositorySelector,
+} from './runtime-client';
 
 describe('Git runtime client inputs', () => {
   it('creates structured selectors and portable file paths', () => {

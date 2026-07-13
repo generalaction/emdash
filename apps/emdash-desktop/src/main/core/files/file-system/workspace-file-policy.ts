@@ -10,7 +10,7 @@ import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';
-import type { FilesClientScope } from '../runtime-process/client';
+import type { FilesClientScope } from '../runtime-client';
 
 export type WorkspacePathResolution = {
   path: string;

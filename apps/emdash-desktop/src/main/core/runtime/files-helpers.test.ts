@@ -5,7 +5,7 @@ import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 import { isRealPathContained, realPathNearestExisting } from '../files/realpath-containment';
-import { filesClientScope } from '../files/runtime-process/client';
+import { filesClientScope } from '../files/runtime-client';
 
 const pathOperations = {
   basename: path.basename,

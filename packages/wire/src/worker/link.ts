@@ -30,7 +30,6 @@ export class WorkerLink implements WireTransport {
       channel: RUNTIME_CHANNEL,
       payload: message,
     });
-    active.process.send(message);
   }
 
   onMessage(cb: (message: WireMessage) => void): Unsubscribe {
@@ -72,7 +71,6 @@ export class WorkerLink implements WireTransport {
       }
       return;
     }
-    if (isWireMessage(message)) this.messageEmitter.emit(message);
   }
 
   markReady(generation: number): void {
@@ -103,8 +101,4 @@ export class WorkerLink implements WireTransport {
     this.reconnectEmitter.clear();
     this.readyEmitter.clear();
   }
-}
-
-export function createWorkerLink(): WorkerLink {
-  return new WorkerLink();
 }

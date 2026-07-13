@@ -1,7 +1,6 @@
 import { acpApiContract, type StartSessionInput } from '@emdash/core/runtimes/acp/api/client';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-
-const ACP_WIRE_CHANNEL = 'acp-wire';
+import { ACP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
 
 export type AcpRuntimeRpcClient = ReturnType<typeof createAcpClientForPort>;
 

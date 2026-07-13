@@ -109,9 +109,8 @@ live, and worker surfaces.
   - [Components](./runtime/components.md): `defineWireComponent()`, explicit
     requirements, in-process creation, worker deployment, and non-DI composition
     rules.
-  - [Workers](./runtime/workers.md): `WireWorkerHost`, `WorkerSlot`,
-    one-generation spawners, `runWireComponentWorker()`, and process-hosted
-    components.
+  - [Workers](./runtime/workers.md): `WireWorkerHost`, one-generation spawners,
+    `runWireComponentWorker()`, and process-hosted components.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -142,9 +141,8 @@ Use narrower subpath exports at app boundaries:
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
-- `@emdash/wire/worker`: `WireWorkerHost`, `WorkerSlot`,
-  `runWireComponentWorker()`, worker signal types, supervision types, and process
-  contracts.
+- `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`, worker signal types,
+  supervision types, process contracts, and worker log forwarding.
 - `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
 - `@emdash/wire/worker/electron`: Electron utility-process spawners.
 

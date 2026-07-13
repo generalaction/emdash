@@ -1,17 +1,17 @@
 import path from 'node:path';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
-import { err, ok, type Result } from '@emdash/shared';
-import {
-  createLiveJobReplica,
-  LiveJobFailedError,
-  type JobError,
-  type JobInput,
-  type JobProgress,
-  type JobResult,
-  type LiveJobClientHandle,
-  type LiveJobEndpointDef,
+import type { Result } from '@emdash/shared';
+import type {
+  JobError,
+  JobInput,
+  JobProgress,
+  JobResult,
+  LiveJobClientHandle,
+  LiveJobEndpointDef,
 } from '@emdash/wire';
+import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
+import type { FilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import {
   hostPathFromNative,
   nativePathFromHost,
@@ -19,7 +19,6 @@ import {
   relativePathWithin,
   resolveRelativePath,
 } from '@shared/core/runtime/paths';
-import type { FilesRuntimeClient } from './host';
 
 export type FilesClientScope = {
   client: FilesRuntimeClient;
@@ -57,29 +56,13 @@ export function parentFilePaths(relative: PortableRelativePath): PortableRelativ
   return parts.map((_, index) => portablePath(parts.slice(0, index + 1).join('/')));
 }
 
-export async function runFilesJob<Def extends LiveJobEndpointDef>(
+export function runFilesJob<Def extends LiveJobEndpointDef>(
   definition: Def,
   handle: LiveJobClientHandle<Def>,
   input: JobInput<Def>,
   onProgress?: (progress: JobProgress<Def>) => void
 ): Promise<Result<JobResult<Def>, JobError<Def>>> {
-  const jobs = createLiveJobReplica(definition, handle);
-  const lease = await jobs.start(input);
-  try {
-    const job = await lease.ready();
-    const unsubscribe = onProgress ? job.onProgress(onProgress) : undefined;
-    try {
-      return ok(await job.result);
-    } catch (error) {
-      if (error instanceof LiveJobFailedError) return err(error.error as JobError<Def>);
-      throw error;
-    } finally {
-      unsubscribe?.();
-    }
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
+  return runRuntimeLiveJob(definition, handle, input, onProgress);
 }
 
 export async function* singleFileChunk(bytes: Uint8Array): AsyncIterable<Uint8Array> {

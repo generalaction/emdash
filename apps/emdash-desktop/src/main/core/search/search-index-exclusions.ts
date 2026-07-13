@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { FileExclusionPredicate } from '@main/core/files/runtime-process/client';
+import type { FileExclusionPredicate } from '@main/core/files/runtime-client';
 
 export const SEARCH_INDEX_EXCLUDED_PATH_SEGMENTS = [
   '.git',

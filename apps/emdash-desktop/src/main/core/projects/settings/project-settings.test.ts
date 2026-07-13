@@ -5,7 +5,7 @@ import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
+import { filesClientScope } from '@main/core/files/runtime-client';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';

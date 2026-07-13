@@ -177,14 +177,14 @@ Selection guidance:
   `stop()`, `register()`, `state()`, and state-change observation.
 - Use `ResourceCache` when demand is lease-driven and the resource should exist
   only while consumers hold leases or while an idle TTL retains it.
-- Use `WorkerSlot` when the resource is a Wire worker process with a stable typed
-  client, readiness, supervision, restart backoff, and child process generations.
+- Use `WireWorkerHost.create(component, ...)` when the resource is a Wire worker process with a
+  stable typed client, readiness, supervision, restart backoff, and child process generations.
 - Use `LiveJob` when callers need a Wire-visible cancellable job with progress,
   terminal state, retention, and remote client handles.
 
 `LifecycleRegistry` differs from `Scope` by modeling resource state rather than
 general cleanup. It differs from `ResourceCache` by not ref-counting leases or
-creating resources on demand from `acquire()`. It differs from `WorkerSlot` and
+creating resources on demand from `acquire()`. It differs from Wire workers and
 `LiveJob` by staying local and protocol-free: it does not supervise processes,
 serve clients, publish progress, or retain terminal job state.
 

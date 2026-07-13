@@ -2,8 +2,8 @@ import type { GitRemotesState, RepositorySelector } from '@emdash/core/runtimes/
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { resolveConfiguredRemotes } from '@shared/core/git/utils';
 import type { ProjectRemoteState } from '@shared/projects';
 

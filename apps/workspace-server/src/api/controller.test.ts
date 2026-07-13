@@ -42,6 +42,35 @@ describe('createWorkspaceWireController', () => {
       transport.close?.();
     }
   });
+
+  it('reports ACP procedures as unavailable when no ACP runtime is mounted', async () => {
+    const clientToServer = new PassThrough();
+    const serverToClient = new PassThrough();
+    const controller = createWorkspaceWireController();
+    const disposeServer = serve(streamTransport(clientToServer, serverToClient), controller);
+    const transport = streamTransport(serverToClient, clientToServer);
+    const wireClient = createClient(workspaceWireContract, connect(transport));
+
+    try {
+      await expect(
+        wireClient.acp.startSession({
+          input: {
+            conversationId: 'conversation-1',
+            projectId: 'project-1',
+            taskId: 'task-1',
+            providerId: 'codex',
+            workspaceId: 'workspace-1',
+            cwd: '/tmp/project',
+            sessionId: null,
+            model: null,
+          },
+        })
+      ).rejects.toThrow('ACP runtime is not available.');
+    } finally {
+      disposeServer();
+      transport.close?.();
+    }
+  });
 });
 
 function createFakeAcpClient(): WorkspaceAcpRuntimeClient {

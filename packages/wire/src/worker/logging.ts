@@ -38,8 +38,6 @@ export function forwardWorkerLogs(
   };
 }
 
-export const forwardRuntimeLogs = forwardWorkerLogs;
-
 function forwardWorkerLogLine(
   logger: Logger,
   line: string,

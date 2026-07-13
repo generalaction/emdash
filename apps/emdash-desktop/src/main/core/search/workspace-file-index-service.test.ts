@@ -1,8 +1,8 @@
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
-import type * as FilesRuntimeClientModule from '@main/core/files/runtime-process/client';
+import { filesClientScope } from '@main/core/files/runtime-client';
+import type * as FilesRuntimeClientModule from '@main/core/files/runtime-client';
 import { portablePath } from '@shared/core/runtime/paths';
 import type { WorkspaceFileIndexSource } from './workspace-file-index-service';
 import type {
@@ -13,7 +13,7 @@ import type {
 
 const { runFilesJobMock } = vi.hoisted(() => ({ runFilesJobMock: vi.fn() }));
 
-vi.mock('@main/core/files/runtime-process/client', async (importOriginal) => ({
+vi.mock('@main/core/files/runtime-client', async (importOriginal) => ({
   ...(await importOriginal<typeof FilesRuntimeClientModule>()),
   runFilesJob: runFilesJobMock,
 }));

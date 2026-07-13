@@ -65,8 +65,8 @@ vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
 }));
-vi.mock('@main/core/wire-workers/desktop-workers', () => ({
-  acpClient: { startSession: mockAcpStartSession },
+vi.mock('@main/core/wire-workers/accessors', () => ({
+  getAcpRuntimeClient: vi.fn(async () => ({ startSession: mockAcpStartSession })),
 }));
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },

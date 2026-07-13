@@ -9,17 +9,17 @@ import {
   fileMutationKey,
   filesClientScope,
   fsErrorMessage,
-} from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+} from '@main/core/files/runtime-client';
 import {
   checkoutSelector,
   gitErrorMessage,
   gitFilePath,
   mutationResult,
   runGitJob,
-} from '@main/core/git/runtime-process/client';
-import { getGitRuntimeClient, type GitRuntimeClient } from '@main/core/git/runtime-process/host';
+} from '@main/core/git/runtime-client';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getGitRuntimeClient, type GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 
 export type GitRepositorySetupResult = { success: true } | { success: false; error: string };

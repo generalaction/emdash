@@ -1,16 +1,12 @@
+import type { ContractDefinitions } from '../api/define';
+import { createWireComponentInstance, type CreateWireComponentInstanceOptions } from './instance';
+import type { InternalWireComponentInstance } from './internal';
 import { assertExactRequirementKeys } from './requirements';
-import {
-  createWireComponentInstance,
-  type CreateWireComponentInstanceOptions,
-} from './instance';
-import { componentControllerSymbol, wireComponentSymbol } from './symbols';
 import type {
   DefineWireComponentOptions,
-  InternalWireComponentInstance,
   WireComponentDefinition,
   WireComponentRequirements,
 } from './types';
-import type { ContractDefinitions } from '../api/define';
 
 export function defineWireComponent<
   const Id extends string,
@@ -25,15 +21,14 @@ export function defineWireComponent<
     contract: definition.contract,
     requirements: definition.requirements,
     configSchema: definition.configSchema,
-    [wireComponentSymbol]: true as const,
     create(options) {
-      const componentScope = options.scope.child(`component:${definition.id}`);
       const config = definition.configSchema.parse(options.config);
       assertExactRequirementKeys(
         definition.id,
         definition.requirements,
         options.dependencies as Record<string, unknown>
       );
+      const componentScope = options.scope.child(`component:${definition.id}`);
 
       try {
         return definition.create({
@@ -47,9 +42,8 @@ export function defineWireComponent<
               contract: definition.contract,
               controller,
               validate: options.validate ?? 'inputs',
-              disposeScope: () => scope.dispose(),
+              scope,
             });
-            scope.add(() => instance.dispose());
             return instance;
           },
         });
@@ -66,6 +60,3 @@ function createInstance<Defs extends ContractDefinitions>(
 ): InternalWireComponentInstance<Defs> {
   return createWireComponentInstance(options);
 }
-
-// Keep the helper wrapped so the public component definition exposes only create().
-export { componentControllerSymbol, wireComponentSymbol };

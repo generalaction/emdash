@@ -1,9 +1,11 @@
+import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
-import { createScope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { defineAcpWorkspaceRuntimeWorker } from './acp/host';
@@ -23,6 +25,10 @@ import { serveStdio } from './wire/serve-stdio';
 
 type Disposable = {
   dispose(): void | Promise<void>;
+};
+
+type WorkspaceRuntime = {
+  workspace: ContractClient<WorkspaceContract>;
 };
 
 async function main(): Promise<void> {
@@ -57,22 +63,7 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       scope: scope.child('workers'),
       processSpawner: childProcessSpawner(),
     });
-    const watcher = fsWatchComponent.create({
-      scope,
-      dependencies: {},
-      config: {},
-      validate: workspaceServerWireValidationPolicy(),
-    });
-    const workspace = workspaceComponent.create({
-      scope,
-      dependencies: {
-        watcher: watcher.client,
-      },
-      config: {},
-      validate: workspaceServerWireValidationPolicy(),
-    });
-    scope.add(() => watcher.dispose());
-    scope.add(() => workspace.dispose());
+    const runtime = createWorkspaceServerRuntime(scope);
     const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
       socketPath: config.serve.path,
     });
@@ -93,7 +84,7 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       createWorkspaceWireController({
         appVersion: config.appVersion,
         acp: acpClient,
-        workspace: workspace.client,
+        workspace: runtime.workspace,
       }),
       workspaceServerWireValidationPolicy()
     );
@@ -116,6 +107,26 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
   }
 
   const scope = createScope({ label: 'workspace-server-stdio' });
+  const runtime = createWorkspaceServerRuntime(scope);
+  const controller = withValidation(
+    workspaceWireContract,
+    createWorkspaceWireController({
+      appVersion: config.appVersion,
+      workspace: runtime.workspace,
+    }),
+    workspaceServerWireValidationPolicy()
+  );
+  const dispose = serveStdio(controller);
+  process.stderr.write('workspace-server wire stdio listening\n');
+  return {
+    async dispose() {
+      dispose();
+      await scope.dispose();
+    },
+  };
+}
+
+function createWorkspaceServerRuntime(scope: Scope): WorkspaceRuntime {
   const watcher = fsWatchComponent.create({
     scope,
     dependencies: {},
@@ -130,24 +141,7 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
     config: {},
     validate: workspaceServerWireValidationPolicy(),
   });
-  scope.add(() => watcher.dispose());
-  scope.add(() => workspace.dispose());
-  const controller = withValidation(
-    workspaceWireContract,
-    createWorkspaceWireController({
-      appVersion: config.appVersion,
-      workspace: workspace.client,
-    }),
-    workspaceServerWireValidationPolicy()
-  );
-  const dispose = serveStdio(controller);
-  process.stderr.write('workspace-server wire stdio listening\n');
-  return {
-    async dispose() {
-      dispose();
-      await scope.dispose();
-    },
-  };
+  return { workspace: workspace.client };
 }
 
 function workspaceServerWireValidationPolicy(): ValidatePolicy {

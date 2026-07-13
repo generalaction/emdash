@@ -7,6 +7,7 @@ import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { stopResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { updateService } from '@main/core/updates/update-service';
 import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
+import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { projectManager } from '../core/projects/project-manager';
@@ -51,6 +52,7 @@ export async function runQuitCleanup(): Promise<void> {
   const criticalSteps: Array<[string, () => Promise<void>]> = [
     ['acpAgentStatusBridge.dispose', async () => acpAgentStatusBridge.dispose()],
     ['projectManager.release', () => projectManager.release()],
+    ['disposeWorkspaceRuntimeHost', () => disposeWorkspaceRuntimeHost()],
     ['disposeDesktopWireWorkers', () => disposeDesktopWireWorkers()],
     ['appScope.dispose', () => appScope.dispose()],
     ['telemetryService.dispose', () => telemetryService.dispose()],

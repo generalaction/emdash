@@ -236,7 +236,29 @@ function unavailableAgentConfig(): NonNullable<
 }
 
 function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
+  const unavailable = (): never => {
+    throw new Error('ACP runtime is not available.');
+  };
   return {
+    startSession: unavailable,
+    resumeSession: unavailable,
+    stopSession: unavailable,
+    sendPrompt: unavailable,
+    queuePrompt: unavailable,
+    editQueuedPrompt: unavailable,
+    deleteQueuedPrompt: unavailable,
+    changeQueuePromptOrder: unavailable,
+    cancelTurn: unavailable,
+    setModelOption: unavailable,
+    setModeOption: unavailable,
+    resolvePermission: unavailable,
+    setPromptDraft: unavailable,
+    exportACPTranscript: unavailable,
+    exportRawAcpLog: unavailable,
+    uploadAttachment: unavailable,
+    downloadAttachment: unavailable,
+    deleteAttachment: unavailable,
+    getHistory: unavailable,
     sessions: unavailableLiveModel(workspaceWireContract.acp.sessions),
     session: unavailableLiveModel(workspaceWireContract.acp.session),
     terminalOutput: () => null,

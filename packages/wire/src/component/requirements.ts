@@ -1,19 +1,10 @@
-import type { z } from 'zod';
 import type { Contract, ContractDefinitions } from '../api/define';
-import type {
-  WireComponentContractRequirement,
-  WireComponentRequirements,
-  WireComponentValueRequirement,
-} from './types';
+import type { WireComponentContractRequirement, WireComponentRequirements } from './types';
 
 export function requireContract<Defs extends ContractDefinitions>(
   contract: Contract<Defs>
 ): WireComponentContractRequirement<Defs> {
   return { kind: 'contract', contract };
-}
-
-export function requireValue<T>(schema: z.ZodType<T>): WireComponentValueRequirement<T> {
-  return { kind: 'value', schema };
 }
 
 export function assertExactRequirementKeys(

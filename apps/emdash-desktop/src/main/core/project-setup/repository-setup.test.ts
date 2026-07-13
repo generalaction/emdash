@@ -22,15 +22,12 @@ vi.mock('@main/core/runtime/files-helpers', () => ({
   ensureAbsoluteDir: mocks.ensureAbsoluteDir,
 }));
 
-vi.mock('@main/core/files/runtime-process/host', () => ({
+vi.mock('@main/core/wire-workers/accessors', () => ({
   getFilesRuntimeClient: async () => clients.files,
-}));
-
-vi.mock('@main/core/git/runtime-process/host', () => ({
   getGitRuntimeClient: async () => clients.git,
 }));
 
-vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+vi.mock('@main/core/git/runtime-client', async (importOriginal) => ({
   ...(await importOriginal()),
   runGitJob: runtime.runGitJob,
 }));

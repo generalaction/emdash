@@ -41,37 +41,53 @@ export function setupComponentWorkerGeneration<
     dependencies as Record<string, unknown>
   );
 
+  let response: WireComponentBootstrapResponse | undefined;
+
   scope.add(
     process.onMessage((message) => {
       if (!isWireComponentBootstrapRequest(message) || message.componentId !== component.id) return;
-
-      const response: WireComponentBootstrapResponse = {
-        kind: 'wire-component-bootstrap',
-        event: 'ready',
-        componentId: component.id,
-        config,
-        dependencies: {},
-      };
-
-      for (const [key, requirement] of Object.entries(component.requirements)) {
-        const supplied = (dependencies as Record<string, unknown>)[key];
-        if (requirement.kind === 'contract') {
-          const channel = `dep:${key}`;
-          const controller = asController(requirement.contract, supplied);
-          const stop = serve(workerProcessChannelTransport(process, channel), controller);
-          scope.add(stop);
-          response.dependencies[key] = { kind: 'contract', channel };
-        } else {
-          response.dependencies[key] = {
-            kind: 'value',
-            value: requirement.schema.parse(supplied),
-          };
-        }
-      }
-
+      response ??= createBootstrapResponse({ component, dependencies, config, process, scope });
       process.send(response);
     })
   );
+}
+
+function createBootstrapResponse<
+  Id extends string,
+  Defs extends ContractDefinitions,
+  Requirements extends WireComponentRequirements,
+  Config,
+>({
+  component,
+  dependencies,
+  config,
+  process,
+  scope,
+}: {
+  component: WireComponentDefinition<Id, Defs, Requirements, Config>;
+  dependencies: ProvidedWireComponentRequirements<Requirements>;
+  config: unknown;
+  process: WorkerProcess;
+  scope: Scope;
+}): WireComponentBootstrapResponse {
+  const response: WireComponentBootstrapResponse = {
+    kind: 'wire-component-bootstrap',
+    event: 'ready',
+    componentId: component.id,
+    config,
+    dependencies: {},
+  };
+
+  for (const [key, requirement] of Object.entries(component.requirements)) {
+    const supplied = (dependencies as Record<string, unknown>)[key];
+    const channel = `dep:${key}`;
+    const controller = asController(requirement.contract, supplied);
+    const stop = serve(workerProcessChannelTransport(process, channel), controller);
+    scope.add(stop);
+    response.dependencies[key] = { kind: 'contract', channel };
+  }
+
+  return response;
 }
 
 function asController<Defs extends ContractDefinitions>(

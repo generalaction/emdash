@@ -2,8 +2,7 @@ import path from 'node:path';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+import { filesClientScope } from '@main/core/files/runtime-client';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -12,6 +11,7 @@ import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/termin
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';

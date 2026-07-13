@@ -24,6 +24,6 @@ The binding:
 - disposes only its subscription, not the caller-owned machine or live state.
 
 Keep long-running work in `LiveJob`, and keep resource/process ownership in
-`Scope`, `WorkerSlot`, or domain runtimes. Machines should represent local domain
+`Scope`, Wire workers, or domain runtimes. Machines should represent local domain
 state transitions; their effects should remain explicit data interpreted by the
 host or runtime that owns the side effect.

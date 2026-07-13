@@ -105,10 +105,6 @@
       "types": "./dist/services-fs-watch-node.d.mts",
       "default": "./dist/services-fs-watch-node.mjs"
     },
-    "./services/fs-watch/worker": {
-      "types": "./dist/services-fs-watch-worker.d.mts",
-      "default": "./dist/services-fs-watch-worker.mjs"
-    },
     "./runtimes/git/api": {
       "types": "./dist/runtimes-git-api.d.mts",
       "default": "./dist/runtimes-git-api.mjs"

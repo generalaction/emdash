@@ -1,7 +1,7 @@
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
-import { fileKey, isFileNotFoundError, type FilesClientScope } from './runtime-process/client';
+import { fileKey, isFileNotFoundError, type FilesClientScope } from './runtime-client';
 
 export type RealPathPathOperations = {
   basename(path: string): string;

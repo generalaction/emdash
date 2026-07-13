@@ -3,7 +3,7 @@ import { GitRepositoryFetchService } from './fetch-service';
 
 const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
 
-vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+vi.mock('@main/core/git/runtime-client', async (importOriginal) => ({
   ...(await importOriginal()),
   runGitJob: runtime.runGitJob,
 }));

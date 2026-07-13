@@ -1,5 +1,5 @@
 import { and, eq, ne } from 'drizzle-orm';
-import { checkoutSelector } from '@main/core/git/runtime-process/client';
+import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';

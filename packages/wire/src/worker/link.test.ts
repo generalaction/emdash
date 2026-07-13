@@ -16,10 +16,23 @@ describe('WorkerLink', () => {
     link.onReady((generation) => ready.push(generation));
     link.attach(1, first);
     link.handleMessage(1, WORKER_READY_SIGNAL);
-    link.handleMessage(1, { kind: 'result', id: 'one', ok: true, value: 1 });
+    link.handleMessage(1, {
+      kind: 'wire-worker-frame',
+      channel: 'runtime',
+      payload: { kind: 'result', id: 'one', ok: true, value: 1 },
+    });
     link.attach(2, second);
-    link.handleMessage(1, { kind: 'result', id: 'stale', ok: true, value: 0 });
-    link.handleMessage(2, { kind: 'result', id: 'two', ok: true, value: 2 });
+    link.handleMessage(1, {
+      kind: 'wire-worker-frame',
+      channel: 'runtime',
+      payload: { kind: 'result', id: 'stale', ok: true, value: 0 },
+    });
+    link.handleMessage(2, { kind: 'result', id: 'ignored', ok: true, value: -1 });
+    link.handleMessage(2, {
+      kind: 'wire-worker-frame',
+      channel: 'runtime',
+      payload: { kind: 'result', id: 'two', ok: true, value: 2 },
+    });
 
     expect(ready).toEqual([1]);
     expect(messages).toEqual([
@@ -44,7 +57,6 @@ describe('WorkerLink', () => {
         channel: 'runtime',
         payload: { kind: 'cancel', id: 'call' },
       },
-      { kind: 'cancel', id: 'call' },
     ]);
   });
 });

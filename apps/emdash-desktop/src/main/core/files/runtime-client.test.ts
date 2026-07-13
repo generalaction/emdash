@@ -6,7 +6,7 @@ import {
   filesClientScope,
   nativeFilePath,
   parentFilePaths,
-} from './client';
+} from './runtime-client';
 
 describe('Files runtime client paths', () => {
   it('binds native paths to a structured runtime root', () => {

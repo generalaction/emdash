@@ -1,4 +1,4 @@
-import type { FilesClientScope } from '@main/core/files/runtime-process/client';
+import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { LifecycleScriptService } from './workspace-lifecycle-service';
 

@@ -4,8 +4,8 @@ import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
 import { createScope } from '@emdash/shared/concurrency';
-import type { WireComponentInstance } from '@emdash/wire/component';
 import type { ContractClient } from '@emdash/wire/api';
+import type { WireComponentInstance } from '@emdash/wire/component';
 import { log } from '@main/lib/logger';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 
@@ -53,8 +53,6 @@ function ensureHost(): WorkspaceRuntimeHost {
     logger: log,
     validate: 'inputs',
   });
-  scope.add(() => watcher.dispose());
-  scope.add(() => instance.dispose());
 
   host = {
     scope,

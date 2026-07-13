@@ -2,8 +2,8 @@ import path from 'node:path';
 import type { GitRefsState } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-process/client';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
+import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-client';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { WorktreeService } from './worktree-service';
@@ -15,12 +15,12 @@ const fileSystem = vi.hoisted(() => ({
 const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
 const filesRuntime = vi.hoisted(() => ({ client: undefined as unknown }));
 
-vi.mock('@main/core/git/runtime-process/client', async (importOriginal) => ({
+vi.mock('@main/core/git/runtime-client', async (importOriginal) => ({
   ...(await importOriginal()),
   runGitJob: runtime.runGitJob,
 }));
 
-vi.mock('@main/core/files/runtime-process/host', () => ({
+vi.mock('@main/core/wire-workers/accessors', () => ({
   getFilesRuntimeClient: async () => filesRuntime.client,
 }));
 

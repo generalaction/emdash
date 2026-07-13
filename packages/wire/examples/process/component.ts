@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { createController, createLiveModelHost } from '../../src/index';
 import { defineWireComponent } from '../../src/component';
+import { createController, createLiveModelHost } from '../../src/index';
 import { processExampleApi } from './contract';
 
 const counters = createLiveModelHost(processExampleApi.counter);

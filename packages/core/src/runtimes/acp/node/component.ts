@@ -3,7 +3,6 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent } from '@emdash/wire/component';
-import { z } from 'zod';
 import { acpApiContract } from '@runtimes/acp/api';
 import { createAcpController } from '@runtimes/acp/node/api/controller';
 import { ChildAcpProcessHost } from '@runtimes/acp/node/node/child-process-host';
@@ -18,6 +17,7 @@ import {
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
 import { NodeExecutionContext } from '@services/exec/api';
 import { HostDependencyManager } from '@services/host-dependencies/node';
+import { z } from 'zod';
 
 export const acpComponentConfigSchema = z.object({
   attachmentsDir: z.string().min(1),
@@ -42,7 +42,9 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
       const attachmentStore = new LocalAttachmentStore(config.attachmentsDir);
       const homeDir = os.homedir();
       const exec = new NodeExecutionContext({ env });
-      const dependencyDescriptors = options.pluginRegistry.getAll().map(buildDescriptorFromProvider);
+      const dependencyDescriptors = options.pluginRegistry
+        .getAll()
+        .map(buildDescriptorFromProvider);
       const dependencyManager = new HostDependencyManager(exec, {
         dependencies: dependencyDescriptors,
         getDependencyDescriptor: (id) =>

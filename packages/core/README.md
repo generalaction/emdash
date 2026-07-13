@@ -98,11 +98,9 @@ processes, or own background work.
 ### `node`
 
 `node/` contains Node-specific implementations: runtime and service factories,
-Wire controllers, procedure implementations, filesystem/Git/PTY/subprocess
-behavior, resource allocation, and process-host adapters.
-
-`node/process` is reserved for process entry helpers that adapt a Node
-implementation to process hosting.
+Wire components, Wire controllers, procedure implementations, filesystem/Git/PTY/subprocess
+behavior, and resource allocation. App-owned worker entry files adapt components to process hosting
+with `runWireComponentWorker()`.
 
 ### `browser`
 
@@ -122,8 +120,7 @@ Examples:
 
 ```ts
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { GitRuntime } from '@emdash/core/runtimes/git/node';
-import { bootGitRuntimeProcess } from '@emdash/core/runtimes/git/node/process';
+import { GitRuntime, gitComponent } from '@emdash/core/runtimes/git/node';
 
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { createNativeWatchService } from '@emdash/core/services/fs-watch/node';

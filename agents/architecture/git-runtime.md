@@ -6,13 +6,14 @@ paths, watchers, or lease ownership.
 
 ## Ownership
 
-- `packages/core/src/git/` owns selectors, contracts, serialized states, inputs, results, errors,
-  and client-used pure helpers.
-- `packages/runtime/src/git/` owns provisioning, identity resolution, canonical resources,
-  watchers, reconciliation, and Git execution.
+- `packages/core/src/runtimes/git/api/` owns selectors, contracts, serialized states, inputs,
+  results, errors, and client-used pure helpers.
+- `packages/core/src/runtimes/git/node/` owns provisioning, identity resolution, canonical
+  resources, watchers, reconciliation, Git execution, and `gitComponent`.
 - `packages/wire/` owns live-state publication, `ComputedLiveState`, resource-backed live-model
   hosts, mutation cursors, jobs, replicas, and transport behavior.
-- Core never imports runtime. Canonical identities and canonical host paths are runtime-only.
+- Portable API modules never import Node runtime implementation code. Canonical identities and
+  canonical host paths are runtime-only.
 
 ## Runtime Shape
 
@@ -108,5 +109,5 @@ throwing and are recorded by Wire as causes.
   and checkout operations.
 - `exec/` contains Git process construction and scoping, operation context, and transfer progress.
 
-Only runtime and transport composition are exported from `@emdash/core/runtimes/git/node`. Allocation,
-resources, and command drivers remain implementation details.
+Only runtime and component composition are exported from `@emdash/core/runtimes/git/node`.
+Allocation, resources, and command drivers remain implementation details.

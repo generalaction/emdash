@@ -1,9 +1,9 @@
 # Workers
 
 A worker is a named, process-hosted `WireComponent` owned by a `WireWorkerHost`.
-The host creates logical workers, while each worker has one `WorkerSlot` that owns readiness,
-supervision, reconnects, graceful shutdown, and the stable typed client. Low-level spawners create
-exactly one process generation.
+The host creates logical workers and exposes a stable typed client. Internally, each worker has one
+slot that owns readiness, supervision, reconnects, graceful shutdown, and process generations.
+Low-level spawners create exactly one process generation.
 
 See [Components](./components.md) for the authored component shape, local creation examples,
 dependency requirements, and testing guidance. This page focuses on process supervision.
@@ -13,8 +13,8 @@ dependency requirements, and testing guidance. This page focuses on process supe
 ```mermaid
 flowchart LR
   App["Application composition"] --> Host["WireWorkerHost"]
-  Host --> Slot["WorkerSlot"]
-  Slot --> Link["WorkerLink"]
+  Host --> Slot["Internal worker slot"]
+  Slot --> Link["Internal worker link"]
   Slot --> Spawner["WorkerProcessSpawner"]
   Spawner --> Process["WorkerProcess"]
   Process --> Runner["runWireComponentWorker"]
@@ -24,8 +24,8 @@ flowchart LR
 
 - `WireWorkerHost` is a process ownership boundary. Composition roots inject a
   `WorkerProcessSpawner`, logger, clock, and defaults.
-- `WorkerSlot` is the only multi-generation state machine. It keeps one stable
-  connection/client while child processes restart underneath it.
+- The internal worker slot is the only multi-generation state machine. It keeps one stable
+  connection/client while child processes restart underneath it; it is not an author-facing API.
 - `WorkerProcessSpawner` is platform-specific and creates one generation. Use
   `@emdash/wire/worker/node` for Node child processes or
   `@emdash/wire/worker/electron` for Electron utility processes.
@@ -81,5 +81,6 @@ void runWireComponentWorker(counterComponent);
 ```
 
 The child helper resolves the parent IPC channel, requests bootstrap config and dependency channels,
-serves wire messages, sends the ready signal after the component controller is installed, disposes
-the child scope on shutdown/disconnect, and exits with code `1` if creation fails.
+serves framed runtime wire messages, sends the ready signal after the component controller is
+installed, disposes the child scope on shutdown/disconnect, and exits with code `1` if creation
+fails.

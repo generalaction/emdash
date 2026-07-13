@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { FilesClientScope } from '@main/core/files/runtime-process/client';
+import type { FilesClientScope } from '@main/core/files/runtime-client';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';

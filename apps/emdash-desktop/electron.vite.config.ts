@@ -19,9 +19,6 @@ const workspaceAliases = {
   '@emdash/core/services/fs-watch/node': resolve(
     '../../packages/core/src/services/fs-watch/node/index.ts'
   ),
-  '@emdash/core/services/fs-watch/worker': resolve(
-    '../../packages/core/src/services/fs-watch/worker/index.ts'
-  ),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),

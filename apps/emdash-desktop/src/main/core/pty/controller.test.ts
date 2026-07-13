@@ -2,7 +2,7 @@ import type * as nodeCrypto from 'node:crypto';
 import type * as fsPromises from 'node:fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
+import { filesClientScope } from '@main/core/files/runtime-client';
 import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import { ptySessionRegistry } from './pty-session-registry';
 

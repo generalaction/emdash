@@ -25,10 +25,6 @@ const alias = {
     __dirname,
     '../../packages/core/src/services/fs-watch/node/index.ts'
   ),
-  '@emdash/core/services/fs-watch/worker': resolve(
-    __dirname,
-    '../../packages/core/src/services/fs-watch/worker/index.ts'
-  ),
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
   '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),

@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
+import { filesClientScope } from '@main/core/files/runtime-client';
 import { getEffectiveTaskSettings } from './effective-task-settings';
 import type { ProjectSettingsProvider } from './provider';
 

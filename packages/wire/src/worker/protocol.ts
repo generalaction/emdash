@@ -1,6 +1,3 @@
-import { isWireMessage, type WireTransport } from '../api/protocol';
-import type { WorkerParentPort } from './types';
-
 const WORKER_SIGNAL_KIND = 'wire-runtime-signal';
 
 export type WorkerSignal = {
@@ -18,8 +15,6 @@ export const WORKER_SHUTDOWN_SIGNAL: WorkerSignal = {
   event: 'shutdown',
 };
 
-export const RUNTIME_SHUTDOWN_SIGNAL = WORKER_SHUTDOWN_SIGNAL;
-
 export function isWorkerSignal(
   message: unknown,
   event?: WorkerSignal['event']
@@ -28,24 +23,4 @@ export function isWorkerSignal(
   const record = message as Record<string, unknown>;
   if (record.kind !== WORKER_SIGNAL_KIND) return false;
   return event === undefined || record.event === event;
-}
-
-export function parentPortTransport(
-  port: WorkerParentPort,
-  options: Pick<WireTransport, 'onReconnect'> = {}
-): WireTransport {
-  return {
-    post(message) {
-      port.send(message);
-    },
-    onMessage(cb) {
-      return port.onMessage((message) => {
-        if (isWireMessage(message)) cb(message);
-      });
-    },
-    onDisconnect(cb) {
-      return port.onDisconnect(cb);
-    },
-    onReconnect: options.onReconnect,
-  };
 }

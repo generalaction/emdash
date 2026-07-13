@@ -1,4 +1,4 @@
-import { fileKey } from '@main/core/files/runtime-process/client';
+import { fileKey } from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import {
   emptyProjectSettingsOverrideState,

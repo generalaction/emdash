@@ -17,8 +17,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { eq, sql } from 'drizzle-orm';
-import { filesClientScope } from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
@@ -29,6 +28,7 @@ import {
 } from '@main/core/tasks/provision-task-error';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';

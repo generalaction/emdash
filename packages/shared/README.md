@@ -38,9 +38,9 @@ Use `ResourceCache` when resource lifetime is demand-driven: consumers call
 Use `SharedResource` for the same lease behavior around one unkeyed resource, and
 `AsyncCache` for retryable cached async values with no finalizer.
 
-Use Wire-owned primitives when the lifecycle is protocol-specific. `WorkerSlot`
-belongs to `@emdash/wire/worker` because it supervises process generations and
-keeps a stable typed Wire client. `LiveJob` belongs to `@emdash/wire/live`
+Use Wire-owned primitives when the lifecycle is protocol-specific. Wire workers
+belong to `@emdash/wire/worker` because they supervise process generations and
+keep a stable typed Wire client. `LiveJob` belongs to `@emdash/wire/live`
 because it publishes cancellable job state, progress, retention, and remote
 client handles.
 

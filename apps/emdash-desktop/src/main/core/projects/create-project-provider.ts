@@ -1,18 +1,14 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-client';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
-import {
-  checkoutSelector,
-  gitFilePath,
-  repositorySelector,
-} from '@main/core/git/runtime-process/client';
-import { getGitRuntimeClient } from '@main/core/git/runtime-process/host';
+import { checkoutSelector, gitFilePath, repositorySelector } from '@main/core/git/runtime-client';
 import { projectGitHubAccountBackfillService } from '@main/core/github/services/project-github-account-backfill-instance';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { LocalWorkspaceSetupExecutor } from '@main/core/workspaces/local-workspace-setup-executor';
 import { applyRecovery } from '@main/core/workspaces/recovery-strategy';
 import { log } from '@main/lib/logger';

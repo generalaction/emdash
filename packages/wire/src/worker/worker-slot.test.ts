@@ -207,7 +207,8 @@ describe('WireWorkerHost and WorkerSlot', () => {
         instance({
           scope,
           controller: createController(api, {
-            ping: async (input) => `${config.prefix}:${await dependencies.dependency.suffix(input)}`,
+            ping: async (input) =>
+              `${config.prefix}:${await dependencies.dependency.suffix(input)}`,
           }),
         }),
     });

@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
-import { mutationResult } from '@main/core/git/runtime-process/client';
+import { mutationResult } from '@main/core/git/runtime-client';
 import { log } from '@main/lib/logger';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/set-branch-base';
 import type { StepContext } from './step-context';

@@ -1,11 +1,10 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
-import { z } from 'zod';
 import { filesContract } from '@runtimes/files/api';
 import { createFilesController } from '@runtimes/files/node/api/controller';
 import { FilesRuntime } from '@runtimes/files/node/files-runtime';
 import { fsWatchContract } from '@services/fs-watch/api';
-import { processWatchBackend } from '@services/fs-watch/impl/process-backend';
-import { createWatchService } from '@services/fs-watch/impl/watch-service';
+import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
+import { z } from 'zod';
 
 export const filesComponentConfigSchema = z.object({
   idleTtlMs: z.number().nonnegative().optional(),
@@ -20,13 +19,10 @@ export const filesComponent = defineWireComponent({
   },
   configSchema: filesComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
-    const watcher = createWatchService({
-      backend: processWatchBackend({
-        client: dependencies.watcher,
-        onError: (context, error) => logger.warn(context, { error }),
-      }),
+    const watcher = createProcessWatchServiceFromDependency({
+      client: dependencies.watcher,
+      logger,
       scope,
-      onError: (context, error) => logger.warn(context, { error }),
     });
     const runtime = new FilesRuntime({
       watcher,

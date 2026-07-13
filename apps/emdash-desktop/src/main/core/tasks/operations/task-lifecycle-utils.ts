@@ -7,11 +7,11 @@ import {
   filesClientScope,
   fsErrorMessage,
   isFileNotFoundError,
-} from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
-import { mutationResult, repositorySelector } from '@main/core/git/runtime-process/client';
-import { getGitRuntimeClient } from '@main/core/git/runtime-process/host';
+} from '@main/core/files/runtime-client';
+import { mutationResult, repositorySelector } from '@main/core/git/runtime-client';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';

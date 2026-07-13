@@ -4,8 +4,8 @@ This page defines the target organization of `packages/core/src/`. Core is organ
 type so that shared domain APIs and their platform implementations can remain close without
 collapsing their dependency boundaries.
 
-This is a target architecture. Paths may temporarily differ while implementations move from
-`packages/runtime/` into `packages/core/`.
+This is the active architecture. Runtime and service implementations live in `packages/core`;
+application hosts own worker entries and build manifests.
 
 ## Why Core Owns Both APIs And Implementations
 
@@ -123,16 +123,16 @@ Choose lifecycle primitives by ownership shape:
 - Use `ResourceCache` when resource lifetime is lease-driven through `acquire()` and `release()`,
   optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
   `AsyncCache` for cached async values without finalizers.
-- Use Wire `WorkerSlot` when supervising a process-hosted Wire contract with a stable client,
-  readiness, restart backoff, and process generations. Application code should reach it through
-  `WireWorkerHost.create(component, ...)` or `spawn(component, ...)`.
+- Use `WireWorkerHost.create(component, ...)` or `spawn(component, ...)` when supervising a
+  process-hosted Wire component with a stable client, readiness, restart backoff, and process
+  generations. The lower-level worker slot is internal to `@emdash/wire`.
 - Use Wire `LiveJob` when work must be visible over the Wire protocol as a cancellable job with
   progress, terminal state, retention, and remote client handles.
 
 `LifecycleRegistry` is not a replacement for `Scope`: it uses scopes internally for each entry,
 but its public job is lifecycle state and explicit transitions. It is also not a `ResourceCache`
 because it does not ref-count demand or create resources through leases. It remains local and
-protocol-free, unlike `WorkerSlot` and `LiveJob`.
+protocol-free, unlike Wire workers and `LiveJob`.
 
 ## Standard Module Shape
 
@@ -144,7 +144,6 @@ Each module uses platform surfaces rather than mixing portable and host-specific
     index.ts
   node/
     index.ts
-    process.ts       # optional
   browser/
     index.ts         # optional
 ```
@@ -188,9 +187,9 @@ Importing a `node/` entry must not start work as a module side effect. Factories
 dependencies explicitly and use caller-owned scopes whenever the caller owns the resulting
 lifetime.
 
-An optional `node/process.ts` adapts the implementation to process hosting. It may initialize
-process logging, parse environment input, and call `serveProcessRuntime()`. The application or
-worker entry invokes the exported function.
+Node surfaces that expose a Wire contract should export a `WireComponent` definition. Application
+or workspace-server worker entries are thin host-owned files that select a component and call
+`runWireComponentWorker(component)`.
 
 ### `browser/`
 
@@ -212,8 +211,7 @@ Examples:
 
 ```ts
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { createGitRuntime } from '@emdash/core/runtimes/git/node';
-import { serveGitRuntimeProcess } from '@emdash/core/runtimes/git/node/process';
+import { GitRuntime, gitComponent } from '@emdash/core/runtimes/git/node';
 
 import type { WatchService } from '@emdash/core/services/fs-watch/api';
 import { createNativeWatchService } from '@emdash/core/services/fs-watch/node';
@@ -256,7 +254,6 @@ Within a module:
 ```text
 api <- node
 api <- browser
-node <- node/process
 ```
 
 Across modules:
@@ -285,15 +282,15 @@ runtimes/git/
     index.ts
     git-runtime.ts
     controller.ts
+    component.ts
     allocation/
     checkout/
     repository/
-    process.ts
 ```
 
 The API describes what Git exposes. The Node surface implements Git execution and canonical
-resource ownership. The process entry only hosts that implementation. No code in this module may
-import another runtime.
+resource ownership and exports `gitComponent` for hosts that want in-process or worker deployment.
+No code in this module may import another runtime.
 
 ## Example Service
 
@@ -306,9 +303,9 @@ services/fs-watch/
     watch-service.ts
   node/
     index.ts
+    component.ts
     native-backend.ts
     process-backend.ts
-    process.ts
 ```
 
 Runtimes depend on the portable `WatchService` interface and receive an implementation from their
@@ -332,7 +329,7 @@ ownership before adding the code.
 
 The architecture should be enforced mechanically:
 
-- package exports allow only declared `api`, `node`, `browser`, and `node/process` surfaces;
+- package exports allow only declared `api`, `node`, and `browser` surfaces;
 - lint rules reject forbidden imports between module types and platform surfaces;
 - renderer code cannot import any `node/` surface;
 - tests validate that build entries and package exports match source surfaces; and
@@ -341,16 +338,17 @@ The architecture should be enforced mechanically:
 Relative imports may be used within one module. Imports crossing a module boundary must use the
 module's public subpath export so that boundary checks remain reliable.
 
-## Migration Guidance
+## Change Guidance
 
 Move one domain at a time:
 
-1. create its `api/` surface from the existing Core contract and models;
-2. move its implementation from `packages/runtime/` into `node/`;
-3. move process serving into `node/process.ts`;
-4. add the new explicit package exports and build entries;
+1. create or update its `api/` surface from the portable contract and models;
+2. keep Node implementation code under `node/`;
+3. expose a `WireComponent` from the Node surface when the contract can be hosted in or out of
+   process;
+4. add explicit package exports and build entries for public surfaces only;
 5. migrate consumers without introducing cross-runtime imports; and
-6. remove the old runtime package export after all consumers move.
+6. keep worker entry files and manifests in the host application that deploys the component.
 
 Keep `@emdash/wire` and `@emdash/shared` as lower-level packages. This module taxonomy organizes
 Emdash domain ownership; it does not absorb the Wire framework, logging implementation, Result

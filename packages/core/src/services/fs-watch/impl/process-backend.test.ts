@@ -1,8 +1,14 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { defineWireComponent } from '@emdash/wire/component';
-import { isWorkerSignal, runWireComponentWorker, type WorkerParentPort } from '@emdash/wire/worker';
+import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
+import {
+  createWireWorkerHost,
+  isWorkerSignal,
+  runWireComponentWorker,
+  type WorkerParentPort,
+  type WorkerSupervision,
+} from '@emdash/wire/worker';
 import {
   fsWatchContract,
   type IWatchService,
@@ -10,18 +16,19 @@ import {
   type WatchHandle,
   type WatchOptions,
 } from '@services/fs-watch/api';
-import { spawnFsWatchWorker } from '@services/fs-watch/worker/spawn';
+import { fsWatchComponent } from '@services/fs-watch/node/component';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createFsWatchController } from './controller';
+import { processWatchBackend } from './process-backend';
+import { createWatchService } from './watch-service';
 
 describe('processWatchBackend', () => {
   it('waits for the child watcher ready event before resolving watch readiness', async () => {
     const spawner = new FakeWorkerProcessSpawner();
     const childService = new FakeWatchService();
     const scope = createScope({ label: 'test' });
-    const service = spawnFsWatchWorker({
-      entry: 'worker',
+    const service = createProcessWatchService({
       scope,
       processSpawner: spawner,
       supervision: {
@@ -51,8 +58,7 @@ describe('processWatchBackend', () => {
     const spawner = new FakeWorkerProcessSpawner();
     const childService = new FakeWatchService();
     const scope = createScope({ label: 'test' });
-    const service = spawnFsWatchWorker({
-      entry: 'worker',
+    const service = createProcessWatchService({
       scope,
       processSpawner: spawner,
       supervision: {
@@ -87,6 +93,36 @@ describe('processWatchBackend', () => {
   });
 });
 
+function createProcessWatchService({
+  scope,
+  processSpawner,
+  supervision,
+}: {
+  scope: ReturnType<typeof createScope>;
+  processSpawner: FakeWorkerProcessSpawner;
+  supervision: WorkerSupervision;
+}): IWatchService {
+  const workerHost = createWireWorkerHost({
+    scope: scope.child('fs-watch-worker-host'),
+    processSpawner,
+  });
+  const worker = workerHost.create(fsWatchComponent, {
+    name: 'fs-watch',
+    executable: 'worker',
+    dependencies: {},
+    config: {},
+    supervision,
+  });
+  return createWatchService({
+    backend: processWatchBackend({
+      client: worker.client,
+      ready: () => worker.ready(),
+    }),
+    scope,
+    graceMs: 2_500,
+  });
+}
+
 async function startChild(
   process: { childPort: WorkerParentPort; childMessages: unknown[] },
   service: IWatchService
@@ -99,7 +135,7 @@ async function startChild(
       configSchema: z.object({}),
       create: ({ instance, scope }) =>
         instance({
-        scope,
+          scope,
           controller: createFsWatchController({
             scope,
             service,
@@ -172,9 +208,9 @@ async function flush(): Promise<void> {
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     await flush();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 5));
     if (predicate()) return;
   }
   throw new Error('Timed out waiting for predicate');

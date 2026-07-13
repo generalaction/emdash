@@ -1,11 +1,11 @@
 import type { GitBranchRef, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import type { Disposable } from '@emdash/shared/concurrency';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FilesClientScope } from '@main/core/files/runtime-process/client';
+import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';
-import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { SetupResult } from '@main/core/workspaces/workspace-setup-executor';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';

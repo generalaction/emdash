@@ -9,8 +9,8 @@ import {
   nativeFilePath,
   runFilesJob,
   singleFileChunk,
-} from '@main/core/files/runtime-process/client';
-import { gitFilePath } from '@main/core/git/runtime-process/client';
+} from '@main/core/files/runtime-client';
+import { gitFilePath } from '@main/core/git/runtime-client';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import {
   isSafePreservePattern,

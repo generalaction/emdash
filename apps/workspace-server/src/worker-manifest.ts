@@ -1,5 +1,5 @@
-import { basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { workspaceWorkerBuildInputs as buildWorkspaceWorkerInputs } from '../worker-manifest-utils.js';
 import workspaceWorkers from './worker-manifest.json' with { type: 'json' };
 
 export type WorkspaceWorkerId = keyof typeof workspaceWorkers;
@@ -9,10 +9,5 @@ export function workspaceWorkerPath(id: WorkspaceWorkerId): string {
 }
 
 export function workspaceWorkerBuildInputs(): Record<string, string> {
-  return Object.fromEntries(
-    Object.values(workspaceWorkers).map((worker) => [
-      basename(worker.file, extname(worker.file)),
-      worker.entry,
-    ])
-  );
+  return buildWorkspaceWorkerInputs(workspaceWorkers);
 }

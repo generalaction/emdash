@@ -4,10 +4,10 @@ import {
   fsErrorMessage,
   isFileNotFoundError,
   nativeFilePath,
-} from '@main/core/files/runtime-process/client';
-import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
+} from '@main/core/files/runtime-client';
 import { hasWorktreeGitMarker } from '@main/core/tasks/operations/task-lifecycle-utils';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
+import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import type {
   ProjectStorageUsage,

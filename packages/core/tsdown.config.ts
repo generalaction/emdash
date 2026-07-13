@@ -26,7 +26,6 @@ export default defineConfig({
     'services-agent-plugins-api-spawn-context': 'src/services/agent-plugins/api/spawn-context.ts',
     'services-fs-watch-api': 'src/services/fs-watch/api/index.ts',
     'services-fs-watch-node': 'src/services/fs-watch/node/index.ts',
-    'services-fs-watch-worker': 'src/services/fs-watch/worker/index.ts',
     'runtimes-git-api': 'src/runtimes/git/api/index.ts',
     'runtimes-git-node': 'src/runtimes/git/node/index.ts',
     'runtimes-files-api': 'src/runtimes/files/api/index.ts',

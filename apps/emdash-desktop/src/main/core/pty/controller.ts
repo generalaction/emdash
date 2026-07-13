@@ -9,7 +9,7 @@ import {
   fsErrorMessage,
   parentFilePaths,
   singleFileChunk,
-} from '@main/core/files/runtime-process/client';
+} from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { nativePathFromHost, portablePath, resolveRelativePath } from '@shared/core/runtime/paths';

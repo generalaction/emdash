@@ -5,21 +5,13 @@ import type { ContractClient } from '../api/client';
 import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type { ValidatePolicy } from '../api/with-validation';
-import type { componentControllerSymbol, wireComponentSymbol } from './symbols';
 
 export type WireComponentContractRequirement<Defs extends ContractDefinitions> = {
   readonly kind: 'contract';
   readonly contract: Contract<Defs>;
 };
 
-export type WireComponentValueRequirement<T> = {
-  readonly kind: 'value';
-  readonly schema: z.ZodType<T>;
-};
-
-export type WireComponentRequirement =
-  | WireComponentContractRequirement<ContractDefinitions>
-  | WireComponentValueRequirement<unknown>;
+export type WireComponentRequirement = WireComponentContractRequirement<ContractDefinitions>;
 
 export type WireComponentRequirements = Record<string, WireComponentRequirement>;
 
@@ -28,9 +20,7 @@ export type ResolvedWireComponentRequirements<Requirements extends WireComponent
     infer Defs
   >
     ? ContractClient<Defs>
-    : Requirements[Key] extends WireComponentValueRequirement<infer Value>
-      ? Value
-      : never;
+    : never;
 };
 
 export type ProvidedWireComponentRequirements<Requirements extends WireComponentRequirements> = {
@@ -38,9 +28,7 @@ export type ProvidedWireComponentRequirements<Requirements extends WireComponent
     infer Defs
   >
     ? ContractClient<Defs> | Controller
-    : Requirements[Key] extends WireComponentValueRequirement<infer Value>
-      ? Value
-      : never;
+    : never;
 };
 
 export type WireComponentInstance<Defs extends ContractDefinitions> = {
@@ -48,15 +36,7 @@ export type WireComponentInstance<Defs extends ContractDefinitions> = {
   dispose(): Promise<void>;
 };
 
-export type InternalWireComponentInstance<Defs extends ContractDefinitions> =
-  WireComponentInstance<Defs> & {
-    readonly [componentControllerSymbol]: Controller;
-  };
-
-export type WireComponentCreateOptions<
-  Requirements extends WireComponentRequirements,
-  Config,
-> = {
+export type WireComponentCreateOptions<Requirements extends WireComponentRequirements, Config> = {
   scope: Scope;
   dependencies: ResolvedWireComponentRequirements<Requirements>;
   config: Config;
@@ -74,10 +54,7 @@ export type WireComponentCreateContext<
   config: Config;
   logger: Logger;
   signal: AbortSignal;
-  instance(options: {
-    scope: Scope;
-    controller: Controller;
-  }): InternalWireComponentInstance<Defs>;
+  instance(options: { scope: Scope; controller: Controller }): WireComponentInstance<Defs>;
 };
 
 export type WireComponentDefinition<
@@ -90,7 +67,6 @@ export type WireComponentDefinition<
   readonly contract: Contract<Defs>;
   readonly requirements: Requirements;
   readonly configSchema: z.ZodType<Config>;
-  readonly [wireComponentSymbol]: true;
   create(options: WireComponentCreateOptions<Requirements, Config>): WireComponentInstance<Defs>;
 };
 
@@ -106,5 +82,5 @@ export type DefineWireComponentOptions<
   configSchema: z.ZodType<Config>;
   create(
     context: WireComponentCreateContext<Defs, Requirements, Config>
-  ): InternalWireComponentInstance<Defs>;
+  ): WireComponentInstance<Defs>;
 };

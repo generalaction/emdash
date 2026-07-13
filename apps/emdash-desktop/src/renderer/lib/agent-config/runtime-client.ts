@@ -1,7 +1,6 @@
 import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-
-const AGENT_CONFIG_WIRE_CHANNEL = 'agent-config-wire';
+import { AGENT_CONFIG_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
 
 export type AgentConfigRuntimeRpcClient = ReturnType<typeof createAgentConfigClientForPort>;
 
