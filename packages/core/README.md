@@ -42,8 +42,7 @@ Node or browser implementations, or define Wire contracts for smaller shared
 capabilities.
 
 Examples include execution contexts, PTY management, filesystem watching, host
-dependency detection, agent plugin support, workspace lifecycle, and workspace
-activity.
+dependency detection, and agent plugin support.
 
 Services may depend on primitives and explicitly lower-level services. They must
 not depend on runtimes.
@@ -61,6 +60,7 @@ Current runtime domains include:
 - `files`
 - `git`
 - `tui-agents`
+- `workspace`
 
 Runtimes are peers. A runtime must not import another runtime; cross-runtime
 composition belongs in the desktop host, workspace-server host, or another

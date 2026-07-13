@@ -45,7 +45,7 @@ A runtime typically:
 - is created once per host, workspace, or another explicit host boundary; and
 - exposes lifecycle through a caller-owned `Scope` or an equivalent explicit owner.
 
-Examples include ACP, Git, Files, agent configuration, and TUI agents.
+Examples include ACP, Git, Files, agent configuration, TUI agents, and workspaces.
 
 Runtimes are peers. **A runtime must never depend on another runtime**, including another runtime's
 API surface. Shared vocabulary belongs in a primitive. Shared active behavior belongs in a service.

@@ -7,6 +7,11 @@ export default defineConfig({
       '@emdash/core/runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
       '@emdash/core/services': resolve(__dirname, '../../packages/core/src/services'),
       '@emdash/core/primitives': resolve(__dirname, '../../packages/core/src/primitives'),
+      '@emdash/core/workspace-server': resolve(
+        __dirname,
+        '../../packages/core/src/workspace-server/index.ts'
+      ),
+      '@runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
       '@services': resolve(__dirname, '../../packages/core/src/services'),
       '@primitives': resolve(__dirname, '../../packages/core/src/primitives'),
       '@workspace-server': resolve(__dirname, '../../packages/core/src/workspace-server'),

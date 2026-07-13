@@ -4,6 +4,7 @@ import { agentConfigContract } from '@runtimes/agent-config/api/contract';
 import { filesContract } from '@runtimes/files/api/api/contract';
 import { gitContract } from '@runtimes/git/api/api/contract';
 import { tuiAgentsContract } from '@runtimes/tui-agents/api/contract';
+import { workspaceContract } from '@runtimes/workspace/api';
 import { z } from 'zod';
 import {
   wireHealthSchema,
@@ -24,4 +25,5 @@ export const workspaceWireContract = defineContract({
   agentConfig: agentConfigContract,
   tuiAgents: tuiAgentsContract,
   acp: acpApiContract,
+  workspace: workspaceContract,
 });

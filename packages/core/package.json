@@ -181,6 +181,18 @@
       "types": "./dist/runtimes-tui-agents-node.d.mts",
       "default": "./dist/runtimes-tui-agents-node.mjs"
     },
+    "./runtimes/workspace/api": {
+      "types": "./dist/runtimes-workspace-api.d.mts",
+      "default": "./dist/runtimes-workspace-api.mjs"
+    },
+    "./runtimes/workspace/node": {
+      "types": "./dist/runtimes-workspace-node.d.mts",
+      "default": "./dist/runtimes-workspace-node.mjs"
+    },
+    "./runtimes/workspace/node/process": {
+      "types": "./dist/runtimes-workspace-node-process.d.mts",
+      "default": "./dist/runtimes-workspace-node-process.mjs"
+    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"

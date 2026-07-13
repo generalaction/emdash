@@ -1,3 +1,4 @@
+import { WorkspaceRuntime } from '@emdash/core/runtimes/workspace/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
 import { initProcessLogging } from '@emdash/shared/logger/node';
@@ -55,6 +56,9 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       scope: scope.child('workers'),
       processSpawner: childProcessSpawner(),
     });
+    const workspaceRuntime = new WorkspaceRuntime({
+      scope: scope.child('workspace-runtime'),
+    });
     const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
       socketPath: config.serve.path,
     });
@@ -75,6 +79,7 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       createWorkspaceWireController({
         appVersion: config.appVersion,
         acp: acpClient,
+        workspace: workspaceRuntime,
       }),
       workspaceServerWireValidationPolicy()
     );
@@ -98,7 +103,10 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
 
   const controller = withValidation(
     workspaceWireContract,
-    createWorkspaceWireController({ appVersion: config.appVersion }),
+    createWorkspaceWireController({
+      appVersion: config.appVersion,
+      workspace: new WorkspaceRuntime(),
+    }),
     workspaceServerWireValidationPolicy()
   );
   const dispose = serveStdio(controller);

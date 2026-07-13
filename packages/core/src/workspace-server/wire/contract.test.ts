@@ -20,4 +20,12 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.notifications.kind).toBe('liveModel');
     expect(workspaceWireContract.tuiAgents.notifications.id).toBe('tuiAgents.notifications');
   });
+
+  it('mounts the workspace runtime under the workspace domain', () => {
+    expect(workspaceWireContract.workspace.workspace.kind).toBe('liveModel');
+    expect(workspaceWireContract.workspace.workspace.id).toBe('workspace.workspace');
+    expect(workspaceWireContract.workspace.activate.kind).toBe('liveJob');
+    expect(workspaceWireContract.workspace.deactivate.kind).toBe('liveJob');
+    expect(workspaceWireContract.workspace.teardown.kind).toBe('liveJob');
+  });
 });

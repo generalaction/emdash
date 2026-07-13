@@ -17,7 +17,7 @@ not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules bel
 The wire contract is versioned with a single [semver](https://semver.org) string, defined in [`packages/core/src/workspace-server/versions.ts`](../../packages/core/src/workspace-server/versions.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '3.2.0';
 ```
 
 ### What each component means

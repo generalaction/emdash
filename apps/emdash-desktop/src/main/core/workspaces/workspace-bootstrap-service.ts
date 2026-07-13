@@ -1,8 +1,29 @@
+import path from 'node:path';
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import {
+  normalizeLegacyWorkspaceAutomation,
+  workspaceContract,
+  type ActivateWorkspaceInput,
+  type ProvisionWorkspaceInput,
+  type RunWorkspaceScriptInput,
+  type WorkspaceLifecyclePlans,
+  type WorkspaceOperationProgress,
+  type WorkspaceOperationResult,
+  type WorkspaceError,
+} from '@emdash/core/runtimes/workspace/api';
+import {
+  compileBootstrapPlan,
+  type BootstrapGitIntent,
+} from '@emdash/core/services/workspace-lifecycle/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { eq, sql } from 'drizzle-orm';
+import { filesClientScope } from '@main/core/files/runtime-process/client';
+import { getFilesRuntimeClient } from '@main/core/files/runtime-process/host';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
+import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   formatProvisionTaskError,
@@ -12,13 +33,19 @@ import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/ta
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
+import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
+import {
+  getWorkspaceRuntimeClient,
+  hostFileRefFromNativePath,
+} from './runtime/workspace-runtime-host';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
@@ -27,11 +54,19 @@ import { workspaceRegistry } from './workspace-registry';
 export type WorkspaceBootstrapResult = {
   path: string;
   workspaceId: string;
+  runtimeWorkspace: HostFileRef;
   sshConnectionId?: string;
   worktreeGitDir?: string;
   taskProvider: TaskProvider;
+  postActivationAutomation?: ActivateWorkspaceInput['automation'];
   /** BYOI only — workspace provider data to persist in the DB. */
   workspaceProviderData?: WorkspaceProviderData;
+};
+
+type RuntimeWorkspacePlan = {
+  path: string;
+  workspace: ProvisionWorkspaceInput['workspace'];
+  lifecycle?: WorkspaceLifecyclePlans;
 };
 
 export class WorkspaceBootstrapService {
@@ -94,6 +129,10 @@ export class WorkspaceBootstrapService {
         task,
         project,
         resolvedPath,
+        {
+          path: resolvedPath,
+          workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
+        },
         workspaceBranchName,
         workspaceSourceBranch
       );
@@ -138,6 +177,10 @@ export class WorkspaceBootstrapService {
         task,
         project,
         resolvedPath,
+        {
+          path: resolvedPath,
+          workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
+        },
         workspaceBranchName,
         workspaceSourceBranch
       );
@@ -152,6 +195,10 @@ export class WorkspaceBootstrapService {
           task,
           project,
           workspaceRow.path,
+          {
+            path: workspaceRow.path,
+            workspace: hostFileRefFromNativePath(workspaceRow.path, connectionId),
+          },
           workspaceBranchName,
           workspaceSourceBranch
         );
@@ -168,22 +215,16 @@ export class WorkspaceBootstrapService {
       return err({ type: 'no-intent' });
     }
 
-    const { baseRemote, pushRemote } = await project.gitRepository.getConfiguredRemotes();
-    const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
+    const runtimePlan = await this.compileRuntimeWorkspacePlan(intent, project, connectionId);
 
     const intentBranchName = deriveBranchName(intent.git) ?? undefined;
     const intentSourceBranch: GitBranchRef | undefined =
       intent.git.kind === 'create-branch' ? intent.git.fromBranch : undefined;
 
-    if (spec.length === 0) {
-      // No git operations needed — use existing project root or provided path.
-      const resolvedPath =
-        'path' in intent.workspace && intent.workspace.path
-          ? intent.workspace.path
-          : project.repoPath;
+    if (!runtimePlan.lifecycle?.setupPlan || runtimePlan.lifecycle.setupPlan.steps.length === 0) {
       await this.persistPath(
         workspaceRow.id,
-        resolvedPath,
+        runtimePlan.path,
         workspaceRow.type,
         connectionId,
         intentBranchName
@@ -192,15 +233,17 @@ export class WorkspaceBootstrapService {
         workspaceRow.id,
         task,
         project,
-        resolvedPath,
+        runtimePlan.path,
+        runtimePlan,
         intentBranchName,
         intentSourceBranch
       );
     }
 
+    const { baseRemote, pushRemote } = await project.gitRepository.getConfiguredRemotes();
+    const legacySpec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
     const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
-    const setupResult = await project.runWorkspaceSetup(spec, worktreePoolPath);
-
+    const setupResult = await project.runWorkspaceSetup(legacySpec, worktreePoolPath);
     if (!setupResult.success) {
       const { kind, type } = setupResult.error;
       const message = 'message' in setupResult.error ? setupResult.error.message : undefined;
@@ -208,6 +251,17 @@ export class WorkspaceBootstrapService {
     }
 
     const resolvedPath = setupResult.data.path;
+    const provisionResult = await runWorkspaceProvisionJob(task, project, {
+      workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
+    });
+    if (!provisionResult.success) {
+      emitTaskProvisionProgress({
+        taskId: task.id,
+        projectId: project.projectId,
+        step: 'setting-up-workspace',
+        message: `Workspace runtime provision skipped: ${provisionResult.error.message}`,
+      });
+    }
     if (resolvedPath) {
       await this.persistPath(
         workspaceRow.id,
@@ -227,6 +281,11 @@ export class WorkspaceBootstrapService {
       task,
       project,
       resolvedPath ?? '',
+      {
+        ...runtimePlan,
+        path: resolvedPath ?? runtimePlan.path,
+        workspace: hostFileRefFromNativePath(resolvedPath ?? runtimePlan.path, connectionId),
+      },
       intentBranchName,
       intentSourceBranch
     );
@@ -289,6 +348,87 @@ export class WorkspaceBootstrapService {
     return workspaceId;
   }
 
+  private async compileRuntimeWorkspacePlan(
+    intent: { git: GitSetup; workspace: WorkspaceLocation },
+    project: ProjectProvider,
+    connectionId: string | undefined
+  ): Promise<RuntimeWorkspacePlan> {
+    const projectSettings = (await project.settings.get()) ?? {};
+    const context = {
+      repoPath: project.repoPath,
+      preservePatterns: projectSettings.preservePatterns ?? [],
+    };
+
+    if (intent.git.kind === 'none') {
+      const workspacePath =
+        intent.workspace.host !== 'byoi' && intent.workspace.path
+          ? intent.workspace.path
+          : project.repoPath;
+      return {
+        path: workspacePath,
+        workspace: hostFileRefFromNativePath(workspacePath, connectionId),
+        lifecycle: {
+          ref: { kind: 'directory', path: workspacePath },
+          context,
+          setupPlan: { steps: [] },
+        },
+      };
+    }
+
+    const bootstrapIntent = toBootstrapGitIntent(intent.git);
+    const { baseRemote } = await project.gitRepository.getConfiguredRemotes();
+    const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
+    const compiled = compileBootstrapPlan(bootstrapIntent, {
+      worktreePoolPath,
+      baseRemote,
+    });
+    const branchName = deriveBranchName(intent.git);
+    const ref =
+      branchName !== null
+        ? {
+            kind: 'worktree' as const,
+            repoPath: project.repoPath,
+            path: compiled.workspacePath,
+            branchName,
+          }
+        : { kind: 'directory' as const, path: compiled.workspacePath };
+
+    return {
+      path: compiled.workspacePath,
+      workspace: hostFileRefFromNativePath(compiled.workspacePath, connectionId),
+      lifecycle: {
+        ref,
+        context,
+        setupPlan: compiled.plan,
+      },
+    };
+  }
+
+  private async resolveLegacyAutomation(
+    task: Task,
+    project: ProjectProvider,
+    workDir: string
+  ): Promise<ActivateWorkspaceInput['automation']> {
+    const projectSettings = await project.settings.get();
+    if (!projectSettings) return undefined;
+
+    const filesClient = await getFilesRuntimeClient();
+    const taskFiles = filesClientScope(filesClient, workDir);
+    const taskConfigPath = path.join(workDir, '.emdash.json');
+    const taskSettings = await getEffectiveTaskSettings({
+      projectSettings: project.settings,
+      taskFiles,
+      taskConfigPath,
+    });
+
+    return normalizeLegacyWorkspaceAutomation({
+      scripts: taskSettings.scripts,
+      shellSetup: taskSettings.shellSetup ?? projectSettings.shellSetup,
+      autoRunSetup: projectSettings.autoRunSetupScriptOnTaskCreation ?? true,
+      autoRunRun: projectSettings.autoRunRunScriptOnTaskCreation ?? false,
+    });
+  }
+
   /**
    * Acquires the workspace via the registry (runs lifecycle scripts on first
    * acquire) then builds task providers. Returns a `WorkspaceBootstrapResult`.
@@ -298,6 +438,7 @@ export class WorkspaceBootstrapService {
     task: Task,
     project: ProjectProvider,
     workDir: string,
+    runtimePlan: RuntimeWorkspacePlan,
     workspaceBranchName?: string,
     workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
@@ -309,6 +450,22 @@ export class WorkspaceBootstrapService {
       step: 'initialising-workspace',
       message: 'Initialising workspace…',
     });
+
+    const automation = await this.resolveLegacyAutomation(task, project, workDir);
+    const activation = await runWorkspaceActivateJob(task, project, {
+      workspace: runtimePlan.workspace,
+      consumerId: task.id,
+      automation,
+      lifecycle: runtimePlan.lifecycle,
+    });
+    if (!activation.success) {
+      emitTaskProvisionProgress({
+        taskId: task.id,
+        projectId: project.projectId,
+        step: 'initialising-workspace',
+        message: `Workspace runtime activation skipped: ${activation.error.message}`,
+      });
+    }
 
     let acquired;
     try {
@@ -325,6 +482,7 @@ export class WorkspaceBootstrapService {
         })
       );
     } catch (e) {
+      await runWorkspaceDeactivateJob(task, runtimePlan.workspace).catch(() => {});
       return err({
         type: 'setup-failed',
         stepKind: 'workspace-acquire',
@@ -356,11 +514,14 @@ export class WorkspaceBootstrapService {
       return ok({
         path: workDir,
         workspaceId,
+        runtimeWorkspace: runtimePlan.workspace,
         sshConnectionId: type.kind === 'ssh' ? type.connectionId : undefined,
         worktreeGitDir: undefined,
         taskProvider: buildResult.taskProvider,
+        postActivationAutomation: automation,
       });
     } catch (e) {
+      await runWorkspaceDeactivateJob(task, runtimePlan.workspace).catch(() => {});
       return err({
         type: 'setup-failed',
         stepKind: 'build-providers',
@@ -407,7 +568,10 @@ export class WorkspaceBootstrapService {
         logPrefix: `${project.type}ProjectProvider[byoi]`,
         workspaceId: workspaceRow.id,
       });
-      return ok(result);
+      return ok({
+        ...result,
+        runtimeWorkspace: hostFileRefFromNativePath(result.path, result.sshConnectionId),
+      });
     } catch (e) {
       return err({
         type: 'setup-failed',
@@ -417,6 +581,228 @@ export class WorkspaceBootstrapService {
       });
     }
   }
+}
+
+function toBootstrapGitIntent(git: Exclude<GitSetup, { kind: 'none' }>): BootstrapGitIntent {
+  switch (git.kind) {
+    case 'use-branch':
+      return {
+        kind: 'use-branch',
+        branchName: git.branchName,
+      };
+    case 'create-branch':
+      return {
+        kind: 'create-branch',
+        branchName: git.branchName,
+        fromBranch: git.fromBranch,
+      };
+    case 'pr-branch':
+      return {
+        kind: 'pr-branch',
+        prNumber: git.prNumber,
+        headBranch: git.headBranch,
+        headRepositoryUrl: git.headRepositoryUrl,
+        isFork: git.isFork,
+        taskBranch: git.taskBranch,
+      };
+  }
+}
+
+async function runWorkspaceProvisionJob(
+  task: Task,
+  project: ProjectProvider,
+  input: ProvisionWorkspaceInput
+): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
+  const lease = await jobs.start(input);
+  const job = await lease.ready();
+  const unsubscribe = job.onProgress((progress) =>
+    emitRuntimeProgress(task.id, project.projectId, progress)
+  );
+
+  try {
+    return ok(await job.result);
+  } catch (error) {
+    return err(liveJobErrorToWorkspaceError(error));
+  } finally {
+    unsubscribe();
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
+async function runWorkspaceActivateJob(
+  task: Task,
+  project: ProjectProvider,
+  input: ActivateWorkspaceInput
+): Promise<Result<unknown, WorkspaceError>> {
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(workspaceContract.activate, workspaceRuntimeClient.activate);
+  const lease = await jobs.start(input);
+  const job = await lease.ready();
+  const unsubscribe = job.onProgress((progress) =>
+    emitRuntimeProgress(task.id, project.projectId, progress)
+  );
+
+  try {
+    return ok(await job.result);
+  } catch (error) {
+    return err(liveJobErrorToWorkspaceError(error));
+  } finally {
+    unsubscribe();
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
+export function startWorkspacePostActivationScripts(
+  task: Task,
+  project: ProjectProvider,
+  result: WorkspaceBootstrapResult
+): void {
+  const automation = result.postActivationAutomation;
+  if (!automation) return;
+
+  void runWorkspacePostActivationScripts(task, project, {
+    workspace: result.runtimeWorkspace,
+    automation,
+  }).catch((error: unknown) => {
+    log.warn('Workspace post-activation scripts failed', {
+      taskId: task.id,
+      workspaceId: result.workspaceId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+}
+
+async function runWorkspacePostActivationScripts(
+  task: Task,
+  project: ProjectProvider,
+  input: Pick<RunWorkspaceScriptInput, 'workspace' | 'automation'>
+): Promise<void> {
+  let setupSucceeded = true;
+
+  if (input.automation.setup && input.automation.autoRunSetup) {
+    const result = await runWorkspaceScriptJob(task, project, {
+      ...input,
+      consumerId: task.id,
+      script: 'setup',
+    });
+    setupSucceeded = result.success;
+  }
+
+  if (setupSucceeded && input.automation.run && input.automation.autoRunRun) {
+    await runWorkspaceScriptJob(task, project, {
+      ...input,
+      consumerId: task.id,
+      script: 'run',
+    });
+  }
+}
+
+async function runWorkspaceScriptJob(
+  task: Task,
+  project: ProjectProvider,
+  input: RunWorkspaceScriptInput
+): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(workspaceContract.runScript, workspaceRuntimeClient.runScript);
+  const lease = await jobs.start(input);
+  const job = await lease.ready();
+
+  try {
+    return ok(await job.result);
+  } catch (error) {
+    const workspaceError = liveJobErrorToWorkspaceError(error);
+    log.warn('Workspace script failed', {
+      taskId: task.id,
+      projectId: project.projectId,
+      script: input.script,
+      error: workspaceError.message,
+    });
+    return err(workspaceError);
+  } finally {
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
+async function runWorkspaceDeactivateJob(
+  task: Task,
+  workspace: ActivateWorkspaceInput['workspace']
+): Promise<void> {
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(
+    workspaceContract.deactivate,
+    workspaceRuntimeClient.deactivate
+  );
+  const lease = await jobs.start({
+    workspace,
+    consumerId: task.id,
+    strategy: 'stop',
+  });
+  try {
+    const job = await lease.ready();
+    await job.result;
+  } finally {
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
+function emitRuntimeProgress(
+  taskId: string,
+  projectId: string,
+  progress: WorkspaceOperationProgress
+): void {
+  const running = progress.stages.find((stage) => stage.status === 'running');
+  const failed = progress.stages.find((stage) => stage.status === 'failed');
+  const pending = progress.stages.find((stage) => stage.status === 'pending');
+  const stage = running ?? failed ?? pending ?? progress.stages.at(-1);
+  emitTaskProvisionProgress({
+    taskId,
+    projectId,
+    step: runtimeOperationToProvisionStep(progress.kind),
+    message: stage?.progress?.message ?? stage?.label ?? 'Preparing workspace…',
+  });
+}
+
+function runtimeOperationToProvisionStep(
+  kind: WorkspaceOperationProgress['kind']
+): Parameters<typeof emitTaskProvisionProgress>[0]['step'] {
+  switch (kind) {
+    case 'provision':
+    case 'convert':
+    case 'reconcile':
+    case 'deactivate':
+    case 'teardown':
+      return 'setting-up-workspace';
+    case 'activate':
+    case 'run-script':
+      return 'initialising-workspace';
+  }
+}
+
+function liveJobErrorToWorkspaceError(error: unknown): WorkspaceError {
+  if (error instanceof LiveJobFailedError) {
+    return error.error ?? { type: 'workspace-runtime-failed', message: 'Workspace runtime failed' };
+  }
+  if (error instanceof LiveJobCancelledError) {
+    return { type: 'cancelled', message: 'Workspace runtime job was cancelled' };
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { type?: unknown }).type === 'string' &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return error as WorkspaceError;
+  }
+  return {
+    type: 'workspace-runtime-error',
+    message: error instanceof Error ? error.message : String(error),
+  };
 }
 
 export const workspaceBootstrapService = new WorkspaceBootstrapService(appDb);

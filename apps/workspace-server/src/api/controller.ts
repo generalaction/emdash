@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { type WorkspaceRuntime, workspaceJobError } from '@emdash/core/runtimes/workspace/node';
 import {
   negotiateProtocol,
   PROTOCOL_VERSION,
@@ -7,6 +8,7 @@ import {
 import { err, ok } from '@emdash/shared';
 import {
   createController,
+  LiveLog,
   type ContractImpl,
   type LiveModelDef,
   type LiveModelProvider,
@@ -18,6 +20,7 @@ export type WorkspaceWireControllerDeps = {
   daemonId?: string;
   startedAt?: number;
   acp?: WorkspaceAcpRuntimeClient;
+  workspace?: WorkspaceRuntime;
 };
 
 const defaultStartedAt = Date.now();
@@ -114,6 +117,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
     agentConfig: unavailableAgentConfig(),
     tuiAgents: unavailableTuiAgents(),
     acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
+    workspace: deps.workspace ? createWorkspaceProxy(deps.workspace) : unavailableWorkspace(),
   });
 }
 
@@ -234,5 +238,81 @@ function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract
     sessions: unavailableLiveModel(workspaceWireContract.acp.sessions),
     session: unavailableLiveModel(workspaceWireContract.acp.session),
     terminalOutput: () => null,
+  };
+}
+
+function createWorkspaceProxy(
+  runtime: WorkspaceRuntime
+): NonNullable<ContractImpl<typeof workspaceWireContract>['workspace']> {
+  return {
+    workspace: runtime.host,
+    reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
+    provision: {
+      run: (input, ctx) => runtime.provision(input, ctx),
+      toError: workspaceJobError,
+    },
+    convert: {
+      run: (input, ctx) => runtime.convert(input, ctx),
+      toError: workspaceJobError,
+    },
+    activate: {
+      run: (input, ctx) => runtime.activate(input, ctx),
+      toError: workspaceJobError,
+    },
+    deactivate: {
+      run: (input, ctx) => runtime.deactivate(input, ctx),
+      toError: workspaceJobError,
+    },
+    teardown: {
+      run: (input, ctx) => runtime.teardown(input, ctx),
+      toError: workspaceJobError,
+    },
+    runScript: {
+      run: (input, ctx) => runtime.runScript(input, ctx),
+      toError: workspaceJobError,
+    },
+    scriptOutput: (key) => runtime.scriptOutput(key),
+  };
+}
+
+function unavailableWorkspace(): NonNullable<
+  ContractImpl<typeof workspaceWireContract>['workspace']
+> {
+  const unavailable = () =>
+    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
+  return {
+    workspace: unavailableLiveModel(workspaceWireContract.workspace.workspace),
+    reconcile: unavailable,
+    provision: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    convert: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    activate: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    deactivate: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    teardown: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    runScript: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
+    scriptOutput: () => new LiveLog(),
   };
 }

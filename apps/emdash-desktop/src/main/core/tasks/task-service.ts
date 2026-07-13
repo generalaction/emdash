@@ -2,6 +2,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
+  startWorkspacePostActivationScripts,
   workspaceBootstrapService,
   type WorkspaceBootstrapResult,
 } from '@main/core/workspaces/workspace-bootstrap-service';
@@ -119,6 +120,10 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
     this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
     events.emit(taskProvisionedChannel, { taskId, projectId, ...provisionResult });
+    const project = projectManager.getProject(projectId);
+    if (project) {
+      startWorkspacePostActivationScripts(mapTaskRowToTask(row), project, result.data);
+    }
     return ok(provisionResult);
   }
 

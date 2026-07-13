@@ -11,7 +11,6 @@ import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import { runLifecycleScriptWithPolicy } from '@main/core/terminals/lifecycle-script-coordinator';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
@@ -20,7 +19,6 @@ import { log } from '@main/lib/logger';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
-import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 import { getTaskEnvVars } from './workspace-env';
 
 export type WorkspaceType =
@@ -73,7 +71,6 @@ export function createWorkspaceFactory(
       taskConfigPath: configPath,
     });
     const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-    const scripts = taskLevelSettings.scripts;
     const ctx = new LocalExecutionContext();
     const workspaceTerminals = new LocalTerminalProvider({
       projectId: context.projectId,
@@ -105,44 +102,11 @@ export function createWorkspaceFactory(
         void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
           files: created.files,
         });
-        void runAutomaticScripts({
-          workspace: created,
-          context,
-          scripts,
-          projectSettings,
-          shellSetup,
-        });
       },
       onCreate: context.extraHooks?.onCreate,
       onDestroy: async (destroyed) => {
         await previewServerService.stopForWorkspace(context.projectId, workspaceId);
         workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
-        const latestProjectSettings = await context.settings.get();
-        const latestTaskSettings = await getEffectiveTaskSettings({
-          projectSettings: context.settings,
-          taskFiles: destroyed.files,
-          taskConfigPath: destroyed.configPath,
-        });
-        const teardownScript = latestTaskSettings.scripts?.teardown;
-        if (teardownScript) {
-          await runLifecycleScriptWithPolicy({
-            workspace: destroyed,
-            projectId: context.projectId,
-            taskId: context.task.id,
-            workspaceId,
-            type: 'teardown',
-            script: teardownScript,
-            shellSetup: latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup,
-            origin: 'workspace-destroy',
-            policy: {
-              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-              logFailure: true,
-              surfaceFailure: false,
-              continueOnFailure: true,
-            },
-            logPrefix: context.logPrefix,
-          });
-        }
         await context.extraHooks?.onDestroy?.(destroyed);
       },
       onDetach: async (detached) => {
@@ -151,55 +115,6 @@ export function createWorkspaceFactory(
       },
     };
   };
-}
-
-async function runAutomaticScripts(args: {
-  workspace: Workspace;
-  context: WorkspaceFactoryContext;
-  scripts: { setup?: string; run?: string } | undefined;
-  projectSettings: Awaited<ReturnType<ProjectSettingsProvider['get']>>;
-  shellSetup: string | undefined;
-}): Promise<void> {
-  const { workspace, context, scripts, projectSettings, shellSetup } = args;
-  if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
-    const setup = await runLifecycleScriptWithPolicy({
-      workspace,
-      projectId: context.projectId,
-      taskId: context.task.id,
-      workspaceId: workspace.id,
-      type: 'setup',
-      script: scripts.setup,
-      shellSetup,
-      origin: 'auto-setup',
-      policy: {
-        respawnAfterExit: true,
-        logFailure: true,
-        surfaceFailure: true,
-        continueOnFailure: true,
-      },
-      logPrefix: context.logPrefix,
-    });
-    if (setup.kind !== 'succeeded') return;
-  }
-  if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
-    await runLifecycleScriptWithPolicy({
-      workspace,
-      projectId: context.projectId,
-      taskId: context.task.id,
-      workspaceId: workspace.id,
-      type: 'run',
-      script: scripts.run,
-      shellSetup,
-      origin: 'auto-run',
-      policy: {
-        respawnAfterExit: true,
-        logFailure: true,
-        surfaceFailure: true,
-        continueOnFailure: true,
-      },
-      logPrefix: context.logPrefix,
-    });
-  }
 }
 
 type TaskProviderOpts = {

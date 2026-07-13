@@ -1,3 +1,5 @@
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { ok, type Result } from '@emdash/shared';
 import {
   LifecycleRegistry,
@@ -5,9 +7,11 @@ import {
   type LifecycleRegistryStateChange,
 } from '@emdash/shared/concurrency';
 import { runWithTimeout } from '@emdash/shared/scheduling';
+import { createLiveJobReplica } from '@emdash/wire';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
+import { getWorkspaceRuntimeClient } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -36,10 +40,15 @@ export type WorkspaceHint = {
 };
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
-type TaskStartInput = { taskId: string; stored: StoredTask };
-type TaskLifecycleState = LifecycleRegistryState<StoredTask, ProvisionTaskError, TeardownTaskError>;
+type RuntimeStoredTask = StoredTask & { runtimeWorkspace?: HostFileRef };
+type TaskStartInput = { taskId: string; stored: RuntimeStoredTask };
+type TaskLifecycleState = LifecycleRegistryState<
+  RuntimeStoredTask,
+  ProvisionTaskError,
+  TeardownTaskError
+>;
 type TaskLifecycleStateChange = LifecycleRegistryStateChange<
-  StoredTask,
+  RuntimeStoredTask,
   ProvisionTaskError,
   TeardownTaskError
 >;
@@ -77,7 +86,8 @@ export type TaskTeardownMode = TeardownMode | 'archive';
 export async function executeTeardown(
   task: TaskProvider,
   workspaceId: string,
-  mode: TaskTeardownMode
+  mode: TaskTeardownMode,
+  runtimeWorkspace?: HostFileRef
 ): Promise<void> {
   if (mode === 'detach') {
     // Keep the tmux sessions and agent processes alive for a later remount.
@@ -87,6 +97,13 @@ export async function executeTeardown(
     // 'terminate' and 'archive' both reap the tmux sessions and agent processes.
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
+  }
+  if (runtimeWorkspace) {
+    await deactivateWorkspaceConsumer(
+      task.taskId,
+      runtimeWorkspace,
+      mode === 'detach' ? 'detach' : 'stop'
+    );
   }
   // Only 'terminate' destroys the workspace (worktree + teardown script). 'archive'
   // keeps the worktree alive, same as 'detach', so Restore can resume the task.
@@ -105,6 +122,30 @@ async function cleanupDetachedSessions(
   await Promise.all(
     sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
   );
+}
+
+async function deactivateWorkspaceConsumer(
+  taskId: string,
+  workspace: HostFileRef,
+  strategy: 'stop' | 'detach'
+): Promise<void> {
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(
+    workspaceContract.deactivate,
+    workspaceRuntimeClient.deactivate
+  );
+  const lease = await jobs.start({
+    workspace,
+    consumerId: taskId,
+    strategy,
+  });
+  try {
+    const job = await lease.ready();
+    await job.result;
+  } finally {
+    await lease.release();
+    await jobs.dispose();
+  }
 }
 
 class TaskSessionManager {
@@ -140,8 +181,9 @@ class TaskSessionManager {
     projectId: string,
     ctx: IExecutionContext
   ): Promise<void> {
-    const stored: StoredTask = {
+    const stored: RuntimeStoredTask = {
       taskProvider: result.taskProvider,
+      runtimeWorkspace: result.runtimeWorkspace,
       persistData: {
         workspaceId: result.workspaceId,
         sshConnectionId: result.sshConnectionId,
@@ -250,13 +292,16 @@ class TaskSessionManager {
 
   private async stopTask(
     taskId: string,
-    { taskProvider, persistData, projectId, ctx }: StoredTask,
+    { taskProvider, persistData, projectId, ctx, runtimeWorkspace }: RuntimeStoredTask,
     mode: TaskTeardownMode
   ): Promise<Result<void, TeardownTaskError>> {
     try {
-      await runWithTimeout(() => executeTeardown(taskProvider, persistData.workspaceId, mode), {
-        timeoutMs: TASK_TIMEOUT_MS,
-      });
+      await runWithTimeout(
+        () => executeTeardown(taskProvider, persistData.workspaceId, mode, runtimeWorkspace),
+        {
+          timeoutMs: TASK_TIMEOUT_MS,
+        }
+      );
       return ok();
     } catch (e) {
       log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
