@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { ITrustBehavior } from '@emdash/core/agents/plugins';
+import type { ITrustBehavior } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspaceTrustService } from './workspace-trust';

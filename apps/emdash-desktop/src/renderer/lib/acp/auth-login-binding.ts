@@ -3,7 +3,7 @@ import {
   type AgentConfigError,
   type AgentConfigList,
   type AuthStatusModelState,
-} from '@emdash/core/workspace-server/agent-config';
+} from '@emdash/core/runtimes/agent-config/api';
 import type { Result } from '@emdash/shared';
 import { ReplicaLog, ReplicaState } from '@emdash/wire';
 import { createScope, type Run, type Scope } from '@emdash/wire/util';

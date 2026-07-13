@@ -1,4 +1,4 @@
-import type { DiffMode, GitObjectRef, GitRemote } from '@emdash/core/git';
+import type { DiffMode, GitObjectRef, GitRemote } from '@emdash/core/runtimes/git/api';
 
 export const DEFAULT_REMOTE_NAME = 'origin';
 

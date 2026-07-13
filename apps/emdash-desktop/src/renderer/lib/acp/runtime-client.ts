@@ -1,4 +1,4 @@
-import { acpApiContract, type StartSessionInput } from '@emdash/core/acp/client';
+import { acpApiContract, type StartSessionInput } from '@emdash/core/runtimes/acp/api/client';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
 
 const ACP_WIRE_CHANNEL = 'acp-wire';

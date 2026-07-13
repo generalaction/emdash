@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';

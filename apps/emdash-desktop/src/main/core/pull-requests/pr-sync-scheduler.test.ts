@@ -1,4 +1,4 @@
-import type { GitRemote, GitRemotesState } from '@emdash/core/git';
+import type { GitRemote, GitRemotesState } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';

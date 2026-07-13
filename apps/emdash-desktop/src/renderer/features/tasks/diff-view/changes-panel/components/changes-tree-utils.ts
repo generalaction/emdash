@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/git';
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import {
   makeNode,
   normalizeFileTreePath,

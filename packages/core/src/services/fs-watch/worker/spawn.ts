@@ -5,11 +5,11 @@ import {
   type WorkerSupervision,
 } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import type { IWatchService } from '../api';
-import { fsWatchContract } from '../api';
-import type { WatchBackend } from '../impl/backend';
-import { processWatchBackend } from '../impl/process-backend';
-import { createWatchService } from '../impl/watch-service';
+import type { IWatchService } from '@services/fs-watch/api';
+import { fsWatchContract } from '@services/fs-watch/api';
+import type { WatchBackend } from '@services/fs-watch/impl/backend';
+import { processWatchBackend } from '@services/fs-watch/impl/process-backend';
+import { createWatchService } from '@services/fs-watch/impl/watch-service';
 
 export type SpawnFsWatchWorkerOptions = {
   entry: string;

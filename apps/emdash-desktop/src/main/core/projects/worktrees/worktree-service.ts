@@ -1,11 +1,11 @@
 import path from 'node:path';
-import { filesContract } from '@emdash/core/files';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import {
   gitContract,
   type CheckoutSelector,
   type GitBranchRef,
   type RepositorySelector,
-} from '@emdash/core/git';
+} from '@emdash/core/runtimes/git/api';
 import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
 import {
   fileKey,

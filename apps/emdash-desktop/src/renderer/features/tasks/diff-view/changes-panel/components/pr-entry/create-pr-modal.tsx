@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';

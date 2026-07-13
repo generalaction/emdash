@@ -1,7 +1,10 @@
 import type { Scope } from '@emdash/wire/util';
-import type { IWatchService } from '../api';
-import { nativeWatchBackend, type NativeWatchBackendOptions } from '../impl/native-backend';
-import { createWatchService } from '../impl/watch-service';
+import type { IWatchService } from '@services/fs-watch/api';
+import {
+  nativeWatchBackend,
+  type NativeWatchBackendOptions,
+} from '@services/fs-watch/impl/native-backend';
+import { createWatchService } from '@services/fs-watch/impl/watch-service';
 
 export type CreateNativeWatchServiceOptions = Readonly<{
   scope?: Scope;

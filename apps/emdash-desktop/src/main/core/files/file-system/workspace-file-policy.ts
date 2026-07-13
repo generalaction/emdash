@@ -1,4 +1,3 @@
-import type { FsError } from '@emdash/core/files';
 import {
   absoluteBasename,
   absoluteDirname,
@@ -6,7 +5,8 @@ import {
   joinAbsolute,
   parsePortableRelativePath,
   type PortableRelativePath,
-} from '@emdash/core/path';
+} from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';

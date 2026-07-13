@@ -1,8 +1,11 @@
 import { join } from 'node:path';
-import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
-import { filesContract, type FilesContract } from '@emdash/core/files';
-import { gitContract, type GitContract } from '@emdash/core/git';
-import { agentConfigContract, type AgentConfigContract } from '@emdash/core/workspace-server';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import {
+  agentConfigContract,
+  type AgentConfigContract,
+} from '@emdash/core/runtimes/agent-config/api';
+import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/api';
+import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
 import {
   exposeWireToWindows,
   forwardController,
@@ -95,7 +98,9 @@ export const gitWorker = host.define({
 
 export const gitClient: GitRuntimeClient = gitWorker.client;
 
-installRendererWire();
+if (typeof ipcMain?.handle === 'function') {
+  installRendererWire();
+}
 
 export function disposeDesktopWireWorkers(): Promise<void> {
   return host.dispose();

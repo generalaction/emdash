@@ -54,7 +54,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@emdash/core/deps/runtime', () => ({
+vi.mock('@emdash/core/services/host-dependencies/node', () => ({
   HostDependencyManager: mocks.FakeHostDependencyManager,
   resolveActiveInstallation: vi.fn((installations: Array<{ isActive?: boolean }>) =>
     installations.find((installation) => installation.isActive)

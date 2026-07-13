@@ -1,3 +1,4 @@
+import type { Logger } from '@emdash/core/primitives/lib/api';
 import {
   installationCanUpdate,
   type DependencyDescriptor,
@@ -7,8 +8,7 @@ import {
   type HostDependency,
   type Installation,
   type HostDependencyManager,
-} from '@emdash/core/deps/runtime';
-import type { Logger } from '@emdash/core/lib';
+} from '@emdash/core/services/host-dependencies/node';
 import semver from 'semver';
 import { events } from '@main/lib/events';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';

@@ -1,4 +1,4 @@
-import type { GitObjectRef } from '@emdash/core/git';
+import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';

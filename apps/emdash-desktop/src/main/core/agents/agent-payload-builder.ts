@@ -1,18 +1,21 @@
-import type { AgentAuthDescriptor, CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import type { Platform } from '@emdash/core/deps';
+import type {
+  AgentAuthDescriptor,
+  CLIAgentPluginProvider,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import type { Platform } from '@emdash/core/services/host-dependencies/api';
 import {
   deriveHostDependencyStatus,
   resolveActiveInstallation,
   resolveInstallOptions,
   sourceKey,
   toPlatform,
-} from '@emdash/core/deps/runtime';
+} from '@emdash/core/services/host-dependencies/node';
 import type {
   DependencyId,
   DependencyState,
   HostDependency,
   HostDependencyManager,
-} from '@emdash/core/deps/runtime';
+} from '@emdash/core/services/host-dependencies/node';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type {
   AgentInstallationStatus,

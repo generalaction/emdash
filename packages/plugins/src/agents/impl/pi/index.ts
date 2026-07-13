@@ -1,9 +1,12 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { PI_EXTENSION_CONTENT } from './plugin-file';
 
 const PI_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';

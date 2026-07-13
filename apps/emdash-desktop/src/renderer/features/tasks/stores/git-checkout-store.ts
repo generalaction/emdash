@@ -5,7 +5,7 @@ import {
   type FileGitStatus,
   type GitChange,
   type GitChangeStatus,
-} from '@emdash/core/git';
+} from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';

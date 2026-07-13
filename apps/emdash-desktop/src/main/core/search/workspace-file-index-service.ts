@@ -1,4 +1,4 @@
-import { filesContract } from '@emdash/core/files';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import {
   nativeFilePath,
   runFilesJob,

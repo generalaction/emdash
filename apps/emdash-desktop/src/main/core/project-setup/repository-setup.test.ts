@@ -1,4 +1,4 @@
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@shared/core/runtime/paths';

@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/git';
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
 import { portablePath } from '@shared/core/runtime/paths';
 import { buildChangesTree } from './changes-tree-utils';

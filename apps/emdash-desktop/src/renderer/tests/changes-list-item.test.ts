@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/git';
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

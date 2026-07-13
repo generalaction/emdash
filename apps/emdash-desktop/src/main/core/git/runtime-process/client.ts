@@ -1,4 +1,8 @@
-import type { CheckoutSelector, GitFilePath, RepositorySelector } from '@emdash/core/git';
+import type {
+  CheckoutSelector,
+  GitFilePath,
+  RepositorySelector,
+} from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveJobReplica,

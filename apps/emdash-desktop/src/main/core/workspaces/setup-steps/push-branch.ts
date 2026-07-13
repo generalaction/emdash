@@ -1,4 +1,4 @@
-import { gitContract } from '@emdash/core/git';
+import { gitContract } from '@emdash/core/runtimes/git/api';
 import { ok, type Result } from '@emdash/shared';
 import { runGitJob } from '@main/core/git/runtime-process/client';
 import { log } from '@main/lib/logger';

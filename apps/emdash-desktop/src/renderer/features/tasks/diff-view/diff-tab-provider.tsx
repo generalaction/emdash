@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import type {
   TabEntry,

@@ -1,10 +1,10 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
+import { acpApiContract } from '@runtimes/acp/api';
+import { agentConfigContract } from '@runtimes/agent-config/api/contract';
+import { filesContract } from '@runtimes/files/api/api/contract';
+import { gitContract } from '@runtimes/git/api/api/contract';
+import { tuiAgentsContract } from '@runtimes/tui-agents/api/contract';
 import { z } from 'zod';
-import { acpApiContract } from '../../acp';
-import { filesContract } from '../../files/api/contract';
-import { gitContract } from '../../git/api/contract';
-import { agentConfigContract } from '../agent-config/contract';
-import { tuiAgentsContract } from '../tui-agents/contract';
 import {
   wireHealthSchema,
   wireInitializeInputSchema,

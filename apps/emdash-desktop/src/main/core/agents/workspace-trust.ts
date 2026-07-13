@@ -1,4 +1,4 @@
-import type { ITrustBehavior } from '@emdash/core/agents/plugins';
+import type { ITrustBehavior } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';

@@ -1,8 +1,8 @@
 import { createEventStreamHost, stableStringify } from '@emdash/wire';
 import { createController, type Controller } from '@emdash/wire/api';
 import type { Scope } from '@emdash/wire/util';
-import { fsWatchContract, type FsWatchKey } from '../api';
-import type { IWatchService, WatchHandle } from '../api';
+import { fsWatchContract, type FsWatchKey } from '@services/fs-watch/api';
+import type { IWatchService, WatchHandle } from '@services/fs-watch/api';
 import { nativeWatchBackend } from './native-backend';
 import { createWatchService } from './watch-service';
 

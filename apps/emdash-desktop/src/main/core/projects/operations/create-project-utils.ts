@@ -1,4 +1,4 @@
-import type { RepositorySelector } from '@emdash/core/git';
+import type { RepositorySelector } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { gitErrorMessage, repositorySelector } from '@main/core/git/runtime-process/client';
 import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';

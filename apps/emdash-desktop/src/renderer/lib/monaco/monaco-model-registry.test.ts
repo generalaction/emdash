@@ -1,5 +1,5 @@
-import { filesContract, type FileContentModel } from '@emdash/core/files';
-import { gitContract } from '@emdash/core/git';
+import { filesContract, type FileContentModel } from '@emdash/core/runtimes/files/api';
+import { gitContract } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { createLiveModelHost, defineContract } from '@emdash/wire';
 import { createTestWire, waitFor } from '@emdash/wire/testing';

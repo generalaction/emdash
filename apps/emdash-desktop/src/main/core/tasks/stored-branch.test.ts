@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
 import { fromStoredBranch, toStoredBranch } from './stored-branch';
 

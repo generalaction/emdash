@@ -1,5 +1,5 @@
-import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
-import { defaultHookEventParser } from '@emdash/core/agents/plugins/helpers';
+import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
+import { defaultHookEventParser } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { parsePtyId } from '@main/core/pty/ptyId';

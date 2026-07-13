@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {

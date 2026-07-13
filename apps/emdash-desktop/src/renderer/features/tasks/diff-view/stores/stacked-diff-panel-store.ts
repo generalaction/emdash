@@ -1,4 +1,4 @@
-import type { GitChange, GitObjectRef } from '@emdash/core/git';
+import type { GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';

@@ -1,4 +1,7 @@
-import type { CLIAgentPluginMetadata, CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type {
+  CLIAgentPluginMetadata,
+  CLIAgentPluginProvider,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import { asAgentProviderId, pluginRegistry, type AgentProviderId } from '@emdash/plugins/agents';
 
 export function getPlugin(id: string): CLIAgentPluginProvider {

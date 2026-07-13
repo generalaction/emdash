@@ -1,4 +1,4 @@
-import type { DependencyState } from '@emdash/core/deps/runtime';
+import type { DependencyState } from '@emdash/core/services/host-dependencies/node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

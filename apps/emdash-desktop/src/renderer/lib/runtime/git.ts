@@ -1,5 +1,5 @@
-import { gitContract, type CheckoutHeadState } from '@emdash/core/git';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import { gitContract, type CheckoutHeadState } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveModelReplica,

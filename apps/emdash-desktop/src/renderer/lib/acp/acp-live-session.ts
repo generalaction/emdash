@@ -14,7 +14,7 @@ import {
   type PromptInput,
   type SessionState,
   type TerminalState,
-} from '@emdash/core/acp/client';
+} from '@emdash/core/runtimes/acp/api/client';
 import type { Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
 import {

@@ -1,6 +1,6 @@
 # Path System
 
-`@emdash/core/path` defines Emdash's portable file identity vocabulary. It is
+`@emdash/core/primitives/path/api` defines Emdash's portable file identity vocabulary. It is
 pure TypeScript, browser-safe, and does not perform filesystem I/O.
 
 Use this module when a path crosses a process, renderer, persistence, or Wire
@@ -10,7 +10,7 @@ spawn operations.
 
 ## Concepts
 
-- `HostRef` from `@emdash/core/host` selects a local or remote runtime host.
+- `HostRef` from `@emdash/core/primitives/host/api` selects a local or remote runtime host.
 - `HostAbsolutePath` is a structured absolute path with an explicit root:
   POSIX root, Windows drive, or UNC share.
 - `PortableRelativePath` is a normalized `/`-separated coordinate relative to a
@@ -31,8 +31,8 @@ import {
   parsePortableRelativePath,
   resolveScopedPath,
   scopedPath,
-} from '@emdash/core/path';
-import { LOCAL_HOST_REF } from '@emdash/core/host';
+} from '@emdash/core/primitives/path/api';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 
 const rootPath = parseAbsolute('/repo', { profile: { style: 'posix' } });
 const relative = parsePortableRelativePath('src/index.ts');

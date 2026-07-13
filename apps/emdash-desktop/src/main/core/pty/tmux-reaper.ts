@@ -1,4 +1,4 @@
-import { collectDescendantPids, parsePidPpidPairs } from '@emdash/core/pty';
+import { collectDescendantPids, parsePidPpidPairs } from '@emdash/core/services/pty/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
 import { killTmuxSession, TMUX_SESSION_PREFIX } from './tmux-session-name';

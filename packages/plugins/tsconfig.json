@@ -7,7 +7,14 @@
     "lib": ["ES2022", "DOM"],
     "types": ["node"],
     "paths": {
-      "@emdash/runtime/acp-agents": ["../runtime/src/acp-agents/index.ts"]
+      "@emdash/core/runtimes/*": ["../core/src/runtimes/*"],
+      "@emdash/core/services/*": ["../core/src/services/*"],
+      "@emdash/core/primitives/*": ["../core/src/primitives/*"],
+      "@emdash/core/workspace-server/*": ["../core/src/workspace-server/*"],
+      "@runtimes/*": ["../core/src/runtimes/*"],
+      "@services/*": ["../core/src/services/*"],
+      "@primitives/*": ["../core/src/primitives/*"],
+      "@workspace-server/*": ["../core/src/workspace-server/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tooling/**/*.ts"],

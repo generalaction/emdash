@@ -20,7 +20,7 @@ import type {
   AcpProcessHost,
   AcpTerminalExit,
   AcpTerminalProcess,
-} from '@emdash/core/acp';
+} from '@emdash/core/runtimes/acp/api';
 
 class RecordingProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}

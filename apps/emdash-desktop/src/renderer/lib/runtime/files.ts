@@ -1,5 +1,5 @@
-import { filesContract, type FileContentModel } from '@emdash/core/files';
-import type { PortableRelativePath } from '@emdash/core/path';
+import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
+import { filesContract, type FileContentModel } from '@emdash/core/runtimes/files/api';
 import { createLiveModelReplica } from '@emdash/wire';
 import { hostPathFromNative, portablePath, relativeRuntimePath } from '@shared/core/runtime/paths';
 import { getFilesRuntimeClient } from './files-client';

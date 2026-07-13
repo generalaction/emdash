@@ -20,7 +20,11 @@
       "@emdash/wire/util": ["../wire/src/util/index.ts"],
       "@emdash/wire/worker": ["../wire/src/worker/index.ts"],
       "@emdash/wire/worker/node": ["../wire/src/worker/node/index.ts"],
-      "@emdash/wire": ["../wire/src/index.ts"]
+      "@emdash/wire": ["../wire/src/index.ts"],
+      "@runtimes/*": ["./src/runtimes/*"],
+      "@services/*": ["./src/services/*"],
+      "@primitives/*": ["./src/primitives/*"],
+      "@workspace-server/*": ["./src/workspace-server/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],

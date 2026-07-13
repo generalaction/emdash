@@ -1,5 +1,5 @@
 import type { Scope } from '@emdash/wire/util';
-import type { WatchEvent } from '../api';
+import type { WatchEvent } from '@services/fs-watch/api';
 
 export type WatchKey = {
   root: string;

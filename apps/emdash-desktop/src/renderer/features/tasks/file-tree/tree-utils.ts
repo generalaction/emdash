@@ -1,4 +1,4 @@
-import type { FileEntry, FileEntryKind, SymlinkTargetKind } from '@emdash/core/files';
+import type { FileEntry, FileEntryKind, SymlinkTargetKind } from '@emdash/core/runtimes/files/api';
 
 export type FileNodeId = string;
 

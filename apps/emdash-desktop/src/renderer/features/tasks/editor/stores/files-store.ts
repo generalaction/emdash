@@ -1,5 +1,5 @@
-import { filesContract, type FileTreeModel } from '@emdash/core/files';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import { filesContract, type FileTreeModel } from '@emdash/core/runtimes/files/api';
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';

@@ -1,4 +1,4 @@
-import type { Platform } from '@emdash/core/deps';
+import type { Platform } from '@emdash/core/services/host-dependencies/api';
 import {
   HostDependencyManager,
   resolveActiveInstallation,
@@ -6,7 +6,7 @@ import {
   type DependencyProbeOptions,
   type DependencyStatusUpdatedEvent,
   type SelectedSource,
-} from '@emdash/core/deps/runtime';
+} from '@emdash/core/services/host-dependencies/node';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';

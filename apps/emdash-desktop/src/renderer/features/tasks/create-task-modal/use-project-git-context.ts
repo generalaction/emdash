@@ -1,4 +1,4 @@
-import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/git';
+import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import {
   asMounted,

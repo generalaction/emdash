@@ -1,4 +1,7 @@
-import type { AgentAuthContext, AgentAuthStatus } from '@emdash/core/agents/plugins';
+import type {
+  AgentAuthContext,
+  AgentAuthStatus,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 
 export function authenticatedFromEnv(
   ctx: AgentAuthContext,

@@ -6,20 +6,9 @@
     "lib": ["ES2022"],
     "types": ["node"],
     "paths": {
-      "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
-      "@emdash/core/agents/plugins/helpers": [
-        "../../packages/core/src/agents/plugins/helpers/index.ts"
-      ],
-      "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
-      "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
-      "@emdash/core/deps/runtime": ["../../packages/core/src/host-dependencies/runtime/index.ts"],
-      "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
-      "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
       "@emdash/core/workspace-server": ["../../packages/core/src/workspace-server/index.ts"],
       "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"],
       "@emdash/plugins/agents/types": ["../../packages/plugins/src/agents/types.ts"],
-      "@emdash/runtime/acp-agents/node": ["../../packages/runtime/src/acp-agents/node/index.ts"],
-      "@emdash/runtime/acp-agents": ["../../packages/runtime/src/acp-agents/index.ts"],
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger": ["../../packages/shared/src/logger/index.ts"],
       "@emdash/shared/logger/node": ["../../packages/shared/src/logger/node/index.ts"],
@@ -29,7 +18,15 @@
       "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
       "@emdash/wire/worker/node": ["../../packages/wire/src/worker/node/index.ts"],
-      "@emdash/wire": ["../../packages/wire/src/index.ts"]
+      "@emdash/wire": ["../../packages/wire/src/index.ts"],
+      "@emdash/core/runtimes/*": ["../../packages/core/src/runtimes/*"],
+      "@emdash/core/services/*": ["../../packages/core/src/services/*"],
+      "@emdash/core/primitives/*": ["../../packages/core/src/primitives/*"],
+      "@emdash/core/workspace-server/*": ["../../packages/core/src/workspace-server/*"],
+      "@runtimes/*": ["../../packages/core/src/runtimes/*"],
+      "@services/*": ["../../packages/core/src/services/*"],
+      "@primitives/*": ["../../packages/core/src/primitives/*"],
+      "@workspace-server/*": ["../../packages/core/src/workspace-server/*"]
     }
   },
   "include": ["**/*.ts"],

@@ -1,4 +1,4 @@
-import { normalizeSelection } from '@emdash/core/deps/runtime';
+import { normalizeSelection } from '@emdash/core/services/host-dependencies/node';
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 

@@ -1,6 +1,6 @@
 import { Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/wire/util';
-import type { IWatchService, WatchEvent } from '../api';
+import type { IWatchService, WatchEvent } from '@services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
 

@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/core/git';
+import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { parseRepositoryRef, type RepositoryRef } from '@shared/repository-ref';
 
 export type TargetRemote = {

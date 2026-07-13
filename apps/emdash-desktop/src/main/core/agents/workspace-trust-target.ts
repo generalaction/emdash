@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { log } from '@main/lib/logger';
 import { createPluginFs } from './plugin-fs';
 

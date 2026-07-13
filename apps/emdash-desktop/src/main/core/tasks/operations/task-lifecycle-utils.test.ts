@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';

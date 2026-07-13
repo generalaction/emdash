@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { GitRefsState } from '@emdash/core/git';
+import type { GitRefsState } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-process/client';

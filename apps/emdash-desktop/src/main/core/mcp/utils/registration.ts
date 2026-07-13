@@ -2,4 +2,4 @@ export {
   mcpServerFieldCount,
   mcpServerToRegistration,
   registrationToMcpServer,
-} from '@emdash/core/mcp';
+} from '@emdash/core/primitives/mcp/api';

@@ -6,7 +6,7 @@ import {
   relativeSegmentsFromAbsolute,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@emdash/core/path';
+} from '@emdash/core/primitives/path/api';
 
 export function hostPathFromNative(input: string): HostAbsolutePath {
   const style = isWindowsAbsolute(input) ? 'win32' : 'posix';

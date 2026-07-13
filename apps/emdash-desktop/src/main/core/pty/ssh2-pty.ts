@@ -1,4 +1,4 @@
-import { normalizeSignal } from '@emdash/core/pty';
+import { normalizeSignal } from '@emdash/core/services/pty/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { ClientChannel } from 'ssh2';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';

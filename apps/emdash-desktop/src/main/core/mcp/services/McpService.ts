@@ -1,6 +1,9 @@
 import os from 'node:os';
-import type { CLIAgentPluginProvider, McpServerRegistration } from '@emdash/core/agents/plugins';
-import type { McpLoadAllResponse, McpServer } from '@emdash/core/mcp';
+import type { McpLoadAllResponse, McpServer } from '@emdash/core/primitives/mcp/api';
+import type {
+  CLIAgentPluginProvider,
+  McpServerRegistration,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';

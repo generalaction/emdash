@@ -1,5 +1,9 @@
 import path from 'node:path';
-import { gitContract, type CheckoutHeadState, type CheckoutSelector } from '@emdash/core/git';
+import {
+  gitContract,
+  type CheckoutHeadState,
+  type CheckoutSelector,
+} from '@emdash/core/runtimes/git/api';
 import {
   fileKey,
   fileMutationKey,

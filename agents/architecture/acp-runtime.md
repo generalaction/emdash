@@ -22,8 +22,8 @@ not mix cross-session routing with per-session state projection.
 - Runtime implementation code lives under `packages/runtime/src/acp-agents/`; core keeps
   the contract, models, reducer vocabulary, errors, and transport ports.
 - Node host adapters live behind explicit Node-only subpaths:
-  `@emdash/runtime/acp-agents/node` for the ACP child-process bootstrap and attachment
-  store, and `@emdash/core/pty/node` for the lazy `node-pty` spawner.
+  `@emdash/core/runtimes/acp/node/process` for the ACP child-process bootstrap and attachment
+  store, and `@emdash/core/services/pty/node` for the lazy `node-pty` spawner.
 
 ```mermaid
 flowchart TD
@@ -84,7 +84,7 @@ designed.
 Desktop-local ACP and workspace-server ACP both register logical workers through
 `WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
 process entry calls
-`bootAcpRuntimeProcess()` from `@emdash/runtime/acp-agents/node`, which constructs
+`bootAcpRuntimeProcess()` from `@emdash/core/runtimes/acp/node/process`, which constructs
 `AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`,
 `LocalAttachmentStore`, and `NodePtySpawner`. The `AgentPluginHost` owns the
 runtime process's plugin registry, execution context, plugin filesystem, env, home
@@ -101,7 +101,7 @@ to Electron windows through `exposeWireToWindows()`. `WireWorkerHost` itself
 does not own client decoration, startup policy, or renderer exposure.
 
 The concrete plugin registry is injected by each host entry (`emdash-desktop` and
-`workspace-server`) rather than imported by `@emdash/runtime`; this keeps runtime
+`workspace-server`) rather than imported by `@emdash/core/runtimes`; this keeps runtime
 from depending back on `@emdash/plugins` while still letting plugin resolution be
 owned by the runtime composition root.
 

@@ -1,4 +1,4 @@
-import { agentConfigContract } from '@emdash/core/workspace-server/agent-config';
+import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
 
 const AGENT_CONFIG_WIRE_CHANNEL = 'agent-config-wire';

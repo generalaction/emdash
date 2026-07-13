@@ -1,4 +1,4 @@
-import { bootGitRuntimeProcess } from '@emdash/runtime/git/node';
+import { bootGitRuntimeProcess } from '@emdash/core/runtimes/git/node/process';
 
 bootGitRuntimeProcess({
   runtime: {

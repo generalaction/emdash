@@ -1,5 +1,8 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildNestedEntry,
+  makeStdinHookCommand,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { AUGGIE_HOOKS_PATH } from './hooks';
 import { provider } from './index';

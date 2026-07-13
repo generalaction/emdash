@@ -108,5 +108,5 @@ throwing and are recorded by Wire as causes.
   and checkout operations.
 - `exec/` contains Git process construction and scoping, operation context, and transfer progress.
 
-Only runtime and transport composition are exported from `@emdash/runtime/git`. Allocation,
+Only runtime and transport composition are exported from `@emdash/core/runtimes/git/node`. Allocation,
 resources, and command drivers remain implementation details.

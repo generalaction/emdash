@@ -23,7 +23,6 @@
   "dependencies": {
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
-    "@emdash/runtime": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
     "node-pty": "1.1.0",

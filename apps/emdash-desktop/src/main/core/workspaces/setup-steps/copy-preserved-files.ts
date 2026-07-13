@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { filesContract } from '@emdash/core/files';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import { ok, type Result } from '@emdash/shared';
 import {
   fileKey,

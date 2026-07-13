@@ -1,4 +1,7 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildGooseHookConfig } from './hooks';
 import { icon } from './icon';

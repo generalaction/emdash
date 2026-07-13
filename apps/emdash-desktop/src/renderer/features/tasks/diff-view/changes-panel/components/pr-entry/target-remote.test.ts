@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/core/git';
+import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 

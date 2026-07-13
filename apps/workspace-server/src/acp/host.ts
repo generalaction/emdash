@@ -1,5 +1,5 @@
 import { dirname, join } from 'node:path';
-import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
+import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import type { ContractClient } from '@emdash/wire/api';
 import type { WireWorkerHost } from '@emdash/wire/worker';
 import { daemonPaths } from '../daemon/paths';

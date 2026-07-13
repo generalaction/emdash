@@ -1,4 +1,4 @@
+import { bootAgentConfigRuntimeProcess } from '@emdash/core/runtimes/agent-config/node/process';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import { bootAgentConfigRuntimeProcess } from '@emdash/runtime/agent-config/node';
 
 bootAgentConfigRuntimeProcess({ pluginRegistry });

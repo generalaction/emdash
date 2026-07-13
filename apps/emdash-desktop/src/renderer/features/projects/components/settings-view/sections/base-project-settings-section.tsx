@@ -1,4 +1,4 @@
-import type { GitBranchRef, GitRemote } from '@emdash/core/git';
+import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {

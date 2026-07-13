@@ -1,4 +1,4 @@
-import type { GitBranchRef, RepositorySelector } from '@emdash/core/git';
+import type { GitBranchRef, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import type { IDisposable, IReleasable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FilesClientScope } from '@main/core/files/runtime-process/client';

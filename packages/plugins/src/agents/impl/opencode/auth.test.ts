@@ -1,4 +1,4 @@
-import type { AgentAuthContext } from '@emdash/core/agents/plugins';
+import type { AgentAuthContext } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
 import { opencodeAuthStatus } from './auth';
 

@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { AGENT_ENV_VARS } from '@emdash/core/agents/agent-env';
+import { AGENT_ENV_VARS } from '@emdash/core/primitives/agent-env/api';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';

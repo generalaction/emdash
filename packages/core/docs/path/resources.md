@@ -14,7 +14,7 @@ hard links, and renames are handled by runtime-specific filesystem behavior.
 
 ## Host References
 
-`HostRef` is defined by `@emdash/core/host`:
+`HostRef` is defined by `@emdash/core/primitives/host/api`:
 
 ```ts
 type HostRef = {

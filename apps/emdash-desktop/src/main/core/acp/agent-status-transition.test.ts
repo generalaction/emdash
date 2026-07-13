@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@emdash/core/acp';
+import type { SessionSummary } from '@emdash/core/runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
 import { deriveAcpAgentStatusActions } from './agent-status-transition';
 

@@ -1,4 +1,4 @@
-import type { SessionSummary, StopReason } from '@emdash/core/acp';
+import type { SessionSummary, StopReason } from '@emdash/core/runtimes/acp/api';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 
 const normalStopReasons = new Set<StopReason>([

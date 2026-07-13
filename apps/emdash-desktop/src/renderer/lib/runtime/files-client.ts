@@ -1,4 +1,4 @@
-import { filesContract } from '@emdash/core/files';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
 import { FILES_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
 

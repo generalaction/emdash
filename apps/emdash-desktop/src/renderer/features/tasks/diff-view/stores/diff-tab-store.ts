@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { ActiveFile } from '@shared/view-state';

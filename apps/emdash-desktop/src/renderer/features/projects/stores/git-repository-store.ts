@@ -7,7 +7,7 @@ import {
   type GitRemotesState,
   type LocalBranch,
   type RemoteBranch,
-} from '@emdash/core/git';
+} from '@emdash/core/runtimes/git/api';
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';

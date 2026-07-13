@@ -1,4 +1,4 @@
-import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/git';
+import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';

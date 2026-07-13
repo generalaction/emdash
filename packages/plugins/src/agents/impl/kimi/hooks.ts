@@ -1,10 +1,10 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import type { HookRegistration } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   EMDASH_MARKER,
   filterUserHooks,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
 
 export const KIMI_CONFIG_PATH = '.kimi-code/config.toml';

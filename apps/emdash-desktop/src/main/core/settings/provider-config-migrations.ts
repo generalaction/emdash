@@ -1,5 +1,8 @@
-import type { InstallMethod } from '@emdash/core/deps';
-import type { DependencyId, HostDependencySelection } from '@emdash/core/deps/runtime';
+import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
+import type {
+  DependencyId,
+  HostDependencySelection,
+} from '@emdash/core/services/host-dependencies/node';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import type { IHostDependencyStore } from '../dependencies/host-dependency-store';
 

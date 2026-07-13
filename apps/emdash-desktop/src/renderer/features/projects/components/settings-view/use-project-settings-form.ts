@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/core/git';
+import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';

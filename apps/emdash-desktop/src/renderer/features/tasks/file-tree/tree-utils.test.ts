@@ -1,4 +1,4 @@
-import type { FileEntry } from '@emdash/core/files';
+import type { FileEntry } from '@emdash/core/runtimes/files/api';
 import { describe, expect, it } from 'vitest';
 import { portablePath } from '@shared/core/runtime/paths';
 import {

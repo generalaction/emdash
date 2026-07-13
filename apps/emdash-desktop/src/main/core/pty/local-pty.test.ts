@@ -1,4 +1,4 @@
-import type { PosixPtyTerminator } from '@emdash/core/pty';
+import type { PosixPtyTerminator } from '@emdash/core/services/pty/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalPtySession } from './local-pty';
 

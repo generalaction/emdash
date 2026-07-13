@@ -1,5 +1,5 @@
-import type { GitRemotesState, RepositorySelector } from '@emdash/core/git';
-import { gitContract } from '@emdash/core/git';
+import type { GitRemotesState, RepositorySelector } from '@emdash/core/runtimes/git/api';
+import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';

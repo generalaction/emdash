@@ -1,4 +1,4 @@
-import type { HookRegistration, PluginFs } from '@emdash/core/agents/plugins';
+import type { HookRegistration, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedEntry,
   EMDASH_MARKER,
@@ -6,7 +6,7 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 export const DROID_HOOKS_PATH = '.factory/hooks.json';
 const DROID_LEGACY_SETTINGS_PATH = '.factory/settings.json';

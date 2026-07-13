@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/git';
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';

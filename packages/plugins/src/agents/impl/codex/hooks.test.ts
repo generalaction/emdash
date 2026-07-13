@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { CODEX_CONFIG_PATH, CODEX_LEGACY_HOOKS_PATH, buildCodexHookConfig } from './hooks';
 

@@ -1,4 +1,4 @@
-import { MAX_FILE_UPLOAD_BYTES } from '@emdash/core/files';
+import { MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,

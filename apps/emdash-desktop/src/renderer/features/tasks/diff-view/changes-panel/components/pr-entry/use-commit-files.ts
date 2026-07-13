@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/core/git';
+import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { checkoutSelector } from '@renderer/lib/runtime/git';

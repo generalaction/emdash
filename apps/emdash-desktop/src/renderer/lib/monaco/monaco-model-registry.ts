@@ -1,6 +1,10 @@
-import { filesContract, type FileContentModel } from '@emdash/core/files';
-import { gitContract, type GitFileContentState, type GitFileSource } from '@emdash/core/git';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import { filesContract, type FileContentModel } from '@emdash/core/runtimes/files/api';
+import {
+  gitContract,
+  type GitFileContentState,
+  type GitFileSource,
+} from '@emdash/core/runtimes/git/api';
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';

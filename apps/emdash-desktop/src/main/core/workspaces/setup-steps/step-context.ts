@@ -1,4 +1,4 @@
-import type { CheckoutSelector, RepositorySelector } from '@emdash/core/git';
+import type { CheckoutSelector, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FilesClientScope } from '@main/core/files/runtime-process/client';
 import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';

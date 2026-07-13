@@ -1,4 +1,4 @@
-import type { FetchError, PushError } from '@emdash/core/git';
+import type { FetchError, PushError } from '@emdash/core/runtimes/git/api';
 import { match } from 'ts-pattern';
 
 type PushLikeError = PushError | { type: string; message?: string };

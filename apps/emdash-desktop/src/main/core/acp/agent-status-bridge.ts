@@ -1,4 +1,4 @@
-import { sessionSummarySchema, type SessionSummary } from '@emdash/core/acp';
+import { sessionSummarySchema, type SessionSummary } from '@emdash/core/runtimes/acp/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';

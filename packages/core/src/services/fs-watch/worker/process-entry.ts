@@ -1,8 +1,8 @@
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { validation } from '@emdash/wire/api';
 import { serveWireWorker, workerValidatePolicy, type WorkerParentPort } from '@emdash/wire/worker';
-import { fsWatchContract } from '../api';
-import { createFsWatchController } from '../impl/controller';
+import { fsWatchContract } from '@services/fs-watch/api';
+import { createFsWatchController } from '@services/fs-watch/impl/controller';
 
 export type RunFsWatchWorkerProcessOptions = {
   env?: NodeJS.ProcessEnv;

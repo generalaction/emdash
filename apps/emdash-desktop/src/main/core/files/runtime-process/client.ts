@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { FsError } from '@emdash/core/files';
-import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/path';
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveJobReplica,

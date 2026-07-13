@@ -1,5 +1,5 @@
-import type { DependencyId } from '@emdash/core/deps/runtime';
-import { resolveCommandPath } from '@emdash/core/deps/runtime';
+import type { DependencyId } from '@emdash/core/services/host-dependencies/node';
+import { resolveCommandPath } from '@emdash/core/services/host-dependencies/node';
 import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';

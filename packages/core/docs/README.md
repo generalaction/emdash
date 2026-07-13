@@ -5,7 +5,7 @@ workspace server, worker processes, and provider runtimes.
 
 ## Public Exports
 
-- [`@emdash/core/path`](path/README.md) - pure host-aware path identity,
+- [`@emdash/core/primitives/path/api`](path/README.md) - pure host-aware path identity,
   normalization, resource URI, and comparison helpers.
 
 ## Boundaries

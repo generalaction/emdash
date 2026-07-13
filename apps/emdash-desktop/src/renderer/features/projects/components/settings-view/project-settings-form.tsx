@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/core/git';
+import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import type { Result } from '@emdash/shared';
 import { observer } from 'mobx-react-lite';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';

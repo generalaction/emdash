@@ -1,3 +1,3 @@
-import { bootFilesRuntimeProcess } from '@emdash/runtime/files/node';
+import { bootFilesRuntimeProcess } from '@emdash/core/runtimes/files/node/process';
 
 bootFilesRuntimeProcess();

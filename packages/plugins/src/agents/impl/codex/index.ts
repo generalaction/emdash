@@ -1,11 +1,14 @@
 import { createRequire } from 'node:module';
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
 import { buildCodexHookConfig } from './hooks';

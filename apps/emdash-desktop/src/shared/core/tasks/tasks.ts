@@ -3,7 +3,7 @@ import type {
   FetchPrForReviewError,
   GitBranchRef,
   PushError,
-} from '@emdash/core/git';
+} from '@emdash/core/runtimes/git/api';
 import z from 'zod';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { LinkedIssue } from '@shared/core/linked-issue';

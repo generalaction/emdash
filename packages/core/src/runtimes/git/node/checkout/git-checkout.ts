@@ -1,0 +1,646 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { ok, type Result } from '@emdash/shared';
+import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
+import {
+  gitErr,
+  type BlameResult,
+  type CheckoutHeadState,
+  type CheckoutStatusState,
+  type Commit,
+  type CommitError,
+  type CommitFile,
+  type CommitOptions,
+  type ConflictVersions,
+  type DiffTarget,
+  type FileDiff,
+  type GitChange,
+  type GitCommandError,
+  type BoundGitFileContentKey,
+  type GitFileContentState,
+  type GitLogOptions,
+  type GitLogResult,
+  type GitSyncProgress,
+  type ImageReadResult,
+  type MergeError,
+  type MergeOptions,
+  type PullError,
+  type PushError,
+  type PushOptions,
+  type RebaseError,
+  type RebaseOptions,
+  type ResetMode,
+  type StashPushOptions,
+  type SwitchError,
+  type SwitchOptions,
+  type SyncError,
+} from '@runtimes/git/api';
+import type { CheckoutIdentity } from '@runtimes/git/node/allocation/identity';
+import { blame as readBlame } from '@runtimes/git/node/checkout/ops/blame';
+import { readGitFileContent } from '@runtimes/git/node/checkout/ops/content';
+import {
+  extractHunkPatch,
+  getChangedFiles as readChangedFiles,
+  getUntrackedFileDiff,
+  parseUnifiedFileDiff,
+  resolveDiffTarget,
+} from '@runtimes/git/node/checkout/ops/diff';
+import { computeHeadState } from '@runtimes/git/node/checkout/ops/head';
+import { getImageBlob } from '@runtimes/git/node/checkout/ops/images';
+import {
+  getCommit as readCommit,
+  getCommitFiles as readCommitFiles,
+  getLog as readLog,
+} from '@runtimes/git/node/checkout/ops/log';
+import { computeStatusState } from '@runtimes/git/node/checkout/ops/status';
+import { pushFailed } from '@runtimes/git/node/exec/errors';
+import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
+import {
+  execGitWithProgress,
+  syncStepProgress,
+  throwIfGitOpAborted,
+} from '@runtimes/git/node/exec/transfer-progress';
+import type { BoundExec } from '@services/exec/api';
+import { checkoutFailures, InvalidCheckoutPathError } from './errors';
+
+export type GitObjectReader = {
+  readBlobAtRef(ref: string, filePath: PortableRelativePath): Promise<string | null>;
+};
+
+type GitCheckoutOptions = {
+  identity: CheckoutIdentity;
+  objectReader: GitObjectReader;
+  exec: BoundExec;
+};
+
+export class GitCheckout {
+  readonly identity: CheckoutIdentity;
+  private readonly objectReader: GitObjectReader;
+  private readonly exec: BoundExec;
+
+  constructor(options: GitCheckoutOptions) {
+    this.identity = options.identity;
+    this.objectReader = options.objectReader;
+    this.exec = options.exec;
+  }
+
+  get checkoutRoot(): string {
+    return this.identity.checkoutRoot;
+  }
+
+  get gitDir(): string {
+    return this.identity.gitDir;
+  }
+
+  getStatus(): Promise<CheckoutStatusState> {
+    return computeStatusState(this.exec, this.gitDir);
+  }
+
+  getHead(): Promise<CheckoutHeadState> {
+    return computeHeadState(this.exec);
+  }
+
+  // -- Staging ----------------------------------------------------------------
+
+  async stage(paths: string[]): Promise<Result<void, GitCommandError>> {
+    if (paths.length === 0) return ok(undefined);
+    return this.commandMutation(() =>
+      this.exec.exec(['add', '--', ...this.toRelativePaths(paths)])
+    );
+  }
+
+  async unstage(paths: string[]): Promise<Result<void, GitCommandError>> {
+    if (paths.length === 0) return ok(undefined);
+    return this.commandMutation(() =>
+      this.exec.exec(['reset', 'HEAD', '--', ...this.toRelativePaths(paths)])
+    );
+  }
+
+  async stageAll(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.exec.exec(['add', '-A']));
+  }
+
+  async unstageAll(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(async () => {
+      try {
+        await this.exec.exec(['reset', 'HEAD']);
+      } catch (error) {
+        if (!checkoutFailures.isUnbornHead(error)) throw error;
+        await this.exec.exec(['rm', '-r', '--cached', '--', '.']).catch((rmError) => {
+          if (!checkoutFailures.isPathNotMatched(rmError)) throw rmError;
+        });
+      }
+    });
+  }
+
+  async revert(paths: string[]): Promise<Result<void, GitCommandError>> {
+    if (paths.length === 0) return ok(undefined);
+    return this.commandMutation(async () => {
+      const relativePaths = this.toRelativePaths(paths);
+      const indexedPaths = await this.getIndexedPaths(relativePaths);
+      const headPaths = await this.getHeadPaths(relativePaths);
+      const indexedPathSet = new Set(indexedPaths);
+      const headOnlyPaths = headPaths.filter((filePath) => !indexedPathSet.has(filePath));
+      if (indexedPaths.length > 0) {
+        await this.exec.exec(['checkout', '--', ...indexedPaths]);
+      }
+      if (headOnlyPaths.length > 0) {
+        await this.exec.exec(['checkout', 'HEAD', '--', ...headOnlyPaths]);
+      }
+      const trackedPathSet = new Set([...indexedPaths, ...headPaths]);
+      const untrackedPaths = relativePaths.filter((filePath) => !trackedPathSet.has(filePath));
+      if (untrackedPaths.length > 0) {
+        await this.exec.exec(['clean', '-fd', '--', ...untrackedPaths]);
+      }
+    });
+  }
+
+  async revertAll(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(async () => {
+      try {
+        await this.exec.exec(['reset', '--hard', 'HEAD']);
+      } catch (error) {
+        if (!checkoutFailures.isUnbornHead(error)) throw error;
+      }
+      await this.exec.exec(['clean', '-fd']);
+    });
+  }
+
+  async clean(
+    options: { paths?: string[]; force?: boolean } = {}
+  ): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec([
+        'clean',
+        '-d',
+        options.force ? '-ff' : '-f',
+        ...(options.paths && options.paths.length > 0
+          ? ['--', ...this.toRelativePaths(options.paths)]
+          : []),
+      ])
+    );
+  }
+
+  async stageHunk(filePath: string, hunkHeader: string): Promise<Result<void, GitCommandError>> {
+    return this.applyHunk(filePath, hunkHeader, { source: 'worktree', cached: true });
+  }
+
+  async unstageHunk(filePath: string, hunkHeader: string): Promise<Result<void, GitCommandError>> {
+    return this.applyHunk(filePath, hunkHeader, { source: 'index', cached: true, reverse: true });
+  }
+
+  async discardHunk(filePath: string, hunkHeader: string): Promise<Result<void, GitCommandError>> {
+    return this.applyHunk(filePath, hunkHeader, { source: 'worktree', reverse: true });
+  }
+
+  // -- Commit / history-changing operations -----------------------------------
+
+  async commit(
+    message: string,
+    options: CommitOptions = {}
+  ): Promise<Result<{ hash: string }, CommitError>> {
+    try {
+      await this.exec.exec([
+        'commit',
+        '-m',
+        message,
+        ...(options.amend ? ['--amend'] : []),
+        ...(options.signoff ? ['--signoff'] : []),
+        ...(options.noVerify ? ['--no-verify'] : []),
+        ...(options.allowEmpty ? ['--allow-empty'] : []),
+      ]);
+      const { stdout } = await this.exec.exec(['rev-parse', 'HEAD']);
+      return ok({ hash: stdout.trim() });
+    } catch (error) {
+      return checkoutFailures.commit(error);
+    }
+  }
+
+  async switch(options: SwitchOptions): Promise<Result<void, SwitchError>> {
+    try {
+      await this.exec.exec([
+        'switch',
+        ...(options.force ? ['--force'] : []),
+        ...(options.newBranch ? ['-c', options.newBranch] : []),
+        options.ref,
+      ]);
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.switch(error, options.ref);
+    }
+  }
+
+  async reset(ref: string, mode: ResetMode = 'mixed'): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.exec.exec(['reset', `--${mode}`, ref]));
+  }
+
+  async merge(options: MergeOptions): Promise<Result<void, MergeError>> {
+    try {
+      await this.exec.exec([
+        'merge',
+        ...(options.noFf ? ['--no-ff'] : []),
+        ...(options.squash ? ['--squash'] : []),
+        ...(options.message ? ['-m', options.message] : []),
+        options.branch,
+      ]);
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
+    }
+  }
+
+  async mergeContinue(message?: string): Promise<Result<void, MergeError>> {
+    try {
+      if (message !== undefined) {
+        await this.exec.exec(['commit', '-m', message]);
+      } else {
+        await this.exec.exec(['merge', '--continue'], { env: { GIT_EDITOR: 'true' } });
+      }
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
+    }
+  }
+
+  async mergeAbort(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.exec.exec(['merge', '--abort']));
+  }
+
+  async rebase(options: RebaseOptions): Promise<Result<void, RebaseError>> {
+    try {
+      await this.exec.exec(['rebase', options.onto], { env: { GIT_EDITOR: 'true' } });
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.rebase(error, await this.getConflictedPaths());
+    }
+  }
+
+  async rebaseContinue(): Promise<Result<void, RebaseError>> {
+    try {
+      await this.exec.exec(['rebase', '--continue'], { env: { GIT_EDITOR: 'true' } });
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.rebase(error, await this.getConflictedPaths());
+    }
+  }
+
+  async rebaseAbort(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() => this.exec.exec(['rebase', '--abort']));
+  }
+
+  async rebaseSkip(): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec(['rebase', '--skip'], { env: { GIT_EDITOR: 'true' } })
+    );
+  }
+
+  async cherryPick(commits: string[], noCommit = false): Promise<Result<void, MergeError>> {
+    if (commits.length === 0) return ok(undefined);
+    try {
+      await this.exec.exec(['cherry-pick', ...(noCommit ? ['-n'] : []), ...commits]);
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
+    }
+  }
+
+  async revertCommit(commit: string, noCommit = false): Promise<Result<void, MergeError>> {
+    try {
+      await this.exec.exec(['revert', '--no-edit', ...(noCommit ? ['-n'] : []), commit]);
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.merge(error, await this.getConflictedPaths());
+    }
+  }
+
+  // -- Sync --------------------------------------------------------------------
+
+  async push(
+    options: PushOptions = {},
+    context: GitOperationContext = {}
+  ): Promise<Result<{ output: string }, PushError>> {
+    try {
+      const { stdout, stderr } = await execGitWithProgress(
+        this.exec,
+        [
+          'push',
+          '--progress',
+          ...(options.force ? ['--force-with-lease'] : []),
+          ...(options.setUpstream
+            ? ['--set-upstream', options.remote ?? 'origin', 'HEAD']
+            : options.remote
+              ? [options.remote]
+              : []),
+        ],
+        context
+      );
+      return ok({ output: (stdout || stderr).trim() });
+    } catch (error) {
+      if (context.signal?.aborted) throw error;
+      return pushFailed(error);
+    }
+  }
+
+  async pull(context: GitOperationContext = {}): Promise<Result<{ output: string }, PullError>> {
+    try {
+      const { stdout, stderr } = await execGitWithProgress(
+        this.exec,
+        ['pull', '--progress'],
+        context
+      );
+      return ok({ output: (stdout || stderr).trim() });
+    } catch (error) {
+      if (context.signal?.aborted) throw error;
+      return checkoutFailures.pull(error, await this.getConflictedPaths());
+    }
+  }
+
+  async sync(
+    context: GitOperationContext<GitSyncProgress> = {}
+  ): Promise<Result<{ output: string }, SyncError>> {
+    throwIfGitOpAborted(context.signal);
+    const pullResult = await this.pull({
+      signal: context.signal,
+      onProgress: syncStepProgress('pull', context.onProgress),
+    });
+    if (!pullResult.success) return pullResult;
+    throwIfGitOpAborted(context.signal);
+    const pushResult = await this.push(undefined, {
+      signal: context.signal,
+      onProgress: syncStepProgress('push', context.onProgress),
+    });
+    if (!pushResult.success) return pushResult;
+    const output = [pullResult.data.output, pushResult.data.output].filter(Boolean).join('\n');
+    return ok({ output });
+  }
+
+  // -- Stash --------------------------------------------------------------------
+
+  async stashPush(options: StashPushOptions = {}): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec([
+        'stash',
+        'push',
+        ...(options.includeUntracked ? ['-u'] : []),
+        ...(options.keepIndex ? ['--keep-index'] : []),
+        ...(options.message ? ['-m', options.message] : []),
+        ...(options.paths && options.paths.length > 0
+          ? ['--', ...this.toRelativePaths(options.paths)]
+          : []),
+      ])
+    );
+  }
+
+  async stashApply(stashIndex?: number): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec([
+        'stash',
+        'apply',
+        ...(stashIndex !== undefined ? [`stash@{${stashIndex}}`] : []),
+      ])
+    );
+  }
+
+  async stashPop(stashIndex?: number): Promise<Result<void, GitCommandError>> {
+    return this.commandMutation(() =>
+      this.exec.exec([
+        'stash',
+        'pop',
+        ...(stashIndex !== undefined ? [`stash@{${stashIndex}}`] : []),
+      ])
+    );
+  }
+
+  // -- Diff / conflict reads -----------------------------------------------------
+
+  async getFileDiff(
+    filePath: string,
+    base: DiffTarget = { kind: 'head' }
+  ): Promise<Result<FileDiff, GitCommandError>> {
+    try {
+      const relativePath = this.toRelativePath(filePath);
+      const resolved = resolveDiffTarget(base);
+      const targetArgs = resolved.cached ? ['--cached'] : resolved.ref ? [resolved.ref] : [];
+      const args = ['diff', '--no-color', ...targetArgs, '--', relativePath];
+      const { stdout } = await this.exec.exec(args);
+      if (stdout.trim().length > 0 || resolved.cached) {
+        return ok(parseUnifiedFileDiff(stdout, relativePath));
+      }
+      const untrackedDiff = await getUntrackedFileDiff(this.exec, relativePath);
+      return ok(untrackedDiff ?? parseUnifiedFileDiff(stdout, relativePath));
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
+  }
+
+  async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
+    return readChangedFiles(this.exec, base, (filePath) => this.toRelativePath(filePath));
+  }
+
+  async isFileTracked(filePath: string): Promise<boolean> {
+    const relativePath = this.toRelativePath(filePath);
+    const { stdout } = await this.exec.exec(['ls-files', '-z', '--', relativePath]);
+    return stdout.split('\0').includes(relativePath);
+  }
+
+  async getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
+    try {
+      const relativePath = this.toRelativePath(filePath);
+      const readStage = async (stage: 1 | 2 | 3): Promise<string | undefined> => {
+        try {
+          const { stdout } = await this.exec.exec(['show', `:${stage}:${relativePath}`]);
+          return stdout;
+        } catch (error) {
+          if (!checkoutFailures.isMissingConflictStage(error)) throw error;
+          return undefined;
+        }
+      };
+      const [base, ours, theirs, working] = await Promise.all([
+        readStage(1),
+        readStage(2),
+        readStage(3),
+        readOptionalFile(this.toAbsolutePath(relativePath)),
+      ]);
+      return ok({ base, ours, theirs, working });
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
+  }
+
+  // -- Content / history reads ----------------------------------------------------
+
+  async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
+    return this.objectReader.readBlobAtRef(ref, this.toRelativePath(filePath));
+  }
+
+  async getFileAtIndex(filePath: string): Promise<string | null> {
+    const relativePath = this.toRelativePath(filePath);
+    try {
+      const { stdout } = await this.exec.exec(['show', `:${relativePath}`]);
+      return stdout;
+    } catch (error) {
+      if (!checkoutFailures.isMissingIndexEntry(error)) throw error;
+      return null;
+    }
+  }
+
+  getFileContent(key: BoundGitFileContentKey): Promise<GitFileContentState> {
+    return readGitFileContent(this.exec, this.toRelativePath(key.path), key.source);
+  }
+
+  async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+    const relativePath = this.toRelativePath(filePath);
+    return getImageBlob(this.exec, relativePath, `${ref}:${relativePath}`);
+  }
+
+  async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
+    const relativePath = this.toRelativePath(filePath);
+    return getImageBlob(this.exec, relativePath, `:${relativePath}`);
+  }
+
+  async getLog(options: GitLogOptions = {}): Promise<GitLogResult> {
+    return readLog(this.exec, options);
+  }
+
+  async getCommit(hash: string): Promise<Commit | null> {
+    return readCommit(this.exec, hash);
+  }
+
+  async getCommitFiles(hash: string): Promise<CommitFile[]> {
+    return readCommitFiles(this.exec, hash, (filePath) => this.toRelativePath(filePath));
+  }
+
+  async blame(filePath: string, ref?: string): Promise<Result<BlameResult, GitCommandError>> {
+    try {
+      return await readBlame(this.exec, this.toRelativePath(filePath), ref);
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
+  }
+
+  // -- Internals --------------------------------------------------------------------
+
+  private async commandMutation(
+    run: () => Promise<unknown>
+  ): Promise<Result<void, GitCommandError>> {
+    try {
+      await run();
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
+  }
+
+  private async applyHunk(
+    filePath: string,
+    hunkHeader: string,
+    options: { source: 'worktree' | 'index'; cached?: boolean; reverse?: boolean }
+  ): Promise<Result<void, GitCommandError>> {
+    const relativePath = this.toRelativePath(filePath);
+    try {
+      const diffArgs =
+        options.source === 'index'
+          ? ['diff', '--no-color', '--cached', '--', relativePath]
+          : ['diff', '--no-color', '--', relativePath];
+      const { stdout } = await this.exec.exec(diffArgs);
+      const patch = extractHunkPatch(stdout, hunkHeader);
+      if (!patch) {
+        return gitErr.commandFailed(`Hunk not found for ${relativePath}`);
+      }
+
+      const patchFile = path.join(
+        os.tmpdir(),
+        `emdash-hunk-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`
+      );
+      await fs.writeFile(patchFile, patch, 'utf8');
+      try {
+        await this.exec.exec([
+          'apply',
+          ...(options.cached ? ['--cached'] : []),
+          ...(options.reverse ? ['-R'] : []),
+          patchFile,
+        ]);
+      } finally {
+        await fs.rm(patchFile, { force: true });
+      }
+      return ok(undefined);
+    } catch (error) {
+      return checkoutFailures.command(error);
+    }
+  }
+
+  private async getConflictedPaths(): Promise<PortableRelativePath[] | undefined> {
+    const { stdout } = await this.exec.exec(['diff', '--name-only', '--diff-filter=U']);
+    const paths = stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((filePath) => this.toRelativePath(filePath));
+    return paths.length > 0 ? paths : undefined;
+  }
+
+  private async getIndexedPaths(paths: string[]): Promise<string[]> {
+    const { stdout } = await this.exec.exec(['ls-files', '-z', '--', ...paths]);
+    return [...new Set(stdout.split('\0').filter(Boolean))];
+  }
+
+  private async getHeadPaths(paths: string[]): Promise<string[]> {
+    try {
+      const { stdout } = await this.exec.exec([
+        'ls-tree',
+        '-z',
+        '--name-only',
+        'HEAD',
+        '--',
+        ...paths,
+      ]);
+      return [...new Set(stdout.split('\0').filter(Boolean))];
+    } catch (error) {
+      if (!checkoutFailures.isUnbornHead(error)) throw error;
+      return [];
+    }
+  }
+
+  private toAbsolutePath(filePath: string): string {
+    const absolutePath = path.resolve(this.checkoutRoot, filePath);
+    this.assertInsideCheckout(absolutePath);
+    return absolutePath;
+  }
+
+  private toRelativePath(filePath: string): PortableRelativePath {
+    const parsed = parsePortableRelativePath(filePath, { unicodeNormalization: 'preserve' });
+    if (!parsed.success || !parsed.data || (path.sep === '\\' && parsed.data.includes('\\'))) {
+      throw new InvalidCheckoutPathError(filePath);
+    }
+    return parsed.data;
+  }
+
+  private toRelativePaths(paths: string[]): PortableRelativePath[] {
+    return paths.map((filePath) => this.toRelativePath(filePath));
+  }
+
+  private assertInsideCheckout(absolutePath: string): void {
+    const relativePath = path.relative(this.checkoutRoot, absolutePath);
+    if (
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      throw new InvalidCheckoutPathError(absolutePath);
+    }
+  }
+}
+
+async function readOptionalFile(filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (isNodeErrorCode(error, 'ENOENT')) return undefined;
+    throw error;
+  }
+}
+
+function isNodeErrorCode(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === code;
+}

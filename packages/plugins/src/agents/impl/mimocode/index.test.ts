@@ -1,4 +1,4 @@
-import type { CommandContext } from '@emdash/core/agents/plugins';
+import type { CommandContext } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { pluginRegistry } from '../../registry';
 

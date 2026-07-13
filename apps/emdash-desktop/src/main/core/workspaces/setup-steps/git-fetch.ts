@@ -1,4 +1,4 @@
-import { gitContract } from '@emdash/core/git';
+import { gitContract } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-process/client';
 import type * as Step from '@shared/core/workspaces/workspace-setup-steps/git-fetch';

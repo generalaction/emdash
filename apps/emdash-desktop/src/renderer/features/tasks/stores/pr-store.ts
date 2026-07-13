@@ -1,4 +1,4 @@
-import { normalizeDiffTarget, type GitChange } from '@emdash/core/git';
+import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
 import { makeAutoObservable, reaction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { rpc } from '@renderer/lib/ipc';

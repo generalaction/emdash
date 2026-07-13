@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
 import type { TabHandle, TabResource } from '@renderer/features/tabs/core/tab-provider';
 import { getFileKind } from '@renderer/lib/editor/fileKind';

@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { isValidSkillName } from '@emdash/core/skills';
+import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SkillsService } from './SkillsService';
 

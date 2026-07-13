@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@runtimes': resolve(__dirname, 'src/runtimes'),
+      '@services': resolve(__dirname, 'src/services'),
+      '@primitives': resolve(__dirname, 'src/primitives'),
+      '@workspace-server': resolve(__dirname, 'src/workspace-server'),
       '@emdash/wire/api': resolve(__dirname, '../wire/src/api/index.ts'),
       '@emdash/wire/scheduling': resolve(__dirname, '../wire/src/scheduling/index.ts'),
       '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),

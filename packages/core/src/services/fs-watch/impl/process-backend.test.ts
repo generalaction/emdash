@@ -2,9 +2,9 @@ import { retrySchedules } from '@emdash/wire/scheduling';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { createScope } from '@emdash/wire/util';
 import { serveWireWorker, type WorkerParentPort } from '@emdash/wire/worker';
+import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
+import { spawnFsWatchWorker } from '@services/fs-watch/worker/spawn';
 import { describe, expect, it } from 'vitest';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '../api';
-import { spawnFsWatchWorker } from '../worker/spawn';
 import { createFsWatchController } from './controller';
 
 describe('processWatchBackend', () => {

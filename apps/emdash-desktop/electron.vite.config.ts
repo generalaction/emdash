@@ -5,31 +5,14 @@ import { defineConfig } from 'electron-vite';
 import { desktopWorkerBuildInputs } from './src/main/worker-manifest';
 
 const workspaceAliases = {
-  '@emdash/core/acp/client': resolve('../../packages/core/src/acp/client.ts'),
-  '@emdash/core/acp': resolve('../../packages/core/src/acp/index.ts'),
-  '@emdash/core/agents/agent-env': resolve('../../packages/core/src/agents/agent-env.ts'),
-  '@emdash/core/agents/spawn-context': resolve('../../packages/core/src/agents/spawn-context.ts'),
-  '@emdash/core/agents/plugins/helpers': resolve(
-    '../../packages/core/src/agents/plugins/helpers/index.ts'
-  ),
-  '@emdash/core/agents/plugins': resolve('../../packages/core/src/agents/plugins/index.ts'),
-  '@emdash/core/deps/runtime': resolve(
-    '../../packages/core/src/host-dependencies/runtime/index.ts'
-  ),
-  '@emdash/core/exec': resolve('../../packages/core/src/exec/index.ts'),
-  '@emdash/core/files': resolve('../../packages/core/src/files/index.ts'),
-  '@emdash/core/git': resolve('../../packages/core/src/git/index.ts'),
-  '@emdash/core/host': resolve('../../packages/core/src/host/index.ts'),
-  '@emdash/core/lib': resolve('../../packages/core/src/lib/index.ts'),
-  '@emdash/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
-  '@emdash/core/path': resolve('../../packages/core/src/path/index.ts'),
-  '@emdash/core/pty/node': resolve('../../packages/core/src/pty/node/index.ts'),
-  '@emdash/core/pty': resolve('../../packages/core/src/pty/index.ts'),
-  '@emdash/core/skills': resolve('../../packages/core/src/skills/index.ts'),
-  '@emdash/core/workspace-server/agent-config': resolve(
-    '../../packages/core/src/workspace-server/agent-config/index.ts'
-  ),
-  '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server/index.ts'),
+  '@emdash/core/runtimes': resolve('../../packages/core/src/runtimes'),
+  '@emdash/core/services': resolve('../../packages/core/src/services'),
+  '@emdash/core/primitives': resolve('../../packages/core/src/primitives'),
+  '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server'),
+  '@runtimes': resolve('../../packages/core/src/runtimes'),
+  '@services': resolve('../../packages/core/src/services'),
+  '@primitives': resolve('../../packages/core/src/primitives'),
+  '@workspace-server': resolve('../../packages/core/src/workspace-server'),
   '@emdash/core/services/fs-watch/api': resolve(
     '../../packages/core/src/services/fs-watch/api/index.ts'
   ),
@@ -41,16 +24,6 @@ const workspaceAliases = {
   ),
   '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
-  '@emdash/runtime/agent-config/node': resolve(
-    '../../packages/runtime/src/agent-config/node/index.ts'
-  ),
-  '@emdash/runtime/agent-config': resolve('../../packages/runtime/src/agent-config/index.ts'),
-  '@emdash/runtime/acp-agents/node': resolve('../../packages/runtime/src/acp-agents/node/index.ts'),
-  '@emdash/runtime/acp-agents': resolve('../../packages/runtime/src/acp-agents/index.ts'),
-  '@emdash/runtime/files/node': resolve('../../packages/runtime/src/files/node/index.ts'),
-  '@emdash/runtime/files': resolve('../../packages/runtime/src/files/index.ts'),
-  '@emdash/runtime/git/node': resolve('../../packages/runtime/src/git/node/index.ts'),
-  '@emdash/runtime/git': resolve('../../packages/runtime/src/git/index.ts'),
   '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
   '@emdash/shared/logger/context-node': resolve('../../packages/shared/src/logger/context-node.ts'),
   '@emdash/shared/logger/context': resolve('../../packages/shared/src/logger/context.ts'),

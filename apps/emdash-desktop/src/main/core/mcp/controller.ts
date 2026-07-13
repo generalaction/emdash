@@ -1,5 +1,5 @@
-import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import type { DependencyId } from '@emdash/core/deps/runtime';
+import type { CLIAgentPluginProvider } from '@emdash/core/services/agent-plugins/api/plugins';
+import type { DependencyId } from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';

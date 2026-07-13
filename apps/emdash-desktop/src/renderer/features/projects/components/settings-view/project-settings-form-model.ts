@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { projectDefaultBranchToBranch } from '@shared/core/git/utils';
 import type {
   ProjectSettings,

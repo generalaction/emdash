@@ -1,4 +1,4 @@
-import { filesContract } from '@emdash/core/files';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { filesClientScope } from '@main/core/files/runtime-process/client';

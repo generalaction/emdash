@@ -11,10 +11,6 @@
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
-      "@emdash/core/acp/client": ["../../packages/core/src/acp/client.ts"],
-      "@emdash/core/acp": ["../../packages/core/src/acp/index.ts"],
-      "@emdash/core/pty/node": ["../../packages/core/src/pty/node/index.ts"],
-      "@emdash/core/pty": ["../../packages/core/src/pty/index.ts"],
       "@emdash/core/services/fs-watch/api": [
         "../../packages/core/src/services/fs-watch/api/index.ts"
       ],
@@ -24,37 +20,9 @@
       "@emdash/core/services/fs-watch/worker": [
         "../../packages/core/src/services/fs-watch/worker/index.ts"
       ],
-      "@emdash/core/agents/agent-env": ["../../packages/core/src/agents/agent-env.ts"],
-      "@emdash/core/agents/spawn-context": ["../../packages/core/src/agents/spawn-context.ts"],
-      "@emdash/core/agents/plugins/helpers": [
-        "../../packages/core/src/agents/plugins/helpers/index.ts"
-      ],
-      "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
-      "@emdash/core/deps/runtime": ["../../packages/core/src/host-dependencies/runtime/index.ts"],
-      "@emdash/core/exec": ["../../packages/core/src/exec/index.ts"],
-      "@emdash/core/files": ["../../packages/core/src/files/index.ts"],
-      "@emdash/core/git": ["../../packages/core/src/git/index.ts"],
-      "@emdash/core/host": ["../../packages/core/src/host/index.ts"],
-      "@emdash/core/mcp": ["../../packages/core/src/mcp/index.ts"],
-      "@emdash/core/path": ["../../packages/core/src/path/index.ts"],
-      "@emdash/core/skills": ["../../packages/core/src/skills/index.ts"],
-      "@emdash/core/workspace-server/agent-config": [
-        "../../packages/core/src/workspace-server/agent-config/index.ts"
-      ],
       "@emdash/core/workspace-server": ["../../packages/core/src/workspace-server/index.ts"],
-      "@emdash/core/lib": ["../../packages/core/src/lib/index.ts"],
       "@emdash/plugins/agents/types": ["../../packages/plugins/src/agents/types.ts"],
       "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"],
-      "@emdash/runtime/agent-config/node": [
-        "../../packages/runtime/src/agent-config/node/index.ts"
-      ],
-      "@emdash/runtime/agent-config": ["../../packages/runtime/src/agent-config/index.ts"],
-      "@emdash/runtime/acp-agents/node": ["../../packages/runtime/src/acp-agents/node/index.ts"],
-      "@emdash/runtime/acp-agents": ["../../packages/runtime/src/acp-agents/index.ts"],
-      "@emdash/runtime/files/node": ["../../packages/runtime/src/files/node/index.ts"],
-      "@emdash/runtime/files": ["../../packages/runtime/src/files/index.ts"],
-      "@emdash/runtime/git/node": ["../../packages/runtime/src/git/node/index.ts"],
-      "@emdash/runtime/git": ["../../packages/runtime/src/git/index.ts"],
       "@emdash/shared/config": ["../../packages/shared/src/config/index.ts"],
       "@emdash/shared/logger/context-node": ["../../packages/shared/src/logger/context-node.ts"],
       "@emdash/shared/logger/context": ["../../packages/shared/src/logger/context.ts"],
@@ -76,7 +44,15 @@
       "@emdash/wire": ["../../packages/wire/src/index.ts"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],
-      "@tooling/*": ["./tooling/*"]
+      "@tooling/*": ["./tooling/*"],
+      "@emdash/core/runtimes/*": ["../../packages/core/src/runtimes/*"],
+      "@emdash/core/services/*": ["../../packages/core/src/services/*"],
+      "@emdash/core/primitives/*": ["../../packages/core/src/primitives/*"],
+      "@emdash/core/workspace-server/*": ["../../packages/core/src/workspace-server/*"],
+      "@runtimes/*": ["../../packages/core/src/runtimes/*"],
+      "@services/*": ["../../packages/core/src/services/*"],
+      "@primitives/*": ["../../packages/core/src/primitives/*"],
+      "@workspace-server/*": ["../../packages/core/src/workspace-server/*"]
     }
   },
   "include": [

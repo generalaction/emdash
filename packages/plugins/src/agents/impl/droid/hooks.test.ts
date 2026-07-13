@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
 import { DROID_HOOKS_PATH } from './hooks';
 import { provider } from './index';

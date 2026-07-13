@@ -1,4 +1,8 @@
-import { gitContract, type FetchError, type RepositorySelector } from '@emdash/core/git';
+import {
+  gitContract,
+  type FetchError,
+  type RepositorySelector,
+} from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
 import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-process/client';
 import type { GitRuntimeClient } from '@main/core/git/runtime-process/host';

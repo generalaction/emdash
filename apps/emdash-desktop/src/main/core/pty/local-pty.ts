@@ -1,4 +1,4 @@
-import { normalizeSignal, PosixPtyTerminator } from '@emdash/core/pty';
+import { normalizeSignal, PosixPtyTerminator } from '@emdash/core/services/pty/api';
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';

@@ -1,4 +1,4 @@
-import { gitContract } from '@emdash/core/git';
+import { gitContract } from '@emdash/core/runtimes/git/api';
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
 import { GIT_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
 

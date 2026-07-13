@@ -3,8 +3,12 @@ import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { CatalogIndex, CatalogSkill } from '@emdash/core/skills';
-import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@emdash/core/skills';
+import type { CatalogIndex, CatalogSkill } from '@emdash/core/primitives/skills/api';
+import {
+  generateSkillMd,
+  isValidSkillName,
+  parseFrontmatter,
+} from '@emdash/core/primitives/skills/api';
 import { log } from '@main/lib/logger';
 import bundledCatalog from './bundled-catalog.json';
 

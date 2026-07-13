@@ -7,7 +7,7 @@ import type {
   PromptDraft,
   PromptInput,
   QueuedPrompt,
-} from '@emdash/core/acp/client';
+} from '@emdash/core/runtimes/acp/api/client';
 import type {
   CommandItem,
   ComposerEffortOption,

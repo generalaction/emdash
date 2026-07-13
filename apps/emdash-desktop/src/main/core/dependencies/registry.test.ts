@@ -1,4 +1,4 @@
-import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type { CLIAgentPluginProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { describe, expect, it } from 'vitest';
 import { buildDescriptorFromProvider, DEPENDENCIES } from './registry';
