@@ -407,7 +407,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Canva',
     description: 'Search, create, autofill, and export Canva designs',
-    docsUrl: 'https://www.canva.dev/docs/connect/canva-mcp-server-setup/',
+    docsUrl: 'https://www.canva.dev/docs/mcp/',
     credentialKeys: [],
   },
   miro: {
@@ -478,7 +478,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Wix',
     description: 'Manage and build sites and apps on Wix',
-    docsUrl: 'https://dev.wix.com/docs/sdk/articles/use-the-wix-mcp/about-the-wix-mcp',
+    docsUrl: 'https://dev.wix.com/docs/api-reference/articles/ai-tools/wix-mcp/about-the-wix-mcp',
     credentialKeys: [],
   },
   devrev: {
@@ -502,7 +502,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Prisma',
     description: 'Manage Prisma Postgres databases, migrations, and connection strings',
-    docsUrl: 'https://www.prisma.io/docs/ai/tools/mcp-server',
+    docsUrl: 'https://docs.prisma.io/docs/ai/tools/mcp-server',
     credentialKeys: [],
   },
   railway: {
