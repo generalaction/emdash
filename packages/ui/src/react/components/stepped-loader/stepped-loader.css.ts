@@ -3,8 +3,10 @@ import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
 export const root = style({
-  display: 'grid',
+  display: 'flex',
+  flexDirection: 'column',
   width: '100%',
+  height: '100%',
   gap: '1rem',
   color: vars.foreground,
 });
@@ -34,27 +36,22 @@ export const progressContainer = style({
 });
 
 export const stepViewport = style({
-  minHeight: '3rem',
+  minHeight: '1.75rem',
   overflow: 'hidden',
-});
-
-export const stepPanel = style({
-  display: 'grid',
-  gap: '1rem',
 });
 
 export const stepRow = style({
   display: 'grid',
-  gridTemplateColumns: '1rem minmax(0, 1fr)',
+  gridTemplateColumns: '1.25rem minmax(0, 1fr)',
   alignItems: 'center',
-  gap: '1rem',
+  gap: '0.5rem',
   minWidth: 0,
 });
 
 export const iconSlot = style({
   display: 'inline-flex',
-  width: '1rem',
-  height: '1rem',
+  width: '1.25rem',
+  height: '1.25rem',
   alignItems: 'center',
   justifyContent: 'center',
 });
@@ -87,18 +84,33 @@ export const stepName = style({
 
 export const stepChildren = style({});
 
-export const divider = style({
-  height: '1px',
-  width: '100%',
-  backgroundColor: vars.border,
+export const footer = style({
+  // Pushes the footer to the bottom of the container when extra vertical space
+  // is available (auto margin absorbs the free space), so it visibly floats to
+  // the bottom. In an auto-height container it collapses to the normal gap.
+  marginTop: 'auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  borderRadius: tokenVars.radiusLg,
+  border: `1px solid ${vars.border}`,
+  backgroundColor: vars.background1,
+  padding: '0.375rem 0.375rem 0.375rem 0.75rem',
+  boxShadow: '0 6px 16px -8px rgba(0, 0, 0, 0.25)',
 });
 
-export const actions = style({
+export const footerProgress = style({
+  fontFamily: tokenVars.fontMono,
+  fontSize: tokenVars.textSm,
+  color: vars.foregroundMuted,
+  whiteSpace: 'nowrap',
+});
+
+export const footerActions = style({
   display: 'flex',
-  flexWrap: 'wrap',
   alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
+  gap: '0.25rem',
 });
 
 const stepExitUpKeyframes = keyframes({

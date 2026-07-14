@@ -187,6 +187,8 @@ function SteppedLoader({
   }
 
   const displayedStep = steps.find((step) => step.id === presentation.stepId) ?? steps[0];
+  const activeIndex = steps.findIndex((step) => step.id === activeStepId);
+  const currentStepNumber = activeIndex >= 0 ? activeIndex + 1 : 1;
 
   return (
     <div className={cx(styles.root, className)}>
@@ -194,26 +196,24 @@ function SteppedLoader({
       <div className={styles.stepViewport}>
         <div
           className={cx(
-            styles.stepPanel,
+            styles.stepRow,
             presentation.phase === 'exiting' && styles.stepExit,
             presentation.phase === 'entering' && styles.stepEnter
           )}
         >
-          <div className={styles.stepRow}>
-            <StatusIcon status={presentation.status} />
-            <span className={styles.stepName}>{displayedStep.name}</span>
-          </div>
-          {displayedStep.children && (
-            <div className={styles.stepChildren}>{displayedStep.children}</div>
-          )}
+          <StatusIcon status={presentation.status} />
+          <span className={styles.stepName}>{displayedStep.name}</span>
         </div>
       </div>
-      {actions && (
-        <>
-          <div className={styles.divider} />
-          <div className={styles.actions}>{actions}</div>
-        </>
+      {displayedStep.children && (
+        <div className={styles.stepChildren}>{displayedStep.children}</div>
       )}
+      <div className={styles.footer}>
+        <span className={styles.footerProgress}>
+          {currentStepNumber}/{steps.length}
+        </span>
+        {actions && <div className={styles.footerActions}>{actions}</div>}
+      </div>
     </div>
   );
 }
