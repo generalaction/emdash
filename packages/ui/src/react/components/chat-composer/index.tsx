@@ -85,6 +85,8 @@ export function stopReasonNotice(reason: string): ComposerNotice | null {
 
 // ── Attachment types ──────────────────────────────────────────────────────────
 
+const imageFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
+
 export interface ComposerAttachment {
   id: string;
   name: string;
@@ -616,9 +618,11 @@ export function ChatComposer({
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     if (disabled) return;
     const imageFiles = Array.from(e.clipboardData.items).flatMap((item) => {
-      if (item.kind !== 'file' || !item.type.startsWith('image/')) return [];
+      if (item.kind !== 'file') return [];
       const file = item.getAsFile();
-      return file ? [file] : [];
+      if (!file) return [];
+      const mimeType = (item.type || file.type).toLowerCase();
+      return mimeType.startsWith('image/') || imageFileExtension.test(file.name) ? [file] : [];
     });
     if (imageFiles.length === 0) return;
 
