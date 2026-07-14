@@ -21,7 +21,7 @@ import type {
   PromptEditorRef,
   RenderMentionIcon,
 } from '../prompt-editor/types';
-import { imageFilesFromClipboard } from './attachment-files';
+import { clipboardHasText, imageFilesFromClipboard } from './attachment-files';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
@@ -639,7 +639,7 @@ export function ChatComposer({
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const imageFiles = imageFilesFromClipboard(e.clipboardData);
     if (imageFiles.length === 0 || (!onImageFilesAdded && !onAttachmentsChange)) return;
-    e.preventDefault();
+    if (!clipboardHasText(e.clipboardData)) e.preventDefault();
     addImageFiles(imageFiles, onImageFilesAdded);
   };
 
