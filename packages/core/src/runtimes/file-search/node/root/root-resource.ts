@@ -11,13 +11,13 @@ import {
   type PathSearchResult,
 } from '@runtimes/file-search/api';
 import type { IWatchService } from '@services/fs-watch/api';
+import { indexNotReady, toExpectedPathIndexError } from '../api/errors';
 import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import { resolveContentScope } from '../content/content-scope';
 import type { ContentSearchContext, FileContentSearcher } from '../content/content-searcher';
 import type { FileSearchExclusions } from '../exclusions';
 import { RootIndex } from '../path-index/root-index';
 import type { PathScanner } from '../path-index/scanner';
-import { expectedPathIndexError, indexNotReady } from '../path/errors';
 import type { PathIndexStore, StoredFileSearchRoot } from '../storage/path-index-store';
 
 export type FileSearchRootResourceOptions = Readonly<{
@@ -73,7 +73,7 @@ export class FileSearchRootResource implements RegisteredFileSearchRoot {
         input.limit ?? PATH_SEARCH_DEFAULT_LIMIT
       );
     } catch (error) {
-      const expected = expectedPathIndexError(
+      const expected = toExpectedPathIndexError(
         input.root,
         error,
         'Unable to query the file-search index'
@@ -116,7 +116,7 @@ export class FileSearchRootResource implements RegisteredFileSearchRoot {
   private indexFailure(input: PathSearchInput): PathSearchError | undefined {
     const failure = this.index.failure;
     if (failure === undefined) return undefined;
-    const expected = expectedPathIndexError(
+    const expected = toExpectedPathIndexError(
       input.root,
       failure,
       'The file-search index could not be built'

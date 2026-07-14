@@ -96,6 +96,27 @@ describe('FileSearchRootRegistry', () => {
     expect(store.listRoots()).toEqual([]);
   });
 
+  it('throws when registration and its persistence rollback both fail', async () => {
+    const rootPath = await createRoot();
+    const attachmentFailure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
+    const rollbackFailure = Object.assign(new Error('database busy'), { code: 'SQLITE_BUSY' });
+    const store = new SqlitePathIndexStore({ databasePath: ':memory:' });
+    vi.spyOn(store, 'deleteRoot').mockImplementation(() => {
+      throw rollbackFailure;
+    });
+    const { registry } = createRegistry({
+      store,
+      watcher: new ThrowingWatchService(attachmentFailure),
+    });
+
+    const registration = registry.registerRoot({ root: absolute(rootPath) });
+    await expect(registration).rejects.toBeInstanceOf(AggregateError);
+    await expect(registration).rejects.toMatchObject({
+      errors: [{ cause: attachmentFailure }, rollbackFailure],
+    });
+    expect(store.listRoots()).toHaveLength(1);
+  });
+
   it('cancels and awaits root-scoped content work during explicit unregister', async () => {
     const rootPath = await createRoot();
     const root = absolute(rootPath);

@@ -11,7 +11,7 @@ import type {
 import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
 import { containsNativePath, portableRelativePathFromNative } from '../allocation/paths';
 import type { FileSearchExclusions } from '../exclusions';
-import { RootWatchReadyError } from './errors';
+import { RootWatchAttachError, RootWatchReadyError } from './errors';
 import type { PathScanner } from './scanner';
 
 const WATCH_DEBOUNCE_MS = 50;
@@ -51,15 +51,19 @@ export class RootIndex implements RootIndexStatus {
 
   constructor(private readonly options: RootIndexOptions) {
     this.scope = options.scope.child(`file-search-root-${options.root.id}`);
-    this.watch = options.watcher.watch(
-      options.root.rootPath,
-      (events) => this.enqueueEvents(events),
-      {
-        debounceMs: WATCH_DEBOUNCE_MS,
-        ignore: [...options.exclusions.watchIgnoreGlobs()],
-        onResync: () => this.requestReconcile(),
-      }
-    );
+    try {
+      this.watch = options.watcher.watch(
+        options.root.rootPath,
+        (events) => this.enqueueEvents(events),
+        {
+          debounceMs: WATCH_DEBOUNCE_MS,
+          ignore: [...options.exclusions.watchIgnoreGlobs()],
+          onResync: () => this.requestReconcile(),
+        }
+      );
+    } catch (error) {
+      throw new RootWatchAttachError(error);
+    }
     this.scope.add(() => this.watch.release());
   }
 

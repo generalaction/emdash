@@ -5,7 +5,7 @@ import type {
   ContentSearchInput,
   ContentSearchResult,
 } from '@runtimes/file-search/api';
-import { rootNotRegistered } from '../root/errors';
+import { rootNotRegistered } from '../api/errors';
 import type { FileSearchRootLookup } from '../root/root-registry';
 import type { RegisteredFileSearchRoot } from '../root/root-resource';
 import type { ContentSearchContext } from './content-searcher';

@@ -1,20 +1,37 @@
-import type { HostAbsolutePath } from '@primitives/path/api';
-import type { FileSearchUnregisterRootError } from '@runtimes/file-search/api';
-
-const EXPECTED_NODE_IO_CODES = new Set([
+const OPERATIONAL_NODE_ERROR_CODES = new Set([
   'EAGAIN',
+  'EACCES',
   'EBUSY',
+  'ECANCELED',
   'EDQUOT',
+  'EFBIG',
+  'EINTR',
+  'EINVAL',
   'EIO',
+  'EISDIR',
+  'ELOOP',
+  'EMLINK',
   'EMFILE',
+  'ENAMETOOLONG',
   'ENFILE',
   'ENODEV',
+  'ENOENT',
+  'ENOLCK',
   'ENOMEM',
+  'ENOSYS',
   'ENOSPC',
+  'ENOTDIR',
+  'ENOTEMPTY',
+  'ENOTSUP',
   'ENXIO',
+  'EOPNOTSUPP',
+  'EOVERFLOW',
+  'EPERM',
   'EROFS',
   'ESTALE',
   'ETIMEDOUT',
+  'ETXTBSY',
+  'EXDEV',
 ]);
 
 export function nodeErrorCode(error: unknown): string | undefined {
@@ -24,18 +41,9 @@ export function nodeErrorCode(error: unknown): string | undefined {
     : undefined;
 }
 
-export function expectedNodeIoError(
-  root: HostAbsolutePath,
-  error: unknown,
-  fallback: string
-): FileSearchUnregisterRootError | undefined {
+export function isOperationalNodeError(error: unknown): boolean {
   const code = nodeErrorCode(error);
-  if (!code || !EXPECTED_NODE_IO_CODES.has(code)) return undefined;
-  return {
-    type: 'io',
-    root,
-    message: errorMessage(error, fallback),
-  };
+  return code !== undefined && OPERATIONAL_NODE_ERROR_CODES.has(code);
 }
 
 export function errorMessage(error: unknown, fallback: string): string {

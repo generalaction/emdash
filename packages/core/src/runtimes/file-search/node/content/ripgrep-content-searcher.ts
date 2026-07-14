@@ -8,8 +8,9 @@ import {
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
 import { containsNativePath } from '../allocation/paths';
+import { toExpectedFileSearchIoError } from '../api/errors';
 import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
-import { errorMessage, expectedNodeIoError, nodeErrorCode } from '../node-errors';
+import { errorMessage, nodeErrorCode } from '../node-errors';
 import { ContentSearchAccumulator } from './content-accumulator';
 import type {
   ContentSearchContext,
@@ -152,9 +153,7 @@ function runRipgrep(
         crash(abortReason(context.signal));
         return;
       }
-      const expected = expectedSpawnError(input, error);
-      if (expected) succeed(err(expected));
-      else crash(error);
+      succeed(err(spawnError(input, error)));
     });
     child.on('close', (code) => {
       if (settled) return;
@@ -216,10 +215,10 @@ function normalizeResultPath(rootPath: string, ripgrepPath: string): PortableRel
   return parsed.data;
 }
 
-function expectedSpawnError(
+function spawnError(
   input: ResolvedContentSearchInput,
   error: unknown
-): ContentSearchExecutionError | undefined {
+): ContentSearchExecutionError {
   const code = nodeErrorCode(error);
   if (code === 'ENOENT') {
     return {
@@ -233,7 +232,10 @@ function expectedSpawnError(
       message: 'ripgrep is not executable',
     };
   }
-  return expectedNodeIoError(input.root, error, 'Unable to start ripgrep');
+  return (
+    toExpectedFileSearchIoError(input.root, error, 'Unable to start ripgrep') ??
+    ioError(input, errorMessage(error, 'Unable to start ripgrep'))
+  );
 }
 
 function ioError(input: ResolvedContentSearchInput, message: string): ContentSearchExecutionError {

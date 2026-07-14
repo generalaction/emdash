@@ -1,10 +1,9 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type { PathSearchError, PathSearchInput, PathSearchResult } from '@runtimes/file-search/api';
-import { rootNotRegistered } from '../root/errors';
+import { indexNotReady, rootNotRegistered } from '../api/errors';
 import type { FileSearchRootLookup } from '../root/root-registry';
 import type { RegisteredFileSearchRoot } from '../root/root-resource';
-import { indexNotReady } from './errors';
 
 /** Resolves a registered root and delegates indexed path queries to its resource. */
 export class PathSearchRuntime {

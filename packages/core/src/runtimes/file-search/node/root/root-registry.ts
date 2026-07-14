@@ -9,18 +9,16 @@ import type {
 import type { IWatchService } from '@services/fs-watch/api';
 import { hostAbsolutePathFromNative } from '../allocation/paths';
 import type { FileSearchRootResolver, ResolvedFileSearchRoot } from '../allocation/root-identity';
+import { toExpectedFileSearchIoError, toExpectedRootError } from '../api/errors';
 import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import type { FileContentSearcher } from '../content/content-searcher';
 import type { FileSearchExclusions } from '../exclusions';
-import { expectedNodeIoError } from '../node-errors';
 import type { PathScanner } from '../path-index/scanner';
-import { expectedSqliteIoError } from '../storage/errors';
 import type {
   FileSearchRootUpsertResult,
   PathIndexStore,
   StoredFileSearchRoot,
 } from '../storage/path-index-store';
-import { expectedRootAccessError } from './errors';
 import { FileSearchRootResource, type RegisteredFileSearchRoot } from './root-resource';
 
 type RootStartInput = Readonly<{
@@ -152,7 +150,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
     try {
       upserted = this.options.store.upsertRoot(resolved.data);
     } catch (error) {
-      const expected = expectedSqliteIoError(
+      const expected = toExpectedFileSearchIoError(
         input.root,
         error,
         'Unable to persist file-search root'
@@ -176,19 +174,15 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
         onError: this.options.onError,
       });
     } catch (error) {
-      const expected =
-        expectedRootAccessError(input.root, error) ??
-        expectedNodeIoError(input.root, error, 'Unable to attach file-search maintenance');
+      const expected = toExpectedRootError(
+        input.root,
+        error,
+        'Unable to attach file-search maintenance'
+      );
       if (upserted.kind === 'created') {
         try {
           this.options.store.deleteRoot(upserted.root.rootKey);
         } catch (rollbackError) {
-          const expectedRollback = expectedSqliteIoError(
-            input.root,
-            rollbackError,
-            'Unable to roll back file-search registration'
-          );
-          if (expected && expectedRollback) return err(expectedRollback);
           throw new AggregateError(
             [error, rollbackError],
             'File-search registration rollback failed'
@@ -210,7 +204,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       this.options.store.deleteRoot(rootKey);
       return ok();
     } catch (error) {
-      const expected = expectedSqliteIoError(
+      const expected = toExpectedFileSearchIoError(
         context.root,
         error,
         'Unable to unregister file-search root'
@@ -227,7 +221,11 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
     try {
       this.options.store.deleteRoot(rootKey);
     } catch (error) {
-      const expected = expectedSqliteIoError(root, error, 'Unable to unregister file-search root');
+      const expected = toExpectedFileSearchIoError(
+        root,
+        error,
+        'Unable to unregister file-search root'
+      );
       if (expected) return err(expected);
       throw error;
     }

@@ -8,8 +8,11 @@ import {
   isPortablePathHostCompatible,
   sameNativePath,
 } from '../allocation/paths';
-import { expectedNodeIoError } from '../node-errors';
-import { expectedRootAccessError, rootUnavailable } from '../root/errors';
+import {
+  rootUnavailable,
+  toExpectedFileSearchIoError,
+  toExpectedRootAccessError,
+} from '../api/errors';
 
 type ResolvedContentScope = Readonly<{
   rootPath: string;
@@ -71,8 +74,8 @@ export async function resolveContentScope(
     return ok({ rootPath: canonicalRoot, searchPath: canonicalScope });
   } catch (error) {
     const expected =
-      expectedRootAccessError(input.root, error, 'Content-search root or scope') ??
-      expectedNodeIoError(input.root, error, 'Unable to resolve content-search scope');
+      toExpectedRootAccessError(input.root, error, 'Content-search root or scope') ??
+      toExpectedFileSearchIoError(input.root, error, 'Unable to resolve content-search scope');
     if (expected) return err(expected);
     throw error;
   }
