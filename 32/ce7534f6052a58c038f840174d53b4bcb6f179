@@ -1,0 +1,28 @@
+apps/emdash-desktop/scripts/release/lib/apple-api-key.ts
+  s_144430a1c0efa0::t_4d2869f5e09c22 33,37
+  s_144430a1c0efa0::t_70b00bc1951026 1-29
+  s_144430a1c0efa0::t_9944236edeba9c 30-32,34-36,38-41
+apps/emdash-desktop/scripts/release/lib/apple-api-key.test.ts
+  s_144430a1c0efa0::t_9944236edeba9c 3,27-43
+  s_144430a1c0efa0::t_70b00bc1951026 1-2,4-26,44-45
+apps/emdash-desktop/scripts/release/notarize-mac.ts
+  s_144430a1c0efa0::t_81934e23c61bf3 11
+  s_144430a1c0efa0::t_70b00bc1951026 1,12-15,17-22,24-26,28-31,33-36,39-43,45-48,50-55,57-62,64-69,71-79,81-101,104-107
+  s_144430a1c0efa0::t_9944236edeba9c 6,38,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "32ce7534f6052a58c038f840174d53b4bcb6f179",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
