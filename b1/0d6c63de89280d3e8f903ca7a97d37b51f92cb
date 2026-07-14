@@ -1,0 +1,69 @@
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationRunRow.tsx
+  s_b73ed0bd7b1a91::t_cd27c102ea4982 103,105-110,113,115-131
+  s_b73ed0bd7b1a91::t_8dda88ed43a233 1,12,34,54-56
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 3,42
+  s_b73ed0bd7b1a91::t_943077307d246f 11
+  s_b73ed0bd7b1a91::t_58e2e0aaabcbd6 89-94,111
+  s_b73ed0bd7b1a91::t_350635193d0f22 112,114
+  s_c1870b4be8208f::t_7fccf581459a0b 57-58
+apps/emdash-desktop/src/renderer/features/automations/use-automation-run-actions.ts
+  s_b73ed0bd7b1a91::t_8dda88ed43a233 2-5,7,14-16,21-26,28,31,36-37,44-49,52-54,56
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 6,8-9,13,19,27,29-30,32-35,38,40-43,50-51,61-66
+  s_b73ed0bd7b1a91::t_77b132fba04062 1,17-18,20,39,57
+  s_70e44c1afe7161::t_5264a5dcbfc5bc 67
+apps/emdash-desktop/src/renderer/features/automations/automation-run-stop.test.ts
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 2
+  s_b73ed0bd7b1a91::t_8dda88ed43a233 1,3-18
+apps/emdash-desktop/src/renderer/features/automations/automation-run-stop.ts
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 1-5
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 11,36-41,103-118
+  s_e7415b2a80add6::t_53d9ee03f83a14 119-122
+apps/emdash-desktop/src/renderer/features/automations/components/RunMetaLine.tsx
+  s_b73ed0bd7b1a91::t_943077307d246f 2,19-23,25,48,51
+  s_b73ed0bd7b1a91::t_cd27c102ea4982 16,24,43-47,49-50
+apps/emdash-desktop/src/renderer/features/automations/components/TaskDataLine.tsx
+  s_b73ed0bd7b1a91::t_58e2e0aaabcbd6 12,19,34-41
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_b73ed0bd7b1a91::t_83aaff6cf74395 5,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "b10d6c63de89280d3e8f903ca7a97d37b51f92cb",
+  "prompts": {},
+  "sessions": {
+    "s_70e44c1afe7161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efc-fbe1-7c22-b45d-1d566e26f93b",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b73ed0bd7b1a91": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efe-3f5e-7900-9cc3-06188f442865",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c1870b4be8208f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6039-72d2-7a70-a9ee-3b2851ab4c20",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e7415b2a80add6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efb-8bcb-75c3-b508-abe4a7f14267",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
