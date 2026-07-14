@@ -97,4 +97,37 @@ describe('BrowserPane', () => {
     expect(webview.getAttribute('src')).toBe('https://linkedin.com/');
     expect(loadURL).not.toHaveBeenCalled();
   });
+
+  it('renders a minimal load error state', async () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      initialUrl: 'https://missing.invalid/',
+    });
+    browserSessionStore.updateSession(session.browserId, {
+      isLoading: false,
+      loadError: {
+        code: -105,
+        description: 'net::ERR_NAME_NOT_RESOLVED',
+        url: 'https://missing.invalid/',
+      },
+    });
+
+    await act(async () => {
+      root.render(
+        React.createElement(BrowserPane, { browserId: session.browserId, visible: true })
+      );
+    });
+
+    expect(container.querySelector('h1')?.textContent).toBe("This site can't be reached");
+    expect(container.querySelector('p')?.textContent).toBe(
+      "missing.invalid's server IP address could not be found. (ERR_NAME_NOT_RESOLVED)"
+    );
+    expect(container.textContent).not.toContain('Try:');
+    expect(
+      Array.from(container.querySelectorAll('button')).map((button) => button.textContent)
+    ).toEqual(['', 'Reload', 'Open externally']);
+  });
 });
