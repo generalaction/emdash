@@ -1,6 +1,6 @@
-import { parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import { describe, expect, it } from 'vitest';
 import { RootWatchAttachError, RootWatchReadyError } from '../path-index/errors';
+import { hostPath as absolute } from '../testing/paths';
 import {
   toExpectedFileSearchIoError,
   toExpectedPathIndexError,
@@ -72,9 +72,3 @@ describe('file-search API error mapping', () => {
     ).toMatchObject({ type: 'io', message: 'watch construction failed' });
   });
 });
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, { profile: { style: 'posix' } });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}

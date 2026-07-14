@@ -1,9 +1,10 @@
 import { err, ok } from '@emdash/shared';
-import { parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
+import type { HostAbsolutePath } from '@primitives/path/api';
 import type { ContentSearchInput, ContentSearchResult } from '@runtimes/file-search/api';
 import { describe, expect, it, vi } from 'vitest';
 import type { FileSearchRootLookup, FileSearchRootState } from '../root/root-registry';
 import type { RegisteredFileSearchRoot } from '../root/root-resource';
+import { hostPath as absolute } from '../testing/paths';
 import { ContentSearchRuntime } from './content-search-runtime';
 import type { ContentSearchContext } from './content-searcher';
 
@@ -69,12 +70,6 @@ function fakeResource(
     searchPaths: (input) => err({ type: 'index-not-ready', root: input.root, message: 'unused' }),
     searchContent,
   };
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, { profile: { style: 'posix' } });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }
 
 function emptyResult(): ContentSearchResult {

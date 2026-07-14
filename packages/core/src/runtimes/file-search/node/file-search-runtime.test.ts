@@ -1,10 +1,10 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileSearchRuntime } from './file-search-runtime';
+import { hostPath as absolute } from './testing/paths';
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -95,12 +95,4 @@ async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-file-search-runtime-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, {
-    profile: { style: path.sep === '\\' ? 'win32' : 'posix' },
-  });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }

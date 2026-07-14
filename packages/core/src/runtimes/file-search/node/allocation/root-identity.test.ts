@@ -1,8 +1,8 @@
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { hostPath as absolute } from '../testing/paths';
 import { NodeFileSearchRootResolver } from './root-identity';
 
 const temporaryDirectories: string[] = [];
@@ -69,16 +69,4 @@ async function createRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-file-search-root-'));
   temporaryDirectories.push(root);
   return realpath(root);
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, {
-    profile: { style: path.sep === '\\' ? 'win32' : 'posix' },
-  });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  // Exercise native formatting as part of the test helper's compatibility assertion.
-  if (!path.isAbsolute(formatAbsolute(parsed.data, { separator: path.sep as '/' | '\\' }))) {
-    throw new Error('Parsed path is not host-compatible');
-  }
-  return parsed.data;
 }

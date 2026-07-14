@@ -1,13 +1,10 @@
 import { err, ok } from '@emdash/shared';
-import {
-  parseAbsolute,
-  parsePortableRelativePath,
-  type HostAbsolutePath,
-} from '@primitives/path/api';
+import type { HostAbsolutePath } from '@primitives/path/api';
 import type { PathSearchInput } from '@runtimes/file-search/api';
 import { describe, expect, it, vi } from 'vitest';
 import type { FileSearchRootLookup, FileSearchRootState } from '../root/root-registry';
 import type { RegisteredFileSearchRoot } from '../root/root-resource';
+import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { PathSearchRuntime } from './path-search-runtime';
 
 describe('PathSearchRuntime', () => {
@@ -86,16 +83,4 @@ function fakeResource(
     searchContent: async (input) =>
       err({ type: 'root-not-registered', root: input.root, message: 'unused' }),
   };
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, { profile: { style: 'posix' } });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }

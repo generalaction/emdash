@@ -3,11 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import {
-  parseAbsolute,
-  type HostAbsolutePath,
-  type PortableRelativePath,
-} from '@primitives/path/api';
+import type { HostAbsolutePath, PortableRelativePath } from '@primitives/path/api';
 import type { ContentSearchResult } from '@runtimes/file-search/api';
 import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +21,7 @@ import type {
   PathIndexStore,
   PathIndexStoreSearchResult,
 } from '../storage/path-index-store';
+import { hostPath as absolute } from '../testing/paths';
 import { FileSearchRootResource } from './root-resource';
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -212,14 +209,6 @@ async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-root-resource-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, {
-    profile: { style: path.sep === '\\' ? 'win32' : 'posix' },
-  });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }
 
 function emptyContentResult(): ContentSearchResult {

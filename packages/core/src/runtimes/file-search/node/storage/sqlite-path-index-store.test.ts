@@ -1,5 +1,6 @@
-import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { relativePath as relative } from '../testing/paths';
 import { SqlitePathIndexStore } from './sqlite-path-index-store';
 
 const stores: SqlitePathIndexStore[] = [];
@@ -168,10 +169,4 @@ function publish(
   const build = store.beginBuild(rootId);
   build.append(entries);
   build.publish([]);
-}
-
-function relative(input: string): PortableRelativePath {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }

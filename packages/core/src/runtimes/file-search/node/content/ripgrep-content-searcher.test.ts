@@ -2,9 +2,9 @@ import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parseAbsolute } from '@primitives/path/api';
 import type { ContentSearchProgress } from '@runtimes/file-search/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { hostPath as absolute } from '../testing/paths';
 import { RipgrepContentSearcher } from './ripgrep-content-searcher';
 
 const hasRipgrep = spawnSync('rg', ['--version'], { stdio: 'ignore' }).status === 0;
@@ -138,12 +138,4 @@ async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-content-search-'));
   temporaryDirectories.push(directory);
   return realpath(directory);
-}
-
-function absolute(input: string) {
-  const parsed = parseAbsolute(input, {
-    profile: { style: path.sep === '\\' ? 'win32' : 'posix' },
-  });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }

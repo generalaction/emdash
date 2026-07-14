@@ -1,6 +1,6 @@
-import { parsePortableRelativePath } from '@primitives/path/api';
 import { describe, expect, it } from 'vitest';
 import { DefaultFileSearchExclusions } from './exclusions';
+import { relativePath as relative } from './testing/paths';
 
 describe('DefaultFileSearchExclusions', () => {
   it('excludes a configured segment at any depth without excluding similar names', () => {
@@ -19,9 +19,3 @@ describe('DefaultFileSearchExclusions', () => {
     expect(exclusions.excludes(relative('SRC/NODE_MODULES/pkg/index.js'))).toBe(true);
   });
 });
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}

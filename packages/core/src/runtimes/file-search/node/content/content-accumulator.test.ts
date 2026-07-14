@@ -1,9 +1,9 @@
-import { parsePortableRelativePath } from '@primitives/path/api';
 import {
   CONTENT_SEARCH_MAX_LINE_LENGTH,
   CONTENT_SEARCH_MAX_TEXT_LENGTH,
 } from '@runtimes/file-search/api';
 import { describe, expect, it, vi } from 'vitest';
+import { relativePath as relative } from '../testing/paths';
 import { ContentSearchAccumulator } from './content-accumulator';
 
 describe('ContentSearchAccumulator', () => {
@@ -63,9 +63,3 @@ describe('ContentSearchAccumulator', () => {
     expect(() => accumulator.result(false)).toThrow(bug);
   });
 });
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}

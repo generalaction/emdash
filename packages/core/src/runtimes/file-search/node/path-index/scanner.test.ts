@@ -1,9 +1,10 @@
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parsePortableRelativePath, ROOT_RELATIVE_PATH } from '@primitives/path/api';
+import { ROOT_RELATIVE_PATH } from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DefaultFileSearchExclusions } from '../exclusions';
+import { relativePath as relative } from '../testing/paths';
 import { NodePathScanner } from './scanner';
 
 const temporaryDirectories: string[] = [];
@@ -78,10 +79,4 @@ async function scan(root: string, relativeRoot: ReturnType<typeof relative>) {
     entries.push(entry);
   }
   return entries.sort((left, right) => left.path.localeCompare(right.path));
-}
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }

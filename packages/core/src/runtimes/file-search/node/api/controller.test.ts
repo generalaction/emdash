@@ -1,9 +1,9 @@
 import { ok } from '@emdash/shared';
 import { createLiveJobReplica } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
-import { parseAbsolute, parsePortableRelativePath } from '@primitives/path/api';
 import { fileSearchContract } from '@runtimes/file-search/api';
 import { describe, expect, it } from 'vitest';
+import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { createFileSearchController } from './controller';
 import type { FileSearchRuntimeApi } from './procedures';
 
@@ -71,15 +71,3 @@ describe('createFileSearchController', () => {
     }
   });
 });
-
-function absolute(input: string) {
-  const parsed = parseAbsolute(input, { profile: { style: 'posix' } });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}

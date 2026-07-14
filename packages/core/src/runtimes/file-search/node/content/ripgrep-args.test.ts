@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { parseAbsolute, parsePortableRelativePath } from '@primitives/path/api';
 import { CONTENT_SEARCH_MAX_LINE_LENGTH } from '@runtimes/file-search/api';
 import { describe, expect, it } from 'vitest';
+import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { createRipgrepContentSearchArgs } from './ripgrep-args';
 
 describe('createRipgrepContentSearchArgs', () => {
@@ -63,15 +63,3 @@ describe('createRipgrepContentSearchArgs', () => {
     expect(args).not.toContain('!**/node_modules/**');
   });
 });
-
-function absolute(input: string) {
-  const parsed = parseAbsolute(input, { profile: { style: 'posix' } });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}
-
-function relative(input: string) {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}

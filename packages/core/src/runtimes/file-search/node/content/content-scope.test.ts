@@ -1,13 +1,8 @@
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  parseAbsolute,
-  parsePortableRelativePath,
-  type HostAbsolutePath,
-  type PortableRelativePath,
-} from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { resolveContentScope } from './content-scope';
 
 const roots: string[] = [];
@@ -71,18 +66,4 @@ async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-content-scope-'));
   roots.push(directory);
   return realpath(directory);
-}
-
-function absolute(input: string): HostAbsolutePath {
-  const parsed = parseAbsolute(input, {
-    profile: { style: path.sep === '\\' ? 'win32' : 'posix' },
-  });
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
-}
-
-function relative(input: string): PortableRelativePath {
-  const parsed = parsePortableRelativePath(input);
-  if (!parsed.success) throw new Error(parsed.error.message);
-  return parsed.data;
 }
