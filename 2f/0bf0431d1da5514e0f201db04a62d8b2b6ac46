@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_9bc9fcfa0e3292::t_cc1b6531b97e90 183-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "2f0bf0431d1da5514e0f201db04a62d8b2b6ac46",
+  "prompts": {},
+  "sessions": {
+    "s_9bc9fcfa0e3292": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJqy8CzaRbCZL7tWDPD",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
