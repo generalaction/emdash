@@ -265,7 +265,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (conversation.type === 'acp') {
       const client = await getAcpRuntimeClient();
       const result = await client.cancelTurn({ conversationId: conversation.id });
-      if (!result.success && run.status === 'done') throw new Error('stop_conversation_failed');
+      if (!result.success) throw new Error('stop_conversation_failed');
     } else {
       const task = resolveTask(conversation.projectId, run.taskId);
       if (!task) throw new Error('task_not_found');

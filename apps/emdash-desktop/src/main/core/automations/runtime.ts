@@ -4,7 +4,11 @@ import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
 import { getRun } from './repo';
-import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
+import {
+  markRunDoneIfCreatingConversation,
+  markRunSkipped,
+  type OnStepCompleted,
+} from './run-transitions';
 
 export type { OnStepCompleted };
 
@@ -44,12 +48,12 @@ export async function runQueuedAutomation(
       error: error instanceof Error ? error.message : String(error),
     })
   );
-  const current = await getRun(run.id);
-  if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
-    return ok(current);
-  }
 
   if (!result.success) {
+    const current = await getRun(run.id);
+    if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
+      return ok(current);
+    }
     log.error('Automation task create failed', {
       automationId: automation.id,
       runId: run.id,
@@ -59,7 +63,15 @@ export async function runQueuedAutomation(
     return err(result.error);
   }
 
-  run = await markRunDone(run.id, Date.now());
+  const completed = await markRunDoneIfCreatingConversation(run.id, Date.now());
+  if (!completed) {
+    const current = await getRun(run.id);
+    if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
+      return ok(current);
+    }
+    return err('run_update_failed');
+  }
+  run = completed;
   onStepCompleted(run);
   return ok(run);
 }

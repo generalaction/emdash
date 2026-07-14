@@ -55,6 +55,13 @@ export async function markRunDone(runId: string, finishedAt: number): Promise<Au
   return updateRunOrThrow(runId, { status: 'done', finishedAt });
 }
 
+export async function markRunDoneIfCreatingConversation(
+  runId: string,
+  finishedAt: number
+): Promise<AutomationRun | null> {
+  return updateRunIfStatus(runId, 'creating_conversation', { status: 'done', finishedAt });
+}
+
 /** any step → failed, writes JSON error + finishedAt */
 export async function markRunFailed(
   runId: string,
