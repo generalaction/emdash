@@ -13,7 +13,7 @@ export const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
   return (
     <SidebarGroup className="flex shrink-0 flex-col">
       <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
-        <MicroLabel className="text-foreground-tertiary-passive">Pinned</MicroLabel>
+        <MicroLabel className="font-medium text-foreground-tertiary-passive">Pinned</MicroLabel>
       </div>
       <SidebarMenu className="px-3 pb-2">
         {entries.map(({ projectId, taskId }) => (

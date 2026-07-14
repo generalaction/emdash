@@ -8,6 +8,7 @@ import type { FileSymlinkInfo, FileSymlinkTargetType } from '@emdash/core/files'
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
@@ -749,65 +750,82 @@ export class SshFileSystem implements LegacySshFileOperations {
   ): FileWatcher {
     const interval = options.debounceMs ?? 4000;
     let watched: string[] = [];
+    let closed = false;
+    let pollInFlight = false;
     // Map from dirPath → previous entries (keyed by relative entry path)
     const snapshots = new Map<string, Map<string, FileEntry>>();
 
     const poll = async () => {
-      for (const dirPath of watched) {
-        let result: FileListResult | null = null;
-        try {
-          result = await this.list(dirPath, { includeHidden: true });
-        } catch {
-          continue;
-        }
+      if (closed || pollInFlight) return;
+      pollInFlight = true;
+      try {
+        for (const dirPath of watched) {
+          if (closed) return;
+          let result: FileListResult | null = null;
+          try {
+            result = await this.list(dirPath, { includeHidden: true });
+          } catch {
+            continue;
+          }
+          if (closed) return;
 
-        const currMap = new Map(result.entries.map((e) => [e.path, e]));
-        const prevMap = snapshots.get(dirPath);
-        snapshots.set(dirPath, currMap);
+          const currMap = new Map(result.entries.map((e) => [e.path, e]));
+          const prevMap = snapshots.get(dirPath);
+          snapshots.set(dirPath, currMap);
 
-        if (!prevMap) continue;
+          if (!prevMap) continue;
 
-        const evts: FileWatchEvent[] = [];
-        for (const [p, e] of currMap) {
-          const prev = prevMap.get(p);
-          if (!prev)
-            evts.push({
-              type: 'create',
-              entryType: fileWatchEntryType(e),
-              path: p,
-            });
-          else if (fileEntryMetadataChanged(prev, e))
-            evts.push({
-              type: 'modify',
-              entryType: fileWatchEntryType(e),
-              path: p,
-            });
+          const evts: FileWatchEvent[] = [];
+          for (const [p, e] of currMap) {
+            const prev = prevMap.get(p);
+            if (!prev)
+              evts.push({
+                type: 'create',
+                entryType: fileWatchEntryType(e),
+                path: p,
+              });
+            else if (fileEntryMetadataChanged(prev, e))
+              evts.push({
+                type: 'modify',
+                entryType: fileWatchEntryType(e),
+                path: p,
+              });
+          }
+          for (const [p, e] of prevMap) {
+            if (!currMap.has(p))
+              evts.push({
+                type: 'delete',
+                entryType: fileWatchEntryType(e),
+                path: p,
+              });
+          }
+          if (evts.length) callback(evts);
         }
-        for (const [p, e] of prevMap) {
-          if (!currMap.has(p))
-            evts.push({
-              type: 'delete',
-              entryType: fileWatchEntryType(e),
-              path: p,
-            });
-        }
-        if (evts.length) callback(evts);
+      } finally {
+        pollInFlight = false;
       }
     };
 
     const timer = setInterval(() => {
-      void poll();
+      void poll().catch((error) => {
+        log.warn('SshFileSystem: watcher poll failed', { error: String(error) });
+      });
     }, interval);
 
     return {
       update(paths: string[]) {
+        if (closed) return;
         watched = paths;
         for (const p of snapshots.keys()) {
           if (!paths.includes(p)) snapshots.delete(p);
         }
       },
       close() {
+        if (closed) return;
+        closed = true;
         clearInterval(timer);
+        watched = [];
+        snapshots.clear();
       },
     };
   }

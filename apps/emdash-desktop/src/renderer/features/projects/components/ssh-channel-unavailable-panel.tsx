@@ -5,7 +5,7 @@ export function SshChannelUnavailablePanel() {
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <Unplug className="h-6 w-6 text-foreground-passive" />
-        <p className="font-mono text-sm font-medium text-foreground">SSH channel unavailable</p>
+        <p className="font-sans text-sm font-medium text-foreground">SSH channel unavailable</p>
         <p className="text-xs text-foreground-passive">
           The remote server hit its SSH session limit and refused to open another channel. emdash
           opens several channels per task, so the default{' '}

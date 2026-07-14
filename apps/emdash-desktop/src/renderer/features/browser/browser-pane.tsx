@@ -1,9 +1,7 @@
-import { ExternalLink, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
-import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { claimNumberHotkey } from '@renderer/lib/hooks/use-number-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -13,7 +11,6 @@ import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
   describeBrowserLoadError,
-  hostLabel,
   type BrowserLoadErrorPresentation,
 } from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
@@ -309,31 +306,6 @@ export const BrowserPane = observer(function BrowserPane({
   );
 });
 
-function BrowserLoadErrorDetail({
-  detail,
-  host,
-  url,
-}: {
-  detail: string;
-  host: string;
-  url: string;
-}) {
-  if (detail.startsWith(host)) {
-    return (
-      <p className="text-base leading-relaxed text-foreground-muted" title={url}>
-        <span className="font-medium text-foreground">{host}</span>
-        {detail.slice(host.length)}
-      </p>
-    );
-  }
-
-  return (
-    <p className="text-base leading-relaxed text-foreground-muted" title={url}>
-      {detail}
-    </p>
-  );
-}
-
 function BrowserLoadErrorView({
   presentation,
   code,
@@ -349,45 +321,25 @@ function BrowserLoadErrorView({
   onReload: () => void;
   onOpenExternal: () => void;
 }) {
-  const host = hostLabel(url);
-
   return (
-    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-10 py-14">
-      <div className="flex w-full max-w-lg flex-col gap-7">
-        <EmdashLogo height={18} className="text-foreground" />
-        <div className="flex flex-col gap-3">
-          <h1 className="text-2xl font-medium tracking-tight text-foreground">
-            {presentation.heading}
-          </h1>
-          <BrowserLoadErrorDetail detail={presentation.detail} host={host} url={url} />
-        </div>
-        {presentation.suggestions.length > 0 && (
-          <div className="flex flex-col gap-2.5">
-            <span className="text-sm font-medium text-foreground">Try:</span>
-            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-foreground-muted marker:text-foreground-tertiary-muted">
-              {presentation.suggestions.map((suggestion) => (
-                <li key={suggestion}>{suggestion}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {code && (
-          <div className="font-mono text-xs tracking-wide text-foreground-tertiary-muted">
-            {code}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-2.5 pt-1">
-          <Button type="button" onClick={onReload}>
-            <RotateCcw className="size-4" />
+    <div className="flex h-full min-h-0 items-center justify-center overflow-auto p-8">
+      <div className="flex max-w-sm flex-col items-center gap-2 text-center">
+        <h1 className="text-base font-medium text-foreground">{presentation.heading}</h1>
+        <p className="text-sm text-foreground-muted" title={url}>
+          {presentation.detail}
+          {code && <span className="text-foreground-tertiary-muted"> ({code})</span>}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onReload}>
             Reload
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
+            size="sm"
             disabled={!canOpenExternal}
             onClick={onOpenExternal}
           >
-            <ExternalLink className="size-4" />
             Open externally
           </Button>
         </div>

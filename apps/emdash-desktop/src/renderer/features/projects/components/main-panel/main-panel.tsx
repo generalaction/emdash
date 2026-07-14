@@ -60,7 +60,7 @@ function ProjectBootstrappingPanel() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
       <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
-      <p className="font-mono text-xs text-foreground-passive">Setting up project…</p>
+      <p className="font-sans text-xs text-foreground-passive">Setting up project…</p>
     </div>
   );
 }
@@ -69,10 +69,10 @@ function ProjectBootstrapErrorPanel({ message }: { message: string }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-        <p className="font-mono text-sm font-medium text-foreground-destructive">
+        <p className="font-sans text-sm font-medium text-foreground-destructive">
           Failed to set up project
         </p>
-        <p className="font-mono text-xs text-foreground-passive">{message}</p>
+        <p className="font-sans text-xs text-foreground-passive">{message}</p>
       </div>
     </div>
   );
@@ -96,7 +96,7 @@ function ProjectSshDisconnectedPanel({
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <Unplug className="h-6 w-6 text-foreground-passive" />
-        <p className="font-mono text-sm font-medium text-foreground">SSH not connected</p>
+        <p className="font-sans text-sm font-medium text-foreground">SSH not connected</p>
         <p className="text-xs text-foreground-passive">
           The SSH connection for this project is unavailable.
         </p>
@@ -127,7 +127,7 @@ function ProjectPathNotFoundPanel({
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <TriangleAlert className="h-6 w-6 text-foreground-destructive" />
-        <p className="font-mono text-sm font-medium text-foreground-destructive">
+        <p className="font-sans text-sm font-medium text-foreground-destructive">
           Project not found
         </p>
         {path && <p className="font-mono text-xs break-all text-foreground-passive">{path}</p>}

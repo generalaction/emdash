@@ -17,7 +17,6 @@ import {
 const mocks = vi.hoisted(() => ({
   getProjectSshConnectionId: vi.fn(),
   setProviderOverride: vi.fn(),
-  chatUiFeature: true,
   editorText: '',
   editorApi: {
     focus: vi.fn(),
@@ -100,10 +99,6 @@ vi.mock('@renderer/lib/stores/use-agents', () => ({
       },
     ],
   }),
-}));
-
-vi.mock('@renderer/lib/hooks/useFeatureFlag', () => ({
-  useFeatureFlag: () => mocks.chatUiFeature,
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -234,24 +229,26 @@ describe('useInitialConversationState', () => {
     expect(latestState?.prompt).toBe('Keep this automation prompt');
   });
 
-  it('defaults chat UI on when the provider supports ACP', async () => {
+  it('defaults chat UI off when the provider supports ACP', async () => {
     await renderProbe('project-1');
 
-    expect(latestState?.useChatUi).toBe(true);
+    expect(latestState?.useChatUi).toBe(false);
   });
 
-  it('persists when chat UI is disabled', async () => {
+  it('persists after the user enables chat UI', async () => {
     await renderProbe('project-1');
 
     await act(async () => {
-      latestState?.setUseChatUi(false);
+      latestState?.setUseChatUi(true);
     });
 
-    expect(dom.window.localStorage.getItem('initial-conversation:chat-ui-enabled')).toBe('false');
+    expect(dom.window.localStorage.getItem('initial-conversation:chat-ui-enabled')).toBe('true');
 
+    await act(async () => root.unmount());
+    root = createRoot(container);
     await renderProbe('project-2');
 
-    expect(latestState?.useChatUi).toBe(false);
+    expect(latestState?.useChatUi).toBe(true);
   });
 });
 
@@ -334,5 +331,32 @@ describe('InitialConversationField', () => {
         description: 'Fix flaky tests',
       })
     );
+  });
+
+  it('renders provider icons for every issue mention', async () => {
+    const linkedIssue: LinkedIssue = {
+      provider: 'linear',
+      identifier: 'ENG-123',
+      displayIdentifier: 'ENG-123',
+      title: 'Fix flaky tests',
+      url: 'https://linear.app/emdash/issue/ENG-123/fix-flaky-tests',
+    };
+
+    await renderField({ linkedIssue, includeIssueContextByDefault: true });
+
+    const renderMentionIcon = chatComposerProps().renderMentionIcon;
+    const firstIcon = renderMentionIcon?.({
+      id: 'issue:linear:ENG-123',
+      label: 'issue:linear:ENG-123',
+      kind: 'issue',
+    });
+    const secondIcon = renderMentionIcon?.({
+      id: 'issue:linear:ENG-456',
+      label: 'issue:linear:ENG-456',
+      kind: 'issue',
+    });
+
+    expect(firstIcon).toMatchObject({ props: { provider: 'linear' } });
+    expect(secondIcon).toMatchObject({ props: { provider: 'linear' } });
   });
 });
