@@ -15,7 +15,6 @@ export const fileSearchRootInputSchema = z.object({
 export const pathEntryKindSchema = z.enum(['file', 'directory']);
 
 export const pathSearchInputSchema = fileSearchRootInputSchema.extend({
-  /** Empty text requests the first path-ordered entries, which supports initially-open pickers. */
   query: z.string().max(FILE_SEARCH_MAX_QUERY_LENGTH),
   kinds: z
     .array(pathEntryKindSchema)
@@ -48,7 +47,6 @@ export const contentSearchInputSchema = fileSearchRootInputSchema.extend({
   limit: z.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT).optional(),
 });
 
-/** One-based UTF-16 columns. `endColumn` is exclusive. */
 export const contentSearchRangeSchema = z
   .object({
     startColumn: z.number().int().positive(),
@@ -59,10 +57,6 @@ export const contentSearchRangeSchema = z
     path: ['endColumn'],
   });
 
-/**
- * A source location in the complete file line paired with its location in the bounded preview.
- * Adapters producing byte offsets must convert them before crossing this interface.
- */
 export const contentSearchLocationSchema = z.object({
   sourceRange: contentSearchRangeSchema,
   previewRange: contentSearchRangeSchema,
@@ -70,7 +64,6 @@ export const contentSearchLocationSchema = z.object({
 
 export const contentSearchLineMatchSchema = z.object({
   lineNumber: z.number().int().positive(),
-  /** Match-centered preview. It may contain explicit elision markers. */
   previewText: z.string().max(CONTENT_SEARCH_MAX_PREVIEW_LENGTH),
   locations: z.array(contentSearchLocationSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
 });
@@ -84,10 +77,6 @@ const contentSearchFilesSchema = z
   .array(contentSearchFileResultSchema)
   .max(CONTENT_SEARCH_MAX_LIMIT);
 
-/**
- * An append-only batch. A path may occur in later batches; consumers append its new matches.
- * The terminal result remains authoritative.
- */
 export const contentSearchProgressSchema = z.object({ files: contentSearchFilesSchema });
 
 export const contentSearchResultSchema = z.object({

@@ -105,7 +105,6 @@ function decodeText(value: unknown, field: string): Buffer {
   throw new Error(`ripgrep ${field} has neither text nor bytes`);
 }
 
-/** Converts sorted byte ranges in one forward pass instead of decoding every prefix. */
 function utf16Ranges(line: Buffer, ranges: readonly ByteRange[]): ContentSearchRange[] {
   let byteCursor = 0;
   let utf16Cursor = 0;
@@ -128,8 +127,6 @@ function stripLineTerminator(line: Buffer): Buffer {
 }
 
 function previewText(line: Buffer): string {
-  // Ripgrep treats lone carriage returns as line content. Keep columns stable while ensuring
-  // the transport remains single-line and the otherwise invisible separator stays visible.
   return line.toString('utf8').replaceAll('\r', '\u240d');
 }
 

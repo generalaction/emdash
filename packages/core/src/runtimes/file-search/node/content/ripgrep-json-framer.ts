@@ -8,15 +8,10 @@ export type RipgrepJsonFramerEvent =
   | Readonly<{
       type: 'oversized-record';
       maxRecordBytes: number;
-      /**
-       * Bytes observed when the record first crossed the limit. The complete
-       * record can be larger because its remainder is deliberately discarded.
-       */
       observedRecordBytes: number;
     }>;
 
 export type RipgrepJsonFramerOptions = Readonly<{
-  /** Maximum UTF-8 byte length retained for one JSON-lines record. */
   maxRecordBytes: number;
 }>;
 
