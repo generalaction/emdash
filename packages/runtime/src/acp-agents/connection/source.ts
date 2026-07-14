@@ -44,6 +44,7 @@ export interface AcquireAcpConnectionInput {
   providerId: string;
   workspaceId: string;
   cwd: string;
+  env?: Record<string, string>;
   behavior: IAcpBehavior;
   buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
 }
@@ -90,7 +91,10 @@ async function provisionAcpConnection(
   input: AcquireAcpConnectionInput,
   scope: Scope
 ): Promise<PooledAcpProcess> {
-  const spawn = await deps.agentHost.buildAcpSpawn(input.providerId, { cwd: input.cwd });
+  const spawn = await deps.agentHost.buildAcpSpawn(input.providerId, {
+    cwd: input.cwd,
+    env: input.env,
+  });
   if (!spawn.success) {
     throw acpErr.spawnFailed(toSerializedError(new Error(agentHostErrorMessage(spawn.error))))
       .error;

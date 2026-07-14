@@ -133,6 +133,7 @@ export class SessionManager implements InboundRouter {
         providerId: input.providerId,
         workspaceId: input.workspaceId,
         cwd: input.cwd,
+        env: input.env,
         behavior: binding.behavior,
         buildClient: (_agent, context): Client => buildAgentClient(context, this, this.ports),
       },
