@@ -649,7 +649,7 @@ export async function updateRun(
 
 export async function updateRunIfStatus(
   id: string,
-  expectedStatus: AutomationRunStatus,
+  expectedStatus: AutomationRunStatus | AutomationRunStatus[],
   values: Parameters<typeof updateRun>[1]
 ): Promise<AutomationRun | null> {
   const { error, ...rest } = values;
@@ -660,7 +660,14 @@ export async function updateRunIfStatus(
   const [row] = await db
     .update(automationRuns)
     .set(dbValues)
-    .where(and(eq(automationRuns.id, id), eq(automationRuns.status, expectedStatus)))
+    .where(
+      and(
+        eq(automationRuns.id, id),
+        Array.isArray(expectedStatus)
+          ? inArray(automationRuns.status, expectedStatus)
+          : eq(automationRuns.status, expectedStatus)
+      )
+    )
     .returning();
   return row ? mapAutomationRunRow(row) : null;
 }

@@ -83,3 +83,15 @@ export async function markRunSkipped(runId: string, error: RunError): Promise<Au
     finishedAt: Date.now(),
   });
 }
+
+export async function markRunManuallyStopped(runId: string): Promise<AutomationRun | null> {
+  return updateRunIfStatus(
+    runId,
+    ['queued', 'creating_task', 'launching_task', 'creating_conversation'],
+    {
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+      finishedAt: Date.now(),
+    }
+  );
+}

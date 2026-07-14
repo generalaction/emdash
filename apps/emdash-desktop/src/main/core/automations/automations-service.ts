@@ -31,7 +31,7 @@ import {
   skipQueuedCronRuns,
   updateAutomationSettings as updateSettingsInRepo,
 } from './repo';
-import { markRunSkipped } from './run-transitions';
+import { markRunManuallyStopped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
 export type AutomationsServiceHooks = {
@@ -234,7 +234,14 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       run.status === 'creating_conversation'
     ) {
       await this.stopRunConversation(run);
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
+      const skipped = await markRunManuallyStopped(runId);
+      if (skipped) {
+        stopped = skipped;
+      } else {
+        const current = await getRun(runId);
+        if (current?.status !== 'done' || !current.taskId) throw new Error('run_not_stoppable');
+        stopped = current;
+      }
     } else if (run.status === 'done' && run.taskId) {
       await this.stopRunConversation(run);
       stopped = run;
