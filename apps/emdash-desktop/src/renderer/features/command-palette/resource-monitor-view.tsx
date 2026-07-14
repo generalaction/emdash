@@ -330,7 +330,7 @@ function StopButton({
 
 function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="shrink-0 rounded bg-background-2 px-1.5 py-px font-mono text-[9px] tracking-wider text-foreground/50 uppercase">
+    <span className="shrink-0 rounded bg-background-2 px-1.5 py-px font-sans text-[9px] text-foreground/50">
       {children}
     </span>
   );

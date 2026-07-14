@@ -29,7 +29,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
             )}
           >
             <StatusIcon className="size-3" pr={pr} disableTooltip />
-            <span className="shrink-0 font-mono text-xs leading-none tracking-wide text-foreground-muted">
+            <span className="shrink-0 font-sans text-xs leading-none text-foreground-muted">
               #{getPrNumber(pr) ?? 0}
             </span>
             <span className="truncate text-xs leading-none text-foreground-muted">{pr.title}</span>

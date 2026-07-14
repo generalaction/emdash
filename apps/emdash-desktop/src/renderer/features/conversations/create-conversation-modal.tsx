@@ -5,7 +5,6 @@ import { getProjectSshConnectionId } from '@renderer/features/projects/stores/pr
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
@@ -51,7 +50,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
     'initial-conversation:chat-ui-enabled',
     true
   );
-  const chatUiEnabled = useFeatureFlag('chat-ui');
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
@@ -61,7 +59,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
 
   const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
-  const showAcpToggle = chatUiEnabled && agentSupportsAcp(selectedAgent?.capabilities);
+  const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
   const useAcp = showAcpToggle && useChatUiPreference;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);

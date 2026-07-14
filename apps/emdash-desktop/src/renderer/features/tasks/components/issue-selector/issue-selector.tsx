@@ -45,7 +45,7 @@ export function IssueIdentifier({
   return (
     <span
       className={cn(
-        'shrink-0 font-mono text-xs font-medium whitespace-nowrap text-foreground-muted',
+        'shrink-0 font-sans text-xs font-medium whitespace-nowrap text-foreground-muted',
         className
       )}
     >

@@ -432,7 +432,7 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
           >
             <ProviderLogo provider={issue.provider} className="h-3 w-3" />
             {displayIdentifier ? (
-              <span className="font-mono">{displayIdentifier}</span>
+              <span className="font-sans">{displayIdentifier}</span>
             ) : (
               <span className="max-w-[180px] truncate">{issue.title || 'Linked issue'}</span>
             )}

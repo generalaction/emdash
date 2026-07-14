@@ -2,6 +2,7 @@ import type { PluginFs } from '@primitives/plugin-fs/api';
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import {
+  ampMcpAdapter,
   codexMcpAdapter,
   createMcpAdapter,
   crushMcpAdapter,
@@ -231,6 +232,81 @@ describe('droidMcpAdapter', () => {
     const result = await adapter.readServers(fs);
 
     expect(result.map((server) => server.name).sort()).toEqual(['droidLegacy', 'factoryLegacy']);
+  });
+});
+
+// ── Amp adapter ─────────────────────────────────────────────────────────────
+
+describe('ampMcpAdapter', () => {
+  const adapter = ampMcpAdapter();
+
+  it('writes MCP servers to the literal amp.mcpServers key and preserves user settings', async () => {
+    const fs = createMemoryFs({
+      '.config/amp/settings.json': jsonFile({
+        'amp.commands.allowlist': ['pnpm'],
+        'amp.tools.disable': ['web_search'],
+        'amp.mcpServers': { existing: { command: 'existing-server' } },
+      }),
+    });
+
+    await adapter.writeServers(fs, [
+      { name: 'filesystem', command: 'npx', args: ['-y', '@mcp/server'] },
+    ]);
+
+    const raw = await fs.read('.config/amp/settings.json');
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+
+    expect(parsed['amp.commands.allowlist']).toEqual(['pnpm']);
+    expect(parsed['amp.tools.disable']).toEqual(['web_search']);
+    expect(parsed.amp).toBeUndefined();
+    expect(parsed['amp.mcpServers']).toEqual({
+      filesystem: { command: 'npx', args: ['-y', '@mcp/server'] },
+    });
+  });
+
+  it('reads MCP servers from the literal amp.mcpServers key', async () => {
+    const fs = createMemoryFs({
+      '.config/amp/settings.json': jsonFile({
+        'amp.mcpServers': { docs: { url: 'https://example.com/mcp', type: 'http' } },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      { name: 'docs', url: 'https://example.com/mcp', type: 'http' },
+    ]);
+  });
+
+  it('reads MCP servers from the legacy mcpServers key', async () => {
+    const fs = createMemoryFs({
+      '.amp/config.json': jsonFile({
+        mcpServers: { legacy: { command: 'legacy-server' } },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      { name: 'legacy', command: 'legacy-server' },
+    ]);
+  });
+
+  it('removes MCP servers from canonical and legacy keys', async () => {
+    const fs = createMemoryFs({
+      '.config/amp/settings.json': jsonFile({
+        'amp.mcpServers': { gone: { command: 'canonical-server' } },
+      }),
+      '.amp/config.json': jsonFile({
+        mcpServers: { gone: { command: 'legacy-server' } },
+      }),
+    });
+
+    await adapter.removeServer(fs, 'gone');
+
+    const canonical = JSON.parse((await fs.read('.config/amp/settings.json'))!) as Record<
+      string,
+      unknown
+    >;
+    const legacy = JSON.parse((await fs.read('.amp/config.json'))!) as Record<string, unknown>;
+    expect(canonical['amp.mcpServers']).toEqual({});
+    expect(legacy.mcpServers).toEqual({});
   });
 });
 
