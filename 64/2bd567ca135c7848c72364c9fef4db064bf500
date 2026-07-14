@@ -1,0 +1,34 @@
+apps/emdash-desktop/vitest.config.ts
+  s_144430a1c0efa0::t_a90000fc83fd29 36
+  s_144430a1c0efa0::t_cc23789bcedf2f 35
+apps/emdash-desktop/src/main/db/tests/migrations/0017_promote_session_id.test.ts
+  s_144430a1c0efa0::t_1104e10b97c221 35-46,59-70,81-92
+  s_144430a1c0efa0::t_fc01d7b5e3982d 2,20,26
+apps/emdash-desktop/tooling/utils/db.ts
+  s_144430a1c0efa0::t_1104e10b97c221 30-33,46-47,57,79
+  s_2414e98ff31b82::t_68b78625c13690 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "642bd567ca135c7848c72364c9fef4db064bf500",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_2414e98ff31b82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f50-42ac-77d0-bab0-0f9343f87598",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
