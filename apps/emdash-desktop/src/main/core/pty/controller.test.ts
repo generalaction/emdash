@@ -113,8 +113,8 @@ describe('ptyController', () => {
     const result = await ptyController.stopSession(sessionId);
 
     expect(result.success).toBe(true);
-    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(stopSession).toHaveBeenCalledWith('conv-1');
+    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(mocks.resetToIdle).toHaveBeenCalledWith({
       conversationId: 'conv-1',
       taskId: 'task-1',
@@ -135,6 +135,7 @@ describe('ptyController', () => {
     const result = await ptyController.stopSession(sessionId);
 
     expect(result.success).toBe(true);
+    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(stopSession).toHaveBeenCalledWith('conv-1');
     expect(mocks.resetToIdle).toHaveBeenCalledWith({
       conversationId: 'conv-1',
@@ -142,6 +143,25 @@ describe('ptyController', () => {
     });
 
     ptySessionRegistry.unregister(sessionId);
+  });
+
+  it('falls back to killing the PTY when the task does not belong to the parsed project', async () => {
+    const wrongProjectStopSession = vi.fn();
+    const pty = makePty();
+    const sessionId = 'proj-2:task-1:conv-1';
+    mocks.getTask.mockReturnValue({ conversations: { stopSession: wrongProjectStopSession } });
+    mocks.getTaskForProject.mockReturnValue(undefined);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: 'amp', isRemote: false },
+    });
+
+    const result = await ptyController.stopSession(sessionId);
+
+    expect(result.success).toBe(true);
+    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-2', 'task-1');
+    expect(wrongProjectStopSession).not.toHaveBeenCalled();
+    expect(pty.kill).toHaveBeenCalledOnce();
+    expect(ptySessionRegistry.get(sessionId)).toBeUndefined();
   });
 
   it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {

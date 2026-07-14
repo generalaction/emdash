@@ -42,14 +42,14 @@ function makeLoadingManager(terminals: TerminalManagerStore['terminals']): Termi
 }
 
 function registryEntries(): {
-  set(taskId: string, manager: TerminalManagerStore): void;
-  delete(taskId: string): boolean;
+  set(key: string, manager: TerminalManagerStore): void;
+  delete(key: string): boolean;
 } {
   return (
     terminalRegistry as unknown as {
       entries: {
-        set(taskId: string, manager: TerminalManagerStore): void;
-        delete(taskId: string): boolean;
+        set(key: string, manager: TerminalManagerStore): void;
+        delete(key: string): boolean;
       };
     }
   ).entries;
