@@ -29,7 +29,7 @@ type Props = {
   className?: string;
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
-  /** SSH connection ID — used for remote file drag-and-drop and image paste. */
+  /** Remote terminals are served by workspace-server runtimes and are not supported here yet. */
   remoteConnectionId?: string;
   workspaceId: string;
   themeOverride?: SessionTheme['override'];
@@ -51,21 +51,8 @@ async function injectTerminalImagePaths(args: {
 }): Promise<void> {
   if (args.paths.length === 0) return;
 
-  let paths = args.paths;
-  if (args.remoteConnectionId) {
-    const result = await rpc.pty.uploadFiles({ sessionId: args.sessionId, localPaths: paths });
-    if (!result.success) {
-      log.warn('SSH file transfer failed', { error: result.error });
-      return;
-    }
-    paths = result.data.remotePaths;
-    if (paths.length === 0) return;
-  }
-
-  const platform = args.remoteConnectionId
-    ? 'linux'
-    : ((await rpc.app.getPlatform()) as NodeJS.Platform);
-  const payload = buildTerminalImageInjection(paths, platform);
+  const platform = (await rpc.app.getPlatform()) as NodeJS.Platform;
+  const payload = buildTerminalImageInjection(args.paths, platform);
   args.sendInput(`${payload} `, { track: false });
   args.focus();
 }
@@ -96,10 +83,10 @@ async function pasteClipboardImageOrText(args: {
   }
 
   try {
-    const result = await rpc.pty.persistClipboardImage();
-    if (result.success && result.data.path) {
+    const result = await rpc.app.persistClipboardImage();
+    if (result.success && result.path) {
       if (args.shouldInjectImage && !args.shouldInjectImage()) return false;
-      await injectTerminalImagePaths({ ...args, paths: [result.data.path] });
+      await injectTerminalImagePaths({ ...args, paths: [result.path] });
       return true;
     }
   } catch (error) {
@@ -132,7 +119,6 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       workspaceId,
       themeOverride,
       onActivity,
-      onExit,
       onFirstMessage,
       onEnterPress,
       onInterruptPress,
@@ -172,7 +158,6 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         theme,
         mapShiftEnterToCtrlJ,
         onActivity,
-        onExit,
         onFirstMessage,
         onEnterPress,
         onInterruptPress,

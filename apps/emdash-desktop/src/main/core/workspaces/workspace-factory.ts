@@ -1,13 +1,10 @@
 import path from 'node:path';
 import { TuiConversationProvider } from '@main/core/conversations/tui-conversation-provider';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
@@ -50,33 +47,6 @@ export function createWorkspaceFactory(
     const filesClient = await getFilesRuntimeClient();
     const files = filesClientScope(filesClient, workDir);
     const configPath = path.join(workDir, '.emdash.json');
-    const projectSettings = await context.settings.get();
-    const defaultBranch = await context.settings.getDefaultBranch();
-    const bootstrapTaskEnvVars = getTaskEnvVars({
-      taskId: context.task.id,
-      taskName: context.task.name,
-      taskPath: workDir,
-      projectPath: context.projectPath,
-      defaultBranch,
-      portSeed: workDir,
-    });
-    const taskLevelSettings = await getEffectiveTaskSettings({
-      projectSettings: context.settings,
-      taskFiles: files,
-      taskConfigPath: configPath,
-    });
-    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-    const ctx = new LocalExecutionContext();
-    const workspaceTerminals = new LocalTerminalProvider({
-      projectId: context.projectId,
-      workspaceId,
-      scopeId: workspaceId,
-      taskPath: workDir,
-      tmux: projectSettings.tmux ?? false,
-      shellSetup,
-      ctx,
-      taskEnvVars: bootstrapTaskEnvVars,
-    });
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
@@ -116,13 +86,12 @@ type TaskProviderOpts = {
 export async function buildTaskProviders(
   type: WorkspaceType,
   opts: TaskProviderOpts
-): Promise<{ conversations: ConversationProvider; terminals: TerminalProvider }> {
+): Promise<{ conversations: ConversationProvider }> {
   if (type.kind === 'ssh') {
     throw new Error(
       'Remote workspaces require the workspace server and are not supported by this build'
     );
   }
-  const ctx = new LocalExecutionContext();
   return {
     conversations: new TuiConversationProvider({
       projectId: opts.projectId,
@@ -130,16 +99,6 @@ export async function buildTaskProviders(
       taskId: opts.taskId,
       tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
-      taskEnvVars: opts.taskEnvVars,
-    }),
-    terminals: new LocalTerminalProvider({
-      projectId: opts.projectId,
-      workspaceId: opts.workspaceId,
-      scopeId: opts.taskId,
-      taskPath: opts.taskPath,
-      tmux: opts.tmuxEnabled,
-      shellSetup: opts.shellSetup,
-      ctx,
       taskEnvVars: opts.taskEnvVars,
     }),
   };

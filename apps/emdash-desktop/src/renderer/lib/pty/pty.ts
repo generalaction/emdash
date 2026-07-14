@@ -1,10 +1,9 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
-import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
 import { FileLinkProvider, isPrimaryMouseButton } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
@@ -74,15 +73,13 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
-  /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
-  lastSentDims: { cols: number; rows: number } | null = null;
 
   constructor(
     readonly sessionId: string,
     theme?: SessionTheme,
     onOpenFile?: (filePath: string) => void,
     onOpenExternal?: (filePath: string) => void,
-    private readonly connector?: FrontendPtyConnector
+    private readonly connector: FrontendPtyConnector = noopConnector()
   ) {
     this.theme = theme;
     this.ownedContainer = document.createElement('div');
@@ -176,45 +173,19 @@ export class FrontendPty {
   }
 
   /**
-   * Subscribe to the session: fetches the ring buffer from the main process,
-   * writes it directly to xterm, then sets up a live IPC listener for future
-   * data. Marks status as 'ready' once complete.
-   *
-   * The main process guarantees atomicity: subscribe() snapshots the ring
-   * buffer and registers the consumer in one synchronous tick, so no data
-   * can slip between the snapshot and the first live IPC event.
+   * Subscribe to the runtime-backed retained output log and mark status as
+   * ready once the connector has replayed its snapshot.
    */
   async connect(): Promise<void> {
-    if (this.connector) {
-      this.offData = await this.connector.connect(this.terminal);
-      return;
-    }
-    const result = await rpc.pty.subscribe(this.sessionId);
-    const historical = result.success ? result.data.buffer : '';
-    if (historical) this.terminal.write(historical);
-    this.offData = events.on(
-      ptyDataChannel,
-      (data: string) => {
-        this.terminal.write(data);
-      },
-      this.sessionId
-    );
+    this.offData = await this.connector.connect(this.terminal);
   }
 
   sendInput(data: string): void {
-    if (this.connector?.sendInput) {
-      this.connector.sendInput(data);
-      return;
-    }
-    void rpc.pty.sendInput(this.sessionId, data);
+    this.connector.sendInput?.(data);
   }
 
   resizeBackend(cols: number, rows: number): void {
-    if (this.connector?.resize) {
-      this.connector.resize(cols, rows);
-      return;
-    }
-    void rpc.pty.resize(this.sessionId, cols, rows);
+    this.connector.resize?.(cols, rows);
   }
 
   /**
@@ -251,15 +222,14 @@ export class FrontendPty {
 
   /**
    * Permanently dispose this session (terminal or conversation deleted).
-   * Unsubscribes from the main process, tears down the IPC data listener,
-   * disposes the xterm Terminal, and removes the owned container from the DOM.
+   * Tears down the runtime output binding, disposes the xterm Terminal, and
+   * removes the owned container from the DOM.
    */
   dispose(): void {
     FrontendPty.all.delete(this);
     FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();
     this.offData = null;
-    if (!this.connector) rpc.pty.unsubscribe(this.sessionId).catch(() => {});
     try {
       this.terminal.dispose();
     } catch {}
@@ -267,6 +237,14 @@ export class FrontendPty {
       this.ownedContainer.remove();
     } catch {}
   }
+}
+
+function noopConnector(): FrontendPtyConnector {
+  return {
+    connect() {
+      return () => {};
+    },
+  };
 }
 
 // ── Session lookup ────────────────────────────────────────────────────────────

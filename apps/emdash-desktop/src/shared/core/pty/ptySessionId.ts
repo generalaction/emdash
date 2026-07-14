@@ -4,10 +4,9 @@
  * Format: `<projectId>:<scopeId>:<leafId>` where leafId is either a
  * conversationId (agent sessions) or a terminalId (shell sessions).
  *
- * There is at most one active PTY per leaf entity.  Using a deterministic ID
- * means the renderer can subscribe to ptyDataChannel BEFORE calling
- * rpc.conversations.startSession / rpc.terminals.createTerminal — no extra
- * round-trip is needed to learn the session ID.
+ * There is at most one active terminal-like runtime session per leaf entity.
+ * Using a deterministic ID lets the renderer and runtime agree on xterm/log
+ * keys before the backing process is started or reattached.
  */
 export function makePtySessionId(projectId: string, scopeId: string, leafId: string): string {
   return `${projectId}:${scopeId}:${leafId}`;

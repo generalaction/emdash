@@ -5,6 +5,7 @@ import { terminalJobError } from '@runtimes/terminals/node/runtime/runtime';
 
 export function createTerminalsController(runtime: TerminalsRuntime) {
   return createController(terminalsContract, {
+    startTerminal: (input) => runtime.startTerminal(input),
     runWorkflow: {
       run: (input, ctx) => runtime.runWorkflow(input, ctx),
       toError: terminalJobError,
@@ -16,5 +17,6 @@ export function createTerminalsController(runtime: TerminalsRuntime) {
     resize: ({ key, cols, rows }) => runtime.resize(key, cols, rows),
     kill: ({ key }) => runtime.kill(key),
     killScope: ({ workspace }) => runtime.killScope(workspace),
+    detachScope: ({ workspace }) => runtime.detachScope(workspace),
   });
 }

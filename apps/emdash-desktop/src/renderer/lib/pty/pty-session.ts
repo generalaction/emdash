@@ -1,13 +1,7 @@
 import { makeAutoObservable, onBecomeObserved, runInAction } from 'mobx';
-import { events } from '@renderer/lib/ipc';
 import { FrontendPty, type FrontendPtyConnector } from '@renderer/lib/pty/pty';
-import { ptyStartedChannel } from '@shared/events/appEvents';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
-
-export type PtySessionOptions = {
-  clearOnBackendStart?: boolean;
-};
 
 type PtySessionPrepareResult = void | false;
 
@@ -16,25 +10,16 @@ export class PtySession {
   status: PtySessionStatus = 'disconnected';
   private connectPromise: Promise<void> | null = null;
   private version = 0;
-  private hasSeenBackendStart = false;
-  private offPtyStarted: (() => void) | null = null;
-  private readonly clearOnBackendStart: boolean;
 
   constructor(
     readonly sessionId: string,
     private readonly prepare?: () => Promise<PtySessionPrepareResult>,
     private readonly onOpenFile?: (filePath: string) => void,
     private readonly onOpenExternal?: (filePath: string) => void,
-    options: PtySessionOptions = {},
-    private readonly connector?: FrontendPtyConnector
+    private readonly connector: FrontendPtyConnector = noopConnector()
   ) {
-    this.clearOnBackendStart = options.clearOnBackendStart ?? false;
     makeAutoObservable(this, {
       pty: false,
-    });
-    this.offPtyStarted = events.on(ptyStartedChannel, (event) => {
-      if (event.id !== this.sessionId) return;
-      this.handleBackendStarted();
     });
     // Lazy connect: auto-connects the first time any observer reads status.
     // Sessions are created at data-load time without connecting; this fires
@@ -67,7 +52,6 @@ export class PtySession {
       });
       await pty.connect();
       if (version !== this.version || this.pty !== pty) return;
-      this.hasSeenBackendStart = true;
       runInAction(() => {
         this.status = 'ready';
       });
@@ -81,7 +65,6 @@ export class PtySession {
   dispose() {
     this.version++;
     this.pty?.dispose();
-    this.hasSeenBackendStart = false;
     runInAction(() => {
       this.pty = null;
       this.status = 'disconnected';
@@ -90,18 +73,13 @@ export class PtySession {
 
   destroy() {
     this.dispose();
-    this.offPtyStarted?.();
-    this.offPtyStarted = null;
   }
+}
 
-  private handleBackendStarted(): void {
-    if (this.status !== 'ready') return;
-
-    if (!this.hasSeenBackendStart) {
-      this.hasSeenBackendStart = true;
-      return;
-    }
-
-    if (this.clearOnBackendStart) this.pty?.clear();
-  }
+function noopConnector(): FrontendPtyConnector {
+  return {
+    connect() {
+      return () => {};
+    },
+  };
 }

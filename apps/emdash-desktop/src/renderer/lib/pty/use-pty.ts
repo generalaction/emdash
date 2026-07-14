@@ -5,7 +5,6 @@ import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
-import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
 import { getDomTabNavigationDirection } from '@shared/shortcuts';
@@ -57,7 +56,6 @@ export interface UsePtyOptions {
   theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
-  onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
@@ -103,7 +101,6 @@ export function usePty(
     theme,
     mapShiftEnterToCtrlJ,
     onActivity,
-    onExit,
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
@@ -113,8 +110,6 @@ export function usePty(
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
   onActivityRef.current = onActivity;
-  const onExitRef = useRef(onExit);
-  onExitRef.current = onExit;
   const onFirstMessageRef = useRef(onFirstMessage);
   onFirstMessageRef.current = onFirstMessage;
   const onEnterPressRef = useRef(onEnterPress);
@@ -147,9 +142,6 @@ export function usePty(
   // Tracks submitted user input while filtering terminal control traffic.
   const submittedInputBufferRef = useRef(new SubmittedInputBuffer());
 
-  // Track whether the PTY has started (to filter focus reporting escape sequences).
-  const ptyStartedRef = useRef(false);
-
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
@@ -159,7 +151,7 @@ export function usePty(
 
   // Calibrates the per-pane controller with the mounted terminal's real cell
   // metrics. The controller recomputes cols/rows, updates controllerDims, and
-  // broadcasts rpc.pty.resize to ALL sessions. The MobX reaction below then
+  // broadcasts runtime resize calls to ALL sessions. The MobX reaction below then
   // applies term.resize() to the visible grid.
   //
   // Cold-path retry: the terminal is opened off-DOM so xterm's font measurement
@@ -190,7 +182,7 @@ export function usePty(
 
         // Calibrate the controller with exact cell metrics.
         // The controller recomputes cols/rows, updates controllerDims, and
-        // broadcasts rpc.pty.resize to all sessions. The MobX reaction below
+        // broadcasts runtime resize calls to all sessions. The MobX reaction below
         // applies term.resize() when controllerDims changes.
         pane.calibrateCell(cell.width, cell.height);
       } catch (e) {
@@ -466,15 +458,11 @@ export function usePty(
       const handleTerminalInput = (data: string) => {
         onActivityRef.current?.();
 
-        let filtered = data;
-        if (!ptyStartedRef.current) {
-          filtered = data.replace(/\x1b\[I|\x1b\[O/g, '');
-        }
-        if (!filtered) return;
+        if (!data) return;
 
         // First-message capture
         if (!firstMessageSentRef.current && onFirstMessageRef.current) {
-          inputBufferRef.current += filtered;
+          inputBufferRef.current += data;
           const newlineIndex = inputBufferRef.current.indexOf('\r');
           if (newlineIndex !== -1) {
             const message = inputBufferRef.current.slice(0, newlineIndex);
@@ -483,25 +471,11 @@ export function usePty(
           }
         }
 
-        sendInput(filtered);
+        sendInput(data);
       };
 
       const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
       cleanups.push(() => inputDisposable.dispose());
-
-      // ── ptyStartedRef — detect first PTY output ────────────────────────────
-      // FrontendPty owns the data subscription and writes directly to the
-      // terminal.  We add a lightweight IPC listener here solely to flip the
-      // ptyStartedRef flag, which is used to suppress focus-reporting escape
-      // sequences before the PTY shell has initialised.
-      const offPtyData = events.on(
-        ptyDataChannel,
-        () => {
-          ptyStartedRef.current = true;
-        },
-        sessionId
-      );
-      cleanups.push(offPtyData);
 
       // ── Auto-copy on selection ─────────────────────────────────────────────
       let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -586,16 +560,6 @@ export function usePty(
       });
       cleanups.push(offPaste);
 
-      // ── PTY exit subscription ──────────────────────────────────────────────
-      const offExit = events.on(
-        ptyExitChannel,
-        (info) => {
-          onExitRef.current?.(info as { exitCode: number | undefined; signal?: number });
-        },
-        sessionId
-      );
-      cleanups.push(offExit);
-
       // ── Font / setting change events ───────────────────────────────────────
       const handleFontChange = (e: Event) => {
         const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
@@ -671,7 +635,6 @@ export function usePty(
         pty.unmount();
       }
       termRef.current = null;
-      ptyStartedRef.current = false;
       firstMessageSentRef.current = false;
       inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();

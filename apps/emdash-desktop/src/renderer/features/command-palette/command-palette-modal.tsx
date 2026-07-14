@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
+import { FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
@@ -14,7 +14,6 @@ import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
@@ -25,7 +24,6 @@ import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
-import { ResourceMonitorView } from './resource-monitor-view';
 import { applyContextAffinity, getPaletteFileDisplayPath } from './search-utils';
 
 interface CommandPaletteProps {
@@ -65,11 +63,10 @@ const TASK_SUGGESTED = [
   'task.sidebarFiles',
   'task.sidebarConversations',
   'task.toggleTerminalDrawer',
-  'resource-monitor',
   'app.giveFeedback',
 ];
-const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
-const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
 
 function PaletteItem({
   value,
@@ -130,21 +127,13 @@ export function CommandPaletteModal({
   workspaceId,
   onClose,
 }: CommandPaletteProps & BaseModalProps) {
-  const [view, setView] = useState<'search' | 'resource-monitor'>('search');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 100);
   const { navigate } = useNavigate();
-  const { value: resourceMonitor } = useAppSettingsKey('resourceMonitor');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
 
   const handleClose = onClose;
-
-  useEffect(() => {
-    if (view !== 'resource-monitor') return;
-    appState.resourceMonitor.start();
-    return () => appState.resourceMonitor.dispose();
-  }, [view]);
 
   // Prefetch recents immediately on mount so the empty-query view is instant.
   useEffect(() => {
@@ -192,48 +181,20 @@ export function CommandPaletteModal({
       })
   );
 
-  const resourceMonitorAction = useMemo<PaletteAction | null>(
-    () =>
-      resourceMonitor?.enabled
-        ? {
-            kind: 'action',
-            id: 'resource-monitor',
-            title: 'Resource Monitor',
-            subtitle: 'Show CPU and memory performance for running agents',
-            icon: Activity,
-            execute: () => {
-              setView('resource-monitor');
-            },
-          }
-        : null,
-    [resourceMonitor?.enabled]
-  );
-
   const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    const pool = resourceMonitorAction
-      ? [...registryActions, resourceMonitorAction]
-      : registryActions;
-    return pool
+    return registryActions
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-  }, [registryActions, resourceMonitorAction, projectId, taskId]);
+  }, [registryActions, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
   const workspacePath =
     projectId && workspaceId ? workspaceRegistry.get(projectId, workspaceId)?.path : undefined;
 
-  const q = debouncedQuery.toLowerCase();
-  const matchedResourceMonitor =
-    resourceMonitorAction &&
-    q &&
-    (resourceMonitorAction.title.toLowerCase().includes(q) ||
-      resourceMonitorAction.subtitle?.toLowerCase().includes(q))
-      ? resourceMonitorAction
-      : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -277,38 +238,6 @@ export function CommandPaletteModal({
     if (item.kind === 'file') return handleOpenFile(item);
   };
 
-  const handleResourceMonitorBack = useCallback(() => {
-    setView('search');
-  }, []);
-
-  useEffect(() => {
-    if (view !== 'resource-monitor') return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace') {
-        e.preventDefault();
-        e.stopPropagation();
-        handleResourceMonitorBack();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [view, handleResourceMonitorBack]);
-
-  if (view === 'resource-monitor') {
-    return (
-      <div className="flex flex-col overflow-hidden">
-        <ResourceMonitorView onBack={handleResourceMonitorBack} />
-        <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
-          <span className="flex items-center gap-1 text-xs text-foreground/40">
-            <Shortcut hotkey="Escape" variant="keycaps" />
-            <Shortcut hotkey="Backspace" variant="keycaps" />
-            Back
-          </span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter={false} loop>
       <div className="border-b border-foreground/10 px-1">
@@ -326,13 +255,6 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
-            {matchedResourceMonitor && (
-              <PaletteItem
-                value={matchedResourceMonitor.id}
-                item={matchedResourceMonitor}
-                onSelect={matchedResourceMonitor.execute}
-              />
-            )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);

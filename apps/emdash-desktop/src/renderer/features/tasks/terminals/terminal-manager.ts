@@ -1,9 +1,15 @@
+import type { TerminalKey } from '@emdash/core/runtimes/terminals/api';
+import { ReplicaLog } from '@emdash/wire';
+import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
-import { rpc } from '@renderer/lib/ipc';
+import { getTerminalTabsWireClient } from '@renderer/lib/runtime/terminal-tabs-client';
+import { getTerminalsRuntimeClient } from '@renderer/lib/runtime/terminals-client';
+import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { Resource } from '@renderer/lib/stores/resource';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
@@ -19,20 +25,23 @@ export class TerminalManagerStore implements Disposable {
   terminals = observable.map<string, TerminalStore>();
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  runtimeKeys = observable.map<string, TerminalKey>();
   private readonly _disposeReaction: () => void;
 
   constructor(projectId: string, taskId: string) {
     this.projectId = projectId;
     this.taskId = taskId;
 
-    this.list = new Resource<Terminal[]>(
-      () => rpc.terminals.getTerminalsForTask(projectId, taskId),
-      [{ kind: 'demand' }]
-    );
+    this.list = new Resource<Terminal[]>(async () => {
+      const result = await (await getTerminalTabsWireClient()).list({ projectId, taskId });
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    }, [{ kind: 'demand' }]);
 
     makeObservable(this, {
       terminals: observable,
       sessions: observable,
+      runtimeKeys: observable,
       isLoaded: computed,
     });
 
@@ -89,12 +98,15 @@ export class TerminalManagerStore implements Disposable {
     });
 
     try {
-      const terminal = await rpc.terminals.createTerminal(params);
+      const result = await (await getTerminalTabsWireClient()).create(params);
+      if (!result.success) throw new Error(result.error.message);
+      const { terminal, key } = result.data;
       runInAction(() => {
         const store = this.terminals.get(params.id);
         if (store) {
           Object.assign(store.data, terminal);
         }
+        this.runtimeKeys.set(params.id, key);
       });
       return terminal;
     } catch (err) {
@@ -132,11 +144,12 @@ export class TerminalManagerStore implements Disposable {
     });
 
     try {
-      await rpc.terminals.deleteTerminal({
+      const result = await (await getTerminalTabsWireClient()).delete({
         projectId: this.projectId,
         taskId: this.taskId,
         terminalId,
       });
+      if (!result.success) throw new Error(result.error.message);
       session?.destroy();
     } catch (err) {
       runInAction(() => {
@@ -150,10 +163,14 @@ export class TerminalManagerStore implements Disposable {
   async hydrateTerminal(terminalId: string): Promise<void> {
     const store = this.terminals.get(terminalId);
     if (!store) return;
-    await rpc.terminals.hydrateTerminal({
+    const result = await (await getTerminalTabsWireClient()).hydrate({
       projectId: this.projectId,
       taskId: this.taskId,
       terminalId,
+    });
+    if (!result.success) throw new Error(result.error.message);
+    runInAction(() => {
+      this.runtimeKeys.set(terminalId, result.data.key);
     });
   }
 
@@ -176,7 +193,8 @@ export class TerminalManagerStore implements Disposable {
     });
 
     try {
-      await rpc.terminals.renameTerminal(terminalId, name);
+      const result = await (await getTerminalTabsWireClient()).rename({ terminalId, name });
+      if (!result.success) throw new Error(result.error.message);
     } catch (err) {
       runInAction(() => {
         store.data.name = previousName;
@@ -191,8 +209,18 @@ export class TerminalManagerStore implements Disposable {
       makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
-      handlers.onOpenExternal
+      handlers.onOpenExternal,
+      createTerminalsConnector(() => this.ensureRuntimeKey(terminal.id))
     );
+  }
+
+  private async ensureRuntimeKey(terminalId: string): Promise<TerminalKey> {
+    const existing = this.runtimeKeys.get(terminalId);
+    if (existing) return existing;
+    await this.hydrateTerminal(terminalId);
+    const key = this.runtimeKeys.get(terminalId);
+    if (!key) throw new Error(`Terminal ${terminalId} did not hydrate`);
+    return key;
   }
 }
 
@@ -203,4 +231,37 @@ export class TerminalStore {
     this.data = terminal;
     makeObservable(this, { data: observable });
   }
+}
+
+function createTerminalsConnector(key: () => Promise<TerminalKey>): FrontendPtyConnector {
+  let logBinding: ReplicaLog | null = null;
+  let runtimePromise: ReturnType<typeof getTerminalsRuntimeClient> | null = null;
+  const runtime = () => {
+    runtimePromise ??= getTerminalsRuntimeClient();
+    return runtimePromise;
+  };
+
+  return {
+    async connect(terminal: XtermTerminal) {
+      const [terminalsRuntime, terminalKey] = await Promise.all([runtime(), key()]);
+      logBinding = new ReplicaLog(terminalsRuntime.output.handle(terminalKey), {
+        store: createXtermLogSink(terminal),
+      });
+      await logBinding.ready;
+      return () => {
+        void logBinding?.dispose();
+        logBinding = null;
+      };
+    },
+    sendInput(data: string) {
+      void Promise.all([runtime(), key()]).then(([terminalsRuntime, terminalKey]) =>
+        terminalsRuntime.sendInput({ key: terminalKey, data })
+      );
+    },
+    resize(cols: number, rows: number) {
+      void Promise.all([runtime(), key()]).then(([terminalsRuntime, terminalKey]) =>
+        terminalsRuntime.resize({ key: terminalKey, cols, rows })
+      );
+    },
+  };
 }

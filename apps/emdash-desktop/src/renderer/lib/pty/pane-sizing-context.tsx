@@ -7,7 +7,7 @@
  *
  * The controller (usePtyPaneResize) owns:
  *   - Converting pane pixel dimensions → cols/rows
- *   - Broadcasting rpc.pty.resize to ALL sessions (active + background)
+ *   - Broadcasting runtime resize calls to ALL sessions (active + background)
  *   - Exposing an observable controllerDims box so mounted terminals can call
  *     term.resize() reactively without re-measuring themselves
  */

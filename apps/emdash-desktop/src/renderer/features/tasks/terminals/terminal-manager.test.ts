@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalManagerStore } from './terminal-manager';
 
 const createTerminal = vi.hoisted(() => vi.fn());
-const getTerminalsForTask = vi.hoisted(() => vi.fn());
+const listTerminals = vi.hoisted(() => vi.fn());
 const hydrateTerminal = vi.hoisted(() => vi.fn());
 const renameTerminal = vi.hoisted(() => vi.fn());
 const deleteTerminal = vi.hoisted(() => vi.fn());
@@ -28,14 +28,17 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConnectionState: async () => ({}),
       getHealthStates: async () => ({}),
     },
-    terminals: {
-      createTerminal,
-      deleteTerminal,
-      getTerminalsForTask,
-      hydrateTerminal,
-      renameTerminal,
-    },
   },
+}));
+
+vi.mock('@renderer/lib/runtime/terminal-tabs-client', () => ({
+  getTerminalTabsWireClient: async () => ({
+    create: createTerminal,
+    delete: deleteTerminal,
+    list: listTerminals,
+    hydrate: hydrateTerminal,
+    rename: renameTerminal,
+  }),
 }));
 
 vi.mock('@renderer/lib/pty/pty', () => ({
@@ -62,7 +65,7 @@ vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
 describe('TerminalManagerStore session hydration', () => {
   beforeEach(() => {
     createTerminal.mockReset();
-    getTerminalsForTask.mockReset();
+    listTerminals.mockReset();
     hydrateTerminal.mockReset();
     renameTerminal.mockReset();
     deleteTerminal.mockReset();
@@ -70,25 +73,37 @@ describe('TerminalManagerStore session hydration', () => {
     frontendDispose.mockReset();
     getAppSettingValueSnapshot.mockReset();
 
-    createTerminal.mockImplementation(async (terminal) => terminal);
-    getTerminalsForTask.mockResolvedValue([]);
-    hydrateTerminal.mockResolvedValue(undefined);
-    renameTerminal.mockResolvedValue(undefined);
-    deleteTerminal.mockResolvedValue(undefined);
+    createTerminal.mockImplementation(async (input) => ({
+      success: true,
+      data: {
+        terminal: { ...input, shellId: input.shell ?? 'system' },
+        key: { workspace: { host: { type: 'local' }, path: '/tmp/workspace' }, id: input.id },
+      },
+    }));
+    listTerminals.mockResolvedValue({ success: true, data: [] });
+    hydrateTerminal.mockResolvedValue({
+      success: true,
+      data: { key: { workspace: { host: { type: 'local' }, path: '/tmp/workspace' }, id: 'terminal-1' } },
+    });
+    renameTerminal.mockResolvedValue({ success: true, data: undefined });
+    deleteTerminal.mockResolvedValue({ success: true, data: undefined });
     frontendConnect.mockResolvedValue(undefined);
     getAppSettingValueSnapshot.mockReturnValue(undefined);
   });
 
   it('creates terminal sessions from records without hydrating until the session connects', async () => {
-    getTerminalsForTask.mockResolvedValue([
-      {
-        id: 'terminal-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        shellId: 'system',
-        name: 'Terminal 1',
-      },
-    ]);
+    listTerminals.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'terminal-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          shellId: 'system',
+          name: 'Terminal 1',
+        },
+      ],
+    });
     const store = new TerminalManagerStore('project-1', 'task-1');
 
     store.list.setValue([
@@ -127,11 +142,17 @@ describe('TerminalManagerStore session hydration', () => {
   it('uses the cached default shell for optimistic terminals when no shell is specified', async () => {
     getAppSettingValueSnapshot.mockReturnValue({ defaultShell: 'fish' });
     createTerminal.mockResolvedValue({
-      id: 'terminal-1',
-      projectId: 'project-1',
-      taskId: 'task-1',
-      shellId: 'fish',
-      name: 'Terminal 1',
+      success: true,
+      data: {
+        terminal: {
+          id: 'terminal-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          shellId: 'fish',
+          name: 'Terminal 1',
+        },
+        key: { workspace: { host: { type: 'local' }, path: '/tmp/workspace' }, id: 'terminal-1' },
+      },
     });
     const store = new TerminalManagerStore('project-1', 'task-1');
 

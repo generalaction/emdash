@@ -10,9 +10,11 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import { wireTerminalUrlDetector } from '@main/core/preview-servers/terminal-url-detector';
+import {
+  wireTerminalUrlDetector,
+  type TerminalOutputSource,
+} from '@main/core/preview-servers/terminal-url-detector';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
-import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { getTerminalsRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getTaskEnvVars } from './workspace-env';
@@ -133,11 +135,13 @@ function wirePreviewDetection({
   return () => pty.close({ exitCode: 0 });
 }
 
-function liveLogBackedPty(source: {
+type TerminalOutputExitInfo = { exitCode?: number | null; signal?: string | null };
+
+export function liveLogBackedPty(source: {
   subscribe(cb: (update: { delta?: unknown }) => void): Unsubscribe | Promise<Unsubscribe>;
-}): Pty & { close(info: PtyExitInfo): void } {
+}): TerminalOutputSource & { close(info: TerminalOutputExitInfo): void } {
   const dataHandlers: Array<(data: string) => void> = [];
-  const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+  const exitHandlers: Array<(info: TerminalOutputExitInfo) => void> = [];
   let closed = false;
   let unsubscribe: Unsubscribe | undefined;
   void Promise.resolve(
@@ -159,12 +163,7 @@ function liveLogBackedPty(source: {
     }
     unsubscribe = resolved;
   });
-  const pty: Pty & { close(info: PtyExitInfo): void } = {
-    write() {},
-    resize() {},
-    kill() {
-      pty.close({ signal: 'SIGTERM' });
-    },
+  const pty: TerminalOutputSource & { close(info: TerminalOutputExitInfo): void } = {
     onData(handler) {
       dataHandlers.push(handler);
     },

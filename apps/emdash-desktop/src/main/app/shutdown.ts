@@ -2,9 +2,7 @@ import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { automationsService } from '@main/core/automations/automations-service';
-import { remoteTmuxReaperService } from '@main/core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
-import { stopResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { updateService } from '@main/core/updates/update-service';
 import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
 import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
@@ -43,10 +41,8 @@ export async function runQuitCleanup(): Promise<void> {
   // synchronous stops
   automationsService.stop();
   agentHookService.dispose();
-  stopResourceSampler();
   updateService.dispose();
   prSyncScheduler.dispose();
-  remoteTmuxReaperService.dispose();
 
   // critical phase
   const criticalSteps: Array<[string, () => Promise<void>]> = [

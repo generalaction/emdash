@@ -1,5 +1,4 @@
 import net from 'node:net';
-import type { Pty } from '@main/core/pty/pty';
 import type {
   DirectPreviewServerHost,
   PreviewServerProtocol,
@@ -23,13 +22,18 @@ export type PreviewSourceClosed =
   | { reason: 'pty-exit' }
   | { reason: 'local-probe-failed'; server: DetectedPreviewUrl };
 
+export type TerminalOutputSource = {
+  onData(handler: (data: string) => void): void;
+  onExit(handler: () => void): void;
+};
+
 export function wireTerminalUrlDetector({
   pty,
   probeLocalPorts = true,
   onDetected,
   onSourceClosed,
 }: {
-  pty: Pty;
+  pty: TerminalOutputSource;
   probeLocalPorts?: boolean;
   onDetected: (server: DetectedPreviewUrl) => void | Promise<void>;
   onSourceClosed?: (event: PreviewSourceClosed) => void | Promise<void>;

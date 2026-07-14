@@ -15,12 +15,12 @@ export async function resolveDroppedFile(file: File): Promise<string | null> {
   }
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const result = await rpc.pty.persistDroppedBlob({
+    const result = await rpc.app.persistDroppedBlob({
       bytes,
       name: file.name,
       mimeType: file.type,
     });
-    if (result.success) return result.data.path;
+    if (result.success) return result.path;
     log.warn('Dropped file persist failed', { error: result.error });
   } catch (error) {
     log.warn('Dropped file arrayBuffer failed', { error });

@@ -27,6 +27,7 @@ import {
   type WorkspaceTopology,
   workspaceContract,
 } from '@runtimes/workspace/api';
+// oxlint-disable-next-line emdash/core-module-boundaries
 import { terminalsContract, type TerminalsContract } from '@runtimes/terminals/api';
 import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
@@ -189,6 +190,10 @@ export class WorkspaceRuntime {
     return await this.withOperation(input.workspace, 'deactivate', ctx, async (stage) => {
       const record = this.recordFor(input.workspace);
       record.machine.apply({ type: 'ConsumerDeactivated', consumerId: input.consumerId });
+
+      if (record.machine.current().consumers.length === 0 && input.strategy === 'detach') {
+        await this.detachTerminalsScope(input.workspace);
+      }
 
       if (record.machine.current().consumers.length === 0 && input.strategy === 'stop') {
         if (
@@ -429,6 +434,11 @@ export class WorkspaceRuntime {
   private async killTerminalsScope(workspace: HostFileRef): Promise<void> {
     if (!this.terminals) return;
     await this.terminals.killScope({ workspace });
+  }
+
+  private async detachTerminalsScope(workspace: HostFileRef): Promise<void> {
+    if (!this.terminals) return;
+    await this.terminals.detachScope({ workspace });
   }
 }
 

@@ -29,9 +29,7 @@ import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-serv
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
-import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
-import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { taskService } from './core/tasks/task-service';
@@ -150,7 +148,6 @@ void app.whenReady().then(async () => {
 
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
-  remoteTmuxReaperService.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
@@ -206,7 +203,6 @@ void app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
-  void reconcileResourceSampler();
 
   localDependencyManager.snapshot
     .mutate('refresh', { key: undefined, input: {} })

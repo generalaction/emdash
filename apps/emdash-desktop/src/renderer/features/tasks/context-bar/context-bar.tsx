@@ -12,7 +12,6 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import {
   ContextMenu,
@@ -71,8 +70,8 @@ export const ContextBar = observer(function ContextBar({
       text,
       forceBracketedPaste: true,
       sendInput: async (data) => {
+        await activeSession?.connect();
         activeSession?.pty?.sendInput(data);
-        if (!activeSession?.pty) await rpc.pty.sendInput(activeSessionId, data);
       },
     });
 
@@ -81,8 +80,8 @@ export const ContextBar = observer(function ContextBar({
     }
 
     if (opts?.andSend) {
+      await activeSession?.connect();
       activeSession?.pty?.sendInput('\r');
-      if (!activeSession?.pty) await rpc.pty.sendInput(activeSessionId, '\r');
     }
 
     activeSession?.pty?.terminal.focus();

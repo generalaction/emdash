@@ -1,5 +1,6 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { ok, type Result } from '@emdash/shared';
 import {
   LifecycleRegistry,
@@ -9,7 +10,6 @@ import {
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { createLiveJobReplica } from '@emdash/wire';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getWorkspaceRuntimeClient } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
@@ -92,11 +92,9 @@ export async function executeTeardown(
   if (mode === 'detach') {
     // Keep the tmux sessions and agent processes alive for a later remount.
     await task.conversations.detachAll();
-    await task.terminals.detachAll();
   } else {
     // 'terminate' and 'archive' both reap the tmux sessions and agent processes.
     await task.conversations.destroyAll();
-    await task.terminals.destroyAll();
   }
   if (runtimeWorkspace) {
     await deactivateWorkspaceConsumer(
@@ -229,10 +227,7 @@ class TaskSessionManager {
         taskIds.flatMap((id) => {
           const stored = this._lifecycle.get(id);
           if (!stored) return [];
-          return [
-            stored.taskProvider.conversations.detachAll(),
-            stored.taskProvider.terminals.detachAll(),
-          ];
+          return [stored.taskProvider.conversations.detachAll()];
         })
       );
       // Remove entries from lifecycle maps without running workspace teardown.

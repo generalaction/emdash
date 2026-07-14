@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
@@ -24,16 +25,29 @@ import {
   type ScriptWorkflowProgress,
   type ScriptWorkflowResult,
   type ScriptWorkflowState,
+  type StartTerminalInput,
+  type StartTerminalSpec,
   type TerminalError,
   type TerminalExit,
   type TerminalKey,
   type TerminalSessionState,
 } from '@runtimes/terminals/api';
-import { PtyRegistry, type PtyExitInfo, type PtySession, type PtySpawner } from '@services/pty/api';
+import {
+  buildTerminalEnv,
+  isUnexpectedPtyExit,
+  makeTmuxSessionName,
+  resolveLocalPtySpawn,
+  type PtyExitInfo,
+  PtyRegistry,
+  type PtySession,
+  type PtySpawner,
+} from '@services/pty/api';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const OUTPUT_TAIL_CAP = 16 * 1024;
+const MAX_UNEXPECTED_RESPAWNS = 2;
+const RESPAWN_DELAY_MS = 500;
 
 type WorkflowCell = ReturnType<
   LiveModelHost<typeof terminalsContract.workflows>['create']
@@ -60,6 +74,13 @@ type WorkflowRunContext = {
   finishedAt?: number;
 };
 
+type SessionKind = 'workflow' | 'terminal';
+
+type InteractiveTerminalConfig = {
+  key: TerminalKey;
+  spec: StartTerminalSpec;
+};
+
 export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
   scope?: Scope;
@@ -79,6 +100,12 @@ export class TerminalsRuntime {
   private readonly workflowBindings = new Map<string, { sync(): void; dispose(): void }>();
   private readonly workflowRuns = new Map<string, WorkflowRunContext>();
   private readonly sessionKeys = new Map<string, TerminalKey>();
+  private readonly sessionKinds = new Map<string, SessionKind>();
+  private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
+  private readonly outputTails = new Map<string, string>();
+  private readonly startCounts = new Map<string, number>();
+  private readonly intentionalStops = new Set<string>();
+  private readonly unexpectedRespawns = new Map<string, number>();
 
   constructor(options: TerminalsRuntimeOptions) {
     this.registry = new PtyRegistry(options.spawner, {
@@ -88,6 +115,27 @@ export class TerminalsRuntime {
     this.now = options.now ?? Date.now;
     this.sessionsList = this.sessionsHost.create(undefined, { list: {} }).states.list;
     this.scope.add(() => this.dispose());
+  }
+
+  async startTerminal(input: StartTerminalInput): Promise<Result<void, TerminalError>> {
+    const sessionKey = sessionKeyFor(input.key);
+    const existing = this.registry.get(sessionKey);
+    if (existing && !existing.exited) return ok(undefined);
+
+    this.sessionKeys.set(sessionKey, input.key);
+    this.sessionKinds.set(sessionKey, 'terminal');
+    this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
+    this.intentionalStops.delete(sessionKey);
+
+    try {
+      await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
+      return ok(undefined);
+    } catch (error) {
+      return err({
+        type: 'terminal-start-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async runWorkflow(
@@ -147,18 +195,32 @@ export class TerminalsRuntime {
     return ok(undefined);
   }
 
-  kill(key: TerminalKey): Result<void, TerminalError> {
+  async kill(key: TerminalKey): Promise<Result<void, TerminalError>> {
     const sessionKey = sessionKeyFor(key);
+    this.intentionalStops.add(sessionKey);
     if (!this.registry.kill(sessionKey)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
+    }
+    await this.killTmuxForSession(sessionKey);
+    return ok(undefined);
+  }
+
+  async killScope(workspace: HostFileRef): Promise<Result<void, TerminalError>> {
+    const prefix = `${scopeKeyFor(workspace)}:`;
+    for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
+      this.intentionalStops.add(key);
+      if (key.startsWith(prefix)) this.registry.kill(key);
+      if (key.startsWith(prefix)) await this.killTmuxForSession(key);
     }
     return ok(undefined);
   }
 
-  killScope(workspace: HostFileRef): Result<void, TerminalError> {
+  detachScope(workspace: HostFileRef): Result<void, TerminalError> {
     const prefix = `${scopeKeyFor(workspace)}:`;
     for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
-      if (key.startsWith(prefix)) this.registry.kill(key);
+      if (!key.startsWith(prefix)) continue;
+      this.intentionalStops.add(key);
+      this.registry.kill(key);
     }
     return ok(undefined);
   }
@@ -171,6 +233,81 @@ export class TerminalsRuntime {
     this.logs.clear();
     this.workflowsHost.dispose();
     this.sessionsHost.dispose();
+  }
+
+  private async spawnInteractiveTerminal(
+    sessionKey: string,
+    key: TerminalKey,
+    spec: StartTerminalSpec
+  ): Promise<PtySession> {
+    const log = this.logFor(key);
+    const startCount = (this.startCounts.get(sessionKey) ?? 0) + 1;
+    this.startCounts.set(sessionKey, startCount);
+    this.sessionKeys.set(sessionKey, key);
+    this.sessionKinds.set(sessionKey, 'terminal');
+
+    const env = buildTerminalEnv({
+      shellProfile: spec.shellProfile,
+      overrides: spec.env,
+    });
+    const resolved = resolveLocalPtySpawn({
+      intent: {
+        kind: 'interactive-shell',
+        cwd: spec.cwd,
+        shellProfile: spec.shellProfile,
+        shellSetup: spec.shellSetup,
+        tmuxSessionName: spec.tmux ? makeTmuxSessionName(sessionKey) : undefined,
+      },
+      platform: process.platform,
+      env,
+    });
+
+    return await this.registry.create(
+      sessionKey,
+      {
+        command: resolved.command,
+        args: resolved.args,
+        cwd: resolved.cwd,
+        env,
+        cols: spec.cols ?? DEFAULT_COLS,
+        rows: spec.rows ?? DEFAULT_ROWS,
+      },
+      {
+        output: log,
+        onData: (chunk) => {
+          this.outputTails.set(
+            sessionKey,
+            appendOutputTail(this.outputTails.get(sessionKey) ?? '', chunk)
+          );
+        },
+        onExit: (info) => this.handleInteractiveExit(sessionKey, info),
+      }
+    );
+  }
+
+  private handleInteractiveExit(sessionKey: string, info: PtyExitInfo): void {
+    if (this.intentionalStops.delete(sessionKey)) return;
+
+    const config = this.interactiveConfigs.get(sessionKey);
+    if (!config || config.spec.tmux || !isUnexpectedPtyExit(info)) {
+      this.unexpectedRespawns.delete(sessionKey);
+      return;
+    }
+
+    const respawns = this.unexpectedRespawns.get(sessionKey) ?? 0;
+    if (respawns >= MAX_UNEXPECTED_RESPAWNS) return;
+    this.unexpectedRespawns.set(sessionKey, respawns + 1);
+    setTimeout(() => {
+      const latest = this.interactiveConfigs.get(sessionKey);
+      if (!latest || this.intentionalStops.has(sessionKey)) return;
+      void this.spawnInteractiveTerminal(sessionKey, latest.key, latest.spec);
+    }, RESPAWN_DELAY_MS);
+  }
+
+  private async killTmuxForSession(sessionKey: string): Promise<void> {
+    const config = this.interactiveConfigs.get(sessionKey);
+    if (!config?.spec.tmux || process.platform === 'win32') return;
+    await killLocalTmuxSession(makeTmuxSessionName(sessionKey));
   }
 
   private startWorkflow(
@@ -213,12 +350,11 @@ export class TerminalsRuntime {
     ctx: LiveJobContext<ScriptWorkflowProgress>,
     run: WorkflowRunContext
   ): WorkflowNodeDefinition {
-    const runtime = this;
     return {
       id: node.id,
       label: node.label,
       dependsOn: node.dependsOn,
-      async run(workflowCtx) {
+      run: async (workflowCtx) => {
         workflowCtx.report({ message: node.label ?? node.id });
         ctx.progress({
           workflowId: ctx.jobId,
@@ -226,7 +362,7 @@ export class TerminalsRuntime {
           runningNodeId: node.id,
           message: node.label ?? node.id,
         });
-        const result = await runtime.runScriptNode(input.workspace, node, input, ctx.signal, run);
+        const result = await this.runScriptNode(input.workspace, node, input, ctx.signal, run);
         if (!result.success) {
           return { status: 'failed', failure: 'permanent', error: result.error };
         }
@@ -248,6 +384,8 @@ export class TerminalsRuntime {
     const log = this.logFor(key);
     log.reseed();
     this.sessionKeys.set(sessionKey, key);
+    this.sessionKinds.set(sessionKey, 'workflow');
+    this.startCounts.set(sessionKey, 1);
     let outputTail = '';
     let resolveExit: (exit: TerminalExit) => void;
     const exitPromise = new Promise<TerminalExit>((resolve) => {
@@ -262,6 +400,7 @@ export class TerminalsRuntime {
       },
       onData: (chunk) => {
         outputTail = appendOutputTail(outputTail, chunk);
+        this.outputTails.set(sessionKey, outputTail);
       },
       onExit: (info) => {
         resolveExit({
@@ -388,19 +527,27 @@ export class TerminalsRuntime {
     this.sessionsList.produce((draft) => {
       if (!session) {
         const existing = draft[key];
-        if (existing) existing.status = 'exited';
+        if (existing) {
+          existing.status = 'exited';
+          existing.exitedAt = existing.exitedAt ?? this.now();
+        }
         return;
       }
       const terminalKey = this.sessionKeys.get(key);
       if (!terminalKey) return;
       const exit = session.exitStatus ?? undefined;
+      const existing = draft[key];
       const state: TerminalSessionState = {
         key: terminalKey,
         status: session.exited ? 'exited' : 'running',
+        kind: this.sessionKinds.get(key) ?? 'workflow',
+        startCount: this.startCounts.get(key) ?? existing?.startCount ?? 1,
+        tmux: this.interactiveConfigs.get(key)?.spec.tmux,
         pid: session.getPid(),
         cols: session.spec.cols,
         rows: session.spec.rows,
-        startedAt: draft[key]?.startedAt ?? this.now(),
+        startedAt: session.startedAt,
+        exitedAt: session.exited ? (existing?.exitedAt ?? this.now()) : undefined,
         exit:
           exit !== undefined
             ? {
@@ -531,6 +678,16 @@ function workflowErrorToTerminalError(error: WorkflowError): TerminalError {
     message: error.message,
     resolutions: error.resolutions,
   };
+}
+
+function killLocalTmuxSession(sessionName: string): Promise<void> {
+  return new Promise((resolve) => {
+    const child = spawn('tmux', ['kill-session', '-t', sessionName], {
+      stdio: 'ignore',
+    });
+    child.on('error', () => resolve());
+    child.on('exit', () => resolve());
+  });
 }
 
 export function terminalJobError(error: unknown): TerminalError {

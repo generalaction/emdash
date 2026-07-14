@@ -5,6 +5,12 @@ async function getPtyModule() {
   return import('@renderer/lib/pty/pty');
 }
 
+function noopConnector() {
+  return {
+    connect: () => () => {},
+  };
+}
+
 describe('FrontendPty xterm host', () => {
   beforeEach(() => {
     vi.stubGlobal('electronAPI', {
@@ -39,7 +45,13 @@ describe('FrontendPty xterm host', () => {
     });
 
     const { FrontendPty } = await getPtyModule();
-    const frontendPty = new FrontendPty('test-session');
+    const frontendPty = new FrontendPty(
+      'test-session',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
     const host = document.querySelector('[data-terminal-host="true"]');
     const dims =
       (
@@ -76,7 +88,13 @@ describe('FrontendPty xterm host', () => {
     });
 
     const { FrontendPty } = await getPtyModule();
-    const frontendPty = new FrontendPty('test-session');
+    const frontendPty = new FrontendPty(
+      'test-session',
+      undefined,
+      undefined,
+      undefined,
+      noopConnector()
+    );
     const host = document.querySelector('[data-terminal-host="true"]');
     const dims =
       (

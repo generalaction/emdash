@@ -50,10 +50,6 @@ export function isHeicLike(args: { name?: string; mimeType?: string; ext?: strin
   return mime.includes('heic') || mime.includes('heif');
 }
 
-/**
- * Claude Code and most vision models cannot read HEIC directly. macOS clipboard
- * and drag sources often supply HEIC — convert to PNG before persisting.
- */
 export async function normalizeDroppedImageBytes(
   bytes: Uint8Array,
   args: { name?: string; mimeType?: string }
@@ -161,7 +157,6 @@ export async function cleanupExpiredDroppedBlobs(now = Date.now()): Promise<void
   );
 }
 
-/** Read a raster image from the OS clipboard and persist it as PNG. */
 export async function persistClipboardImagePath(): Promise<string | null> {
   const image = clipboard.readImage();
   if (image.isEmpty()) return null;

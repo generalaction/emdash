@@ -1,6 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
@@ -25,15 +24,13 @@ export function emitTaskProvisionProgress(data: {
 export type BuildTaskResult = {
   taskProvider: TaskProvider;
   conversationProvider: ConversationProvider;
-  terminalProvider: TerminalProvider;
 };
 
 /**
  * Shared tail of the provision flow — builds a TaskProvider from an already-acquired
  * workspace. Works for both local and SSH transports.
  *
- * Returns all three provider objects so callers (e.g. SshProjectProvider)
- * can keep references for reconnect rehydration.
+ * Returns the task provider and conversation provider.
  *
  * `workspaceBranchName` and `workspaceSourceBranch` are sourced from the
  * workspace row (not the task row), and flow through to `TaskProvider` for
@@ -56,16 +53,15 @@ export async function buildTaskFromWorkspace(
     settings
   );
 
-  const { conversations: conversationProvider, terminals: terminalProvider } =
-    await buildTaskProviders(type, {
-      projectId,
-      taskId: task.id,
-      workspaceId: workspace.id,
-      taskPath: workspace.path,
-      tmuxEnabled,
-      shellSetup,
-      taskEnvVars,
-    });
+  const { conversations: conversationProvider } = await buildTaskProviders(type, {
+    projectId,
+    taskId: task.id,
+    workspaceId: workspace.id,
+    taskPath: workspace.path,
+    tmuxEnabled,
+    shellSetup,
+    taskEnvVars,
+  });
 
   const taskProvider: TaskProvider = {
     taskId: task.id,
@@ -73,8 +69,7 @@ export async function buildTaskFromWorkspace(
     sourceBranch: workspaceSourceBranch,
     taskEnvVars,
     conversations: conversationProvider,
-    terminals: terminalProvider,
   };
 
-  return { taskProvider, conversationProvider, terminalProvider };
+  return { taskProvider, conversationProvider };
 }

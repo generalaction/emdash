@@ -57,8 +57,7 @@ export class LifecycleScriptStore {
       undefined,
       undefined,
       undefined,
-      {},
-      workspace ? createTerminalsConnector(workspace, data.type) : undefined
+      workspace ? createTerminalsConnector(workspace, data.type) : createUnavailableConnector()
     );
     makeObservable(this, {
       data: observable,
@@ -304,6 +303,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
 
   private bindWorkflowState(): void {
     if (!this.workspace) return;
+    if (typeof window === 'undefined') return;
     void (async () => {
       const client = await getTerminalsRuntimeClient();
       if (this._disposed) return;
@@ -361,6 +361,15 @@ function createTerminalsConnector(workspace: HostFileRef, id: string): FrontendP
         void logBinding?.dispose();
         logBinding = null;
       };
+    },
+  };
+}
+
+function createUnavailableConnector(): FrontendPtyConnector {
+  return {
+    connect(terminal) {
+      terminal.write('Terminal output is unavailable for this workspace.\r\n');
+      return () => {};
     },
   };
 }

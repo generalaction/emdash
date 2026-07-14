@@ -1,29 +1,26 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
+import { describe, expect, it } from 'vitest';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type PreviewSourceClosed,
+  type TerminalOutputSource,
 } from './terminal-url-detector';
 
-function fakePty(): Pty & {
+function fakePty(): TerminalOutputSource & {
   emitData(data: string): void;
-  emitExit(info?: PtyExitInfo): void;
+  emitExit(): void;
 } {
   const dataHandlers: Array<(data: string) => void> = [];
-  const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+  const exitHandlers: Array<() => void> = [];
 
   return {
-    write: vi.fn(),
-    resize: vi.fn(),
-    kill: vi.fn(),
     onData: (handler) => dataHandlers.push(handler),
     onExit: (handler) => exitHandlers.push(handler),
     emitData(data) {
       for (const handler of dataHandlers) handler(data);
     },
-    emitExit(info = { exitCode: 0 }) {
-      for (const handler of exitHandlers) handler(info);
+    emitExit() {
+      for (const handler of exitHandlers) handler();
     },
   };
 }

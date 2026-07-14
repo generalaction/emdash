@@ -1,4 +1,5 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+// oxlint-disable-next-line emdash/core-module-boundaries
 import { terminalsContract } from '@runtimes/terminals/api';
 import { workspaceContract } from '@runtimes/workspace/api';
 import { createWorkspaceController } from '@runtimes/workspace/node/api/controller';

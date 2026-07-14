@@ -296,16 +296,23 @@ export class ConversationManagerStore implements Disposable {
   private createSession(conversation: Conversation): PtySession {
     const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
     const connector =
-      conversation.type === 'acp' ? undefined : createTuiAgentsConnector(conversation.id);
+      conversation.type === 'acp' ? createNoopConnector() : createTuiAgentsConnector(conversation.id);
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      { clearOnBackendStart: false },
       connector
     );
   }
+}
+
+function createNoopConnector(): FrontendPtyConnector {
+  return {
+    connect() {
+      return () => {};
+    },
+  };
 }
 
 function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector {

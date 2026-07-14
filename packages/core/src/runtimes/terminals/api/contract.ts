@@ -4,6 +4,7 @@ import {
   runScriptWorkflowInputSchema,
   scriptWorkflowProgressSchema,
   scriptWorkflowResultSchema,
+  startTerminalInputSchema,
   scriptWorkflowStateSchema,
   terminalControlInputSchema,
   terminalDataInputSchema,
@@ -15,6 +16,11 @@ import {
 } from './schemas';
 
 export const terminalsContract = defineContract({
+  startTerminal: fallible({
+    input: startTerminalInputSchema,
+    data: z.void(),
+    error: terminalErrorSchema,
+  }),
   runWorkflow: liveJob({
     input: runScriptWorkflowInputSchema,
     progress: scriptWorkflowProgressSchema,
@@ -52,6 +58,11 @@ export const terminalsContract = defineContract({
     error: terminalErrorSchema,
   }),
   killScope: fallible({
+    input: terminalScopeInputSchema,
+    data: z.void(),
+    error: terminalErrorSchema,
+  }),
+  detachScope: fallible({
     input: terminalScopeInputSchema,
     data: z.void(),
     error: terminalErrorSchema,

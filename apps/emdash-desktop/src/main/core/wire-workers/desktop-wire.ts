@@ -23,6 +23,7 @@ import {
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
 } from '@main/core/wire-workers/desktop-workers';
+import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
 import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
@@ -30,6 +31,7 @@ import {
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';
 import { DESKTOP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import { terminalTabsWireContract } from '@shared/core/terminals/wire-contract';
 import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 
 export type InstallDesktopWireOptions = CreateWorkspacesWireControllerOptions;
@@ -43,9 +45,11 @@ export function installDesktopWire(options: InstallDesktopWireOptions): void {
 
   const workspacesController = createWorkspacesWireController(options);
   const projectsController = createProjectsWireController();
+  const terminalTabsController = createTerminalTabsWireController();
   const controller = createLazyDesktopController({
     workspacesController,
     projectsController,
+    terminalTabsController,
   });
 
   scope.add(
@@ -66,9 +70,11 @@ function createMessageChannel() {
 function createLazyDesktopController({
   workspacesController,
   projectsController,
+  terminalTabsController,
 }: {
   workspacesController: ReturnType<typeof createWorkspacesWireController>;
   projectsController: ReturnType<typeof createProjectsWireController>;
+  terminalTabsController: ReturnType<typeof createTerminalTabsWireController>;
 }): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
 
@@ -88,6 +94,7 @@ function createLazyDesktopController({
       acp: forwardController(acpApiContract, acp),
       agentConfig: forwardController(agentConfigContract, agentConfig),
       terminals: forwardController(terminalsContract, terminals),
+      terminalTabs: createController(terminalTabsWireContract, terminalTabsController.impl),
       tuiAgents: forwardController(tuiAgentsContract, tuiAgents),
       workspaces: createController(workspacesWireContract, workspacesController.impl),
       projects: createController(projectsWireContract, projectsController.impl),
@@ -119,6 +126,7 @@ function createLazyDesktopController({
       );
       await projectsController.dispose();
       await workspacesController.dispose();
+      await terminalTabsController.dispose();
     },
   };
 }

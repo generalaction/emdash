@@ -15,6 +15,41 @@ export const terminalSizeSchema = z.object({
 
 export type TerminalSize = z.infer<typeof terminalSizeSchema>;
 
+export const terminalShellProfileSchema = z.object({
+  id: z.string().min(1),
+  resolvedShellId: z.string().min(1),
+  resolvedFromSystem: z.boolean(),
+  executable: z.string().min(1),
+  available: z.literal(true).optional(),
+  family: z.enum(['posix', 'csh', 'windows-cmd', 'powershell', 'wsl']),
+  interactiveArgs: z.array(z.string()),
+  commandArgs: z.array(z.string()),
+  envCaptureArgs: z.array(z.string()).optional(),
+  capturedEnv: z.record(z.string(), z.string()).optional(),
+  remotePathLookup: z.boolean().optional(),
+});
+
+export type TerminalShellProfile = z.infer<typeof terminalShellProfileSchema>;
+
+export const startTerminalSpecSchema = z
+  .object({
+    cwd: z.string().min(1),
+    env: z.record(z.string(), z.string()),
+    shellProfile: terminalShellProfileSchema.optional(),
+    shellSetup: z.string().optional(),
+    tmux: z.boolean().optional(),
+  })
+  .merge(terminalSizeSchema.partial());
+
+export type StartTerminalSpec = z.infer<typeof startTerminalSpecSchema>;
+
+export const startTerminalInputSchema = z.object({
+  key: terminalKeySchema,
+  spec: startTerminalSpecSchema,
+});
+
+export type StartTerminalInput = z.infer<typeof startTerminalInputSchema>;
+
 export const scriptWorkflowKindSchema = z.string().min(1);
 
 export const scriptNodeSchema = z.object({
@@ -118,10 +153,14 @@ export type ScriptWorkflowState = z.infer<typeof scriptWorkflowStateSchema>;
 export const terminalSessionStateSchema = z.object({
   key: terminalKeySchema,
   status: z.enum(['running', 'exited']),
+  kind: z.enum(['workflow', 'terminal']),
+  startCount: z.number().int().nonnegative(),
+  tmux: z.boolean().optional(),
   pid: z.number().int().positive().optional(),
   cols: z.number().int().positive(),
   rows: z.number().int().positive(),
   startedAt: z.number().int(),
+  exitedAt: z.number().int().optional(),
   exit: terminalExitSchema.omit({ outputTail: true }).optional(),
 });
 

@@ -1,10 +1,20 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
-import { log } from '@main/lib/logger';
-import { quoteCshArg } from '@main/utils/shellEscape';
-import { getWindowsEnvValue } from '@main/utils/windows-env';
-import { buildTmuxShellLine } from './tmux-session-name';
+import { buildTmuxShellLine } from './tmux';
+
+export type ResolvedPtyShellProfile = {
+  id: string;
+  resolvedShellId: string;
+  resolvedFromSystem: boolean;
+  executable: string;
+  available?: true;
+  family: 'posix' | 'csh' | 'windows-cmd' | 'powershell' | 'wsl';
+  interactiveArgs: string[];
+  commandArgs: string[];
+  envCaptureArgs?: string[];
+  capturedEnv?: Record<string, string>;
+  remotePathLookup?: boolean;
+};
 
 export type PtyCommandSpec =
   | { kind: 'argv'; command: string; args: string[] }
@@ -14,7 +24,7 @@ export type PtySpawnIntent =
   | {
       kind: 'interactive-shell';
       cwd: string;
-      shellProfile?: ResolvedShellProfile;
+      shellProfile?: ResolvedPtyShellProfile;
       shellSetup?: string;
       tmuxSessionName?: string;
     }
@@ -22,7 +32,7 @@ export type PtySpawnIntent =
       kind: 'run-command';
       cwd: string;
       command: PtyCommandSpec;
-      shellProfile?: ResolvedShellProfile;
+      shellProfile?: ResolvedPtyShellProfile;
       shellSetup?: string;
       tmuxSessionName?: string;
     };
@@ -43,7 +53,7 @@ function getPosixShell(env: NodeJS.ProcessEnv): string {
 }
 
 function getWindowsShell(env: NodeJS.ProcessEnv): string {
-  return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+  return getWindowsEnvValue(env, 'ComSpec') || 'C:\\Windows\\System32\\cmd.exe';
 }
 
 function getResolvedShell(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): string {
@@ -75,14 +85,14 @@ function shellArgQuoter(intent: PtySpawnIntent): (input: string) => string {
   return intent.shellProfile?.family === 'csh' ? quoteCshArg : quotePosixArg;
 }
 
-function isWindows(platform: NodeJS.Platform): boolean {
-  return platform === 'win32';
-}
-
 function quotePosixArg(input: string): string {
   if (input.length === 0) return "''";
   if (!/[\s'"\\$`\n\r\t;&|<>(){}[\]*?!]/.test(input)) return input;
   return `'${input.replace(/'/g, "'\\''")}'`;
+}
+
+function quoteCshArg(input: string): string {
+  return quotePosixArg(input).replace(/!/g, '\\!');
 }
 
 function argvToPosixShellLine(intent: PtySpawnIntent, command: string, args: string[]): string {
@@ -104,15 +114,19 @@ function quoteForPowerShell(input: string): string {
   return `'${input.replace(/'/g, "''")}'`;
 }
 
-/**
- * cmd.exe + /S /C has a quirk: if the command string starts with a quote, the
- * outer quotes are taken as part of the executable name (printed back as
- * `'"C:\Program Files\..."' is not recognized`). The documented workaround is
- * to wrap the entire command line in an extra pair of outer quotes so cmd.exe
- * strips one layer and runs the still-quoted path.
- */
 function wrapCmdExeCommandLine(commandLine: string): string {
   return commandLine.startsWith('"') ? `"${commandLine}"` : commandLine;
+}
+
+function getWindowsEnvKey(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  if (env[key] !== undefined) return key;
+  const lowerKey = key.toLowerCase();
+  return Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
+}
+
+function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const envKey = getWindowsEnvKey(env, key);
+  return envKey ? env[envKey] : undefined;
 }
 
 function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
@@ -167,9 +181,7 @@ function resolveWindowsCommandPath({
   fileExists: FileExists;
   powershell?: boolean;
 }): string | null {
-  if (path.win32.extname(command)) {
-    return null;
-  }
+  if (path.win32.extname(command)) return null;
 
   const baseCandidates =
     hasWindowsPathSeparator(command) || path.win32.isAbsolute(command)
@@ -426,7 +438,7 @@ export function resolveLocalPtySpawn({
   env: NodeJS.ProcessEnv;
   fileExists?: FileExists;
 }): ResolvedLocalPtySpawn {
-  return isWindows(platform)
+  return platform === 'win32'
     ? resolveWindowsSpawn(intent, env, fileExists)
     : resolvePosixSpawn(intent, env);
 }
@@ -434,8 +446,9 @@ export function resolveLocalPtySpawn({
 export function logLocalPtySpawnWarnings(
   source: string,
   warnings: LocalPtySpawnWarning[],
-  context: Record<string, string>
+  context: Record<string, string>,
+  logger: { warn(message: string, context: Record<string, unknown>): void } = console
 ): void {
   if (warnings.length === 0) return;
-  log.warn(`${source}: local PTY platform warning`, { ...context, warnings });
+  logger.warn(`${source}: local PTY platform warning`, { ...context, warnings });
 }

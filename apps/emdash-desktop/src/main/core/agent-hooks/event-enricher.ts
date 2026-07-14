@@ -1,12 +1,14 @@
 import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
 import { defaultHookEventParser } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { asAgentProviderId, pluginRegistry, type AgentProviderId } from '@emdash/plugins/agents';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
-import { parsePtyId } from '@main/core/pty/ptyId';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import type { RawHookRequest } from './hook-server';
+
+const CONV_SEP = '-conv-';
 
 export type ConversationContext = {
   conversationId: string;
@@ -40,6 +42,24 @@ async function resolveContext(ptyId: string): Promise<ConversationContext | null
     providerId: parsed.providerId,
     ptyId,
   };
+}
+
+function parsePtyId(id: string): {
+  providerId: AgentProviderId | 'shell';
+  conversationId: string;
+} | null {
+  const providerIds = pluginRegistry
+    .ids()
+    .map(asAgentProviderId)
+    .sort((a, b) => b.length - a.length);
+  const candidates: Array<AgentProviderId | 'shell'> = ['shell', ...providerIds];
+  for (const pid of candidates) {
+    const prefix = pid + CONV_SEP;
+    if (id.startsWith(prefix)) {
+      return { providerId: pid, conversationId: id.slice(prefix.length) };
+    }
+  }
+  return null;
 }
 
 function parseBody(raw: RawHookRequest): Record<string, unknown> {

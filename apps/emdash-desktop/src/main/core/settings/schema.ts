@@ -130,8 +130,6 @@ export const browserSettingsSchema = z
       settings.profiles.some((profile) => profile.id === settings.defaultProfileId)
   );
 
-export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
-
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -150,7 +148,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
-  resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 } as const;
 
@@ -167,6 +164,5 @@ export const appSettingsSchema = z.object({
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
-  resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 });

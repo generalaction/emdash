@@ -6,7 +6,7 @@
  *   2. Converts px → cols/rows using a cached cell size derived from standalone
  *      canvas measurement (so PTYs resize even when no terminal is mounted).
  *   3. Accepts calibration from a live terminal for maximum accuracy once one mounts.
- *   4. Broadcasts rpc.pty.resize to ALL session IDs in the pane (active + background).
+ *   4. Broadcasts runtime resize calls to ALL session IDs in the pane.
  *   5. Exposes an observable `controllerDims` box so mounted terminals can call
  *      term.resize() reactively without re-measuring.
  *   6. Listens to terminal-font-changed events and recomputes when font settings change.

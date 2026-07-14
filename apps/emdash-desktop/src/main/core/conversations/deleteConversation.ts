@@ -1,6 +1,6 @@
+import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';

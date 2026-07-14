@@ -1,6 +1,12 @@
 import { execFile } from 'node:child_process';
 import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
+import {
+  cleanupExpiredDroppedBlobs,
+  persistClipboardImagePath,
+  persistDroppedBlobBytes,
+} from '@main/core/app/persist-terminal-attachment';
+import { log } from '@main/lib/logger';
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -8,6 +14,10 @@ import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
 
 const execFileAsync = promisify(execFile);
+
+void cleanupExpiredDroppedBlobs().catch((error) => {
+  log.warn('app:cleanupExpiredDroppedBlobs failed', { error });
+});
 
 async function getPlatformDisplayName(): Promise<string> {
   const architecture = arch();
@@ -69,6 +79,34 @@ export const appController = createRPCController({
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {
+    try {
+      const path = await persistDroppedBlobBytes(args);
+      return { success: true as const, path };
+    } catch (error) {
+      log.error('app:persistDroppedBlob failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+  persistClipboardImage: async () => {
+    try {
+      const path = await persistClipboardImagePath();
+      return { success: true as const, path };
+    } catch (error) {
+      log.error('app:persistClipboardImage failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   },
   showTerminalContextMenu: async (args: {

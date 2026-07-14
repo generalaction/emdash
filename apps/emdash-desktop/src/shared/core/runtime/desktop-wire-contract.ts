@@ -6,6 +6,7 @@ import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { defineContract } from '@emdash/wire';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
+import { terminalTabsWireContract } from '@shared/core/terminals/wire-contract';
 import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 
 export const desktopWireContract = defineContract({
@@ -14,6 +15,7 @@ export const desktopWireContract = defineContract({
   acp: acpApiContract,
   agentConfig: agentConfigContract,
   terminals: terminalsContract,
+  terminalTabs: terminalTabsWireContract,
   tuiAgents: tuiAgentsContract,
   workspaces: workspacesWireContract,
   projects: projectsWireContract,

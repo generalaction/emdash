@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { ensureImportedTaskWorkspaces } from '../../task-workspace-backfill';

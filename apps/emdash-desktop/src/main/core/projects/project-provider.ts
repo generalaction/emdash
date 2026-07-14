@@ -13,7 +13,6 @@ import type { WorkspaceSetupSpec } from '@shared/core/workspaces/workspace-setup
 import type { ProjectRemoteState } from '@shared/projects';
 import type { ConversationProvider } from '../conversations/types';
 import { taskSessionManager } from '../tasks/task-session-manager';
-import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
 import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeService } from './worktrees/worktree-service';
@@ -36,7 +35,6 @@ export interface TaskProvider {
   readonly sourceBranch: GitBranchRef | undefined;
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
-  readonly terminals: TerminalProvider;
 }
 
 type RunWorkspaceSetup = (args: {
