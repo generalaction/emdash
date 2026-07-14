@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/renderer/features/conversations/conversation-manager.test.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 24,49,79-108
+  s_fa15e318c1cf7f::t_464fc7a870c261 2-5,12-14
+  s_095ce54d7a3145::t_3ce76e820e6918 109
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 223
+apps/emdash-desktop/src/shared/core/agents/agentEvents.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 44,48
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 243,246
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 200,221,230,251,259
+apps/emdash-desktop/src/renderer/features/conversations/conversation-manager.ts
+  s_095ce54d7a3145::t_2d3b25d82ea1e7 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "5399377649b11d31855481e991164d822f7360f3",
+  "prompts": {},
+  "sessions": {
+    "s_095ce54d7a3145": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJzxTvlGtBKJKOyMh3l",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fa15e318c1cf7f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pKTw7AHA4wXjdpms04r",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
