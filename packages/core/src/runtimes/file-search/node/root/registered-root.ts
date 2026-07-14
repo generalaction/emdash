@@ -4,8 +4,8 @@ import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import type { FileSearchExclusions } from '../exclusions';
 import { RootIndex } from '../path/index/root-index';
 import type { PathScanner } from '../path/index/scanner';
-import type { PathIndexStore } from '../storage/types';
 import type { StoredFileSearchRoot } from '../storage/root-catalog-store';
+import type { PathIndexStore } from '../storage/types';
 
 export type RegisteredRoot = Readonly<{
   record: StoredFileSearchRoot;

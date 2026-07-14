@@ -1,13 +1,13 @@
 import path from 'node:path';
 import type { Run, Scope } from '@emdash/shared/concurrency';
 import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
+import type { StoredFileSearchRoot } from '@runtimes/file-search/node/storage/root-catalog-store';
 import type {
   PathIndexBuild,
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
 } from '@runtimes/file-search/node/storage/types';
-import type { StoredFileSearchRoot } from '@runtimes/file-search/node/storage/root-catalog-store';
 import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
 import { throwIfAborted, waitWithSignal } from '../../abort';
 import type { FileSearchExclusions } from '../../exclusions';

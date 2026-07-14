@@ -8,17 +8,17 @@ import {
 } from '@primitives/path/api';
 import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
 import type {
+  FileSearchRootUpsertResult,
+  RootCatalogStore,
+  StoredFileSearchRoot,
+} from '@runtimes/file-search/node/storage/root-catalog-store';
+import type {
   PathIndexBuild,
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
   PathIndexStoreSearchResult,
 } from '@runtimes/file-search/node/storage/types';
-import type {
-  FileSearchRootUpsertResult,
-  RootCatalogStore,
-  StoredFileSearchRoot,
-} from '@runtimes/file-search/node/storage/root-catalog-store';
 import { initializeFileSearchSchema } from './schema';
 
 type RootRow = {

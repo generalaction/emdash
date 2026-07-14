@@ -76,13 +76,7 @@ function SteppedLoaderProgress({
   );
 }
 
-function SteppedLoader({
-  steps,
-  activeStepId,
-  status,
-  actions,
-  className,
-}: SteppedLoaderProps) {
+function SteppedLoader({ steps, activeStepId, status, actions, className }: SteppedLoaderProps) {
   const firstStepId = steps[0]?.id ?? activeStepId;
   const initialStepId = steps.some((step) => step.id === activeStepId) ? activeStepId : firstStepId;
   const [presentation, setPresentation] = React.useState<PresentationState>({
