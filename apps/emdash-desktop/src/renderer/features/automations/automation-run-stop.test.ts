@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAutomationTaskRunning } from './automation-run-stop';
+import { isAutomationConversationRunning, isAutomationTaskRunning } from './automation-run-stop';
 
 describe('automation run stop availability', () => {
   it.each(['working', 'awaiting-input'] as const)(
@@ -15,4 +15,8 @@ describe('automation run stop availability', () => {
       expect(isAutomationTaskRunning(status)).toBe(false);
     }
   );
+
+  it('keeps an acknowledged awaiting-input conversation stoppable', () => {
+    expect(isAutomationConversationRunning({ status: 'awaiting-input', seen: true })).toBe(true);
+  });
 });

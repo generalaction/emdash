@@ -5,7 +5,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { isAutomationTaskRunning } from './automation-run-stop';
+import { isAutomationConversationRunning } from './automation-run-stop';
 import { useAutomation } from './use-automations';
 
 export function useAutomationRunActions(automationId: string) {
@@ -19,9 +19,7 @@ export function useAutomationRunActions(automationId: string) {
 
     const conversations = conversationRegistry.get(taskId)?.conversations.values();
     const activeConversations = conversations
-      ? Array.from(conversations).filter((conversation) =>
-          isAutomationTaskRunning(conversation.status)
-        )
+      ? Array.from(conversations).filter(isAutomationConversationRunning)
       : [];
 
     setStopPending(true);
@@ -30,7 +28,7 @@ export function useAutomationRunActions(automationId: string) {
         activeConversations.map(async (conversation) => {
           if (conversation.data.type === 'acp') {
             const client = await getAcpRuntimeClient();
-            const result = await client.cancelTurn({ conversationId: conversation.data.id });
+            const result = await client.stopSession({ conversationId: conversation.data.id });
             if (!result.success) throw new Error(formatStopError(result.error));
             return;
           }

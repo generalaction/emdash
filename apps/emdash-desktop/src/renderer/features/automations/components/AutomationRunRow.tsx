@@ -1,8 +1,9 @@
 import { Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { isAutomationTaskRunning } from '@renderer/features/automations/automation-run-stop';
+import { isAutomationConversationRunning } from '@renderer/features/automations/automation-run-stop';
 import { useAutomationRunActions } from '@renderer/features/automations/use-automation-run-actions';
 import {
+  getConversationsForTask,
   getRegisteredTaskData,
   getTaskStore,
   taskAgentStatus,
@@ -39,7 +40,10 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
-  const canStop = isAutomationTaskRunning(agentStatus);
+  const conversations = taskId ? getConversationsForTask(taskId)?.conversations.values() : null;
+  const canStop = conversations
+    ? Array.from(conversations).some(isAutomationConversationRunning)
+    : false;
 
   const displayTime = run ? (run.startedAt ?? run.finishedAt) : null;
   const missedDeadline = run?.error?.code === 'deadline_exceeded';
@@ -70,6 +74,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       onKeyDown={
         interactive
           ? (e) => {
+              if (e.target !== e.currentTarget) return;
               if (e.key !== 'Enter' && e.key !== ' ') return;
               e.preventDefault();
               handleOpenTask();
