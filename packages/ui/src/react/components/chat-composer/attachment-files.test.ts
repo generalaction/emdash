@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { clipboardHasText, imageFilesFromClipboard } from './attachment-files';
 
-function clipboardItem(file: File | null, kind = 'file'): DataTransferItem {
+function clipboardItem(
+  file: File | null,
+  kind = 'file',
+  type = file?.type ?? 'text/plain'
+): DataTransferItem {
   return {
     kind,
-    type: file?.type ?? 'text/plain',
+    type,
     getAsFile: () => file,
   } as DataTransferItem;
+}
+
+function clipboardData(items: DataTransferItem[]) {
+  return {
+    items: items as unknown as DataTransferItemList,
+  };
 }
 
 describe('imageFilesFromClipboard', () => {
@@ -20,21 +30,15 @@ describe('imageFilesFromClipboard', () => {
     const text = new File(['notes'], 'notes.txt', { type: 'text/plain' });
     const items = [clipboardItem(image), clipboardItem(text), clipboardItem(null, 'string')];
 
-    expect(
-      imageFilesFromClipboard({
-        items: items as unknown as DataTransferItemList,
-      })
-    ).toEqual([image]);
+    expect(imageFilesFromClipboard(clipboardData(items))).toEqual([image]);
   });
 
-  it('keeps every image when the clipboard exposes multiple representations', () => {
+  it('keeps every image file exposed by the clipboard', () => {
     const tiff = new File(['tiff'], 'screenshot.tiff', { type: 'image/tiff' });
     const png = new File(['png'], 'screenshot.png', { type: 'image/png' });
 
     expect(
-      imageFilesFromClipboard({
-        items: [clipboardItem(tiff), clipboardItem(png)] as unknown as DataTransferItemList,
-      })
+      imageFilesFromClipboard(clipboardData([clipboardItem(tiff), clipboardItem(png)]))
     ).toEqual([tiff, png]);
   });
 
@@ -43,9 +47,7 @@ describe('imageFilesFromClipboard', () => {
     const second = new File(['second'], 'second.png', { type: 'image/png' });
 
     expect(
-      imageFilesFromClipboard({
-        items: [clipboardItem(first), clipboardItem(second)] as unknown as DataTransferItemList,
-      })
+      imageFilesFromClipboard(clipboardData([clipboardItem(first), clipboardItem(second)]))
     ).toEqual([first, second]);
   });
 
@@ -54,20 +56,14 @@ describe('imageFilesFromClipboard', () => {
     const jpeg = new File(['jpeg'], 'image.jpg', { type: 'image/jpeg' });
 
     expect(
-      imageFilesFromClipboard({
-        items: [clipboardItem(png), clipboardItem(jpeg)] as unknown as DataTransferItemList,
-      })
+      imageFilesFromClipboard(clipboardData([clipboardItem(png), clipboardItem(jpeg)]))
     ).toEqual([png, jpeg]);
   });
 
   it('keeps unsupported images when no supported representation exists', () => {
     const tiff = new File(['tiff'], 'image.tiff', { type: 'image/tiff' });
 
-    expect(
-      imageFilesFromClipboard({
-        items: [clipboardItem(tiff)] as unknown as DataTransferItemList,
-      })
-    ).toEqual([tiff]);
+    expect(imageFilesFromClipboard(clipboardData([clipboardItem(tiff)]))).toEqual([tiff]);
   });
 
   it('keeps separate supported and unsupported images', () => {
@@ -75,9 +71,15 @@ describe('imageFilesFromClipboard', () => {
     const png = new File(['photo'], 'photo.png', { type: 'image/png' });
 
     expect(
-      imageFilesFromClipboard({
-        items: [clipboardItem(tiff), clipboardItem(png)] as unknown as DataTransferItemList,
-      })
+      imageFilesFromClipboard(clipboardData([clipboardItem(tiff), clipboardItem(png)]))
     ).toEqual([tiff, png]);
+  });
+
+  it('recognizes image files with generic clipboard MIME types by extension', () => {
+    const heic = new File(['heic'], 'photo.heic', { type: 'application/octet-stream' });
+
+    expect(imageFilesFromClipboard(clipboardData([clipboardItem(heic, 'file', '')]))).toEqual([
+      heic,
+    ]);
   });
 });

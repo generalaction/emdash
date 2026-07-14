@@ -5,9 +5,16 @@ export function clipboardHasText(data: Pick<DataTransfer, 'types'>): boolean {
   });
 }
 
+const imageFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
+
 export function imageFilesFromClipboard(data: Pick<DataTransfer, 'items'>): File[] {
-  return Array.from(data.items)
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => file !== null);
+  // Chromium normalizes a copied image's native alternate representations before
+  // dispatching the paste event, so each file item here represents a distinct file.
+  return Array.from(data.items).flatMap((item) => {
+    if (item.kind !== 'file') return [];
+    const file = item.getAsFile();
+    if (!file) return [];
+    const mimeType = (item.type || file.type).toLowerCase();
+    return mimeType.startsWith('image/') || imageFileExtension.test(file.name) ? [file] : [];
+  });
 }
