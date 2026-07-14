@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.test.ts
+  s_54d3126bd4b423::t_5d388617345405 130-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "9708399f009f563829a5959a6c6be5313437a35c",
+  "prompts": {},
+  "sessions": {
+    "s_54d3126bd4b423": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-2c1d-7952-99b7-1a0766df5265",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
