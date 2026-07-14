@@ -32,4 +32,12 @@ export { ConfirmationDialog, type ConfirmationDialogProps } from './confirmation
 export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
+export {
+  SteppedLoader,
+  SteppedLoaderProgress,
+  type StepStatus,
+  type SteppedLoaderProgressProps,
+  type SteppedLoaderProps,
+  type SteppedLoaderStep,
+} from './stepped-loader/stepped-loader';
 export { UpdateCard, type UpdateCardProps, type UpdateStatus } from './update-card/update-card';

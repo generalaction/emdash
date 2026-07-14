@@ -1,0 +1,244 @@
+import { cx } from '@styles/utilities/cx';
+import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, Loader2Icon } from 'lucide-react';
+import * as React from 'react';
+import * as styles from './stepped-loader.css';
+
+export type StepStatus = 'pending' | 'loading' | 'success' | 'error';
+
+export interface SteppedLoaderStep {
+  id: string;
+  name: string;
+  /** Optional per-step content rendered under the step row, e.g. a progress bar. */
+  children?: React.ReactNode;
+}
+
+export interface SteppedLoaderProps {
+  /** Optional label rendered above the active step. */
+  label?: string;
+  steps: SteppedLoaderStep[];
+  activeStepId: string;
+  /** Status shown for the active step. */
+  status: StepStatus;
+  /** Rendered under the divider, e.g. retry/cancel buttons. */
+  actions?: React.ReactNode;
+  className?: string;
+}
+
+export interface SteppedLoaderProgressProps {
+  percent: number;
+  'aria-label'?: string;
+}
+
+type PresentationPhase = 'idle' | 'holding' | 'exiting' | 'entering';
+
+interface PresentationState {
+  stepId: string;
+  status: StepStatus;
+  phase: PresentationPhase;
+}
+
+const SUCCESS_HOLD_MS = 600;
+const EXIT_MS = 220;
+const ENTER_MS = 180;
+
+const ICON_SIZE: React.CSSProperties = { width: '1rem', height: '1rem', flexShrink: 0 };
+
+function clampPercent(percent: number) {
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function SteppedLoaderProgress({ percent, 'aria-label': ariaLabel }: SteppedLoaderProgressProps) {
+  const clampedPercent = clampPercent(percent);
+
+  return (
+    <div className={styles.progressTrack}>
+      <div
+        className={styles.progressFill}
+        style={{ width: `${clampedPercent}%` }}
+        role="progressbar"
+        aria-label={ariaLabel}
+        aria-valuenow={clampedPercent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      />
+    </div>
+  );
+}
+
+function SteppedLoader({
+  label,
+  steps,
+  activeStepId,
+  status,
+  actions,
+  className,
+}: SteppedLoaderProps) {
+  const firstStepId = steps[0]?.id ?? activeStepId;
+  const initialStepId = steps.some((step) => step.id === activeStepId) ? activeStepId : firstStepId;
+  const [presentation, setPresentation] = React.useState<PresentationState>({
+    stepId: initialStepId,
+    status,
+    phase: status === 'success' ? 'holding' : 'idle',
+  });
+  const presentationRef = React.useRef(presentation);
+  const latestTargetRef = React.useRef({ stepId: initialStepId, status });
+  const pendingTargetRef = React.useRef<{ stepId: string; status: StepStatus } | null>(null);
+  const timersRef = React.useRef<number[]>([]);
+
+  React.useEffect(() => {
+    presentationRef.current = presentation;
+  }, [presentation]);
+
+  React.useEffect(() => {
+    latestTargetRef.current = { stepId: initialStepId, status };
+  }, [initialStepId, status]);
+
+  React.useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      timersRef.current = [];
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const current = presentationRef.current;
+
+    if (current.stepId === initialStepId) {
+      if (current.phase === 'exiting') {
+        return;
+      }
+
+      setPresentation((prev) => {
+        if (prev.stepId !== initialStepId || prev.phase === 'exiting') {
+          return prev;
+        }
+
+        const nextPhase = status === 'success' ? 'holding' : 'idle';
+        if (prev.status === status && prev.phase === nextPhase) {
+          return prev;
+        }
+
+        return { ...prev, status, phase: nextPhase };
+      });
+      return;
+    }
+
+    if (pendingTargetRef.current?.stepId === initialStepId) {
+      pendingTargetRef.current.status = status;
+      return;
+    }
+
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current = [];
+    pendingTargetRef.current = { stepId: initialStepId, status };
+
+    const shouldHoldSuccess = current.status === 'success';
+    if (shouldHoldSuccess) {
+      setPresentation((prev) => ({ ...prev, status: 'success', phase: 'holding' }));
+    }
+
+    scheduleTimer(
+      () => {
+        setPresentation((prev) => ({ ...prev, phase: 'exiting' }));
+
+        scheduleTimer(() => {
+          const target = pendingTargetRef.current ?? latestTargetRef.current;
+          pendingTargetRef.current = null;
+          setPresentation({
+            stepId: target.stepId,
+            status: target.status,
+            phase: 'entering',
+          });
+
+          scheduleTimer(() => {
+            const latestTarget = latestTargetRef.current;
+            setPresentation((prev) => {
+              if (prev.stepId !== latestTarget.stepId) {
+                return prev;
+              }
+
+              return {
+                stepId: latestTarget.stepId,
+                status: latestTarget.status,
+                phase: latestTarget.status === 'success' ? 'holding' : 'idle',
+              };
+            });
+          }, ENTER_MS);
+        }, EXIT_MS);
+      },
+      shouldHoldSuccess ? SUCCESS_HOLD_MS : 0
+    );
+  }, [initialStepId, status]);
+
+  function scheduleTimer(callback: () => void, delay: number) {
+    const timer = window.setTimeout(callback, delay);
+    timersRef.current.push(timer);
+  }
+
+  if (steps.length === 0) {
+    return null;
+  }
+
+  const displayedStep = steps.find((step) => step.id === presentation.stepId) ?? steps[0];
+
+  return (
+    <div className={cx(styles.root, className)}>
+      {label && <div className={styles.label}>{label}</div>}
+      <div className={styles.stepViewport}>
+        <div
+          className={cx(
+            styles.stepPanel,
+            presentation.phase === 'exiting' && styles.stepExit,
+            presentation.phase === 'entering' && styles.stepEnter
+          )}
+        >
+          <div className={styles.stepRow}>
+            <StatusIcon status={presentation.status} />
+            <span className={styles.stepName}>{displayedStep.name}</span>
+          </div>
+          {displayedStep.children && (
+            <div className={styles.stepChildren}>{displayedStep.children}</div>
+          )}
+        </div>
+      </div>
+      {actions && (
+        <>
+          <div className={styles.divider} />
+          <div className={styles.actions}>{actions}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatusIcon({ status }: { status: StepStatus }) {
+  switch (status) {
+    case 'loading':
+      return (
+        <span className={cx(styles.iconSlot, styles.iconLoading)} aria-label="Loading">
+          <Loader2Icon style={ICON_SIZE} className={styles.iconSpin} />
+        </span>
+      );
+    case 'success':
+      return (
+        <span className={cx(styles.iconSlot, styles.iconSuccess)} aria-label="Success">
+          <CheckCircle2Icon style={ICON_SIZE} />
+        </span>
+      );
+    case 'error':
+      return (
+        <span className={cx(styles.iconSlot, styles.iconError)} aria-label="Error">
+          <AlertCircleIcon style={ICON_SIZE} />
+        </span>
+      );
+    case 'pending':
+    default:
+      return (
+        <span className={cx(styles.iconSlot, styles.iconPending)} aria-label="Pending">
+          <CircleIcon style={ICON_SIZE} />
+        </span>
+      );
+  }
+}
+
+export { SteppedLoader, SteppedLoaderProgress };
