@@ -1,0 +1,24 @@
+packages/ui/src/react/components/chat-composer/chat-composer.css.ts
+  s_228b0026f81f46::t_a96e60da9807a0 204-205
+  s_228b0026f81f46::t_f65ded7461c3af 206-207
+  s_228b0026f81f46::t_e11f91ce85fc47 203
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_228b0026f81f46::t_720ce6f2709ebb 702,926
+  s_228b0026f81f46::t_846d26637cb6e8 829
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "2c9e2e1029b6cee6d25ebe8adc3fa6543fe6e97f",
+  "prompts": {},
+  "sessions": {
+    "s_228b0026f81f46": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cb0-114c-7042-af96-afd19750d14c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
