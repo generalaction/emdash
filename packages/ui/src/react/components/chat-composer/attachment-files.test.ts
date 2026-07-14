@@ -28,7 +28,7 @@ describe('imageFilesFromClipboard', () => {
     ).toEqual([image]);
   });
 
-  it('selects one preferred representation for an image clipboard payload', () => {
+  it('filters unsupported representations when a supported image is available', () => {
     const tiff = new File(['tiff'], 'screenshot.tiff', { type: 'image/tiff' });
     const png = new File(['png'], 'screenshot.png', { type: 'image/png' });
 
@@ -50,5 +50,28 @@ describe('imageFilesFromClipboard', () => {
         types: ['Files', 'image/png'],
       })
     ).toEqual([first, second]);
+  });
+
+  it('keeps same-stem images with different supported types', () => {
+    const png = new File(['png'], 'image.png', { type: 'image/png' });
+    const jpeg = new File(['jpeg'], 'image.jpg', { type: 'image/jpeg' });
+
+    expect(
+      imageFilesFromClipboard({
+        items: [clipboardItem(png), clipboardItem(jpeg)] as unknown as DataTransferItemList,
+        types: ['image/png', 'image/jpeg'],
+      })
+    ).toEqual([png, jpeg]);
+  });
+
+  it('keeps unsupported images when no supported representation exists', () => {
+    const tiff = new File(['tiff'], 'image.tiff', { type: 'image/tiff' });
+
+    expect(
+      imageFilesFromClipboard({
+        items: [clipboardItem(tiff)] as unknown as DataTransferItemList,
+        types: ['image/tiff'],
+      })
+    ).toEqual([tiff]);
   });
 });
