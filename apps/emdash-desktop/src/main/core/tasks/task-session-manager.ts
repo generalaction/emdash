@@ -214,6 +214,11 @@ class TaskSessionManager {
     return this._lifecycle.get(taskId)?.taskProvider;
   }
 
+  getTaskForProject(projectId: string, taskId: string): TaskProvider | undefined {
+    const stored = this._lifecycle.get(taskId);
+    return stored?.projectId === projectId ? stored.taskProvider : undefined;
+  }
+
   getWorkspaceId(taskId: string): string | undefined {
     return this._lifecycle.get(taskId)?.persistData.workspaceId;
   }

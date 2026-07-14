@@ -128,7 +128,7 @@ const TerminalTabBarItemDragPreview = observer(function TerminalTabBarItemDragPr
 
 const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: TabContentProps) {
   const taskCtx = ctx as TaskTabContext;
-  const terminalManager = terminalRegistry.get(taskCtx.taskId);
+  const terminalManager = terminalRegistry.get(taskCtx.projectId, taskCtx.taskId);
   const terminalTabs = host.resolvedTabs.filter(
     (tab): tab is ResolvedTab<TerminalTabResourceView> => tab.kind === 'terminal'
   );
@@ -175,7 +175,7 @@ export const terminalTabProvider: TabProvider<
 
   onBeforeOpen(args: TerminalTabOpenArgs, ctx: TabViewContext): TerminalTabState | null {
     const taskCtx = ctx as TaskTabContext;
-    const terminalManager = terminalRegistry.get(taskCtx.taskId);
+    const terminalManager = terminalRegistry.get(taskCtx.projectId, taskCtx.taskId);
     if (!terminalManager) return null;
     return { terminalId: args.terminalId };
   },
@@ -186,7 +186,7 @@ export const terminalTabProvider: TabProvider<
     ctx: TabViewContext
   ): TerminalTabResourceView {
     const taskCtx = ctx as TaskTabContext;
-    const terminalManager = terminalRegistry.get(taskCtx.taskId);
+    const terminalManager = terminalRegistry.get(taskCtx.projectId, taskCtx.taskId);
     if (!terminalManager) {
       setTimeout(() => void handle.close({ force: true }), 0);
       return new MissingTerminalTabResource(entry.state.terminalId);

@@ -157,7 +157,7 @@ export class TaskManagerStore {
         // WorkspaceViewModel's reaction on `conversations.size` registers the
         // manager's observable map as a dependency on its first evaluation.
         conversationRegistry.acquire(this.projectId, task.id, []);
-        terminalRegistry.acquire(task.id, this.projectId);
+        terminalRegistry.acquire(this.projectId, task.id);
       });
     });
 
@@ -290,7 +290,7 @@ export class TaskManagerStore {
 
   private _releaseTaskRegistries(taskId: string): void {
     conversationRegistry.release(this.projectId, taskId);
-    terminalRegistry.release(taskId);
+    terminalRegistry.release(this.projectId, taskId);
   }
 
   private _removeTaskLocally(taskId: string): void {
@@ -325,7 +325,7 @@ export class TaskManagerStore {
                 t.id,
                 conversationsByTask.get(t.id) ?? []
               );
-              terminalRegistry.acquire(t.id, this.projectId);
+              terminalRegistry.acquire(this.projectId, t.id);
             }
           });
           const reloadPromises = tasks.flatMap((t) => {
@@ -377,7 +377,7 @@ export class TaskManagerStore {
       } else {
         conversationRegistry.acquire(this.projectId, params.id, []);
       }
-      terminalRegistry.acquire(params.id, this.projectId);
+      terminalRegistry.acquire(this.projectId, params.id);
     });
 
     const result = await rpc.tasks
@@ -488,7 +488,7 @@ export class TaskManagerStore {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(this.projectId, taskId);
-        terminalRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(this.projectId, taskId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
@@ -515,7 +515,7 @@ export class TaskManagerStore {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
         conversationRegistry.acquire(this.projectId, taskId);
-        terminalRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(this.projectId, taskId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,

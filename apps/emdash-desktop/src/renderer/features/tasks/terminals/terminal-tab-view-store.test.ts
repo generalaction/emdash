@@ -1,12 +1,18 @@
 import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
+import {
+  TerminalRegistry,
+  terminalRegistry,
+  terminalRegistryKey,
+} from '@renderer/features/tasks/stores/terminal-registry';
 import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
 import { TerminalTabViewStore } from './terminal-tab-view-store';
 
 vi.mock('./terminal-manager', () => ({
-  TerminalManagerStore: class {},
+  TerminalManagerStore: class {
+    dispose() {}
+  },
 }));
 
 function makeTerminal(id: string, name = 'Terminal 1'): TerminalStore {
@@ -49,18 +55,36 @@ function registryEntries(): {
   ).entries;
 }
 
+describe('TerminalRegistry', () => {
+  it('keeps stores for the same task id in different projects independent', () => {
+    const registry = new TerminalRegistry();
+    const first = registry.acquire('project-1', 'shared-task');
+    const second = registry.acquire('project-2', 'shared-task');
+
+    expect(second).not.toBe(first);
+    expect(registry.get('project-1', 'shared-task')).toBe(first);
+    expect(registry.get('project-2', 'shared-task')).toBe(second);
+
+    registry.release('project-1', 'shared-task');
+    expect(registry.get('project-2', 'shared-task')).toBe(second);
+    registry.release('project-2', 'shared-task');
+  });
+});
+
 describe('TerminalTabViewStore', () => {
   afterEach(() => {
-    terminalRegistry.release('task-1');
-    registryEntries().delete('task-1');
+    terminalRegistry.release('project-1', 'task-1');
+    registryEntries().delete(terminalRegistryKey('project-1', 'task-1'));
   });
 
   it('syncs terminal ids when the terminal manager becomes available after construction', () => {
     const terminals = observable.map<string, TerminalStore>();
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      () => terminalRegistry.get('project-1', 'task-1') ?? null
+    );
 
     runInAction(() => {
-      registryEntries().set('task-1', makeManager(terminals));
+      registryEntries().set(terminalRegistryKey('project-1', 'task-1'), makeManager(terminals));
       terminals.set('terminal-2', makeTerminal('terminal-2', 'Terminal 2'));
     });
 
@@ -73,9 +97,11 @@ describe('TerminalTabViewStore', () => {
     const terminals = observable.map<string, TerminalStore>();
     terminals.set('terminal-1', makeTerminal('terminal-1', 'Terminal 1'));
     terminals.set('terminal-2', makeTerminal('terminal-2', 'Terminal 2'));
-    registryEntries().set('task-1', makeManager(terminals));
+    registryEntries().set(terminalRegistryKey('project-1', 'task-1'), makeManager(terminals));
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      () => terminalRegistry.get('project-1', 'task-1') ?? null
+    );
     view.restoreSnapshot({
       tabOrder: ['terminal-2'],
       activeTabId: 'terminal-2',
@@ -91,9 +117,11 @@ describe('TerminalTabViewStore', () => {
     const terminals = observable.map<string, TerminalStore>();
     terminals.set('terminal-1', makeTerminal('terminal-1', 'Terminal 1'));
     terminals.set('terminal-2', makeTerminal('terminal-2', 'Terminal 2'));
-    registryEntries().set('task-1', makeManager(terminals));
+    registryEntries().set(terminalRegistryKey('project-1', 'task-1'), makeManager(terminals));
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      () => terminalRegistry.get('project-1', 'task-1') ?? null
+    );
     view.restoreSnapshot({
       tabOrder: ['deleted-terminal'],
       activeTabId: 'deleted-terminal',
@@ -106,7 +134,9 @@ describe('TerminalTabViewStore', () => {
   });
 
   it('reconciles a restored snapshot after the terminal manager loads later', () => {
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      () => terminalRegistry.get('project-1', 'task-1') ?? null
+    );
     view.restoreSnapshot({
       tabOrder: ['deleted-terminal'],
       activeTabId: 'deleted-terminal',
@@ -116,7 +146,7 @@ describe('TerminalTabViewStore', () => {
     terminals.set('terminal-1', makeTerminal('terminal-1', 'Terminal 1'));
 
     runInAction(() => {
-      registryEntries().set('task-1', makeManager(terminals));
+      registryEntries().set(terminalRegistryKey('project-1', 'task-1'), makeManager(terminals));
     });
 
     expect(view.tabOrder).toEqual(['terminal-1']);
@@ -128,9 +158,11 @@ describe('TerminalTabViewStore', () => {
   it('clears stale restored ids when an empty terminal list finishes loading', () => {
     const terminals = observable.map<string, TerminalStore>();
     const manager = makeLoadingManager(terminals);
-    registryEntries().set('task-1', manager);
+    registryEntries().set(terminalRegistryKey('project-1', 'task-1'), manager);
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      () => terminalRegistry.get('project-1', 'task-1') ?? null
+    );
     view.restoreSnapshot({
       tabOrder: ['deleted-terminal'],
       activeTabId: 'deleted-terminal',

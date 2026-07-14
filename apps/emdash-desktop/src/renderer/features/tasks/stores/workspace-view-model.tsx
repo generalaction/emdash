@@ -116,7 +116,9 @@ export class WorkspaceViewModel implements ILifecycle {
       },
     });
     this._seeder = new DefaultConversationSeeder(projectId, this.taskId, this.paneLayout);
-    this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
+    this.terminalTabs = new TerminalTabViewStore(
+      () => terminalRegistry.get(projectId, this.taskId) ?? null
+    );
     this.editorView = new EditorViewStore(this.paneLayout, taskData.projectId, workspaceId);
 
     makeAutoObservable(this, {
@@ -258,7 +260,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
-        const terminals = terminalRegistry.get(this.taskId);
+        const terminals = terminalRegistry.get(taskData.projectId, this.taskId);
         return {
           isDrawerOpen: this.isTerminalDrawerOpen,
           isCreatingTerminal: this._isCreatingTerminal,
@@ -425,7 +427,10 @@ export class WorkspaceViewModel implements ILifecycle {
 
     this._isCreatingTerminal = true;
     try {
-      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal(shell);
+      const projectId = (this._taskStore.data as Task).projectId;
+      const terminal = await terminalRegistry
+        .get(projectId, this.taskId)
+        ?.createDefaultTerminal(shell);
       if (!terminal) return undefined;
       return terminal.id;
     } catch (error) {

@@ -65,7 +65,10 @@ vi.mock('@renderer/utils/logger', () => ({
 }));
 
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
-import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
+import {
+  terminalRegistry,
+  terminalRegistryKey,
+} from '@renderer/features/tasks/stores/terminal-registry';
 import { taskTabView } from '@renderer/features/tasks/task-tab-registry';
 import type {
   TerminalManagerStore,
@@ -258,7 +261,7 @@ describe('PaneLayoutStore: single-mount explicit target opens', () => {
     vi.clearAllMocks();
     browserSessionStore.clear();
     terminalRegistryEntries().set(
-      'task-1',
+      terminalRegistryKey('project-1', 'task-1'),
       new FakeTerminalManagerStore({
         terminalIds: ['terminal-1'],
         isLoaded: true,
@@ -267,8 +270,8 @@ describe('PaneLayoutStore: single-mount explicit target opens', () => {
   });
 
   afterEach(() => {
-    terminalRegistry.release('task-1');
-    terminalRegistryEntries().delete('task-1');
+    terminalRegistry.release('project-1', 'task-1');
+    terminalRegistryEntries().delete(terminalRegistryKey('project-1', 'task-1'));
   });
 
   it('moves an existing single-mount tab to an explicit target pane', () => {

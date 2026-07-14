@@ -155,7 +155,7 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
         const conv = getConversationsForTask(entry.projectId, taskId)?.conversations.get(
           entry.leafId
         );
-        const terminal = getTerminalsForTask(taskId)?.terminals.get(entry.leafId);
+        const terminal = getTerminalsForTask(entry.projectId, taskId)?.terminals.get(entry.leafId);
         providerId = conv?.data.providerId;
         displayTitle = conv?.data.title ?? terminal?.data.name;
       }

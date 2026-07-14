@@ -140,8 +140,8 @@ export function getConversationsForTask(projectId: string, taskId: string) {
   return conversationRegistry.get(projectId, taskId);
 }
 
-export function getTerminalsForTask(taskId: string) {
-  return terminalRegistry.get(taskId);
+export function getTerminalsForTask(projectId: string, taskId: string) {
+  return terminalRegistry.get(projectId, taskId);
 }
 
 /** Returns the display name from any task store variant. */

@@ -88,7 +88,10 @@ vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
 }));
 
 import type { BrowserTabResource } from '@renderer/features/browser/browser-tab-resource';
-import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
+import {
+  terminalRegistry,
+  terminalRegistryKey,
+} from '@renderer/features/tasks/stores/terminal-registry';
 import { taskTabView } from '@renderer/features/tasks/task-tab-registry';
 import type {
   TerminalManagerStore,
@@ -162,8 +165,8 @@ describe('PaneStore browser tabs', () => {
   });
 
   afterEach(() => {
-    terminalRegistry.release('task-1');
-    terminalRegistryEntries().delete('task-1');
+    terminalRegistry.release('project-1', 'task-1');
+    terminalRegistryEntries().delete(terminalRegistryKey('project-1', 'task-1'));
   });
 
   it('opens browser tabs backed by the default browser profile session', () => {
@@ -292,7 +295,7 @@ describe('PaneStore terminal tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     terminalRegistryEntries().set(
-      'task-1',
+      terminalRegistryKey('project-1', 'task-1'),
       new FakeTerminalManagerStore({
         terminalIds: ['terminal-1'],
         isLoaded: true,
@@ -301,8 +304,8 @@ describe('PaneStore terminal tabs', () => {
   });
 
   afterEach(() => {
-    terminalRegistry.release('task-1');
-    terminalRegistryEntries().delete('task-1');
+    terminalRegistry.release('project-1', 'task-1');
+    terminalRegistryEntries().delete(terminalRegistryKey('project-1', 'task-1'));
   });
 
   it('opens and snapshots an existing terminal as a task tab', () => {
@@ -341,7 +344,7 @@ describe('PaneStore terminal tabs', () => {
       tabId: 'tab-terminal-1',
       isActive: true,
     });
-    expect(terminalRegistry.get('task-1')?.terminals.has('terminal-1')).toBe(true);
+    expect(terminalRegistry.get('project-1', 'task-1')?.terminals.has('terminal-1')).toBe(true);
   });
 
   it('closing a terminal task tab only closes the tab view', () => {
@@ -351,7 +354,7 @@ describe('PaneStore terminal tabs', () => {
     manager.closeTab(manager.resolvedTabs[0]?.tabId ?? '');
 
     expect(manager.resolvedTabs).toEqual([]);
-    expect(terminalRegistry.get('task-1')?.terminals.has('terminal-1')).toBe(true);
+    expect(terminalRegistry.get('project-1', 'task-1')?.terminals.has('terminal-1')).toBe(true);
   });
 
   it('stale-closes terminal tabs when the drawer-owned terminal is removed', async () => {
@@ -359,7 +362,7 @@ describe('PaneStore terminal tabs', () => {
     manager.open('terminal', { terminalId: 'terminal-1' });
 
     runInAction(() => {
-      terminalRegistry.get('task-1')?.terminals.delete('terminal-1');
+      terminalRegistry.get('project-1', 'task-1')?.terminals.delete('terminal-1');
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -367,7 +370,10 @@ describe('PaneStore terminal tabs', () => {
   });
 
   it('stale-closes restored terminal tabs after initialization finishes', async () => {
-    const terminals = terminalRegistry.get('task-1') as unknown as FakeTerminalManagerStore;
+    const terminals = terminalRegistry.get(
+      'project-1',
+      'task-1'
+    ) as unknown as FakeTerminalManagerStore;
     runInAction(() => {
       terminals.terminals.clear();
       terminals.isLoaded = true;

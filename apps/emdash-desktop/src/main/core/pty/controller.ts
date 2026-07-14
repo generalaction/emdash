@@ -98,12 +98,11 @@ export const ptyController = createRPCController({
   stopSession: async (sessionId: string) => {
     const parsed = parsePtySessionId(sessionId);
     if (!parsed) return err({ type: 'invalid_session' as const });
-    const { scopeId, leafId } = parsed;
+    const { projectId, scopeId, leafId } = parsed;
 
-    // Agents and terminals are scoped by task id, so the task lookup resolves
-    // the owning provider. Conversation PTYs carry a providerId in their
-    // registry metadata; plain terminals do not — that distinguishes the two.
-    const task = taskSessionManager.getTask(scopeId);
+    // Conversation PTYs carry a providerId in their registry metadata; plain
+    // terminals do not — that distinguishes the two.
+    const task = taskSessionManager.getTaskForProject(projectId, scopeId);
     if (task) {
       const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
       try {

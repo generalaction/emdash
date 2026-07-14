@@ -103,8 +103,8 @@ export function useConversations(): ConversationManagerStore {
 
 /** Returns the TerminalManagerStore for the task. Throws if not registered. */
 export function useTerminals(): TerminalManagerStore {
-  const { taskId } = useTaskViewContext();
-  const mgr = getTerminalsForTask(taskId);
+  const { projectId, taskId } = useTaskViewContext();
+  const mgr = getTerminalsForTask(projectId, taskId);
   if (!mgr) {
     throw new Error('useTerminals: task is not registered (no terminal manager)');
   }

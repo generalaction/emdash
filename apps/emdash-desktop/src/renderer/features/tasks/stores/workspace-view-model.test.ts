@@ -11,7 +11,7 @@ import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import type { TaskStore } from './task-store';
-import { terminalRegistry } from './terminal-registry';
+import { terminalRegistry, terminalRegistryKey } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
@@ -226,8 +226,8 @@ afterEach(() => {
   // Release the session manager first so the reconciler disposes cleanly.
   releaseConversationSessionManager('project-1', 'task-1');
   conversationRegistry.release('project-1', 'task-1');
-  terminalRegistry.release('task-1');
-  terminalRegistryEntries().delete('task-1');
+  terminalRegistry.release('project-1', 'task-1');
+  terminalRegistryEntries().delete(terminalRegistryKey('project-1', 'task-1'));
   workspaceRegistry.release('project-1', 'workspace-1');
   // Clear cache keys written by TaskTabViewPersistor so tests don't pollute each other.
   viewStateCache.delete('task:task-1:tabs');
@@ -253,7 +253,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
   it('does not auto-create a terminal when stale restored tabs are empty but terminal records load', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: false });
-    terminalRegistryEntries().set('task-1', terminals);
+    terminalRegistryEntries().set(terminalRegistryKey('project-1', 'task-1'), terminals);
     workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
       settings: {},
     } as never);
@@ -282,7 +282,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
   it('closes a restored empty terminal drawer after terminal state is loaded', async () => {
     const terminals = makeTerminalManager({ terminalIds: [], isLoaded: true });
-    terminalRegistryEntries().set('task-1', terminals);
+    terminalRegistryEntries().set(terminalRegistryKey('project-1', 'task-1'), terminals);
     workspaceRegistry.acquire(
       'project-1',
       'workspace-1',
@@ -314,7 +314,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
   it('closes a restored empty terminal drawer when empty terminal state finishes loading', async () => {
     const terminals = makeTerminalManager({ terminalIds: [], isLoaded: false });
-    terminalRegistryEntries().set('task-1', terminals);
+    terminalRegistryEntries().set(terminalRegistryKey('project-1', 'task-1'), terminals);
     workspaceRegistry.acquire(
       'project-1',
       'workspace-1',
@@ -350,7 +350,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
   it('closes the terminal drawer after the user closes the last terminal', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: true });
-    terminalRegistryEntries().set('task-1', terminals);
+    terminalRegistryEntries().set(terminalRegistryKey('project-1', 'task-1'), terminals);
     workspaceRegistry.acquire(
       'project-1',
       'workspace-1',
