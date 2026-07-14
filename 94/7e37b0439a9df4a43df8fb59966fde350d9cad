@@ -1,0 +1,143 @@
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_fd9049852356ce::t_e6fca44e0fa03f 49
+apps/emdash-desktop/src/renderer/features/conversations/create-conversation-modal.tsx
+  s_34653b6a99bb47::t_e61594d4dcf47c 43
+apps/emdash-desktop/src/renderer/features/conversations/stores/conversation-registry.test.ts
+  s_24c6b63c00402b::t_4cb56d23b2bbf0 24-33
+  s_45375c3e44cdc8::t_66f41c9e0fe45d 4-7
+  s_403c5afdaa8a66::t_64cc32ce4fdd81 1-3,8-23,34
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_c8589f8c82cb58::t_77ebd6a82153f7 183
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_c8589f8c82cb58::t_77ebd6a82153f7 159,292,325,376,378,490,517
+apps/emdash-desktop/src/renderer/features/conversations/conversation-tab-provider.tsx
+  s_34653b6a99bb47::t_e61594d4dcf47c 51,75-77
+apps/emdash-desktop/src/renderer/features/conversations/stores/conversation-registry.ts
+  s_c8589f8c82cb58::t_77ebd6a82153f7 7-9,12,16-17,20-22,25,29
+  s_24c6b63c00402b::t_4cb56d23b2bbf0 30
+  s_24c6b63c00402b::t_b2b1ebf0395df7 31-32
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-tab-provider.tsx
+  s_fd9049852356ce::t_e6fca44e0fa03f 40,84,123,130
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_fd9049852356ce::t_e6fca44e0fa03f 384-386,467-470
+  s_fd9049852356ce::t_6fd60fc32530bd 471-472
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_aa09c773182c9b::t_1d1f39c0d8bbad 227-228,389,403,438,476,512,541,581,646,683,719,788,823
+apps/emdash-desktop/src/renderer/features/conversations/default-conversation-seeder.ts
+  s_34653b6a99bb47::t_e61594d4dcf47c 20,25,42
+apps/emdash-desktop/src/renderer/features/conversations/stores/conversation-session-manager.ts
+  s_34653b6a99bb47::t_e61594d4dcf47c 4,24-27,30,42,68-73,75-76,80-82,85
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_c8589f8c82cb58::t_77ebd6a82153f7 60-62,140
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.test.ts
+  s_aa09c773182c9b::t_1d1f39c0d8bbad 189,214
+apps/emdash-desktop/src/renderer/features/conversations/conversation-tab-resource.ts
+  s_34653b6a99bb47::t_e61594d4dcf47c 19,25,32-34,56-58
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.ts
+  s_fd9049852356ce::t_e6fca44e0fa03f 476
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_34653b6a99bb47::t_e61594d4dcf47c 118
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-panel.tsx
+  s_fd9049852356ce::t_e6fca44e0fa03f 515-516,679-681
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-resource-manager.ts
+  s_fd9049852356ce::t_e6fca44e0fa03f 74-75
+  s_34653b6a99bb47::t_e61594d4dcf47c 77-78,81,85-87,90
+  s_3317d193f13dac::t_62fbbbf811d71e 1
+apps/emdash-desktop/src/renderer/features/conversations/conversation-manager.ts
+  s_d4ff9863da9425::t_607b2ff4424a33 40
+  s_c8589f8c82cb58::t_77ebd6a82153f7 112,150
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-tab-resource.ts
+  s_fd9049852356ce::t_e6fca44e0fa03f 30,37
+apps/emdash-desktop/src/renderer/features/tabs/core/task-tab-context.ts
+  s_fd9049852356ce::t_e6fca44e0fa03f 13
+apps/emdash-desktop/src/renderer/features/conversations/sidebar-conversations-list.tsx
+  s_41f6a8fd3f4373::t_f30aada2cb9384 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "947e37b0439a9df4a43df8fb59966fde350d9cad",
+  "prompts": {},
+  "sessions": {
+    "s_24c6b63c00402b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJlayT0eYzvAmcN26d0",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_3317d193f13dac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6068-a875-75b1-8787-a3d0717a1a6e",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_34653b6a99bb47": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJLpHWIeCFUyKnmLzCL",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_403c5afdaa8a66": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJSZgRJxdo4Es3Hhubs",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_41f6a8fd3f4373": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f605a-5a4d-7e73-9962-6836207c6cc3",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_45375c3e44cdc8": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJU4kyD5Qt4ZoI45j3w",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_aa09c773182c9b": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJOw65aZF4doCn5yByp",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c8589f8c82cb58": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJLHB4vPHYHURcebse7",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d4ff9863da9425": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJQTmjJwRif0cSF5o1c",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fd9049852356ce": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJMlBK2dchLbp4hzzsf",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
