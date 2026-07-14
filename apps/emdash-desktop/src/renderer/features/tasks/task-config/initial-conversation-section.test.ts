@@ -332,4 +332,31 @@ describe('InitialConversationField', () => {
       })
     );
   });
+
+  it('renders provider icons for every issue mention', async () => {
+    const linkedIssue: LinkedIssue = {
+      provider: 'linear',
+      identifier: 'ENG-123',
+      displayIdentifier: 'ENG-123',
+      title: 'Fix flaky tests',
+      url: 'https://linear.app/emdash/issue/ENG-123/fix-flaky-tests',
+    };
+
+    await renderField({ linkedIssue, includeIssueContextByDefault: true });
+
+    const renderMentionIcon = chatComposerProps().renderMentionIcon;
+    const firstIcon = renderMentionIcon?.({
+      id: 'issue:linear:ENG-123',
+      label: 'issue:linear:ENG-123',
+      kind: 'issue',
+    });
+    const secondIcon = renderMentionIcon?.({
+      id: 'issue:linear:ENG-456',
+      label: 'issue:linear:ENG-456',
+      kind: 'issue',
+    });
+
+    expect(firstIcon).toMatchObject({ props: { provider: 'linear' } });
+    expect(secondIcon).toMatchObject({ props: { provider: 'linear' } });
+  });
 });
