@@ -23,21 +23,19 @@ describe('imageFilesFromClipboard', () => {
     expect(
       imageFilesFromClipboard({
         items: items as unknown as DataTransferItemList,
-        types: ['Files'],
       })
     ).toEqual([image]);
   });
 
-  it('filters unsupported representations when a supported image is available', () => {
+  it('keeps every image when the clipboard exposes multiple representations', () => {
     const tiff = new File(['tiff'], 'screenshot.tiff', { type: 'image/tiff' });
     const png = new File(['png'], 'screenshot.png', { type: 'image/png' });
 
     expect(
       imageFilesFromClipboard({
         items: [clipboardItem(tiff), clipboardItem(png)] as unknown as DataTransferItemList,
-        types: ['image/tiff', 'image/png'],
       })
-    ).toEqual([png]);
+    ).toEqual([tiff, png]);
   });
 
   it('keeps multiple independent images of the same type', () => {
@@ -47,7 +45,6 @@ describe('imageFilesFromClipboard', () => {
     expect(
       imageFilesFromClipboard({
         items: [clipboardItem(first), clipboardItem(second)] as unknown as DataTransferItemList,
-        types: ['Files', 'image/png'],
       })
     ).toEqual([first, second]);
   });
@@ -59,7 +56,6 @@ describe('imageFilesFromClipboard', () => {
     expect(
       imageFilesFromClipboard({
         items: [clipboardItem(png), clipboardItem(jpeg)] as unknown as DataTransferItemList,
-        types: ['image/png', 'image/jpeg'],
       })
     ).toEqual([png, jpeg]);
   });
@@ -70,8 +66,18 @@ describe('imageFilesFromClipboard', () => {
     expect(
       imageFilesFromClipboard({
         items: [clipboardItem(tiff)] as unknown as DataTransferItemList,
-        types: ['image/tiff'],
       })
     ).toEqual([tiff]);
+  });
+
+  it('keeps separate supported and unsupported images', () => {
+    const tiff = new File(['chart'], 'chart.tiff', { type: 'image/tiff' });
+    const png = new File(['photo'], 'photo.png', { type: 'image/png' });
+
+    expect(
+      imageFilesFromClipboard({
+        items: [clipboardItem(tiff), clipboardItem(png)] as unknown as DataTransferItemList,
+      })
+    ).toEqual([tiff, png]);
   });
 });
