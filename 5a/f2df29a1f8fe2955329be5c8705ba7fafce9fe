@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_e05f41758771a4::t_8c787baa546c4d 2,41-42,44-55,85,88
+  s_bce030b9734268::t_1f0b55b4b3826c 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "5af2df29a1f8fe2955329be5c8705ba7fafce9fe",
+  "prompts": {},
+  "sessions": {
+    "s_bce030b9734268": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pQBtI5c44R7AjqBYKYM",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e05f41758771a4": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pPYrBdhPvepHgDbKbyJ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
