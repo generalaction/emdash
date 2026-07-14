@@ -102,9 +102,9 @@ export const ptyController = createRPCController({
 
     // Conversation PTYs carry a providerId in their registry metadata; plain
     // terminals do not — that distinguishes the two.
+    const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
     const task = taskSessionManager.getTaskForProject(projectId, scopeId);
     if (task) {
-      const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
       try {
         if (isConversation) {
           await task.conversations.stopSession(leafId);
@@ -130,6 +130,14 @@ export const ptyController = createRPCController({
         }
       }
       return ok();
+    }
+
+    if (isConversation) {
+      log.warn('ptyController.stopSession: conversation provider unavailable', { sessionId });
+      return err({
+        type: 'stop_failed' as const,
+        message: 'Conversation provider is unavailable',
+      });
     }
 
     // Lifecycle scripts are scoped by workspace id (no task match) and never

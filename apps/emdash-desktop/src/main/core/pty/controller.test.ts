@@ -145,7 +145,7 @@ describe('ptyController', () => {
     ptySessionRegistry.unregister(sessionId);
   });
 
-  it('falls back to killing the PTY when the task does not belong to the parsed project', async () => {
+  it('does not raw-kill a conversation PTY when its project provider is unavailable', async () => {
     const wrongProjectStopSession = vi.fn();
     const pty = makePty();
     const sessionId = 'proj-2:task-1:conv-1';
@@ -157,11 +157,20 @@ describe('ptyController', () => {
 
     const result = await ptyController.stopSession(sessionId);
 
-    expect(result.success).toBe(true);
     expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-2', 'task-1');
     expect(wrongProjectStopSession).not.toHaveBeenCalled();
-    expect(pty.kill).toHaveBeenCalledOnce();
-    expect(ptySessionRegistry.get(sessionId)).toBeUndefined();
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'stop_failed',
+        message: 'Conversation provider is unavailable',
+      },
+    });
+    expect(pty.kill).not.toHaveBeenCalled();
+    expect(ptySessionRegistry.get(sessionId)).toBe(pty);
+    expect(mocks.resetToIdle).not.toHaveBeenCalled();
+
+    ptySessionRegistry.unregister(sessionId);
   });
 
   it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {
