@@ -274,12 +274,10 @@ export class AgentPluginHost {
       throw new Error(`Provider '${providerId}' was not found`);
     }
 
-    let state = this.dependencies.get(providerId);
-    if (!state?.path) state = await this.dependencies.probe(providerId);
-    if (state.path) return state.path;
+    const path = await this.dependencies.resolveAvailablePath(providerId);
+    if (path) return path;
 
-    const descriptor = this.descriptors.find((candidate) => candidate.id === providerId);
-    return descriptor?.commands[0] ?? providerId;
+    throw new Error(`No working CLI installation found for provider '${providerId}'`);
   }
 
   private async checkAuthStatusUncached(

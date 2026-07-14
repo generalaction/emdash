@@ -229,6 +229,27 @@ export class HostDependencyManager {
     return this.hostState.get(id);
   }
 
+  /** Returns the first installed CLI that passes this dependency's version probe. */
+  async resolveAvailablePath(id: DependencyId): Promise<string | null> {
+    const descriptor = this._getDependencyDescriptor(id);
+    if (!descriptor) {
+      throw new Error(`Unknown dependency id: ${id}`);
+    }
+
+    const versionArgs = descriptor.versionArgs ?? ['--version'];
+    for (const command of descriptor.commands) {
+      const paths = await resolveAllCommandPaths(command, this.ctx, this.platform);
+      for (const path of paths) {
+        if (descriptor.skipVersionProbe) return path;
+
+        const probe = await runVersionProbe(command, path, versionArgs, this.ctx);
+        if (resolveProbeStatus(descriptor, path, probe) === 'available') return path;
+      }
+    }
+
+    return null;
+  }
+
   /**
    * Two-phase probe for a single dependency:
    *   1. Resolve path (fast, ~5ms) — fires onStatusUpdated immediately.
