@@ -10,7 +10,7 @@ import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
 import { createScope } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
-import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
+import type { HostDependencyResolver } from '@primitives/host-dependencies/api';
 import type {
   AcpFs,
   AcpProcessHandle,
@@ -347,29 +347,19 @@ export function testPluginHost(
   });
 }
 
-function fakeDependencies(providerId: string): HostDependencyManagerPort {
-  const state = {
-    id: providerId,
-    category: 'agent' as const,
-    status: 'available' as const,
-    version: null,
-    path: providerId,
-    checkedAt: 0,
-  };
+function fakeDependencies(providerId: string): HostDependencyResolver {
   return {
-    platform: 'linux',
-    onStatusUpdated: { subscribe: () => () => {} },
-    initialize() {},
-    getAll: () => new Map([[state.id, state]]),
-    get: () => state,
-    getByCategory: () => [state],
-    getHostDependency: () => undefined,
-    probe: async () => state,
-    probeCategory: async () => {},
-    getInstallOptions: () => [],
-    install: async () => ({ success: true, data: state }),
-    uninstall: async () => ({ success: true, data: { ...state, status: 'missing', path: null } }),
-  } as unknown as HostDependencyManagerPort;
+    resolve: async () => ({
+      success: true,
+      data: {
+        id: providerId,
+        command: providerId,
+        path: providerId,
+        realpath: providerId,
+        source: { kind: 'auto' },
+      },
+    }),
+  };
 }
 
 export function makeAcpHarness(options: AcpHarnessOptions = {}) {

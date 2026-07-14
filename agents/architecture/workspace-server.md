@@ -12,6 +12,14 @@ child logs are forwarded from stderr. This mount was added before any
 workspace-server contract deployment, so the initial addition intentionally does
 not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
 
+Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
+The daemon parent owns one local `HostDependencies` component backed by a JSON-file
+`KeyValueStore` under the workspace-server state directory and forwards only the narrow resolver
+contract into process-spawning child runtimes. The full contract remains available to clients for
+inspection, refresh, explicit PATH selection, and plugin-declared update commands. This keeps
+workspace-server dependency state local to the remote host while preserving the same source and
+selection model used by the desktop SQLite-backed component.
+
 ## Protocol Version
 
 The wire contract is versioned with a single [semver](https://semver.org) string, defined in [`packages/core/src/workspace-server/versions.ts`](../../packages/core/src/workspace-server/versions.ts):

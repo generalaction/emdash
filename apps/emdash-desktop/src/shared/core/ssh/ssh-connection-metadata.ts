@@ -1,4 +1,3 @@
-import { normalizeSelection } from '@emdash/core/services/host-dependencies/node';
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
@@ -126,3 +125,23 @@ export const sshConnectionMetadata = defineVersionedSchema()
 
 /** The TypeScript type for SSH connection metadata. */
 export type SshConnectionMetadata = typeof sshConnectionMetadata.Type;
+
+function normalizeSelection(raw: unknown): z.infer<typeof installOverrideV2Schema> {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== 'object') return null;
+  const value = raw as {
+    kind?: unknown;
+    path?: unknown;
+    command?: unknown;
+    usedId?: unknown;
+    cli?: unknown;
+  };
+  if (value.kind === 'path' && typeof value.path === 'string')
+    return { kind: 'path', path: value.path };
+  if (value.kind === 'cli' && typeof value.command === 'string') {
+    return { kind: 'cli', command: value.command };
+  }
+  if (typeof value.path === 'string') return { kind: 'path', path: value.path };
+  if (typeof value.cli === 'string') return { kind: 'cli', command: value.cli };
+  return null;
+}

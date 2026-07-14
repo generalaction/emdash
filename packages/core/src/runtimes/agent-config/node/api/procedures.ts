@@ -6,8 +6,6 @@ import type {
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
-  AgentUninstallError,
-  DependencyState,
 } from '@runtimes/agent-config/api';
 import type { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
 import type { AgentAuthStatus } from '@services/agent-plugins/api/plugins';
@@ -19,12 +17,6 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
       refreshShellEnv?: boolean;
     }): Promise<Result<void, AgentConfigRefreshError>> {
       return runtime.refreshAgents(input);
-    },
-    uninstallAgent(input: {
-      providerId: string;
-      strategy?: { kind: 'package-manager'; method?: string } | { kind: 'custom'; command: string };
-    }): Promise<Result<DependencyState, AgentUninstallError>> {
-      return runtime.uninstallAgent(input.providerId, input.strategy);
     },
     startLogin(input: {
       providerId: string;

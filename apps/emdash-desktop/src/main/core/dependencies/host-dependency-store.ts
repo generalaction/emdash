@@ -2,16 +2,11 @@ import type {
   DependencyId,
   HostDependencySelection,
 } from '@emdash/core/services/host-dependencies/node';
-import { normalizeSelection } from '@emdash/core/services/host-dependencies/node';
-import { eq } from 'drizzle-orm';
-import { mergeDependencySelection } from '@main/core/ssh/config/connection-metadata';
-import { db } from '@main/db/client';
-import { KV } from '@main/db/kv';
-import { sshConnections } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
+import type { Serializable } from '@emdash/shared';
+import { desktopKeyValueStore } from '@main/db/kv';
 
 const LOCAL_HOST_ID = 'local';
+const STORE_PREFIX = 'host-dependencies';
 
 /**
  * Persistence for host-scoped installation selections. Owned entirely by the
@@ -30,133 +25,56 @@ export interface IHostDependencyStore {
   ): Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// Local store (KV table)
-// ---------------------------------------------------------------------------
-
-type LocalHostDepKV = {
-  selections: Record<string, unknown>;
-};
-
-class LocalHostDependencyStore implements IHostDependencyStore {
-  private readonly kv = new KV<LocalHostDepKV>('host-dep');
-
-  async getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null> {
-    if (hostId !== LOCAL_HOST_ID) return null;
-    const all = await this.kv.get('selections');
-    const raw = all?.[depId];
-    // normalizeSelection handles both new discriminated-union and legacy {usedId,path?,cli?} format
-    return normalizeSelection(raw);
-  }
-
-  async setSelection(
-    hostId: string,
-    depId: DependencyId,
-    selection: HostDependencySelection
-  ): Promise<void> {
-    if (hostId !== LOCAL_HOST_ID) return;
-    const all = (await this.kv.get('selections')) ?? {};
-    if (selection === null) {
-      // null = auto: remove the entry rather than storing {kind:'auto'}
-      delete all[depId];
-    } else {
-      all[depId] = selection;
-    }
-    await this.kv.set('selections', all);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SSH store (sshConnections.metadata column)
-// ---------------------------------------------------------------------------
-
-class SshHostDependencyStore implements IHostDependencyStore {
-  async getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null> {
-    if (hostId === LOCAL_HOST_ID) return null;
-    try {
-      const [row] = await db
-        .select({ metadata: sshConnections.metadata })
-        .from(sshConnections)
-        .where(eq(sshConnections.id, hostId))
-        .limit(1);
-      const raw = row?.metadata?.dependencySelections?.[depId];
-      // normalizeSelection handles both new format and legacy values stored in v1 metadata
-      return normalizeSelection(raw);
-    } catch (err) {
-      log.warn('[SshHostDependencyStore] Failed to read dependency selection', {
-        hostId,
-        depId,
-        error: err,
-      });
-      return null;
-    }
-  }
-
-  async setSelection(
-    hostId: string,
-    depId: DependencyId,
-    selection: HostDependencySelection
-  ): Promise<void> {
-    if (hostId === LOCAL_HOST_ID) return;
-    try {
-      const [row] = await db
-        .select({ metadata: sshConnections.metadata })
-        .from(sshConnections)
-        .where(eq(sshConnections.id, hostId))
-        .limit(1);
-
-      if (!row) {
-        log.warn('[SshHostDependencyStore] SSH connection not found', { hostId });
-        return;
-      }
-
-      const existing = row.metadata ?? {};
-      const updated = mergeDependencySelection(existing, depId, selection);
-      const serialized = sshConnectionMetadata.serialize(updated);
-
-      await db
-        .update(sshConnections)
-        .set({ metadata: updated, updatedAt: new Date().toISOString() })
-        .where(eq(sshConnections.id, hostId));
-
-      log.debug('[SshHostDependencyStore] Saved dependency selection', {
-        hostId,
-        depId,
-        serialized,
-      });
-    } catch (err) {
-      log.warn('[SshHostDependencyStore] Failed to save dependency selection', {
-        hostId,
-        depId,
-        error: err,
-      });
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Combined store — routes local vs SSH automatically
-// ---------------------------------------------------------------------------
-
 class HostDependencyStore implements IHostDependencyStore {
-  private readonly local = new LocalHostDependencyStore();
-  private readonly ssh = new SshHostDependencyStore();
-
-  private storeFor(hostId: string): IHostDependencyStore {
-    return hostId === LOCAL_HOST_ID ? this.local : this.ssh;
+  async getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null> {
+    const result = await desktopKeyValueStore.get(storeKey(hostId));
+    if (!result.success || result.data === null) return null;
+    const doc = result.data as { selections?: Record<string, unknown> };
+    return normalizeSelection(doc.selections?.[depId]);
   }
 
-  getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null> {
-    return this.storeFor(hostId).getSelection(hostId, depId);
-  }
-
-  setSelection(
+  async setSelection(
     hostId: string,
     depId: DependencyId,
     selection: HostDependencySelection
   ): Promise<void> {
-    return this.storeFor(hostId).setSelection(hostId, depId, selection);
+    const result = await desktopKeyValueStore.get(storeKey(hostId));
+    const doc =
+      result.success && result.data && typeof result.data === 'object'
+        ? (result.data as { version?: number; selections?: Record<string, unknown> })
+        : {};
+    const selections = { ...(doc.selections ?? {}) };
+    if (selection === null) delete selections[depId];
+    else selections[depId] = selection;
+    await desktopKeyValueStore.set(storeKey(hostId), { version: 1, selections } as Serializable);
   }
 }
 
 export const hostDependencyStore = new HostDependencyStore();
+
+function storeKey(hostId: string): string {
+  return `${STORE_PREFIX}:${hostId || LOCAL_HOST_ID}:selections`;
+}
+
+function normalizeSelection(selection: unknown): HostDependencySelection | null {
+  if (selection === null || selection === undefined) return null;
+  if (typeof selection !== 'object') return null;
+  const value = selection as {
+    kind?: unknown;
+    path?: unknown;
+    realpath?: unknown;
+    command?: unknown;
+    usedId?: unknown;
+  };
+  if (value.kind === 'path' && typeof value.path === 'string') {
+    return { kind: 'path', path: value.path };
+  }
+  if (value.kind === 'pinned' && typeof value.realpath === 'string') {
+    return { kind: 'path', path: value.realpath };
+  }
+  if (value.kind === 'cli' && typeof value.command === 'string' && value.command.startsWith('/')) {
+    return { kind: 'path', path: value.command };
+  }
+  if (typeof value.path === 'string') return { kind: 'path', path: value.path };
+  return null;
+}

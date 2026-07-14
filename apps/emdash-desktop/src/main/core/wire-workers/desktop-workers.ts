@@ -10,7 +10,14 @@ import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/a
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent } from '@emdash/core/runtimes/git/node';
+import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
+import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import {
+  CORE_DEPENDENCIES,
+  createHostDependenciesComponent,
+  type HostDependenciesContract,
+} from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import {
   type Contract,
@@ -28,6 +35,7 @@ import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { getGitExecutable } from '@main/core/utils/exec';
+import { desktopKeyValueStore } from '@main/db/kv';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
 import {
@@ -41,6 +49,7 @@ export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
+export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 
 const workerScope = appScope.child('wire-workers');
 const host = createWireWorkerHost({
@@ -56,6 +65,10 @@ function createMessageChannel() {
 
 const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
 const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
+const hostDependenciesComponent = createHostDependenciesComponent({
+  store: desktopKeyValueStore,
+  exec: new NodeExecutionContext({ env: process.env }),
+});
 const GIT_RUNTIME_ENV = {
   ...process.env,
   ...NON_INTERACTIVE_GIT_ENV,
@@ -72,11 +85,27 @@ const fsWatchWorker = host.create(fsWatchComponent, {
   config: {},
 });
 
+const hostDependencies = hostDependenciesComponent.create({
+  scope: workerScope,
+  dependencies: {},
+  config: {
+    hostId: 'local',
+    definitions: [
+      ...CORE_DEPENDENCIES,
+      ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
+    ],
+  },
+});
+
+export const hostDependenciesClient: HostDependenciesClient = hostDependencies.client;
+
 export const acpWorker = host.create(acpComponent, {
   name: 'acp',
   executable: desktopWorkerPath('acp'),
   env: process.env,
-  dependencies: {},
+  dependencies: {
+    hostDependencies: hostDependencies.client.resolver,
+  },
   config: {
     attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
   },
@@ -88,7 +117,9 @@ export const agentConfigWorker = host.create(agentConfigComponent, {
   name: 'agent-config',
   executable: desktopWorkerPath('agent-config'),
   env: process.env,
-  dependencies: {},
+  dependencies: {
+    hostDependencies: hostDependencies.client.resolver,
+  },
   config: {},
 });
 
@@ -112,6 +143,7 @@ export const gitWorker = host.create(gitComponent, {
   env: GIT_RUNTIME_ENV,
   dependencies: {
     watcher: fsWatchWorker.client,
+    hostDependencies: hostDependencies.client.resolver,
   },
   config: {
     executable: getGitExecutable(),

@@ -1,14 +1,15 @@
 import type { IExecutionContext } from '@primitives/exec/api';
-import type { Platform } from '@primitives/host-dependencies/api';
-import { toPlatform } from './install-options';
-import type { ProbeResult } from './types';
+import type { Platform, ProbeResult } from '@primitives/host-dependencies/api';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 const REALPATH_TIMEOUT_MS = 5_000;
 
 function targetPlatform(platform?: Platform): Platform {
-  return platform ?? toPlatform(process.platform);
+  if (platform) return platform;
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'win32') return 'windows';
+  return 'linux';
 }
 
 /**

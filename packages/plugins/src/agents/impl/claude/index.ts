@@ -110,19 +110,9 @@ export const plugin = definePlugin(
           },
         ],
       },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'github',
-          repo: 'anthropics/claude-code',
-        },
-        update: {
-          kind: 'cli',
-          args: ['install', 'latest'],
-        },
-      },
-      uninstall: {
-        kind: 'package-manager',
+      updateCommand: {
+        kind: 'self',
+        args: ['install', 'latest'],
       },
     },
     mcp: {

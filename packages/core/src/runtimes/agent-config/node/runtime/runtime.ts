@@ -1,5 +1,4 @@
 import type { Result } from '@emdash/shared';
-import type { LiveJobContext } from '@emdash/wire';
 import type { LiveLog } from '@emdash/wire';
 import type { McpServer } from '@primitives/mcp/api';
 import type { CatalogSkill } from '@primitives/skills/api';
@@ -8,10 +7,6 @@ import type {
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
-  AgentInstallError,
-  AgentInstallProgress,
-  AgentUninstallError,
-  DependencyState,
 } from '@runtimes/agent-config/api';
 import {
   createAgentConfigAgentsLiveHost,
@@ -30,13 +25,6 @@ import { AgentInstallManager } from './install';
 import { AgentMcpConfigManager } from './mcp';
 import { AgentSkillsManager } from './skills';
 import type { AgentConfigRuntimeDeps } from './types';
-
-type InstallStrategy =
-  | { kind: 'package-manager'; method?: string }
-  | { kind: 'custom'; command: string };
-type UninstallStrategy =
-  | { kind: 'package-manager'; method?: string }
-  | { kind: 'custom'; command: string };
 
 export class AgentConfigRuntime {
   private readonly agentsHost = createAgentConfigAgentsLiveHost();
@@ -85,21 +73,6 @@ export class AgentConfigRuntime {
     refreshShellEnv?: boolean;
   }): Promise<Result<void, AgentConfigRefreshError>> {
     return this.install.refresh(input);
-  }
-
-  installAgent(
-    providerId: string,
-    strategy: InstallStrategy,
-    ctx: LiveJobContext<AgentInstallProgress>
-  ): Promise<Result<DependencyState, AgentInstallError>> {
-    return this.install.install(providerId, strategy, ctx);
-  }
-
-  uninstallAgent(
-    providerId: string,
-    strategy?: UninstallStrategy
-  ): Promise<Result<DependencyState, AgentUninstallError>> {
-    return this.install.uninstall(providerId, strategy);
   }
 
   refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {

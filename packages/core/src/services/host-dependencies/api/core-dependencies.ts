@@ -1,43 +1,11 @@
-import type { DependencyDescriptor } from '@services/host-dependencies/api/runtime/types';
+import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
 
-export const GIT_DEPENDENCY_DESCRIPTOR: DependencyDescriptor = {
+export const GIT_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   id: 'git',
   name: 'Git',
   category: 'core',
-  commands: ['git'],
-  versionArgs: ['--version'],
-  docUrl: 'https://git-scm.com/downloads',
-  installCommands: {
-    macos: [
-      {
-        method: 'homebrew',
-        command: 'brew install git',
-        updateCommand: 'brew upgrade git',
-        uninstallCommand: 'brew uninstall git',
-        recommended: true,
-      },
-    ],
-    linux: [
-      {
-        method: 'apt',
-        command: 'sudo apt-get update && sudo apt-get install -y git',
-        updateCommand: 'sudo apt-get update && sudo apt-get install --only-upgrade -y git',
-        uninstallCommand: 'sudo apt-get remove -y git',
-        recommended: true,
-      },
-    ],
-    windows: [
-      {
-        method: 'winget',
-        command: 'winget install --id Git.Git -e',
-        updateCommand: 'winget upgrade --id Git.Git -e',
-        uninstallCommand: 'winget uninstall --id Git.Git -e',
-        recommended: true,
-      },
-    ],
-  },
-  updates: { kind: 'none' },
-  uninstall: { kind: 'none' },
+  binaryNames: ['git'],
+  status: 'active',
 };
 
-export const CORE_DEPENDENCIES: DependencyDescriptor[] = [GIT_DEPENDENCY_DESCRIPTOR];
+export const CORE_DEPENDENCIES: HostDependencyDefinition[] = [GIT_DEPENDENCY_DESCRIPTOR];

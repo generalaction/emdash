@@ -1,7 +1,16 @@
+import { dirname, join } from 'node:path';
+import { createJsonFileKeyValueStore } from '@emdash/core/primitives/kv/node';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
+import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
+import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import {
+  CORE_DEPENDENCIES,
+  createHostDependenciesComponent,
+} from '@emdash/core/services/host-dependencies/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
@@ -64,8 +73,11 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       processSpawner: childProcessSpawner(),
     });
     const runtime = createWorkspaceServerRuntime(scope);
+    const initialPaths = daemonPaths(config.serve.path);
+    const hostDependencies = createWorkspaceHostDependencies(scope, initialPaths.socketPath);
     const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
       socketPath: config.serve.path,
+      hostDependencies: hostDependencies.client.resolver,
     });
     let acpClient: typeof acpWorker.client | undefined;
     try {
@@ -84,6 +96,7 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       createWorkspaceWireController({
         appVersion: config.appVersion,
         acp: acpClient,
+        hostDependencies: hostDependencies.client,
         workspace: runtime.workspace,
       }),
       workspaceServerWireValidationPolicy()
@@ -142,6 +155,28 @@ function createWorkspaceServerRuntime(scope: Scope): WorkspaceRuntime {
     validate: workspaceServerWireValidationPolicy(),
   });
   return { workspace: workspace.client };
+}
+
+function createWorkspaceHostDependencies(scope: Scope, socketPath: string) {
+  const root = dirname(dirname(socketPath));
+  const store = createJsonFileKeyValueStore({
+    path: join(root, 'state', 'kv.json'),
+  });
+  return createHostDependenciesComponent({
+    store,
+    exec: new NodeExecutionContext({ env: process.env }),
+  }).create({
+    scope,
+    dependencies: {},
+    config: {
+      hostId: 'local',
+      definitions: [
+        ...CORE_DEPENDENCIES,
+        ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
+      ],
+    },
+    validate: workspaceServerWireValidationPolicy(),
+  });
 }
 
 function workspaceServerWireValidationPolicy(): ValidatePolicy {

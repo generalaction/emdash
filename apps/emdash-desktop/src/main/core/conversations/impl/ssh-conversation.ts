@@ -3,7 +3,7 @@ import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
+import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
@@ -22,7 +22,6 @@ import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { resolveAgentExecutable } from './resolve-agent-executable';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -127,15 +126,12 @@ export class SshConversationProvider implements ConversationProvider {
       });
       const plugin = getPlugin(conversation.providerId);
 
-      const binaryName =
-        plugin.capabilities.hostDependency.binaryNames[0] ?? conversation.providerId;
-      const executableCli = await resolveAgentExecutable({
-        providerId: conversation.providerId,
-        binaryName,
-        ctx: this.ctx,
-        hostDependencyStore,
-        connectionId: this.proxy.connectionId,
-      });
+      const dependencies = await getDependencyManager(this.proxy.connectionId);
+      const resolvedCli = await dependencies.resolver.resolve({ id: conversation.providerId });
+      if (!resolvedCli.success) {
+        throw new Error(`Unable to resolve CLI for provider '${conversation.providerId}'`);
+      }
+      const executableCli = resolvedCli.data.path;
 
       const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,

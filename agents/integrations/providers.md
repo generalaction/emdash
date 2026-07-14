@@ -18,7 +18,7 @@ codex, claude, opencode, grok, devin, qwen, qoder, droid, gemini, cursor, copilo
 ## Provider Metadata Includes
 
 - provider metadata and icon assets
-- host dependency detection, install, update, and uninstall descriptors
+- PATH host dependency definitions and optional self-update argv descriptors
 - prompt delivery behavior
 - auto-approve, ACP, hooks, MCP, model, session, trust, and plugin capabilities
 
@@ -31,6 +31,14 @@ or notify an inferred status for that event.
 
 ## Provider Runtime Notes
 
+- Host dependencies are resolved by the host-scoped `HostDependencies` Wire component.
+  Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
+  update argv). Runtimes receive only the narrow resolver contract and must not infer package
+  managers, fetch latest versions, or keep a second executable cache.
+- A provider self-update command runs directly as argv against the selected PATH binary. There is no
+  interpolated shell command and no uninstall/install lifecycle in provider metadata. Future managed
+  sources such as Nix should add new source and selection variants without changing runtime spawn
+  injection.
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Agents that cannot receive an interactive initial prompt via argv or stdin use keystroke
   injection — Emdash types the prompt into the TUI after startup.
@@ -44,5 +52,5 @@ or notify an inferred status for that event.
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
 3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
    supports explicit events
-4. validate detection behavior in `src/main/core/dependencies/`
+4. validate PATH dependency behavior through the `HostDependencies` component and resolver contract
 5. add or update tests for any non-standard behavior

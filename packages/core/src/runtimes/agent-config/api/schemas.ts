@@ -5,24 +5,8 @@ import {
   skillInstallPayloadSchema,
 } from '@primitives/skills/api';
 import { agentAuthStatusSchema } from '@services/agent-plugins/api/plugins/capabilities/auth';
-import { INSTALL_METHODS, installOptionSchema } from '@services/host-dependencies/api/capability';
 import { runtimeUnavailableErrorSchema } from '@workspace-server/shared/schemas';
 import { z } from 'zod';
-
-export const dependencyCategorySchema = z.enum(['core', 'agent']);
-export const dependencyStatusSchema = z.enum(['available', 'missing', 'error']);
-
-export const dependencyStateSchema = z.object({
-  id: z.string(),
-  category: dependencyCategorySchema,
-  status: dependencyStatusSchema,
-  version: z.string().nullable(),
-  path: z.string().nullable(),
-  checkedAt: z.number(),
-  error: z.string().optional(),
-  latestVersion: z.string().nullable().optional(),
-  updateAvailable: z.boolean().optional(),
-});
 
 export const installCommandErrorSchema = z.union([
   z.object({
@@ -62,23 +46,6 @@ export const agentConfigErrorSchema = z.union([
   runtimeUnavailableErrorSchema,
 ]);
 
-export const agentInstallErrorSchema = z.union([
-  agentConfigUnknownProviderErrorSchema,
-  z.object({ type: z.literal('no-install-command'), providerId: z.string() }),
-  installCommandErrorSchema,
-  z.object({ type: z.literal('not-detected-after-install'), providerId: z.string() }),
-  runtimeUnavailableErrorSchema,
-]);
-
-export const agentUninstallErrorSchema = z.union([
-  agentConfigUnknownProviderErrorSchema,
-  z.object({ type: z.literal('no-uninstall-strategy'), providerId: z.string() }),
-  z.object({ type: z.literal('no-uninstall-command'), providerId: z.string() }),
-  z.object({ type: z.literal('still-present'), providerId: z.string() }),
-  installCommandErrorSchema,
-  runtimeUnavailableErrorSchema,
-]);
-
 export const agentConfigAuthErrorSchema = z.union([
   agentConfigUnknownProviderErrorSchema,
   agentConfigInvalidStateErrorSchema,
@@ -99,16 +66,6 @@ export const agentConfigRefreshErrorSchema = z.union([
   agentConfigUnknownProviderErrorSchema,
   agentConfigInvalidStateErrorSchema,
   runtimeUnavailableErrorSchema,
-]);
-
-export const agentConfigInstallStrategySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('package-manager'), method: z.enum(INSTALL_METHODS).optional() }),
-  z.object({ kind: z.literal('custom'), command: z.string() }),
-]);
-
-export const agentConfigUninstallStrategySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('package-manager'), method: z.enum(INSTALL_METHODS).optional() }),
-  z.object({ kind: z.literal('custom'), command: z.string() }),
 ]);
 
 export const authPendingUrlSchema = z.object({
@@ -136,17 +93,10 @@ export const authStatusModelStateSchema = z.object({
 export const agentConfigEntrySchema = z.object({
   providerId: z.string(),
   name: z.string(),
-  install: dependencyStateSchema,
   auth: authStatusModelStateSchema,
-  installOptions: z.array(installOptionSchema),
 });
 
 export const agentConfigListSchema = z.record(z.string(), agentConfigEntrySchema);
-
-export const agentInstallProgressSchema = z.object({
-  providerId: z.string(),
-  phase: z.enum(['running-command', 'verifying']),
-});
 
 export const startLoginCommandSchema = z.object({
   providerId: z.string(),
@@ -166,16 +116,12 @@ export const installedSkillsSchema = z.array(catalogSkillSchema);
 export { createSkillInputSchema, mcpServerSchema, skillInstallPayloadSchema };
 
 export type AgentConfigError = z.infer<typeof agentConfigErrorSchema>;
-export type AgentInstallError = z.infer<typeof agentInstallErrorSchema>;
-export type AgentUninstallError = z.infer<typeof agentUninstallErrorSchema>;
 export type AgentConfigAuthError = z.infer<typeof agentConfigAuthErrorSchema>;
 export type AgentConfigMcpError = z.infer<typeof agentConfigMcpErrorSchema>;
 export type AgentConfigSkillsError = z.infer<typeof agentConfigSkillsErrorSchema>;
 export type AgentConfigRefreshError = z.infer<typeof agentConfigRefreshErrorSchema>;
-export type DependencyState = z.infer<typeof dependencyStateSchema>;
 export type AuthStatusModelState = z.infer<typeof authStatusModelStateSchema>;
 export type AuthLoginState = z.infer<typeof authLoginStateSchema>;
 export type AuthPendingUrl = z.infer<typeof authPendingUrlSchema>;
 export type AgentConfigEntry = z.infer<typeof agentConfigEntrySchema>;
 export type AgentConfigList = z.infer<typeof agentConfigListSchema>;
-export type AgentInstallProgress = z.infer<typeof agentInstallProgressSchema>;

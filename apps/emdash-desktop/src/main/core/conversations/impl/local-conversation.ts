@@ -11,7 +11,6 @@ import {
 } from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
-import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
@@ -30,7 +29,6 @@ import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { resolveAgentExecutable } from './resolve-agent-executable';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -132,16 +130,13 @@ export class LocalConversationProvider implements ConversationProvider {
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
       const plugin = getPlugin(conversation.providerId);
 
-      const binaryName =
-        plugin.capabilities.hostDependency.binaryNames[0] ?? conversation.providerId;
-      const cachedStatePath = localDependencyManager.get(conversation.providerId as never)?.path;
-      const executableCli = await resolveAgentExecutable({
-        providerId: conversation.providerId,
-        binaryName,
-        ctx: this.ctx,
-        hostDependencyStore,
-        cachedStatePath,
+      const resolvedCli = await localDependencyManager.resolver.resolve({
+        id: conversation.providerId,
       });
+      if (!resolvedCli.success) {
+        throw new Error(`Unable to resolve CLI for provider '${conversation.providerId}'`);
+      }
+      const executableCli = resolvedCli.data.path;
 
       // Very large prompts (e.g. a full Linear issue + activity context) can blow
       // past OS argument limits and crash the underlying CLI. Spill them to a temp

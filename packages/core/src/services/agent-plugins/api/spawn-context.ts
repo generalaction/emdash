@@ -1,5 +1,4 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { compose, deduplicate } from '@emdash/wire/util';
 import { buildAllowlistedAgentEnv } from '@primitives/agent-env/api';
 
 export type SpawnContext = {
@@ -27,52 +26,23 @@ export type CreateSpawnContextResolverOptions = {
 export function createSpawnContextResolver(
   options: CreateSpawnContextResolverOptions
 ): SpawnContextResolver {
-  const cliCache = new Map<string, string>();
-  let generation = 0;
-  const resolveCliOnce = compose(
-    async (
-      input: {
-        providerId: string;
-        generation: number;
-      },
-      _context: { signal?: AbortSignal }
-    ): Promise<Result<string, SpawnContextError>> => {
-      try {
-        const cli = await options.resolveCli(input.providerId);
-        if (input.generation === generation) cliCache.set(input.providerId, cli);
-        return ok(cli) as Result<string, SpawnContextError>;
-      } catch (error: unknown) {
-        return err({
-          type: 'cli-not-found',
-          providerId: input.providerId,
-          message: error instanceof Error ? error.message : String(error),
-        } satisfies SpawnContextError);
-      }
-    },
-    [deduplicate({ key: (input) => `${input.providerId}:${input.generation}` })]
-  );
-
   const resolve = async (providerId: string): Promise<Result<SpawnContext, SpawnContextError>> => {
     if (options.hasProvider && !options.hasProvider(providerId)) {
       return err({ type: 'unknown-provider', providerId });
     }
 
-    const cachedCli = cliCache.get(providerId);
-    if (cachedCli) return ok({ cli: cachedCli, agentEnv: buildAgentEnv() });
-
-    const cliResult = await resolveCliOnce({ providerId, generation }, {});
-    if (!cliResult.success) return cliResult;
-    return ok({ cli: cliResult.data, agentEnv: buildAgentEnv() });
-  };
-
-  const invalidate = (providerId?: string): void => {
-    generation++;
-    if (providerId) {
-      cliCache.delete(providerId);
-      return;
+    try {
+      return ok({ cli: await options.resolveCli(providerId), agentEnv: buildAgentEnv() });
+    } catch (error: unknown) {
+      return err({
+        type: 'cli-not-found',
+        providerId,
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
-    cliCache.clear();
   };
+
+  const invalidate = (_providerId?: string): void => {};
 
   return { resolve, invalidate };
 

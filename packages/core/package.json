@@ -49,6 +49,14 @@
       "types": "./dist/primitives-host-dependencies-api.d.mts",
       "default": "./dist/primitives-host-dependencies-api.mjs"
     },
+    "./primitives/kv/api": {
+      "types": "./dist/primitives-kv-api.d.mts",
+      "default": "./dist/primitives-kv-api.mjs"
+    },
+    "./primitives/kv/node": {
+      "types": "./dist/primitives-kv-node.d.mts",
+      "default": "./dist/primitives-kv-node.mjs"
+    },
     "./primitives/agent-env/api": {
       "types": "./dist/primitives-agent-env-api.d.mts",
       "default": "./dist/primitives-agent-env-api.mjs"

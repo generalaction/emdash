@@ -10,13 +10,8 @@ import type {
   McpServerRegistration,
   PluginFs,
 } from '@services/agent-plugins/api/plugins';
-import {
-  AgentPluginHost,
-  buildDescriptorFromProvider,
-  createPluginRegistry,
-} from '@services/agent-plugins/api/plugins';
+import { AgentPluginHost, createPluginRegistry } from '@services/agent-plugins/api/plugins';
 import type { ExecContextOptions, IExecutionContext } from '@services/exec/api';
-import { HostDependencyManager } from '@services/host-dependencies/node';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentConfigRuntime } from './runtime';
@@ -138,7 +133,7 @@ describe('AgentConfigRuntime', () => {
     const authCheckStatus = vi.fn(async (_ctx: AgentAuthContext) => ({
       kind: 'authenticated' as const,
     }));
-    const { runtime, exec } = makeRuntime({ authCheckStatus });
+    const { runtime } = makeRuntime({ authCheckStatus });
 
     const result = await runtime.refreshAuthStatus('claude');
 
@@ -149,7 +144,6 @@ describe('AgentConfigRuntime', () => {
     expect(ctx?.env.ANTHROPIC_API_KEY).toBe('secret');
     expect(ctx?.env.UNSAFE_ENV).toBeUndefined();
     expect(ctx?.env.SHELL).toBe('/bin/zsh');
-    expect(exec.exec).toHaveBeenCalledWith('which', ['fake-agent'], expect.any(Object));
     await runtime.dispose();
   });
 
@@ -398,18 +392,22 @@ function makeRuntime(
   } as unknown as CLIAgentPluginProvider);
   const logger = options.logger ?? noopLogger;
   const scope = createScope({ label: 'test-agent-config', logger });
-  const dependencyDescriptors = registry.getAll().map(buildDescriptorFromProvider);
-  const dependencyManager = new HostDependencyManager(exec, {
-    dependencies: dependencyDescriptors,
-    getDependencyDescriptor: (id) =>
-      dependencyDescriptors.find((descriptor) => descriptor.id === id),
-    logger,
-  });
   const agentHost = new AgentPluginHost({
     scope,
     registry,
     exec,
-    dependencies: dependencyManager,
+    dependencies: {
+      resolve: async (id) => ({
+        success: true,
+        data: {
+          id,
+          command: 'fake-agent',
+          path: '/opt/fake-agent',
+          realpath: '/opt/fake-agent',
+          source: { kind: 'auto' },
+        },
+      }),
+    },
     fs,
     env: {
       PATH: '/bin',
@@ -428,7 +426,6 @@ function makeRuntime(
       scope,
       agentHost,
       ptySpawner: options.ptySpawner ?? new FakePtySpawner(),
-      installCommandRunner: vi.fn(async () => ok(undefined)),
       logger,
     }),
   };

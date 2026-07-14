@@ -193,9 +193,11 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
-  localDependencyManager.probeAll().catch((e: unknown) => {
-    log.error('Failed to probe dependencies:', e);
-  });
+  localDependencyManager.snapshot
+    .mutate('refresh', { key: undefined, input: {} })
+    .catch((e: unknown) => {
+      log.error('Failed to probe dependencies:', e);
+    });
 
   if (process.platform === 'darwin') {
     if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {

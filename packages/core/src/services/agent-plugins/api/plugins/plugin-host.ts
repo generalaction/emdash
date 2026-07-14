@@ -3,11 +3,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate } from '@emdash/wire/util';
 import type { IExecutionContext } from '@primitives/exec/api';
-import type {
-  DependencyDescriptor,
-  HostDependencyManagerPort,
-  Platform,
-} from '@primitives/host-dependencies/api';
+import type { HostDependencyResolver, Platform } from '@primitives/host-dependencies/api';
 import type { PluginFs } from '@primitives/plugin-fs/api';
 import type {
   AcpSpawnResult,
@@ -29,7 +25,6 @@ import {
   type SpawnContextError,
   type SpawnContextResolver,
 } from '@services/agent-plugins/api/spawn-context';
-import { buildDescriptorFromProvider } from './host-dependency-descriptor';
 import type { CLIAgentPluginProvider } from './index';
 
 export type ResolvedAcpProvider = {
@@ -54,7 +49,7 @@ export type AgentHostDeps = {
   scope: Scope;
   registry: PluginRegistry<CLIAgentPluginProvider>;
   exec: IExecutionContext;
-  dependencies: HostDependencyManagerPort;
+  dependencies: HostDependencyResolver;
   fs: PluginFs;
   env: Record<string, string | undefined>;
   homeDir: string;
@@ -78,11 +73,10 @@ export type AgentHostAcpSpawn = AcpSpawnResult & {
 };
 
 export class AgentPluginHost {
-  readonly dependencies: HostDependencyManagerPort;
+  readonly dependencies: HostDependencyResolver;
 
   private readonly scope: Scope;
   private readonly registry: PluginRegistry<CLIAgentPluginProvider>;
-  private readonly descriptors: DependencyDescriptor[];
   private readonly spawnContext: SpawnContextResolver;
   private readonly checkAuthStatusOnce: (
     providerId: string
@@ -91,7 +85,6 @@ export class AgentPluginHost {
   constructor(private readonly deps: AgentHostDeps) {
     this.scope = deps.scope.child('agent-host');
     this.registry = deps.registry;
-    this.descriptors = deps.registry.getAll().map(buildDescriptorFromProvider);
     this.dependencies = deps.dependencies;
     this.scope.use(deps.exec);
     this.spawnContext = createSpawnContextResolver({
@@ -287,12 +280,9 @@ export class AgentPluginHost {
       throw new Error(`Provider '${providerId}' was not found`);
     }
 
-    let state = this.dependencies.get(providerId);
-    if (!state?.path) state = await this.dependencies.probe(providerId);
-    if (state.path) return state.path;
-
-    const descriptor = this.descriptors.find((candidate) => candidate.id === providerId);
-    return descriptor?.commands[0] ?? providerId;
+    const resolved = await this.dependencies.resolve(providerId);
+    if (resolved.success) return resolved.data.path;
+    throw new Error(`Provider '${providerId}' CLI could not be resolved: ${resolved.error.type}`);
   }
 
   private async checkAuthStatusUncached(

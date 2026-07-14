@@ -2,37 +2,20 @@ import type {
   AgentAuthDescriptor,
   CLIAgentPluginProvider,
 } from '@emdash/core/services/agent-plugins/api/plugins';
-import type { Platform } from '@emdash/core/services/host-dependencies/api';
-import {
-  deriveHostDependencyStatus,
-  resolveActiveInstallation,
-  resolveInstallOptions,
-  sourceKey,
-  toPlatform,
-} from '@emdash/core/services/host-dependencies/node';
 import type {
-  DependencyId,
-  DependencyState,
-  HostDependency,
-  HostDependencyManager,
+  HostDependencySnapshot,
+  HostDependencyView,
 } from '@emdash/core/services/host-dependencies/node';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type {
   AgentInstallationStatus,
   AgentMetadata,
   AgentPayload,
-  InstallOption,
+  Installation,
+  SelectedSource,
 } from '@shared/core/agents/agent-payload';
-import { getDependencyDescriptor } from '../dependencies/registry';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
-
-/**
- * Optional callback injected by the controller so the builder can enrich the
- * manager's HostDependency snapshot with latestVersion/updateAvailable from the
- * AgentUpdateService before building the payload.
- */
-type EnrichHostDep = (id: DependencyId, hostDep: HostDependency) => HostDependency;
 
 function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
   const { metadata, capabilities, assets } = provider;
@@ -45,7 +28,18 @@ function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
     capabilities: {
       acp: capabilities.acp,
       auth: buildAuthDescriptor(provider),
-      hostDependency: capabilities.hostDependency,
+      hostDependency: {
+        updates: capabilities.hostDependency.updateCommand
+          ? {
+              kind: 'supported' as const,
+              update: {
+                kind: 'cli' as const,
+                args: capabilities.hostDependency.updateCommand.args,
+              },
+            }
+          : { kind: 'none' as const },
+        uninstall: { kind: 'none' as const },
+      },
       models: capabilities.models,
       effort: capabilities.effort,
       prompt: capabilities.prompt,
@@ -80,38 +74,27 @@ function buildAuthDescriptor(provider: CLIAgentPluginProvider): AgentAuthDescrip
 
 async function buildOne(
   id: AgentProviderId,
-  platform: Platform,
-  dependencyManager?: HostDependencyManager,
-  enrichHostDep?: EnrichHostDep
+  snapshot?: HostDependencySnapshot,
+  connectionId?: string
 ): Promise<AgentPayload | null> {
   const provider = getPlugin(id);
   if (!provider) return null;
 
-  const state = dependencyManager?.get(id);
   const settingsMeta = await providerOverrideSettings.getItemWithMeta(id);
-  const descriptor = getDependencyDescriptor(id);
-
-  const rawHostDep = dependencyManager?.getHostDependency(id);
-  const hostDep =
-    rawHostDep && enrichHostDep ? enrichHostDep(id as DependencyId, rawHostDep) : rawHostDep;
-
-  // Derive top-level fields from resolveActiveInstallation so the row badge always
-  // matches the detail card (both read the used per-installation value).
-  const used = hostDep?.used ?? { kind: 'auto' as const };
-  const usedInst = hostDep ? resolveActiveInstallation(hostDep.installations, used) : undefined;
-  const latestVersion = usedInst?.latestVersion ?? null;
-  const updateAvailable = usedInst?.updateAvailable ?? false;
+  const view = snapshot?.dependencies[id];
+  const used: SelectedSource = view?.selection ?? { kind: 'auto' };
 
   return {
     ...buildMetadata(provider),
-    status: hostDep ? deriveHostDependencyStatus(hostDep) : (state?.status ?? 'missing'),
-    version: usedInst?.version ?? state?.version ?? null,
-    latestVersion,
-    updateAvailable,
-    command: usedInst?.pathEntry ?? state?.path ?? null,
+    connectionId,
+    status: view?.status ?? 'missing',
+    version: null,
+    latestVersion: null,
+    updateAvailable: false,
+    command: view?.resolved?.path ?? null,
     settings: settingsMeta,
-    installOptions: descriptor ? resolveInstallOptions(descriptor, platform) : [],
-    installations: hostDep?.installations ?? [],
+    installOptions: [],
+    installations: view ? installationsFromView(view) : [],
     used,
     usedId: sourceKey(used),
   };
@@ -119,21 +102,19 @@ async function buildOne(
 
 export async function buildAgentPayload(
   id: string,
-  platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager,
-  enrichHostDep?: EnrichHostDep
+  snapshot?: HostDependencySnapshot,
+  connectionId?: string
 ): Promise<AgentPayload | null> {
-  return buildOne(id as AgentProviderId, platform, dependencyManager, enrichHostDep);
+  return buildOne(id as AgentProviderId, snapshot, connectionId);
 }
 
 export async function buildAgentPayloads(
-  platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager,
-  enrichHostDep?: EnrichHostDep
+  snapshot?: HostDependencySnapshot,
+  connectionId?: string
 ): Promise<AgentPayload[]> {
   const results = await Promise.all(
     listPlugins().map((provider) =>
-      buildOne(provider.metadata.id as AgentProviderId, platform, dependencyManager, enrichHostDep)
+      buildOne(provider.metadata.id as AgentProviderId, snapshot, connectionId)
     )
   );
   return results.filter((r): r is AgentPayload => r !== null);
@@ -143,31 +124,45 @@ export function buildAgentMetadataList(): AgentMetadata[] {
   return listPlugins().map(buildMetadata);
 }
 
-/**
- * Maps manager state for a single agent to the renderer-facing AgentInstallationStatus DTO.
- * Top-level latestVersion/updateAvailable are derived from the used installation when
- * host-dependency data is available, so the row badge always matches the update card.
- */
 export function toAgentInstallationStatus(
   id: string,
   connectionId: string | undefined,
-  state: DependencyState,
-  hostDep: HostDependency | undefined,
-  installOptions: InstallOption[] = []
+  view: HostDependencyView | undefined
 ): AgentInstallationStatus {
-  const used = hostDep?.used ?? { kind: 'auto' as const };
-  const usedInst = hostDep ? resolveActiveInstallation(hostDep.installations, used) : undefined;
+  const used: SelectedSource = view?.selection ?? { kind: 'auto' };
   return {
     id,
     connectionId,
-    status: hostDep ? deriveHostDependencyStatus(hostDep) : state.status,
-    version: state.version,
-    latestVersion: usedInst?.latestVersion ?? state.latestVersion ?? null,
-    updateAvailable: usedInst?.updateAvailable ?? state.updateAvailable ?? false,
-    command: usedInst?.pathEntry ?? state.path,
-    installations: hostDep?.installations ?? [],
+    status: view?.status ?? 'missing',
+    version: null,
+    latestVersion: null,
+    updateAvailable: false,
+    command: view?.resolved?.path ?? null,
+    installations: view ? installationsFromView(view) : [],
     used,
     usedId: sourceKey(used),
-    installOptions,
+    installOptions: [],
   };
+}
+
+function installationsFromView(view: HostDependencyView): Installation[] {
+  return view.candidates.map((candidate) => ({
+    id: candidate.realpath,
+    realpath: candidate.realpath,
+    pathEntry: candidate.path,
+    isActive: candidate.isPathDefault,
+    manageable: false,
+    provenance: { kind: 'unknown', confidence: 'inferred' },
+    status: 'available',
+    version: null,
+    latestVersion: null,
+    updateAvailable: false,
+  }));
+}
+
+function sourceKey(source: SelectedSource): string {
+  if (source.kind === 'auto') return 'auto';
+  if (source.kind === 'pinned') return source.realpath;
+  if (source.kind === 'method') return `method:${source.method}`;
+  return source.kind;
 }

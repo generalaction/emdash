@@ -1,4 +1,3 @@
-import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
 import type {
   DependencyId,
   HostDependencySelection,
@@ -38,14 +37,12 @@ export async function migrateProviderConfigToHostDependencyStore(
     let selection: HostDependencySelection = null;
     if (installSource === 'path' && path) {
       selection = { kind: 'path', path };
-    } else if (installSource === 'cli' && cli) {
-      selection = { kind: 'cli', command: cli };
-    } else if (installSource && installSource !== 'path' && installSource !== 'cli') {
-      selection = { kind: 'method', method: installSource as InstallMethod };
+    } else if (installSource === 'cli' && cli?.startsWith('/')) {
+      selection = { kind: 'path', path: cli };
     } else if (path) {
       selection = { kind: 'path', path };
-    } else if (cli) {
-      selection = { kind: 'cli', command: cli };
+    } else if (cli?.startsWith('/')) {
+      selection = { kind: 'path', path: cli };
     }
 
     if (selection !== null) {

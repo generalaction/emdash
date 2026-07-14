@@ -1,5 +1,5 @@
 import type { CLIAgentPluginProvider } from '@emdash/core/services/agent-plugins/api/plugins';
-import type { DependencyId } from '@emdash/core/services/host-dependencies/node';
+import type { HostDependencySnapshot } from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';
@@ -7,14 +7,14 @@ import type { McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { mcpService } from './services/McpService';
 
-function mapProviders(): McpProvidersResponse[] {
+function mapProviders(snapshot: HostDependencySnapshot): McpProvidersResponse[] {
   return pluginRegistry
     .getAll()
     .filter((p: CLIAgentPluginProvider) => p.capabilities.mcp.kind === 'supported')
     .map((p: CLIAgentPluginProvider) => {
-      const dep = localDependencyManager.get(p.metadata.id as DependencyId);
       const mcp = p.capabilities.mcp;
       const supportsHttp = mcp.kind === 'supported' && mcp.supportedTransports.includes('http');
+      const dep = snapshot.dependencies[p.metadata.id];
       return {
         id: p.metadata.id,
         name: p.metadata.name,
@@ -57,7 +57,8 @@ export const mcpController = createRPCController({
 
   getProviders: async () => {
     try {
-      return { success: true, data: mapProviders() };
+      const snapshot = await dependencySnapshot();
+      return { success: true, data: mapProviders(snapshot) };
     } catch (error) {
       log.error('Failed to get MCP providers:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -66,8 +67,8 @@ export const mcpController = createRPCController({
 
   refreshProviders: async () => {
     try {
-      await localDependencyManager.probeCategory('agent');
-      return { success: true, data: mapProviders() };
+      const snapshot = await dependencySnapshot(true);
+      return { success: true, data: mapProviders(snapshot) };
     } catch (error) {
       log.error('Failed to refresh MCP providers:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -84,3 +85,10 @@ export const mcpController = createRPCController({
     }
   },
 });
+
+async function dependencySnapshot(refresh = false): Promise<HostDependencySnapshot> {
+  if (refresh) {
+    await localDependencyManager.snapshot.mutate('refresh', { key: undefined, input: {} });
+  }
+  return (await localDependencyManager.snapshot.state(undefined, 'current').snapshot()).data;
+}

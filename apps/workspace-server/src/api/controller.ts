@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceJobError } from '@emdash/core/runtimes/workspace/node';
+import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
 import {
   negotiateProtocol,
   PROTOCOL_VERSION,
@@ -22,6 +23,7 @@ export type WorkspaceWireControllerDeps = {
   daemonId?: string;
   startedAt?: number;
   acp?: WorkspaceAcpRuntimeClient;
+  hostDependencies?: ContractClient<HostDependenciesContract>;
   workspace?: ContractClient<WorkspaceContract>;
 };
 
@@ -119,6 +121,9 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
     agentConfig: unavailableAgentConfig(),
     tuiAgents: unavailableTuiAgents(),
     acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
+    hostDependencies: deps.hostDependencies
+      ? createHostDependenciesProxy(deps.hostDependencies)
+      : unavailableHostDependencies(),
     workspace: deps.workspace ? createWorkspaceProxy(deps.workspace) : unavailableWorkspace(),
   });
 }
@@ -207,16 +212,6 @@ function unavailableAgentConfig(): NonNullable<
   return {
     agents: unavailableLiveModel(workspaceWireContract.agentConfig.agents),
     refreshAgents: unavailable,
-    installAgent: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: (error) => ({
-        type: 'command-failed' as const,
-        message: error instanceof Error ? error.message : String(error),
-        output: '',
-      }),
-    },
-    uninstallAgent: unavailable,
     startLogin: unavailable,
     cancelLogin: unavailable,
     sendLoginInput: unavailable,
@@ -232,6 +227,38 @@ function unavailableAgentConfig(): NonNullable<
     installSkill: unavailable,
     removeSkill: unavailable,
     createSkill: unavailable,
+  };
+}
+
+function createHostDependenciesProxy(
+  client: ContractClient<HostDependenciesContract>
+): NonNullable<ContractImpl<typeof workspaceWireContract>['hostDependencies']> {
+  return {
+    resolver: {
+      resolve: (input, meta) => client.resolver.resolve(input, meta),
+    },
+    snapshot: client.snapshot,
+    runUpdateCommand: client.runUpdateCommand,
+  };
+}
+
+function unavailableHostDependencies(): NonNullable<
+  ContractImpl<typeof workspaceWireContract>['hostDependencies']
+> {
+  const unavailable = () => err({ type: 'io' as const, message: notImplementedMessage });
+  return {
+    resolver: {
+      resolve: unavailable,
+    },
+    snapshot: unavailableLiveModel(workspaceWireContract.hostDependencies.snapshot),
+    runUpdateCommand: {
+      run: async () => err({ type: 'io' as const, message: notImplementedMessage }),
+      toError: (error) => ({
+        type: 'command-failed' as const,
+        message: error instanceof Error ? error.message : String(error),
+        output: '',
+      }),
+    },
   };
 }
 

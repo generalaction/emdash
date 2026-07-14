@@ -4,6 +4,7 @@ import { createGitController } from '@runtimes/git/node/api/controller';
 import { GitRuntime } from '@runtimes/git/node/git-runtime';
 import { fsWatchContract } from '@services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
+import { hostDependencyResolverContract } from '@services/host-dependencies/api';
 import { z } from 'zod';
 
 export const gitComponentConfigSchema = z.object({
@@ -20,6 +21,7 @@ export const gitComponent = defineWireComponent({
   contract: gitContract,
   requirements: {
     watcher: requireContract(fsWatchContract),
+    hostDependencies: requireContract(hostDependencyResolverContract),
   },
   configSchema: gitComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {

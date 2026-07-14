@@ -1,20 +1,15 @@
-import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
 import type {
   DependencyId,
-  DependencyProbeOptions,
-  HostDependencySelection,
-  InstallOverride,
+  HostDependencySnapshot,
 } from '@emdash/core/services/host-dependencies/node';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { clearResolvedPathCache } from '../conversations/impl/resolve-agent-executable';
-import { agentUpdateService } from '../dependencies/agent-update-service';
 import {
   ensureAgentDependenciesProbed,
   getDependencyManager,
+  type HostDependenciesClient,
 } from '../dependencies/dependency-managers';
-import { hostDependencyStore } from '../dependencies/host-dependency-store';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import {
   buildAgentMetadataList,
@@ -23,79 +18,53 @@ import {
   toAgentInstallationStatus,
 } from './agent-payload-builder';
 
-/** Enrich a manager HostDependency snapshot with latestVersion/updateAvailable from the coordinator. */
-const enrichHostDep = (
-  id: DependencyId,
-  hostDep: Parameters<typeof agentUpdateService.enrichHostDependency>[1]
-) => agentUpdateService.enrichHostDependency(id, hostDep);
-
 export const agentsController = createRPCController({
   // ── Metadata ────────────────────────────────────────────────────────────────
 
   list: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    if (connectionId) await ensureAgentDependenciesProbed(mgr);
-    return buildAgentPayloads(mgr.platform, mgr, enrichHostDep);
+    const snapshot = await snapshotFor(mgr);
+    return buildAgentPayloads(snapshot, connectionId);
   },
 
   get: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    if (connectionId) await ensureAgentDependenciesProbed(mgr);
-    return buildAgentPayload(id, mgr.platform, mgr, enrichHostDep);
+    const snapshot = await snapshotFor(mgr);
+    return buildAgentPayload(id, snapshot, connectionId);
   },
 
   // ── Installation status ──────────────────────────────────────────────────────
 
   listAgentInstallationStatus: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    if (connectionId) await ensureAgentDependenciesProbed(mgr);
-    return Array.from(mgr.getAll().values())
-      .filter((s) => s.category === 'agent')
-      .map((state) => {
-        const rawHostDep = mgr.getHostDependency(state.id as DependencyId);
-        const hostDep = rawHostDep
-          ? agentUpdateService.enrichHostDependency(state.id as DependencyId, rawHostDep)
-          : undefined;
-        return toAgentInstallationStatus(state.id, connectionId, state, hostDep);
-      });
+    const snapshot = await snapshotFor(mgr);
+    return Object.values(snapshot.dependencies)
+      .filter((view) => view.definition.category === 'agent')
+      .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
   },
 
   getAgentInstallationStatus: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    if (connectionId) await ensureAgentDependenciesProbed(mgr);
-    const state = mgr.get(id as DependencyId);
-    if (!state) return null;
-    const rawHostDep = mgr.getHostDependency(id as DependencyId);
-    const hostDep = rawHostDep
-      ? agentUpdateService.enrichHostDependency(id as DependencyId, rawHostDep)
-      : undefined;
-    return toAgentInstallationStatus(id, connectionId, state, hostDep);
+    const snapshot = await snapshotFor(mgr);
+    return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
   },
 
   // ── Install / update ─────────────────────────────────────────────────────────
 
-  install: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
-    const mgr = await getDependencyManager(connectionId);
-    const result = await mgr.install(id, method);
-    if (result.success) {
-      // Persist the chosen method as an override, or clear to auto when no method was chosen.
-      // Do NOT auto-promote the inferred method — that would freeze a heuristic guess.
-      const override: InstallOverride | null = method ? { kind: 'method', method } : null;
-      await hostDependencyStore.setSelection(connectionId ?? 'local', id, override);
-      clearResolvedPathCache(id, connectionId);
-    }
-    return result;
-  },
+  update: async (_id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+    success: false as const,
+    error: { type: 'no-update-command' as const, id: _id },
+  }),
 
-  update: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
-    const mgr = await getDependencyManager(connectionId);
-    return mgr.update(id, method);
-  },
+  install: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+    success: false as const,
+    error: { type: 'no-install-command' as const, id },
+  }),
 
-  uninstall: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
-    const mgr = await getDependencyManager(connectionId);
-    return mgr.uninstall(id, method);
-  },
+  uninstall: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+    success: false as const,
+    error: { type: 'no-uninstall-strategy' as const, id },
+  }),
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 
@@ -116,40 +85,71 @@ export const agentsController = createRPCController({
   setUsedInstallation: async (
     id: DependencyId,
     connectionId?: string,
-    selection?: HostDependencySelection
+    selection?: unknown
   ): Promise<void> => {
     // undefined = no-op; null = explicit auto (clear override)
     if (selection === undefined) return;
-    await hostDependencyStore.setSelection(connectionId ?? 'local', id, selection);
-    clearResolvedPathCache(id, connectionId);
     const mgr = await getDependencyManager(connectionId);
-    await mgr.probe(id);
-  },
-
-  refreshLatestVersion: async (id: DependencyId, connectionId?: string): Promise<void> => {
-    await agentUpdateService.refreshLatestVersion(id, connectionId);
+    await mgr.snapshot.mutate('setSelection', {
+      key: undefined,
+      input: { id, selection: normalizeSelection(selection) },
+    });
   },
 
   probe: async (id: DependencyId, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.probe(id);
+    const result = await mgr.snapshot.mutate('refresh', {
+      key: undefined,
+      input: { id },
+    });
+    return result.success ? result.data.data.dependencies[id] : result;
   },
 
   probeOverride: async (
-    id: DependencyId,
-    selection: { path?: string; cli?: string },
-    connectionId?: string
-  ) => {
-    const mgr = await getDependencyManager(connectionId);
-    return mgr.probeOverride(id, selection);
-  },
+    _id: DependencyId,
+    _selection: { path?: string; cli?: string },
+    _connectionId?: string
+  ) => null,
 
-  probeAll: async (connectionId?: string, options?: DependencyProbeOptions) => {
+  refreshLatestVersion: async (_id: DependencyId, _connectionId?: string): Promise<void> => {},
+
+  probeAll: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.probeAll(options);
+    await ensureAgentDependenciesProbed(mgr);
   },
 
   listMetadata: async () => {
     return buildAgentMetadataList();
   },
 });
+
+async function snapshotFor(manager: HostDependenciesClient): Promise<HostDependencySnapshot> {
+  await ensureAgentDependenciesProbed(manager);
+  const snapshot = await manager.snapshot.state(undefined, 'current').snapshot();
+  return snapshot.data;
+}
+
+function normalizeSelection(selection: unknown): { kind: 'path'; path: string } | null {
+  if (selection === null) return null;
+  if (typeof selection !== 'object' || selection === null) return null;
+  const candidate = selection as {
+    kind?: unknown;
+    path?: unknown;
+    realpath?: unknown;
+    command?: unknown;
+  };
+  if (candidate.kind === 'path' && typeof candidate.path === 'string') {
+    return { kind: 'path', path: candidate.path };
+  }
+  if (candidate.kind === 'pinned' && typeof candidate.realpath === 'string') {
+    return { kind: 'path', path: candidate.realpath };
+  }
+  if (
+    candidate.kind === 'cli' &&
+    typeof candidate.command === 'string' &&
+    candidate.command.startsWith('/')
+  ) {
+    return { kind: 'path', path: candidate.command };
+  }
+  return null;
+}

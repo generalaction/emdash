@@ -6,7 +6,6 @@ export {
 } from '@runtimes/agent-config/node/component';
 export { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
 export type {
-  AgentConfigInstallCommandRunner,
   AgentConfigRuntimeDeps,
   AgentConfigSpawnContext,
 } from '@runtimes/agent-config/node/runtime/types';

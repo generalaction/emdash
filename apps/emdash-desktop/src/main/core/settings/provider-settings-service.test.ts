@@ -74,7 +74,7 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
     });
   });
 
-  it('migrates cli+installSource=cli to kind:cli selection', async () => {
+  it('skips non-absolute cli selections', async () => {
     const mockStore: IHostDependencyStore = {
       getSelection: vi.fn(),
       setSelection: vi.fn().mockResolvedValue(undefined),
@@ -83,13 +83,10 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
       { claude: { installSource: 'cli', cli: 'my-claude' } },
       mockStore
     );
-    expect(mockStore.setSelection).toHaveBeenCalledWith('local', 'claude', {
-      kind: 'cli',
-      command: 'my-claude',
-    });
+    expect(mockStore.setSelection).not.toHaveBeenCalled();
   });
 
-  it('migrates installSource=homebrew to kind:method homebrew selection', async () => {
+  it('skips package-manager install sources', async () => {
     const mockStore: IHostDependencyStore = {
       getSelection: vi.fn(),
       setSelection: vi.fn().mockResolvedValue(undefined),
@@ -98,10 +95,7 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
       { claude: { installSource: 'homebrew' } },
       mockStore
     );
-    expect(mockStore.setSelection).toHaveBeenCalledWith('local', 'claude', {
-      kind: 'method',
-      method: 'homebrew',
-    });
+    expect(mockStore.setSelection).not.toHaveBeenCalled();
   });
 
   it('skips entries without legacy fields', async () => {

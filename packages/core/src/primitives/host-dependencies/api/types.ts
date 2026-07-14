@@ -1,18 +1,103 @@
-import type { Emitter, Result } from '@emdash/shared';
-import type {
-  DependencyStatus,
-  InstallMethod,
-  InstallOption,
-  Platform,
-  ProbeResult,
-  UninstallStrategy,
-  UpdatesDescriptor,
-  UpdateStrategy,
+import { resultSchema } from '@emdash/shared';
+import type { Result } from '@emdash/shared';
+import { z } from 'zod';
+import {
+  hostDependencyDescriptorSchema,
+  type DependencyStatus,
+  type Platform,
+  type ProbeResult,
+  type hostDependencyUpdateCommandSchema,
 } from './capability';
 
 export type DependencyCategory = 'core' | 'agent';
 
 export type DependencyId = string;
+
+export const dependencyCategorySchema = z.enum(['core', 'agent']);
+export const dependencyIdSchema = z.string().min(1);
+export const dependencyStatusSchema = z.enum(['available', 'missing', 'error']);
+
+export const hostDependencyDefinitionSchema = hostDependencyDescriptorSchema.extend({
+  name: z.string(),
+  category: dependencyCategorySchema,
+  status: z.enum(['active', 'deprecated']).default('active'),
+  deprecatedAt: z.number().nullable().optional(),
+});
+export type HostDependencyDefinition = z.output<typeof hostDependencyDefinitionSchema>;
+
+export const hostDependencySelectionSchema = z
+  .object({
+    kind: z.literal('path'),
+    path: z.string().min(1),
+  })
+  .nullable();
+export type HostDependencySelection = z.output<typeof hostDependencySelectionSchema>;
+
+export const pathCandidateSchema = z.object({
+  command: z.string(),
+  path: z.string(),
+  realpath: z.string(),
+  isPathDefault: z.boolean(),
+});
+export type PathCandidate = z.output<typeof pathCandidateSchema>;
+
+export const resolvedHostDependencySchema = z.object({
+  id: dependencyIdSchema,
+  command: z.string(),
+  path: z.string(),
+  realpath: z.string(),
+  source: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('auto') }),
+    z.object({ kind: z.literal('path'), path: z.string() }),
+  ]),
+});
+export type ResolvedHostDependency = z.output<typeof resolvedHostDependencySchema>;
+
+export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('unknown-dependency'), id: dependencyIdSchema }),
+  z.object({ type: z.literal('missing'), id: dependencyIdSchema }),
+  z.object({ type: z.literal('stale-selection'), id: dependencyIdSchema, path: z.string() }),
+  z.object({ type: z.literal('invalid-selection'), id: dependencyIdSchema, message: z.string() }),
+  z.object({ type: z.literal('no-update-command'), id: dependencyIdSchema }),
+  z.object({ type: z.literal('command-failed'), message: z.string(), output: z.string() }),
+  z.object({ type: z.literal('io'), message: z.string() }),
+]);
+export type HostDependencyError = z.output<typeof hostDependencyErrorSchema>;
+
+export const hostDependencyViewSchema = z.object({
+  hostId: z.string(),
+  definition: hostDependencyDefinitionSchema,
+  selection: hostDependencySelectionSchema,
+  candidates: z.array(pathCandidateSchema),
+  resolved: resolvedHostDependencySchema.nullable(),
+  status: dependencyStatusSchema,
+  checkedAt: z.number(),
+  error: hostDependencyErrorSchema.optional(),
+});
+export type HostDependencyView = z.output<typeof hostDependencyViewSchema>;
+
+export const hostDependencySnapshotSchema = z.object({
+  hostId: z.string(),
+  generation: z.number().int().nonnegative(),
+  dependencies: z.record(dependencyIdSchema, hostDependencyViewSchema),
+});
+export type HostDependencySnapshot = z.output<typeof hostDependencySnapshotSchema>;
+
+export const hostDependencyResolveResultSchema = resultSchema(
+  resolvedHostDependencySchema,
+  hostDependencyErrorSchema
+);
+export type HostDependencyResolveResult = Result<ResolvedHostDependency, HostDependencyError>;
+
+export const hostDependencyViewResultSchema = resultSchema(
+  hostDependencyViewSchema,
+  hostDependencyErrorSchema
+);
+export type HostDependencyViewResult = Result<HostDependencyView, HostDependencyError>;
+
+export interface HostDependencyResolver {
+  resolve(id: DependencyId): Promise<HostDependencyResolveResult>;
+}
 
 export interface DependencyState {
   id: DependencyId;
@@ -58,17 +143,7 @@ export type DependencyUninstallError =
 
 export type DependencyUninstallResult = Result<DependencyState, DependencyUninstallError>;
 
-export type Provenance = {
-  kind: InstallMethod | 'manual' | 'version-manager' | 'unknown';
-  confidence: 'confirmed' | 'inferred';
-  managerRef?: string;
-};
-
-export type InstallOverride =
-  | { kind: 'pinned'; realpath: string }
-  | { kind: 'method'; method: InstallMethod }
-  | { kind: 'path'; path: string }
-  | { kind: 'cli'; command: string };
+export type InstallOverride = NonNullable<HostDependencySelection>;
 
 export type SelectedSource = { kind: 'auto' } | InstallOverride;
 
@@ -77,8 +152,7 @@ export type Installation = {
   realpath: string;
   pathEntry: string | null;
   isActive: boolean;
-  manageable: boolean;
-  provenance: Provenance;
+  manageable: false;
   status: DependencyStatus;
   version: string | null;
   latestVersion: string | null;
@@ -91,8 +165,6 @@ export type HostDependency = {
   installations: Installation[];
   used: SelectedSource;
 };
-
-export type HostDependencySelection = InstallOverride | null;
 
 export type DependencyStatusUpdatedEvent = {
   id: string;
@@ -107,25 +179,9 @@ export interface DependencyDescriptor {
   category: DependencyCategory;
   /** Binary names to try in order; first success wins. */
   commands: string[];
-  /** Args passed when probing for a version string. Defaults to ['--version']. */
-  versionArgs?: string[];
-  /** Skip executing the CLI after resolving its path. */
-  skipVersionProbe?: boolean;
   docUrl?: string;
-  /** Per-platform install options from plugin metadata. */
-  installCommands?: Partial<Record<Platform, InstallOption[]>>;
-  /** Optional imperative hooks from the provider implementation. */
-  commandHooks?: {
-    resolveLatestVersion?(): Promise<string | null>;
-    buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
-    buildUninstallCommand?(binaryPath: string): { command: string; args: string[] };
-  };
-  /** Override the default status resolution logic. */
-  resolveStatus?: (result: ProbeResult) => DependencyStatus;
-  /** Updates capability from plugin metadata. Absent for core dependencies. */
-  updates?: UpdatesDescriptor;
-  /** Uninstall strategy from plugin metadata. Absent for core dependencies. */
-  uninstall?: UninstallStrategy;
+  updateCommand?: z.output<typeof hostDependencyUpdateCommandSchema>;
+  status?: 'active' | 'deprecated';
 }
 
 export type DependencyProbeOptions = {
@@ -138,8 +194,6 @@ export type HostDependencyRunOptions = {
 
 export interface HostDependencyManagerPort {
   readonly platform: Platform;
-  readonly onStatusUpdated: Emitter<DependencyStatusUpdatedEvent>;
-  readonly onExecutableInvalidated?: Emitter<{ id: DependencyId }>;
   initialize(): void;
   getAll(): Map<DependencyId, DependencyState>;
   get(id: DependencyId): DependencyState | undefined;
@@ -147,25 +201,7 @@ export interface HostDependencyManagerPort {
   getHostDependency(id: DependencyId): HostDependency | undefined;
   probe(id: DependencyId): Promise<DependencyState>;
   probeCategory(cat: DependencyCategory, options?: DependencyProbeOptions): Promise<void>;
-  getInstallOptions(id: DependencyId): InstallOption[];
-  install(
-    id: DependencyId,
-    method?: InstallMethod,
-    options?: HostDependencyRunOptions
-  ): Promise<DependencyInstallResult>;
-  uninstall(
-    id: DependencyId,
-    method?: InstallMethod,
-    options?: HostDependencyRunOptions
-  ): Promise<DependencyUninstallResult>;
 }
 
 export type { DependencyStatus, ProbeResult };
-export type {
-  InstallMethod,
-  InstallOption,
-  Platform,
-  UninstallStrategy,
-  UpdatesDescriptor,
-  UpdateStrategy,
-};
+export type { Platform };

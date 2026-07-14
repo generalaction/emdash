@@ -85,12 +85,12 @@ Desktop-local ACP and workspace-server ACP both register logical workers through
 `WireWorkerHost` and use the Node `childProcessSpawner()` by default. The child
 process entry calls `runWireComponentWorker(createAcpComponent(...))`, which constructs
 `AcpRuntime`, a machine-scoped `AgentPluginHost`, `ChildAcpProcessHost`, and
-`LocalAttachmentStore`. The `AgentPluginHost` owns the runtime process's plugin registry,
-execution context, plugin filesystem, env, home directory, host dependency manager, and
-spawn-context cache; ACP-specific resources such as process handles, ACP ports, terminal
-management, attachment storage, and session cells stay inside the ACP runtime. Each host owns a
-worker manifest that maps the ACP worker id to the emitted child-process entry path for that host's
-build.
+`LocalAttachmentStore`. Host executable resolution comes from the injected
+`HostDependencies` resolver contract; ACP does not construct a dependency manager or keep a
+runtime-local executable cache. ACP-specific resources such as process handles, ACP ports,
+terminal management, attachment storage, and session cells stay inside the ACP runtime. Each host
+owns a worker manifest that maps the ACP worker id to the emitted child-process entry path for that
+host's build.
 
 Desktop composes the ACP client and renderer exposure in
 `apps/emdash-desktop/src/main/core/wire-workers/desktop-workers.ts`: the raw

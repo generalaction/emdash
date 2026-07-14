@@ -1,6 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
 import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyManagerPort } from '@primitives/host-dependencies/api';
+import type { HostDependencyResolver } from '@primitives/host-dependencies/api';
 import type { IAcpBehavior } from '@services/agent-plugins/api/plugins/capabilities/acp';
 import type { IAgentAuthBehavior } from '@services/agent-plugins/api/plugins/capabilities/auth';
 import type { CanonicalHookEvent } from '@services/agent-plugins/api/plugins/capabilities/hooks';
@@ -210,29 +210,19 @@ function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
   });
 }
 
-function fakeDependencies(): HostDependencyManagerPort {
-  const state = {
-    id: 'test',
-    category: 'agent' as const,
-    status: 'available' as const,
-    version: null,
-    path: 'test',
-    checkedAt: 0,
-  };
+function fakeDependencies(): HostDependencyResolver {
   return {
-    platform: 'linux',
-    onStatusUpdated: { subscribe: () => () => {} },
-    initialize() {},
-    getAll: () => new Map([[state.id, state]]),
-    get: () => state,
-    getByCategory: () => [state],
-    getHostDependency: () => undefined,
-    probe: async () => state,
-    probeCategory: async () => {},
-    getInstallOptions: () => [],
-    install: async () => ({ success: true, data: state }),
-    uninstall: async () => ({ success: true, data: { ...state, status: 'missing', path: null } }),
-  } as unknown as HostDependencyManagerPort;
+    resolve: async (id) => ({
+      success: true,
+      data: {
+        id,
+        command: id,
+        path: id,
+        realpath: id,
+        source: { kind: 'auto' },
+      },
+    }),
+  };
 }
 
 function plugin(
