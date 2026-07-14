@@ -129,7 +129,7 @@ async function deactivateWorkspaceConsumer(
   workspace: HostFileRef,
   strategy: 'stop' | 'detach'
 ): Promise<void> {
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(
     workspaceContract.deactivate,
     workspaceRuntimeClient.deactivate

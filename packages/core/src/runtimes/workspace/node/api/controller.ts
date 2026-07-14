@@ -43,11 +43,6 @@ export function createWorkspaceController(
         run: (input, ctx) => runtime.teardown(input, ctx),
         toError: workspaceJobError,
       },
-      runScript: {
-        run: (input, ctx) => runtime.runScript(input, ctx),
-        toError: workspaceJobError,
-      },
-      scriptOutput: (key) => runtime.scriptOutput(key),
     }),
     options.validate ?? 'inputs'
   );

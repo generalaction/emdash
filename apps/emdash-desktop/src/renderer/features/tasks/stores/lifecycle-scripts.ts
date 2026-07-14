@@ -1,8 +1,21 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
+import {
+  terminalsContract,
+  type ScriptWorkflowState,
+} from '@emdash/core/runtimes/terminals/api';
+import { createLiveJobReplica, createLiveModelReplica, ReplicaLog } from '@emdash/wire';
+import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
+import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
+import { getTerminalsRuntimeClient } from '@renderer/lib/runtime/terminals-client';
+import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { watchFileContent } from '@renderer/lib/runtime/files';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { hostPathFromNative } from '@shared/core/runtime/paths';
 import {
   addTabId,
   setNextTabActive,
@@ -13,11 +26,8 @@ import {
 import { PROJECT_CONFIG_FILE } from '@shared/core/project-settings/project-settings';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import {
-  lifecycleScriptStatusChannel,
-  type LifecycleScriptStatusEvent,
-} from '@shared/core/tasks/taskEvents';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
+import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 
 export type ScriptType = 'setup' | 'run' | 'teardown';
 
@@ -28,39 +38,28 @@ export type LifecycleScriptData = {
   command: string;
 };
 
-export type LifecycleScriptStatus = 'idle' | LifecycleScriptStatusEvent['status'];
+export type LifecycleScriptStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
 
 export class LifecycleScriptStore {
   data: LifecycleScriptData;
   session: PtySession;
   status: LifecycleScriptStatus = 'idle';
-  private offStatus: (() => void) | null = null;
-
-  constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
+  private activeRun: { cancel(): void; dispose(): Promise<void> } | null = null;
+  constructor(
+    data: LifecycleScriptData,
+    projectId: string,
+    workspaceId: string,
+    workspace: HostFileRef | undefined
+  ) {
     this.data = data;
     this.session = new PtySession(
       makePtySessionId(projectId, workspaceId, data.id),
-      async () => {
-        const result = await rpc.terminals.prepareLifecycleScript({
-          projectId,
-          workspaceId,
-          type: data.type,
-        });
-        return result.success ? undefined : false;
-      },
       undefined,
-      undefined
+      undefined,
+      undefined,
+      {},
+      workspace ? createTerminalsConnector(workspace, data.type) : undefined
     );
-    this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
-      if (
-        event.projectId !== projectId ||
-        event.workspaceId !== workspaceId ||
-        event.type !== this.data.type
-      ) {
-        return;
-      }
-      this.setStatus(event.status);
-    });
     makeObservable(this, {
       data: observable,
       session: observable,
@@ -74,13 +73,49 @@ export class LifecycleScriptStore {
     return this.status === 'running';
   }
 
-  setStatus(status: LifecycleScriptStatusEvent['status']): void {
+  setStatus(status: LifecycleScriptStatus): void {
     this.status = status;
   }
 
+  async run(projectId: string, taskId: string, workspaceId: string): Promise<void> {
+    if (this.activeRun || this.isRunning) return;
+    const client = await getWorkspacesWireClient();
+    const jobs = createLiveJobReplica(
+      workspacesWireContract.runScriptWorkflow,
+      client.runScriptWorkflow
+    );
+    const lease = await jobs.start({
+      projectId,
+      taskId,
+      workspaceId,
+      type: this.data.type,
+    });
+    const job = await lease.ready();
+    this.activeRun = {
+      cancel: () => void job.cancel(),
+      dispose: async () => {
+        await lease.release();
+        await jobs.dispose();
+      },
+    };
+    try {
+      await job.result;
+    } catch {
+      // Status and failure surfaces are driven by the workflow model.
+    } finally {
+      const active = this.activeRun;
+      this.activeRun = null;
+      await active?.dispose();
+    }
+  }
+
+  stop(): void {
+    this.activeRun?.cancel();
+  }
+
   dispose() {
-    this.offStatus?.();
-    this.offStatus = null;
+    void this.activeRun?.dispose();
+    this.activeRun = null;
     this.session.destroy();
   }
 }
@@ -92,6 +127,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private _disposed = false;
   private _refreshSeq = 0;
   private readonly _unsubscribes: Array<() => void> = [];
+  private readonly workspace: HostFileRef | undefined;
+  private workflowReplica: { dispose(): Promise<void> | void } | null = null;
   scripts = observable.map<string, LifecycleScriptStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -99,6 +136,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   constructor(projectId: string, workspaceId: string, localWorkspacePath?: string) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
+    this.workspace = localWorkspacePath
+      ? hostFileRef(LOCAL_HOST_REF, hostPathFromNative(localWorkspacePath))
+      : undefined;
     makeObservable(this, {
       scripts: observable,
       tabOrder: observable,
@@ -128,6 +168,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
           else this._unsubscribes.push(unsubscribe);
         })
         .catch(() => {});
+      this.bindWorkflowState();
     }
   }
 
@@ -226,7 +267,12 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         if (existing) {
           Object.assign(existing.data, data);
         } else {
-          const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
+          const store = new LifecycleScriptStore(
+            data,
+            this.projectId,
+            this.workspaceId,
+            this.workspace
+          );
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
         }
@@ -246,6 +292,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     this._disposed = true;
     this._refreshSeq++;
     for (const unsubscribe of this._unsubscribes) unsubscribe();
+    void this.workflowReplica?.dispose();
+    this.workflowReplica = null;
     for (const script of this.scripts.values()) {
       script.dispose();
     }
@@ -253,4 +301,66 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     this.tabOrder = [];
     this.activeTabId = undefined;
   }
+
+  private bindWorkflowState(): void {
+    if (!this.workspace) return;
+    void (async () => {
+      const client = await getTerminalsRuntimeClient();
+      if (this._disposed) return;
+      const replica = createLiveModelReplica(terminalsContract.workflows, client.workflows, {
+        onChange: {
+          state: (state: ScriptWorkflowState | null) => this.handleWorkflowState(state),
+        },
+      });
+      const lease = replica.acquire({ workspace: this.workspace! });
+      this.workflowReplica = {
+        dispose: async () => {
+          await lease.release();
+          await replica.dispose();
+        },
+      };
+      await lease.ready();
+      if (this._disposed) void this.workflowReplica.dispose();
+    })();
+  }
+
+  private handleWorkflowState(state: ScriptWorkflowState | null): void {
+    runInAction(() => {
+      for (const script of this.scripts.values()) {
+        const node = state?.nodes[script.data.type];
+        if (!node) {
+          script.setStatus('idle');
+        } else if (node.status === 'done') {
+          script.setStatus('succeeded');
+        } else if (node.status === 'skipped') {
+          script.setStatus('idle');
+        } else {
+          script.setStatus(node.status);
+        }
+      }
+    });
+  }
+}
+
+function createTerminalsConnector(workspace: HostFileRef, id: string): FrontendPtyConnector {
+  let logBinding: ReplicaLog | null = null;
+  let clientPromise: ReturnType<typeof getTerminalsRuntimeClient> | null = null;
+  const client = () => {
+    clientPromise ??= getTerminalsRuntimeClient();
+    return clientPromise;
+  };
+
+  return {
+    async connect(terminal: Terminal) {
+      const runtime = await client();
+      logBinding = new ReplicaLog(runtime.output.handle({ workspace, id }), {
+        store: createXtermLogSink(terminal),
+      });
+      await logBinding.ready;
+      return () => {
+        void logBinding?.dispose();
+        logBinding = null;
+      };
+    },
+  };
 }

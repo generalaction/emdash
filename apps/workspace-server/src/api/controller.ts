@@ -10,7 +10,6 @@ import {
 import { err, ok } from '@emdash/shared';
 import {
   createController,
-  LiveLog,
   type ContractImpl,
   type LiveModelDef,
   type LiveModelProvider,
@@ -303,8 +302,6 @@ function createWorkspaceProxy(
     activate: client.activate,
     deactivate: client.deactivate,
     teardown: client.teardown,
-    runScript: client.runScript,
-    scriptOutput: (key) => client.scriptOutput.handle(key).asLiveSource(),
   };
 }
 
@@ -341,11 +338,5 @@ function unavailableWorkspace(): NonNullable<
         err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
       toError: workspaceJobError,
     },
-    runScript: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    scriptOutput: () => new LiveLog(),
   };
 }

@@ -95,7 +95,6 @@ export class WorkspaceRegistry {
       await entry.onDestroy?.(entry.workspace);
     }
     await entry.release();
-    await entry.workspace.lifecycleService.dispose();
     if (mode === 'detach') {
       await entry.onDetach?.(entry.workspace);
     }
@@ -131,7 +130,6 @@ export class WorkspaceRegistry {
           await entry.onDestroy?.(entry.workspace);
         }
         await entry.release();
-        await entry.workspace.lifecycleService.dispose();
         if (mode === 'detach') {
           await entry.onDetach?.(entry.workspace);
         }

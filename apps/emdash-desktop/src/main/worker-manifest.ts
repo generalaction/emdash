@@ -26,6 +26,10 @@ export const desktopWorkers = {
     entry: 'src/main/core/wire-workers/entries/git.ts',
     file: 'git-runtime.js',
   },
+  terminals: {
+    entry: 'src/main/core/wire-workers/entries/terminals.ts',
+    file: 'terminals-runtime.js',
+  },
   'tui-agents': {
     entry: 'src/main/core/wire-workers/entries/tui-agents.ts',
     file: 'tui-agents-runtime.js',

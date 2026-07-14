@@ -23,27 +23,3 @@ export const taskPrUpdatedChannel = defineEvent<{
 }>('task:pr-updated');
 
 export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
-export type LifecycleScriptOrigin = 'auto-setup' | 'auto-run' | 'manual' | 'workspace-destroy';
-
-export type LifecycleScriptStatusEvent = {
-  taskId: string;
-  projectId: string;
-  workspaceId: string;
-  type: LifecycleScriptType;
-  origin: LifecycleScriptOrigin;
-} & (
-  | { status: 'running' }
-  | { status: 'succeeded'; exitCode?: number }
-  | {
-      status: 'failed';
-      message: string;
-      surfaceFailure: boolean;
-      exitCode?: number;
-      signal?: string | number;
-    }
-  | { status: 'stopped'; message?: string }
-);
-
-export const lifecycleScriptStatusChannel = defineEvent<LifecycleScriptStatusEvent>(
-  'task:lifecycle-script-status'
-);

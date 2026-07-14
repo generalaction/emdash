@@ -4,6 +4,5 @@ export * from './component';
 export * from './machine/machine';
 export * from './provisioning/paths';
 export * from './provisioning/provisioner';
-export * from './scripts';
 export * from './topology-observer';
 export * from './workspace-runtime';

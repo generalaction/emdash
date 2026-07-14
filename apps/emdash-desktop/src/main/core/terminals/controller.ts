@@ -5,10 +5,7 @@ import { getAllTerminals } from './getAllTerminals';
 import { getTerminalsForTask } from './getTerminalsForTask';
 import { getTerminalShellAvailability } from './getTerminalShellAvailability';
 import { hydrateTerminal } from './hydrateTerminal';
-import { stopLifecycleScriptSession } from './lifecycle-script-coordinator';
-import { prepareLifecycleScript } from './prepareLifecycleScript';
 import { renameTerminal } from './renameTerminal';
-import { runLifecycleScript } from './runLifecycleScript';
 
 export const terminalsController = createRPCController({
   getAllTerminals,
@@ -16,16 +13,6 @@ export const terminalsController = createRPCController({
   deleteTerminal,
   getTerminalShellAvailability,
   hydrateTerminal,
-  prepareLifecycleScript,
   renameTerminal,
   getTerminalsForTask,
-  runLifecycleScript,
-  stopLifecycleScript: (args: {
-    projectId: string;
-    taskId: string;
-    workspaceId: string;
-    type: 'setup' | 'run' | 'teardown';
-  }) => {
-    stopLifecycleScriptSession({ ...args, origin: 'manual' });
-  },
 });

@@ -13,7 +13,6 @@ import {
   DEFAULT_TERMINAL_SHELL_AVAILABILITY,
   useTerminalShellAvailability,
 } from '@renderer/lib/hooks/use-terminal-shell-availability';
-import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
@@ -98,25 +97,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!script || script.isRunning) return;
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-    void rpc.terminals
-      .runLifecycleScript({
-        projectId,
-        taskId,
-        workspaceId,
-        type: script.data.type,
-      })
-      .catch(() => {});
+    void script.run(projectId, taskId, workspaceId).catch(() => {});
   };
 
   const handleStopScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script) return;
-    void rpc.terminals.stopLifecycleScript({
-      projectId,
-      taskId,
-      workspaceId,
-      type: script.data.type,
-    });
+    script.stop();
   };
 
   const emptyState = (

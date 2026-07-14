@@ -10,7 +10,6 @@ import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
@@ -78,18 +77,12 @@ export function createWorkspaceFactory(
       ctx,
       taskEnvVars: bootstrapTaskEnvVars,
     });
-    const lifecycleService = new LifecycleScriptService({
-      projectId: context.projectId,
-      workspaceId,
-      terminals: workspaceTerminals,
-    });
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
       configPath,
       files,
       settings: context.settings,
-      lifecycleService,
     };
 
     return {

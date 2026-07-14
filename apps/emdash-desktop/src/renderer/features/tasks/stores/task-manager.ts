@@ -18,7 +18,6 @@ import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
-  lifecycleScriptStatusChannel,
   taskCreatedChannel,
   taskDeletedChannel,
   taskStatusUpdatedChannel,
@@ -136,7 +135,6 @@ export class TaskManagerStore {
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _disposeGitHeadReaction: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
-  private _unsubLifecycleScriptStatus: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
   private _bootstrapReplicaPromise: Promise<
     LiveModelReplica<typeof workspacesWireContract.bootstrap>
@@ -188,22 +186,6 @@ export class TaskManagerStore {
         }
       }
     );
-
-    this._unsubLifecycleScriptStatus = events.on(lifecycleScriptStatusChannel, (statusEvent) => {
-      if (
-        statusEvent.projectId !== this.projectId ||
-        statusEvent.status !== 'failed' ||
-        !statusEvent.surfaceFailure
-      ) {
-        return;
-      }
-      const { taskId, type, message } = statusEvent;
-      const taskName = this.tasks.get(taskId)?.data.name;
-      const label = type[0].toUpperCase() + type.slice(1);
-      toast.error(`${label} script failed${taskName ? ` for ${taskName}` : ''}`, {
-        description: message,
-      });
-    });
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.pullRequestRepositoryUrl;
@@ -798,8 +780,6 @@ export class TaskManagerStore {
     this._disposeGitHeadReaction = null;
     this._unsubStatusUpdated?.();
     this._unsubStatusUpdated = null;
-    this._unsubLifecycleScriptStatus?.();
-    this._unsubLifecycleScriptStatus = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
     for (const dispose of this._bootstrapDisposers.values()) dispose();

@@ -37,7 +37,6 @@ export const workspaceOperationKindSchema = z.enum([
   'activate',
   'deactivate',
   'teardown',
-  'run-script',
 ]);
 
 export const workspaceOperationStageSchema = z.object({
@@ -181,19 +180,6 @@ export const teardownWorkspaceInputSchema = z.object({
   lifecycle: workspaceLifecyclePlansSchema.optional(),
 });
 
-export const runWorkspaceScriptInputSchema = z.object({
-  workspace: hostFileRefSchema,
-  consumerId: z.string().min(1).optional(),
-  script: z.enum(['setup', 'run', 'teardown']),
-  automation: legacyWorkspaceAutomationSchema,
-});
-
-export const workspaceScriptOutputKeySchema = z.object({
-  workspace: hostFileRefSchema,
-  operationId: z.string().min(1),
-  script: z.enum(['setup', 'run', 'teardown']),
-});
-
 export type WorkspaceKey = z.infer<typeof workspaceKeySchema>;
 export type WorkspaceTopology = z.infer<typeof workspaceTopologySchema>;
 export type WorkspaceOperationKind = z.infer<typeof workspaceOperationKindSchema>;
@@ -213,5 +199,3 @@ export type ConvertWorkspaceInput = z.infer<typeof convertWorkspaceInputSchema>;
 export type ActivateWorkspaceInput = z.infer<typeof activateWorkspaceInputSchema>;
 export type DeactivateWorkspaceInput = z.infer<typeof deactivateWorkspaceInputSchema>;
 export type TeardownWorkspaceInput = z.infer<typeof teardownWorkspaceInputSchema>;
-export type RunWorkspaceScriptInput = z.infer<typeof runWorkspaceScriptInputSchema>;
-export type WorkspaceScriptOutputKey = z.infer<typeof workspaceScriptOutputKeySchema>;

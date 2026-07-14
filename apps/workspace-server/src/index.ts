@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path';
 import { createJsonFileKeyValueStore } from '@emdash/core/primitives/kv/node';
+import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -145,9 +146,16 @@ function createWorkspaceServerRuntime(scope: Scope): WorkspaceRuntime {
     config: {},
     validate: workspaceServerWireValidationPolicy(),
   });
+  const terminals = terminalsComponent.create({
+    scope,
+    dependencies: {},
+    config: {},
+    validate: workspaceServerWireValidationPolicy(),
+  });
   const workspace = workspaceComponent.create({
     scope,
     dependencies: {
+      terminals: terminals.client,
       watcher: watcher.client,
     },
     config: {},

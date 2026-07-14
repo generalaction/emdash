@@ -1,17 +1,15 @@
-import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import {
   activateWorkspaceInputSchema,
   convertWorkspaceInputSchema,
   deactivateWorkspaceInputSchema,
   provisionWorkspaceInputSchema,
   reconcileWorkspaceInputSchema,
-  runWorkspaceScriptInputSchema,
   teardownWorkspaceInputSchema,
   workspaceErrorSchema,
   workspaceKeySchema,
   workspaceOperationProgressSchema,
   workspaceOperationResultSchema,
-  workspaceScriptOutputKeySchema,
   workspaceStateSchema,
 } from './schemas';
 
@@ -56,15 +54,6 @@ export const workspaceContract = defineContract({
     progress: workspaceOperationProgressSchema,
     result: workspaceOperationResultSchema,
     error: workspaceErrorSchema,
-  }),
-  runScript: liveJob({
-    input: runWorkspaceScriptInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
-    error: workspaceErrorSchema,
-  }),
-  scriptOutput: liveLog({
-    key: workspaceScriptOutputKeySchema,
   }),
 });
 

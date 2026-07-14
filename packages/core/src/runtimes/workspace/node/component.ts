@@ -1,4 +1,5 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { terminalsContract } from '@runtimes/terminals/api';
 import { workspaceContract } from '@runtimes/workspace/api';
 import { createWorkspaceController } from '@runtimes/workspace/node/api/controller';
 import { WorkspaceRuntime } from '@runtimes/workspace/node/workspace-runtime';
@@ -12,6 +13,7 @@ export const workspaceComponent = defineWireComponent({
   id: 'workspace',
   contract: workspaceContract,
   requirements: {
+    terminals: requireContract(terminalsContract),
     watcher: requireContract(fsWatchContract),
   },
   configSchema: workspaceComponentConfigSchema,
@@ -22,6 +24,7 @@ export const workspaceComponent = defineWireComponent({
       scope,
     });
     const runtime = new WorkspaceRuntime({
+      terminals: dependencies.terminals,
       watcher,
       scope,
       onError: (context, error) => logger.warn(context, { error }),

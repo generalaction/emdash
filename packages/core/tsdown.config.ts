@@ -42,6 +42,8 @@ export default defineConfig({
     'runtimes-agent-config-node': 'src/runtimes/agent-config/node/index.ts',
     'runtimes-tui-agents-api': 'src/runtimes/tui-agents/api/index.ts',
     'runtimes-tui-agents-node': 'src/runtimes/tui-agents/node/index.ts',
+    'runtimes-terminals-api': 'src/runtimes/terminals/api/index.ts',
+    'runtimes-terminals-node': 'src/runtimes/terminals/node/index.ts',
     'runtimes-workspace-api': 'src/runtimes/workspace/api/index.ts',
     'runtimes-workspace-node': 'src/runtimes/workspace/node/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',

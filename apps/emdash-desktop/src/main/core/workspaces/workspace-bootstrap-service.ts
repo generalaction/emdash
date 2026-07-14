@@ -9,7 +9,6 @@ import {
   type BootstrapGitIntent,
   type BootstrapRepositoryInitialize,
   type ProvisionWorkspaceInput,
-  type RunWorkspaceScriptInput,
   type WorkspaceLifecyclePlans,
   type WorkspaceOperationProgress,
   type WorkspaceOperationResult,
@@ -53,6 +52,7 @@ import {
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
+import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { workspaceRegistry } from './workspace-registry';
 
 export type WorkspaceBootstrapResult = {
@@ -627,7 +627,7 @@ async function runWorkspaceProvisionJob(
   project: ProjectProvider,
   input: ProvisionWorkspaceInput
 ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
   const lease = await jobs.start(input);
   const job = await lease.ready();
@@ -663,7 +663,7 @@ export async function runCloneRepositoryProvision(
       baseRemote: input.remoteName ?? 'origin',
     }
   );
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
   const lease = await jobs.start({
     workspace: hostFileRefFromNativePath(compiled.workspacePath),
@@ -701,7 +701,7 @@ async function runWorkspaceActivateJob(
   project: ProjectProvider,
   input: ActivateWorkspaceInput
 ): Promise<Result<unknown, WorkspaceError>> {
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(workspaceContract.activate, workspaceRuntimeClient.activate);
   const lease = await jobs.start(input);
   const job = await lease.ready();
@@ -727,10 +727,18 @@ export function startWorkspacePostActivationScripts(
 ): void {
   const automation = result.postActivationAutomation;
   if (!automation) return;
+  const nodes = postActivationWorkflowNodes(automation);
+  if (nodes.length === 0) return;
 
-  void runWorkspacePostActivationScripts(task, project, {
+  void triggerTaskScriptWorkflow({
+    task,
+    project,
+    workspaceId: result.workspaceId,
     workspace: result.runtimeWorkspace,
-    automation,
+    cwd: result.path,
+    kind: 'post-activation',
+    shellSetup: automation.shellSetup,
+    nodes,
   }).catch((error: unknown) => {
     log.warn('Workspace post-activation scripts failed', {
       taskId: task.id,
@@ -740,63 +748,11 @@ export function startWorkspacePostActivationScripts(
   });
 }
 
-async function runWorkspacePostActivationScripts(
-  task: Task,
-  project: ProjectProvider,
-  input: Pick<RunWorkspaceScriptInput, 'workspace' | 'automation'>
-): Promise<void> {
-  let setupSucceeded = true;
-
-  if (input.automation.setup && input.automation.autoRunSetup) {
-    const result = await runWorkspaceScriptJob(task, project, {
-      ...input,
-      consumerId: task.id,
-      script: 'setup',
-    });
-    setupSucceeded = result.success;
-  }
-
-  if (setupSucceeded && input.automation.run && input.automation.autoRunRun) {
-    await runWorkspaceScriptJob(task, project, {
-      ...input,
-      consumerId: task.id,
-      script: 'run',
-    });
-  }
-}
-
-async function runWorkspaceScriptJob(
-  task: Task,
-  project: ProjectProvider,
-  input: RunWorkspaceScriptInput
-): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(workspaceContract.runScript, workspaceRuntimeClient.runScript);
-  const lease = await jobs.start(input);
-  const job = await lease.ready();
-
-  try {
-    return ok(await job.result);
-  } catch (error) {
-    const workspaceError = liveJobErrorToWorkspaceError(error);
-    log.warn('Workspace script failed', {
-      taskId: task.id,
-      projectId: project.projectId,
-      script: input.script,
-      error: workspaceError.message,
-    });
-    return err(workspaceError);
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
-}
-
 async function runWorkspaceDeactivateJob(
   task: Task,
   workspace: ActivateWorkspaceInput['workspace']
 ): Promise<void> {
-  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(
     workspaceContract.deactivate,
     workspaceRuntimeClient.deactivate
@@ -854,7 +810,6 @@ function runtimeOperationToProvisionStep(
     case 'teardown':
       return 'setting-up-workspace';
     case 'activate':
-    case 'run-script':
       return 'initialising-workspace';
   }
 }

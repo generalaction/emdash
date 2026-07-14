@@ -9,6 +9,8 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent } from '@emdash/core/runtimes/git/node';
+import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
+import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -44,6 +46,7 @@ export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 
 const workerScope = appScope.child('wire-workers');
@@ -125,6 +128,9 @@ let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 let gitWorker: WireWorker<GitContract> | undefined;
 let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 
+let terminalsWorker: WireWorker<TerminalsContract> | undefined;
+let terminalsClientPromise: Promise<TerminalsRuntimeClient> | undefined;
+
 let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
 let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
 
@@ -168,6 +174,11 @@ export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
 export function getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
   tuiAgentsClientPromise ??= createTuiAgentsRuntimeClient();
   return tuiAgentsClientPromise;
+}
+
+export function getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
+  terminalsClientPromise ??= createTerminalsRuntimeClient();
+  return terminalsClientPromise;
 }
 
 export function disposeDesktopWireWorkers(): Promise<void> {
@@ -241,6 +252,17 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
     },
   });
   return withTuiConversationInputEvents(await tuiAgentsWorker.ready());
+}
+
+async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
+  terminalsWorker ??= host.create(terminalsComponent, {
+    name: 'terminals',
+    executable: desktopWorkerPath('terminals'),
+    env: process.env,
+    dependencies: {},
+    config: {},
+  });
+  return await terminalsWorker.ready();
 }
 
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {

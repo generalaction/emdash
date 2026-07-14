@@ -1,9 +1,19 @@
+import type {
+  ScriptWorkflowProgress,
+  ScriptWorkflowResult,
+  TerminalError,
+} from '@emdash/core/runtimes/terminals/api';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';
 import { eq } from 'drizzle-orm';
+import { projectManager } from '@main/core/projects/project-manager';
+import { resolveLifecycleScript } from '@main/core/terminals/lifecycle-script-settings';
+import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
+import { triggerTaskScriptWorkflow } from '@main/core/workspaces/script-workflows';
+import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import {
   runCloneRepositoryProvision,
   type CloneRepositoryProvisionInput,
@@ -16,6 +26,7 @@ import {
   type WorkspaceBootstrapState,
   type WorkspaceCloneProvisionResult,
   type WorkspaceProvisionResult,
+  type RunWorkspaceScriptWorkflowInput,
 } from '@shared/core/workspaces/wire-contract';
 
 type BootstrapKey = { workspaceId: string };
@@ -73,6 +84,10 @@ export function createWorkspacesWireController(
         run: (input, ctx) => runProvisionCloneJob(input, ctx),
         toError: unknownToWorkspaceError,
       },
+      runScriptWorkflow: {
+        run: (input, ctx) => runScriptWorkflowJob(input, ctx),
+        toError: unknownToTerminalError,
+      },
     },
     async dispose() {
       unsubscribeProgress();
@@ -81,6 +96,62 @@ export function createWorkspacesWireController(
       activeProvisionJobs.clear();
     },
   };
+}
+
+async function runScriptWorkflowJob(
+  input: RunWorkspaceScriptWorkflowInput,
+  ctx: LiveJobContext<ScriptWorkflowProgress>
+): Promise<Result<ScriptWorkflowResult, TerminalError>> {
+  const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
+  if (!taskRow) {
+    return {
+      success: false,
+      error: terminalError('missing-task', `Task ${input.taskId} not found`),
+    };
+  }
+  const project = projectManager.getProject(input.projectId);
+  if (!project) {
+    return {
+      success: false,
+      error: terminalError('missing-project', `Project ${input.projectId} not found`),
+    };
+  }
+  const resolved = await resolveLifecycleScript(input);
+  if (!resolved.success) {
+    return {
+      success: false,
+      error: terminalError(resolved.error.type, formatLifecycleScriptError(resolved.error)),
+    };
+  }
+  if (!resolved.data.script) {
+    return {
+      success: true,
+      data: {
+        workflowId: ctx.jobId,
+        kind: `manual:${input.type}`,
+        completedNodes: [],
+      },
+    };
+  }
+
+  return await triggerTaskScriptWorkflow({
+    task: mapTaskRowToTask(taskRow),
+    project,
+    workspaceId: input.workspaceId,
+    workspace: hostFileRefFromNativePath(resolved.data.workspace.path),
+    cwd: resolved.data.workspace.path,
+    kind: `manual:${input.type}`,
+    shellSetup: resolved.data.shellSetup,
+    nodes: [
+      {
+        id: input.type,
+        label: labelForScript(input.type),
+        command: resolved.data.script,
+      },
+    ],
+    signal: ctx.signal,
+    onProgress: ctx.progress,
+  });
 }
 
 function createBootstrapProvider(): LeasedLiveModelProvider<
@@ -220,6 +291,33 @@ async function resolveWorkspaceIdForTask(taskId: string): Promise<string | undef
 
 function workspaceError(type: string, message: string): WorkspaceError {
   return { type, message };
+}
+
+function terminalError(type: string, message: string): TerminalError {
+  return { type, message };
+}
+
+function unknownToTerminalError(error: unknown): TerminalError {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { type?: unknown }).type === 'string' &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return error as TerminalError;
+  }
+  return terminalError(
+    'terminal-wire-error',
+    error instanceof Error ? error.message : String(error)
+  );
+}
+
+function formatLifecycleScriptError(error: { type: string; message?: string }): string {
+  return error.message ?? `Failed to resolve lifecycle script: ${error.type}`;
+}
+
+function labelForScript(type: RunWorkspaceScriptWorkflowInput['type']): string {
+  return type[0]!.toUpperCase() + type.slice(1);
 }
 
 function unknownToWorkspaceError(error: unknown): WorkspaceError {

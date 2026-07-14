@@ -169,6 +169,14 @@
       "types": "./dist/runtimes-tui-agents-node.d.mts",
       "default": "./dist/runtimes-tui-agents-node.mjs"
     },
+    "./runtimes/terminals/api": {
+      "types": "./dist/runtimes-terminals-api.d.mts",
+      "default": "./dist/runtimes-terminals-api.mjs"
+    },
+    "./runtimes/terminals/node": {
+      "types": "./dist/runtimes-terminals-node.d.mts",
+      "default": "./dist/runtimes-terminals-node.mjs"
+    },
     "./runtimes/workspace/api": {
       "types": "./dist/runtimes-workspace-api.d.mts",
       "default": "./dist/runtimes-workspace-api.mjs"

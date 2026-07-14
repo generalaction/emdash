@@ -1,4 +1,9 @@
 import {
+  scriptWorkflowProgressSchema,
+  scriptWorkflowResultSchema,
+  terminalErrorSchema,
+} from '@emdash/core/runtimes/terminals/api';
+import {
   bootstrapRepositoryInitializeSchema,
   workspaceErrorSchema,
   workspaceOperationProgressSchema,
@@ -67,6 +72,13 @@ export const provisionCloneWorkspaceInputSchema = z.object({
   initialize: bootstrapRepositoryInitializeSchema.optional(),
 });
 
+export const runWorkspaceScriptWorkflowInputSchema = z.object({
+  projectId: z.string(),
+  taskId: z.string(),
+  workspaceId: z.string(),
+  type: z.enum(['setup', 'run', 'teardown']),
+});
+
 export const workspacesWireContract = defineContract({
   bootstrap: liveModel({
     key: workspaceBootstrapKeySchema,
@@ -86,11 +98,20 @@ export const workspacesWireContract = defineContract({
     result: workspaceCloneProvisionResultSchema,
     error: workspaceErrorSchema,
   }),
+  runScriptWorkflow: liveJob({
+    input: runWorkspaceScriptWorkflowInputSchema,
+    progress: scriptWorkflowProgressSchema,
+    result: scriptWorkflowResultSchema,
+    error: terminalErrorSchema,
+  }),
 });
 
 export type WorkspaceBootstrapStep = z.infer<typeof workspaceBootstrapStepSchema>;
 export type WorkspaceBootstrapProgress = z.infer<typeof workspaceBootstrapProgressSchema>;
 export type WorkspaceProvisionResult = z.infer<typeof workspaceProvisionResultSchema>;
 export type WorkspaceCloneProvisionResult = z.infer<typeof workspaceCloneProvisionResultSchema>;
+export type RunWorkspaceScriptWorkflowInput = z.infer<
+  typeof runWorkspaceScriptWorkflowInputSchema
+>;
 export type WorkspaceBootstrapState = z.infer<typeof workspaceBootstrapStateSchema>;
 export type WorkspacesWireContract = typeof workspacesWireContract;

@@ -1,7 +1,6 @@
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
-import { lifecycleScriptStatusChannel } from '@shared/core/tasks/taskEvents';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts';
 
@@ -18,6 +17,10 @@ vi.mock('@renderer/lib/runtime/files', () => ({
     fileWatch.handler = handler;
     return fileWatch.unsubscribe;
   }),
+}));
+
+vi.mock('@renderer/lib/runtime/terminals-client', () => ({
+  getTerminalsRuntimeClient: vi.fn(() => new Promise(() => {})),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -56,51 +59,38 @@ describe('LifecycleScriptStore', () => {
     fileWatch.unsubscribe.mockClear();
   });
 
-  it('tracks script running state from lifecycle status events', () => {
+  it('tracks script running state from workflow status updates', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
-      'branch:feature'
+      'workspace-1',
+      undefined
     );
 
     expect(store.isRunning).toBe(false);
 
-    eventHandlers.get(`${lifecycleScriptStatusChannel.name}.`)?.({
-      projectId: 'project-1',
-      taskId: 'task-1',
-      workspaceId: 'branch:feature',
-      type: 'run',
-      origin: 'manual',
-      status: 'running',
-    });
+    store.setStatus('running');
 
     expect(store.isRunning).toBe(true);
     expect(store.status).toBe('running');
 
-    eventHandlers.get(`${lifecycleScriptStatusChannel.name}.`)?.({
-      projectId: 'project-1',
-      taskId: 'task-1',
-      workspaceId: 'branch:feature',
-      type: 'run',
-      origin: 'manual',
-      status: 'succeeded',
-      exitCode: 0,
-    });
+    store.setStatus('succeeded');
 
     expect(store.isRunning).toBe(false);
     expect(store.status).toBe('succeeded');
   });
 
-  it('unsubscribes from lifecycle status events on dispose', () => {
+  it('destroys the script PTY session on dispose', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
-      'branch:feature'
+      'workspace-1',
+      undefined
     );
 
     store.dispose();
 
-    expect(offEvent).toHaveBeenCalledTimes(1);
+    expect(store.session.destroy).toHaveBeenCalledTimes(1);
   });
 });
 

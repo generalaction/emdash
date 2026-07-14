@@ -3,10 +3,13 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
   createLiveModelHost,
-  LiveLog,
+  createLiveJobReplica,
+  LiveJobCancelledError,
+  LiveJobFailedError,
   type LiveJobContext,
   type LiveModelHost,
 } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
 import { bindMachineToLiveState } from '@emdash/wire';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
@@ -15,17 +18,16 @@ import {
   type DeactivateWorkspaceInput,
   type ProvisionWorkspaceInput,
   type ReconcileWorkspaceInput,
-  type RunWorkspaceScriptInput,
   type TeardownWorkspaceInput,
   type WorkspaceError,
   type WorkspaceOperationKind,
   type WorkspaceOperationProgress,
   type WorkspaceOperationResult,
   type WorkspaceOperationStage,
-  type WorkspaceScriptOutputKey,
   type WorkspaceTopology,
   workspaceContract,
 } from '@runtimes/workspace/api';
+import { terminalsContract, type TerminalsContract } from '@runtimes/terminals/api';
 import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
 import type { IWatchService } from '@services/fs-watch/api';
@@ -33,7 +35,6 @@ import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activi
 import { createWorkspaceMachine, type WorkspaceMachine } from './machine/machine';
 import { nativePathFromWorkspace } from './provisioning/paths';
 import { NodeWorkspaceProvisioner, type WorkspaceProvisioner } from './provisioning/provisioner';
-import { NodeWorkspaceScriptEngine, type WorkspaceScriptEngine } from './scripts';
 import { WorkspaceTopologyObserver } from './topology-observer';
 
 type WorkspaceRuntimeRecord = {
@@ -45,7 +46,7 @@ type WorkspaceRuntimeRecord = {
 export type WorkspaceRuntimeOptions = {
   lifecycle?: WorkspaceLifecycleManager;
   provisioner?: WorkspaceProvisioner;
-  scripts?: WorkspaceScriptEngine;
+  terminals?: ContractClient<TerminalsContract>;
   activityProviders?: WorkspaceActivityProvider[];
   watcher?: IWatchService;
   scope?: Scope;
@@ -58,13 +59,12 @@ export class WorkspaceRuntime {
 
   private readonly lifecycle: WorkspaceLifecycleManager;
   private readonly provisioner: WorkspaceProvisioner;
-  private readonly scripts: WorkspaceScriptEngine;
+  private readonly terminals: ContractClient<TerminalsContract> | undefined;
   private readonly scope: Scope;
   private readonly now: () => number;
   private readonly onError: (context: string, error: unknown) => void;
   private readonly records = new Map<string, WorkspaceRuntimeRecord>();
   private readonly operationLane = new Set<string>();
-  private readonly scriptLogs = new Map<string, LiveLog>();
   private readonly activity: WorkspaceActivityIndex;
   private readonly topologyObserver: WorkspaceTopologyObserver;
 
@@ -72,7 +72,7 @@ export class WorkspaceRuntime {
     this.host = createLiveModelHost(workspaceContract.workspace);
     this.lifecycle = options.lifecycle ?? new WorkspaceLifecycleManager();
     this.provisioner = options.provisioner ?? new NodeWorkspaceProvisioner();
-    this.scripts = options.scripts ?? new NodeWorkspaceScriptEngine();
+    this.terminals = options.terminals;
     this.scope = options.scope ?? createScope({ label: 'workspace-runtime' });
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
@@ -213,8 +213,8 @@ export class WorkspaceRuntime {
           stage.skip('deactivation-plan', 'Run deactivation plan');
         }
 
-        await this.runAutomationScript(input.workspace, input.automation, 'teardown', ctx, stage);
-        await this.scripts.stopWorkspace(input.workspace, { signal: ctx.signal });
+        await this.runTerminalsTeardown(input.workspace, input.automation, ctx, stage);
+        await this.killTerminalsScope(input.workspace);
       }
 
       return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
@@ -263,32 +263,6 @@ export class WorkspaceRuntime {
     });
   }
 
-  async runScript(
-    input: RunWorkspaceScriptInput,
-    ctx: LiveJobContext<WorkspaceOperationProgress>
-  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'run-script', ctx, async (stage) => {
-      await this.runAutomationScript(
-        input.workspace,
-        input.automation,
-        input.script,
-        ctx,
-        stage,
-        true
-      );
-      return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
-    });
-  }
-
-  scriptOutput(key: WorkspaceScriptOutputKey): LiveLog {
-    const logKey = `${resourceKeyFromFileRef(key.workspace)}:${key.operationId}:${key.script}`;
-    const existing = this.scriptLogs.get(logKey);
-    if (existing) return existing;
-    const log = new LiveLog();
-    this.scriptLogs.set(logKey, log);
-    return log;
-  }
-
   dispose(): void {
     for (const record of this.records.values()) {
       record.binding.dispose();
@@ -300,7 +274,6 @@ export class WorkspaceRuntime {
     this.lifecycle.dispose();
     this.activity.dispose();
     void this.topologyObserver.dispose();
-    this.scriptLogs.clear();
   }
 
   private recordFor(workspace: HostFileRef): WorkspaceRuntimeRecord {
@@ -410,35 +383,52 @@ export class WorkspaceRuntime {
     return result.success ? ok(result.data) : err(toWorkspaceError(result.error));
   }
 
-  private async runAutomationScript(
+  private async runTerminalsTeardown(
     workspace: HostFileRef,
     automation: ActivateWorkspaceInput['automation'],
-    script: 'setup' | 'run' | 'teardown',
     ctx: LiveJobContext<WorkspaceOperationProgress>,
-    stage: StageReporter,
-    force = false
+    stage: StageReporter
   ): Promise<Result<void, WorkspaceError>> {
-    if (!automation) return ok(undefined);
-    if (script === 'setup' && !automation.autoRunSetup && !force) return ok(undefined);
-    if (script === 'run' && !automation.autoRunRun && !force) return ok(undefined);
-    if (!automation[script]) return ok(undefined);
+    if (!this.terminals || !automation?.teardown) return ok(undefined);
 
-    const stageId = `script:${script}`;
-    stage.start(stageId, `Run ${script} script`);
-    const log = this.scriptOutput({ workspace, operationId: ctx.jobId, script });
-    const result = await this.scripts.run({
+    const stageId = 'script:teardown';
+    stage.start(stageId, 'Run teardown script');
+    const jobs = createLiveJobReplica(terminalsContract.runWorkflow, this.terminals.runWorkflow);
+    const lease = await jobs.start({
       workspace,
-      script,
-      automation,
-      signal: ctx.signal,
-      appendOutput: (chunk) => log.append(chunk),
+      kind: 'teardown',
+      nodes: [
+        {
+          id: 'teardown',
+          label: 'Teardown',
+          command: automation.teardown,
+          shellSetup: automation.shellSetup,
+          cwd: nativePathFromWorkspace(workspace),
+          env: stringEnv(process.env),
+        },
+      ],
     });
-    if (!result.success) {
-      stage.fail(stageId, result.error);
-      return result;
+    const job = await lease.ready();
+    const cancel = () => void job.cancel();
+    ctx.signal.addEventListener('abort', cancel, { once: true });
+    try {
+      await job.result;
+      stage.done(stageId);
+      return ok(undefined);
+    } catch (error) {
+      const workspaceError = terminalJobErrorToWorkspaceError(error);
+      stage.fail(stageId, workspaceError);
+      return err(workspaceError);
+    } finally {
+      ctx.signal.removeEventListener('abort', cancel);
+      await lease.release();
+      await jobs.dispose();
     }
-    stage.done(stageId);
-    return ok(undefined);
+  }
+
+  private async killTerminalsScope(workspace: HostFileRef): Promise<void> {
+    if (!this.terminals) return;
+    await this.terminals.killScope({ workspace });
   }
 }
 
@@ -535,6 +525,22 @@ function toWorkspaceError(error: unknown): WorkspaceError {
     type: 'error',
     message: error instanceof Error ? error.message : String(error),
   };
+}
+
+function terminalJobErrorToWorkspaceError(error: unknown): WorkspaceError {
+  if (error instanceof LiveJobFailedError) {
+    return toWorkspaceError(error.error);
+  }
+  if (error instanceof LiveJobCancelledError) {
+    return { type: 'cancelled', message: 'Terminal script workflow was cancelled' };
+  }
+  return toWorkspaceError(error);
+}
+
+function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  );
 }
 
 export function createUnavailableWorkspaceError(error: unknown): WorkspaceError {

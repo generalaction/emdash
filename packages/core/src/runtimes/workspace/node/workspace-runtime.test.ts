@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ok } from '@emdash/shared';
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
@@ -11,9 +10,8 @@ import type {
   WorkspaceActivityResource,
   WorkspaceOperationProgress,
 } from '@runtimes/workspace/api';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { WorkspaceActivityProvider } from './activity';
-import type { WorkspaceScriptEngine } from './scripts';
 import { WorkspaceRuntime } from './workspace-runtime';
 
 describe('WorkspaceRuntime', () => {
@@ -65,11 +63,7 @@ describe('WorkspaceRuntime', () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
     try {
       const workspace = hostFileRefFromNative(root);
-      const scripts: WorkspaceScriptEngine = {
-        run: vi.fn().mockResolvedValue(ok(undefined)),
-        stopWorkspace: vi.fn().mockResolvedValue(ok(undefined)),
-      };
-      const runtime = new WorkspaceRuntime({ scripts });
+      const runtime = new WorkspaceRuntime();
       const automation = {
         setup: 'echo setup',
         autoRunSetup: true,
@@ -81,14 +75,6 @@ describe('WorkspaceRuntime', () => {
         jobContext('activate-1')
       );
       expect(activation.success).toBe(true);
-      expect(scripts.run).not.toHaveBeenCalled();
-
-      const script = await runtime.runScript(
-        { workspace, consumerId: 'task-1', script: 'setup', automation },
-        jobContext('script-1')
-      );
-      expect(script.success).toBe(true);
-      expect(scripts.run).toHaveBeenCalledOnce();
 
       runtime.dispose();
     } finally {
