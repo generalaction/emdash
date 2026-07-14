@@ -7,7 +7,7 @@ export const root = style({
   flexDirection: 'column',
   width: '100%',
   height: '100%',
-  gap: '1rem',
+  gap: '0.5rem',
   color: vars.foreground,
 });
 
@@ -37,6 +37,9 @@ export const progressContainer = style({
 
 export const stepViewport = style({
   minHeight: '1.75rem',
+  display: 'flex',
+  marginTop: '30%',
+  alignItems: 'center',
   overflow: 'hidden',
 });
 
@@ -62,10 +65,6 @@ export const iconPending = style({
 
 export const iconLoading = style({
   color: vars.foregroundMuted,
-});
-
-export const iconSuccess = style({
-  color: vars.foregroundSuccess,
 });
 
 export const iconError = style({
@@ -97,7 +96,6 @@ export const footer = style({
   border: `1px solid ${vars.border}`,
   backgroundColor: vars.background1,
   padding: '0.375rem 0.375rem 0.375rem 0.75rem',
-  boxShadow: '0 6px 16px -8px rgba(0, 0, 0, 0.25)',
 });
 
 export const footerProgress = style({
@@ -172,6 +170,6 @@ export const progressTrack = style({
 export const progressFill = style({
   height: '100%',
   borderRadius: '999px',
-  backgroundColor: vars.selection,
+  backgroundColor: vars.foreground,
   transition: 'width 300ms ease-out',
 });

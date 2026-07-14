@@ -15,7 +15,6 @@ const meta: Meta<typeof SteppedLoader> = {
   component: SteppedLoader,
   parameters: { layout: 'centered' },
   args: {
-    label: 'Setting up project',
     steps: BASE_STEPS,
     activeStepId: 'install',
     status: 'loading',
@@ -24,7 +23,7 @@ const meta: Meta<typeof SteppedLoader> = {
   argTypes: {
     status: {
       control: 'select',
-      options: ['pending', 'loading', 'success', 'error'],
+      options: ['pending', 'loading', 'error'],
     },
   },
 };
@@ -80,7 +79,14 @@ function withInstallProgress(percent: number) {
     step.id === 'install'
       ? {
           ...step,
-          children: <SteppedLoaderProgress percent={percent} aria-label="Install progress" />,
+          children: (
+            <SteppedLoaderProgress
+              percent={percent}
+              aria-label="Install progress"
+              leftLabel="Install progress"
+              rightLabel="54%"
+            />
+          ),
         }
       : step
   );
@@ -103,18 +109,6 @@ export const LoadingWithProgress: Story = {
   args: {
     status: 'loading',
     steps: withInstallProgress(42),
-  },
-  render: (args) => (
-    <Frame>
-      <SteppedLoader {...args} />
-    </Frame>
-  ),
-};
-
-export const Success: Story = {
-  args: {
-    status: 'success',
-    steps: withInstallProgress(100),
   },
   render: (args) => (
     <Frame>
@@ -158,7 +152,6 @@ export const StepProgression: Story = {
       {BASE_STEPS.map((step) => (
         <SteppedLoader
           key={step.id}
-          label="Setting up project"
           steps={BASE_STEPS}
           activeStepId={step.id}
           status="loading"
@@ -178,7 +171,6 @@ const ALL_STATES: Array<{
   { label: 'pending', status: 'pending' },
   { label: 'loading', status: 'loading' },
   { label: 'loading 42%', status: 'loading', percent: 42 },
-  { label: 'success', status: 'success', percent: 100 },
   { label: 'error', status: 'error', actions: true },
 ];
 
@@ -199,7 +191,6 @@ export const AllStates: Story = {
             {label}
           </p>
           <SteppedLoader
-            label="Setting up project"
             steps={percent != null ? withInstallProgress(percent) : BASE_STEPS}
             activeStepId="install"
             status={status}
@@ -225,9 +216,19 @@ function InteractiveDemo() {
       return;
     }
 
+    // When the current step finishes, advance straight to the next step; the
+    // loader plays its slide transition. No intermediate success state.
     if (progress >= 100) {
-      setStatus('success');
-      return;
+      if (isLastStep) {
+        return;
+      }
+
+      const timer = window.setTimeout(() => {
+        setActiveIndex((current) => Math.min(BASE_STEPS.length - 1, current + 1));
+        setProgress(0);
+      }, 400);
+
+      return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => {
@@ -235,21 +236,7 @@ function InteractiveDemo() {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [isRunning, progress, status]);
-
-  React.useEffect(() => {
-    if (!isRunning || status !== 'success' || isLastStep) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setActiveIndex((current) => Math.min(BASE_STEPS.length - 1, current + 1));
-      setProgress(0);
-      setStatus('loading');
-    }, 900);
-
-    return () => window.clearTimeout(timer);
-  }, [isLastStep, isRunning, status]);
+  }, [isLastStep, isRunning, progress, status]);
 
   function retry() {
     setIsRunning(true);
@@ -281,6 +268,8 @@ function InteractiveDemo() {
         <SteppedLoaderProgress
           percent={index < activeIndex ? 100 : progress}
           aria-label={`${step.name} progress`}
+          leftLabel={step.name}
+          rightLabel={`${index < activeIndex ? 100 : progress}%`}
         />
       ) : undefined,
   }));
@@ -289,7 +278,6 @@ function InteractiveDemo() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '24rem' }}>
       <Frame>
         <SteppedLoader
-          label="Interactive setup"
           steps={steps}
           activeStepId={activeStepId}
           status={status}

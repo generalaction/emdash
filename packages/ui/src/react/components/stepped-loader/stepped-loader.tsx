@@ -1,10 +1,10 @@
 import { SegmentedSpinnerIcon } from '@react/primitives/segmented-spinner';
 import { cx } from '@styles/utilities/cx';
-import { AlertCircleIcon, CheckCircle2Icon, CircleIcon } from 'lucide-react';
+import { AlertCircleIcon, CircleIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './stepped-loader.css';
 
-export type StepStatus = 'pending' | 'loading' | 'success' | 'error';
+export type StepStatus = 'pending' | 'loading' | 'error';
 
 export interface SteppedLoaderStep {
   id: string;
@@ -14,8 +14,6 @@ export interface SteppedLoaderStep {
 }
 
 export interface SteppedLoaderProps {
-  /** Optional label rendered above the active step. */
-  label?: string;
   steps: SteppedLoaderStep[];
   activeStepId: string;
   /** Status shown for the active step. */
@@ -25,12 +23,7 @@ export interface SteppedLoaderProps {
   className?: string;
 }
 
-export interface SteppedLoaderProgressProps {
-  percent: number;
-  'aria-label'?: string;
-}
-
-type PresentationPhase = 'idle' | 'holding' | 'exiting' | 'entering';
+type PresentationPhase = 'idle' | 'exiting' | 'entering';
 
 interface PresentationState {
   stepId: string;
@@ -38,7 +31,6 @@ interface PresentationState {
   phase: PresentationPhase;
 }
 
-const SUCCESS_HOLD_MS = 600;
 const EXIT_MS = 220;
 const ENTER_MS = 180;
 
@@ -48,14 +40,26 @@ function clampPercent(percent: number) {
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
-function SteppedLoaderProgress({ percent, 'aria-label': ariaLabel }: SteppedLoaderProgressProps) {
+export interface SteppedLoaderProgressProps {
+  percent: number;
+  'aria-label'?: string;
+  leftLabel: string;
+  rightLabel: string;
+}
+
+function SteppedLoaderProgress({
+  percent,
+  'aria-label': ariaLabel,
+  leftLabel,
+  rightLabel,
+}: SteppedLoaderProgressProps) {
   const clampedPercent = clampPercent(percent);
 
   return (
     <div className={styles.progressContainer}>
       <div className={styles.progressHeader}>
-        <span>What is happening?</span>
-        <span>54%</span>
+        <span>{leftLabel}</span>
+        <span>{rightLabel}</span>
       </div>
       <div className={styles.progressTrack}>
         <div
@@ -73,7 +77,6 @@ function SteppedLoaderProgress({ percent, 'aria-label': ariaLabel }: SteppedLoad
 }
 
 function SteppedLoader({
-  label,
   steps,
   activeStepId,
   status,
@@ -85,7 +88,7 @@ function SteppedLoader({
   const [presentation, setPresentation] = React.useState<PresentationState>({
     stepId: initialStepId,
     status,
-    phase: status === 'success' ? 'holding' : 'idle',
+    phase: 'idle',
   });
   const presentationRef = React.useRef(presentation);
   const latestTargetRef = React.useRef({ stepId: initialStepId, status });
@@ -120,12 +123,11 @@ function SteppedLoader({
           return prev;
         }
 
-        const nextPhase = status === 'success' ? 'holding' : 'idle';
-        if (prev.status === status && prev.phase === nextPhase) {
+        if (prev.status === status && prev.phase === 'idle') {
           return prev;
         }
 
-        return { ...prev, status, phase: nextPhase };
+        return { ...prev, status, phase: 'idle' };
       });
       return;
     }
@@ -139,42 +141,33 @@ function SteppedLoader({
     timersRef.current = [];
     pendingTargetRef.current = { stepId: initialStepId, status };
 
-    const shouldHoldSuccess = current.status === 'success';
-    if (shouldHoldSuccess) {
-      setPresentation((prev) => ({ ...prev, status: 'success', phase: 'holding' }));
-    }
+    // Slide the current step out immediately, then swap and slide the next in.
+    setPresentation((prev) => ({ ...prev, phase: 'exiting' }));
 
-    scheduleTimer(
-      () => {
-        setPresentation((prev) => ({ ...prev, phase: 'exiting' }));
+    scheduleTimer(() => {
+      const target = pendingTargetRef.current ?? latestTargetRef.current;
+      pendingTargetRef.current = null;
+      setPresentation({
+        stepId: target.stepId,
+        status: target.status,
+        phase: 'entering',
+      });
 
-        scheduleTimer(() => {
-          const target = pendingTargetRef.current ?? latestTargetRef.current;
-          pendingTargetRef.current = null;
-          setPresentation({
-            stepId: target.stepId,
-            status: target.status,
-            phase: 'entering',
-          });
+      scheduleTimer(() => {
+        const latestTarget = latestTargetRef.current;
+        setPresentation((prev) => {
+          if (prev.stepId !== latestTarget.stepId) {
+            return prev;
+          }
 
-          scheduleTimer(() => {
-            const latestTarget = latestTargetRef.current;
-            setPresentation((prev) => {
-              if (prev.stepId !== latestTarget.stepId) {
-                return prev;
-              }
-
-              return {
-                stepId: latestTarget.stepId,
-                status: latestTarget.status,
-                phase: latestTarget.status === 'success' ? 'holding' : 'idle',
-              };
-            });
-          }, ENTER_MS);
-        }, EXIT_MS);
-      },
-      shouldHoldSuccess ? SUCCESS_HOLD_MS : 0
-    );
+          return {
+            stepId: latestTarget.stepId,
+            status: latestTarget.status,
+            phase: 'idle',
+          };
+        });
+      }, ENTER_MS);
+    }, EXIT_MS);
   }, [initialStepId, status]);
 
   function scheduleTimer(callback: () => void, delay: number) {
@@ -192,7 +185,6 @@ function SteppedLoader({
 
   return (
     <div className={cx(styles.root, className)}>
-      {label && <div className={styles.label}>{label}</div>}
       <div className={styles.stepViewport}>
         <div
           className={cx(
@@ -224,12 +216,6 @@ function StatusIcon({ status }: { status: StepStatus }) {
       return (
         <span className={cx(styles.iconSlot, styles.iconLoading)} aria-label="Loading">
           <SegmentedSpinnerIcon style={ICON_SIZE} />
-        </span>
-      );
-    case 'success':
-      return (
-        <span className={cx(styles.iconSlot, styles.iconSuccess)} aria-label="Success">
-          <CheckCircle2Icon style={ICON_SIZE} />
         </span>
       );
     case 'error':
