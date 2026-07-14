@@ -16,26 +16,24 @@ export function useAutomationRunActions(automationId: string, run?: AutomationRu
   const projectId = automation?.projectId ?? null;
   const taskId = run?.taskId ?? null;
   const conversations = taskId ? conversationRegistry.get(taskId) : undefined;
-  const activeConversation = Array.from(conversations?.conversations.values() ?? []).find(
+  const hasActiveConversation = Array.from(conversations?.conversations.values() ?? []).some(
     (conversation) => conversation.status === 'working' || conversation.status === 'awaiting-input'
   );
 
-  async function stopRun() {
+  function stopRun() {
     if (!run) return;
-    try {
-      await stop.mutateAsync(run.id);
-    } catch (error) {
-      toast({
-        title: 'Failed to stop task run',
-        description: error instanceof Error ? error.message : undefined,
-        variant: 'destructive',
-      });
-    }
+    stop.mutate(run.id, {
+      onError: (error) =>
+        toast({
+          title: 'Failed to stop task run',
+          description: error instanceof Error ? error.message : undefined,
+          variant: 'destructive',
+        }),
+    });
   }
 
   return {
-    canStopRun:
-      activeConversation !== undefined || STOPPABLE_RUN_STATUSES.has(run?.status ?? 'done'),
+    canStopRun: hasActiveConversation || Boolean(run && STOPPABLE_RUN_STATUSES.has(run.status)),
     stopRun,
     stopRunPending: stop.isPending,
     stopRunSucceeded: stop.isSuccess,

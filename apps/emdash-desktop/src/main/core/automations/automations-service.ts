@@ -227,9 +227,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const run = await getRun(runId);
     if (!run) throw new Error('run_not_found');
     let stopped: AutomationRun;
-    if (run.status === 'queued') {
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
-    } else if (
+    if (
+      run.status === 'queued' ||
       run.status === 'creating_task' ||
       run.status === 'launching_task' ||
       run.status === 'creating_conversation'

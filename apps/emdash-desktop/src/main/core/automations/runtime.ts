@@ -44,12 +44,12 @@ export async function runQueuedAutomation(
       error: error instanceof Error ? error.message : String(error),
     })
   );
+  const current = await getRun(run.id);
+  if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
+    return ok(current);
+  }
 
   if (!result.success) {
-    const current = await getRun(run.id);
-    if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
-      return ok(current);
-    }
     log.error('Automation task create failed', {
       automationId: automation.id,
       runId: run.id,
@@ -57,11 +57,6 @@ export async function runQueuedAutomation(
     });
     // markRunFailed was already called inside executeTaskCreate
     return err(result.error);
-  }
-
-  const current = await getRun(run.id);
-  if (current?.status === 'skipped' && current.error?.code === 'manually_stopped') {
-    return ok(current);
   }
 
   run = await markRunDone(run.id, Date.now());
