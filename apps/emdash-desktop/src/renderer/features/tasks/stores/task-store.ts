@@ -180,7 +180,9 @@ export class TaskStore {
       return {};
     }
     if (this.state === 'provisioned') {
-      const mgr = conversationRegistry.get(this.data.projectId, this.data.id);
+      const task = registeredTaskData(this);
+      if (!task) return {};
+      const mgr = conversationRegistry.get(task.projectId, task.id);
       if (mgr) {
         const counts: Record<string, number> = {};
         for (const conv of mgr.conversations.values()) {
