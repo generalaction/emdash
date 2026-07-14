@@ -37,7 +37,7 @@ export class ConversationManagerStore implements IDisposable {
   sessions = observable.map<string, PtySession>();
 
   constructor(
-    readonly projectId: string,
+    private readonly projectId: string,
     private readonly taskId: string,
     preloaded?: Conversation[]
   ) {
@@ -109,7 +109,7 @@ export class ConversationManagerStore implements IDisposable {
 
   private listenToAgentStatusChanged(): () => void {
     return events.on(conversationAgentStatusChangedChannel, (payload) => {
-      if (payload.taskId !== this.taskId) return;
+      if (payload.projectId !== this.projectId || payload.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(payload.conversationId);
       if (!conversationStore) return;
 
@@ -147,7 +147,7 @@ export class ConversationManagerStore implements IDisposable {
 
   private listenToConversationChanges(): () => void {
     return events.on(conversationChangedChannel, (event) => {
-      if (event.taskId !== this.taskId) return;
+      if (event.projectId !== this.projectId || event.taskId !== this.taskId) return;
       const store = this.conversations.get(event.conversationId);
       if (!store) return;
       runInAction(() => {

@@ -224,8 +224,8 @@ function terminalRegistryEntries(): {
 
 afterEach(() => {
   // Release the session manager first so the reconciler disposes cleanly.
-  releaseConversationSessionManager('task-1');
-  conversationRegistry.release('task-1');
+  releaseConversationSessionManager('project-1', 'task-1');
+  conversationRegistry.release('project-1', 'task-1');
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
   workspaceRegistry.release('project-1', 'workspace-1');
@@ -386,7 +386,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
 describe('WorkspaceViewModel default conversation tab', () => {
   it('opens the initial conversation for a new task without restored tab state', async () => {
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', []);
     const viewModel = makeViewModel();
 
     runInAction(() => {
@@ -400,7 +400,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
   });
 
   it('does not reopen a closed initial conversation when a later conversation is created', async () => {
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', []);
     const viewModel = makeViewModel();
 
     runInAction(() => {
@@ -435,7 +435,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
   });
 
   it('preserves a restored empty tab state instead of opening the initial conversation', async () => {
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [
       makeConversation({ id: 'conversation-1', isInitialConversation: true }),
     ]);
     const viewModel = makeViewModel();
@@ -473,7 +473,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
     workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
       settings: {},
     } as never);
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', []);
     vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
     const viewModel = makeProvisionedViewModel();
@@ -509,7 +509,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
 describe('WorkspaceViewModel conversation hydration', () => {
   it('hydrates an opened conversation exactly once', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [makeConversation()]);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [makeConversation()]);
     const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
 
@@ -538,7 +538,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
   it('dehydrates the last closed conversation and preview replacement', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [
       makeConversation({ id: 'conversation-1', title: 'Conversation 1' }),
       makeConversation({ id: 'conversation-2', title: 'Conversation 2' }),
     ]);
@@ -578,7 +578,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
   it('keeps a conversation hydrated while it remains open in another pane', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [makeConversation()]);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [makeConversation()]);
     const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     const dehydrateConversation = vi
       .spyOn(conversations, 'dehydrateConversation')
@@ -643,7 +643,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
   it('dehydrates all hydrated conversations on suspend', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [
       makeConversation({ id: 'conversation-1', title: 'Conversation 1' }),
       makeConversation({ id: 'conversation-2', title: 'Conversation 2' }),
     ]);
@@ -680,7 +680,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
   it('dehydrates a stale conversation when its hydrate finishes after the tab closed', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [makeConversation()]);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [makeConversation()]);
     const hydrate = deferred();
     vi.spyOn(conversations, 'hydrateConversation').mockReturnValue(hydrate.promise);
     const dehydrateConversation = vi
@@ -716,7 +716,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
   it('does not mark failed hydrations as hydrated and can retry', async () => {
     const viewModel = makeViewModel();
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', [makeConversation()]);
+    const conversations = conversationRegistry.acquire('project-1', 'task-1', [makeConversation()]);
     const hydrateConversation = vi
       .spyOn(conversations, 'hydrateConversation')
       .mockRejectedValueOnce(new Error('hydrate failed'))
@@ -785,7 +785,7 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
   });
 
   it('gates default-conversation auto-open when tab state is restored', () => {
-    const conversations = conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
+    const conversations = conversationRegistry.acquire('project-1', PERSISTOR_TASK_ID, [
       makeConversation({
         id: 'conversation-1',
         isInitialConversation: true,
@@ -820,7 +820,7 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
 
     expect(conversationTabIds(viewModel)).toHaveLength(0);
     viewModel.dispose();
-    conversationRegistry.release(PERSISTOR_TASK_ID);
+    conversationRegistry.release('project-1', PERSISTOR_TASK_ID);
   });
 
   it('eager-writes dedicated tabs key when migrating from legacy aggregate', () => {

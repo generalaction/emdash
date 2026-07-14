@@ -46,7 +46,7 @@ export function PaletteNotificationsGroup({
 
       for (const [tid, taskStore] of mounted.taskManager.tasks) {
         if (!isRegistered(taskStore)) continue;
-        const conversations = conversationRegistry.get(tid);
+        const conversations = conversationRegistry.get(pid, tid);
         if (!conversations) continue;
 
         const status = conversations.taskStatus;

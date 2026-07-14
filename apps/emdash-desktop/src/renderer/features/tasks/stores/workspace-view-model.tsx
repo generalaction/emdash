@@ -115,7 +115,7 @@ export class WorkspaceViewModel implements ILifecycle {
         });
       },
     });
-    this._seeder = new DefaultConversationSeeder(this.taskId, this.paneLayout);
+    this._seeder = new DefaultConversationSeeder(projectId, this.taskId, this.paneLayout);
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
     this.editorView = new EditorViewStore(this.paneLayout, taskData.projectId, workspaceId);
 

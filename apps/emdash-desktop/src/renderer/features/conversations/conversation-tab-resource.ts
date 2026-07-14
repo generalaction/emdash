@@ -16,18 +16,22 @@ import { conversationRegistry } from './stores/conversation-registry';
  */
 export class ConversationTabResource implements TabResource {
   readonly store: ConversationStore;
+  private readonly _projectId: string;
   private readonly _taskId: string;
   private readonly _disposers: (() => void)[];
 
   constructor(store: ConversationStore, taskId: string, handle: TabHandle) {
     this.store = store;
+    this._projectId = store.data.projectId;
     this._taskId = taskId;
     const conversationId = store.data.id;
 
     this._disposers = [
       // Auto-close this tab when the conversation is deleted.
       reaction(
-        () => conversationRegistry.get(taskId)?.conversations.has(conversationId) ?? false,
+        () =>
+          conversationRegistry.get(this._projectId, taskId)?.conversations.has(conversationId) ??
+          false,
         (exists) => {
           if (!exists) void handle.close();
         }
@@ -49,6 +53,8 @@ export class ConversationTabResource implements TabResource {
   }
 
   rename(name: string): void {
-    void conversationRegistry.get(this._taskId)?.renameConversation(this.store.data.id, name);
+    void conversationRegistry
+      .get(this._projectId, this._taskId)
+      ?.renameConversation(this.store.data.id, name);
   }
 }

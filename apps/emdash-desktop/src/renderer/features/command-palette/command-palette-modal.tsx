@@ -381,7 +381,9 @@ export function CommandPaletteModal({
                 }
               }
               if (item.kind === 'conversation' && item.projectId && item.taskId) {
-                const convStore = conversationRegistry.get(item.taskId)?.conversations.get(item.id);
+                const convStore = conversationRegistry
+                  .get(item.projectId, item.taskId)
+                  ?.conversations.get(item.id);
                 if (convStore) {
                   return (
                     <PaletteConversationItem
@@ -462,9 +464,12 @@ export function CommandPaletteModal({
             {taskId && conversationResults.length > 0 && (
               <Command.Group heading="Recent Conversations" className={GROUP_CLASS}>
                 {conversationResults.slice(0, 5).map((item) => {
-                  const convStore = item.taskId
-                    ? conversationRegistry.get(item.taskId)?.conversations.get(item.id)
-                    : undefined;
+                  const convStore =
+                    item.projectId && item.taskId
+                      ? conversationRegistry
+                          .get(item.projectId, item.taskId)
+                          ?.conversations.get(item.id)
+                      : undefined;
                   return convStore ? (
                     <PaletteConversationItem
                       key={item.id}

@@ -97,7 +97,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleExport = (kind: 'parsed' | 'raw') => {
-    const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
+    const store = getAcpChatResourceManager(projectId, taskId).get(conversationId);
     if (!store) {
       toast({
         title: 'Failed to export transcript',

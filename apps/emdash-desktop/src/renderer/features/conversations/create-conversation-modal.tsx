@@ -40,7 +40,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
-  const conversationMgr = conversationRegistry.get(taskId);
+  const conversationMgr = conversationRegistry.get(projectId, taskId);
   const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

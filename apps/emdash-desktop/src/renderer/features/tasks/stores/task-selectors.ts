@@ -57,7 +57,9 @@ export function getTaskGitWorktreeStore(projectId: string, taskId: string) {
 }
 
 export function taskAgentStatus(store: TaskStore): AgentStatus | null {
-  const mgr = conversationRegistry.get(store.data.id);
+  const task = registeredTaskData(store);
+  if (!task) return null;
+  const mgr = conversationRegistry.get(task.projectId, task.id);
   return mgr?.taskStatus ?? null;
 }
 
@@ -135,7 +137,7 @@ export function getWorkspaceViewModel(
 }
 
 export function getConversationsForTask(projectId: string, taskId: string) {
-  return conversationRegistry.getForProject(projectId, taskId);
+  return conversationRegistry.get(projectId, taskId);
 }
 
 export function getTerminalsForTask(taskId: string) {

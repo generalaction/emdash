@@ -27,14 +27,14 @@ export class AcpChatTabResource implements TabResource {
     // Mirror ConversationTabResource: clear the notification indicator when
     // the user opens this tab.
     const conversation = conversationRegistry
-      .get(this.store.taskId)
+      .get(this.store.projectId, this.store.taskId)
       ?.conversations.get(this.store.conversationId);
     if (conversation && !conversation.seen) conversation.markSeen();
   }
 
   rename(name: string): void {
     void conversationRegistry
-      .get(this.store.taskId)
+      .get(this.store.projectId, this.store.taskId)
       ?.renameConversation(this.store.conversationId, name);
   }
 }

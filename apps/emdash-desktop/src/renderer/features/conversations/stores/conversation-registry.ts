@@ -4,29 +4,30 @@ import type { Conversation } from '@shared/core/conversations/conversations';
 export class ConversationRegistry {
   private readonly entries = new Map<string, ConversationManagerStore>();
 
-  acquire(taskId: string, projectId: string, preloaded?: Conversation[]): ConversationManagerStore {
-    const existing = this.entries.get(taskId);
+  acquire(projectId: string, taskId: string, preloaded?: Conversation[]): ConversationManagerStore {
+    const key = conversationRegistryKey(projectId, taskId);
+    const existing = this.entries.get(key);
     if (existing) return existing;
     const store = new ConversationManagerStore(projectId, taskId, preloaded);
-    this.entries.set(taskId, store);
+    this.entries.set(key, store);
     return store;
   }
 
-  get(taskId: string): ConversationManagerStore | undefined {
-    return this.entries.get(taskId);
+  get(projectId: string, taskId: string): ConversationManagerStore | undefined {
+    return this.entries.get(conversationRegistryKey(projectId, taskId));
   }
 
-  getForProject(projectId: string, taskId: string): ConversationManagerStore | undefined {
-    const store = this.entries.get(taskId);
-    return store?.projectId === projectId ? store : undefined;
-  }
-
-  release(taskId: string): void {
-    const store = this.entries.get(taskId);
+  release(projectId: string, taskId: string): void {
+    const key = conversationRegistryKey(projectId, taskId);
+    const store = this.entries.get(key);
     if (!store) return;
     store.dispose();
-    this.entries.delete(taskId);
+    this.entries.delete(key);
   }
+}
+
+export function conversationRegistryKey(projectId: string, taskId: string) {
+  return JSON.stringify([projectId, taskId]);
 }
 
 export const conversationRegistry = new ConversationRegistry();

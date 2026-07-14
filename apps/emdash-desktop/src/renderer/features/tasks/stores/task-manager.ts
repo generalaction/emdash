@@ -156,7 +156,7 @@ export class TaskManagerStore {
         // Acquire conversation/terminal managers inside the same action so the
         // WorkspaceViewModel's reaction on `conversations.size` registers the
         // manager's observable map as a dependency on its first evaluation.
-        conversationRegistry.acquire(task.id, this.projectId, []);
+        conversationRegistry.acquire(this.projectId, task.id, []);
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
@@ -289,7 +289,7 @@ export class TaskManagerStore {
   }
 
   private _releaseTaskRegistries(taskId: string): void {
-    conversationRegistry.release(taskId);
+    conversationRegistry.release(this.projectId, taskId);
     terminalRegistry.release(taskId);
   }
 
@@ -321,8 +321,8 @@ export class TaskManagerStore {
               this.tasks.set(t.id, createUnprovisionedTask(t));
               // Preload conversations for each task so sidebar badges are available immediately.
               conversationRegistry.acquire(
-                t.id,
                 this.projectId,
+                t.id,
                 conversationsByTask.get(t.id) ?? []
               );
               terminalRegistry.acquire(t.id, this.projectId);
@@ -373,9 +373,9 @@ export class TaskManagerStore {
           isInitialConversation: true,
           type: ic.type ?? 'pty',
         };
-        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
+        conversationRegistry.acquire(this.projectId, params.id, [optimistic]);
       } else {
-        conversationRegistry.acquire(params.id, this.projectId, []);
+        conversationRegistry.acquire(this.projectId, params.id, []);
       }
       terminalRegistry.acquire(params.id, this.projectId);
     });
@@ -487,7 +487,7 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
+        conversationRegistry.acquire(this.projectId, taskId);
         terminalRegistry.acquire(taskId, this.projectId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
@@ -514,7 +514,7 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
+        conversationRegistry.acquire(this.projectId, taskId);
         terminalRegistry.acquire(taskId, this.projectId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },

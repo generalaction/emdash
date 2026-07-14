@@ -473,7 +473,7 @@ export class AcpChatStore {
 
   private _startInput() {
     const conversation = conversationRegistry
-      .get(this.taskId)
+      .get(this.projectId, this.taskId)
       ?.conversations.get(this.conversationId)?.data;
     if (!conversation) throw new Error('Conversation not found');
 

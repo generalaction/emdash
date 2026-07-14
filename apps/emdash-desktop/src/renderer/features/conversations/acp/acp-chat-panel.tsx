@@ -512,8 +512,8 @@ const ComposerForStore = observer(function ComposerForStore({
   );
 
   const providerId =
-    conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)?.data
-      .providerId ?? null;
+    conversationRegistry.get(store.projectId, store.taskId)?.conversations.get(store.conversationId)
+      ?.data.providerId ?? null;
   const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
     if (kind !== 'issue') return null;
     const target = parseIssueMentionToken(id);
@@ -676,7 +676,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   // where the same tab stays active and onActivate() does not re-fire.
   const conversationStore = useObserver(() =>
     store
-      ? conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)
+      ? conversationRegistry
+          .get(store.projectId, store.taskId)
+          ?.conversations.get(store.conversationId)
       : undefined
   );
   const conversationSeen = conversationStore?.seen;

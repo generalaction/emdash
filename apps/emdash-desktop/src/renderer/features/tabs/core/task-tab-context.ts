@@ -10,7 +10,7 @@ import type { TabViewContext } from '@renderer/features/tabs/core/tab-provider';
  * TaskTabContext to access the domain fields:
  *
  *   const taskCtx = ctx as TaskTabContext;
- *   conversationRegistry.get(taskCtx.taskId);
+ *   conversationRegistry.get(taskCtx.projectId, taskCtx.taskId);
  */
 export interface TaskTabContext extends TabViewContext {
   projectId: string;

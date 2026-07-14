@@ -17,11 +17,12 @@ export class DefaultConversationSeeder {
   private _disposer: () => void;
 
   constructor(
+    private readonly projectId: string,
     private readonly taskId: string,
     private readonly paneLayout: PaneLayoutStore
   ) {
     this._disposer = reaction(
-      () => conversationRegistry.get(this.taskId)?.conversations.size ?? 0,
+      () => conversationRegistry.get(this.projectId, this.taskId)?.conversations.size ?? 0,
       (size) => {
         if (size === 0) return;
         this.seed();
@@ -38,7 +39,7 @@ export class DefaultConversationSeeder {
   /** Opens the initial conversation tab for a fresh task, exactly once. */
   seed(): void {
     if (this._consumed) return;
-    const conversations = conversationRegistry.get(this.taskId);
+    const conversations = conversationRegistry.get(this.projectId, this.taskId);
     if (!conversations || conversations.conversations.size === 0) return;
 
     this._consumed = true;

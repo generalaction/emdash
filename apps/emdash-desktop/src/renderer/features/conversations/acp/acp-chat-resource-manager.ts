@@ -1,3 +1,4 @@
+import { conversationRegistryKey } from '../stores/conversation-registry';
 import { AcpChatStore } from './acp-chat-store';
 
 const GRACE_MS = 5_000;
@@ -70,19 +71,21 @@ export class AcpChatResourceManager {
 const _registry = new Map<string, AcpChatResourceManager>();
 
 export function getAcpChatResourceManager(
-  taskId: string,
-  projectId: string
+  projectId: string,
+  taskId: string
 ): AcpChatResourceManager {
-  const existing = _registry.get(taskId);
+  const key = conversationRegistryKey(projectId, taskId);
+  const existing = _registry.get(key);
   if (existing) return existing;
   const manager = new AcpChatResourceManager(projectId, taskId);
-  _registry.set(taskId, manager);
+  _registry.set(key, manager);
   return manager;
 }
 
-export function releaseAcpChatResourceManager(taskId: string): void {
-  const manager = _registry.get(taskId);
+export function releaseAcpChatResourceManager(projectId: string, taskId: string): void {
+  const key = conversationRegistryKey(projectId, taskId);
+  const manager = _registry.get(key);
   if (!manager) return;
   manager.dispose();
-  _registry.delete(taskId);
+  _registry.delete(key);
 }

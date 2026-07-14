@@ -1,7 +1,7 @@
 import { log } from '@renderer/utils/logger';
 import type { ConversationStore } from '../conversation-manager';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
-import { conversationRegistry } from './conversation-registry';
+import { conversationRegistry, conversationRegistryKey } from './conversation-registry';
 
 /**
  * Per-task manager that controls conversation PTY-session lifecycle via acquire/release.
@@ -21,10 +21,13 @@ export class ConversationSessionManager {
   /** Ref counts per conversationId — session stays alive while count > 0. */
   private readonly _refCounts = new Map<string, number>();
 
-  constructor(private readonly taskId: string) {
+  constructor(
+    private readonly projectId: string,
+    private readonly taskId: string
+  ) {
     this._reconciler = new ConversationHydrationReconciler({
       taskId,
-      getConversations: () => conversationRegistry.get(taskId),
+      getConversations: () => conversationRegistry.get(projectId, taskId),
       log,
     });
   }
@@ -36,7 +39,7 @@ export class ConversationSessionManager {
   acquire(conversationId: string): ConversationStore | undefined {
     this._refCounts.set(conversationId, (this._refCounts.get(conversationId) ?? 0) + 1);
     this._reconciler.sync(new Set(this._refCounts.keys()));
-    return conversationRegistry.get(this.taskId)?.conversations.get(conversationId);
+    return conversationRegistry.get(this.projectId, this.taskId)?.conversations.get(conversationId);
   }
 
   /**
@@ -62,17 +65,22 @@ export class ConversationSessionManager {
 
 const _registry = new Map<string, ConversationSessionManager>();
 
-export function getConversationSessionManager(taskId: string): ConversationSessionManager {
-  const existing = _registry.get(taskId);
+export function getConversationSessionManager(
+  projectId: string,
+  taskId: string
+): ConversationSessionManager {
+  const key = conversationRegistryKey(projectId, taskId);
+  const existing = _registry.get(key);
   if (existing) return existing;
-  const manager = new ConversationSessionManager(taskId);
-  _registry.set(taskId, manager);
+  const manager = new ConversationSessionManager(projectId, taskId);
+  _registry.set(key, manager);
   return manager;
 }
 
-export function releaseConversationSessionManager(taskId: string): void {
-  const manager = _registry.get(taskId);
+export function releaseConversationSessionManager(projectId: string, taskId: string): void {
+  const key = conversationRegistryKey(projectId, taskId);
+  const manager = _registry.get(key);
   if (!manager) return;
   manager.dispose();
-  _registry.delete(taskId);
+  _registry.delete(key);
 }

@@ -48,7 +48,7 @@ export const conversationTabProvider: TabProvider<
     ctx: TabViewContext
   ): ConversationTabResource {
     const taskCtx = ctx as TaskTabContext;
-    const sessionManager = getConversationSessionManager(taskCtx.taskId);
+    const sessionManager = getConversationSessionManager(taskCtx.projectId, taskCtx.taskId);
     const store = sessionManager.acquire(entry.state.conversationId);
     if (!store) {
       // Conversation not found; return a dummy resource that will auto-close.
@@ -72,7 +72,9 @@ export const conversationTabProvider: TabProvider<
     ctx: TabViewContext
   ): void {
     const taskCtx = ctx as TaskTabContext;
-    getConversationSessionManager(taskCtx.taskId).release(entry.state.conversationId);
+    getConversationSessionManager(taskCtx.projectId, taskCtx.taskId).release(
+      entry.state.conversationId
+    );
   },
 
   commands: {

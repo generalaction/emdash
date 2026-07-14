@@ -37,7 +37,7 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
 }: TabBarItemProps<AcpChatTabResource>) {
   const store = tab.resource.store;
   const conversation = conversationRegistry
-    .get(store.taskId)
+    .get(store.projectId, store.taskId)
     ?.conversations.get(store.conversationId);
   const providerId = conversation?.data.providerId ?? '';
   const rawTitle = conversation?.data.title ?? '';
@@ -81,7 +81,7 @@ export const AcpChatTabBarItemDragPreview = observer(function AcpChatTabBarItemD
 }) {
   const store = tab.resource.store;
   const conversation = conversationRegistry
-    .get(store.taskId)
+    .get(store.projectId, store.taskId)
     ?.conversations.get(store.conversationId);
   const providerId = conversation?.data.providerId ?? '';
   const label = conversation
@@ -120,14 +120,14 @@ export const acpChatTabProvider: TabProvider<
     ctx: TabViewContext
   ): AcpChatTabResource {
     const taskCtx = ctx as TaskTabContext;
-    const manager = getAcpChatResourceManager(taskCtx.taskId, taskCtx.projectId);
+    const manager = getAcpChatResourceManager(taskCtx.projectId, taskCtx.taskId);
     const store = manager.acquire(entry.state.conversationId);
     return new AcpChatTabResource(store);
   },
 
   dispose(entry: TabEntry<AcpChatState>, _resource: AcpChatTabResource, ctx: TabViewContext): void {
     const taskCtx = ctx as TaskTabContext;
-    getAcpChatResourceManager(taskCtx.taskId, taskCtx.projectId).release(
+    getAcpChatResourceManager(taskCtx.projectId, taskCtx.taskId).release(
       entry.state.conversationId
     );
   },

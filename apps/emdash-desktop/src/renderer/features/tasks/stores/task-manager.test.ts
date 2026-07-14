@@ -186,7 +186,7 @@ describe('TaskManagerStore archive lifecycle', () => {
 
     expect(mocks.archiveTask).toHaveBeenCalledWith('project-1', 'task-1');
     expect(mocks.teardownTask).not.toHaveBeenCalled();
-    expect(mocks.conversationRelease).toHaveBeenCalledWith('task-1');
+    expect(mocks.conversationRelease).toHaveBeenCalledWith('project-1', 'task-1');
     expect(mocks.terminalRelease).toHaveBeenCalledWith('task-1');
     expect(viewModel.dispose).toHaveBeenCalledOnce();
     expect(draftComments.dispose).toHaveBeenCalledOnce();
@@ -211,7 +211,7 @@ describe('TaskManagerStore archive lifecycle', () => {
 
     await manager.provisionTask(task.id);
 
-    expect(mocks.conversationAcquire).toHaveBeenCalledWith('task-1', 'project-1');
+    expect(mocks.conversationAcquire).toHaveBeenCalledWith('project-1', 'task-1');
     expect(mocks.terminalAcquire).toHaveBeenCalledWith('task-1', 'project-1');
     expect(store.state).toBe('provisioned');
     expect(store.viewModel).toBe(mocks.viewModels[1]);
