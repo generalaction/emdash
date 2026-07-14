@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/automations/automation-run-stop.ts
+  s_c1870b4be8208f::t_c4dedacfd29e99 6-12
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationRunRow.tsx
+  s_c1870b4be8208f::t_c4dedacfd29e99 3,6,43-46,77
+apps/emdash-desktop/src/renderer/features/automations/automation-run-stop.test.ts
+  s_c1870b4be8208f::t_c4dedacfd29e99 18-21
+  s_c1870b4be8208f::t_7e1fcea10df522 2
+apps/emdash-desktop/src/renderer/features/automations/use-automation-run-actions.ts
+  s_c1870b4be8208f::t_c4dedacfd29e99 8,22,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "bd95ae684113cbef5816d6f764e8bc20430266b9",
+  "prompts": {},
+  "sessions": {
+    "s_c1870b4be8208f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6039-72d2-7a70-a9ee-3b2851ab4c20",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
