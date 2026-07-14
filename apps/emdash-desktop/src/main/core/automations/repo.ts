@@ -647,6 +647,24 @@ export async function updateRun(
   return row ? mapAutomationRunRow(row) : null;
 }
 
+export async function updateRunIfStatus(
+  id: string,
+  expectedStatus: AutomationRunStatus,
+  values: Parameters<typeof updateRun>[1]
+): Promise<AutomationRun | null> {
+  const { error, ...rest } = values;
+  const dbValues = {
+    ...rest,
+    ...(error !== undefined ? { error: error ? JSON.stringify(error) : null } : {}),
+  };
+  const [row] = await db
+    .update(automationRuns)
+    .set(dbValues)
+    .where(and(eq(automationRuns.id, id), eq(automationRuns.status, expectedStatus)))
+    .returning();
+  return row ? mapAutomationRunRow(row) : null;
+}
+
 export async function findRunsStuckInCreatingTask(): Promise<Array<{ id: string }>> {
   const rows = await db
     .select({ id: automationRuns.id, taskId: tasks.id })

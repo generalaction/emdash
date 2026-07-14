@@ -228,6 +228,15 @@ describe('executeTaskCreate', () => {
     expect(taskService.launch).toHaveBeenCalled();
   });
 
+  it('does not launch a task when stopping wins the launching transition', async () => {
+    vi.mocked(markRunLaunchingTask).mockResolvedValue(null);
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(taskService.launch).not.toHaveBeenCalled();
+  });
+
   it('does not commit a task when the run is stopped during preparation', async () => {
     vi.mocked(getRun).mockResolvedValue({
       ...run,
@@ -270,6 +279,15 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     expect(markRunCreatingConversation).toHaveBeenCalledWith(run.id, expect.any(Number));
     expect(createConversation).toHaveBeenCalled();
+  });
+
+  it('does not create a conversation when stopping wins the creating transition', async () => {
+    vi.mocked(markRunCreatingConversation).mockResolvedValue(null);
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(createConversation).not.toHaveBeenCalled();
   });
 
   it('marks run failed when conversation creation throws', async () => {

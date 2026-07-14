@@ -233,14 +233,15 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       run.status === 'launching_task' ||
       run.status === 'creating_conversation'
     ) {
+      await this.stopRunConversation(run);
       stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
     } else if (run.status === 'done' && run.taskId) {
+      await this.stopRunConversation(run);
       stopped = run;
     } else {
       throw new Error('run_not_stoppable');
     }
 
-    await this.stopRunConversation(stopped);
     this._hooks.callHookBackground('run:stopped', stopped);
     this._hooks.callHookBackground('run:step-completed', stopped);
     return stopped;

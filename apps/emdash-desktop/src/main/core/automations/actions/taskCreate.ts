@@ -228,6 +228,7 @@ export async function executeTaskCreate(
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
 
     const launching = await markRunLaunchingTask(run.id, Date.now());
+    if (!launching) return err('manually_stopped');
     onStepCompleted(launching);
 
     try {
@@ -245,6 +246,7 @@ export async function executeTaskCreate(
       }
 
       const creatingConv = await markRunCreatingConversation(run.id, Date.now());
+      if (!creatingConv) return err('manually_stopped');
       onStepCompleted(creatingConv);
 
       await createConversation({
