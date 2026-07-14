@@ -61,14 +61,16 @@ function decorateAcpRuntimeHandle(handle: WorkerHandle<AcpApiContract>): AcpRunt
  * Injects the user's per-provider environment variables (configured in Settings and
  * stored in the app DB) into ACP session-start inputs. The ACP runtime worker has no
  * DB access, so this main-process choke point resolves the config and threads it to
- * the provider spawn. User-configured values take precedence over any inline env.
+ * the provider spawn. Any env on the incoming (renderer-facing) input is discarded and
+ * replaced, so the spawn environment can only come from trusted main-process settings.
  */
 function withProviderEnv(client: AcpRuntimeClient): AcpRuntimeClient {
   const enrich = async <T extends { input: AcpStartInputWire }>(input: T): Promise<T> => {
     const providerConfig = await providerOverrideSettings.getItem(input.input.providerId);
-    const customEnv = providerConfig?.env;
-    if (!customEnv || Object.keys(customEnv).length === 0) return input;
-    return { ...input, input: { ...input.input, env: { ...input.input.env, ...customEnv } } };
+    // Spawn env must originate solely from the trusted main-process settings. Overwrite
+    // (never merge) any env supplied by the renderer-facing caller so the renderer cannot
+    // inject variables such as PATH/HOME/proxy vars into provider process spawning.
+    return { ...input, input: { ...input.input, env: providerConfig?.env } };
   };
   return {
     ...client,
