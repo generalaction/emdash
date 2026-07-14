@@ -55,6 +55,14 @@ export class FileSearchRuntime {
       watcher = options.watcher ?? createNativeWatchService({ onError });
       this.watcher = watcher;
       const exclusions = new DefaultFileSearchExclusions();
+      const contentLimiter = new ConcurrencyLimiter(
+        options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
+      );
+      const contentSearcher = new RipgrepContentSearcher({
+        executable: options.ripgrepPath,
+        env: options.env,
+        exclusions,
+      });
       const roots = new FileSearchRootRegistry({
         store: this.store,
         watcher: this.watcher,
@@ -64,22 +72,14 @@ export class FileSearchRuntime {
         scanLimiter: new ConcurrencyLimiter(
           options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
         ),
+        contentLimiter,
+        contentSearcher,
         scope: this.scope,
         onError,
       });
       this.roots = roots;
-      this.paths = new PathSearchRuntime({ roots, store: this.store });
-      this.content = new ContentSearchRuntime({
-        roots,
-        limiter: new ConcurrencyLimiter(
-          options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
-        ),
-        searcher: new RipgrepContentSearcher({
-          executable: options.ripgrepPath,
-          env: options.env,
-          exclusions,
-        }),
-      });
+      this.paths = new PathSearchRuntime(roots);
+      this.content = new ContentSearchRuntime(roots);
     } catch (error) {
       let constructionError = error;
       try {

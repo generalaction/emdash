@@ -44,7 +44,12 @@ describe('FileSearchRootRegistry', () => {
     });
     const state = registry.state(root);
     expect(state.kind).toBe('ready');
-    if (state.kind === 'ready') expect(state.registration.index.ready).toBe(false);
+    if (state.kind === 'ready') {
+      expect(state.resource.searchPaths({ root, query: '', kinds: ['file'] })).toMatchObject({
+        success: false,
+        error: { type: 'index-not-ready' },
+      });
+    }
     await scanner.started.promise;
   });
 
@@ -93,15 +98,11 @@ describe('FileSearchRootRegistry', () => {
 
   it('cancels and awaits root-scoped content work during explicit unregister', async () => {
     const rootPath = await createRoot();
-    const { registry } = createRegistry();
     const root = absolute(rootPath);
-    await registry.registerRoot({ root });
     const searcher = new BlockingContentSearcher();
-    const content = new ContentSearchRuntime({
-      roots: registry,
-      searcher,
-      limiter: new ConcurrencyLimiter(1),
-    });
+    const { registry } = createRegistry({ contentSearcher: searcher });
+    await registry.registerRoot({ root });
+    const content = new ContentSearchRuntime(registry);
 
     const search = content.searchContent(
       { root, query: 'term' },
@@ -177,6 +178,7 @@ function createRegistry(
     store?: SqlitePathIndexStore;
     scanner?: PathScanner;
     watcher?: IWatchService;
+    contentSearcher?: FileContentSearcher;
   } = {}
 ): { registry: FileSearchRootRegistry; store: SqlitePathIndexStore; scope: Scope } {
   const store = options.store ?? new SqlitePathIndexStore({ databasePath: ':memory:' });
@@ -188,6 +190,8 @@ function createRegistry(
     resolver: new NodeFileSearchRootResolver(),
     exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
     scanLimiter: new ConcurrencyLimiter(1),
+    contentLimiter: new ConcurrencyLimiter(1),
+    contentSearcher: options.contentSearcher ?? new EmptyContentSearcher(),
     scope,
   });
   cleanups.push(async () => {
@@ -196,6 +200,12 @@ function createRegistry(
     store.close();
   });
   return { registry, store, scope };
+}
+
+class EmptyContentSearcher implements FileContentSearcher {
+  async search() {
+    return successResult();
+  }
 }
 
 async function createRoot(): Promise<string> {

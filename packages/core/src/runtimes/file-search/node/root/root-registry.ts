@@ -10,9 +10,9 @@ import type { IWatchService } from '@services/fs-watch/api';
 import { hostAbsolutePathFromNative } from '../allocation/paths';
 import type { FileSearchRootResolver, ResolvedFileSearchRoot } from '../allocation/root-identity';
 import type { ConcurrencyLimiter } from '../concurrency-limiter';
+import type { FileContentSearcher } from '../content/content-searcher';
 import type { FileSearchExclusions } from '../exclusions';
 import { expectedNodeIoError } from '../node-errors';
-import { RootIndex, type RootIndexStatus } from '../path-index/root-index';
 import type { PathScanner } from '../path-index/scanner';
 import { expectedSqliteIoError } from '../storage/errors';
 import type {
@@ -21,6 +21,7 @@ import type {
   StoredFileSearchRoot,
 } from '../storage/path-index-store';
 import { expectedRootAccessError } from './errors';
+import { FileSearchRootResource, type RegisteredFileSearchRoot } from './root-resource';
 
 type RootStartInput = Readonly<{
   root: HostAbsolutePath;
@@ -29,21 +30,15 @@ type RootStartInput = Readonly<{
 
 type RootStopContext = Readonly<{ kind: 'unregister'; root: HostAbsolutePath }>;
 
-export type RegisteredFileSearchRoot = Readonly<{
-  stored: StoredFileSearchRoot;
-  index: RootIndexStatus;
-  scope: Scope;
-}>;
-
 export type FileSearchRootState =
   | Readonly<{ kind: 'not-registered' }>
   | Readonly<{ kind: 'starting' }>
-  | Readonly<{ kind: 'ready'; registration: RegisteredFileSearchRoot }>
+  | Readonly<{ kind: 'ready'; resource: RegisteredFileSearchRoot }>
   | Readonly<{ kind: 'start-failed'; error: FileSearchRegisterRootError }>
   | Readonly<{ kind: 'stopping' }>
   | Readonly<{
       kind: 'stop-failed';
-      registration: RegisteredFileSearchRoot;
+      resource: RegisteredFileSearchRoot;
       error: FileSearchUnregisterRootError;
     }>;
 
@@ -54,6 +49,8 @@ type FileSearchRootRegistryOptions = Readonly<{
   resolver: FileSearchRootResolver;
   exclusions: FileSearchExclusions;
   scanLimiter: ConcurrencyLimiter;
+  contentLimiter: ConcurrencyLimiter;
+  contentSearcher: FileContentSearcher;
   scope: Scope;
   onError?: (context: string, error: unknown) => void;
 }>;
@@ -127,13 +124,13 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       case 'starting':
         return { kind: 'starting' };
       case 'ready':
-        return { kind: 'ready', registration: state.value };
+        return { kind: 'ready', resource: state.value };
       case 'start-failed':
         return { kind: 'start-failed', error: state.error };
       case 'stopping':
         return { kind: 'stopping' };
       case 'stop-failed':
-        return { kind: 'stop-failed', registration: state.value, error: state.error };
+        return { kind: 'stop-failed', resource: state.value, error: state.error };
       case 'disposed':
         throw new Error('File-search root registry is disposed');
     }
@@ -164,16 +161,18 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       throw error;
     }
 
-    let index: RootIndex;
+    let resource: FileSearchRootResource;
     try {
-      index = new RootIndex({
+      resource = new FileSearchRootResource({
         root: upserted.root,
         store: this.options.store,
         watcher: this.options.watcher,
         scanner: this.options.scanner,
         exclusions: this.options.exclusions,
         scope,
-        runScan: (signal, operation) => this.options.scanLimiter.run(signal, operation),
+        scanLimiter: this.options.scanLimiter,
+        contentLimiter: this.options.contentLimiter,
+        contentSearcher: this.options.contentSearcher,
         onError: this.options.onError,
       });
     } catch (error) {
@@ -199,9 +198,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       if (expected) return err(expected);
       throw error;
     }
-    const registration = { stored: upserted.root, index, scope };
-    this.reconcileInBackground(index, scope);
-    return ok(registration);
+    return ok(resource);
   }
 
   private stopRoot(
@@ -258,14 +255,6 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
     if (input.rootKey !== resolved.rootKey) {
       throw new Error('Resolved file-search root changed its canonical identity');
     }
-  }
-
-  private reconcileInBackground(index: RootIndex, scope: Scope): void {
-    void index.reconcile().catch((error: unknown) => {
-      if (!scope.signal.aborted) {
-        this.report('file-search reconciliation failed', error);
-      }
-    });
   }
 
   private report(context: string, error: unknown): void {

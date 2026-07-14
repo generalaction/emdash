@@ -13,8 +13,8 @@ import type {
 } from '@runtimes/file-search/node/storage/path-index-store';
 import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SqlitePathIndexStore } from '../storage/sqlite-path-index-store';
 import { DefaultFileSearchExclusions } from '../exclusions';
+import { SqlitePathIndexStore } from '../storage/sqlite-path-index-store';
 import { RootIndex } from './root-index';
 import { NodePathScanner, type PathScanner, type PathScanOptions } from './scanner';
 

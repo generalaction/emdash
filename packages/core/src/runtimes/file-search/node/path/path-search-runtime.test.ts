@@ -1,149 +1,90 @@
-import { createScope } from '@emdash/shared/concurrency';
+import { err, ok } from '@emdash/shared';
 import {
   parseAbsolute,
   parsePortableRelativePath,
   type HostAbsolutePath,
-  type PortableRelativePath,
 } from '@primitives/path/api';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RootWatchReadyError } from '../path-index/errors';
-import type {
-  FileSearchRootLookup,
-  FileSearchRootState,
-  RegisteredFileSearchRoot,
-} from '../root/root-registry';
-import type { PathIndexStore, PathIndexStoreSearchResult } from '../storage/path-index-store';
+import type { PathSearchInput } from '@runtimes/file-search/api';
+import { describe, expect, it, vi } from 'vitest';
+import type { FileSearchRootLookup, FileSearchRootState } from '../root/root-registry';
+import type { RegisteredFileSearchRoot } from '../root/root-resource';
 import { PathSearchRuntime } from './path-search-runtime';
 
-const disposals: Array<() => Promise<void>> = [];
-
-afterEach(async () => {
-  for (const dispose of disposals.splice(0).reverse()) await dispose();
-});
-
 describe('PathSearchRuntime', () => {
-  it('distinguishes registration startup from an unpublished index', async () => {
+  it('maps root lifecycle states before delegation', async () => {
     const root = absolute('/workspace');
-    const store = fakeStore(() => ({ kind: 'not-ready' }));
 
-    await expect(searchWith({ kind: 'starting' }, store, root)).resolves.toMatchObject({
+    await expect(searchWith({ kind: 'starting' }, root)).resolves.toMatchObject({
       success: false,
       error: { type: 'index-not-ready' },
     });
-    await expect(searchWith(readyRoot(), store, root)).resolves.toMatchObject({
+    await expect(searchWith({ kind: 'not-registered' }, root)).resolves.toMatchObject({
       success: false,
-      error: { type: 'index-not-ready' },
+      error: { type: 'root-not-registered' },
     });
     await expect(
       searchWith(
-        readyRoot(undefined, () => undefined, false),
-        fakeStore(() => ({ kind: 'ready', hits: [{ path: relative('stale.ts'), kind: 'file' }] })),
+        {
+          kind: 'start-failed',
+          error: {
+            type: 'root-unavailable',
+            root,
+            reason: 'not-found',
+            message: 'gone',
+          },
+        },
         root
       )
-    ).resolves.toMatchObject({
-      success: false,
-      error: { type: 'index-not-ready' },
-    });
+    ).resolves.toMatchObject({ success: false, error: { type: 'root-unavailable' } });
   });
 
-  it('maps expected filesystem and SQLite failures to typed errors', async () => {
+  it('delegates ready and stop-failed roots without exposing resource internals', async () => {
     const root = absolute('/workspace');
-    const missing = Object.assign(new Error('gone'), { code: 'ENOENT' });
-    await expect(searchWith(readyRoot(missing), fakeStore(), root)).resolves.toMatchObject({
-      success: false,
-      error: { type: 'root-unavailable', reason: 'not-found' },
+    const searchPaths = vi.fn((_input: PathSearchInput) =>
+      ok({ hits: [{ path: relative('src/index.ts'), kind: 'file' as const }] })
+    );
+    const resource = fakeResource(searchPaths);
+
+    await expect(searchWith({ kind: 'ready', resource }, root)).resolves.toEqual({
+      success: true,
+      data: { hits: [{ path: 'src/index.ts', kind: 'file' }] },
     });
-
-    const busy = Object.assign(new Error('database busy'), { code: 'SQLITE_BUSY' });
     await expect(
       searchWith(
-        readyRoot(),
-        fakeStore(() => {
-          throw busy;
-        }),
+        {
+          kind: 'stop-failed',
+          resource,
+          error: { type: 'io', root, message: 'database busy' },
+        },
         root
       )
-    ).resolves.toMatchObject({ success: false, error: { type: 'io' } });
-
-    await expect(
-      searchWith(
-        readyRoot(new RootWatchReadyError(new Error('remote watcher failed'))),
-        fakeStore(),
-        root
-      )
-    ).resolves.toMatchObject({ success: false, error: { type: 'io' } });
+    ).resolves.toMatchObject({ success: true });
+    expect(searchPaths).toHaveBeenCalledTimes(2);
   });
 
-  it('checks degradation again after querying so stale hits cannot silently succeed', async () => {
+  it('lets unexpected resource failures throw', async () => {
     const root = absolute('/workspace');
-    let failure: unknown;
-    const state = readyRoot(undefined, () => failure);
-    const store = fakeStore(() => {
-      failure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
-      return { kind: 'ready', hits: [{ path: relative('stale.ts'), kind: 'file' }] };
+    const failure = new Error('resource invariant failed');
+    const resource = fakeResource(() => {
+      throw failure;
     });
 
-    await expect(searchWith(state, store, root)).resolves.toMatchObject({
-      success: false,
-      error: { type: 'root-unavailable' },
-    });
-  });
-
-  it('throws unexpected adapter and invariant failures', async () => {
-    const root = absolute('/workspace');
-    const bug = new Error('implementation bug');
-    await expect(
-      searchWith(
-        readyRoot(),
-        fakeStore(() => {
-          throw bug;
-        }),
-        root
-      )
-    ).rejects.toBe(bug);
+    await expect(searchWith({ kind: 'ready', resource }, root)).rejects.toBe(failure);
   });
 });
 
-function searchWith(state: FileSearchRootState, store: PathIndexStore, root: HostAbsolutePath) {
+function searchWith(state: FileSearchRootState, root: HostAbsolutePath) {
   const roots: FileSearchRootLookup = { state: () => state };
-  return new PathSearchRuntime({ roots, store }).searchPaths({
-    root,
-    query: '',
-    kinds: ['file'],
-  });
+  return new PathSearchRuntime(roots).searchPaths({ root, query: '', kinds: ['file'] });
 }
 
-function readyRoot(
-  failure?: unknown,
-  failureValue: () => unknown = () => failure,
-  ready = true
-): FileSearchRootState {
-  const scope = createScope({ label: 'path-search-runtime-test' });
-  disposals.push(() => scope.dispose());
-  const registration: RegisteredFileSearchRoot = {
-    stored: { id: 1, rootKey: 'root-key', rootPath: '/workspace' },
-    index: {
-      get failure() {
-        return failureValue();
-      },
-      ready,
-    },
-    scope,
-  };
-  return { kind: 'ready', registration };
-}
-
-function fakeStore(
-  search: () => PathIndexStoreSearchResult = () => ({ kind: 'ready', hits: [] })
-): PathIndexStore {
+function fakeResource(
+  searchPaths: RegisteredFileSearchRoot['searchPaths']
+): RegisteredFileSearchRoot {
   return {
-    listRoots: () => [],
-    upsertRoot: vi.fn(),
-    deleteRoot: vi.fn(),
-    beginBuild: vi.fn(),
-    applyPublishedPatches: vi.fn(),
-    searchPaths: search,
-    close: vi.fn(),
+    searchPaths,
+    searchContent: async (input) =>
+      err({ type: 'root-not-registered', root: input.root, message: 'unused' }),
   };
 }
 
@@ -153,7 +94,7 @@ function absolute(input: string): HostAbsolutePath {
   return parsed.data;
 }
 
-function relative(input: string): PortableRelativePath {
+function relative(input: string) {
   const parsed = parsePortableRelativePath(input);
   if (!parsed.success) throw new Error(parsed.error.message);
   return parsed.data;

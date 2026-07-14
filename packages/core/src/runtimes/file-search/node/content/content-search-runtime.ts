@@ -5,59 +5,31 @@ import type {
   ContentSearchInput,
   ContentSearchResult,
 } from '@runtimes/file-search/api';
-import { CONTENT_SEARCH_DEFAULT_LIMIT } from '@runtimes/file-search/api';
-import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import { rootNotRegistered } from '../root/errors';
-import type { FileSearchRootLookup, RegisteredFileSearchRoot } from '../root/root-registry';
-import { resolveContentScope } from './content-scope';
-import type { ContentSearchContext, FileContentSearcher } from './content-searcher';
+import type { FileSearchRootLookup } from '../root/root-registry';
+import type { RegisteredFileSearchRoot } from '../root/root-resource';
+import type { ContentSearchContext } from './content-searcher';
 
-type ContentSearchRuntimeOptions = Readonly<{
-  roots: FileSearchRootLookup;
-  searcher: FileContentSearcher;
-  limiter: ConcurrencyLimiter;
-}>;
-
-/** Owns root authorization, cancellation, and global scheduling for content queries. */
+/** Resolves a registered root and delegates content queries to its resource. */
 export class ContentSearchRuntime {
-  constructor(private readonly options: ContentSearchRuntimeOptions) {}
+  constructor(private readonly roots: FileSearchRootLookup) {}
 
   searchContent(
     input: ContentSearchInput,
     context: ContentSearchContext
   ): Promise<Result<ContentSearchResult, ContentSearchError>> {
-    const registration = this.registration(input.root);
-    if (!registration.success) return Promise.resolve(registration);
-
-    return registration.data.scope
-      .run('content-search', async (rootSignal) => {
-        const signal = AbortSignal.any([context.signal, rootSignal]);
-        const scope = await resolveContentScope(registration.data.stored.rootPath, input);
-        if (!scope.success) return scope;
-
-        return this.options.limiter.run(signal, () =>
-          this.options.searcher.search(
-            {
-              ...input,
-              limit: input.limit ?? CONTENT_SEARCH_DEFAULT_LIMIT,
-              rootPath: scope.data.rootPath,
-              searchPath: scope.data.searchPath,
-            },
-            { ...context, signal }
-          )
-        );
-      })
-      .value();
+    const resource = this.resource(input.root);
+    return resource.success
+      ? resource.data.searchContent(input, context)
+      : Promise.resolve(resource);
   }
 
-  private registration(
-    root: HostAbsolutePath
-  ): Result<RegisteredFileSearchRoot, ContentSearchError> {
-    const state = this.options.roots.state(root);
+  private resource(root: HostAbsolutePath): Result<RegisteredFileSearchRoot, ContentSearchError> {
+    const state = this.roots.state(root);
     switch (state.kind) {
       case 'ready':
       case 'stop-failed':
-        return ok(state.registration);
+        return ok(state.resource);
       case 'start-failed':
         return err(state.error);
       case 'not-registered':
