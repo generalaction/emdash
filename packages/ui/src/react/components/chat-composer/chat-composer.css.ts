@@ -200,6 +200,11 @@ export const toolbar = style({
 export const toolbarLeft = style({ display: 'flex', alignItems: 'center', gap: '0.375rem' });
 export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: '0.25rem' });
 
+export const permissionModeTrigger = style({
+  paddingLeft: '0.1875rem',
+  paddingRight: '0.1875rem',
+});
+
 // ── Agent trigger ─────────────────────────────────────────────────────────────
 
 export const agentTrigger = style({
