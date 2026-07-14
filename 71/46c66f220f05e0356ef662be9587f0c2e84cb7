@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/features/tasks/task-config/initial-conversation-section.tsx
+  s_edf0c1f6a708ca::t_ccbc978df04f25 28-32,258-263
+apps/emdash-desktop/src/renderer/features/tasks/task-config/initial-conversation-section.test.ts
+  s_edf0c1f6a708ca::t_ccbc978df04f25 333-358
+  s_74af7310d49e5c::t_869bf54c5a4212 359
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "7146c66f220f05e0356ef662be9587f0c2e84cb7",
+  "prompts": {},
+  "sessions": {
+    "s_74af7310d49e5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6042-8e7f-74d1-94fd-7102f8a4ee78",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_edf0c1f6a708ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-ce3b-7ce3-9481-a3146286e90a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
