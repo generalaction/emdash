@@ -1,0 +1,21 @@
+pnpm-workspace.yaml
+  s_144430a1c0efa0::t_5c370b7cd5f162 4-33
+apps/emdash-desktop/scripts/package-manager-config.test.ts
+  s_144430a1c0efa0::t_b8970de9e28789 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "afe7513db8601a1f6958d15ce32850899fe7f248",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
