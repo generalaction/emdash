@@ -1,0 +1,32 @@
+apps/emdash-desktop/scripts/release/lib/architecture.ts
+  s_144430a1c0efa0::t_70b00bc1951026 1-13
+.github/workflows/release-canary.yml
+  s_144430a1c0efa0::t_70b00bc1951026 203,211
+apps/emdash-desktop/scripts/release/lib/architecture.test.ts
+  s_144430a1c0efa0::t_70b00bc1951026 1-14,16-17
+  s_144430a1c0efa0::t_0959f1189e369a 15
+apps/emdash-desktop/scripts/release/lib/workflow-inputs.test.ts
+  s_144430a1c0efa0::t_0959f1189e369a 10-13,15-19
+  s_144430a1c0efa0::t_9944236edeba9c 1-9,14,20
+.github/workflows/release-prod.yml
+  s_144430a1c0efa0::t_70b00bc1951026 196,204
+apps/emdash-desktop/scripts/release/build.ts
+  s_144430a1c0efa0::t_70b00bc1951026 8
+  s_144430a1c0efa0::t_9944236edeba9c 40-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "90c4284c715e6ab063767535eb085d1deb6a44a2",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
