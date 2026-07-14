@@ -30,6 +30,8 @@ export default defineConfig({
     'runtimes-git-node': 'src/runtimes/git/node/index.ts',
     'runtimes-files-api': 'src/runtimes/files/api/index.ts',
     'runtimes-files-node': 'src/runtimes/files/node/index.ts',
+    'runtimes-file-search-api': 'src/runtimes/file-search/api/index.ts',
+    'runtimes-file-search-node': 'src/runtimes/file-search/node/index.ts',
     'runtimes-acp-api': 'src/runtimes/acp/api/index.ts',
     'runtimes-acp-api-client': 'src/runtimes/acp/api/client.ts',
     'runtimes-acp-node': 'src/runtimes/acp/node/index.ts',

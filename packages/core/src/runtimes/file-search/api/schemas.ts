@@ -1,18 +1,18 @@
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
 
-export const FILE_SEARCH_DEFAULT_LIMIT = 20;
 export const FILE_SEARCH_MAX_LIMIT = 200;
+export const FILE_SEARCH_DEFAULT_LIMIT = 20;
 export const FILE_SEARCH_MAX_QUERY_LENGTH = 512;
 
-export const fileSearchIndexKeySchema = z.object({
+export const fileSearchRootInputSchema = z.object({
   root: hostAbsolutePathSchema,
 });
 
-export const fileSearchRegisterRootInputSchema = fileSearchIndexKeySchema;
-export const fileSearchUnregisterRootInputSchema = fileSearchIndexKeySchema;
+export const fileSearchRegisterRootInputSchema = fileSearchRootInputSchema;
+export const fileSearchUnregisterRootInputSchema = fileSearchRootInputSchema;
 
-export const fileSearchQuerySchema = fileSearchIndexKeySchema.extend({
+export const fileSearchQuerySchema = fileSearchRootInputSchema.extend({
   query: z.string().max(FILE_SEARCH_MAX_QUERY_LENGTH),
   limit: z.number().int().positive().max(FILE_SEARCH_MAX_LIMIT).optional(),
 });
@@ -64,7 +64,7 @@ export const fileSearchErrorSchema = z.discriminatedUnion('type', [
   fileSearchIoErrorSchema,
 ]);
 
-export type FileSearchIndexKey = z.infer<typeof fileSearchIndexKeySchema>;
+export type FileSearchRootInput = z.infer<typeof fileSearchRootInputSchema>;
 export type FileSearchRegisterRootInput = z.infer<typeof fileSearchRegisterRootInputSchema>;
 export type FileSearchUnregisterRootInput = z.infer<typeof fileSearchUnregisterRootInputSchema>;
 export type FileSearchQuery = z.infer<typeof fileSearchQuerySchema>;

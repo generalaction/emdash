@@ -121,6 +121,14 @@
       "types": "./dist/runtimes-files-node.d.mts",
       "default": "./dist/runtimes-files-node.mjs"
     },
+    "./runtimes/file-search/api": {
+      "types": "./dist/runtimes-file-search-api.d.mts",
+      "default": "./dist/runtimes-file-search-api.mjs"
+    },
+    "./runtimes/file-search/node": {
+      "types": "./dist/runtimes-file-search-node.d.mts",
+      "default": "./dist/runtimes-file-search-node.mjs"
+    },
     "./runtimes/acp/api": {
       "types": "./dist/runtimes-acp-api.d.mts",
       "default": "./dist/runtimes-acp-api.mjs"
