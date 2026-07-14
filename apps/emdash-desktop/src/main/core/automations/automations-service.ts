@@ -1,6 +1,9 @@
 import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import { getAcpRuntimeClient } from '@main/core/acp/controller';
+import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { resolveTask } from '@main/core/projects/utils';
 import { db } from '@main/db/client';
-import { automationRuns, tasks } from '@main/db/schema';
+import { automationRuns, conversations, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
@@ -231,14 +234,49 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       run.status === 'launching_task' ||
       run.status === 'creating_conversation'
     ) {
-      // In-progress steps — mark as failed (PTY stop is handled by renderer via run.taskId)
       stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
+    } else if (run.status === 'done' && run.taskId) {
+      stopped = run;
     } else {
       throw new Error('run_not_stoppable');
     }
+
+    await this.stopRunConversation(stopped);
     this._hooks.callHookBackground('run:stopped', stopped);
     this._hooks.callHookBackground('run:step-completed', stopped);
     return stopped;
+  }
+
+  private async stopRunConversation(run: AutomationRun): Promise<void> {
+    if (!run.taskId) return;
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        projectId: conversations.projectId,
+        type: conversations.type,
+      })
+      .from(conversations)
+      .where(
+        and(eq(conversations.taskId, run.taskId), eq(conversations.isInitialConversation, true))
+      )
+      .limit(1);
+    if (!conversation) return;
+
+    if (conversation.type === 'acp') {
+      const client = await getAcpRuntimeClient();
+      const result = await client.cancelTurn({ conversationId: conversation.id });
+      if (!result.success && run.status === 'done') throw new Error('stop_conversation_failed');
+    } else {
+      const task = resolveTask(conversation.projectId, run.taskId);
+      if (!task) throw new Error('task_not_found');
+      await task.conversations.stopSession(conversation.id);
+    }
+
+    await agentHookService.resetToIdle({
+      conversationId: conversation.id,
+      taskId: run.taskId,
+      projectId: conversation.projectId,
+    });
   }
 
   async getRun(runId: string): Promise<AutomationRun | null> {

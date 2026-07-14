@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
-import { updateRun } from './repo';
+import { getRun, updateRun } from './repo';
 import type { OnStepCompleted } from './run-transitions';
 import { runQueuedAutomation } from './runtime';
 
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('./actions/taskCreate', () => ({ executeTaskCreate: vi.fn() }));
-vi.mock('./repo', () => ({ updateRun: vi.fn() }));
+vi.mock('./repo', () => ({ getRun: vi.fn(), updateRun: vi.fn() }));
 
 const automation: Automation = {
   id: 'automation-1',
@@ -46,6 +46,7 @@ describe('runQueuedAutomation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     onStepCompleted = vi.fn() as unknown as OnStepCompleted;
+    vi.mocked(getRun).mockResolvedValue(run);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
   });
 
@@ -76,6 +77,23 @@ describe('runQueuedAutomation', () => {
     // updateRun should NOT be called by runtime.ts (taskCreate already handled it)
     expect(updateRun).not.toHaveBeenCalled();
     // onStepCompleted not called by runtime (executeTaskCreate is responsible for step callbacks)
+    expect(onStepCompleted).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a manually stopped run with done', async () => {
+    const stoppedRun: AutomationRun = {
+      ...run,
+      status: 'skipped',
+      finishedAt: 2,
+      error: { step: 'queue', code: 'manually_stopped' },
+    };
+    vi.mocked(executeTaskCreate).mockResolvedValue({ success: true, data: { taskId: 'task-1' } });
+    vi.mocked(getRun).mockResolvedValue(stoppedRun);
+
+    const result = await runQueuedAutomation(automation, run, onStepCompleted);
+
+    expect(result).toEqual({ success: true, data: stoppedRun });
+    expect(updateRun).not.toHaveBeenCalled();
     expect(onStepCompleted).not.toHaveBeenCalled();
   });
 

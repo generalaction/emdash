@@ -13,7 +13,7 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
-import { updateRun } from '../repo';
+import { getRun, updateRun } from '../repo';
 import type { OnStepCompleted } from '../run-transitions';
 import {
   markRunCreatingConversation,
@@ -71,7 +71,7 @@ vi.mock('@main/core/acp/controller', () => ({
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },
 }));
-vi.mock('../repo', () => ({ updateRun: vi.fn() }));
+vi.mock('../repo', () => ({ getRun: vi.fn(), updateRun: vi.fn() }));
 vi.mock('../run-transitions', () => ({
   markRunLaunchingTask: vi.fn(),
   markRunCreatingConversation: vi.fn(),
@@ -159,6 +159,7 @@ describe('executeTaskCreate', () => {
       success: false,
       error: { type: 'generic', message: 'not found' },
     });
+    vi.mocked(getRun).mockResolvedValue(run);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
     vi.mocked(markRunLaunchingTask).mockResolvedValue({
       ...run,
@@ -225,6 +226,20 @@ describe('executeTaskCreate', () => {
     expect(commitCreateTask).toHaveBeenCalledWith(preparedData, mockTx);
     expect(markRunLaunchingTask).toHaveBeenCalledWith(run.id, expect.any(Number));
     expect(taskService.launch).toHaveBeenCalled();
+  });
+
+  it('does not commit a task when the run is stopped during preparation', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...run,
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+    });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(commitCreateTask).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
   });
 
   it('marks run failed when launch fails', async () => {
