@@ -246,7 +246,7 @@ export const hostDependencySelectionSchema: z.ZodType<HostDependencySelection> =
  * Resolves the active Installation from a HostDependency based on the used source.
  *
  * Resolution rules:
- *   - auto:    the installation with isActive === true (PATH winner)
+ *   - auto:    the first available installation, falling back to the PATH winner
  *   - pinned:  the installation whose realpath matches selection.realpath
  *   - method:  first manageable installation whose provenance.kind matches
  *   - path:    the path-override installation (id === 'path')
@@ -259,7 +259,11 @@ export function resolveActiveInstallation(
   installations: Installation[],
   used: SelectedSource
 ): Installation | undefined {
-  if (used.kind === 'auto') return installations.find((i) => i.isActive);
+  if (used.kind === 'auto') {
+    return (
+      installations.find((i) => i.status === 'available') ?? installations.find((i) => i.isActive)
+    );
+  }
   if (used.kind === 'pinned') return installations.find((i) => i.realpath === used.realpath);
   if (used.kind === 'method') {
     return installations.find((i) => i.provenance.kind === used.method && i.manageable);

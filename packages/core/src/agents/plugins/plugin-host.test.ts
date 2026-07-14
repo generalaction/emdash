@@ -1,6 +1,7 @@
 import { createScope } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '../../exec';
+import { resolveActiveInstallation } from '../../host-dependencies/runtime/types';
 import type { IAcpBehavior } from './capabilities/acp';
 import type { IAgentAuthBehavior } from './capabilities/auth';
 import type { CanonicalHookEvent } from './capabilities/hooks';
@@ -216,6 +217,19 @@ describe('AgentPluginHost', () => {
         command: '/working/test',
       },
     });
+    expect(host.dependencies.get('test')).toMatchObject({
+      status: 'available',
+      path: '/working/test',
+    });
+    const hostDependency = host.dependencies.getHostDependency('test')!;
+    expect(hostDependency).toMatchObject({
+      installations: expect.arrayContaining([
+        expect.objectContaining({ pathEntry: '/working/test', status: 'available' }),
+      ]),
+    });
+    expect(
+      resolveActiveInstallation(hostDependency.installations, hostDependency.used)?.pathEntry
+    ).toBe('/working/test');
   });
 });
 
