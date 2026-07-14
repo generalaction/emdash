@@ -1,0 +1,61 @@
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.db.test.ts
+  s_144430a1c0efa0::t_0240325442d193 7,817-841
+  s_2414e98ff31b82::t_50f36965db3d7c 842-843
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.test.ts
+  s_144430a1c0efa0::t_68ab0753eb7462 411-431
+  s_144430a1c0efa0::t_5bf9d6c5d049ea 62,153,387-409
+  s_144430a1c0efa0::t_74da307d1985c3 410
+  s_144430a1c0efa0::t_50a89a22dd150c 432
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_144430a1c0efa0::t_68ab0753eb7462 234
+apps/emdash-desktop/src/main/core/automations/repo.ts
+  s_144430a1c0efa0::t_edd24e17117321 635-636,646-647,649-650
+  s_144430a1c0efa0::t_678a35243c9fd1 648
+apps/emdash-desktop/src/main/core/automations/runtime.test.ts
+  s_144430a1c0efa0::t_a0078e170aecfe 61-68,106-114,135-143
+  s_144430a1c0efa0::t_5bf9d6c5d049ea 45,50,57,60,79,100-101,131,150,156-164
+  s_144430a1c0efa0::t_8dd1192f3918e3 165-166
+apps/emdash-desktop/src/main/core/automations/run-transitions.ts
+  s_144430a1c0efa0::t_edd24e17117321 15-16,18,28,33,38-40,48-50,68-76,81-89
+  s_144430a1c0efa0::t_998ab0a19b00f3 55-59
+  s_144430a1c0efa0::t_6ea7f00cb63233 2-6,79
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.test.ts
+  s_144430a1c0efa0::t_0240325442d193 11,190-223,234-241
+  s_144430a1c0efa0::t_a0078e170aecfe 224-233
+  s_144430a1c0efa0::t_884d96691a44eb 242-243
+apps/emdash-desktop/src/main/core/automations/runtime.ts
+  s_144430a1c0efa0::t_9727df87340fdf 13-14,20-21,24,43,51,61
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_144430a1c0efa0::t_a0078e170aecfe 21
+  s_144430a1c0efa0::t_b72fe5c5f148e2 108-109,117-118,120,126,149,155,171,225,231,236,249,267,270,284,290,303,314-323
+  s_144430a1c0efa0::t_4486d9aed92508 324
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.ts
+  s_144430a1c0efa0::t_9727df87340fdf 58,293-299,301-302,304-313,315,337
+apps/emdash-desktop/src/main/core/automations/automations-service.test.ts
+  s_144430a1c0efa0::t_f071da26c4b92a 1-62,64-81,84-86
+  s_144430a1c0efa0::t_68ab0753eb7462 63,82-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "d2345f2e61518aba3d443f66cf4db2f6a283a0fd",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_2414e98ff31b82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f50-42ac-77d0-bab0-0f9343f87598",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
