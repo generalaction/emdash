@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/ui/tooltip.tsx
+  s_3d0e6f7882bec4::t_22b4307a25d00e 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "f0ace36fc4349ac2089ed1fe8941c1e3551a849b",
+  "prompts": {},
+  "sessions": {
+    "s_3d0e6f7882bec4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efe-b426-7751-8375-f69a8b05dd80",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
