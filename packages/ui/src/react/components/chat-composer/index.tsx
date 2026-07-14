@@ -21,6 +21,7 @@ import type {
   PromptEditorRef,
   RenderMentionIcon,
 } from '../prompt-editor/types';
+import { imageFilesFromClipboard } from './attachment-files';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
@@ -228,8 +229,14 @@ export interface ChatComposerProps {
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
   /**
+   * Called for image files added through paste or drag-and-drop. When supplied,
+   * the host owns uploading and adding preview attachments.
+   */
+  onImageFilesAdded?: (files: File[]) => void;
+  /**
    * Called with dropped image files before the default data-url attachment path.
    * When supplied, the host owns uploading and adding preview attachments.
+   * @deprecated Use `onImageFilesAdded` to handle both paste and drag-and-drop.
    */
   onImageFilesDropped?: (files: File[]) => void;
   /**
@@ -554,6 +561,7 @@ export function ChatComposer({
   contextUsage,
   attachments = [],
   onAttachmentsChange,
+  onImageFilesAdded,
   onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
@@ -615,6 +623,26 @@ export function ChatComposer({
 
   // ── Drag-and-drop ───────────────────────────────────────────────────────────
 
+  const addImageFiles = (files: File[], hostHandler?: (files: File[]) => void) => {
+    if (files.length === 0) return;
+    if (hostHandler) {
+      hostHandler(files);
+      return;
+    }
+    if (!onAttachmentsChange) return;
+    const base = attachments;
+    void Promise.all(files.map(readImageAttachment)).then((newAttachments) => {
+      onAttachmentsChange([...base, ...newAttachments]);
+    });
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const imageFiles = imageFilesFromClipboard(e.clipboardData);
+    if (imageFiles.length === 0 || (!onImageFilesAdded && !onAttachmentsChange)) return;
+    e.preventDefault();
+    addImageFiles(imageFiles, onImageFilesAdded);
+  };
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (!dragActive) setDragActive(true);
@@ -633,14 +661,7 @@ export function ChatComposer({
     if (files.length === 0) return;
 
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length > 0 && onImageFilesDropped) {
-      onImageFilesDropped(imageFiles);
-    } else if (imageFiles.length > 0 && onAttachmentsChange) {
-      const base = attachments;
-      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
-        onAttachmentsChange([...base, ...newAttachments]);
-      });
-    }
+    addImageFiles(imageFiles, onImageFilesAdded ?? onImageFilesDropped);
 
     onFilesDropped?.(files);
   };
@@ -756,6 +777,7 @@ export function ChatComposer({
 
       <div
         className={styles.composerShell({ hasBand: !!hasBand, dragActive })}
+        onPaste={handlePaste}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

@@ -601,7 +601,7 @@ const ComposerForStore = observer(function ComposerForStore({
         attachments={attachments}
         onAttachmentsChange={handleAttachmentsChange}
         onAttach={handleAttach}
-        onImageFilesDropped={(files) => void addImageFiles(files)}
+        onImageFilesAdded={(files) => void addImageFiles(files)}
         onFilesDropped={insertFileMentions}
         onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
       />
