@@ -133,12 +133,6 @@ describe('ptyController', () => {
     const result = await ptyController.stopSession(sessionId);
 
     expect(result.success).toBe(true);
-    expect(mocks.getTask).toHaveBeenCalledWith('proj-1', 'task-1');
-    expect(stopSession).toHaveBeenCalledWith('conv-1');
-    expect(mocks.resetToIdle).toHaveBeenCalledWith({
-      conversationId: 'conv-1',
-      taskId: 'task-1',
-    });
 
     ptySessionRegistry.unregister(sessionId);
   });

@@ -22,6 +22,17 @@ void cleanupExpiredDroppedBlobs().catch((error) => {
   log.warn('pty:cleanupExpiredDroppedBlobs failed', { error });
 });
 
+async function resetConversationToIdle(sessionId: string, conversationId: string, taskId: string) {
+  try {
+    await agentHookService.resetToIdle({ conversationId, taskId });
+  } catch (e) {
+    log.warn('ptyController.stopSession: error resetting conversation status', {
+      sessionId,
+      error: String(e),
+    });
+  }
+}
+
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
   sendInput: (sessionId: string, data: string) => {
@@ -100,8 +111,7 @@ export const ptyController = createRPCController({
     if (!parsed) return err({ type: 'invalid_session' as const });
     const { projectId, scopeId, leafId } = parsed;
 
-    // Conversation PTYs carry a providerId in their registry metadata; plain
-    // terminals do not — that distinguishes the two.
+    // The stop handler remains available while a conversation is between PTY respawns.
     const isConversation =
       ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined ||
       ptySessionRegistry.hasStopHandler(sessionId);
@@ -122,14 +132,7 @@ export const ptyController = createRPCController({
       }
 
       if (isConversation) {
-        try {
-          await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
-        } catch (e) {
-          log.warn('ptyController.stopSession: error resetting conversation status', {
-            sessionId,
-            error: String(e),
-          });
-        }
+        await resetConversationToIdle(sessionId, leafId, scopeId);
       }
       return ok();
     }
@@ -152,14 +155,7 @@ export const ptyController = createRPCController({
         return err({ type: 'stop_failed' as const, message: String((e as Error)?.message || e) });
       }
 
-      try {
-        await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
-      } catch (e) {
-        log.warn('ptyController.stopSession: error resetting orphaned conversation status', {
-          sessionId,
-          error: String(e),
-        });
-      }
+      await resetConversationToIdle(sessionId, leafId, scopeId);
       return ok();
     }
 
