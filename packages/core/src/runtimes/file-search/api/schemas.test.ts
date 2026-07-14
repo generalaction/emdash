@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT,
-  CONTENT_SEARCH_MAX_LINE_LENGTH,
   CONTENT_SEARCH_MAX_LIMIT,
-  CONTENT_SEARCH_MAX_TEXT_LENGTH,
+  CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   FILE_SEARCH_MAX_QUERY_LENGTH,
   PATH_SEARCH_DEFAULT_LIMIT,
   PATH_SEARCH_MAX_LIMIT,
@@ -115,17 +114,22 @@ describe('file-search schemas', () => {
         matches: [
           {
             lineNumber: 7,
-            text: 'const value = FILE_SEARCH_DEFAULT_LIMIT;',
-            ranges: [{ startColumn: 15, endColumn: 40 }],
+            previewText: 'const value = FILE_SEARCH_DEFAULT_LIMIT;',
+            locations: [
+              {
+                sourceRange: { startColumn: 15, endColumn: 40 },
+                previewRange: { startColumn: 15, endColumn: 40 },
+              },
+            ],
           },
         ],
       },
     ];
 
     expect(contentSearchProgressSchema.parse({ files })).toEqual({ files });
-    expect(contentSearchResultSchema.parse({ files, limitHit: false })).toEqual({
+    expect(contentSearchResultSchema.parse({ files, complete: true })).toEqual({
       files,
-      limitHit: false,
+      complete: true,
     });
     expect(() =>
       contentSearchResultSchema.parse({
@@ -135,20 +139,25 @@ describe('file-search schemas', () => {
             matches: [
               {
                 ...files[0].matches[0],
-                ranges: [{ startColumn: 10, endColumn: 10 }],
+                locations: [
+                  {
+                    sourceRange: { startColumn: 10, endColumn: 10 },
+                    previewRange: { startColumn: 10, endColumn: 10 },
+                  },
+                ],
               },
             ],
           },
         ],
-        limitHit: false,
+        complete: true,
       })
     ).toThrow();
   });
 
   it('bounds the actual number of returned content matches', () => {
-    const ranges = Array.from({ length: CONTENT_SEARCH_MAX_LIMIT + 1 }, (_, index) => ({
-      startColumn: index + 1,
-      endColumn: index + 2,
+    const locations = Array.from({ length: CONTENT_SEARCH_MAX_LIMIT + 1 }, (_, index) => ({
+      sourceRange: { startColumn: index + 1, endColumn: index + 2 },
+      previewRange: { startColumn: index + 1, endColumn: index + 2 },
     }));
 
     expect(() =>
@@ -156,15 +165,15 @@ describe('file-search schemas', () => {
         files: [
           {
             path: 'src/index.ts',
-            matches: [{ lineNumber: 1, text: 'x', ranges }],
+            matches: [{ lineNumber: 1, previewText: 'x', locations }],
           },
         ],
-        limitHit: true,
+        complete: false,
       })
     ).toThrow();
   });
 
-  it('bounds individual lines and aggregate content text', () => {
+  it('bounds individual previews', () => {
     expect(() =>
       contentSearchResultSchema.parse({
         files: [
@@ -173,31 +182,18 @@ describe('file-search schemas', () => {
             matches: [
               {
                 lineNumber: 1,
-                text: 'x'.repeat(CONTENT_SEARCH_MAX_LINE_LENGTH + 1),
-                ranges: [{ startColumn: 1, endColumn: 2 }],
+                previewText: 'x'.repeat(CONTENT_SEARCH_MAX_PREVIEW_LENGTH + 1),
+                locations: [
+                  {
+                    sourceRange: { startColumn: 1, endColumn: 2 },
+                    previewRange: { startColumn: 1, endColumn: 2 },
+                  },
+                ],
               },
             ],
           },
         ],
-        limitHit: true,
-      })
-    ).toThrow();
-
-    const lineCount =
-      Math.floor(CONTENT_SEARCH_MAX_TEXT_LENGTH / CONTENT_SEARCH_MAX_LINE_LENGTH) + 1;
-    expect(() =>
-      contentSearchResultSchema.parse({
-        files: [
-          {
-            path: 'src/index.ts',
-            matches: Array.from({ length: lineCount }, (_, index) => ({
-              lineNumber: index + 1,
-              text: 'x'.repeat(CONTENT_SEARCH_MAX_LINE_LENGTH),
-              ranges: [{ startColumn: 1, endColumn: 2 }],
-            })),
-          },
-        ],
-        limitHit: true,
+        complete: false,
       })
     ).toThrow();
   });

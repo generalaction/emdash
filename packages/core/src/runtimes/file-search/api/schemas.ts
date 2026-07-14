@@ -5,8 +5,7 @@ export const PATH_SEARCH_MAX_LIMIT = 200;
 export const PATH_SEARCH_DEFAULT_LIMIT = 20;
 export const CONTENT_SEARCH_MAX_LIMIT = 10_000;
 export const CONTENT_SEARCH_DEFAULT_LIMIT = 1_000;
-export const CONTENT_SEARCH_MAX_LINE_LENGTH = 16_384;
-export const CONTENT_SEARCH_MAX_TEXT_LENGTH = 4 * 1024 * 1024;
+export const CONTENT_SEARCH_MAX_PREVIEW_LENGTH = 16_384;
 export const FILE_SEARCH_MAX_QUERY_LENGTH = 512;
 
 export const fileSearchRootInputSchema = z.object({
@@ -49,10 +48,7 @@ export const contentSearchInputSchema = fileSearchRootInputSchema.extend({
   limit: z.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT).optional(),
 });
 
-/**
- * One-based UTF-16 editor columns. `endColumn` is exclusive; adapters producing byte offsets
- * must convert them before crossing this interface.
- */
+/** One-based UTF-16 columns. `endColumn` is exclusive. */
 export const contentSearchRangeSchema = z
   .object({
     startColumn: z.number().int().positive(),
@@ -63,11 +59,20 @@ export const contentSearchRangeSchema = z
     path: ['endColumn'],
   });
 
+/**
+ * A source location in the complete file line paired with its location in the bounded preview.
+ * Adapters producing byte offsets must convert them before crossing this interface.
+ */
+export const contentSearchLocationSchema = z.object({
+  sourceRange: contentSearchRangeSchema,
+  previewRange: contentSearchRangeSchema,
+});
+
 export const contentSearchLineMatchSchema = z.object({
   lineNumber: z.number().int().positive(),
-  /** The complete line content without its line terminator. */
-  text: z.string().max(CONTENT_SEARCH_MAX_LINE_LENGTH),
-  ranges: z.array(contentSearchRangeSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
+  /** Match-centered preview. It may contain explicit elision markers. */
+  previewText: z.string().max(CONTENT_SEARCH_MAX_PREVIEW_LENGTH),
+  locations: z.array(contentSearchLocationSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
 });
 
 export const contentSearchFileResultSchema = z.object({
@@ -83,54 +88,12 @@ const contentSearchFilesSchema = z
  * An append-only batch. A path may occur in later batches; consumers append its new matches.
  * The terminal result remains authoritative.
  */
-export const contentSearchProgressSchema = boundedContentSearchPayload(
-  z.object({ files: contentSearchFilesSchema.min(1) })
-);
+export const contentSearchProgressSchema = z.object({ files: contentSearchFilesSchema });
 
-export const contentSearchResultSchema = boundedContentSearchPayload(
-  z.object({
-    files: contentSearchFilesSchema,
-    limitHit: z.boolean(),
-  })
-);
-
-function boundedContentSearchPayload<
-  Schema extends z.ZodType<{ files: ContentSearchFileResult[] }>,
->(schema: Schema) {
-  return schema.superRefine(({ files }, context) => {
-    const occurrenceCount = files.reduce(
-      (fileTotal, file) =>
-        fileTotal + file.matches.reduce((matchTotal, match) => matchTotal + match.ranges.length, 0),
-      0
-    );
-    if (occurrenceCount > CONTENT_SEARCH_MAX_LIMIT) {
-      context.addIssue({
-        code: 'too_big',
-        maximum: CONTENT_SEARCH_MAX_LIMIT,
-        origin: 'array',
-        inclusive: true,
-        message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_LIMIT} matches`,
-        path: ['files'],
-      });
-    }
-
-    const textLength = files.reduce(
-      (fileTotal, file) =>
-        fileTotal + file.matches.reduce((matchTotal, match) => matchTotal + match.text.length, 0),
-      0
-    );
-    if (textLength > CONTENT_SEARCH_MAX_TEXT_LENGTH) {
-      context.addIssue({
-        code: 'too_big',
-        maximum: CONTENT_SEARCH_MAX_TEXT_LENGTH,
-        origin: 'string',
-        inclusive: true,
-        message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_TEXT_LENGTH} text characters`,
-        path: ['files'],
-      });
-    }
-  });
-}
+export const contentSearchResultSchema = z.object({
+  files: contentSearchFilesSchema,
+  complete: z.boolean(),
+});
 
 export type FileSearchRootInput = z.infer<typeof fileSearchRootInputSchema>;
 export type PathEntryKind = z.infer<typeof pathEntryKindSchema>;
@@ -139,6 +102,7 @@ export type PathSearchHit = z.infer<typeof pathSearchHitSchema>;
 export type PathSearchResult = z.infer<typeof pathSearchResultSchema>;
 export type ContentSearchInput = z.infer<typeof contentSearchInputSchema>;
 export type ContentSearchRange = z.infer<typeof contentSearchRangeSchema>;
+export type ContentSearchLocation = z.infer<typeof contentSearchLocationSchema>;
 export type ContentSearchLineMatch = z.infer<typeof contentSearchLineMatchSchema>;
 export type ContentSearchFileResult = z.infer<typeof contentSearchFileResultSchema>;
 export type ContentSearchProgress = z.infer<typeof contentSearchProgressSchema>;

@@ -26,11 +26,18 @@ describe('parseRipgrepJsonLine', () => {
     ).toEqual({
       path: './src/index.ts',
       lineNumber: 7,
-      text: 'const 😀 VALUE VALUE',
-      ranges: [
-        { startColumn: 10, endColumn: 15 },
-        { startColumn: 16, endColumn: 21 },
+      previewText: 'const 😀 VALUE VALUE',
+      locations: [
+        {
+          sourceRange: { startColumn: 10, endColumn: 15 },
+          previewRange: { startColumn: 10, endColumn: 15 },
+        },
+        {
+          sourceRange: { startColumn: 16, endColumn: 21 },
+          previewRange: { startColumn: 16, endColumn: 21 },
+        },
       ],
+      locationsOmitted: false,
     });
   });
 
@@ -48,7 +55,7 @@ describe('parseRipgrepJsonLine', () => {
           },
         })
       )
-    ).toMatchObject({ path: './file.txt', text: 'term' });
+    ).toMatchObject({ path: './file.txt', previewText: 'term' });
   });
 
   it('rejects malformed match records instead of emitting invalid contract data', () => {
@@ -64,6 +71,59 @@ describe('parseRipgrepJsonLine', () => {
           },
         })
       )
-    ).toThrow('byte offsets');
+    ).toThrow('submatch byte offsets');
+  });
+
+  it('limits occurrences before building the preview and reports omitted locations', () => {
+    const parsed = parseRipgrepJsonLine(
+      JSON.stringify({
+        type: 'match',
+        data: {
+          path: { text: './file.txt' },
+          lines: { text: 'term term term\n' },
+          line_number: 1,
+          submatches: [
+            { start: 0, end: 4, match: { text: 'term' } },
+            { start: 5, end: 9, match: { text: 'term' } },
+            { start: 10, end: 14, match: { text: 'term' } },
+          ],
+        },
+      }),
+      { maxLocations: 2 }
+    );
+
+    expect(parsed?.locations).toHaveLength(2);
+    expect(parsed?.locationsOmitted).toBe(true);
+  });
+
+  it('bounds and converts a dense line with many more matches than requested', () => {
+    const occurrenceCount = 20_000;
+    const text = `${'x '.repeat(occurrenceCount)}\n`;
+    const submatches = Array.from({ length: occurrenceCount }, (_, index) => ({
+      start: index * 2,
+      end: index * 2 + 1,
+      match: { text: 'x' },
+    }));
+
+    const parsed = parseRipgrepJsonLine(
+      JSON.stringify({
+        type: 'match',
+        data: {
+          path: { text: './dense.txt' },
+          lines: { text },
+          line_number: 1,
+          submatches,
+        },
+      }),
+      { maxLocations: 1_000 }
+    );
+
+    expect(parsed?.locations).toHaveLength(1_000);
+    expect(parsed?.locations[0].sourceRange).toEqual({ startColumn: 1, endColumn: 2 });
+    expect(parsed?.locations.at(-1)?.sourceRange).toEqual({
+      startColumn: 1_999,
+      endColumn: 2_000,
+    });
+    expect(parsed?.locationsOmitted).toBe(true);
   });
 });

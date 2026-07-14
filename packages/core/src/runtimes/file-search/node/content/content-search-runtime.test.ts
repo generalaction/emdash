@@ -73,5 +73,5 @@ function fakeResource(
 }
 
 function emptyResult(): ContentSearchResult {
-  return { files: [], limitHit: false };
+  return { files: [], complete: true };
 }

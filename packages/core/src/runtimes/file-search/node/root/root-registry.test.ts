@@ -235,6 +235,6 @@ async function createRoot(): Promise<string> {
 function successResult() {
   return {
     success: true as const,
-    data: { files: [], limitHit: false } satisfies ContentSearchResult,
+    data: { files: [], complete: true } satisfies ContentSearchResult,
   };
 }

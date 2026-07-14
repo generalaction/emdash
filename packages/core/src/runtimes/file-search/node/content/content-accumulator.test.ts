@@ -1,19 +1,20 @@
-import {
-  CONTENT_SEARCH_MAX_LINE_LENGTH,
-  CONTENT_SEARCH_MAX_TEXT_LENGTH,
-} from '@runtimes/file-search/api';
+import { CONTENT_SEARCH_MAX_PREVIEW_LENGTH } from '@runtimes/file-search/api';
 import { describe, expect, it, vi } from 'vitest';
 import { relativePath as relative } from '../testing/paths';
-import { ContentSearchAccumulator } from './content-accumulator';
+import {
+  CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH,
+  ContentSearchAccumulator,
+} from './content-accumulator';
 
 describe('ContentSearchAccumulator', () => {
-  it('stops before aggregate line text can exceed the contract bound', () => {
+  it('stops before aggregate preview text can exceed the runtime budget', () => {
     const accumulator = new ContentSearchAccumulator({
       signal: new AbortController().signal,
       onProgress: vi.fn(),
     });
-    const text = 'x'.repeat(CONTENT_SEARCH_MAX_LINE_LENGTH);
-    const acceptedLines = CONTENT_SEARCH_MAX_TEXT_LENGTH / CONTENT_SEARCH_MAX_LINE_LENGTH;
+    const previewText = 'x'.repeat(CONTENT_SEARCH_MAX_PREVIEW_LENGTH);
+    const acceptedLines =
+      CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH / CONTENT_SEARCH_MAX_PREVIEW_LENGTH;
 
     for (let index = 0; index < acceptedLines; index += 1) {
       expect(
@@ -21,8 +22,8 @@ describe('ContentSearchAccumulator', () => {
           relative('src/index.ts'),
           {
             lineNumber: index + 1,
-            text,
-            ranges: [{ startColumn: 1, endColumn: 2 }],
+            previewText,
+            locations: [location(1, 2)],
           },
           10_000
         )
@@ -33,8 +34,8 @@ describe('ContentSearchAccumulator', () => {
         relative('src/index.ts'),
         {
           lineNumber: acceptedLines + 1,
-          text,
-          ranges: [{ startColumn: 1, endColumn: 2 }],
+          previewText,
+          locations: [location(1, 2)],
         },
         10_000
       )
@@ -54,8 +55,8 @@ describe('ContentSearchAccumulator', () => {
       relative('index.ts'),
       {
         lineNumber: 1,
-        text: 'term',
-        ranges: [{ startColumn: 1, endColumn: 5 }],
+        previewText: 'term',
+        locations: [location(1, 5)],
       },
       10
     );
@@ -63,3 +64,10 @@ describe('ContentSearchAccumulator', () => {
     expect(() => accumulator.result(false)).toThrow(bug);
   });
 });
+
+function location(startColumn: number, endColumn: number) {
+  return {
+    sourceRange: { startColumn, endColumn },
+    previewRange: { startColumn, endColumn },
+  };
+}

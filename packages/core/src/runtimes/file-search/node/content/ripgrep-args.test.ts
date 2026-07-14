@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { CONTENT_SEARCH_MAX_LINE_LENGTH } from '@runtimes/file-search/api';
 import { describe, expect, it } from 'vitest';
 import { hostPath as absolute, relativePath as relative } from '../testing/paths';
 import { createRipgrepContentSearchArgs } from './ripgrep-args';
@@ -17,14 +16,17 @@ describe('createRipgrepContentSearchArgs', () => {
     expect(args).toEqual(
       expect.arrayContaining([
         '--json',
+        '--hidden',
+        '--no-require-git',
+        '--no-config',
         '--fixed-strings',
         '--ignore-case',
         '--no-follow',
-        `--max-columns=${CONTENT_SEARCH_MAX_LINE_LENGTH}`,
         '!**/node_modules/**',
       ])
     );
     expect(args.slice(-3)).toEqual(['--', '-needle', path.join('src', 'nested')]);
+    expect(args.some((argument) => argument.startsWith('--max-columns'))).toBe(false);
 
     expect(
       createRipgrepContentSearchArgs({

@@ -3,7 +3,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT,
-  CONTENT_SEARCH_MAX_LINE_LENGTH,
+  CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
@@ -20,25 +20,38 @@ import type {
 } from './content-searcher';
 import { createRipgrepContentSearchArgs } from './ripgrep-args';
 import { parseRipgrepJsonLine } from './ripgrep-json';
+import { RipgrepJsonFramer, type RipgrepJsonFramerEvent } from './ripgrep-json-framer';
 
 const MAX_STDERR_BYTES = 64 * 1024;
-const MAX_JSON_LINE_BYTES = CONTENT_SEARCH_MAX_LINE_LENGTH * 4 + 64 * 1024;
+const DEFAULT_MAX_JSON_RECORD_BYTES = 32 * 1024 * 1024;
 
 type RipgrepContentSearcherOptions = Readonly<{
   executable?: string;
   env?: NodeJS.ProcessEnv;
   exclusions?: FileSearchExclusions;
+  maxRecordBytes?: number;
 }>;
+
+type RipgrepRunState =
+  | Readonly<{ kind: 'running' }>
+  | Readonly<{ kind: 'limit' }>
+  | Readonly<{ kind: 'output-error'; error: unknown }>
+  | Readonly<{ kind: 'unexpected-error'; error: unknown }>;
 
 export class RipgrepContentSearcher implements FileContentSearcher {
   private readonly executable: string;
   private readonly env: NodeJS.ProcessEnv | undefined;
   private readonly exclusions: FileSearchExclusions;
+  private readonly maxRecordBytes: number;
 
   constructor(options: RipgrepContentSearcherOptions = {}) {
     this.executable = options.executable ?? 'rg';
     this.env = options.env;
     this.exclusions = options.exclusions ?? new DefaultFileSearchExclusions();
+    this.maxRecordBytes = positiveSafeInteger(
+      options.maxRecordBytes ?? DEFAULT_MAX_JSON_RECORD_BYTES,
+      'maxRecordBytes'
+    );
   }
 
   search(
@@ -50,7 +63,7 @@ export class RipgrepContentSearcher implements FileContentSearcher {
       cwd: input.rootPath,
       env: this.env,
     });
-    return runRipgrep(executable, input, context, this.exclusions);
+    return runRipgrep(executable, input, context, this.exclusions, this.maxRecordBytes);
   }
 }
 
@@ -58,18 +71,19 @@ function runRipgrep(
   executable: BoundExec,
   input: ResolvedContentSearchInput,
   context: ContentSearchContext,
-  exclusions: FileSearchExclusions
+  exclusions: FileSearchExclusions,
+  maxRecordBytes: number
 ): Promise<Result<ContentSearchResult, ContentSearchExecutionError>> {
   return new Promise((resolve, reject) => {
     const accumulator = new ContentSearchAccumulator(context);
     const limit = input.limit ?? CONTENT_SEARCH_DEFAULT_LIMIT;
     const args = createRipgrepContentSearchArgs(input, exclusions);
     const child = executable.spawn(args, { signal: context.signal });
-    let stdoutBuffer = '';
+    const framer = new RipgrepJsonFramer({ maxRecordBytes });
     let stderr = '';
-    let outputError: unknown;
-    let unexpectedError: unknown;
-    let stoppedForLimit = false;
+    let state: RipgrepRunState = { kind: 'running' };
+    let skippedOversizedRecord = false;
+    let receivedValidJsonRecord = false;
     let settled = false;
 
     const succeed = (result: Result<ContentSearchResult, ContentSearchExecutionError>): void => {
@@ -82,23 +96,58 @@ function runRipgrep(
       settled = true;
       reject(error);
     };
+    const kill = (): void => {
+      try {
+        child.kill();
+      } catch (error) {
+        state = { kind: 'unexpected-error', error };
+        crash(error);
+      }
+    };
     const stopForOutputError = (error: unknown): void => {
-      if (outputError || unexpectedError) return;
-      outputError = error;
-      child.kill();
+      if (state.kind !== 'running') return;
+      state = { kind: 'output-error', error };
+      kill();
+    };
+    const stopForUnexpectedError = (error: unknown): void => {
+      if (state.kind !== 'running') return;
+      state = { kind: 'unexpected-error', error };
+      kill();
+    };
+    const stopForLimit = (): void => {
+      if (state.kind !== 'running') return;
+      state = { kind: 'limit' };
+      kill();
     };
 
     const acceptLine = (line: string): void => {
-      if (!line.trim() || outputError || unexpectedError) return;
+      if (!line.trim() || state.kind !== 'running') return;
+      const remainingOccurrences = accumulator.remainingOccurrences(limit);
+      const remainingTextLength = accumulator.remainingTextLength();
+      if (remainingOccurrences === 0) {
+        stopForLimit();
+        return;
+      }
+      if (remainingTextLength === 0) {
+        stopForLimit();
+        return;
+      }
+
       let match;
       try {
-        match = parseRipgrepJsonLine(line);
+        match = parseRipgrepJsonLine(line, {
+          maxLocations: remainingOccurrences,
+          maxPreviewLength: Math.min(CONTENT_SEARCH_MAX_PREVIEW_LENGTH, remainingTextLength),
+        });
+        receivedValidJsonRecord = true;
         if (!match) return;
-        if (match.text.length > CONTENT_SEARCH_MAX_LINE_LENGTH) {
-          throw new Error('ripgrep returned a line exceeding the content-search output bound');
-        }
       } catch (error) {
         stopForOutputError(error);
+        return;
+      }
+
+      if (match.locations.length === 0) {
+        stopForLimit();
         return;
       }
 
@@ -111,36 +160,39 @@ function runRipgrep(
       }
 
       try {
-        if (accumulator.add(relativePath, match, limit) && !stoppedForLimit) {
-          stoppedForLimit = true;
-          child.kill();
+        const { path: _path, locationsOmitted, ...lineMatch } = match;
+        const accumulatorLimitHit = accumulator.add(relativePath, lineMatch, limit);
+        if (locationsOmitted) {
+          stopForLimit();
+        } else if (accumulatorLimitHit) {
+          stopForLimit();
         }
       } catch (error) {
-        unexpectedError = error;
-        child.kill();
+        stopForUnexpectedError(error);
       }
     };
 
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      if (outputError || unexpectedError) return;
-      stdoutBuffer += chunk;
-      for (;;) {
-        const newline = stdoutBuffer.indexOf('\n');
-        if (newline < 0) break;
-        const line = stdoutBuffer.slice(0, newline);
-        stdoutBuffer = stdoutBuffer.slice(newline + 1);
-        if (Buffer.byteLength(line) > MAX_JSON_LINE_BYTES) {
-          stopForOutputError(new Error('ripgrep emitted an oversized JSON record'));
-          return;
+    const acceptFramerEvents = (events: readonly RipgrepJsonFramerEvent[]): void => {
+      for (const event of events) {
+        if (state.kind !== 'running') return;
+        if (event.type === 'oversized-record') {
+          skippedOversizedRecord = true;
+        } else {
+          acceptLine(event.line);
         }
-        acceptLine(line);
       }
-      if (Buffer.byteLength(stdoutBuffer) > MAX_JSON_LINE_BYTES) {
-        stopForOutputError(new Error('ripgrep emitted an oversized JSON record'));
+    };
+
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (state.kind !== 'running') return;
+      try {
+        acceptFramerEvents(framer.push(chunk));
+      } catch (error) {
+        stopForOutputError(error);
       }
     });
+    child.stdout.on('error', stopForOutputError);
     child.stderr.on('data', (chunk: string) => {
       if (Buffer.byteLength(stderr) >= MAX_STDERR_BYTES) return;
       stderr += chunk;
@@ -148,56 +200,83 @@ function runRipgrep(
         stderr = Buffer.from(stderr).subarray(0, MAX_STDERR_BYTES).toString('utf8');
       }
     });
+    child.stderr.on('error', stopForUnexpectedError);
     child.on('error', (error: NodeJS.ErrnoException) => {
       if (context.signal.aborted || error.name === 'AbortError') {
         crash(abortReason(context.signal));
         return;
       }
+      if (state.kind !== 'running') return;
       succeed(err(spawnError(input, error)));
     });
     child.on('close', (code) => {
       if (settled) return;
-      if (stdoutBuffer.trim() && !outputError && !unexpectedError) {
-        if (Buffer.byteLength(stdoutBuffer) > MAX_JSON_LINE_BYTES) {
-          outputError = new Error('ripgrep emitted an oversized JSON record');
-        } else {
-          acceptLine(stdoutBuffer);
-        }
-      }
-      if (unexpectedError) {
-        crash(unexpectedError);
-        return;
-      }
-      if (outputError) {
-        succeed(err(ioError(input, errorMessage(outputError, 'Unable to parse ripgrep output'))));
-        return;
-      }
       if (context.signal.aborted) {
         crash(abortReason(context.signal));
         return;
       }
-      if (stoppedForLimit || code === 0 || code === 1) {
-        try {
-          succeed(ok(accumulator.result(stoppedForLimit)));
-        } catch (error) {
-          crash(error);
+      if (settleStoppedState()) return;
+
+      try {
+        acceptFramerEvents(framer.finish());
+      } catch (error) {
+        stopForOutputError(error);
+      }
+      if (settleStoppedState()) return;
+
+      if (code !== 0 && code !== 1) {
+        if (receivedValidJsonRecord) {
+          try {
+            succeed(ok(accumulator.result(false)));
+          } catch (error) {
+            crash(error);
+          }
+        } else {
+          succeed(err(ripgrepExitError(input, code, stderr)));
         }
         return;
       }
-      const detail = stderr.trim();
-      succeed(
-        err(
-          ioError(
-            input,
-            detail
-              ? `ripgrep failed: ${detail}`
-              : `ripgrep failed with exit code ${code ?? 'unknown'}`
-          )
-        )
-      );
+
+      try {
+        succeed(ok(accumulator.result(!skippedOversizedRecord)));
+      } catch (error) {
+        crash(error);
+      }
     });
     child.stdin.end();
+
+    function settleStoppedState(): boolean {
+      switch (state.kind) {
+        case 'running':
+          return false;
+        case 'unexpected-error':
+          crash(state.error);
+          return true;
+        case 'output-error':
+          succeed(err(ioError(input, errorMessage(state.error, 'Unable to parse ripgrep output'))));
+          return true;
+        case 'limit':
+          try {
+            succeed(ok(accumulator.result(false)));
+          } catch (error) {
+            crash(error);
+          }
+          return true;
+      }
+    }
   });
+}
+
+function ripgrepExitError(
+  input: ResolvedContentSearchInput,
+  code: number | null,
+  stderr: string
+): ContentSearchExecutionError {
+  const detail = stderr.trim();
+  return ioError(
+    input,
+    detail ? `ripgrep failed: ${detail}` : `ripgrep failed with exit code ${code ?? 'unknown'}`
+  );
 }
 
 function normalizeResultPath(rootPath: string, ripgrepPath: string): PortableRelativePath {
@@ -244,4 +323,11 @@ function ioError(input: ResolvedContentSearchInput, message: string): ContentSea
 
 function abortReason(signal: AbortSignal): unknown {
   return signal.reason instanceof Error ? signal.reason : new Error('Content search was cancelled');
+}
+
+function positiveSafeInteger(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${name} must be a positive safe integer`);
+  }
+  return value;
 }

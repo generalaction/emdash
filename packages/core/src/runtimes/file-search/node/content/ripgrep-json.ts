@@ -1,20 +1,39 @@
-import type { ContentSearchRange } from '@runtimes/file-search/api';
+import {
+  CONTENT_SEARCH_MAX_LIMIT,
+  CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
+  type ContentSearchLineMatch,
+  type ContentSearchRange,
+} from '@runtimes/file-search/api';
+import { createContentSearchPreview } from './content-preview';
 
-export type ParsedRipgrepMatch = Readonly<{
-  path: string;
-  lineNumber: number;
-  text: string;
-  ranges: ContentSearchRange[];
+export type ParsedRipgrepMatch = Readonly<
+  ContentSearchLineMatch & {
+    path: string;
+    locationsOmitted: boolean;
+  }
+>;
+
+export type ParseRipgrepJsonLineOptions = Readonly<{
+  maxLocations?: number;
+  maxPreviewLength?: number;
+}>;
+
+type ByteRange = Readonly<{
+  start: number;
+  end: number;
 }>;
 
 /** Parses one ripgrep JSON-lines record; non-match records intentionally return null. */
-export function parseRipgrepJsonLine(line: string): ParsedRipgrepMatch | null {
+export function parseRipgrepJsonLine(
+  line: string,
+  options: ParseRipgrepJsonLineOptions = {}
+): ParsedRipgrepMatch | null {
   const event = JSON.parse(line) as unknown;
   if (!isRecord(event) || event.type !== 'match') return null;
   if (!isRecord(event.data)) throw new Error('ripgrep match record has no data object');
 
   const pathText = decodeText(event.data.path, 'path').toString('utf8');
-  const lineBytes = decodeText(event.data.lines, 'lines');
+  const lineBytes = stripLineTerminator(decodeText(event.data.lines, 'lines'));
   const lineNumber = event.data.line_number;
   if (!Number.isInteger(lineNumber) || (lineNumber as number) < 1) {
     throw new Error('ripgrep match record has an invalid line number');
@@ -23,7 +42,28 @@ export function parseRipgrepJsonLine(line: string): ParsedRipgrepMatch | null {
     throw new Error('ripgrep match record has no submatches');
   }
 
-  const ranges = event.data.submatches.map((submatch): ContentSearchRange => {
+  const maxLocations = options.maxLocations ?? CONTENT_SEARCH_MAX_LIMIT;
+  if (
+    !Number.isInteger(maxLocations) ||
+    maxLocations < 1 ||
+    maxLocations > CONTENT_SEARCH_MAX_LIMIT
+  ) {
+    throw new RangeError(`maxLocations must be between 1 and ${CONTENT_SEARCH_MAX_LIMIT}`);
+  }
+  const maxPreviewLength = options.maxPreviewLength ?? CONTENT_SEARCH_MAX_PREVIEW_LENGTH;
+  if (
+    !Number.isInteger(maxPreviewLength) ||
+    maxPreviewLength < 1 ||
+    maxPreviewLength > CONTENT_SEARCH_MAX_PREVIEW_LENGTH
+  ) {
+    throw new RangeError(
+      `maxPreviewLength must be between 1 and ${CONTENT_SEARCH_MAX_PREVIEW_LENGTH}`
+    );
+  }
+
+  let previousEnd = 0;
+  const selectedByteRanges: ByteRange[] = [];
+  for (const submatch of event.data.submatches) {
     if (!isRecord(submatch)) throw new Error('ripgrep emitted an invalid submatch');
     const start = submatch.start;
     const end = submatch.end;
@@ -32,21 +72,29 @@ export function parseRipgrepJsonLine(line: string): ParsedRipgrepMatch | null {
       !Number.isInteger(end) ||
       (start as number) < 0 ||
       (end as number) <= (start as number) ||
-      (end as number) > lineBytes.length
+      (end as number) > lineBytes.length ||
+      (start as number) < previousEnd
     ) {
-      throw new Error('ripgrep emitted invalid submatch byte offsets');
+      throw new Error('ripgrep emitted invalid or overlapping submatch byte offsets');
     }
-    return {
-      startColumn: utf16ColumnAt(lineBytes, start as number),
-      endColumn: utf16ColumnAt(lineBytes, end as number),
-    };
+    previousEnd = end as number;
+    if (selectedByteRanges.length < maxLocations) {
+      selectedByteRanges.push({ start: start as number, end: end as number });
+    }
+  }
+
+  const ranges = utf16Ranges(lineBytes, selectedByteRanges);
+  const preview = createContentSearchPreview(previewText(lineBytes), ranges, {
+    maxLength: maxPreviewLength,
   });
 
   return {
     path: pathText,
     lineNumber: lineNumber as number,
-    text: stripLineTerminator(lineBytes.toString('utf8')),
-    ranges,
+    previewText: preview.previewText,
+    locations: preview.locations,
+    locationsOmitted:
+      preview.locationsOmitted || selectedByteRanges.length < event.data.submatches.length,
   };
 }
 
@@ -57,14 +105,32 @@ function decodeText(value: unknown, field: string): Buffer {
   throw new Error(`ripgrep ${field} has neither text nor bytes`);
 }
 
-function utf16ColumnAt(line: Buffer, byteOffset: number): number {
-  return line.subarray(0, byteOffset).toString('utf8').length + 1;
+/** Converts sorted byte ranges in one forward pass instead of decoding every prefix. */
+function utf16Ranges(line: Buffer, ranges: readonly ByteRange[]): ContentSearchRange[] {
+  let byteCursor = 0;
+  let utf16Cursor = 0;
+
+  return ranges.map(({ start, end }) => {
+    utf16Cursor += line.subarray(byteCursor, start).toString('utf8').length;
+    const startColumn = utf16Cursor + 1;
+    utf16Cursor += line.subarray(start, end).toString('utf8').length;
+    const endColumn = utf16Cursor + 1;
+    byteCursor = end;
+    return { startColumn, endColumn };
+  });
 }
 
-function stripLineTerminator(line: string): string {
-  if (line.endsWith('\r\n')) return line.slice(0, -2);
-  if (line.endsWith('\n') || line.endsWith('\r')) return line.slice(0, -1);
-  return line;
+function stripLineTerminator(line: Buffer): Buffer {
+  let end = line.length;
+  if (end > 0 && line[end - 1] === 0x0a) end -= 1;
+  if (end > 0 && line[end - 1] === 0x0d) end -= 1;
+  return line.subarray(0, end);
+}
+
+function previewText(line: Buffer): string {
+  // Ripgrep treats lone carriage returns as line content. Keep columns stable while ensuring
+  // the transport remains single-line and the otherwise invisible separator stays visible.
+  return line.toString('utf8').replaceAll('\r', '\u240d');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

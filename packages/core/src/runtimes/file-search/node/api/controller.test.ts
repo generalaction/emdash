@@ -15,8 +15,13 @@ describe('createFileSearchController', () => {
         matches: [
           {
             lineNumber: 1,
-            text: 'const VALUE = 1;',
-            ranges: [{ startColumn: 7, endColumn: 12 }],
+            previewText: 'const VALUE = 1;',
+            locations: [
+              {
+                sourceRange: { startColumn: 7, endColumn: 12 },
+                previewRange: { startColumn: 7, endColumn: 12 },
+              },
+            ],
           },
         ],
       },
@@ -33,7 +38,7 @@ describe('createFileSearchController', () => {
         searchContent: async (_input, context) => {
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
           context.onProgress({ files });
-          return ok({ files, limitHit: false });
+          return ok({ files, complete: true });
         },
       },
     };
@@ -62,7 +67,7 @@ describe('createFileSearchController', () => {
       const handle = await lease.ready();
       const progress: unknown[] = [];
       handle.onProgress((update) => progress.push(update));
-      await expect(handle.result).resolves.toEqual({ files, limitHit: false });
+      await expect(handle.result).resolves.toEqual({ files, complete: true });
       expect(progress).toEqual([{ files }]);
       await lease.release();
       await jobs.dispose();

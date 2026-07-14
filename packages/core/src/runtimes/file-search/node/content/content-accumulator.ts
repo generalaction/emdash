@@ -1,6 +1,5 @@
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
-  CONTENT_SEARCH_MAX_TEXT_LENGTH,
   type ContentSearchFileResult,
   type ContentSearchLineMatch,
   type ContentSearchResult,
@@ -8,6 +7,7 @@ import {
 import type { ContentSearchContext } from './content-searcher';
 
 const PROGRESS_MATCH_BATCH_SIZE = 50;
+export const CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH = 4 * 1024 * 1024;
 
 /** Bounds and batches the append-only result stream produced by the ripgrep adapter. */
 export class ContentSearchAccumulator {
@@ -19,33 +19,47 @@ export class ContentSearchAccumulator {
 
   constructor(private readonly context: ContentSearchContext) {}
 
+  remainingOccurrences(limit: number): number {
+    return Math.max(0, limit - this.occurrenceCount);
+  }
+
+  remainingTextLength(): number {
+    return Math.max(0, CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH - this.textLength);
+  }
+
   add(path: PortableRelativePath, match: ContentSearchLineMatch, limit: number): boolean {
-    const remaining = limit - this.occurrenceCount;
+    const remaining = this.remainingOccurrences(limit);
     if (remaining <= 0) return true;
 
-    const existing = findLineMatch(this.files, path, match.lineNumber);
-    if (!existing && this.textLength + match.text.length > CONTENT_SEARCH_MAX_TEXT_LENGTH) {
+    if (
+      this.textLength + match.previewText.length >
+      CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH
+    ) {
       return true;
     }
 
-    const ranges = match.ranges.slice(0, remaining);
+    const locations = match.locations.slice(0, remaining).map(cloneLocation);
     const lineMatch: ContentSearchLineMatch = {
       lineNumber: match.lineNumber,
-      text: match.text,
-      ranges,
+      previewText: match.previewText,
+      locations,
     };
     appendLineMatch(this.files, path, lineMatch);
-    appendLineMatch(this.progress, path, { ...lineMatch, ranges: [...lineMatch.ranges] });
-    if (!existing) this.textLength += match.text.length;
-    this.occurrenceCount += ranges.length;
-    this.pendingOccurrenceCount += ranges.length;
+    appendLineMatch(this.progress, path, {
+      ...lineMatch,
+      locations: lineMatch.locations.map(cloneLocation),
+    });
+    this.textLength += match.previewText.length;
+    this.occurrenceCount += locations.length;
+    this.pendingOccurrenceCount += locations.length;
     if (this.pendingOccurrenceCount >= PROGRESS_MATCH_BATCH_SIZE) this.flushProgress();
-    return this.occurrenceCount >= limit;
+    return locations.length < match.locations.length || this.occurrenceCount >= limit;
   }
 
-  result(limitHit: boolean): ContentSearchResult {
+  result(complete: boolean): ContentSearchResult {
     this.flushProgress();
-    return { files: toFileResults(this.files), limitHit };
+    const files = toFileResults(this.files);
+    return { files, complete };
   }
 
   private flushProgress(): void {
@@ -54,14 +68,6 @@ export class ContentSearchAccumulator {
     this.progress.clear();
     this.pendingOccurrenceCount = 0;
   }
-}
-
-function findLineMatch(
-  files: ReadonlyMap<PortableRelativePath, ContentSearchLineMatch[]>,
-  path: PortableRelativePath,
-  lineNumber: number
-): ContentSearchLineMatch | undefined {
-  return files.get(path)?.find((candidate) => candidate.lineNumber === lineNumber);
 }
 
 function appendLineMatch(
@@ -74,9 +80,7 @@ function appendLineMatch(
     files.set(path, [match]);
     return;
   }
-  const existing = matches.find((candidate) => candidate.lineNumber === match.lineNumber);
-  if (existing) existing.ranges.push(...match.ranges);
-  else matches.push(match);
+  matches.push(match);
 }
 
 function toFileResults(
@@ -84,6 +88,16 @@ function toFileResults(
 ): ContentSearchFileResult[] {
   return [...files].map(([path, matches]) => ({
     path,
-    matches: matches.map((match) => ({ ...match, ranges: [...match.ranges] })),
+    matches: matches.map((match) => ({
+      ...match,
+      locations: match.locations.map(cloneLocation),
+    })),
   }));
+}
+
+function cloneLocation(location: ContentSearchLineMatch['locations'][number]) {
+  return {
+    sourceRange: { ...location.sourceRange },
+    previewRange: { ...location.previewRange },
+  };
 }

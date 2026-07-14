@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { CONTENT_SEARCH_MAX_LINE_LENGTH } from '@runtimes/file-search/api';
 import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
 import type { ResolvedContentSearchInput } from './content-searcher';
 
@@ -10,12 +9,13 @@ export function createRipgrepContentSearchArgs(
   exclusions: FileSearchExclusions = DEFAULT_EXCLUSIONS
 ): string[] {
   const args = [
+    '--hidden',
+    '--no-require-git',
+    '--no-config',
     '--json',
     '--fixed-strings',
     '--ignore-case',
     '--no-follow',
-    '--color=never',
-    `--max-columns=${CONTENT_SEARCH_MAX_LINE_LENGTH}`,
   ];
   const globFlag = process.platform === 'win32' ? '--iglob' : '--glob';
 

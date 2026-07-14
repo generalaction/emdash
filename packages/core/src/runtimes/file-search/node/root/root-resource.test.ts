@@ -216,5 +216,5 @@ async function createRoot(): Promise<string> {
 }
 
 function emptyContentResult(): ContentSearchResult {
-  return { files: [], limitHit: false };
+  return { files: [], complete: true };
 }

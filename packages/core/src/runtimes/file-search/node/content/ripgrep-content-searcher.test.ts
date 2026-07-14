@@ -1,8 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { ContentSearchProgress } from '@runtimes/file-search/api';
+import {
+  CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
+  type ContentSearchProgress,
+} from '@runtimes/file-search/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hostPath as absolute } from '../testing/paths';
 import { RipgrepContentSearcher } from './ripgrep-content-searcher';
@@ -47,18 +50,28 @@ describe('RipgrepContentSearcher', () => {
               matches: [
                 {
                   lineNumber: 1,
-                  text: 'const 😀 VALUE = 1;',
-                  ranges: [{ startColumn: 10, endColumn: 15 }],
+                  previewText: 'const 😀 VALUE = 1;',
+                  locations: [
+                    {
+                      sourceRange: { startColumn: 10, endColumn: 15 },
+                      previewRange: { startColumn: 10, endColumn: 15 },
+                    },
+                  ],
                 },
                 {
                   lineNumber: 2,
-                  text: 'VALUE VALUE',
-                  ranges: [{ startColumn: 1, endColumn: 6 }],
+                  previewText: 'VALUE VALUE',
+                  locations: [
+                    {
+                      sourceRange: { startColumn: 1, endColumn: 6 },
+                      previewRange: { startColumn: 1, endColumn: 6 },
+                    },
+                  ],
                 },
               ],
             },
           ],
-          limitHit: true,
+          complete: false,
         },
       });
       expect(progress).toHaveLength(1);
@@ -80,7 +93,7 @@ describe('RipgrepContentSearcher', () => {
         },
         { signal: new AbortController().signal, onProgress: () => {} }
       )
-    ).resolves.toEqual({ success: true, data: { files: [], limitHit: false } });
+    ).resolves.toEqual({ success: true, data: { files: [], complete: true } });
   });
 
   it('reports a missing ripgrep executable as an unavailable search engine', async () => {
@@ -112,6 +125,214 @@ describe('RipgrepContentSearcher', () => {
     ).rejects.toBe(cancellation);
   });
 
+  it.skipIf(!hasRipgrep)(
+    'ignores an incomplete JSON record after mid-stream cancellation',
+    async () => {
+      const rootPath = await createRoot();
+      await writeFile(
+        path.join(rootPath, 'large.txt'),
+        Array.from({ length: 500 }, () => `VALUE ${'x'.repeat(8_000)}`).join('\n')
+      );
+      const cancellation = new Error('cancel content search mid-stream');
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const controller = new AbortController();
+        await expect(
+          new RipgrepContentSearcher().search(
+            { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+            {
+              signal: controller.signal,
+              onProgress: () => controller.abort(cancellation),
+            }
+          )
+        ).rejects.toBe(cancellation);
+      }
+    }
+  );
+
+  it.skipIf(!hasRipgrep)(
+    'ignores an incomplete JSON record after reaching the result limit',
+    async () => {
+      const rootPath = await createRoot();
+      await writeFile(
+        path.join(rootPath, 'many-large-lines.txt'),
+        Array.from({ length: 500 }, () => `VALUE ${'x'.repeat(8_000)}`).join('\n')
+      );
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await expect(
+          new RipgrepContentSearcher().search(
+            { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1 },
+            { signal: new AbortController().signal, onProgress: () => {} }
+          )
+        ).resolves.toMatchObject({ success: true, data: { complete: false } });
+      }
+    }
+  );
+
+  it.skipIf(!hasRipgrep)(
+    'compacts every distant match from a 210K-character source line',
+    async () => {
+      const rootPath = await createRoot();
+      const offsets = [10_415, 111_692, 138_233, 162_433, 190_314, 190_636];
+      const line = lineWithMatches(210_474, offsets, 'LoL');
+      await writeFile(path.join(rootPath, 'generated-icon.ts'), `${line}\n`);
+
+      const result = await new RipgrepContentSearcher().search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'lol' },
+        { signal: new AbortController().signal, onProgress: () => {} }
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.complete).toBe(true);
+      const match = result.data.files[0]?.matches[0];
+      expect(match?.previewText.length).toBeLessThanOrEqual(CONTENT_SEARCH_MAX_PREVIEW_LENGTH);
+      expect(match?.locations).toHaveLength(offsets.length);
+      expect(match?.locations.map(({ sourceRange }) => sourceRange)).toEqual(
+        offsets.map((offset) => ({ startColumn: offset + 1, endColumn: offset + 4 }))
+      );
+      for (const location of match?.locations ?? []) {
+        expect(
+          match?.previewText.slice(
+            location.previewRange.startColumn - 1,
+            location.previewRange.endColumn - 1
+          )
+        ).toBe('LoL');
+      }
+    }
+  );
+
+  it.skipIf(!hasRipgrep)('keeps CR-only files within the single-line result contract', async () => {
+    const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'old-mac.txt'), 'alpha\rbeta VALUE\rgamma');
+
+    const result = await new RipgrepContentSearcher().search(
+      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'value' },
+      { signal: new AbortController().signal, onProgress: () => {} }
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        files: [
+          {
+            path: 'old-mac.txt',
+            matches: [
+              {
+                lineNumber: 1,
+                previewText: 'alpha␍beta VALUE␍gamma',
+                locations: [
+                  {
+                    sourceRange: { startColumn: 12, endColumn: 17 },
+                    previewRange: { startColumn: 12, endColumn: 17 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        complete: true,
+      },
+    });
+  });
+
+  it.skipIf(!hasRipgrep)(
+    'omits an oversized raw record, recovers, and reports an incomplete result',
+    async () => {
+      const rootPath = await createRoot();
+      await writeFile(path.join(rootPath, 'a-huge.txt'), `VALUE ${'x'.repeat(20_000)}\n`);
+      await writeFile(path.join(rootPath, 'z-small.txt'), 'VALUE\n');
+
+      const result = await new RipgrepContentSearcher({ maxRecordBytes: 512 }).search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+        { signal: new AbortController().signal, onProgress: () => {} }
+      );
+
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          files: [{ path: 'z-small.txt' }],
+          complete: false,
+        },
+      });
+    }
+  );
+
+  it.skipIf(!hasRipgrep)(
+    'returns a deterministic partial line when all distant occurrences cannot fit',
+    async () => {
+      const rootPath = await createRoot();
+      const line = Array.from({ length: 1_000 }, () => `VALUE${'x'.repeat(100)}`).join('');
+      await writeFile(path.join(rootPath, 'many-distant-matches.txt'), `${line}\n`);
+
+      const result = await new RipgrepContentSearcher().search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+        { signal: new AbortController().signal, onProgress: () => {} }
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data).toMatchObject({
+        complete: false,
+      });
+      const match = result.data.files[0]?.matches[0];
+      expect(match?.locations.length).toBeGreaterThan(0);
+      expect(match?.locations.length).toBeLessThan(1_000);
+      expect(match?.locations.map(({ sourceRange }) => sourceRange.startColumn)).toEqual(
+        Array.from({ length: match?.locations.length ?? 0 }, (_, index) => index * 105 + 1)
+      );
+    }
+  );
+
+  it.skipIf(!hasRipgrep)('searches hidden files and ignores user ripgrep config', async () => {
+    const rootPath = await createRoot();
+    const configPath = path.join(rootPath, 'ripgrep-config');
+    await writeFile(configPath, '--glob=!*.ts\n');
+    await writeFile(path.join(rootPath, '.hidden.ts'), 'VALUE\n');
+
+    const result = await new RipgrepContentSearcher({
+      env: { ...process.env, RIPGREP_CONFIG_PATH: configPath },
+    }).search(
+      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+      { signal: new AbortController().signal, onProgress: () => {} }
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { files: [{ path: '.hidden.ts' }], complete: true },
+    });
+  });
+
+  it.skipIf(!hasRipgrep || process.platform === 'win32' || process.getuid?.() === 0)(
+    'retains readable matches when ripgrep also encounters an unreadable directory',
+    async () => {
+      const rootPath = await createRoot();
+      const unreadablePath = path.join(rootPath, 'z-unreadable');
+      await writeFile(path.join(rootPath, 'a-readable.txt'), 'VALUE\n');
+      await mkdir(unreadablePath);
+      await writeFile(path.join(unreadablePath, 'secret.txt'), 'VALUE\n');
+      await chmod(unreadablePath, 0o000);
+
+      try {
+        const result = await new RipgrepContentSearcher().search(
+          { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+          { signal: new AbortController().signal, onProgress: () => {} }
+        );
+
+        expect(result).toMatchObject({
+          success: true,
+          data: {
+            files: [{ path: 'a-readable.txt' }],
+            complete: false,
+          },
+        });
+      } finally {
+        await chmod(unreadablePath, 0o700);
+      }
+    }
+  );
+
   it.skipIf(!hasRipgrep)('throws unexpected progress observer failures', async () => {
     const rootPath = await createRoot();
     await writeFile(
@@ -138,4 +359,14 @@ async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-content-search-'));
   temporaryDirectories.push(directory);
   return realpath(directory);
+}
+
+function lineWithMatches(length: number, offsets: readonly number[], match: string): string {
+  let line = '';
+  let cursor = 0;
+  for (const offset of offsets) {
+    line += 'x'.repeat(offset - cursor) + match;
+    cursor = offset + match.length;
+  }
+  return line + 'x'.repeat(length - cursor);
 }
