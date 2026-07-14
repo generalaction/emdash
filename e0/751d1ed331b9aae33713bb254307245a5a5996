@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.test.ts
+  s_54d3126bd4b423::t_5d4adc2754d960 50
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_54d3126bd4b423::t_5d4adc2754d960 314-322,327-328
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.test.ts
+  s_54d3126bd4b423::t_5d4adc2754d960 100-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "e0751d1ed331b9aae33713bb254307245a5a5996",
+  "prompts": {},
+  "sessions": {
+    "s_54d3126bd4b423": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-2c1d-7952-99b7-1a0766df5265",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-image-files.test.ts
+  s_e2b8b9e255974c::t_849355a3e00bae 1-14
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-image-files.ts
+  s_e2b8b9e255974c::t_849355a3e00bae 2-14
+  s_7d6a21b0f3def7::t_26fc800eea2b44 1
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-panel.tsx
+  s_e2b8b9e255974c::t_849355a3e00bae 44,55,116,361-371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "65c362c1e5e9b0c608ab99e9ee70d0c8bc1a6d76",
+  "prompts": {},
+  "sessions": {
+    "s_7d6a21b0f3def7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6002-ec05-7662-841b-f13207df23aa",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e2b8b9e255974c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-56ed-73a0-833e-4547aeae3f99",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
