@@ -17,6 +17,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - [`acp-runtime.md`](architecture/acp-runtime.md) — ACP runtime, session manager, connection pool, cells, live models, and API contract ownership
   - [`git-runtime.md`](architecture/git-runtime.md) — Git contract/runtime ownership, session lifecycle, and nested wire composition
   - [`path-system.md`](architecture/path-system.md) — host-aware path identity, resource URI ownership, and future migration boundaries
+  - [`workflow-engine.md`](architecture/workflow-engine.md) — reusable Core primitive for dependency-ordered async DAG execution
 - `workflows/`
   - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`

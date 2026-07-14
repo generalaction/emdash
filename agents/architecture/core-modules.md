@@ -120,6 +120,8 @@ Choose lifecycle primitives by ownership shape:
   `register()`, queryable state, typed start/stop results, and state-change observers.
 - Use `Machine` for local command/event/effect protocols where commands decide domain events,
   events evolve state, and host-owned effect interpreters keep side effects explicit.
+- Use the Core workflow primitive for dependency-ordered async DAG execution with named nodes,
+  parallel unblocking, retry policies, cancellation, facts, warnings, and observable progress.
 - Use `ResourceCache` when resource lifetime is lease-driven through `acquire()` and `release()`,
   optionally with an idle TTL. Use `SharedResource` for one unkeyed leased resource and
   `AsyncCache` for cached async values without finalizers.

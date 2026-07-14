@@ -29,6 +29,10 @@
       "types": "./dist/primitives-concurrency-api.d.mts",
       "default": "./dist/primitives-concurrency-api.mjs"
     },
+    "./primitives/workflow/api": {
+      "types": "./dist/primitives-workflow-api.d.mts",
+      "default": "./dist/primitives-workflow-api.mjs"
+    },
     "./primitives/skills/api": {
       "types": "./dist/primitives-skills-api.d.mts",
       "default": "./dist/primitives-skills-api.mjs"

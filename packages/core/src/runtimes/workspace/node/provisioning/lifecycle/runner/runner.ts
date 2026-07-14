@@ -1,4 +1,12 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
+import {
+  createWorkflow,
+  defineWorkflowNode,
+  type WorkflowNodeDefinition,
+  type WorkflowState,
+} from '@primitives/workflow/api';
 import { resolveFatal } from '@runtimes/workspace/api/provisioning/descriptor';
 import type {
   BootstrapContext,
@@ -8,9 +16,7 @@ import type {
   BootstrapResult,
   BootstrapStepReport,
   BootstrapStepView,
-  BootstrapStepWarning,
 } from '@runtimes/workspace/api/provisioning/schemas';
-import { planToStepViews } from '@runtimes/workspace/api/provisioning/steps';
 import type { StepCtx } from '@runtimes/workspace/node/provisioning/lifecycle/steps/implement';
 import {
   bootstrapStepRegistry,
@@ -46,100 +52,92 @@ async function runBootstrapPlanLocked(
 ): Promise<Result<BootstrapResult, BootstrapError>> {
   const registry = options.registry ?? bootstrapStepRegistry;
   const retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
-  const runContext: StepCtx = { ...context, signal: options.signal };
-  const views = planToStepViews(plan);
-  const warnings: BootstrapStepWarning[] = [];
+  let resolvedWorktreePath: string | undefined;
   const report: BootstrapStepReport[] = [];
+  const entries = new Map(plan.steps.map((entry) => [entry.id, entry]));
+  const scope = createScope({ label: 'bootstrap-plan' });
 
-  emitProgress(views, options);
-
-  for (let index = 0; index < plan.steps.length; index++) {
-    if (options.signal?.aborted) {
-      markSkippedFrom(views, index);
-      emitProgress(views, options);
-      return err(cancelledError());
-    }
-
-    const entry = plan.steps[index];
-    const view = views[index];
+  const nodes: WorkflowNodeDefinition[] = plan.steps.map((entry, index) => {
     const implementation = stepImplementationFor(registry, entry.step);
-    let attempt = 0;
-
-    while (true) {
-      if (options.signal?.aborted) {
-        view.status = 'skipped';
-        markSkippedFrom(views, index + 1);
-        emitProgress(views, options);
-        return err(cancelledError());
-      }
-
-      attempt++;
-      view.status = 'running';
-      view.attempt = attempt;
-      emitProgress(views, options);
-
-      let result: Awaited<ReturnType<typeof implementation.execute>>;
-      try {
-        runContext.emitOutput = (chunk) => options.onStepOutput?.(entry.id, chunk);
-        runContext.reportProgress = (progress) => {
-          view.progress = progress;
-          emitProgress(views, options);
+    return defineWorkflowNode({
+      id: entry.id,
+      label: entry.label,
+      dependsOn: index === 0 ? [] : [plan.steps[index - 1].id],
+      retry: retrySchedules.sequence(retryDelaysMs),
+      fatal: () => resolveFatal(implementation.descriptor, entry.step.args),
+      async run(ctx) {
+        const stepContext: StepCtx = {
+          repoPath: context.repoPath,
+          preservePatterns: context.preservePatterns,
         };
-        result = await implementation.execute(entry.step.args, runContext);
-      } finally {
-        runContext.emitOutput = undefined;
-        runContext.reportProgress = undefined;
-      }
-      if (result.success) {
-        const facts = result.facts ?? {};
-        if (facts.path) runContext.resolvedWorktreePath = facts.path;
+        if (resolvedWorktreePath) stepContext.resolvedWorktreePath = resolvedWorktreePath;
+        if (ctx.signal) stepContext.signal = ctx.signal;
+        stepContext.emitOutput = ctx.emit;
+        stepContext.reportProgress = ctx.report;
 
-        if (result.warnings?.length) {
-          view.warnings = result.warnings;
-          warnings.push(...result.warnings);
+        const result = await implementation.execute(entry.step.args, stepContext);
+        if (result.success) {
+          const facts = result.facts ?? {};
+          if (facts.path) resolvedWorktreePath = facts.path;
+          report.push({
+            stepId: entry.id,
+            kind: entry.step.kind,
+            args: entry.step.args,
+            facts,
+          });
+          return {
+            status: 'done',
+            facts,
+            warnings: result.warnings,
+          };
         }
 
-        report.push({
-          stepId: entry.id,
-          kind: entry.step.kind,
-          args: entry.step.args,
-          facts,
-        });
-        view.status = 'done';
-        view.progress = undefined;
-        emitProgress(views, options);
-        break;
-      }
+        return {
+          status: 'failed',
+          failure: result.class,
+          error: withStep(result.error, entry.id, entry.step.kind),
+        };
+      },
+    });
+  });
 
-      const retryDelayMs = retryDelaysMs[attempt - 1];
-      if (result.class === 'transient' && retryDelayMs !== undefined && !options.signal?.aborted) {
-        await delay(retryDelayMs, options.signal);
-        continue;
-      }
-
-      const error = withStep(result.error, entry.id, entry.step.kind);
-      if (!resolveFatal(implementation.descriptor, entry.step.args)) {
-        view.warnings = [...(view.warnings ?? []), { type: error.type, message: error.message }];
-        warnings.push({ type: error.type, message: error.message });
-        view.status = 'done';
-        view.progress = undefined;
-        emitProgress(views, options);
-        break;
-      }
-
-      view.status = 'failed';
-      view.progress = undefined;
-      view.error = error;
-      markSkippedFrom(views, index + 1);
-      emitProgress(views, options);
-      return err(error);
-    }
+  const workflow = createWorkflow({
+    nodes,
+    scope,
+    signal: options.signal,
+    onOutput: ({ nodeId, chunk }) => options.onStepOutput?.(nodeId, chunk),
+  });
+  if (!workflow.success) {
+    await scope.dispose();
+    return err({
+      type: workflow.error.type,
+      message: workflow.error.message,
+    });
   }
 
-  if (
-    plan.steps.some((entry) => entry.step.kind === 'add-worktree') &&
-    !runContext.resolvedWorktreePath
-  ) {
+  const emitState = (state: WorkflowState): void => {
+    if (
+      Object.values(state.nodes).some(
+        (node) => node.status === 'running' && node.attempt === undefined
+      )
+    ) {
+      return;
+    }
+    emitProgress(workflowStateToStepViews(state, plan, entries), options);
+  };
+
+  emitState(workflow.data.machine.current());
+  const unsubscribe = workflow.data.machine.subscribe((batch) => emitState(batch.state));
+  const result = await workflow.data.run();
+  unsubscribe();
+  workflow.data.dispose();
+  await scope.dispose();
+
+  if (!result.success) {
+    return err(result.error.type === 'cancelled' ? cancelledError() : result.error);
+  }
+
+  if (plan.steps.some((entry) => entry.step.kind === 'add-worktree') && !resolvedWorktreePath) {
     const entryIndex = plan.steps.findIndex((entry) => entry.step.kind === 'add-worktree');
     const entry = plan.steps[entryIndex];
     const error = withStep(
@@ -150,15 +148,12 @@ async function runBootstrapPlanLocked(
       entry.id,
       entry.step.kind
     );
-    views[entryIndex].status = 'failed';
-    views[entryIndex].error = error;
-    emitProgress(views, options);
     return err(error);
   }
 
   return ok({
-    path: runContext.resolvedWorktreePath ?? '',
-    warnings,
+    path: resolvedWorktreePath ?? '',
+    warnings: result.data.warnings,
     report,
   });
 }
@@ -175,10 +170,25 @@ function emitProgress(views: BootstrapStepView[], options: BootstrapRunnerOption
   });
 }
 
-function markSkippedFrom(views: BootstrapStepView[], startIndex: number): void {
-  for (let index = startIndex; index < views.length; index++) {
-    if (views[index].status === 'pending') views[index].status = 'skipped';
-  }
+function workflowStateToStepViews(
+  state: WorkflowState,
+  plan: BootstrapPlan,
+  entries: ReadonlyMap<string, BootstrapPlan['steps'][number]>
+): BootstrapStepView[] {
+  return plan.steps.map((entry) => {
+    const node = state.nodes[entry.id];
+    const planned = entries.get(entry.id) ?? entry;
+    return {
+      id: planned.id,
+      kind: planned.step.kind,
+      label: planned.label,
+      status: node?.status ?? 'pending',
+      attempt: node?.attempt,
+      progress: node?.progress,
+      warnings: node?.warnings,
+      error: node?.error as BootstrapError | undefined,
+    };
+  });
 }
 
 function withStep(error: BootstrapError, stepId: string, stepKind: string): BootstrapError {
@@ -194,19 +204,4 @@ function cancelledError(): BootstrapError {
     type: 'cancelled',
     message: 'Workspace bootstrap was cancelled',
   };
-}
-
-function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  if (signal?.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
 }
