@@ -48,7 +48,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
-    true
+    false
   );
   useCloseGuard(isSubmitting);
 

@@ -78,7 +78,7 @@ export function useInitialConversationState(
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
-    true
+    false
   );
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
