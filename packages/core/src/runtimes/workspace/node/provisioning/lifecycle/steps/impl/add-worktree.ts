@@ -27,10 +27,13 @@ export const addWorktreeImpl = implement(addWorktreeStep, async (args, ctx) => {
 
   await runGit(['worktree', 'prune'], { cwd: ctx.repoPath, signal: ctx.signal });
   await mkdir(path.dirname(args.path), { recursive: true });
-  const result = await runGit(['worktree', 'add', args.path, args.branchName], {
-    cwd: ctx.repoPath,
-    signal: ctx.signal,
-  });
+  const result = await runGit(
+    ['-c', 'checkout.workers=0', 'worktree', 'add', args.path, args.branchName],
+    {
+      cwd: ctx.repoPath,
+      signal: ctx.signal,
+    }
+  );
   if (result.success) return stepOk({ facts: { created: true, path: args.path } });
 
   const message = gitErrorMessage(result.error);

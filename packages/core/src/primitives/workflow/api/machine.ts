@@ -86,8 +86,6 @@ export function createWorkflowMachineDefinition(
         });
       }
 
-      if (event.type === 'node-output') return { state };
-
       if (event.type === 'node-succeeded') {
         const node = state.nodes[event.id];
         if (!node || node.status !== 'running') return { state };

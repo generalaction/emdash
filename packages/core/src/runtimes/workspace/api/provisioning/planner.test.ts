@@ -42,6 +42,8 @@ describe('compileBootstrapPlan', () => {
         args: {
           remote: 'origin',
           refspec: '+refs/heads/main:refs/remotes/origin/main',
+          noTags: true,
+          filter: 'blob:none',
         },
       },
       {
@@ -100,6 +102,8 @@ describe('compileBootstrapPlan', () => {
           remote: 'contributor',
           refspec: 'contributor/topic:refs/heads/contributor/topic',
           force: true,
+          noTags: true,
+          filter: 'blob:none',
         },
       },
       {
@@ -147,6 +151,8 @@ describe('compileBootstrapPlan', () => {
         remote: 'origin',
         refspec: 'refs/pull/42/head:refs/heads/feature',
         force: true,
+        noTags: true,
+        filter: 'blob:none',
       },
     });
   });
@@ -161,7 +167,15 @@ describe('compileBootstrapPlan', () => {
       plan: {
         steps: [
           {
-            step: { kind: 'git-clone', args: { url: 'file:///repo.git', path: '/workspace/repo' } },
+            step: {
+              kind: 'git-clone',
+              args: {
+                url: 'file:///repo.git',
+                path: '/workspace/repo',
+                noTags: true,
+                filter: 'blob:none',
+              },
+            },
           },
         ],
       },

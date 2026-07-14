@@ -251,6 +251,35 @@ describe('createWorkflow', () => {
       workflow.dispose();
     }
   });
+
+  it('does not publish machine batches for raw output chunks', async () => {
+    const workflow = createWorkflowOrThrow([
+      defineWorkflowNode({
+        id: 'script',
+        run(ctx) {
+          ctx.emit('hello');
+          return { status: 'done' };
+        },
+      }),
+    ]);
+    const batches: string[][] = [];
+    const unsubscribe = workflow.machine.subscribe((batch) =>
+      batches.push(batch.events.map((event) => event.type))
+    );
+
+    try {
+      const result = await workflow.run();
+
+      expect(result.success).toBe(true);
+      expect(batches).toHaveLength(3);
+      expect(batches.flat()).toEqual(
+        expect.arrayContaining(['started', 'node-attempt-started', 'node-succeeded'])
+      );
+    } finally {
+      unsubscribe();
+      workflow.dispose();
+    }
+  });
 });
 
 function createWorkflowOrThrow(

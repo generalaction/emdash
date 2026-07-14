@@ -38,6 +38,8 @@ export function compileBootstrapPlan(
         step('git-fetch', {
           remote: remoteName,
           refspec: `+refs/heads/${fromBranch.branch}:refs/remotes/${remoteName}/${fromBranch.branch}`,
+          noTags: true,
+          filter: 'blob:none',
         })
       );
       steps.push({
@@ -64,6 +66,8 @@ export function compileBootstrapPlan(
         path: intent.destination,
         remoteName: intent.remoteName,
         depth: intent.depth,
+        noTags: true,
+        filter: 'blob:none',
       })
     );
     return { plan: { steps: createPlannedSteps(steps) }, workspacePath: intent.destination };
@@ -86,6 +90,8 @@ export function compileBootstrapPlan(
         remote: remoteName,
         refspec: `${headBranch}:refs/heads/${headBranch}`,
         force: true,
+        noTags: true,
+        filter: 'blob:none',
       })
     );
     steps.push(
@@ -101,6 +107,8 @@ export function compileBootstrapPlan(
         remote: options.baseRemote,
         refspec: `refs/pull/${prNumber}/head:refs/heads/${headBranch}`,
         force: true,
+        noTags: true,
+        filter: 'blob:none',
       })
     );
     steps.push(

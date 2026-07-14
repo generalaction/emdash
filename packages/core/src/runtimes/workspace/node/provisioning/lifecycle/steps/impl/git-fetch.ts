@@ -12,7 +12,10 @@ import { runGitStreaming } from '@runtimes/workspace/node/provisioning/lifecycle
 import { gitFailure } from './helpers';
 
 export const gitFetchImpl = implement(gitFetchStep, async (args, ctx) => {
-  const gitArgs = ['fetch', '--progress', args.remote];
+  const gitArgs = ['fetch', '--progress'];
+  if (args.noTags) gitArgs.push('--no-tags');
+  if (args.filter === 'blob:none') gitArgs.push('--filter=blob:none');
+  gitArgs.push(args.remote);
   if (args.refspec) gitArgs.push(args.refspec);
   if (args.force) gitArgs.push('--force');
 

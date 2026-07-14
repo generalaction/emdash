@@ -7,6 +7,8 @@ export const gitFetchStep = defineStep({
     remote: z.string().min(1),
     refspec: z.string().min(1).optional(),
     force: z.boolean().optional(),
+    noTags: z.boolean().optional(),
+    filter: z.enum(['blob:none']).optional(),
   }),
   fatal: true,
   label: (args) =>
@@ -136,6 +138,8 @@ export const gitCloneStep = defineStep({
     path: z.string().min(1),
     remoteName: z.string().min(1).optional(),
     depth: z.number().int().positive().optional(),
+    noTags: z.boolean().optional(),
+    filter: z.enum(['blob:none']).optional(),
   }),
   fatal: true,
   label: (args) => `Clone ${args.url}`,

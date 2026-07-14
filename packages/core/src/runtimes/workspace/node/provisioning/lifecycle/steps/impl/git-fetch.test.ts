@@ -12,6 +12,36 @@ describe('gitFetchImpl', () => {
     git.runGitStreaming.mockReset();
   });
 
+  it('passes no-tags and partial clone filters before the remote', async () => {
+    git.runGitStreaming.mockResolvedValue({
+      success: true,
+      data: { stdout: '', stderr: '' },
+    });
+
+    const result = await gitFetchImpl.execute(
+      {
+        remote: 'origin',
+        refspec: '+refs/heads/main:refs/remotes/origin/main',
+        noTags: true,
+        filter: 'blob:none',
+      },
+      { repoPath: '/repo', preservePatterns: [] }
+    );
+
+    expect(result.success).toBe(true);
+    expect(git.runGitStreaming).toHaveBeenCalledWith(
+      [
+        'fetch',
+        '--progress',
+        '--no-tags',
+        '--filter=blob:none',
+        'origin',
+        '+refs/heads/main:refs/remotes/origin/main',
+      ],
+      expect.objectContaining({ cwd: '/repo' })
+    );
+  });
+
   it.each([
     'error: fetching ref refs/remotes/origin/main failed: incorrect old value provided',
     "cannot lock ref 'refs/remotes/origin/main': is at bbbb but expected aaaa",

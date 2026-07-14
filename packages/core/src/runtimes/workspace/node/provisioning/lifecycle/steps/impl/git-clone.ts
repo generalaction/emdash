@@ -40,7 +40,9 @@ export const gitCloneImpl = implement(gitCloneStep, async (args, ctx) => {
   }
 
   await mkdir(path.dirname(args.path), { recursive: true });
-  const gitArgs = ['clone', '--progress'];
+  const gitArgs = ['-c', 'checkout.workers=0', 'clone', '--progress'];
+  if (args.noTags) gitArgs.push('--no-tags');
+  if (args.filter === 'blob:none') gitArgs.push('--filter=blob:none');
   if (args.depth) gitArgs.push('--depth', String(args.depth));
   if (args.remoteName) gitArgs.push('--origin', args.remoteName);
   gitArgs.push(args.url, args.path);

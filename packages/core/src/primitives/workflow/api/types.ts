@@ -49,7 +49,6 @@ export type WorkflowEvent =
   | { type: 'started' }
   | { type: 'node-attempt-started'; id: string; attempt: number }
   | { type: 'node-progress'; id: string; progress: WorkflowProgress }
-  | { type: 'node-output'; id: string; chunk: string }
   | { type: 'node-succeeded'; id: string; facts: unknown; warnings?: WorkflowWarning[] }
   | { type: 'node-failed'; id: string; fatal: boolean; error: WorkflowError }
   | { type: 'cancelled'; error?: WorkflowError };

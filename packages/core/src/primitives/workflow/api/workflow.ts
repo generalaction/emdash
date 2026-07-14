@@ -105,7 +105,6 @@ async function runNode(
     scope: deps.scope,
     emit(chunk) {
       deps.onOutput?.({ nodeId: id, chunk });
-      deps.apply({ type: 'node-output', id, chunk });
     },
     report(progress) {
       deps.apply({ type: 'node-progress', id, progress });
