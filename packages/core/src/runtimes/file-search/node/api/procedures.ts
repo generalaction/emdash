@@ -2,12 +2,12 @@ import type { ContractImpl } from '@emdash/wire';
 import type { FileSearchContract } from '@runtimes/file-search/api';
 import type { ContentSearchRuntime } from '@runtimes/file-search/node/content/content-search-runtime';
 import type { PathSearchRuntime } from '@runtimes/file-search/node/path/path-search-runtime';
-import type { FileSearchRootRegistry } from '@runtimes/file-search/node/root/root-registry';
+import type { FileSearchRootRuntime } from '@runtimes/file-search/node/root/root-runtime';
 
 export type FileSearchProcedures = ContractImpl<FileSearchContract>;
 
 export type FileSearchRuntimeApi = Readonly<{
-  roots: Pick<FileSearchRootRegistry, 'registerRoot' | 'unregisterRoot'>;
+  roots: Pick<FileSearchRootRuntime, 'registerRoot' | 'unregisterRoot'>;
   paths: Pick<PathSearchRuntime, 'searchPaths'>;
   content: Pick<ContentSearchRuntime, 'searchContent'>;
 }>;
