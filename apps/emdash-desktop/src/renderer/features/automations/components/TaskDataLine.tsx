@@ -9,12 +9,14 @@ export interface TaskDataLineProps {
   task: TaskStore;
   agentStatus: AgentStatus | null;
   missedDeadline: boolean;
+  hideTrailingOnRowInteraction?: boolean;
 }
 
 export const TaskDataLine = observer(function TaskDataLine({
   task,
   agentStatus,
   missedDeadline,
+  hideTrailingOnRowInteraction,
 }: TaskDataLineProps) {
   return (
     <div className="flex h-6 min-w-0 items-center justify-between gap-2 pr-1">
@@ -29,7 +31,14 @@ export const TaskDataLine = observer(function TaskDataLine({
         </span>
         <AgentStatusIndicator status={agentStatus} />
       </div>
-      <TaskGitDiffStats task={task} />
+      <div
+        className={cn(
+          hideTrailingOnRowInteraction &&
+            'transition-opacity group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0'
+        )}
+      >
+        <TaskGitDiffStats task={task} />
+      </div>
     </div>
   );
 });

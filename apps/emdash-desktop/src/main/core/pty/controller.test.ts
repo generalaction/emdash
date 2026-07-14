@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getTask: vi.fn(),
   getWorkspace: vi.fn(),
   getWorkspaceId: vi.fn(),
+  resetToIdle: vi.fn(),
   randomUUID: vi.fn(),
   readFile: vi.fn(),
 }));
@@ -30,6 +31,12 @@ vi.mock('./persist-dropped-blob', () => ({
 
 vi.mock('@main/db/client', () => ({
   db: {},
+}));
+
+vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
+  agentHookService: {
+    resetToIdle: mocks.resetToIdle,
+  },
 }));
 
 vi.mock('@main/lib/events', () => ({
@@ -88,6 +95,26 @@ describe('ptyController', () => {
       taskId: 'task-1',
       conversationId: 'conv-1',
       providerId: 'amp',
+    });
+
+    ptySessionRegistry.unregister(sessionId);
+  });
+
+  it('resets agent status after intentionally stopping a conversation PTY', async () => {
+    const stopSession = vi.fn().mockResolvedValue(undefined);
+    const sessionId = 'proj-1:task-1:conv-1';
+    mocks.getTask.mockReturnValue({ conversations: { stopSession } });
+    ptySessionRegistry.register(sessionId, makePty(), {
+      metadata: { providerId: 'amp', isRemote: false },
+    });
+
+    const result = await ptyController.stopSession(sessionId);
+
+    expect(result.success).toBe(true);
+    expect(stopSession).toHaveBeenCalledWith('conv-1');
+    expect(mocks.resetToIdle).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      taskId: 'task-1',
     });
 
     ptySessionRegistry.unregister(sessionId);

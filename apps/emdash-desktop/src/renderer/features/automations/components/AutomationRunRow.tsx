@@ -1,4 +1,6 @@
+import { Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { isAutomationTaskRunning } from '@renderer/features/automations/automation-run-stop';
 import { useAutomationRunActions } from '@renderer/features/automations/use-automation-run-actions';
 import {
   getRegisteredTaskData,
@@ -6,6 +8,8 @@ import {
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { Button } from '@renderer/lib/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { useAutomationRun } from '../use-automations';
@@ -27,7 +31,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const { navigate } = useNavigate();
   const fetchedRun = useAutomationRun(automationId, runId);
   const run = runProp ?? fetchedRun;
-  const { projectId } = useAutomationRunActions(automationId);
+  const { projectId, stopTaskRun, stopPending } = useAutomationRunActions(automationId);
 
   const taskId = run ? run.taskId : null;
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
@@ -35,6 +39,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
+  const canStop = isAutomationTaskRunning(agentStatus);
 
   const displayTime = run ? (run.startedAt ?? run.finishedAt) : null;
   const missedDeadline = run?.error?.code === 'deadline_exceeded';
@@ -44,6 +49,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
     navigate('task', { projectId, taskId });
+  }
+
+  function handleStop() {
+    if (!run || stopPending) return;
+    void stopTaskRun(run);
   }
 
   if (!run) return null;
@@ -76,7 +86,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-disabled={!interactive}
     >
       {taskStore ? (
-        <TaskDataLine task={taskStore} agentStatus={agentStatus} missedDeadline={missedDeadline} />
+        <TaskDataLine
+          task={taskStore}
+          agentStatus={agentStatus}
+          missedDeadline={missedDeadline}
+          hideTrailingOnRowInteraction={canStop}
+        />
       ) : (
         <TaskPlaceholder name={displayName} />
       )}
@@ -85,7 +100,35 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         triggerKind={run.triggerKind}
         runStatus={run.status}
         error={run.error}
+        hideStatusOnRowInteraction={canStop}
       />
+      {canStop && (
+        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="hover:border-border-destructive hover:bg-background-destructive hover:text-foreground-destructive"
+                  aria-label="Stop task run"
+                  disabled={stopPending}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleStop();
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                />
+              }
+            >
+              <Square className="size-3" />
+              Stop task
+            </TooltipTrigger>
+            <TooltipContent>Stop task run</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 });

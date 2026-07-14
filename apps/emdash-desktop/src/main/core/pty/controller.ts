@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
+import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { joinMachinePath } from '@main/core/files/path-utils';
 import { log } from '@main/lib/logger';
@@ -108,6 +109,7 @@ export const ptyController = createRPCController({
       try {
         if (isConversation) {
           await task.conversations.stopSession(leafId);
+          await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
         } else {
           await task.terminals.killTerminal(leafId);
         }
