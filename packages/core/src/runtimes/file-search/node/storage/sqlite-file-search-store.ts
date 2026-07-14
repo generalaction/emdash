@@ -8,15 +8,17 @@ import {
 } from '@primitives/path/api';
 import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
 import type {
-  FileSearchRootUpsertResult,
   PathIndexBuild,
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
   PathIndexStoreSearchResult,
+} from '@runtimes/file-search/node/storage/types';
+import type {
+  FileSearchRootUpsertResult,
+  RootCatalogStore,
   StoredFileSearchRoot,
-} from '@runtimes/file-search/node/storage/path-index-store';
-
+} from '@runtimes/file-search/node/storage/root-catalog-store';
 import { initializeFileSearchSchema } from './schema';
 
 type RootRow = {
@@ -31,17 +33,17 @@ type PathRow = {
   kind: string;
 };
 
-type SqlitePathIndexStoreOptions = Readonly<{
+type SqliteFileSearchStoreOptions = Readonly<{
   databasePath: string;
 }>;
 
 /** Synchronous by design: this Adapter runs inside the dedicated file-search worker. */
-export class SqlitePathIndexStore implements PathIndexStore {
+export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
   private readonly database: DatabaseSync;
   private readonly activeBuildRootIds = new Set<number>();
   private closed = false;
 
-  constructor(options: SqlitePathIndexStoreOptions) {
+  constructor(options: SqliteFileSearchStoreOptions) {
     if (options.databasePath !== ':memory:') {
       if (!path.isAbsolute(options.databasePath)) {
         throw new Error('File-search database path must be absolute or :memory:');

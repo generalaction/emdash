@@ -1,15 +1,15 @@
 import type { PortableRelativePath } from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { relativePath as relative } from '../testing/paths';
-import { SqlitePathIndexStore } from './sqlite-path-index-store';
+import { SqliteFileSearchStore } from './sqlite-file-search-store';
 
-const stores: SqlitePathIndexStore[] = [];
+const stores: SqliteFileSearchStore[] = [];
 
 afterEach(() => {
   for (const store of stores.splice(0)) store.close();
 });
 
-describe('SqlitePathIndexStore', () => {
+describe('SqliteFileSearchStore', () => {
   it('persists canonical roots idempotently and rejects conflicting identity rows', () => {
     const store = createStore();
     const created = store.upsertRoot({ rootKey: 'root-key', rootPath: '/workspace' });
@@ -129,7 +129,7 @@ describe('SqlitePathIndexStore', () => {
   });
 
   it('rejects relative database paths', () => {
-    expect(() => new SqlitePathIndexStore({ databasePath: 'file-search.db' })).toThrow(
+    expect(() => new SqliteFileSearchStore({ databasePath: 'file-search.db' })).toThrow(
       'must be absolute'
     );
   });
@@ -155,14 +155,14 @@ describe('SqlitePathIndexStore', () => {
   });
 });
 
-function createStore(): SqlitePathIndexStore {
-  const store = new SqlitePathIndexStore({ databasePath: ':memory:' });
+function createStore(): SqliteFileSearchStore {
+  const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
   stores.push(store);
   return store;
 }
 
 function publish(
-  store: SqlitePathIndexStore,
+  store: SqliteFileSearchStore,
   rootId: number,
   entries: Array<{ path: PortableRelativePath; kind: 'file' | 'directory' }>
 ): void {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { RootWatchAttachError, RootWatchReadyError } from '../path-index/errors';
-import { hostPath as absolute } from '../testing/paths';
 import {
   toExpectedFileSearchIoError,
   toExpectedPathIndexError,
   toExpectedRootAccessError,
   toExpectedRootError,
-} from './errors';
+} from './error-mapping';
+import { RootWatchError } from './path/index/errors';
+import { hostPath as absolute } from './testing/paths';
 
 describe('file-search API error mapping', () => {
   const root = absolute('/workspace');
@@ -52,21 +52,30 @@ describe('file-search API error mapping', () => {
     expect(
       toExpectedPathIndexError(
         root,
-        new RootWatchReadyError(new Error('watch backend unavailable')),
+        new RootWatchError(
+          'File-search watcher could not attach to the root',
+          new Error('watch backend unavailable')
+        ),
         'fallback'
       )
     ).toMatchObject({ type: 'io', message: 'watch backend unavailable' });
     expect(
       toExpectedPathIndexError(
         root,
-        new RootWatchAttachError(new Error('watch construction failed')),
+        new RootWatchError(
+          'File-search watcher could not be created for the root',
+          new Error('watch construction failed')
+        ),
         'fallback'
       )
     ).toMatchObject({ type: 'io', message: 'watch construction failed' });
     expect(
       toExpectedRootError(
         root,
-        new RootWatchAttachError(new Error('watch construction failed')),
+        new RootWatchError(
+          'File-search watcher could not be created for the root',
+          new Error('watch construction failed')
+        ),
         'fallback'
       )
     ).toMatchObject({ type: 'io', message: 'watch construction failed' });

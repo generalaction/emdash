@@ -7,7 +7,8 @@ import {
   type ContentSearchProgress,
 } from '@runtimes/file-search/api';
 import { afterEach, describe, expect, it } from 'vitest';
-import { hostPath as absolute } from '../testing/paths';
+import { DefaultFileSearchExclusions } from '../../exclusions';
+import { hostPath as absolute } from '../../testing/paths';
 import { RipgrepContentSearcher } from './ripgrep-content-searcher';
 
 const hasRipgrep = spawnSync('rg', ['--version'], { stdio: 'ignore' }).status === 0;
@@ -31,7 +32,7 @@ describe('RipgrepContentSearcher', () => {
       await writeFile(path.join(rootPath, 'src', 'index.ts'), 'const 😀 VALUE = 1;\nVALUE VALUE\n');
       await writeFile(path.join(rootPath, 'node_modules', 'pkg', 'hidden.ts'), 'VALUE\n');
       const progress: ContentSearchProgress[] = [];
-      const searcher = new RipgrepContentSearcher();
+      const searcher = createSearcher();
 
       const result = await searcher.search(
         { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'value', limit: 2 },
@@ -84,12 +85,13 @@ describe('RipgrepContentSearcher', () => {
     await writeFile(path.join(rootPath, 'file.ts'), 'nothing here\n');
 
     await expect(
-      new RipgrepContentSearcher().search(
+      createSearcher().search(
         {
           root: absolute(rootPath),
           rootPath,
           searchPath: rootPath,
           query: 'not-present',
+          limit: 1_000,
         },
         { signal: new AbortController().signal, onProgress: () => {} }
       )
@@ -98,10 +100,10 @@ describe('RipgrepContentSearcher', () => {
 
   it('reports a missing ripgrep executable as an unavailable search engine', async () => {
     const rootPath = await createRoot();
-    const result = await new RipgrepContentSearcher({
+    const result = await createSearcher({
       executable: path.join(rootPath, 'missing-ripgrep'),
     }).search(
-      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'term' },
+      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'term', limit: 1_000 },
       { signal: new AbortController().signal, onProgress: () => {} }
     );
 
@@ -118,8 +120,8 @@ describe('RipgrepContentSearcher', () => {
     controller.abort(cancellation);
 
     await expect(
-      new RipgrepContentSearcher({ executable: process.execPath }).search(
-        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'term' },
+      createSearcher({ executable: process.execPath }).search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'term', limit: 1_000 },
         { signal: controller.signal, onProgress: () => {} }
       )
     ).rejects.toBe(cancellation);
@@ -138,8 +140,14 @@ describe('RipgrepContentSearcher', () => {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const controller = new AbortController();
         await expect(
-          new RipgrepContentSearcher().search(
-            { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+          createSearcher().search(
+            {
+              root: absolute(rootPath),
+              rootPath,
+              searchPath: rootPath,
+              query: 'VALUE',
+              limit: 1_000,
+            },
             {
               signal: controller.signal,
               onProgress: () => controller.abort(cancellation),
@@ -161,7 +169,7 @@ describe('RipgrepContentSearcher', () => {
 
       for (let attempt = 0; attempt < 10; attempt += 1) {
         await expect(
-          new RipgrepContentSearcher().search(
+          createSearcher().search(
             { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1 },
             { signal: new AbortController().signal, onProgress: () => {} }
           )
@@ -178,8 +186,8 @@ describe('RipgrepContentSearcher', () => {
       const line = lineWithMatches(210_474, offsets, 'LoL');
       await writeFile(path.join(rootPath, 'generated-icon.ts'), `${line}\n`);
 
-      const result = await new RipgrepContentSearcher().search(
-        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'lol' },
+      const result = await createSearcher().search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'lol', limit: 1_000 },
         { signal: new AbortController().signal, onProgress: () => {} }
       );
 
@@ -207,8 +215,8 @@ describe('RipgrepContentSearcher', () => {
     const rootPath = await createRoot();
     await writeFile(path.join(rootPath, 'old-mac.txt'), 'alpha\rbeta VALUE\rgamma');
 
-    const result = await new RipgrepContentSearcher().search(
-      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'value' },
+    const result = await createSearcher().search(
+      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'value', limit: 1_000 },
       { signal: new AbortController().signal, onProgress: () => {} }
     );
 
@@ -244,8 +252,8 @@ describe('RipgrepContentSearcher', () => {
       await writeFile(path.join(rootPath, 'a-huge.txt'), `VALUE ${'x'.repeat(20_000)}\n`);
       await writeFile(path.join(rootPath, 'z-small.txt'), 'VALUE\n');
 
-      const result = await new RipgrepContentSearcher({ maxRecordBytes: 512 }).search(
-        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+      const result = await createSearcher({ maxRecordBytes: 512 }).search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1_000 },
         { signal: new AbortController().signal, onProgress: () => {} }
       );
 
@@ -266,8 +274,8 @@ describe('RipgrepContentSearcher', () => {
       const line = Array.from({ length: 1_000 }, () => `VALUE${'x'.repeat(100)}`).join('');
       await writeFile(path.join(rootPath, 'many-distant-matches.txt'), `${line}\n`);
 
-      const result = await new RipgrepContentSearcher().search(
-        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+      const result = await createSearcher().search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1_000 },
         { signal: new AbortController().signal, onProgress: () => {} }
       );
 
@@ -291,10 +299,10 @@ describe('RipgrepContentSearcher', () => {
     await writeFile(configPath, '--glob=!*.ts\n');
     await writeFile(path.join(rootPath, '.hidden.ts'), 'VALUE\n');
 
-    const result = await new RipgrepContentSearcher({
+    const result = await createSearcher({
       env: { ...process.env, RIPGREP_CONFIG_PATH: configPath },
     }).search(
-      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+      { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1_000 },
       { signal: new AbortController().signal, onProgress: () => {} }
     );
 
@@ -315,8 +323,14 @@ describe('RipgrepContentSearcher', () => {
       await chmod(unreadablePath, 0o000);
 
       try {
-        const result = await new RipgrepContentSearcher().search(
-          { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+        const result = await createSearcher().search(
+          {
+            root: absolute(rootPath),
+            rootPath,
+            searchPath: rootPath,
+            query: 'VALUE',
+            limit: 1_000,
+          },
           { signal: new AbortController().signal, onProgress: () => {} }
         );
 
@@ -342,8 +356,8 @@ describe('RipgrepContentSearcher', () => {
     const bug = new Error('progress observer bug');
 
     await expect(
-      new RipgrepContentSearcher().search(
-        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE' },
+      createSearcher().search(
+        { root: absolute(rootPath), rootPath, searchPath: rootPath, query: 'VALUE', limit: 1_000 },
         {
           signal: new AbortController().signal,
           onProgress: () => {
@@ -369,4 +383,13 @@ function lineWithMatches(length: number, offsets: readonly number[], match: stri
     cursor = offset + match.length;
   }
   return line + 'x'.repeat(length - cursor);
+}
+
+function createSearcher(
+  options: Omit<ConstructorParameters<typeof RipgrepContentSearcher>[0], 'exclusions'> = {}
+): RipgrepContentSearcher {
+  return new RipgrepContentSearcher({
+    ...options,
+    exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+  });
 }

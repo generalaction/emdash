@@ -2,24 +2,26 @@ import { err, ok, type Result } from '@emdash/shared';
 import { LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type {
+  ContentSearchError,
   FileSearchRegisterRootError,
   FileSearchRootInput,
   FileSearchUnregisterRootError,
+  PathSearchError,
 } from '@runtimes/file-search/api';
-import type { IWatchService } from '@services/fs-watch/api';
-import { hostAbsolutePathFromNative } from '../allocation/paths';
-import type { FileSearchRootResolver, ResolvedFileSearchRoot } from '../allocation/root-identity';
-import { toExpectedFileSearchIoError, toExpectedRootError } from '../api/errors';
-import type { ConcurrencyLimiter } from '../concurrency-limiter';
-import type { FileContentSearcher } from '../content/content-searcher';
-import type { FileSearchExclusions } from '../exclusions';
-import type { PathScanner } from '../path-index/scanner';
+import {
+  indexNotReady,
+  rootNotRegistered,
+  toExpectedFileSearchIoError,
+  toExpectedRootError,
+} from '../error-mapping';
+import { hostAbsolutePathFromNative } from '../native-paths';
 import type {
   FileSearchRootUpsertResult,
-  PathIndexStore,
+  RootCatalogStore,
   StoredFileSearchRoot,
-} from '../storage/path-index-store';
-import { FileSearchRootResource, type RegisteredFileSearchRoot } from './root-resource';
+} from '../storage/root-catalog-store';
+import type { RegisteredRoot } from './registered-root';
+import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-identity';
 
 type RootStartInput = Readonly<{
   root: HostAbsolutePath;
@@ -29,39 +31,30 @@ type RootStartInput = Readonly<{
 type RootStopContext = Readonly<{ kind: 'unregister'; root: HostAbsolutePath }>;
 
 export type FileSearchRootState =
-  | Readonly<{ kind: 'not-registered' }>
-  | Readonly<{ kind: 'starting' }>
-  | Readonly<{ kind: 'ready'; resource: RegisteredFileSearchRoot }>
-  | Readonly<{ kind: 'start-failed'; error: FileSearchRegisterRootError }>
-  | Readonly<{ kind: 'stopping' }>
-  | Readonly<{
+  | { kind: 'not-registered' }
+  | { kind: 'starting' }
+  | { kind: 'ready'; resource: RegisteredRoot }
+  | { kind: 'start-failed'; error: FileSearchRegisterRootError }
+  | { kind: 'stopping' }
+  | {
       kind: 'stop-failed';
-      resource: RegisteredFileSearchRoot;
+      resource: RegisteredRoot;
       error: FileSearchUnregisterRootError;
-    }>;
+    };
 
-type FileSearchRootRegistryOptions = Readonly<{
-  store: PathIndexStore;
-  watcher: IWatchService;
-  scanner: PathScanner;
-  resolver: FileSearchRootResolver;
-  exclusions: FileSearchExclusions;
-  scanLimiter: ConcurrencyLimiter;
-  contentLimiter: ConcurrencyLimiter;
-  contentSearcher: FileContentSearcher;
+type FileSearchRootRegistryOptions = {
+  catalog: RootCatalogStore;
+  resolver: NodeFileSearchRootResolver;
+  createRoot: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
   scope: Scope;
   onError?: (context: string, error: unknown) => void;
-}>;
-
-export interface FileSearchRootLookup {
-  state(root: HostAbsolutePath): FileSearchRootState;
-}
+};
 
 /** Owns durable registration and maintenance lifecycle for canonical file-search roots. */
-export class FileSearchRootRegistry implements FileSearchRootLookup {
+export class FileSearchRootRegistry {
   private readonly lifecycle: LifecycleRegistry<
     RootStartInput,
-    RegisteredFileSearchRoot,
+    RegisteredRoot,
     FileSearchRegisterRootError,
     RootStopContext,
     FileSearchUnregisterRootError
@@ -77,7 +70,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       onObserverError: ({ error }) => this.report('file-search root observer failed', error),
     });
 
-    for (const stored of options.store.listRoots()) this.restore(stored);
+    for (const stored of options.catalog.listRoots()) this.restore(stored);
   }
 
   async registerRoot(
@@ -134,6 +127,35 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
     }
   }
 
+  resolveRegisteredRoot(
+    root: HostAbsolutePath,
+    options: { whenStarting: 'index-not-ready' }
+  ): Result<RegisteredRoot, PathSearchError>;
+  resolveRegisteredRoot(
+    root: HostAbsolutePath,
+    options: { whenStarting: 'root-not-registered' }
+  ): Result<RegisteredRoot, ContentSearchError>;
+  resolveRegisteredRoot(
+    root: HostAbsolutePath,
+    options: { whenStarting: 'index-not-ready' | 'root-not-registered' }
+  ): Result<RegisteredRoot, PathSearchError | ContentSearchError> {
+    const state = this.state(root);
+    switch (state.kind) {
+      case 'ready':
+      case 'stop-failed':
+        return ok(state.resource);
+      case 'starting':
+        return err(
+          options.whenStarting === 'index-not-ready' ? indexNotReady(root) : rootNotRegistered(root)
+        );
+      case 'start-failed':
+        return err(state.error);
+      case 'not-registered':
+      case 'stopping':
+        return err(rootNotRegistered(root));
+    }
+  }
+
   dispose(): Promise<void> {
     return this.lifecycle.dispose();
   }
@@ -141,14 +163,14 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
   private async startRoot(
     input: RootStartInput,
     scope: Scope
-  ): Promise<Result<RegisteredFileSearchRoot, FileSearchRegisterRootError>> {
+  ): Promise<Result<RegisteredRoot, FileSearchRegisterRootError>> {
     const resolved = await this.options.resolver.resolve(input.root);
     if (!resolved.success) return resolved;
     this.assertResolvedIdentity(input, resolved.data);
 
     let upserted: FileSearchRootUpsertResult;
     try {
-      upserted = this.options.store.upsertRoot(resolved.data);
+      upserted = this.options.catalog.upsertRoot(resolved.data);
     } catch (error) {
       const expected = toExpectedFileSearchIoError(
         input.root,
@@ -159,20 +181,8 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       throw error;
     }
 
-    let resource: FileSearchRootResource;
     try {
-      resource = new FileSearchRootResource({
-        root: upserted.root,
-        store: this.options.store,
-        watcher: this.options.watcher,
-        scanner: this.options.scanner,
-        exclusions: this.options.exclusions,
-        scope,
-        scanLimiter: this.options.scanLimiter,
-        contentLimiter: this.options.contentLimiter,
-        contentSearcher: this.options.contentSearcher,
-        onError: this.options.onError,
-      });
+      return ok(this.options.createRoot(upserted.root, scope));
     } catch (error) {
       const expected = toExpectedRootError(
         input.root,
@@ -181,7 +191,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       );
       if (upserted.kind === 'created') {
         try {
-          this.options.store.deleteRoot(upserted.root.rootKey);
+          this.options.catalog.deleteRoot(upserted.root.rootKey);
         } catch (rollbackError) {
           throw new AggregateError(
             [error, rollbackError],
@@ -192,7 +202,6 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
       if (expected) return err(expected);
       throw error;
     }
-    return ok(resource);
   }
 
   private stopRoot(
@@ -201,7 +210,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
   ): Result<void, FileSearchUnregisterRootError> {
     if (!context) return ok();
     try {
-      this.options.store.deleteRoot(rootKey);
+      this.options.catalog.deleteRoot(rootKey);
       return ok();
     } catch (error) {
       const expected = toExpectedFileSearchIoError(
@@ -219,7 +228,7 @@ export class FileSearchRootRegistry implements FileSearchRootLookup {
     root: HostAbsolutePath
   ): Promise<Result<void, FileSearchUnregisterRootError>> {
     try {
-      this.options.store.deleteRoot(rootKey);
+      this.options.catalog.deleteRoot(rootKey);
     } catch (error) {
       const expected = toExpectedFileSearchIoError(
         root,

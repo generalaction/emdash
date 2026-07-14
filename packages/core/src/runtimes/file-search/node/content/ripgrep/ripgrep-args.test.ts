@@ -1,17 +1,24 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { hostPath as absolute, relativePath as relative } from '../testing/paths';
+import { DefaultFileSearchExclusions } from '../../exclusions';
+import { hostPath as absolute, relativePath as relative } from '../../testing/paths';
 import { createRipgrepContentSearchArgs } from './ripgrep-args';
 
 describe('createRipgrepContentSearchArgs', () => {
+  const exclusions = new DefaultFileSearchExclusions({ caseSensitive: true });
+
   it('uses literal case-insensitive JSON search, hard exclusions, and an argument boundary', () => {
-    const args = createRipgrepContentSearchArgs({
-      root: absolute('/workspace'),
-      rootPath: '/workspace',
-      searchPath: path.join('/workspace', 'src', 'nested'),
-      query: '-needle',
-      under: relative('src/nested'),
-    });
+    const args = createRipgrepContentSearchArgs(
+      {
+        root: absolute('/workspace'),
+        rootPath: '/workspace',
+        searchPath: path.join('/workspace', 'src', 'nested'),
+        query: '-needle',
+        under: relative('src/nested'),
+        limit: 1_000,
+      },
+      exclusions
+    );
 
     expect(args).toEqual(
       expect.arrayContaining([
@@ -29,20 +36,28 @@ describe('createRipgrepContentSearchArgs', () => {
     expect(args.some((argument) => argument.startsWith('--max-columns'))).toBe(false);
 
     expect(
-      createRipgrepContentSearchArgs({
-        root: absolute('/tmp/workspace'),
-        rootPath: '/tmp/workspace',
-        searchPath: '/tmp/workspace',
-        query: 'needle',
-      }).slice(-1)
+      createRipgrepContentSearchArgs(
+        {
+          root: absolute('/tmp/workspace'),
+          rootPath: '/tmp/workspace',
+          searchPath: '/tmp/workspace',
+          query: 'needle',
+          limit: 1_000,
+        },
+        exclusions
+      ).slice(-1)
     ).toEqual(['.']);
     expect(() =>
-      createRipgrepContentSearchArgs({
-        root: absolute('/workspace'),
-        rootPath: '/workspace',
-        searchPath: '/outside',
-        query: 'needle',
-      })
+      createRipgrepContentSearchArgs(
+        {
+          root: absolute('/workspace'),
+          rootPath: '/workspace',
+          searchPath: '/outside',
+          query: 'needle',
+          limit: 1_000,
+        },
+        exclusions
+      )
     ).toThrow('outside');
   });
 
@@ -53,6 +68,7 @@ describe('createRipgrepContentSearchArgs', () => {
         rootPath: '/workspace',
         searchPath: '/workspace',
         query: 'needle',
+        limit: 1_000,
       },
       {
         excludes: () => false,

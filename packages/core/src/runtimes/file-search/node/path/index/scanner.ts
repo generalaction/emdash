@@ -5,9 +5,10 @@ import {
   portableRelativePathParts,
   type PortableRelativePath,
 } from '@primitives/path/api';
-import type { PathIndexEntry } from '@runtimes/file-search/node/storage/path-index-store';
-import { containsNativePath, sameNativePath } from '../allocation/paths';
-import type { FileSearchExclusions } from '../exclusions';
+import type { PathIndexEntry } from '@runtimes/file-search/node/storage/types';
+import { throwIfAborted } from '../../abort';
+import type { FileSearchExclusions } from '../../exclusions';
+import { containsNativePath, sameNativePath } from '../../native-paths';
 
 export type PathScanOptions = Readonly<{
   signal: AbortSignal;
@@ -30,7 +31,7 @@ export class NodePathScanner implements PathScanner {
     relativeRoot: PortableRelativePath,
     options: PathScanOptions
   ): AsyncIterable<PathIndexEntry> {
-    throwIfAborted(options.signal);
+    throwIfAborted(options.signal, 'Path scan cancelled');
     if (relativeRoot !== '' && (await hasSymlinkAncestor(rootPath, relativeRoot))) return;
 
     const absoluteRoot = path.join(rootPath, ...portableRelativePathParts(relativeRoot));
@@ -47,7 +48,7 @@ export class NodePathScanner implements PathScanner {
     absolutePath: string,
     options: PathScanOptions
   ): AsyncIterable<PathIndexEntry> {
-    throwIfAborted(options.signal);
+    throwIfAborted(options.signal, 'Path scan cancelled');
     let metadata;
     try {
       metadata = await lstat(absolutePath);
@@ -82,7 +83,7 @@ export class NodePathScanner implements PathScanner {
     options: PathScanOptions,
     isRoot: boolean
   ): AsyncIterable<PathIndexEntry> {
-    throwIfAborted(options.signal);
+    throwIfAborted(options.signal, 'Path scan cancelled');
     let canonicalDirectory: string;
     let entries;
     try {
@@ -96,7 +97,7 @@ export class NodePathScanner implements PathScanner {
     entries.sort((left, right) => left.name.localeCompare(right.name));
 
     for (const entry of entries) {
-      throwIfAborted(options.signal);
+      throwIfAborted(options.signal, 'Path scan cancelled');
       const childPath = joinPortableRelativePath(relativePath, entry.name);
       if (!childPath.success) continue;
       yield* this.scanEntry(
@@ -153,9 +154,4 @@ function isSkippableEntryError(error: unknown): boolean {
     code === 'EPERM' ||
     code === 'ELOOP'
   );
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (!signal.aborted) return;
-  throw signal.reason instanceof Error ? signal.reason : new Error('Path scan cancelled');
 }

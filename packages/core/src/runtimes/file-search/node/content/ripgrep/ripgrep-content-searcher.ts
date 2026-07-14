@@ -2,22 +2,22 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
-  CONTENT_SEARCH_DEFAULT_LIMIT,
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
-import { containsNativePath } from '../allocation/paths';
-import { toExpectedFileSearchIoError } from '../api/errors';
-import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
-import { errorMessage, nodeErrorCode } from '../node-errors';
-import { ContentSearchAccumulator } from './content-accumulator';
+import { abortReason } from '../../abort';
+import { toExpectedFileSearchIoError } from '../../error-mapping';
+import type { FileSearchExclusions } from '../../exclusions';
+import { containsNativePath } from '../../native-paths';
+import { errorMessage, nodeErrorCode } from '../../node-errors';
 import type {
   ContentSearchContext,
   ContentSearchExecutionError,
   FileContentSearcher,
   ResolvedContentSearchInput,
-} from './content-searcher';
+} from '../content-searcher';
+import { ContentSearchAccumulator } from './content-accumulator';
 import { createRipgrepContentSearchArgs } from './ripgrep-args';
 import { parseRipgrepJsonLine } from './ripgrep-json';
 import { RipgrepJsonFramer, type RipgrepJsonFramerEvent } from './ripgrep-json-framer';
@@ -28,7 +28,7 @@ const DEFAULT_MAX_JSON_RECORD_BYTES = 32 * 1024 * 1024;
 type RipgrepContentSearcherOptions = Readonly<{
   executable?: string;
   env?: NodeJS.ProcessEnv;
-  exclusions?: FileSearchExclusions;
+  exclusions: FileSearchExclusions;
   maxRecordBytes?: number;
 }>;
 
@@ -44,10 +44,10 @@ export class RipgrepContentSearcher implements FileContentSearcher {
   private readonly exclusions: FileSearchExclusions;
   private readonly maxRecordBytes: number;
 
-  constructor(options: RipgrepContentSearcherOptions = {}) {
+  constructor(options: RipgrepContentSearcherOptions) {
     this.executable = options.executable ?? 'rg';
     this.env = options.env;
-    this.exclusions = options.exclusions ?? new DefaultFileSearchExclusions();
+    this.exclusions = options.exclusions;
     this.maxRecordBytes = positiveSafeInteger(
       options.maxRecordBytes ?? DEFAULT_MAX_JSON_RECORD_BYTES,
       'maxRecordBytes'
@@ -76,7 +76,7 @@ function runRipgrep(
 ): Promise<Result<ContentSearchResult, ContentSearchExecutionError>> {
   return new Promise((resolve, reject) => {
     const accumulator = new ContentSearchAccumulator(context);
-    const limit = input.limit ?? CONTENT_SEARCH_DEFAULT_LIMIT;
+    const limit = input.limit;
     const args = createRipgrepContentSearchArgs(input, exclusions);
     const child = executable.spawn(args, { signal: context.signal });
     const framer = new RipgrepJsonFramer({ maxRecordBytes });
@@ -203,7 +203,7 @@ function runRipgrep(
     child.stderr.on('error', stopForUnexpectedError);
     child.on('error', (error: NodeJS.ErrnoException) => {
       if (context.signal.aborted || error.name === 'AbortError') {
-        crash(abortReason(context.signal));
+        crash(abortReason(context.signal, 'Content search was cancelled'));
         return;
       }
       if (state.kind !== 'running') return;
@@ -212,7 +212,7 @@ function runRipgrep(
     child.on('close', (code) => {
       if (settled) return;
       if (context.signal.aborted) {
-        crash(abortReason(context.signal));
+        crash(abortReason(context.signal, 'Content search was cancelled'));
         return;
       }
       if (settleStoppedState()) return;
@@ -319,10 +319,6 @@ function spawnError(
 
 function ioError(input: ResolvedContentSearchInput, message: string): ContentSearchExecutionError {
   return { type: 'io', root: input.root, message };
-}
-
-function abortReason(signal: AbortSignal): unknown {
-  return signal.reason instanceof Error ? signal.reason : new Error('Content search was cancelled');
 }
 
 function positiveSafeInteger(value: number, name: string): number {

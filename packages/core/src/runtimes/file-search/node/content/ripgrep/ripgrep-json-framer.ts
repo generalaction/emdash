@@ -27,7 +27,6 @@ export class RipgrepJsonFramer {
   private recordBuffer = Buffer.alloc(0);
   private recordByteLength = 0;
   private discardingOversizedRecord = false;
-  private pendingHighSurrogate = '';
   private finished = false;
 
   constructor(options: RipgrepJsonFramerOptions) {
@@ -37,18 +36,13 @@ export class RipgrepJsonFramer {
     this.maxRecordBytes = options.maxRecordBytes;
   }
 
-  push(chunk: Buffer | string): RipgrepJsonFramerEvent[] {
+  push(chunk: Buffer): RipgrepJsonFramerEvent[] {
     if (this.finished) {
       throw new Error('Cannot push ripgrep output after the framer has finished');
     }
 
     const events: RipgrepJsonFramerEvent[] = [];
-    if (typeof chunk === 'string') {
-      this.pushString(chunk, events);
-    } else {
-      this.flushPendingHighSurrogate(events);
-      this.pushBuffer(chunk, events);
-    }
+    this.pushBuffer(chunk, events);
     return events;
   }
 
@@ -56,7 +50,6 @@ export class RipgrepJsonFramer {
     if (this.finished) return [];
 
     const events: RipgrepJsonFramerEvent[] = [];
-    this.flushPendingHighSurrogate(events);
     this.finished = true;
 
     if (this.discardingOversizedRecord) {
@@ -69,26 +62,6 @@ export class RipgrepJsonFramer {
       this.recordByteLength = 0;
     }
     return events;
-  }
-
-  private pushString(chunk: string, events: RipgrepJsonFramerEvent[]): void {
-    let value = this.pendingHighSurrogate + chunk;
-    this.pendingHighSurrogate = '';
-
-    if (value.length > 0 && isHighSurrogate(value.charCodeAt(value.length - 1))) {
-      this.pendingHighSurrogate = value.slice(-1);
-      value = value.slice(0, -1);
-    }
-    if (value.length > 0) {
-      this.pushBuffer(Buffer.from(value, 'utf8'), events);
-    }
-  }
-
-  private flushPendingHighSurrogate(events: RipgrepJsonFramerEvent[]): void {
-    if (!this.pendingHighSurrogate) return;
-    const pending = this.pendingHighSurrogate;
-    this.pendingHighSurrogate = '';
-    this.pushBuffer(Buffer.from(pending, 'utf8'), events);
   }
 
   private pushBuffer(chunk: Buffer, events: RipgrepJsonFramerEvent[]): void {
@@ -149,8 +122,4 @@ export class RipgrepJsonFramer {
     const decoder = new StringDecoder('utf8');
     return decoder.end(this.recordBuffer.subarray(0, this.recordByteLength));
   }
-}
-
-function isHighSurrogate(codeUnit: number): boolean {
-  return codeUnit >= 0xd800 && codeUnit <= 0xdbff;
 }

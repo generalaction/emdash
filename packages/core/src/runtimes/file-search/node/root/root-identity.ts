@@ -8,8 +8,8 @@ import {
   type HostAbsolutePath,
 } from '@primitives/path/api';
 import type { FileSearchRegisterRootError } from '@runtimes/file-search/api';
-import { rootUnavailable, toExpectedRootError } from '../api/errors';
-import { hostAbsolutePathFromNative } from './paths';
+import { rootUnavailable, toExpectedRootError } from '../error-mapping';
+import { hostAbsolutePathFromNative } from '../native-paths';
 
 export type ResolvedFileSearchRoot = Readonly<{
   rootKey: string;
@@ -17,14 +17,7 @@ export type ResolvedFileSearchRoot = Readonly<{
 }>;
 
 /** Resolves file-search roots to the canonical filesystem identity used by core runtimes. */
-export interface FileSearchRootResolver {
-  comparisonKey(root: HostAbsolutePath): string;
-  resolve(
-    root: HostAbsolutePath
-  ): Promise<Result<ResolvedFileSearchRoot, FileSearchRegisterRootError>>;
-}
-
-export class NodeFileSearchRootResolver implements FileSearchRootResolver {
+export class NodeFileSearchRootResolver {
   private readonly profile = createPathProfile({
     style: path.sep === '\\' ? 'win32' : 'posix',
   });

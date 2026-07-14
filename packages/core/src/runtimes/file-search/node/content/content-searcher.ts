@@ -12,7 +12,8 @@ export type ContentSearchExecutionError = Extract<
 >;
 
 export type ResolvedContentSearchInput = Readonly<
-  ContentSearchInput & {
+  Omit<ContentSearchInput, 'limit'> & {
+    limit: number;
     rootPath: string;
     searchPath: string;
   }

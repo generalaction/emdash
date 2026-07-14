@@ -1,17 +1,6 @@
 import type { PortableRelativePath } from '@primitives/path/api';
 import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
 
-export type StoredFileSearchRoot = Readonly<{
-  id: number;
-  rootKey: string;
-  rootPath: string;
-}>;
-
-export type FileSearchRootUpsertResult = Readonly<{
-  kind: 'created' | 'unchanged';
-  root: StoredFileSearchRoot;
-}>;
-
 export type PathIndexEntry = Readonly<{
   path: PortableRelativePath;
   kind: PathEntryKind;
@@ -37,12 +26,8 @@ export interface PathIndexBuild {
   discard(): void;
 }
 
-/** Persistence port implemented by the private file-search database adapter. */
+/** Persistence view used by path-index maintenance and path queries. */
 export interface PathIndexStore {
-  listRoots(): StoredFileSearchRoot[];
-  upsertRoot(input: { rootKey: string; rootPath: string }): FileSearchRootUpsertResult;
-  deleteRoot(rootKey: string): void;
-
   beginBuild(rootId: number): PathIndexBuild;
   applyPublishedPatches(rootId: number, patches: readonly PathIndexPatch[]): void;
 
@@ -56,5 +41,4 @@ export interface PathIndexStore {
     kinds: readonly PathEntryKind[],
     limit: number
   ): PathIndexStoreSearchResult;
-  close(): void;
 }

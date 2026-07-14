@@ -24,7 +24,7 @@ export class ConcurrencyLimiter {
   }
 
   private acquire(signal: AbortSignal): Promise<() => void> {
-    if (signal.aborted) return Promise.reject(abortError(signal));
+    if (signal.aborted) return Promise.reject(abortReason(signal, 'Operation cancelled'));
     if (this.active < this.limit) {
       this.active += 1;
       return Promise.resolve(this.releaseOnce());
@@ -38,7 +38,7 @@ export class ConcurrencyLimiter {
         onAbort: () => {
           const index = this.waiting.indexOf(waiter);
           if (index >= 0) this.waiting.splice(index, 1);
-          reject(abortError(signal));
+          reject(abortReason(signal, 'Operation cancelled'));
         },
       };
       signal.addEventListener('abort', waiter.onAbort, { once: true });
@@ -61,7 +61,7 @@ export class ConcurrencyLimiter {
       const waiter = this.waiting.shift()!;
       waiter.signal.removeEventListener('abort', waiter.onAbort);
       if (waiter.signal.aborted) {
-        waiter.reject(abortError(waiter.signal));
+        waiter.reject(abortReason(waiter.signal, 'Operation cancelled'));
         continue;
       }
       this.active += 1;
@@ -70,6 +70,4 @@ export class ConcurrencyLimiter {
   }
 }
 
-function abortError(signal: AbortSignal): Error {
-  return signal.reason instanceof Error ? signal.reason : new Error('Operation cancelled');
-}
+import { abortReason } from './abort';

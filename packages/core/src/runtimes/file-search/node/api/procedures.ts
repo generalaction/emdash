@@ -1,25 +1,22 @@
 import type { ContractImpl } from '@emdash/wire';
 import type { FileSearchContract } from '@runtimes/file-search/api';
-import type { ContentSearchRuntime } from '@runtimes/file-search/node/content/content-search-runtime';
-import type { PathSearchRuntime } from '@runtimes/file-search/node/path/path-search-runtime';
-import type { FileSearchRootRuntime } from '@runtimes/file-search/node/root/root-runtime';
+import type { FileSearchRuntime } from '@runtimes/file-search/node/file-search-runtime';
 
 export type FileSearchProcedures = ContractImpl<FileSearchContract>;
 
-export type FileSearchRuntimeApi = Readonly<{
-  roots: Pick<FileSearchRootRuntime, 'registerRoot' | 'unregisterRoot'>;
-  paths: Pick<PathSearchRuntime, 'searchPaths'>;
-  content: Pick<ContentSearchRuntime, 'searchContent'>;
-}>;
+export type FileSearchRuntimeApi = Pick<
+  FileSearchRuntime,
+  'registerRoot' | 'unregisterRoot' | 'searchPaths' | 'searchContent'
+>;
 
 export function createFileSearchProcedures(runtime: FileSearchRuntimeApi): FileSearchProcedures {
   return {
-    registerRoot: (input) => runtime.roots.registerRoot(input),
-    unregisterRoot: (input) => runtime.roots.unregisterRoot(input),
-    searchPaths: (input) => runtime.paths.searchPaths(input),
+    registerRoot: (input) => runtime.registerRoot(input),
+    unregisterRoot: (input) => runtime.unregisterRoot(input),
+    searchPaths: (input) => runtime.searchPaths(input),
     searchContent: {
       run: (input, context) =>
-        runtime.content.searchContent(input, {
+        runtime.searchContent(input, {
           signal: context.signal,
           onProgress: context.progress,
         }),

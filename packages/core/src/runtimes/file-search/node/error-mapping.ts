@@ -6,9 +6,9 @@ import type {
   FileSearchUnregisterRootError,
   PathSearchError,
 } from '@runtimes/file-search/api';
-import { errorMessage, isOperationalNodeError, nodeErrorCode } from '../node-errors';
-import { RootWatchError } from '../path-index/errors';
-import { isOperationalSqliteError } from '../storage/errors';
+import { errorMessage, isOperationalNodeError, nodeErrorCode } from './node-errors';
+import { RootWatchError } from './path/index/errors';
+import { isOperationalSqliteError } from './storage/errors';
 
 type RootUnavailableError = Extract<FileSearchRegisterRootError, { type: 'root-unavailable' }>;
 

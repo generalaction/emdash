@@ -4,15 +4,11 @@ import { err, ok, type Result } from '@emdash/shared';
 import { portableRelativePathParts } from '@primitives/path/api';
 import type { ContentSearchError, ContentSearchInput } from '@runtimes/file-search/api';
 import {
-  containsNativePath,
-  isPortablePathHostCompatible,
-  sameNativePath,
-} from '../allocation/paths';
-import {
   rootUnavailable,
   toExpectedFileSearchIoError,
   toExpectedRootAccessError,
-} from '../api/errors';
+} from '../error-mapping';
+import { containsNativePath, isPortablePathHostCompatible, sameNativePath } from '../native-paths';
 
 type ResolvedContentScope = Readonly<{
   rootPath: string;

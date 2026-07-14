@@ -10,11 +10,11 @@ import type {
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
-} from '@runtimes/file-search/node/storage/path-index-store';
+} from '@runtimes/file-search/node/storage/types';
 import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DefaultFileSearchExclusions } from '../exclusions';
-import { SqlitePathIndexStore } from '../storage/sqlite-path-index-store';
+import { DefaultFileSearchExclusions } from '../../exclusions';
+import { SqliteFileSearchStore } from '../../storage/sqlite-file-search-store';
 import { RootIndex } from './root-index';
 import { NodePathScanner, type PathScanner, type PathScanOptions } from './scanner';
 
@@ -208,18 +208,6 @@ class PatchFailingStore implements PathIndexStore {
     private readonly failure: unknown
   ) {}
 
-  listRoots() {
-    return this.delegate.listRoots();
-  }
-
-  upsertRoot(input: { rootKey: string; rootPath: string }) {
-    return this.delegate.upsertRoot(input);
-  }
-
-  deleteRoot(rootKey: string): void {
-    this.delegate.deleteRoot(rootKey);
-  }
-
   beginBuild(rootId: number): PathIndexBuild {
     return this.delegate.beginBuild(rootId);
   }
@@ -230,10 +218,6 @@ class PatchFailingStore implements PathIndexStore {
 
   searchPaths(...args: Parameters<PathIndexStore['searchPaths']>) {
     return this.delegate.searchPaths(...args);
-  }
-
-  close(): void {
-    this.delegate.close();
   }
 }
 
@@ -262,8 +246,8 @@ class FakeWatchService implements IWatchService {
   async dispose(): Promise<void> {}
 }
 
-function createStore(): SqlitePathIndexStore {
-  const store = new SqlitePathIndexStore({ databasePath: ':memory:' });
+function createStore(): SqliteFileSearchStore {
+  const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
   cleanups.push(() => store.close());
   return store;
 }
@@ -274,7 +258,7 @@ async function createRoot(): Promise<string> {
   return realpath(root);
 }
 
-function hits(store: SqlitePathIndexStore): PathSearchHit[] {
+function hits(store: SqliteFileSearchStore): PathSearchHit[] {
   const result = store.searchPaths('root-key', '', ['file', 'directory'], 20);
   return result.kind === 'ready' ? result.hits : [];
 }

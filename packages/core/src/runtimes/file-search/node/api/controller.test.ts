@@ -27,19 +27,13 @@ describe('createFileSearchController', () => {
       },
     ];
     const runtime: FileSearchRuntimeApi = {
-      roots: {
-        registerRoot: async () => ok(),
-        unregisterRoot: async () => ok(),
-      },
-      paths: {
-        searchPaths: async () => ok({ hits: [{ path: relative('index.ts'), kind: 'file' }] }),
-      },
-      content: {
-        searchContent: async (_input, context) => {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
-          context.onProgress({ files });
-          return ok({ files, complete: true });
-        },
+      registerRoot: async () => ok(),
+      unregisterRoot: async () => ok(),
+      searchPaths: async () => ok({ hits: [{ path: relative('index.ts'), kind: 'file' }] }),
+      searchContent: async (_input, context) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        context.onProgress({ files });
+        return ok({ files, complete: true });
       },
     };
     const wire = createTestWire(fileSearchContract, createFileSearchController(runtime), {

@@ -1,12 +1,10 @@
 import path from 'node:path';
-import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
-import type { ResolvedContentSearchInput } from './content-searcher';
-
-const DEFAULT_EXCLUSIONS = new DefaultFileSearchExclusions();
+import type { FileSearchExclusions } from '../../exclusions';
+import type { ResolvedContentSearchInput } from '../content-searcher';
 
 export function createRipgrepContentSearchArgs(
   input: ResolvedContentSearchInput,
-  exclusions: FileSearchExclusions = DEFAULT_EXCLUSIONS
+  exclusions: FileSearchExclusions
 ): string[] {
   const args = [
     '--hidden',

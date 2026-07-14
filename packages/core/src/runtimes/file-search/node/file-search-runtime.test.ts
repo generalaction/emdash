@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('FileSearchRuntime', () => {
-  it('composes root lifecycle and path search behind slim domain runtimes', async () => {
+  it('composes root lifecycle and path search behind a flat runtime API', async () => {
     const rootPath = await createRoot();
     await mkdir(path.join(rootPath, 'src'));
     await writeFile(path.join(rootPath, 'src', 'index.ts'), 'export {}');
@@ -21,27 +21,27 @@ describe('FileSearchRuntime', () => {
     const root = absolute(rootPath);
 
     await expect(
-      runtime.paths.searchPaths({ root, query: '', kinds: ['file', 'directory'] })
+      runtime.searchPaths({ root, query: '', kinds: ['file', 'directory'] })
     ).resolves.toMatchObject({ success: false, error: { type: 'root-not-registered' } });
-    await expect(runtime.roots.registerRoot({ root })).resolves.toEqual({
+    await expect(runtime.registerRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
 
     await vi.waitFor(async () => {
       expect(
-        await runtime.paths.searchPaths({ root, query: 'index', kinds: ['file'], limit: 20 })
+        await runtime.searchPaths({ root, query: 'index', kinds: ['file'], limit: 20 })
       ).toEqual({
         success: true,
         data: { hits: [{ path: 'src/index.ts', kind: 'file' }] },
       });
     });
 
-    await expect(runtime.roots.unregisterRoot({ root })).resolves.toEqual({
+    await expect(runtime.unregisterRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
-    await expect(runtime.roots.unregisterRoot({ root })).resolves.toEqual({
+    await expect(runtime.unregisterRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
@@ -56,9 +56,9 @@ describe('FileSearchRuntime', () => {
     const root = absolute(rootPath);
 
     const first = createRuntime(databasePath);
-    await first.roots.registerRoot({ root });
+    await first.registerRoot({ root });
     await vi.waitFor(async () => {
-      expect(await first.paths.searchPaths({ root, query: '', kinds: ['file'] })).toMatchObject({
+      expect(await first.searchPaths({ root, query: '', kinds: ['file'] })).toMatchObject({
         success: true,
       });
     });
@@ -66,7 +66,7 @@ describe('FileSearchRuntime', () => {
 
     const second = createRuntime(databasePath);
     await vi.waitFor(async () => {
-      expect(await second.paths.searchPaths({ root, query: '', kinds: ['file'] })).toEqual({
+      expect(await second.searchPaths({ root, query: '', kinds: ['file'] })).toEqual({
         success: true,
         data: { hits: [{ path: 'restored.ts', kind: 'file' }] },
       });

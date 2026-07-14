@@ -2,24 +2,14 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { deferred } from '@emdash/shared/testing';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { ContentSearchResult } from '@runtimes/file-search/api';
-import type { PathIndexEntry } from '@runtimes/file-search/node/storage/path-index-store';
-import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NodeFileSearchRootResolver } from '../allocation/root-identity';
-import { ConcurrencyLimiter } from '../concurrency-limiter';
-import { ContentSearchRuntime } from '../content/content-search-runtime';
-import type {
-  ContentSearchContext,
-  FileContentSearcher,
-  ResolvedContentSearchInput,
-} from '../content/content-searcher';
-import { DefaultFileSearchExclusions } from '../exclusions';
-import { NodePathScanner, type PathScanner, type PathScanOptions } from '../path-index/scanner';
-import { SqlitePathIndexStore } from '../storage/sqlite-path-index-store';
+import { RootWatchError } from '../path/index/errors';
+import type { RootIndex } from '../path/index/root-index';
+import type { StoredFileSearchRoot } from '../storage/root-catalog-store';
+import { SqliteFileSearchStore } from '../storage/sqlite-file-search-store';
 import { hostPath as absolute } from '../testing/paths';
+import type { RegisteredRoot } from './registered-root';
+import { NodeFileSearchRootResolver } from './root-identity';
 import { FileSearchRootRegistry } from './root-registry';
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -29,32 +19,26 @@ afterEach(async () => {
 });
 
 describe('FileSearchRootRegistry', () => {
-  it('treats persisted watcher attachment as ready without waiting for an initial generation', async () => {
+  it('constructs a registered root from the persisted record and lifecycle scope', async () => {
     const rootPath = await createRoot();
-    const scanner = new BlockingScanner();
-    const { registry } = createRegistry({ scanner });
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ createRoot: createRegistered });
     const root = absolute(rootPath);
 
     await expect(registry.registerRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
-    const state = registry.state(root);
-    expect(state.kind).toBe('ready');
-    if (state.kind === 'ready') {
-      expect(state.resource.searchPaths({ root, query: '', kinds: ['file'] })).toMatchObject({
-        success: false,
-        error: { type: 'index-not-ready' },
-      });
-    }
-    await scanner.started.promise;
+    expect(createRegistered).toHaveBeenCalledOnce();
+    expect(createRegistered.mock.calls[0][0]).toMatchObject({ rootPath });
+    expect(createRegistered.mock.calls[0][1].state).toBe('open');
+    expect(registry.state(root).kind).toBe('ready');
   });
 
   it('keeps durable registrations when registry shutdown stops maintenance', async () => {
     const rootPath = await createRoot();
     const { registry, store } = createRegistry();
-    const root = absolute(rootPath);
-    await registry.registerRoot({ root });
+    await registry.registerRoot({ root: absolute(rootPath) });
 
     await registry.dispose();
 
@@ -67,7 +51,7 @@ describe('FileSearchRootRegistry', () => {
     const resolver = new NodeFileSearchRootResolver();
     const resolved = await resolver.resolve(root);
     if (!resolved.success) throw new Error('Expected root to resolve');
-    const store = new SqlitePathIndexStore({ databasePath: ':memory:' });
+    const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
     store.upsertRoot(resolved.data);
     await rm(rootPath, { recursive: true, force: true });
     const { registry } = createRegistry({ store });
@@ -81,10 +65,14 @@ describe('FileSearchRootRegistry', () => {
     expect(registry.state(root).kind).toBe('not-registered');
   });
 
-  it('rolls back a new durable row when watcher attachment fails', async () => {
+  it('rolls back a new durable row when registered-root construction fails', async () => {
     const rootPath = await createRoot();
     const failure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
-    const { registry, store } = createRegistry({ watcher: new ThrowingWatchService(failure) });
+    const { registry, store } = createRegistry({
+      createRoot: () => {
+        throw new RootWatchError('File-search watcher could not be created for the root', failure);
+      },
+    });
 
     await expect(registry.registerRoot({ root: absolute(rootPath) })).resolves.toMatchObject({
       success: false,
@@ -97,13 +85,18 @@ describe('FileSearchRootRegistry', () => {
     const rootPath = await createRoot();
     const attachmentFailure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
     const rollbackFailure = Object.assign(new Error('database busy'), { code: 'SQLITE_BUSY' });
-    const store = new SqlitePathIndexStore({ databasePath: ':memory:' });
+    const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
     vi.spyOn(store, 'deleteRoot').mockImplementation(() => {
       throw rollbackFailure;
     });
     const { registry } = createRegistry({
       store,
-      watcher: new ThrowingWatchService(attachmentFailure),
+      createRoot: () => {
+        throw new RootWatchError(
+          'File-search watcher could not be created for the root',
+          attachmentFailure
+        );
+      },
     });
 
     const registration = registry.registerRoot({ root: absolute(rootPath) });
@@ -113,103 +106,20 @@ describe('FileSearchRootRegistry', () => {
     });
     expect(store.listRoots()).toHaveLength(1);
   });
-
-  it('cancels and awaits root-scoped content work during explicit unregister', async () => {
-    const rootPath = await createRoot();
-    const root = absolute(rootPath);
-    const searcher = new BlockingContentSearcher();
-    const { registry } = createRegistry({ contentSearcher: searcher });
-    await registry.registerRoot({ root });
-    const content = new ContentSearchRuntime(registry);
-
-    const search = content.searchContent(
-      { root, query: 'term' },
-      { signal: new AbortController().signal, onProgress: () => {} }
-    );
-    void search.catch(() => {});
-    await searcher.started.promise;
-    const unregister = registry.unregisterRoot({ root });
-
-    await searcher.cancelled.promise;
-    await expect(search).rejects.toBeDefined();
-    await expect(unregister).resolves.toEqual({ success: true, data: undefined });
-  });
 });
-
-class BlockingScanner implements PathScanner {
-  readonly started = deferred<void>();
-
-  async *scan(
-    _rootPath: string,
-    _relativeRoot: PortableRelativePath,
-    options: PathScanOptions
-  ): AsyncIterable<PathIndexEntry> {
-    this.started.resolve();
-    await new Promise<void>((resolve) => {
-      if (options.signal.aborted) resolve();
-      else options.signal.addEventListener('abort', () => resolve(), { once: true });
-    });
-    if (!options.signal.aborted) yield { path: _relativeRoot, kind: 'directory' };
-  }
-}
-
-class BlockingContentSearcher implements FileContentSearcher {
-  readonly started = deferred<void>();
-  readonly cancelled = deferred<void>();
-
-  search(
-    _input: ResolvedContentSearchInput,
-    context: ContentSearchContext
-  ): Promise<ReturnType<typeof successResult>> {
-    this.started.resolve();
-    return new Promise((_resolve, reject) => {
-      const cancel = (): void => {
-        this.cancelled.resolve();
-        reject(context.signal.reason);
-      };
-      if (context.signal.aborted) cancel();
-      else context.signal.addEventListener('abort', cancel, { once: true });
-    });
-  }
-}
-
-class NoopWatchService implements IWatchService {
-  watch() {
-    return { ready: async () => {}, release: async () => {} };
-  }
-
-  async dispose(): Promise<void> {}
-}
-
-class ThrowingWatchService implements IWatchService {
-  constructor(private readonly failure: unknown) {}
-
-  watch(): never {
-    throw this.failure;
-  }
-
-  async dispose(): Promise<void> {}
-}
 
 function createRegistry(
   options: {
-    store?: SqlitePathIndexStore;
-    scanner?: PathScanner;
-    watcher?: IWatchService;
-    contentSearcher?: FileContentSearcher;
+    store?: SqliteFileSearchStore;
+    createRoot?: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
   } = {}
-): { registry: FileSearchRootRegistry; store: SqlitePathIndexStore; scope: Scope } {
-  const store = options.store ?? new SqlitePathIndexStore({ databasePath: ':memory:' });
+): { registry: FileSearchRootRegistry; store: SqliteFileSearchStore; scope: Scope } {
+  const store = options.store ?? new SqliteFileSearchStore({ databasePath: ':memory:' });
   const scope = createScope({ label: 'root-registry-test' });
   const registry = new FileSearchRootRegistry({
-    store,
-    watcher: options.watcher ?? new NoopWatchService(),
-    scanner: options.scanner ?? new NodePathScanner(),
+    catalog: store,
     resolver: new NodeFileSearchRootResolver(),
-    exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
-    scanLimiter: new ConcurrencyLimiter(1),
-    contentLimiter: new ConcurrencyLimiter(1),
-    contentSearcher: options.contentSearcher ?? new EmptyContentSearcher(),
+    createRoot: options.createRoot ?? fakeRoot,
     scope,
   });
   cleanups.push(async () => {
@@ -220,21 +130,12 @@ function createRegistry(
   return { registry, store, scope };
 }
 
-class EmptyContentSearcher implements FileContentSearcher {
-  async search() {
-    return successResult();
-  }
+function fakeRoot(record: StoredFileSearchRoot, scope: Scope): RegisteredRoot {
+  return { record, scope, index: {} as RootIndex };
 }
 
 async function createRoot(): Promise<string> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'emdash-root-registry-'));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   return realpath(directory);
-}
-
-function successResult() {
-  return {
-    success: true as const,
-    data: { files: [], complete: true } satisfies ContentSearchResult,
-  };
 }

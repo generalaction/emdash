@@ -4,7 +4,7 @@ import {
   type ContentSearchLineMatch,
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
-import type { ContentSearchContext } from './content-searcher';
+import type { ContentSearchContext } from '../content-searcher';
 
 const PROGRESS_MATCH_BATCH_SIZE = 50;
 export const CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH = 4 * 1024 * 1024;

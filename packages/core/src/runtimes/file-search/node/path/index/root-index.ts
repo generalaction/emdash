@@ -6,12 +6,13 @@ import type {
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
-  StoredFileSearchRoot,
-} from '@runtimes/file-search/node/storage/path-index-store';
+} from '@runtimes/file-search/node/storage/types';
+import type { StoredFileSearchRoot } from '@runtimes/file-search/node/storage/root-catalog-store';
 import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
-import { containsNativePath, portableRelativePathFromNative } from '../allocation/paths';
-import type { FileSearchExclusions } from '../exclusions';
-import { RootWatchAttachError, RootWatchReadyError } from './errors';
+import { throwIfAborted, waitWithSignal } from '../../abort';
+import type { FileSearchExclusions } from '../../exclusions';
+import { containsNativePath, portableRelativePathFromNative } from '../../native-paths';
+import { RootWatchError } from './errors';
 import type { PathScanner } from './scanner';
 
 const WATCH_DEBOUNCE_MS = 50;
@@ -30,14 +31,8 @@ type RootIndexOptions = Readonly<{
   onError?: (context: string, error: unknown) => void;
 }>;
 
-export interface RootIndexStatus {
-  readonly failure: unknown | undefined;
-  /** True only after this runtime has reconciled the persisted generation with the filesystem. */
-  readonly ready: boolean;
-}
-
 /** Keeps one registered root's published path generation current. */
-export class RootIndex implements RootIndexStatus {
+export class RootIndex {
   private readonly scope: Scope;
   private readonly watch: WatchHandle;
   private phase: { kind: 'published' } | { kind: 'building'; patches: PathIndexPatch[] } = {
@@ -62,7 +57,7 @@ export class RootIndex implements RootIndexStatus {
         }
       );
     } catch (error) {
-      throw new RootWatchAttachError(error);
+      throw new RootWatchError('File-search watcher could not be created for the root', error);
     }
     this.scope.add(() => this.watch.release());
   }
@@ -106,12 +101,12 @@ export class RootIndex implements RootIndexStatus {
     let build: PathIndexBuild | undefined;
     try {
       try {
-        await waitWithSignal(this.watch.ready(), signal);
+        await waitWithSignal(this.watch.ready(), signal, 'Root index cancelled');
       } catch (error) {
         if (signal.aborted) throw error;
-        throw new RootWatchReadyError(error);
+        throw new RootWatchError('File-search watcher could not attach to the root', error);
       }
-      throwIfAborted(signal);
+      throwIfAborted(signal, 'Root index cancelled');
       const activeBuild = this.options.store.beginBuild(this.options.root.id);
       build = activeBuild;
       this.phase = { kind: 'building', patches: [] };
@@ -122,8 +117,8 @@ export class RootIndex implements RootIndexStatus {
       // publish below and therefore patch the newly-published generation.
       const barrier = this.patchLane.then(() => undefined);
       this.patchLane = barrier;
-      await waitWithSignal(barrier, signal);
-      throwIfAborted(signal);
+      await waitWithSignal(barrier, signal, 'Root index cancelled');
+      throwIfAborted(signal, 'Root index cancelled');
 
       const finalPatches = this.phase.kind === 'building' ? this.phase.patches : [];
       activeBuild.publish(finalPatches);
@@ -166,7 +161,7 @@ export class RootIndex implements RootIndexStatus {
     if (this.scope.state !== 'open' || events.length === 0) return;
     const previous = this.patchLane;
     const run = this.scope.run('watch-patch', async (signal) => {
-      await waitWithSignal(previous, signal);
+      await waitWithSignal(previous, signal, 'Root index cancelled');
       const paths = this.coalesceEventPaths(events);
       if (paths.some((entry) => entry === ROOT_RELATIVE_PATH)) {
         this.requestReconcile();
@@ -259,35 +254,4 @@ function isSameOrDescendant(
   candidate: PortableRelativePath
 ): boolean {
   return parent === '' || candidate === parent || candidate.startsWith(`${parent}/`);
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (!signal.aborted) return;
-  throw signal.reason instanceof Error ? signal.reason : new Error('Root index cancelled');
-}
-
-function waitWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortReason(signal));
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => {
-      cleanup();
-      reject(abortReason(signal));
-    };
-    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(
-      (value) => {
-        cleanup();
-        resolve(value);
-      },
-      (error: unknown) => {
-        cleanup();
-        reject(error);
-      }
-    );
-  });
-}
-
-function abortReason(signal: AbortSignal): Error {
-  return signal.reason instanceof Error ? signal.reason : new Error('Root index cancelled');
 }
