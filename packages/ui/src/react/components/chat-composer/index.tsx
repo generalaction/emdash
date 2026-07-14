@@ -21,7 +21,6 @@ import type {
   PromptEditorRef,
   RenderMentionIcon,
 } from '../prompt-editor/types';
-import { clipboardHasText, imageFilesFromClipboard } from './attachment-files';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
@@ -93,7 +92,7 @@ export interface ComposerAttachment {
   path?: string;
   kind: 'image' | 'file';
   /**
-   * Image source for the preview `<img>`. A `data:` URL for added images
+   * Image source for the preview `<img>`. A `data:` URL for dropped images
    * (so the bytes can be forwarded to the agent); needs no `revokeObjectURL`.
    */
   previewUrl?: string;
@@ -102,7 +101,7 @@ export interface ComposerAttachment {
 }
 
 /**
- * Read an image file into a `ComposerAttachment` with a `data:` URL
+ * Read a dropped image file into a `ComposerAttachment` with a `data:` URL
  * preview. On read failure the attachment is still created (without
  * `previewUrl`) so the host shows a fallback tile rather than dropping it.
  */
@@ -223,20 +222,14 @@ export interface ChatComposerProps {
 
   /**
    * Host-controlled attachment list. By default the composer creates image
-   * attachments itself from paste or drag-and-drop and forwards them via
-   * `onAttachmentsChange`. Hosts can override image handling with `onImageFilesAdded`.
+   * attachments itself from drag-drop and forwards them via `onAttachmentsChange`.
+   * Hosts can override image handling with `onImageFilesDropped`.
    */
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
   /**
-   * Called for image files added through paste or drag-and-drop. When supplied,
-   * the host owns uploading and adding preview attachments.
-   */
-  onImageFilesAdded?: (files: File[]) => void;
-  /**
-   * Called with dropped image files before the default data-url attachment path.
+   * Called with pasted or dropped image files before the default data-url attachment path.
    * When supplied, the host owns uploading and adding preview attachments.
-   * @deprecated Use `onImageFilesAdded` to handle both paste and drag-and-drop.
    */
   onImageFilesDropped?: (files: File[]) => void;
   /**
@@ -561,7 +554,6 @@ export function ChatComposer({
   contextUsage,
   attachments = [],
   onAttachmentsChange,
-  onImageFilesAdded,
   onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
@@ -621,27 +613,27 @@ export function ChatComposer({
     onSubmit(text);
   };
 
-  // ── Image paste and drag-and-drop ───────────────────────────────────────────
-
-  const addImageFiles = (files: File[], hostHandler?: (files: File[]) => void) => {
-    if (files.length === 0) return;
-    if (hostHandler) {
-      hostHandler(files);
-      return;
-    }
-    if (!onAttachmentsChange) return;
-    const base = attachments;
-    void Promise.all(files.map(readImageAttachment)).then((newAttachments) => {
-      onAttachmentsChange([...base, ...newAttachments]);
-    });
-  };
-
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const imageFiles = imageFilesFromClipboard(e.clipboardData);
-    if (imageFiles.length === 0 || (!onImageFilesAdded && !onAttachmentsChange)) return;
-    if (!clipboardHasText(e.clipboardData)) e.preventDefault();
-    addImageFiles(imageFiles, onImageFilesAdded);
+    if (disabled) return;
+    const imageFiles = Array.from(e.clipboardData.items).flatMap((item) => {
+      if (item.kind !== 'file' || !item.type.startsWith('image/')) return [];
+      const file = item.getAsFile();
+      return file ? [file] : [];
+    });
+    if (imageFiles.length === 0) return;
+
+    if (!e.clipboardData.types.some((type) => type.startsWith('text/'))) e.preventDefault();
+    if (onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (onAttachmentsChange) {
+      const base = attachments;
+      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
+        onAttachmentsChange([...base, ...newAttachments]);
+      });
+    }
   };
+
+  // ── Drag-and-drop ───────────────────────────────────────────────────────────
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -661,7 +653,14 @@ export function ChatComposer({
     if (files.length === 0) return;
 
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    addImageFiles(imageFiles, onImageFilesAdded ?? onImageFilesDropped);
+    if (imageFiles.length > 0 && onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (imageFiles.length > 0 && onAttachmentsChange) {
+      const base = attachments;
+      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
+        onAttachmentsChange([...base, ...newAttachments]);
+      });
+    }
 
     onFilesDropped?.(files);
   };

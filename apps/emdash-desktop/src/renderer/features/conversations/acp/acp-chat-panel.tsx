@@ -41,7 +41,6 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
@@ -52,7 +51,6 @@ import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-is
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
-import { isSupportedAcpImageMimeType, partitionAcpImageFiles } from './acp-image-files';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -111,9 +109,18 @@ function toComposerPermission(
   };
 }
 
+const supportedAttachmentMimeTypes = new Set<AttachmentMimeType>([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
+
 function toAttachmentMimeTypeValue(value: string): AttachmentMimeType | null {
   const mimeType = value.toLowerCase();
-  return isSupportedAcpImageMimeType(mimeType) ? (mimeType as AttachmentMimeType) : null;
+  return supportedAttachmentMimeTypes.has(mimeType as AttachmentMimeType)
+    ? (mimeType as AttachmentMimeType)
+    : null;
 }
 
 function toAttachmentMimeType(file: File): AttachmentMimeType | null {
@@ -358,17 +365,7 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const addImageFiles = useCallback(
     async (files: File[]) => {
-      const { supported, unsupported } = partitionAcpImageFiles(files);
-      if (unsupported.length > 0) {
-        const names = unsupported.map((file) => file.name || 'unnamed image').join(', ');
-        toast({
-          title: unsupported.length === 1 ? `Couldn’t attach ${names}` : 'Couldn’t attach images',
-          description: `Unsupported format: ${names}. ACP chat supports PNG, JPEG, GIF, and WebP.`,
-          variant: 'destructive',
-        });
-      }
-
-      const next = await Promise.all(supported.map((file) => uploadImageFile(store, file)));
+      const next = await Promise.all(files.map((file) => uploadImageFile(store, file)));
       const uploaded = next.filter((att): att is ComposerAttachment => att !== null);
       if (uploaded.length > 0) {
         setAttachments((prev) => [...prev, ...uploaded]);
@@ -604,7 +601,7 @@ const ComposerForStore = observer(function ComposerForStore({
         attachments={attachments}
         onAttachmentsChange={handleAttachmentsChange}
         onAttach={handleAttach}
-        onImageFilesAdded={(files) => void addImageFiles(files)}
+        onImageFilesDropped={(files) => void addImageFiles(files)}
         onFilesDropped={insertFileMentions}
         onViewImage={(att) => onViewerOpen(att.previewUrl, att.name)}
       />
