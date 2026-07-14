@@ -46,17 +46,13 @@ describe('WireWorkerHost and WorkerSlot', () => {
       shutdownGraceMs: 0,
     });
 
-    const firstClient = worker.client;
-    const secondClient = worker.client;
-
-    await expect(firstClient.ping('before-ready')).rejects.toMatchObject({
-      code: 'DISCONNECTED',
-    });
+    expect('client' in worker).toBe(false);
 
     const ready = worker.ready();
     await flush();
     void startChild(spawner.latest());
-    await ready;
+    const firstClient = await ready;
+    const secondClient = await worker.ready();
 
     await expect(firstClient.ping('one')).resolves.toBe('pong:one');
     expect(secondClient).toBe(firstClient);
@@ -84,8 +80,7 @@ describe('WireWorkerHost and WorkerSlot', () => {
     const ready = worker.ready();
     await flush();
     void startChild(spawner.latest());
-    await ready;
-    const firstClient = worker.client;
+    const firstClient = await ready;
     const previousGeneration = worker.state.kind === 'ready' ? worker.state.generation : 0;
     spawner.latest().emitExit({ code: 1 });
     await clock.runAll();
@@ -95,7 +90,7 @@ describe('WireWorkerHost and WorkerSlot', () => {
       () => worker.state.kind === 'ready' && worker.state.generation > previousGeneration
     );
 
-    expect(worker.client).toBe(firstClient);
+    expect(await worker.ready()).toBe(firstClient);
     await expect(firstClient.ping('two')).resolves.toBe('pong:two');
     expect(spawner.processes).toHaveLength(2);
 
@@ -144,7 +139,13 @@ describe('WireWorkerHost and WorkerSlot', () => {
       }
     );
 
-    scope.run('start-demo', () => worker.ready(), { onFailure: 'report' });
+    scope.run(
+      'start-demo',
+      async () => {
+        await worker.ready();
+      },
+      { onFailure: 'report' }
+    );
     await flush();
     void startChild(spawner.latest());
     await flush();
@@ -178,15 +179,16 @@ describe('WireWorkerHost and WorkerSlot', () => {
 
     await worker.stop();
     expect(worker.state.kind).toBe('idle');
-    await expect(worker.client.ping('stopped')).rejects.toMatchObject({
+    const firstClient = await firstReady;
+    await expect(firstClient.ping('stopped')).rejects.toMatchObject({
       code: 'DISCONNECTED',
     });
 
     const secondReady = worker.ready();
     await waitFor(() => spawner.processes.length === 2);
     void startChild(spawner.latest());
-    await secondReady;
-    await expect(worker.client.ping('again')).resolves.toBe('pong:again');
+    const secondClient = await secondReady;
+    await expect(secondClient.ping('again')).resolves.toBe('pong:again');
 
     await host.dispose();
     expect(worker.state.kind).toBe('disposed');
@@ -231,9 +233,9 @@ describe('WireWorkerHost and WorkerSlot', () => {
       port: spawner.latest().childPort,
       exit: () => {},
     });
-    await ready;
+    const client = await ready;
 
-    await expect(worker.client.ping('one')).resolves.toBe('component:dep:one');
+    await expect(client.ping('one')).resolves.toBe('component:dep:one');
 
     await host.dispose();
   });

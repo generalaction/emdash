@@ -59,9 +59,8 @@ export type WireWorkerState =
 export interface WireWorker<Defs extends ContractDefinitions> {
   readonly name: string;
   readonly contract: Contract<Defs>;
-  readonly client: ContractClient<Defs>;
   readonly state: WireWorkerState;
-  ready(): Promise<void>;
+  ready(): Promise<ContractClient<Defs>>;
   stop(): Promise<void>;
   restart(reason?: unknown): Promise<void>;
   onStateChanged(cb: (state: WireWorkerState) => void): Unsubscribe;
@@ -130,7 +129,7 @@ export interface WireWorkerHost {
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
     options: WireComponentWorkerCreateOptions<Requirements, Config>
-  ): Promise<WireWorker<Defs>>;
+  ): Promise<ContractClient<Defs>>;
   dispose(): Promise<void>;
 }
 

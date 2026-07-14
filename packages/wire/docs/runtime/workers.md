@@ -1,7 +1,7 @@
 # Workers
 
 A worker is a named, process-hosted `WireComponent` owned by a `WireWorkerHost`.
-The host creates logical workers and exposes a stable typed client. Internally, each worker has one
+The host creates logical workers and returns a stable typed client from readiness. Internally, each worker has one
 slot that owns readiness, supervision, reconnects, graceful shutdown, and process generations.
 Low-level spawners create exactly one process generation.
 
@@ -55,19 +55,18 @@ const worker = host.create(counterComponent, {
   config: {},
 });
 
-await worker.ready();
-const client = worker.client;
+const client = await worker.ready();
 await client.increment(undefined);
 await host.dispose();
 ```
 
-`worker.client` is available immediately and keeps the same identity across
-process restarts. `worker.ready()` starts the process and waits for the child
-ready signal. Calls fail fast while the worker is unavailable; Wire does not
-buffer requests during downtime.
+`worker.ready()` starts the process, waits for the child ready signal, and returns the stable
+typed client. The pending worker intentionally exposes no public client. Calls through a previously
+returned client fail fast while the worker is unavailable; Wire does not buffer requests during
+downtime.
 
-Startup and exposure are explicit composition-site decisions. For eager startup, run
-`worker.ready()` under an owning scope or call `host.spawn(component, options)`. For Electron
+Startup and exposure are explicit composition-site decisions. For eager startup, await
+`worker.ready()` under an owning scope or call `host.spawn(component, options)` to get the client. For Electron
 windows, compose a forwarding controller and use `exposeWireToWindows()` with a `beforeOpen` hook
 that awaits `worker.ready()`.
 

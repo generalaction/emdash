@@ -40,7 +40,7 @@ describe('processWatchBackend', () => {
     const readyStates: string[] = [];
     const handle = service.watch('/tmp/project', () => {});
     const ready = handle.ready().then(() => readyStates.push('ready'));
-    await flush();
+    await waitFor(() => spawner.processes.length === 1);
     await startChild(spawner.latest(), childService);
     await flush();
 
@@ -71,11 +71,12 @@ describe('processWatchBackend', () => {
     const handle = service.watch('/tmp/project', () => {}, {
       onResync: () => resyncs.push('resync'),
     });
-    await flush();
+    const ready = handle.ready();
+    await waitFor(() => spawner.processes.length === 1);
     await startChild(spawner.latest(), childService);
     await waitFor(() => childService.watches.length === 1);
     childService.latest().readyDeferred.resolve();
-    await handle.ready();
+    await ready;
 
     spawner.latest().emitExit({ code: 1 });
     await waitFor(() => spawner.processes.length === 2);
@@ -115,8 +116,7 @@ function createProcessWatchService({
   });
   return createWatchService({
     backend: processWatchBackend({
-      client: worker.client,
-      ready: () => worker.ready(),
+      client: () => worker.ready(),
     }),
     scope,
     graceMs: 2_500,

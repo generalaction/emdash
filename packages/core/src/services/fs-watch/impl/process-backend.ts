@@ -5,7 +5,9 @@ import type { fsWatchContract, FsWatchStreamEvent } from '@services/fs-watch/api
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 
 export type ProcessWatchBackendOptions = {
-  client: ContractClient<typeof fsWatchContract>;
+  client:
+    | ContractClient<typeof fsWatchContract>
+    | (() => Promise<ContractClient<typeof fsWatchContract>>);
   ready?: () => Promise<void>;
   onError?: WatchOnError;
 };
@@ -16,6 +18,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
   return {
     async subscribe(key, sink, scope) {
       await options.ready?.();
+      const client = await getClient(options.client);
       const ready = createDeferred<void>();
       void ready.promise.catch(() => {});
       let awaitingInitialReady = true;
@@ -27,7 +30,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
         );
       };
       scope.signal.addEventListener('abort', abortReady, { once: true });
-      const detach = await options.client.events.handle(key).attach(
+      const detach = await client.events.handle(key).attach(
         (update) => {
           const event = eventFromUpdate<FsWatchStreamEvent>(update);
           switch (event.kind) {
@@ -79,6 +82,13 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
       }
     },
   };
+}
+
+async function getClient(
+  client: ProcessWatchBackendOptions['client']
+): Promise<ContractClient<typeof fsWatchContract>> {
+  if (typeof client === 'function') return await client();
+  return client;
 }
 
 function keyId(key: WatchKey): string {

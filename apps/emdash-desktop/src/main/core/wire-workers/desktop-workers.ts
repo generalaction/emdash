@@ -22,13 +22,14 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import {
   type Contract,
   type ContractDefinitions,
+  type Controller,
   exposeWireToWindows,
   forwardController,
   validation,
   type ContractClient,
 } from '@emdash/wire/api';
 import { compose } from '@emdash/wire/util';
-import { createWireWorkerHost } from '@emdash/wire/worker';
+import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
@@ -111,7 +112,7 @@ export const acpWorker = host.create(acpComponent, {
   },
 });
 
-export const acpClient: AcpRuntimeClient = withSessionIdPersistence(acpWorker.client);
+let acpClientPromise: Promise<AcpRuntimeClient> | undefined;
 
 export const agentConfigWorker = host.create(agentConfigComponent, {
   name: 'agent-config',
@@ -123,52 +124,80 @@ export const agentConfigWorker = host.create(agentConfigComponent, {
   config: {},
 });
 
-export const agentConfigClient: AgentConfigRuntimeClient = agentConfigWorker.client;
+let agentConfigClientPromise: Promise<AgentConfigRuntimeClient> | undefined;
 
-export const filesWorker = host.create(filesComponent, {
-  name: 'files',
-  executable: desktopWorkerPath('files'),
-  env: process.env,
-  dependencies: {
-    watcher: fsWatchWorker.client,
-  },
-  config: {},
-});
+let filesWorker: WireWorker<FilesContract> | undefined;
+let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 
-export const filesClient: FilesRuntimeClient = filesWorker.client;
-
-export const gitWorker = host.create(gitComponent, {
-  name: 'git',
-  executable: desktopWorkerPath('git'),
-  env: GIT_RUNTIME_ENV,
-  dependencies: {
-    watcher: fsWatchWorker.client,
-    hostDependencies: hostDependencies.client.resolver,
-  },
-  config: {
-    executable: getGitExecutable(),
-    env: GIT_RUNTIME_ENV,
-  },
-});
-
-export const gitClient: GitRuntimeClient = gitWorker.client;
+let gitWorker: WireWorker<GitContract> | undefined;
+let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 
 if (typeof ipcMain?.handle === 'function') {
   installRendererWire();
 }
 
 export async function ensureFilesWorkerReady(): Promise<void> {
-  await fsWatchWorker.ready();
-  await filesWorker.ready();
+  await getFilesRuntimeClient();
 }
 
 export async function ensureGitWorkerReady(): Promise<void> {
-  await fsWatchWorker.ready();
-  await gitWorker.ready();
+  await getGitRuntimeClient();
+}
+
+export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
+  acpClientPromise ??= acpWorker.ready().then(withSessionIdPersistence);
+  return acpClientPromise;
+}
+
+export function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeClient> {
+  agentConfigClientPromise ??= agentConfigWorker.ready();
+  return agentConfigClientPromise;
+}
+
+export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
+  filesClientPromise ??= createFilesRuntimeClient();
+  return filesClientPromise;
+}
+
+export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
+  gitClientPromise ??= createGitRuntimeClient();
+  return gitClientPromise;
 }
 
 export function disposeDesktopWireWorkers(): Promise<void> {
   return host.dispose();
+}
+
+async function createFilesRuntimeClient(): Promise<FilesRuntimeClient> {
+  const watcher = await fsWatchWorker.ready();
+  filesWorker ??= host.create(filesComponent, {
+    name: 'files',
+    executable: desktopWorkerPath('files'),
+    env: process.env,
+    dependencies: {
+      watcher,
+    },
+    config: {},
+  });
+  return await filesWorker.ready();
+}
+
+async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
+  const watcher = await fsWatchWorker.ready();
+  gitWorker ??= host.create(gitComponent, {
+    name: 'git',
+    executable: desktopWorkerPath('git'),
+    env: GIT_RUNTIME_ENV,
+    dependencies: {
+      watcher,
+      hostDependencies: hostDependencies.client.resolver,
+    },
+    config: {
+      executable: getGitExecutable(),
+      env: GIT_RUNTIME_ENV,
+    },
+  });
+  return await gitWorker.ready();
 }
 
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
@@ -209,47 +238,68 @@ function installRendererWire(): void {
   exposeRuntimeToRenderer({
     channel: ACP_WIRE_CHANNEL,
     contract: acpApiContract,
-    client: acpClient,
-    beforeOpen: () => acpWorker.ready(),
+    getClient: getAcpRuntimeClient,
   });
   exposeRuntimeToRenderer({
     channel: AGENT_CONFIG_WIRE_CHANNEL,
     contract: agentConfigContract,
-    client: agentConfigClient,
-    beforeOpen: () => agentConfigWorker.ready(),
+    getClient: getAgentConfigRuntimeClient,
   });
   exposeRuntimeToRenderer({
     channel: FILES_WIRE_CHANNEL,
     contract: filesContract,
-    client: filesClient,
-    beforeOpen: ensureFilesWorkerReady,
+    getClient: getFilesRuntimeClient,
   });
   exposeRuntimeToRenderer({
     channel: GIT_WIRE_CHANNEL,
     contract: gitContract,
-    client: gitClient,
-    beforeOpen: ensureGitWorkerReady,
+    getClient: getGitRuntimeClient,
   });
 }
 
 function exposeRuntimeToRenderer<Defs extends ContractDefinitions>({
   channel,
   contract,
-  client,
-  beforeOpen,
+  getClient,
 }: {
   channel: string;
   contract: Contract<Defs>;
-  client: ContractClient<Defs>;
-  beforeOpen(): Promise<void>;
+  getClient(): Promise<ContractClient<Defs>>;
 }): void {
+  const controller = lazyForwardController(contract, getClient);
   workerScope.add(
     exposeWireToWindows(
       { ipcMain, createMessageChannel },
-      compose(forwardController(contract, client), [
-        validation(contract, runtimeWireValidationPolicy()),
-      ]),
-      { channel, beforeOpen }
+      compose(controller, [validation(contract, runtimeWireValidationPolicy())]),
+      { channel, beforeOpen: () => controller.ready() }
     )
   );
+}
+
+function lazyForwardController<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  getClient: () => Promise<ContractClient<Defs>>
+): Controller & { ready(): Promise<void> } {
+  let controller: Controller | undefined;
+  async function ready(): Promise<void> {
+    controller ??= forwardController(contract, await getClient());
+  }
+  return {
+    ready,
+    async call(path, input, meta) {
+      await ready();
+      return await controller!.call(path, input, meta);
+    },
+    resolveLive(topic) {
+      if (!controller) throw new Error('Wire runtime is not ready');
+      return controller.resolveLive(topic);
+    },
+    acquireLive(topic) {
+      if (!controller) throw new Error('Wire runtime is not ready');
+      return controller.acquireLive(topic);
+    },
+    async dispose() {
+      await controller?.dispose?.();
+    },
+  } satisfies ReturnType<typeof forwardController<Defs>> & { ready(): Promise<void> };
 }

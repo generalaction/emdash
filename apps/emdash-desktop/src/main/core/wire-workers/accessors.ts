@@ -1,12 +1,8 @@
 import {
-  acpClient,
-  acpWorker,
-  agentConfigClient,
-  agentConfigWorker,
-  ensureFilesWorkerReady,
-  ensureGitWorkerReady,
-  filesClient,
-  gitClient,
+  getAcpRuntimeClient as getReadyAcpRuntimeClient,
+  getAgentConfigRuntimeClient as getReadyAgentConfigRuntimeClient,
+  getFilesRuntimeClient as getReadyFilesRuntimeClient,
+  getGitRuntimeClient as getReadyGitRuntimeClient,
   type AcpRuntimeClient,
   type AgentConfigRuntimeClient,
   type FilesRuntimeClient,
@@ -21,21 +17,17 @@ export type {
 } from './desktop-workers';
 
 export async function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  await acpWorker.ready();
-  return acpClient;
+  return await getReadyAcpRuntimeClient();
 }
 
 export async function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeClient> {
-  await agentConfigWorker.ready();
-  return agentConfigClient;
+  return await getReadyAgentConfigRuntimeClient();
 }
 
 export async function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
-  await ensureFilesWorkerReady();
-  return filesClient;
+  return await getReadyFilesRuntimeClient();
 }
 
 export async function getGitRuntimeClient(): Promise<GitRuntimeClient> {
-  await ensureGitWorkerReady();
-  return gitClient;
+  return await getReadyGitRuntimeClient();
 }

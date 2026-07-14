@@ -24,8 +24,7 @@ async function main(): Promise<void> {
       schedule: retrySchedules.sequence([50]),
     },
   });
-  await worker.ready();
-  const api = worker.client;
+  const api = await worker.ready();
 
   const counter = new ReplicaState(api.counter.state(undefined, 'counter'), {
     onChange: (value) => {

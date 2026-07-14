@@ -177,8 +177,9 @@ Selection guidance:
   `stop()`, `register()`, `state()`, and state-change observation.
 - Use `ResourceCache` when demand is lease-driven and the resource should exist
   only while consumers hold leases or while an idle TTL retains it.
-- Use `WireWorkerHost.create(component, ...)` when the resource is a Wire worker process with a
-  stable typed client, readiness, supervision, restart backoff, and child process generations.
+- Use `WireWorkerHost.create(component, ...)` when the resource is a Wire worker process with
+  readiness, a stable typed client returned by `ready()`, supervision, restart backoff, and child
+  process generations.
 - Use `LiveJob` when callers need a Wire-visible cancellable job with progress,
   terminal state, retention, and remote client handles.
 

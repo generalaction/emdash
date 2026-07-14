@@ -63,8 +63,8 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
   private generation = 0;
   private current: CurrentGeneration | undefined;
   private supervisor: Run<void> | undefined;
-  private startPromise: Promise<void> | undefined;
-  private readonly readyWaiters = new Set<Deferred<void>>();
+  private startPromise: Promise<ContractClient<Defs>> | undefined;
+  private readonly readyWaiters = new Set<Deferred<ContractClient<Defs>>>();
   private transitionTail: Promise<void> = Promise.resolve();
   private disposed = false;
 
@@ -91,17 +91,13 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
     return this.stateValue;
   }
 
-  get client(): ContractClient<Defs> {
-    return this.stableClient;
-  }
-
-  ready(): Promise<void> {
-    if (this.stateValue.kind === 'ready') return Promise.resolve();
+  ready(): Promise<ContractClient<Defs>> {
+    if (this.stateValue.kind === 'ready') return Promise.resolve(this.stableClient);
     if (this.disposed || this.options.scope.disposed) {
       return Promise.reject(new Error(`Wire worker '${this.name}' is disposed`));
     }
     if (!this.startPromise) {
-      const waiter = createDeferred<void>();
+      const waiter = createDeferred<ContractClient<Defs>>();
       this.readyWaiters.add(waiter);
       this.startPromise = waiter.promise.finally(() => {
         this.readyWaiters.delete(waiter);
@@ -358,7 +354,7 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
 
   private resolveReadyWaiters(): void {
     for (const waiter of [...this.readyWaiters]) {
-      waiter.resolve(undefined);
+      waiter.resolve(this.stableClient);
     }
     this.readyWaiters.clear();
   }

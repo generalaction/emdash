@@ -1,4 +1,5 @@
 import { systemClock } from '@emdash/shared/scheduling';
+import type { ContractClient } from '../api/client';
 import type { ContractDefinitions } from '../api/define';
 import type { WireComponentDefinition, WireComponentRequirements } from '../component';
 import { setupComponentWorkerGeneration } from './component-bridge';
@@ -94,10 +95,9 @@ class WireWorkerHostImpl implements WireWorkerHost {
   >(
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
     options: WireComponentWorkerCreateOptions<Requirements, Config>
-  ): Promise<WireWorker<Defs>> {
+  ): Promise<ContractClient<Defs>> {
     const worker = this.create(component, options);
-    await worker.ready();
-    return worker;
+    return await worker.ready();
   }
 
   dispose(): Promise<void> {

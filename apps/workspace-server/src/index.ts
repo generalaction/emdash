@@ -79,10 +79,9 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
       socketPath: config.serve.path,
       hostDependencies: hostDependencies.client.resolver,
     });
-    let acpClient: typeof acpWorker.client | undefined;
+    let acpClient: Awaited<ReturnType<typeof acpWorker.ready>> | undefined;
     try {
-      await acpWorker.ready();
-      acpClient = acpWorker.client;
+      acpClient = await acpWorker.ready();
     } catch (error) {
       process.stderr.write(
         `workspace-server ACP runtime failed to start: ${

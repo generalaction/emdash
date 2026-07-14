@@ -4,7 +4,7 @@ import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
-import { acpClient, acpWorker } from '@main/core/wire-workers/desktop-workers';
+import { acpWorker, getAcpRuntimeClient } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
 import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
 
@@ -35,7 +35,7 @@ class AcpAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-      await acpWorker.ready();
+      const acpClient = await getAcpRuntimeClient();
       this.workerStateUnsubscribe = acpWorker.onStateChanged((state) => {
         if (state.kind !== 'failed' && state.kind !== 'disposed') return;
         void this.resetAll().catch((error) => {

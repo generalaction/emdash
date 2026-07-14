@@ -128,8 +128,9 @@ instance or the parent scope releases the component resources.
 
 ## Worker Deployment
 
-`WireWorkerHost.create(component, options)` returns a lazy supervised worker with a stable typed
-client. `spawn(component, options)` eagerly starts it and waits for readiness.
+`WireWorkerHost.create(component, options)` returns a lazy supervised worker. `worker.ready()`
+starts it and returns the stable typed client. `spawn(component, options)` eagerly starts the
+worker and returns that client.
 
 Worker component IPC uses internal framed logical channels:
 
@@ -172,8 +173,8 @@ const counterWorker = host.create(counterComponent, {
   },
 });
 
-await counterWorker.ready();
-await counterWorker.client.increment(undefined);
+const counterClient = await counterWorker.ready();
+await counterClient.increment(undefined);
 ```
 
 Worker entry:
@@ -185,8 +186,8 @@ import { component as counterComponent } from './component';
 void runWireComponentWorker(counterComponent);
 ```
 
-`worker.client` is stable across process generations. Calls fail while the worker is unavailable;
-the client does not buffer calls during restarts.
+The client returned by `ready()` is stable across process generations. Calls fail while the worker is
+unavailable; the client does not buffer calls during restarts.
 
 ## Testing Components
 
