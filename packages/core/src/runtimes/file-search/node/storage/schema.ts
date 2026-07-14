@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import type {} from '../../../../types/node-sqlite';
 
 export const FILE_SEARCH_SCHEMA_VERSION = 2;
 

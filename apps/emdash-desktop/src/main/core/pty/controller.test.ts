@@ -74,7 +74,7 @@ describe('ptyController', () => {
     vi.clearAllMocks();
   });
 
-  it('emits input-submitted for remote agent PTYs on enter', () => {
+  it('writes input without emitting conversation input events', () => {
     const write = vi.fn();
     const sessionId = 'proj-1:task-1:conv-1';
     ptySessionRegistry.register(sessionId, makePty(write), {
@@ -85,12 +85,7 @@ describe('ptyController', () => {
 
     expect(result.success).toBe(true);
     expect(write).toHaveBeenCalledWith('hello\r');
-    expect(emitSpy).toHaveBeenCalledWith('conversation:input-submitted', {
-      projectId: 'proj-1',
-      taskId: 'task-1',
-      conversationId: 'conv-1',
-      providerId: 'amp',
-    });
+    expect(emitSpy).not.toHaveBeenCalled();
 
     ptySessionRegistry.unregister(sessionId);
   });

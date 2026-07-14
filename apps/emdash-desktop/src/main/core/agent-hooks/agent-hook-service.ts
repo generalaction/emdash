@@ -4,6 +4,7 @@ import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
+import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -144,6 +145,7 @@ class AgentHookService implements Disposable, Hookable<AgentHookServiceHooks> {
       if (parsed.kind === 'ignore') return;
 
       if (parsed.kind === 'session') {
+        void forwardTuiHookEvent(parsed.ctx.conversationId, raw);
         await handleSessionEvent(parsed.ctx, parsed.providerSessionId).catch((error) => {
           log.warn('AgentHookService: failed to persist session id', {
             ptyId: raw.ptyId,
@@ -154,6 +156,7 @@ class AgentHookService implements Disposable, Hookable<AgentHookServiceHooks> {
       }
 
       const event = parsed.event;
+      void forwardTuiHookEvent(event.conversationId, raw);
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
       this.emitAgentEvent(event, appFocused);
@@ -272,3 +275,40 @@ class AgentHookService implements Disposable, Hookable<AgentHookServiceHooks> {
 }
 
 export const agentHookService = new AgentHookService();
+
+async function forwardTuiHookEvent(
+  conversationId: string,
+  raw: {
+    type: string;
+    body: string;
+  }
+): Promise<void> {
+  try {
+    const client = await getTuiAgentsRuntimeClient();
+    const result = await client.emitHookEvent({
+      conversationId,
+      eventType: raw.type,
+      body: parseHookBody(raw.body),
+    });
+    if (!result.success) {
+      log.warn('AgentHookService: tui hook forwarding failed', {
+        conversationId,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    log.warn('AgentHookService: tui hook forwarding threw', {
+      conversationId,
+      error: String(error),
+    });
+  }
+}
+
+function parseHookBody(body: string): Record<string, unknown> {
+  if (!body) return {};
+  try {
+    const value: unknown = JSON.parse(body);
+    if (typeof value === 'object' && value !== null) return value as Record<string, unknown>;
+  } catch {}
+  return {};
+}

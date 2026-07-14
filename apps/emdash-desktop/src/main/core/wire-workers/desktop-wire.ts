@@ -2,6 +2,7 @@ import { acpApiContract } from '@emdash/core/runtimes/acp/api';
 import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
+import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import {
   createController,
   exposeWireToWindows,
@@ -18,6 +19,7 @@ import {
   getAgentConfigRuntimeClient,
   getFilesRuntimeClient,
   getGitRuntimeClient,
+  getTuiAgentsRuntimeClient,
 } from '@main/core/wire-workers/desktop-workers';
 import {
   createWorkspacesWireController,
@@ -70,17 +72,19 @@ function createLazyDesktopController({
 
   async function ready(): Promise<void> {
     if (controllers) return;
-    const [acp, agentConfig, files, git] = await Promise.all([
+    const [acp, agentConfig, files, git, tuiAgents] = await Promise.all([
       getAcpRuntimeClient(),
       getAgentConfigRuntimeClient(),
       getFilesRuntimeClient(),
       getGitRuntimeClient(),
+      getTuiAgentsRuntimeClient(),
     ]);
     controllers = {
       git: forwardController(gitContract, git),
       files: forwardController(filesContract, files),
       acp: forwardController(acpApiContract, acp),
       agentConfig: forwardController(agentConfigContract, agentConfig),
+      tuiAgents: forwardController(tuiAgentsContract, tuiAgents),
       workspaces: createController(workspacesWireContract, workspacesController.impl),
       projects: createController(projectsWireContract, projectsController.impl),
     };

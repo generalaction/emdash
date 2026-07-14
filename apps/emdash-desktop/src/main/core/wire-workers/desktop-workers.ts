@@ -9,6 +9,8 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent } from '@emdash/core/runtimes/git/node';
+import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -21,13 +23,18 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
+import { eq } from 'drizzle-orm';
 import { app } from 'electron';
 import { appScope } from '@main/app/app-scope';
+import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { getGitExecutable } from '@main/core/utils/exec';
+import { db } from '@main/db/client';
 import { desktopKeyValueStore } from '@main/db/kv';
+import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
 
@@ -37,6 +44,7 @@ export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 
 const workerScope = appScope.child('wire-workers');
 const host = createWireWorkerHost({
@@ -47,6 +55,7 @@ const host = createWireWorkerHost({
 
 const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
 const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
+const tuiAgentsComponent = createTuiAgentsComponent({ pluginRegistry, logger: log });
 const hostDependenciesComponent = createHostDependenciesComponent({
   store: desktopKeyValueStore,
   exec: new NodeExecutionContext({ env: process.env }),
@@ -116,6 +125,9 @@ let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 let gitWorker: WireWorker<GitContract> | undefined;
 let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 
+let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
+let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
+
 export async function ensureFilesWorkerReady(): Promise<void> {
   await getFilesRuntimeClient();
 }
@@ -151,6 +163,11 @@ export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
 export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
   gitClientPromise ??= createGitRuntimeClient();
   return gitClientPromise;
+}
+
+export function getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
+  tuiAgentsClientPromise ??= createTuiAgentsRuntimeClient();
+  return tuiAgentsClientPromise;
 }
 
 export function disposeDesktopWireWorkers(): Promise<void> {
@@ -205,6 +222,27 @@ async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
   return await gitWorker.ready();
 }
 
+async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
+  tuiAgentsWorker ??= host.create(tuiAgentsComponent, {
+    name: 'tui-agents',
+    executable: desktopWorkerPath('tui-agents'),
+    env: process.env,
+    dependencies: {
+      hostDependencies: hostDependencies.client.resolver,
+    },
+    config: {
+      hook:
+        agentHookService.getPort() > 0
+          ? {
+              port: agentHookService.getPort(),
+              token: agentHookService.getToken(),
+            }
+          : undefined,
+    },
+  });
+  return withTuiConversationInputEvents(await tuiAgentsWorker.ready());
+}
+
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
   return {
     ...client,
@@ -233,4 +271,36 @@ async function persistReturnedSessionId(conversationId: string, sessionId: strin
       error: result.error,
     });
   }
+}
+
+function withTuiConversationInputEvents(client: TuiAgentsRuntimeClient): TuiAgentsRuntimeClient {
+  return {
+    ...client,
+    sendInput: async (input, meta) => {
+      const result = await client.sendInput(input, meta);
+      if (result.success && input.data.includes('\r')) {
+        await emitTuiInputSubmitted(input.conversationId);
+      }
+      return result;
+    },
+  };
+}
+
+async function emitTuiInputSubmitted(conversationId: string): Promise<void> {
+  const [row] = await db
+    .select({
+      projectId: conversations.projectId,
+      taskId: conversations.taskId,
+      providerId: conversations.provider,
+    })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
+  if (!row) return;
+  if (!row.providerId) return;
+  conversationEvents._emit('conversation:input-submitted', {
+    projectId: row.projectId,
+    taskId: row.taskId,
+    conversationId,
+    providerId: row.providerId,
+  });
 }

@@ -246,9 +246,9 @@ export function usePty(
           }
         }
       }
-      void rpc.pty.sendInput(sessionId, data);
+      pty.sendInput(data);
     },
-    [sessionId]
+    [pty]
   );
 
   const pasteFromClipboard = useCallback(() => {

@@ -1,9 +1,15 @@
+import { tuiAgentsContract, type TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import type { Disposable } from '@emdash/shared/concurrency';
+import { createLiveModelReplica, ReplicaLog } from '@emdash/wire';
+import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 // TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
+import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
+import { getTuiAgentsRuntimeClient } from '@renderer/lib/runtime/tui-agents-client';
 import { Resource } from '@renderer/lib/stores/resource';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
 import {
@@ -25,6 +31,7 @@ import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offTuiSessionState: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
@@ -94,6 +101,7 @@ export class ConversationManagerStore implements Disposable {
 
     this.offAgentStatusChanged = this.listenToAgentStatusChanged();
     this.offSessionExited = this.listenToSessionExited();
+    this.offTuiSessionState = this.listenToTuiSessionState();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
   }
@@ -133,6 +141,42 @@ export class ConversationManagerStore implements Disposable {
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
+    });
+  }
+
+  private listenToTuiSessionState(): () => void {
+    if (typeof window === 'undefined') return () => {};
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void (async () => {
+      const client = await getTuiAgentsRuntimeClient();
+      if (disposed) return;
+      const replica = createLiveModelReplica(tuiAgentsContract.sessions, client.sessions, {
+        onChange: {
+          list: (list: TuiSessionList) => this.handleTuiSessionListChanged(list),
+        },
+      });
+      const lease = replica.acquire(undefined);
+      cleanup = () => {
+        void lease.release();
+        void replica.dispose();
+      };
+      await lease.ready();
+      if (disposed) cleanup();
+    })();
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }
+
+  private handleTuiSessionListChanged(list: TuiSessionList): void {
+    runInAction(() => {
+      for (const session of Object.values(list)) {
+        if (session.status !== 'exited') continue;
+        const conversationStore = this.conversations.get(session.conversationId);
+        conversationStore?.clearWorking();
+      }
     });
   }
 
@@ -238,6 +282,8 @@ export class ConversationManagerStore implements Disposable {
     this.offAgentStatusChanged = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
+    this.offTuiSessionState?.();
+    this.offTuiSessionState = null;
     this.offConversationCreated?.();
     this.offConversationCreated = null;
     this.offConversationChanges?.();
@@ -249,14 +295,45 @@ export class ConversationManagerStore implements Disposable {
 
   private createSession(conversation: Conversation): PtySession {
     const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+    const connector =
+      conversation.type === 'acp' ? undefined : createTuiAgentsConnector(conversation.id);
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      { clearOnBackendStart: true }
+      { clearOnBackendStart: false },
+      connector
     );
   }
+}
+
+function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector {
+  let logBinding: ReplicaLog | null = null;
+  let clientPromise: ReturnType<typeof getTuiAgentsRuntimeClient> | null = null;
+  const client = () => {
+    clientPromise ??= getTuiAgentsRuntimeClient();
+    return clientPromise;
+  };
+  return {
+    async connect(terminal: Terminal) {
+      const runtime = await client();
+      logBinding = new ReplicaLog(runtime.output.handle({ conversationId }), {
+        store: createXtermLogSink(terminal),
+      });
+      await logBinding.ready;
+      return () => {
+        void logBinding?.dispose();
+        logBinding = null;
+      };
+    },
+    sendInput(data: string) {
+      void client().then((runtime) => runtime.sendInput({ conversationId, data }));
+    },
+    resize(cols: number, rows: number) {
+      void client().then((runtime) => runtime.resize({ conversationId, cols, rows }));
+    },
+  };
 }
 
 export class ConversationStore {

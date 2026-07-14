@@ -21,4 +21,11 @@ export { PtyRegistry } from './pty-registry';
 export type { PtyRegistryOptions } from './pty-registry';
 export { PtySession } from './pty-session';
 export type { PtySessionOptions } from './pty-session';
+export {
+  buildTmuxShellLine,
+  decodeTmuxSessionName,
+  killTmuxSession,
+  makeTmuxSessionName,
+  TMUX_SESSION_PREFIX,
+} from './tmux';
 export type { PtyDimensions, PtyExitInfo, PtyProcess, PtySpawner, PtySpawnSpec } from './types';

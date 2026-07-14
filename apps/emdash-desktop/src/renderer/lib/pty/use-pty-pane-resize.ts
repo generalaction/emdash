@@ -18,7 +18,6 @@ import type { IObservableValue } from 'mobx';
 import { observable, reaction, runInAction } from 'mobx';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
-import { rpc } from '@renderer/lib/ipc';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import {
   getFrontendPty,
@@ -96,8 +95,9 @@ export function usePtyPaneResize(
   if (schedulerRef.current === null) {
     schedulerRef.current = createResizeScheduler((dims) => {
       for (const id of sessionsRef.current) {
-        void rpc.pty.resize(id, dims.cols, dims.rows);
-        const term = getFrontendPty(id)?.terminal;
+        const frontendPty = getFrontendPty(id);
+        frontendPty?.resizeBackend(dims.cols, dims.rows);
+        const term = frontendPty?.terminal;
         if (term && (term.cols !== dims.cols || term.rows !== dims.rows)) {
           term.resize(dims.cols, dims.rows);
         }
@@ -207,8 +207,9 @@ export function usePtyPaneResize(
     const dims = controllerDimsBoxRef.current!.get();
     if (dims && added.length > 0 && hasCalibratedRef.current) {
       for (const id of added) {
-        void rpc.pty.resize(id, dims.cols, dims.rows);
-        const term = getFrontendPty(id)?.terminal;
+        const frontendPty = getFrontendPty(id);
+        frontendPty?.resizeBackend(dims.cols, dims.rows);
+        const term = frontendPty?.terminal;
         if (term && (term.cols !== dims.cols || term.rows !== dims.rows)) {
           term.resize(dims.cols, dims.rows);
         }

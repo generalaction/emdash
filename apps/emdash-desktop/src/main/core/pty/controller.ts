@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { and, eq } from 'drizzle-orm';
 import {
   fileMutationKey,
   fileRelativePath,
@@ -10,6 +10,8 @@ import {
   parentFilePaths,
   singleFileChunk,
 } from '@main/core/files/runtime-client';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { nativePathFromHost, portablePath, resolveRelativePath } from '@shared/core/runtime/paths';
@@ -34,20 +36,6 @@ export const ptyController = createRPCController({
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) return err({ type: 'not_found' as const });
     pty.write(data);
-    if (data.includes('\r')) {
-      const meta = ptySessionRegistry.getMetadata(sessionId);
-      if (meta?.providerId) {
-        const parsed = parsePtySessionId(sessionId);
-        if (parsed) {
-          conversationEvents._emit('conversation:input-submitted', {
-            projectId: parsed.projectId,
-            taskId: parsed.scopeId,
-            conversationId: parsed.leafId,
-            providerId: meta.providerId,
-          });
-        }
-      }
-    }
     return ok();
   },
 
@@ -111,7 +99,9 @@ export const ptyController = createRPCController({
     // registry metadata; plain terminals do not — that distinguishes the two.
     const task = taskSessionManager.getTask(scopeId);
     if (task) {
-      const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
+      const isConversation =
+        ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined ||
+        (await hasConversation(scopeId, leafId));
       try {
         if (isConversation) {
           await task.conversations.stopSession(leafId);
@@ -249,3 +239,18 @@ export const ptyController = createRPCController({
     }
   },
 });
+
+async function hasConversation(taskId: string, conversationId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.taskId, taskId),
+        eq(conversations.type, 'pty')
+      )
+    )
+    .limit(1);
+  return row !== undefined;
+}

@@ -20,14 +20,24 @@ import {
   type TuiSessionsLiveHost,
   type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
-import type { ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
-import { PtyRegistry, type PtyExitInfo, type PtySession } from '@services/pty/api';
+import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
+import { quoteShellArg } from '@services/agent-plugins/api/plugins/helpers/standard-command';
+import {
+  buildTmuxShellLine,
+  killTmuxSession,
+  PtyRegistry,
+  type PtyExitInfo,
+  type PtySession,
+  type PtySpawnSpec,
+} from '@services/pty/api';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { TuiAgentNotifications } from './notifications';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 
 const SESSION_GRACE_MS = 3_000;
 const RESUME_FALLBACK_WINDOW_MS = 3_000;
+const RESPAWN_DELAY_MS = 500;
+const MAX_UNEXPECTED_RESPAWNS = 1;
 
 type TuiAgentSession = {
   conversationId: string;
@@ -47,6 +57,7 @@ export class TuiAgentsRuntime {
   private readonly sessionsList: TuiSessionsListModel;
   private readonly notificationsList: TuiNotificationsListModel;
   private readonly notifications: TuiAgentNotifications;
+  private readonly unexpectedRespawns = new Map<string, number>();
 
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
     this.registry = new PtyRegistry(deps.spawner);
@@ -84,6 +95,7 @@ export class TuiAgentsRuntime {
 
     const config: TuiSessionConfig = { input, intent: 'fresh' };
     this.configs.set(input.conversationId, config);
+    this.unexpectedRespawns.delete(input.conversationId);
     void this.ensureActiveSessionUsesConfig(input.conversationId, config);
     return ok(undefined);
   }
@@ -102,6 +114,7 @@ export class TuiAgentsRuntime {
     const intent = input.sessionId ? 'resume' : 'fresh';
     const config: TuiSessionConfig = { input, intent };
     this.configs.set(input.conversationId, config);
+    this.unexpectedRespawns.delete(input.conversationId);
     this.setResumeState(input.conversationId, {
       requested: true,
       outcome: input.sessionId ? 'pending' : 'fresh-fallback',
@@ -114,6 +127,8 @@ export class TuiAgentsRuntime {
   stopSession(conversationId: string): Result<void, TuiSessionControlError> {
     const config = this.configs.get(conversationId);
     if (config) this.configs.set(conversationId, { ...config, intent: 'stopped' });
+    this.unexpectedRespawns.delete(conversationId);
+    void this.killTmuxForConfig(config);
     this.registry.dispose(conversationId);
     const active = this.sessionsSource.peek({ conversationId });
     if (active) active.pty = null;
@@ -123,6 +138,9 @@ export class TuiAgentsRuntime {
   }
 
   deleteSession(conversationId: string): Result<void, TuiSessionControlError> {
+    const config = this.configs.get(conversationId);
+    this.unexpectedRespawns.delete(conversationId);
+    void this.killTmuxForConfig(config);
     this.registry.dispose(conversationId);
     this.configs.delete(conversationId);
     this.logs.delete(conversationId);
@@ -259,11 +277,12 @@ export class TuiAgentsRuntime {
       startedAt,
     });
 
+    const spawnSpec = this.spawnSpec(command, config.input);
     const pty = await this.registry.create(
       config.input.conversationId,
       {
-        command: command.command,
-        args: command.args,
+        command: spawnSpec.command,
+        args: spawnSpec.args,
         cwd: config.input.cwd,
         env: {
           TERM: 'xterm-256color',
@@ -304,6 +323,7 @@ export class TuiAgentsRuntime {
           }
           this.markExited(config.input.conversationId, info);
           this.notifications.resetToIdle(config.input.conversationId);
+          this.maybeRespawnAfterUnexpectedExit(session, config, info);
         },
         onStateChange: () => {
           this.syncSessionState({
@@ -442,5 +462,66 @@ export class TuiAgentsRuntime {
     if (!session.pty) return;
     session.pty.kill();
     session.pty = null;
+  }
+
+  private spawnSpec(
+    command: AgentCommand,
+    input: TuiAgentStartInput
+  ): Pick<PtySpawnSpec, 'command' | 'args'> {
+    if (!input.shellSetup && !input.tmuxSessionName) {
+      return { command: command.command, args: command.args };
+    }
+
+    const commandLine = [command.command, ...command.args].map(quoteShellArg).join(' ');
+    const fullCommandLine = input.shellSetup
+      ? `${input.shellSetup} && ${commandLine}`
+      : commandLine;
+    return {
+      command: '/bin/sh',
+      args: [
+        '-c',
+        input.tmuxSessionName
+          ? buildTmuxShellLine(input.tmuxSessionName, fullCommandLine)
+          : fullCommandLine,
+      ],
+    };
+  }
+
+  private maybeRespawnAfterUnexpectedExit(
+    session: TuiAgentSession,
+    config: TuiSessionConfig,
+    info: PtyExitInfo
+  ): void {
+    if (config.input.tmuxSessionName || config.intent === 'stopped') return;
+    if (!this.isUnexpectedExit(info)) return;
+    const current = this.configs.get(config.input.conversationId);
+    if (!current || current.intent === 'stopped') return;
+
+    const attempts = this.unexpectedRespawns.get(config.input.conversationId) ?? 0;
+    if (attempts >= MAX_UNEXPECTED_RESPAWNS) return;
+    this.unexpectedRespawns.set(config.input.conversationId, attempts + 1);
+    setTimeout(() => {
+      const active = this.sessionsSource.peek({ conversationId: config.input.conversationId });
+      const latest = this.configs.get(config.input.conversationId);
+      if (!active || active !== session || active.pty || !latest || latest.intent === 'stopped') {
+        return;
+      }
+      void this.spawnInto(active, latest);
+    }, RESPAWN_DELAY_MS);
+  }
+
+  private isUnexpectedExit(info: PtyExitInfo): boolean {
+    return info.exitCode !== 0 || info.signal !== null;
+  }
+
+  private async killTmuxForConfig(config: TuiSessionConfig | undefined): Promise<void> {
+    const sessionName = config?.input.tmuxSessionName;
+    if (!sessionName) return;
+    await killTmuxSession(this.deps.exec, sessionName, (error) => {
+      this.deps.logger.debug('TuiAgentsRuntime: tmux session not found or already stopped', {
+        sessionName,
+        error: String(error),
+      });
+    });
   }
 }

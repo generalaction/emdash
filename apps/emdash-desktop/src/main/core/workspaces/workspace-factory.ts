@@ -1,21 +1,17 @@
 import path from 'node:path';
-import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
+import { TuiConversationProvider } from '@main/core/conversations/tui-conversation-provider';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
-import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
-import { log } from '@main/lib/logger';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -124,19 +120,6 @@ type TaskProviderOpts = {
   taskEnvVars: Record<string, string>;
 };
 
-async function resolveLocalConversationShellProfile(taskId: string): Promise<ResolvedShellProfile> {
-  const { defaultShell } = await appSettingsService.get('terminal');
-  return resolveLocalAutomationShellWithSystemFallback({
-    intent: defaultShell,
-    onFallback: (error) => {
-      log.warn('Preferred local conversation shell unavailable; using fallback', {
-        shell: error.shell,
-        taskId,
-      });
-    },
-  });
-}
-
 export async function buildTaskProviders(
   type: WorkspaceType,
   opts: TaskProviderOpts
@@ -147,16 +130,13 @@ export async function buildTaskProviders(
     );
   }
   const ctx = new LocalExecutionContext();
-  const conversationShellProfile = await resolveLocalConversationShellProfile(opts.taskId);
   return {
-    conversations: new LocalConversationProvider({
+    conversations: new TuiConversationProvider({
       projectId: opts.projectId,
       taskPath: opts.taskPath,
       taskId: opts.taskId,
       tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
-      shellProfile: conversationShellProfile,
-      ctx,
       taskEnvVars: opts.taskEnvVars,
     }),
     terminals: new LocalTerminalProvider({

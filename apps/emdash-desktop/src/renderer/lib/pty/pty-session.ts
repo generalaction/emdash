@@ -1,6 +1,6 @@
 import { makeAutoObservable, onBecomeObserved, runInAction } from 'mobx';
 import { events } from '@renderer/lib/ipc';
-import { FrontendPty } from '@renderer/lib/pty/pty';
+import { FrontendPty, type FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
@@ -25,7 +25,8 @@ export class PtySession {
     private readonly prepare?: () => Promise<PtySessionPrepareResult>,
     private readonly onOpenFile?: (filePath: string) => void,
     private readonly onOpenExternal?: (filePath: string) => void,
-    options: PtySessionOptions = {}
+    options: PtySessionOptions = {},
+    private readonly connector?: FrontendPtyConnector
   ) {
     this.clearOnBackendStart = options.clearOnBackendStart ?? false;
     makeAutoObservable(this, {
@@ -53,7 +54,13 @@ export class PtySession {
       if (prepared === false) return;
       if (version !== this.version) return;
       if (this.pty) return;
-      const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
+      const pty = new FrontendPty(
+        this.sessionId,
+        undefined,
+        this.onOpenFile,
+        this.onOpenExternal,
+        this.connector
+      );
       runInAction(() => {
         this.pty = pty;
         this.status = 'connecting';

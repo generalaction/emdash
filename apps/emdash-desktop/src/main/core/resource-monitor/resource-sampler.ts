@@ -1,9 +1,15 @@
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import { createLiveModelReplica } from '@emdash/wire';
+import { inArray } from 'drizzle-orm';
 import { app } from 'electron';
 import pidusage from 'pidusage';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
@@ -23,9 +29,14 @@ const STALE_LOCAL_PTY_MEMORY_BYTES = 2 * 1024 * 1024;
 type ProcessUsage = { cpu: number; memory: number; ppid?: number };
 type ProcessUsageMap = Record<string, ProcessUsage>;
 type ProcessTreeSnapshot = { trees: Map<number, number[]>; sampledPids: number[] };
+type ActivePtySession = {
+  sessionId: string;
+  pid?: number;
+  metadata?: { providerId?: string; title?: string };
+};
 
 export async function sampleOnce(): Promise<ResourceSnapshot> {
-  const active = ptySessionRegistry.listActiveSessions();
+  const active = [...ptySessionRegistry.listActiveSessions(), ...(await listActiveTuiSessions())];
   const localPids = active
     .map((a) => a.pid)
     .filter((p): p is number => typeof p === 'number' && p > 0);
@@ -63,6 +74,58 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     appProcesses,
     entries,
   };
+}
+
+let tuiSessionsReplica:
+  | ReturnType<typeof createLiveModelReplica<typeof tuiAgentsContract.sessions>>
+  | undefined;
+
+async function listActiveTuiSessions(): Promise<ActivePtySession[]> {
+  try {
+    const client = await getTuiAgentsRuntimeClient();
+    tuiSessionsReplica ??= createLiveModelReplica(tuiAgentsContract.sessions, client.sessions);
+    const lease = tuiSessionsReplica.acquire(undefined);
+    try {
+      const instance = await lease.ready();
+      const list = instance.states.list.current();
+      const running = Object.values(list).filter(
+        (session) => session.status === 'running' && typeof session.pid === 'number'
+      );
+      if (running.length === 0) return [];
+      const rows = await db
+        .select({
+          id: conversations.id,
+          projectId: conversations.projectId,
+          taskId: conversations.taskId,
+          providerId: conversations.provider,
+          title: conversations.title,
+        })
+        .from(conversations)
+        .where(
+          inArray(
+            conversations.id,
+            running.map((session) => session.conversationId)
+          )
+        );
+      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      return running.flatMap((session) => {
+        const row = rowsById.get(session.conversationId);
+        if (!row) return [];
+        return [
+          {
+            sessionId: `${row.projectId}:${row.taskId}:${session.conversationId}`,
+            pid: session.pid,
+            metadata: { providerId: row.providerId ?? undefined, title: row.title },
+          },
+        ];
+      });
+    } finally {
+      await lease.release();
+    }
+  } catch (error) {
+    log.warn('resource-sampler: tui sessions lookup failed', { error: String(error) });
+    return [];
+  }
 }
 
 async function samplePidUsage(localPids: number[]): Promise<ProcessUsageMap> {

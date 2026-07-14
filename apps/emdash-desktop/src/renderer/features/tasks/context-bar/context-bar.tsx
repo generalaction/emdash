@@ -70,7 +70,10 @@ export const ContextBar = observer(function ContextBar({
       providerId: activeConversationStore?.data.providerId,
       text,
       forceBracketedPaste: true,
-      sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
+      sendInput: async (data) => {
+        activeSession?.pty?.sendInput(data);
+        if (!activeSession?.pty) await rpc.pty.sendInput(activeSessionId, data);
+      },
     });
 
     if (action.kind === 'draft-comments') {
@@ -78,7 +81,8 @@ export const ContextBar = observer(function ContextBar({
     }
 
     if (opts?.andSend) {
-      await rpc.pty.sendInput(activeSessionId, '\r');
+      activeSession?.pty?.sendInput('\r');
+      if (!activeSession?.pty) await rpc.pty.sendInput(activeSessionId, '\r');
     }
 
     activeSession?.pty?.terminal.focus();

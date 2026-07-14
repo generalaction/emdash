@@ -22,6 +22,12 @@ export interface SessionTheme {
   override?: ITerminalOptions['theme'];
 }
 
+export type FrontendPtyConnector = {
+  connect(terminal: Terminal): Promise<() => void> | (() => void);
+  sendInput?(data: string): void;
+  resize?(cols: number, rows: number): void;
+};
+
 export function readXtermCssVars(): ITerminalOptions['theme'] {
   const color = (name: string) => cssColorToHex(cssVar(name));
   return {
@@ -75,7 +81,8 @@ export class FrontendPty {
     readonly sessionId: string,
     theme?: SessionTheme,
     onOpenFile?: (filePath: string) => void,
-    onOpenExternal?: (filePath: string) => void
+    onOpenExternal?: (filePath: string) => void,
+    private readonly connector?: FrontendPtyConnector
   ) {
     this.theme = theme;
     this.ownedContainer = document.createElement('div');
@@ -178,6 +185,10 @@ export class FrontendPty {
    * can slip between the snapshot and the first live IPC event.
    */
   async connect(): Promise<void> {
+    if (this.connector) {
+      this.offData = await this.connector.connect(this.terminal);
+      return;
+    }
     const result = await rpc.pty.subscribe(this.sessionId);
     const historical = result.success ? result.data.buffer : '';
     if (historical) this.terminal.write(historical);
@@ -188,6 +199,22 @@ export class FrontendPty {
       },
       this.sessionId
     );
+  }
+
+  sendInput(data: string): void {
+    if (this.connector?.sendInput) {
+      this.connector.sendInput(data);
+      return;
+    }
+    void rpc.pty.sendInput(this.sessionId, data);
+  }
+
+  resizeBackend(cols: number, rows: number): void {
+    if (this.connector?.resize) {
+      this.connector.resize(cols, rows);
+      return;
+    }
+    void rpc.pty.resize(this.sessionId, cols, rows);
   }
 
   /**
@@ -232,7 +259,7 @@ export class FrontendPty {
     FrontendPty.bySession.delete(this.sessionId);
     this.offData?.();
     this.offData = null;
-    rpc.pty.unsubscribe(this.sessionId).catch(() => {});
+    if (!this.connector) rpc.pty.unsubscribe(this.sessionId).catch(() => {});
     try {
       this.terminal.dispose();
     } catch {}

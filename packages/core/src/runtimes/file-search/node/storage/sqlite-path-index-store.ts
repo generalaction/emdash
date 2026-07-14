@@ -16,6 +16,7 @@ import type {
   PathIndexStoreSearchResult,
   StoredFileSearchRoot,
 } from '@runtimes/file-search/node/storage/path-index-store';
+
 import { initializeFileSearchSchema } from './schema';
 
 type RootRow = {

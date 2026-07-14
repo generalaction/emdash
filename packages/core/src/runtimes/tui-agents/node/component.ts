@@ -52,6 +52,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       });
       const runtime = new TuiAgentsRuntime({
         agentHost,
+        exec,
         spawner: new NodePtySpawner(),
         hook: config.hook,
         logger: runtimeLogger,

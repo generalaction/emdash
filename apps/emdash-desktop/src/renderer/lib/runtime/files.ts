@@ -17,6 +17,7 @@ export async function watchFileContent(
   filePath: string,
   onChange: (content: FileContentModel) => void
 ): Promise<() => void> {
+  if (typeof window === 'undefined') return () => {};
   const client = await getFilesRuntimeClient();
   const replica = createLiveModelReplica(filesContract.content, client.content);
   const lease = replica.acquire(filesPath(workspacePath, filePath));

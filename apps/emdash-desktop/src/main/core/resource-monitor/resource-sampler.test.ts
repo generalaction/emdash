@@ -1,3 +1,4 @@
+import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const execFileMock = vi.hoisted(() => vi.fn());
@@ -38,6 +39,10 @@ vi.mock('@main/core/settings/settings-service', () => ({
   },
 }));
 
+vi.mock('@main/db/client', () => ({
+  db: {},
+}));
+
 vi.mock('@main/lib/events', () => ({
   events: {
     emit: vi.fn(),
@@ -49,6 +54,30 @@ vi.mock('@main/lib/logger', () => ({
     warn: logWarnMock,
   },
 }));
+
+vi.mock('@main/core/wire-workers/accessors', () => ({
+  getTuiAgentsRuntimeClient: vi.fn().mockResolvedValue({ sessions: {} }),
+}));
+
+vi.mock('@emdash/wire', async (importActual) => {
+  const actual = await importActual<typeof Wire>();
+  return {
+    ...actual,
+    createLiveModelReplica: vi.fn(() => ({
+      acquire: vi.fn(() => ({
+        ready: vi.fn().mockResolvedValue({
+          states: {
+            list: {
+              current: () => ({}),
+            },
+          },
+        }),
+        release: vi.fn().mockResolvedValue(undefined),
+      })),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    })),
+  };
+});
 
 const { sampleOnce } = await import('./resource-sampler');
 
