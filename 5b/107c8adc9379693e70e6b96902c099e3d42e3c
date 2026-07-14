@@ -1,0 +1,68 @@
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_c95f7893801023::t_d90a6b3cdaa623 9,53,108,117,129,147-163
+  s_c95f7893801023::t_6a04c309cbb3d5 164-165
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_c95f7893801023::t_d90a6b3cdaa623 14,212-213,218-219,229-230,256,285,317,353
+apps/emdash-desktop/src/renderer/features/tasks/stores/terminal-registry.test.ts
+  s_a87c9cce2151fc::t_a1e2d87dd00000 1-40
+  s_a87c9cce2151fc::t_5db59779fdbecb 41-42
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-utils.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 158
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.test.ts
+  s_a87c9cce2151fc::t_a1e2d87dd00000 68-71,119-120,125-126,264,273-274
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-tab-provider.tsx
+  s_7d99c85e2df167::t_f16d4919fca11d 131,178,189
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 217-221
+apps/emdash-desktop/src/renderer/features/tasks/stores/terminal-registry.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 7-9,12,16-17,20-22,25,29-30
+  s_7d99c85e2df167::t_a7002fb23b0e81 31-32
+apps/emdash-desktop/src/renderer/features/tasks/task-view-context.tsx
+  s_7d99c85e2df167::t_f16d4919fca11d 106-107
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 101,106
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 160,293,328,380,491,518
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_a87c9cce2151fc::t_a1e2d87dd00000 91-94,147-148,153-154,168-169,298,307-308,347,357,365,373-376
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-tab-view-store.test.ts
+  s_c95f7893801023::t_d90a6b3cdaa623 3-6,42-43,48-49,57-58,63-65,68,81,83-85,101,103-105,118-120,130,142,144-146
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_7d99c85e2df167::t_f16d4919fca11d 143-144
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_7d99c85e2df167::t_f16d4919fca11d 119-121,263,430-433
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.test.ts
+  s_c95f7893801023::t_d90a6b3cdaa623 190,215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "5b107c8adc9379693e70e6b96902c099e3d42e3c",
+  "prompts": {},
+  "sessions": {
+    "s_7d99c85e2df167": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pKlJjXkb11sDnYU0OXD",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a87c9cce2151fc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pKn9Hwf1eutLQ77n2zr",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c95f7893801023": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pKm8JlloBLDkE3U2ExY",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
