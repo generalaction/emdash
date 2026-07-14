@@ -38,6 +38,7 @@ export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
   private supervisor = new ConversationSessionSupervisor();
+  private readonly registryOwner = {};
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
@@ -195,6 +196,7 @@ export class SshConversationProvider implements ConversationProvider {
           error: result.error.message,
         });
         this.supervisor.failSpawn(sessionId, spawnToken);
+        ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
         events.emit(agentSessionExitedChannel, {
           conversationId: conversation.id,
           projectId: conversation.projectId,
@@ -211,7 +213,12 @@ export class SshConversationProvider implements ConversationProvider {
         if (decision.kind === 'stale') return;
         const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
 
-        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
+        ptySessionRegistry.unregister(sessionId, {
+          pty,
+          exitInfo: info,
+          preserveStopHandler: this.supervisor.isDesired(sessionId),
+          owner: this.registryOwner,
+        });
         this.sessions.delete(sessionId);
         if (decision.kind === 'stopped') return;
 
@@ -246,6 +253,7 @@ export class SshConversationProvider implements ConversationProvider {
 
         if (options.shellRefreshRetried && exitCode === 127) {
           this.supervisor.stop(sessionId);
+          ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
             projectId: conversation.projectId,
@@ -274,7 +282,7 @@ export class SshConversationProvider implements ConversationProvider {
           pty.kill();
         } catch {}
         if (ptySessionRegistry.get(sessionId) === pty) {
-          ptySessionRegistry.unregister(sessionId);
+          ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
         }
         return;
       }
@@ -285,6 +293,8 @@ export class SshConversationProvider implements ConversationProvider {
           title: conversation.title,
           isRemote: true,
         },
+        stop: () => this.stopSession(conversation.id),
+        owner: this.registryOwner,
       });
       this.sessions.set(sessionId, pty);
       scheduleInitialPromptInjection({
@@ -301,6 +311,9 @@ export class SshConversationProvider implements ConversationProvider {
       });
     } catch (error) {
       this.supervisor.failSpawn(sessionId, spawnToken);
+      if (!ptySessionRegistry.get(sessionId)) {
+        ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
+      }
       throw error;
     }
   }
@@ -308,7 +321,7 @@ export class SshConversationProvider implements ConversationProvider {
   private detachPty(sessionId: string): void {
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
-    ptySessionRegistry.unregister(sessionId);
+    ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
     if (pty) {
       try {
         pty.kill();
@@ -335,7 +348,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.knownSessionIds.delete(sessionId);
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
-    ptySessionRegistry.unregister(sessionId);
+    ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
     if (pty) {
       try {
         pty.kill();
@@ -362,6 +375,7 @@ export class SshConversationProvider implements ConversationProvider {
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);
+      ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
     }
     this.knownSessionIds.clear();
   }
@@ -372,7 +386,7 @@ export class SshConversationProvider implements ConversationProvider {
       try {
         pty.kill();
       } catch {}
-      ptySessionRegistry.unregister(sessionId);
+      ptySessionRegistry.unregister(sessionId, { owner: this.registryOwner });
     }
     this.sessions.clear();
   }
@@ -424,6 +438,12 @@ export class SshConversationProvider implements ConversationProvider {
     isResuming: boolean;
   }): void {
     setTimeout(() => {
+      const sessionId = makePtySessionId(
+        conversation.projectId,
+        conversation.taskId,
+        conversation.id
+      );
+      if (!this.supervisor.isDesired(sessionId)) return;
       this.startSessionInternal(conversation, initialSize, isResuming, undefined, true, {
         shellRefreshRetried: false,
       }).catch((e) => {

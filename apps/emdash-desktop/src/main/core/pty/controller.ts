@@ -102,7 +102,9 @@ export const ptyController = createRPCController({
 
     // Conversation PTYs carry a providerId in their registry metadata; plain
     // terminals do not — that distinguishes the two.
-    const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
+    const isConversation =
+      ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined ||
+      ptySessionRegistry.hasStopHandler(sessionId);
     const task = taskSessionManager.getTask(projectId, scopeId);
     if (task) {
       try {
@@ -133,11 +135,32 @@ export const ptyController = createRPCController({
     }
 
     if (isConversation) {
-      log.warn('ptyController.stopSession: conversation provider unavailable', { sessionId });
-      return err({
-        type: 'stop_failed' as const,
-        message: 'Conversation provider is unavailable',
-      });
+      try {
+        const stopped = await ptySessionRegistry.stop(sessionId);
+        if (!stopped) {
+          log.warn('ptyController.stopSession: conversation provider unavailable', { sessionId });
+          return err({
+            type: 'stop_failed' as const,
+            message: 'Conversation provider is unavailable',
+          });
+        }
+      } catch (e) {
+        log.warn('ptyController.stopSession: error stopping orphaned conversation PTY', {
+          sessionId,
+          error: String(e),
+        });
+        return err({ type: 'stop_failed' as const, message: String((e as Error)?.message || e) });
+      }
+
+      try {
+        await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
+      } catch (e) {
+        log.warn('ptyController.stopSession: error resetting orphaned conversation status', {
+          sessionId,
+          error: String(e),
+        });
+      }
+      return ok();
     }
 
     // Lifecycle scripts are scoped by workspace id (no task match) and never

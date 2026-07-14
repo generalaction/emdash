@@ -16,6 +16,8 @@ const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
 export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
+  private stopHandlers: Map<string, () => Promise<void>> = new Map();
+  private sessionOwners: Map<string, object> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
   private metadata: Map<string, PtySessionMetadata> = new Map();
@@ -25,7 +27,12 @@ export class PtySessionRegistry {
   register(
     sessionId: string,
     pty: Pty,
-    options?: { preserveBufferOnExit?: boolean; metadata?: PtySessionMetadata }
+    options?: {
+      preserveBufferOnExit?: boolean;
+      metadata?: PtySessionMetadata;
+      stop?: () => Promise<void>;
+      owner?: object;
+    }
   ): void {
     const preserveBufferOnExit = options?.preserveBufferOnExit ?? false;
 
@@ -36,7 +43,11 @@ export class PtySessionRegistry {
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);
+    this.stopHandlers.delete(sessionId);
+    this.sessionOwners.delete(sessionId);
     if (options?.metadata) this.metadata.set(sessionId, options.metadata);
+    if (options?.stop) this.stopHandlers.set(sessionId, options.stop);
+    if (options?.owner) this.sessionOwners.set(sessionId, options.owner);
 
     this.ptyMap.set(sessionId, pty);
 
@@ -85,6 +96,8 @@ export class PtySessionRegistry {
         this.ptyInputSubscriptions.get(sessionId)?.();
         this.ptyInputSubscriptions.delete(sessionId);
         this.pendingFlushes.delete(sessionId);
+        this.stopHandlers.delete(sessionId);
+        this.sessionOwners.delete(sessionId);
         this.lastSizes.delete(sessionId);
       } else {
         this.unregister(sessionId);
@@ -103,8 +116,17 @@ export class PtySessionRegistry {
     events.emit(ptyStartedChannel, { id: sessionId });
   }
 
-  unregister(sessionId: string, options: { pty?: Pty; exitInfo?: PtyExitInfo } = {}): void {
+  unregister(
+    sessionId: string,
+    options: {
+      pty?: Pty;
+      exitInfo?: PtyExitInfo;
+      preserveStopHandler?: boolean;
+      owner?: object;
+    } = {}
+  ): void {
     if (options.pty !== undefined && this.ptyMap.get(sessionId) !== options.pty) return;
+    if (options.owner !== undefined && this.sessionOwners.get(sessionId) !== options.owner) return;
     this.pendingFlushes.get(sessionId)?.();
     if (options.exitInfo !== undefined) {
       events.emit(ptyExitChannel, options.exitInfo, sessionId);
@@ -116,6 +138,10 @@ export class PtySessionRegistry {
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);
+    if (!options.preserveStopHandler) {
+      this.stopHandlers.delete(sessionId);
+      this.sessionOwners.delete(sessionId);
+    }
     this.lastSizes.delete(sessionId);
   }
 
@@ -145,6 +171,17 @@ export class PtySessionRegistry {
 
   getMetadata(sessionId: string): PtySessionMetadata | undefined {
     return this.metadata.get(sessionId);
+  }
+
+  hasStopHandler(sessionId: string): boolean {
+    return this.stopHandlers.has(sessionId);
+  }
+
+  async stop(sessionId: string): Promise<boolean> {
+    const stop = this.stopHandlers.get(sessionId);
+    if (!stop) return false;
+    await stop();
+    return true;
   }
 
   resize(sessionId: string, cols: number, rows: number): boolean {

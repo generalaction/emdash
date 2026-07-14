@@ -126,6 +126,40 @@ describe('PtySessionRegistry', () => {
     expect(events.emit).not.toHaveBeenCalledWith(ptyExitChannel, exitInfo, 'session-1');
   });
 
+  it('can stop a session while its provider is waiting to respawn it', async () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+    const stop = vi.fn().mockResolvedValue(undefined);
+
+    registry.register('session-1', pty, { stop });
+    registry.unregister('session-1', { pty, preserveStopHandler: true });
+
+    expect(registry.hasStopHandler('session-1')).toBe(true);
+    expect(await registry.stop('session-1')).toBe(true);
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it('does not let a stale provider unregister a replacement provider', async () => {
+    const registry = new PtySessionRegistry();
+    const firstOwner = {};
+    const secondOwner = {};
+    const secondPty = fakePty();
+    const secondStop = vi.fn().mockResolvedValue(undefined);
+
+    registry.register('session-1', fakePty(), {
+      owner: firstOwner,
+      stop: vi.fn().mockResolvedValue(undefined),
+    });
+    registry.unregister('session-1', { owner: firstOwner, preserveStopHandler: true });
+    registry.register('session-1', secondPty, { owner: secondOwner, stop: secondStop });
+
+    registry.unregister('session-1', { owner: firstOwner });
+
+    expect(registry.get('session-1')).toBe(secondPty);
+    expect(await registry.stop('session-1')).toBe(true);
+    expect(secondStop).toHaveBeenCalledOnce();
+  });
+
   it('records resize dimensions before forwarding to the current PTY', () => {
     const registry = new PtySessionRegistry();
     const pty = fakePty();
