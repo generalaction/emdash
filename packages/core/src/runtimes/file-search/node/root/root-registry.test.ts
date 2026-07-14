@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import type { HostAbsolutePath, PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '@primitives/path/api';
 import type { ContentSearchResult } from '@runtimes/file-search/api';
 import type { PathIndexEntry } from '@runtimes/file-search/node/storage/path-index-store';
 import type { IWatchService } from '@services/fs-watch/api';

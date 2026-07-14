@@ -125,13 +125,16 @@ class FakePathIndexStore implements PathIndexStore {
 }
 
 class EmptyScanner implements PathScanner {
-  async *scan(): AsyncIterable<PathIndexEntry> {}
+  async *scan(): AsyncIterable<PathIndexEntry> {
+    yield* [];
+  }
 }
 
 class FailingScanner implements PathScanner {
   constructor(private readonly failure: unknown) {}
 
   async *scan(): AsyncIterable<PathIndexEntry> {
+    yield* [];
     throw this.failure;
   }
 }
@@ -146,6 +149,7 @@ class BlockingScanner implements PathScanner {
       if (options.signal.aborted) resolve();
       else options.signal.addEventListener('abort', () => resolve(), { once: true });
     });
+    yield* [];
   }
 }
 
