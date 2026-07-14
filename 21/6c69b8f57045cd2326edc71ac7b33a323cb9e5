@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/automations/use-automation-run-actions.ts
+  s_cd1b7b6062cfb4::t_59c0285c3cffa7 19,23,25-32
+apps/emdash-desktop/src/main/core/automations/runtime.ts
+  s_cd1b7b6062cfb4::t_59c0285c3cffa7 47-50
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_cd1b7b6062cfb4::t_59c0285c3cffa7 230-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "216c69b8f57045cd2326edc71ac7b33a323cb9e5",
+  "prompts": {},
+  "sessions": {
+    "s_cd1b7b6062cfb4": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pSGGJ751PeZaOpTfUot",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
