@@ -1,0 +1,26 @@
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_e2b8b9e255974c::t_2cd7048c1cd4bc 24,642
+packages/ui/src/react/components/chat-composer/attachment-files.test.ts
+  s_e2b8b9e255974c::t_cf1cc9fc09fb84 42-53
+  s_e2b8b9e255974c::t_2cd7048c1cd4bc 2,13-17
+packages/ui/src/react/components/chat-composer/attachment-files.ts
+  s_e2b8b9e255974c::t_2cd7048c1cd4bc 1-7
+  s_e2b8b9e255974c::t_91f9b0024cd29a 16-24
+  s_e2b8b9e255974c::t_cf1cc9fc09fb84 8-15,25-26,34-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "a9bb2dbecb7d0baace8e3e355c4765edde02d642",
+  "prompts": {},
+  "sessions": {
+    "s_e2b8b9e255974c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-56ed-73a0-833e-4547aeae3f99",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
