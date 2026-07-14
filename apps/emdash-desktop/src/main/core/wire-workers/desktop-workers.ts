@@ -1,16 +1,13 @@
 import { join } from 'node:path';
-import { acpApiContract, type AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
-import {
-  agentConfigContract,
-  type AgentConfigContract,
-} from '@emdash/core/runtimes/agent-config/api';
+import { type AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import { type FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
-import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/api';
+import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
-import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
+import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent } from '@emdash/core/runtimes/git/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
@@ -21,19 +18,10 @@ import {
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import {
-  type Contract,
-  type ContractDefinitions,
-  type Controller,
-  exposeWireToWindows,
-  forwardController,
-  validation,
-  type ContractClient,
-} from '@emdash/wire/api';
-import { compose } from '@emdash/wire/util';
+import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { app, ipcMain, MessageChannelMain } from 'electron';
+import { app } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
@@ -42,12 +30,6 @@ import { getGitExecutable } from '@main/core/utils/exec';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
-import {
-  ACP_WIRE_CHANNEL,
-  AGENT_CONFIG_WIRE_CHANNEL,
-  FILES_WIRE_CHANNEL,
-  GIT_WIRE_CHANNEL,
-} from '@shared/core/runtime/wire-channels';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -62,11 +44,6 @@ const host = createWireWorkerHost({
   processSpawner: childProcessSpawner(),
   logger: log,
 });
-
-function createMessageChannel() {
-  const channel = new MessageChannelMain();
-  return { port1: channel.port1, port2: channel.port2 };
-}
 
 const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
 const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
@@ -138,10 +115,6 @@ let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 
 let gitWorker: WireWorker<GitContract> | undefined;
 let gitClientPromise: Promise<GitRuntimeClient> | undefined;
-
-if (typeof ipcMain?.handle === 'function') {
-  installRendererWire();
-}
 
 export async function ensureFilesWorkerReady(): Promise<void> {
   await getFilesRuntimeClient();
@@ -260,78 +233,4 @@ async function persistReturnedSessionId(conversationId: string, sessionId: strin
       error: result.error,
     });
   }
-}
-
-function runtimeWireValidationPolicy() {
-  return import.meta.env.DEV ? 'full' : 'inputs';
-}
-
-function installRendererWire(): void {
-  exposeRuntimeToRenderer({
-    channel: ACP_WIRE_CHANNEL,
-    contract: acpApiContract,
-    getClient: getAcpRuntimeClient,
-  });
-  exposeRuntimeToRenderer({
-    channel: AGENT_CONFIG_WIRE_CHANNEL,
-    contract: agentConfigContract,
-    getClient: getAgentConfigRuntimeClient,
-  });
-  exposeRuntimeToRenderer({
-    channel: FILES_WIRE_CHANNEL,
-    contract: filesContract,
-    getClient: getFilesRuntimeClient,
-  });
-  exposeRuntimeToRenderer({
-    channel: GIT_WIRE_CHANNEL,
-    contract: gitContract,
-    getClient: getGitRuntimeClient,
-  });
-}
-
-function exposeRuntimeToRenderer<Defs extends ContractDefinitions>({
-  channel,
-  contract,
-  getClient,
-}: {
-  channel: string;
-  contract: Contract<Defs>;
-  getClient(): Promise<ContractClient<Defs>>;
-}): void {
-  const controller = lazyForwardController(contract, getClient);
-  workerScope.add(
-    exposeWireToWindows(
-      { ipcMain, createMessageChannel },
-      compose(controller, [validation(contract, runtimeWireValidationPolicy())]),
-      { channel, beforeOpen: () => controller.ready() }
-    )
-  );
-}
-
-function lazyForwardController<Defs extends ContractDefinitions>(
-  contract: Contract<Defs>,
-  getClient: () => Promise<ContractClient<Defs>>
-): Controller & { ready(): Promise<void> } {
-  let controller: Controller | undefined;
-  async function ready(): Promise<void> {
-    controller ??= forwardController(contract, await getClient());
-  }
-  return {
-    ready,
-    async call(path, input, meta) {
-      await ready();
-      return await controller!.call(path, input, meta);
-    },
-    resolveLive(topic) {
-      if (!controller) throw new Error('Wire runtime is not ready');
-      return controller.resolveLive(topic);
-    },
-    acquireLive(topic) {
-      if (!controller) throw new Error('Wire runtime is not ready');
-      return controller.acquireLive(topic);
-    },
-    async dispose() {
-      await controller?.dispose?.();
-    },
-  } satisfies ReturnType<typeof forwardController<Defs>> & { ready(): Promise<void> };
 }

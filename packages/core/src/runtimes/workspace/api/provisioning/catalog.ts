@@ -77,6 +77,26 @@ export const createDirectoryStep = defineStep({
   label: (args) => `Create directory ${args.path}`,
 });
 
+export const writeFileStep = defineStep({
+  kind: 'write-file',
+  args: z.object({
+    path: z.string().min(1),
+    content: z.string(),
+  }),
+  fatal: true,
+  label: (args) => `Write ${args.path}`,
+});
+
+export const gitCommitStep = defineStep({
+  kind: 'git-commit',
+  args: z.object({
+    message: z.string().min(1),
+    paths: z.array(z.string().min(1)).min(1),
+  }),
+  fatal: true,
+  label: (args) => args.message,
+});
+
 export const copyPreservedFilesStep = defineStep({
   kind: 'copy-preserved-files',
   args: z.object({}),
@@ -175,6 +195,8 @@ export const stepDescriptors = [
   setBranchBaseStep,
   addWorktreeStep,
   createDirectoryStep,
+  writeFileStep,
+  gitCommitStep,
   copyPreservedFilesStep,
   pushBranchStep,
   removeWorktreeStep,

@@ -190,4 +190,41 @@ describe('compileBootstrapPlan', () => {
       plan: { steps: [{ step: { kind: 'create-directory', args: { path: '/workspace/plain' } } }] },
     });
   });
+
+  it('plans an initialized repository clone', () => {
+    const clone = compileBootstrapPlan(
+      {
+        kind: 'clone-repository',
+        url: 'file:///repo.git',
+        destination: '/workspace/repo',
+        initialize: { name: 'Repo', description: 'Description' },
+      },
+      options
+    );
+
+    expect(clone.workspacePath).toBe('/workspace/repo');
+    expect(clone.plan.steps.map((entry) => entry.step)).toEqual([
+      {
+        kind: 'git-clone',
+        args: {
+          url: 'file:///repo.git',
+          path: '/workspace/repo',
+          noTags: true,
+          filter: 'blob:none',
+        },
+      },
+      {
+        kind: 'write-file',
+        args: { path: 'README.md', content: '# Repo\n\nDescription\n' },
+      },
+      {
+        kind: 'git-commit',
+        args: { message: 'Initial commit', paths: ['README.md'] },
+      },
+      {
+        kind: 'push-branch',
+        args: { branchName: 'HEAD', remote: 'origin', setUpstream: true },
+      },
+    ]);
+  });
 });

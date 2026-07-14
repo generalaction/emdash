@@ -7,6 +7,7 @@ import {
   workspaceContract,
   type ActivateWorkspaceInput,
   type BootstrapGitIntent,
+  type BootstrapRepositoryInitialize,
   type ProvisionWorkspaceInput,
   type RunWorkspaceScriptInput,
   type WorkspaceLifecyclePlans,
@@ -77,6 +78,7 @@ export type CloneRepositoryProvisionInput = {
   destination: string;
   remoteName?: string;
   depth?: number;
+  initialize?: BootstrapRepositoryInitialize;
   signal?: AbortSignal;
   onProgress?: (progress: WorkspaceBootstrapProgress) => void;
 };
@@ -654,6 +656,7 @@ export async function runCloneRepositoryProvision(
       destination: input.destination,
       remoteName: input.remoteName,
       depth: input.depth,
+      initialize: input.initialize,
     },
     {
       worktreePoolPath: path.dirname(input.destination),

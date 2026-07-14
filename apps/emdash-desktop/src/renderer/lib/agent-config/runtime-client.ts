@@ -1,28 +1,15 @@
-import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
-import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-import { AGENT_CONFIG_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import {
+  getDesktopWireClient,
+  resetDesktopWireClient,
+  type DesktopWireClient,
+} from '@renderer/lib/runtime/desktop-wire-client';
 
-export type AgentConfigRuntimeRpcClient = ReturnType<typeof createAgentConfigClientForPort>;
+export type AgentConfigRuntimeRpcClient = DesktopWireClient['agentConfig'];
 
-let clientPromise: Promise<AgentConfigRuntimeRpcClient> | null = null;
-
-export function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeRpcClient> {
-  clientPromise ??= createAgentConfigRuntimeClient();
-  return clientPromise;
+export async function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeRpcClient> {
+  return (await getDesktopWireClient()).agentConfig;
 }
 
 export function resetAgentConfigRuntimeClient(): void {
-  clientPromise = null;
-}
-
-async function createAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeRpcClient> {
-  const portPromise = awaitWirePort(window, { channel: AGENT_CONFIG_WIRE_CHANNEL });
-  await window.electronAPI.requestWirePort(AGENT_CONFIG_WIRE_CHANNEL);
-  const port = (await portPromise) as DomPortLike;
-  return createAgentConfigClientForPort(port);
-}
-
-function createAgentConfigClientForPort(port: DomPortLike) {
-  const transport = domPortTransport(port);
-  return client(agentConfigContract, connect(transport));
+  resetDesktopWireClient();
 }

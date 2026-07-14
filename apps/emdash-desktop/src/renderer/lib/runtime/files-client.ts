@@ -1,26 +1,15 @@
-import { filesContract } from '@emdash/core/runtimes/files/api';
-import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-import { FILES_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import {
+  getDesktopWireClient,
+  resetDesktopWireClient,
+  type DesktopWireClient,
+} from './desktop-wire-client';
 
-export type FilesRuntimeClient = ReturnType<typeof createFilesClientForPort>;
+export type FilesRuntimeClient = DesktopWireClient['files'];
 
-let clientPromise: Promise<FilesRuntimeClient> | null = null;
-
-export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
-  clientPromise ??= createFilesRuntimeClient();
-  return clientPromise;
+export async function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
+  return (await getDesktopWireClient()).files;
 }
 
 export function resetFilesRuntimeClient(): void {
-  clientPromise = null;
-}
-
-async function createFilesRuntimeClient(): Promise<FilesRuntimeClient> {
-  const portPromise = awaitWirePort(window, { channel: FILES_WIRE_CHANNEL });
-  await window.electronAPI.requestWirePort(FILES_WIRE_CHANNEL);
-  return createFilesClientForPort((await portPromise) as DomPortLike);
-}
-
-function createFilesClientForPort(port: DomPortLike) {
-  return client(filesContract, connect(domPortTransport(port)));
+  resetDesktopWireClient();
 }

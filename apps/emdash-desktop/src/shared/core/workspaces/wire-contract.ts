@@ -1,4 +1,5 @@
 import {
+  bootstrapRepositoryInitializeSchema,
   workspaceErrorSchema,
   workspaceOperationProgressSchema,
 } from '@emdash/core/runtimes/workspace/api';
@@ -63,12 +64,7 @@ export const provisionCloneWorkspaceInputSchema = z.object({
   destination: z.string().min(1),
   remoteName: z.string().min(1).optional(),
   depth: z.number().int().positive().optional(),
-  initialize: z
-    .object({
-      name: z.string().min(1),
-      description: z.string().optional(),
-    })
-    .optional(),
+  initialize: bootstrapRepositoryInitializeSchema.optional(),
 });
 
 export const workspacesWireContract = defineContract({

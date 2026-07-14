@@ -1,16 +1,8 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
-import {
-  createController,
-  exposeWireToWindows,
-  LiveState,
-  withValidation,
-  type LiveJobContext,
-} from '@emdash/wire';
-import type { LeasedLiveModelProvider } from '@emdash/wire';
+import { LiveState } from '@emdash/wire';
+import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';
 import { eq } from 'drizzle-orm';
-import { ipcMain, MessageChannelMain } from 'electron';
-import { appScope } from '@main/app/app-scope';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
 import {
   runCloneRepositoryProvision,
@@ -18,7 +10,6 @@ import {
 } from '@main/core/workspaces/workspace-bootstrap-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { WORKSPACES_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
 import {
   workspacesWireContract,
   type WorkspaceBootstrapProgress,
@@ -29,6 +20,8 @@ import {
 
 type BootstrapKey = { workspaceId: string };
 type BootstrapState = LiveState<WorkspaceBootstrapState>;
+type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
+type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
 
 export type WorkspacesWireTaskProvisioner = (
   taskId: string
@@ -38,9 +31,14 @@ export type WorkspacesWireTaskReadySubscription = (
   handler: (taskId: string, result: WorkspaceProvisionResult) => void
 ) => () => void;
 
-export type InstallWorkspacesWireOptions = {
+export type CreateWorkspacesWireControllerOptions = {
   provisionTask: WorkspacesWireTaskProvisioner;
   onTaskWorkspaceReady: WorkspacesWireTaskReadySubscription;
+};
+
+export type WorkspacesWireController = {
+  impl: WorkspacesWireImpl;
+  dispose(): Promise<void>;
 };
 
 type ActiveProvisionJob = {
@@ -48,55 +46,41 @@ type ActiveProvisionJob = {
   progress(progress: WorkspaceBootstrapProgress): void;
 };
 
-const scope = appScope.child('workspaces-wire');
 const bootstrapStates = new Map<string, BootstrapState>();
 const activeProvisionJobs = new Map<string, ActiveProvisionJob>();
 
-let installed = false;
-
-export function installWorkspacesWire(options: InstallWorkspacesWireOptions): void {
-  if (installed || typeof ipcMain?.handle !== 'function') return;
-  installed = true;
-
-  const controller = createController(workspacesWireContract, {
-    bootstrap: createBootstrapProvider(),
-    provision: {
-      run: (input, ctx) => runProvisionJob(options, input, ctx),
-      toError: unknownToWorkspaceError,
-    },
-    provisionClone: {
-      run: (input, ctx) => runProvisionCloneJob(input, ctx),
-      toError: unknownToWorkspaceError,
-    },
-  });
-
-  scope.add(
-    exposeWireToWindows(
-      { ipcMain, createMessageChannel },
-      withValidation(workspacesWireContract, controller, import.meta.env.DEV ? 'full' : 'inputs'),
-      { channel: WORKSPACES_WIRE_CHANNEL }
-    )
-  );
+export function createWorkspacesWireController(
+  options: CreateWorkspacesWireControllerOptions
+): WorkspacesWireController {
   const unsubscribeProgress = taskProvisionEvents.on('progress', (progress) => {
     void publishTaskProgress(progress.taskId, {
       step: progress.step,
       message: progress.message,
     });
   });
-  scope.add(() => {
-    unsubscribeProgress();
-  });
   const unsubscribeReady = options.onTaskWorkspaceReady((taskId, result) => {
     void publishTaskReady(taskId, result);
   });
-  scope.add(() => {
-    unsubscribeReady();
-  });
-}
 
-function createMessageChannel() {
-  const channel = new MessageChannelMain();
-  return { port1: channel.port1, port2: channel.port2 };
+  return {
+    impl: {
+      bootstrap: createBootstrapProvider(),
+      provision: {
+        run: (input, ctx) => runProvisionJob(options, input, ctx),
+        toError: unknownToWorkspaceError,
+      },
+      provisionClone: {
+        run: (input, ctx) => runProvisionCloneJob(input, ctx),
+        toError: unknownToWorkspaceError,
+      },
+    },
+    async dispose() {
+      unsubscribeProgress();
+      unsubscribeReady();
+      bootstrapStates.clear();
+      activeProvisionJobs.clear();
+    },
+  };
 }
 
 function createBootstrapProvider(): LeasedLiveModelProvider<
@@ -124,7 +108,7 @@ function createBootstrapProvider(): LeasedLiveModelProvider<
 }
 
 async function runProvisionJob(
-  options: InstallWorkspacesWireOptions,
+  options: CreateWorkspacesWireControllerOptions,
   input: { workspaceId: string; taskId?: string },
   ctx: LiveJobContext<WorkspaceBootstrapProgress>
 ): Promise<Result<WorkspaceProvisionResult, WorkspaceError>> {

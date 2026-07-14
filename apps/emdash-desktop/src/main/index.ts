@@ -26,7 +26,6 @@ import { localDependencyManager } from './core/dependencies/dependency-managers'
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
-import { installProjectsWire } from './core/projects/projects-wire';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
@@ -38,6 +37,7 @@ import { appSettingsService } from './core/settings/settings-service';
 import { taskService } from './core/tasks/task-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
+import { installDesktopWire } from './core/wire-workers/desktop-wire';
 import {
   acpWorker,
   agentConfigWorker,
@@ -45,10 +45,7 @@ import {
   ensureFilesWorkerReady,
   ensureGitWorkerReady,
 } from './core/wire-workers/desktop-workers';
-import {
-  installWorkspacesWire,
-  provisionWorkspaceErrorToWorkspaceError,
-} from './core/workspaces/workspaces-wire';
+import { provisionWorkspaceErrorToWorkspaceError } from './core/workspaces/wire-controller';
 import { initializeDatabase } from './db/initialize';
 import { events } from './lib/events';
 import {
@@ -160,7 +157,7 @@ void app.whenReady().then(async () => {
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
-  installWorkspacesWire({
+  installDesktopWire({
     async provisionTask(taskId) {
       const result = await taskService.provisionWorkspace(taskId);
       return result.success
@@ -171,8 +168,6 @@ void app.whenReady().then(async () => {
       return taskService.on('task:workspace-ready', (_taskId, result) => handler(_taskId, result));
     },
   });
-  installProjectsWire();
-
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });

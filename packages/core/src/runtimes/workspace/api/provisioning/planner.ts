@@ -60,6 +60,7 @@ export function compileBootstrapPlan(
   }
 
   if (intent.kind === 'clone-repository') {
+    const remoteName = intent.remoteName ?? 'origin';
     steps.push(
       step('git-clone', {
         url: intent.url,
@@ -70,6 +71,23 @@ export function compileBootstrapPlan(
         filter: 'blob:none',
       })
     );
+    if (intent.initialize) {
+      steps.push(
+        step('write-file', {
+          path: 'README.md',
+          content: initialReadmeContent(intent.initialize.name, intent.initialize.description),
+        })
+      );
+      steps.push(
+        step('git-commit', {
+          message: 'Initial commit',
+          paths: ['README.md'],
+        })
+      );
+      steps.push(
+        step('push-branch', { branchName: 'HEAD', remote: remoteName, setUpstream: true })
+      );
+    }
     return { plan: { steps: createPlannedSteps(steps) }, workspacePath: intent.destination };
   }
 
@@ -151,4 +169,8 @@ function worktreePathForBranch(worktreePoolPath: string, branchName: string): st
 
 function sanitizeBranchName(branchName: string): string {
   return branchName.replace(/[^a-zA-Z0-9._-]/g, '-');
+}
+
+function initialReadmeContent(name: string, description: string | undefined): string {
+  return description ? `# ${name}\n\n${description}\n` : `# ${name}\n`;
 }

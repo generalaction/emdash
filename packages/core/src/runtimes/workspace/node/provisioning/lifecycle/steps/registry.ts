@@ -9,6 +9,7 @@ import { createLocalBranchImpl } from './impl/create-local-branch';
 import { deleteBranchImpl } from './impl/delete-branch';
 import { ensureRemoteImpl } from './impl/ensure-remote';
 import { gitCloneImpl } from './impl/git-clone';
+import { gitCommitImpl } from './impl/git-commit';
 import { gitFetchImpl } from './impl/git-fetch';
 import { pushBranchImpl } from './impl/push-branch';
 import { removeDirectoryImpl } from './impl/remove-directory';
@@ -17,6 +18,7 @@ import { removeWorktreeImpl } from './impl/remove-worktree';
 import { runScriptImpl } from './impl/run-script';
 import { setBranchBaseImpl } from './impl/set-branch-base';
 import { setBranchTrackingImpl } from './impl/set-branch-tracking';
+import { writeFileImpl } from './impl/write-file';
 import { writeSetupStampImpl } from './impl/write-setup-stamp';
 import type { StepImplementation } from './implement';
 
@@ -32,6 +34,8 @@ export const bootstrapStepImplementations = [
   setBranchBaseImpl,
   addWorktreeImpl,
   createDirectoryImpl,
+  writeFileImpl,
+  gitCommitImpl,
   copyPreservedFilesImpl,
   pushBranchImpl,
   removeWorktreeImpl,

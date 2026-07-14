@@ -18,6 +18,11 @@ export const bootstrapGitBranchRefSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
+export const bootstrapRepositoryInitializeSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+});
+
 export const bootstrapGitIntentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('use-branch'),
@@ -42,6 +47,7 @@ export const bootstrapGitIntentSchema = z.discriminatedUnion('kind', [
     destination: z.string().min(1),
     remoteName: z.string().min(1).optional(),
     depth: z.number().int().positive().optional(),
+    initialize: bootstrapRepositoryInitializeSchema.optional(),
   }),
   z.object({
     kind: z.literal('plain-directory'),
@@ -51,4 +57,5 @@ export const bootstrapGitIntentSchema = z.discriminatedUnion('kind', [
 
 export type BootstrapGitRemote = z.infer<typeof bootstrapGitRemoteSchema>;
 export type BootstrapGitBranchRef = z.infer<typeof bootstrapGitBranchRefSchema>;
+export type BootstrapRepositoryInitialize = z.infer<typeof bootstrapRepositoryInitializeSchema>;
 export type BootstrapGitIntent = z.infer<typeof bootstrapGitIntentSchema>;

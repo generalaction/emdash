@@ -1,29 +1,18 @@
-import { acpApiContract, type StartSessionInput } from '@emdash/core/runtimes/acp/api/client';
-import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-import { ACP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import type { StartSessionInput } from '@emdash/core/runtimes/acp/api/client';
+import {
+  getDesktopWireClient,
+  resetDesktopWireClient,
+  type DesktopWireClient,
+} from '@renderer/lib/runtime/desktop-wire-client';
 
-export type AcpRuntimeRpcClient = ReturnType<typeof createAcpClientForPort>;
+export type AcpRuntimeRpcClient = DesktopWireClient['acp'];
 
-let clientPromise: Promise<AcpRuntimeRpcClient> | null = null;
 export type { StartSessionInput };
 
-export function getAcpRuntimeClient(): Promise<AcpRuntimeRpcClient> {
-  clientPromise ??= createAcpRuntimeClient();
-  return clientPromise;
+export async function getAcpRuntimeClient(): Promise<AcpRuntimeRpcClient> {
+  return (await getDesktopWireClient()).acp;
 }
 
 export function resetAcpRuntimeClient(): void {
-  clientPromise = null;
-}
-
-async function createAcpRuntimeClient(): Promise<AcpRuntimeRpcClient> {
-  const portPromise = awaitWirePort(window, { channel: ACP_WIRE_CHANNEL });
-  await window.electronAPI.requestWirePort(ACP_WIRE_CHANNEL);
-  const port = (await portPromise) as DomPortLike;
-  return createAcpClientForPort(port);
-}
-
-function createAcpClientForPort(port: DomPortLike) {
-  const transport = domPortTransport(port);
-  return client(acpApiContract, connect(transport));
+  resetDesktopWireClient();
 }
