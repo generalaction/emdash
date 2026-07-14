@@ -1,0 +1,52 @@
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-utils.ts
+  s_f23b8eacd2c6f2::t_834a17f55f23f2 155-157
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_6d61da70167087::t_a35f0943021f4f 137-138
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_6d61da70167087::t_a35f0943021f4f 123-143
+apps/emdash-desktop/src/renderer/features/tasks/task-view-context.tsx
+  s_6d61da70167087::t_a35f0943021f4f 96-97
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_6d61da70167087::t_a35f0943021f4f 122-131
+  s_41f6a8fd3f4373::t_db49b422164360 132
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationRunRow.tsx
+  s_6d61da70167087::t_a35f0943021f4f 43-44
+apps/emdash-desktop/src/renderer/features/conversations/conversation-manager.ts
+  s_6d61da70167087::t_a35f0943021f4f 40
+apps/emdash-desktop/src/renderer/features/conversations/stores/conversation-registry.ts
+  s_6d61da70167087::t_a35f0943021f4f 19-23
+apps/emdash-desktop/src/renderer/features/automations/use-automation-run-actions.ts
+  s_6d61da70167087::t_a35f0943021f4f 2,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "6872844abfbe177539278b23c471de81508ac8b5",
+  "prompts": {},
+  "sessions": {
+    "s_41f6a8fd3f4373": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f605a-5a4d-7e73-9962-6836207c6cc3",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6d61da70167087": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJ3QTVuCfR3qHPi0Ku1",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f23b8eacd2c6f2": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pJ4jjZtmZLzPPF757pB",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
