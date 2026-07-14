@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/main/core/automations/run-transitions.ts
+  s_aab69470887c0c::t_b695e6490166f6 3,32-39,46-50
+apps/emdash-desktop/src/main/core/automations/repo.ts
+  s_aab69470887c0c::t_b695e6490166f6 650-667
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_aab69470887c0c::t_b695e6490166f6 231,249
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_aab69470887c0c::t_b695e6490166f6 236,239
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.test.ts
+  s_aab69470887c0c::t_b695e6490166f6 231-239,284-291
+  s_aab69470887c0c::t_4b19830e68ad81 292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "ab5eaebb6576e73f0c9a10824ad61474fcf81275",
+  "prompts": {},
+  "sessions": {
+    "s_aab69470887c0c": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pSnDaDIfve0OKto8r8c",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
