@@ -84,7 +84,9 @@ describe('TaskSessionManager', () => {
     const first = makeTask();
     const second = makeTask();
     const tornDown: Array<{ projectId: string; taskId: string; workspaceId: string }> = [];
-    manager.hooks.on('task:torn-down', (info) => tornDown.push(info));
+    manager.hooks.on('task:torn-down', (info) => {
+      tornDown.push(info);
+    });
 
     await manager.registerTask(
       'shared-task',
