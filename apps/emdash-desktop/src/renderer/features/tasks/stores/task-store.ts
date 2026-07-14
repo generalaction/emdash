@@ -1,3 +1,4 @@
+import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
@@ -12,6 +13,7 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
+import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -43,6 +45,8 @@ export class TaskStore {
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
   provisionProgressMessage: string | null = null;
+  provisionProgress: WorkspaceBootstrapProgress | null = null;
+  provisionError: WorkspaceError | null = null;
 
   /** The workspace ID for this task session — null when unprovisioned. */
   workspaceId: string | null = null;
@@ -114,6 +118,8 @@ export class TaskStore {
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.provisionProgress = null;
+    this.provisionError = null;
     if (savedSnapshot) this.viewModel?.restoreSnapshot(savedSnapshot);
     this.viewModel?.initialize();
   }
@@ -129,6 +135,8 @@ export class TaskStore {
     this.phase = phase;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.provisionProgress = null;
+    this.provisionError = null;
 
     // Create stable stores on first registration (when transitioning from unregistered).
     if (!this.draftComments || !this.viewModel) this.ensureRegisteredStores();
@@ -141,6 +149,8 @@ export class TaskStore {
     this.phase = phase;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.provisionProgress = null;
+    this.provisionError = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
@@ -154,6 +164,9 @@ export class TaskStore {
     this.state = 'unregistered';
     this.phase = 'creating';
     this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
+    this.provisionProgress = null;
+    this.provisionError = null;
   }
 
   activate(): void {

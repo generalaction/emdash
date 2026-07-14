@@ -1,8 +1,10 @@
+import { SteppedLoader } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import {
+  getTaskManagerStore,
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
@@ -11,7 +13,10 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
+import { Button } from '@renderer/lib/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import { taskTabView } from './task-tab-registry';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
@@ -43,7 +48,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     );
   }
 
-  if (kind === 'project-mounting' || kind === 'provisioning') {
+  if (kind === 'project-mounting') {
     const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
@@ -53,7 +58,17 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     );
   }
 
-  if (kind === 'provision-error' || kind === 'project-error') {
+  if (kind === 'provisioning' && taskStore) {
+    return <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} />;
+  }
+
+  if (kind === 'provision-error' && taskStore) {
+    return (
+      <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} error />
+    );
+  }
+
+  if (kind === 'project-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
         <div className="flex max-w-xs flex-col items-center gap-2 text-center">
@@ -95,6 +110,82 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 
   return <ReadyTaskMainPanel />;
 });
+
+const PROVISION_LOADER_DELAY_MS = 300;
+
+const TaskProvisionLoader = observer(function TaskProvisionLoader({
+  projectId,
+  taskId,
+  taskStore,
+  error = false,
+}: {
+  projectId: string;
+  taskId: string;
+  taskStore: NonNullable<ReturnType<typeof getTaskStore>>;
+  error?: boolean;
+}) {
+  const showLoader = useDelayedVisible(error ? 0 : PROVISION_LOADER_DELAY_MS);
+  const progress = taskStore.provisionProgress ?? fallbackProvisionProgress(taskStore);
+  const model = bootstrapProgressToSteppedLoader(progress, taskStore.provisionError);
+  const errorMessage = taskErrorMessage(taskStore);
+
+  const retry = () => {
+    void getTaskManagerStore(projectId)?.provisionTask(taskId);
+  };
+
+  if (!showLoader) {
+    return null;
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center p-8">
+      <div className="flex min-h-64 w-full max-w-sm min-w-0 flex-col gap-5">
+        <SteppedLoader
+          className="flex-1"
+          steps={model.steps}
+          activeStepId={model.activeStepId}
+          status={error ? 'error' : model.status}
+          actions={
+            error ? (
+              <Button size="sm" variant="ghost" onClick={retry}>
+                Retry
+              </Button>
+            ) : undefined
+          }
+        />
+        {error && errorMessage && (
+          <p className="text-center font-sans text-xs text-foreground-muted">{errorMessage}</p>
+        )}
+      </div>
+    </div>
+  );
+});
+
+function useDelayedVisible(delayMs: number): boolean {
+  const [visible, setVisible] = useState(delayMs === 0);
+
+  useEffect(() => {
+    if (delayMs === 0) {
+      setVisible(true);
+      return;
+    }
+
+    setVisible(false);
+    const timer = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs]);
+
+  return visible;
+}
+
+function fallbackProvisionProgress(
+  taskStore: NonNullable<ReturnType<typeof getTaskStore>>
+): WorkspaceBootstrapProgress {
+  return {
+    step: 'setting-up-workspace',
+    message: taskStore.provisionProgressMessage ?? 'Setting up workspace…',
+  };
+}
 
 const SIDEBAR_COLLAPSED_SIZE = '0px';
 

@@ -1,4 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import type { Task } from '@shared/core/tasks/tasks';
@@ -17,6 +18,7 @@ export function emitTaskProvisionProgress(data: {
   projectId: string;
   step: WorkspaceBootstrapStep;
   message: string;
+  operation?: WorkspaceOperationProgress;
 }): void {
   taskProvisionEvents.emitProgress(data);
 }

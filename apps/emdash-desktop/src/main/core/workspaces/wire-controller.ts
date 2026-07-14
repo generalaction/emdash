@@ -9,11 +9,11 @@ import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';
 import { eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { resolveLifecycleScript } from '@main/core/terminals/lifecycle-script-settings';
-import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
-import { triggerTaskScriptWorkflow } from '@main/core/workspaces/script-workflows';
+import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
+import { resolveLifecycleScript } from '@main/core/terminals/lifecycle-script-settings';
 import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
+import { triggerTaskScriptWorkflow } from '@main/core/workspaces/script-workflows';
 import {
   runCloneRepositoryProvision,
   type CloneRepositoryProvisionInput,
@@ -67,6 +67,7 @@ export function createWorkspacesWireController(
     void publishTaskProgress(progress.taskId, {
       step: progress.step,
       message: progress.message,
+      operation: progress.operation,
     });
   });
   const unsubscribeReady = options.onTaskWorkspaceReady((taskId, result) => {

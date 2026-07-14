@@ -1,6 +1,7 @@
-import { LiveJobFailedError } from '@emdash/wire';
+import { LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
@@ -14,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   openProject: vi.fn(),
   patchProjectSettings: vi.fn(),
   projectWireCreate: vi.fn(),
+  projectWireCancel: vi.fn(),
+  projectWireProgressCallbacks: [] as Array<(progress: WorkspaceBootstrapProgress) => void>,
   projectWireResult: undefined as Promise<LocalProject> | undefined,
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
@@ -133,6 +136,8 @@ describe('ProjectManagerStore project creation', () => {
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
     mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
+    mocks.projectWireProgressCallbacks.length = 0;
+    mocks.projectWireCancel.mockResolvedValue(undefined);
     mocks.projectWireResult = undefined;
     mocks.createLiveJobReplica.mockReturnValue({
       start: async (input: {
@@ -153,7 +158,11 @@ describe('ProjectManagerStore project creation', () => {
                   path: input.targetPath,
                 })
               ),
-            onProgress: () => vi.fn(),
+            onProgress: (cb: (progress: WorkspaceBootstrapProgress) => void) => {
+              mocks.projectWireProgressCallbacks.push(cb);
+              return vi.fn();
+            },
+            cancel: mocks.projectWireCancel,
           }),
           release: async () => {},
         };
@@ -248,6 +257,95 @@ describe('ProjectManagerStore project creation', () => {
       type: 'local',
       path: '/parent/child-project',
     });
+  });
+
+  it('stores remote creation operation progress on the pending project', async () => {
+    let resolveResult: (project: LocalProject) => void = () => {};
+    mocks.projectWireResult = new Promise<LocalProject>((resolve) => {
+      resolveResult = resolve;
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'clone',
+        name: 'child-project',
+        path: '/parent',
+        repositoryUrl: 'https://github.com/acme/child-project.git',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const progress: WorkspaceBootstrapProgress = {
+      step: 'setting-up-workspace',
+      message: 'Cloning repository',
+      operation: {
+        operationId: 'operation-1',
+        kind: 'provision',
+        stages: [
+          {
+            id: 'git-clone',
+            label: 'Cloning repository',
+            status: 'running',
+            progress: { percent: 42, message: 'Receiving objects' },
+          },
+        ],
+      },
+    };
+    mocks.projectWireProgressCallbacks[0]?.(progress);
+
+    const pendingProject = store.projects.get('optimistic-project');
+    expect(pendingProject && isUnregisteredProject(pendingProject)).toBe(true);
+    if (pendingProject && isUnregisteredProject(pendingProject)) {
+      expect(pendingProject.progressMessage).toBe('Cloning repository');
+      expect(pendingProject.operation).toStrictEqual(progress.operation);
+    }
+
+    resolveResult(
+      localProject({
+        id: 'optimistic-project',
+        name: 'child-project',
+        path: '/parent/child-project',
+      })
+    );
+    if (result.kind === 'creating') await result.completion;
+  });
+
+  it('cancels remote creation and removes the pending project', async () => {
+    let rejectResult: (error: unknown) => void = () => {};
+    mocks.projectWireResult = new Promise<LocalProject>((_, reject) => {
+      rejectResult = reject;
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'clone',
+        name: 'child-project',
+        path: '/parent',
+        repositoryUrl: 'https://github.com/acme/child-project.git',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    store.cancelProjectCreation('optimistic-project');
+    rejectResult(new LiveJobCancelledError());
+
+    expect(mocks.projectWireCancel).toHaveBeenCalledOnce();
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'cancelled', message: 'Project creation was cancelled' },
+      });
+    }
+    expect(store.projects.has('optimistic-project')).toBe(false);
   });
 
   it('inspects the final new-project path instead of the parent directory', async () => {

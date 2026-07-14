@@ -1,3 +1,4 @@
+import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
@@ -7,6 +8,7 @@ type TaskProvisionProgress = {
   projectId: string;
   step: WorkspaceBootstrapStep;
   message: string;
+  operation?: WorkspaceOperationProgress;
 };
 
 export type TaskProvisionHooks = {

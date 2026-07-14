@@ -1,3 +1,4 @@
+import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import { makeAutoObservable, observable } from 'mobx';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
@@ -87,6 +88,7 @@ export class ProjectStore {
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
   progressMessage: string | undefined = undefined;
+  operation: WorkspaceOperationProgress | undefined = undefined;
   errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
@@ -119,6 +121,7 @@ export class ProjectStore {
     this.phase = null;
     this.error = undefined;
     this.progressMessage = undefined;
+    this.operation = undefined;
     this.errorCode = undefined;
   }
 
@@ -136,6 +139,7 @@ export class ProjectStore {
     this.phase = phase;
     this.error = undefined;
     this.progressMessage = undefined;
+    this.operation = undefined;
     this.errorCode = undefined;
   }
 
@@ -155,6 +159,7 @@ export class ProjectStore {
     this.mode = mode;
     this.error = undefined;
     this.progressMessage = undefined;
+    this.operation = undefined;
   }
 }
 
@@ -166,6 +171,7 @@ export type UnregisteredProject = ProjectStore & {
   mode: ProjectMode;
   error: string | undefined;
   progressMessage: string | undefined;
+  operation: WorkspaceOperationProgress | undefined;
 };
 
 export type UnmountedProject = ProjectStore & {

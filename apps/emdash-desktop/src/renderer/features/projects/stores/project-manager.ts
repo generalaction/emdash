@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createLiveJobReplica, LiveJobFailedError } from '@emdash/wire';
+import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-client';
@@ -9,6 +9,7 @@ import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { sshConnectionEventChannel } from '@shared/core/ssh/sshEvents';
+import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import { type LocalProject, type SshProject } from '@shared/projects';
 import { splitNameWithOwner } from '@shared/repository-ref';
 import type { ProjectViewSnapshot } from '@shared/view-state';
@@ -33,6 +34,7 @@ import type {
 export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
   pendingCreationIds = observable.set<string>();
+  private _projectCreationJobs = new Map<string, { cancel(): Promise<void> }>();
   private _projectMountPromises = new Map<string, Promise<void>>();
   private _loadPromise: Promise<void> | null = null;
   private _lastSshRecoveryAttemptAt = 0;
@@ -255,7 +257,13 @@ export class ProjectManagerStore {
       throw error;
     }
 
-    if (!result.success) this._markCreationError(projectId, result.error);
+    if (!result.success) {
+      if (result.error.type === 'cancelled') {
+        this.removeUnregisteredProject(projectId);
+      } else {
+        this._markCreationError(projectId, result.error);
+      }
+    }
     captureTelemetry('project_added', {
       type: projectTelemetryType,
       strategy: projectTelemetryStrategy,
@@ -454,6 +462,10 @@ export class ProjectManagerStore {
     });
   }
 
+  cancelProjectCreation(projectId: string): void {
+    void this._projectCreationJobs.get(projectId)?.cancel();
+  }
+
   private _setAndOpenProject(id: string, project: LocalProject | SshProject): void {
     runInAction(() => {
       const current = this.projects.get(id);
@@ -523,11 +535,12 @@ export class ProjectManagerStore {
       name: opts.name,
     });
     const job = await lease.ready();
+    this._projectCreationJobs.set(opts.projectId, job);
     const unsubscribe = job.onProgress((progress) => {
       this._updatePhase(
         opts.projectId,
         progress.step === 'initialising-workspace' ? 'registering' : 'cloning',
-        progress.message
+        progress
       );
     });
 
@@ -537,6 +550,9 @@ export class ProjectManagerStore {
       return err(projectWireErrorToCreationError(error));
     } finally {
       unsubscribe();
+      if (this._projectCreationJobs.get(opts.projectId) === job) {
+        this._projectCreationJobs.delete(opts.projectId);
+      }
       await lease.release();
       await jobs.dispose();
     }
@@ -588,12 +604,17 @@ export class ProjectManagerStore {
     return result;
   }
 
-  private _updatePhase(id: string, phase: UnregisteredProjectPhase, message?: string): void {
+  private _updatePhase(
+    id: string,
+    phase: UnregisteredProjectPhase,
+    progress?: WorkspaceBootstrapProgress
+  ): void {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
         store.phase = phase;
-        store.progressMessage = message;
+        store.progressMessage = progress?.message;
+        store.operation = progress?.operation;
       }
     });
   }
@@ -636,11 +657,16 @@ function initialCreationPhase(mode: ModeData['mode']): UnregisteredProjectPhase 
 }
 
 function projectWireErrorToCreationError(error: unknown): ProjectCreationError {
+  if (error instanceof LiveJobCancelledError) {
+    return { type: 'cancelled', message: 'Project creation was cancelled' };
+  }
+
   const payload = error instanceof LiveJobFailedError ? error.error : error;
   if (typeof payload === 'object' && payload !== null) {
     const type = (payload as { type?: unknown }).type;
     const message = (payload as { message?: unknown }).message;
     const fallback = typeof message === 'string' ? message : 'Project creation failed';
+    if (type === 'cancelled') return { type: 'cancelled', message: fallback };
     if (type === 'initialize-failed') return { type: 'initialize-failed', message: fallback };
     if (type === 'not-repository') return { type: 'not-repository', path: '' };
     if (type === 'inspect-failed') {

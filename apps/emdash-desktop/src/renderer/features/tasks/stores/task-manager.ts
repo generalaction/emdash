@@ -420,6 +420,10 @@ export class TaskManagerStore {
 
     runInAction(() => {
       task.phase = 'provision';
+      task.errorMessage = undefined;
+      task.provisionError = null;
+      task.provisionProgress = null;
+      task.provisionProgressMessage = null;
     });
 
     const promise = this._doProvision(taskId).finally(() => {
@@ -442,6 +446,10 @@ export class TaskManagerStore {
         if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
           current.errorMessage = message;
+          current.provisionError = {
+            type: 'missing-workspace',
+            message,
+          };
         }
       });
       return;
@@ -455,15 +463,6 @@ export class TaskManagerStore {
     const jobs = createLiveJobReplica(workspacesWireContract.provision, client.provision);
     const lease = await jobs.start({ workspaceId: wsId, taskId });
     const job = await lease.ready();
-    const unsubscribe = job.onProgress((progress) => {
-      workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current?.isBootstrapping) {
-          current.provisionProgressMessage = progress.message;
-        }
-      });
-    });
 
     let result:
       | { success: true; data: Awaited<typeof job.result> }
@@ -473,7 +472,6 @@ export class TaskManagerStore {
     } catch (error) {
       result = { success: false, error: wireErrorToWorkspaceError(error) };
     } finally {
-      unsubscribe();
       await lease.release();
       await jobs.dispose();
     }
@@ -486,6 +484,7 @@ export class TaskManagerStore {
         if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
           current.errorMessage = message;
+          current.provisionError = result.error;
         }
       });
       return;
@@ -578,8 +577,15 @@ export class TaskManagerStore {
     const store = this.tasks.get(taskId);
     if (!store) return;
 
-    if (state.status === 'provisioning' && store.isBootstrapping) {
+    if (state.status === 'provisioning' && isUnprovisioned(store)) {
+      const workspaceId = store.data.workspaceId;
+      if (workspaceId) {
+        workspaceRegistry.setBootstrapState(this.projectId, workspaceId, { kind: 'resolving' });
+      }
       runInAction(() => {
+        store.phase = 'provision';
+        store.provisionProgress = state.progress ?? null;
+        store.provisionError = null;
         store.provisionProgressMessage = state.progress?.message ?? 'Setting up workspace…';
       });
       return;
@@ -590,6 +596,9 @@ export class TaskManagerStore {
       runInAction(() => {
         store.phase = 'provision-error';
         store.errorMessage = message;
+        store.provisionProgress = state.progress ?? store.provisionProgress;
+        store.provisionProgressMessage = state.progress?.message ?? store.provisionProgressMessage;
+        store.provisionError = state.error;
       });
       return;
     }

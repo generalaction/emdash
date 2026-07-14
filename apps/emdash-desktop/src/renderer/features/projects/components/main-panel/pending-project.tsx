@@ -1,16 +1,23 @@
-import { AlertCircle, Check, Loader2, X } from 'lucide-react';
+import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
+import {
+  SteppedLoader,
+  type SteppedLoaderProps,
+  type SteppedLoaderStep,
+} from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { type UnregisteredProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
 import { Button } from '@renderer/lib/ui/button';
+import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 
 type Stage = 'creating-repo' | 'cloning' | 'registering';
 
 const STAGE_LABELS: Record<Stage, string> = {
   'creating-repo': 'Creating repository',
-  cloning: 'Cloning',
-  registering: 'Registering',
+  cloning: 'Cloning repository',
+  registering: 'Registering project',
 };
 
 const STAGES_BY_MODE: Record<'pick' | 'clone' | 'new', Stage[]> = {
@@ -25,70 +32,102 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
   project: UnregisteredProject;
 }) {
   const { navigate } = useNavigate();
-  const stages = STAGES_BY_MODE[project.mode];
-  const currentStageIndex = stages.indexOf(project.phase as Stage);
   const isError = project.phase === 'error';
+  const manager = getProjectManagerStore();
+  const loader = projectToSteppedLoader(project);
 
   const handleDismiss = () => {
-    getProjectManagerStore().removeUnregisteredProject(project.id);
+    manager.removeUnregisteredProject(project.id);
     navigate('home');
   };
 
+  const handleCancel = () => {
+    manager.cancelProjectCreation(project.id);
+  };
+
+  const actions = isError ? (
+    <Button size="sm" variant="ghost" onClick={handleDismiss}>
+      Dismiss
+    </Button>
+  ) : project.phase === 'cloning' ? (
+    <Button size="sm" variant="ghost" onClick={handleCancel}>
+      Cancel
+    </Button>
+  ) : undefined;
+
   return (
     <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 p-8">
-      <div className="flex w-full max-w-sm min-w-0 flex-col items-center gap-3 text-center">
-        <h2 className="mb-2 text-base">{project.name}</h2>
-
-        {stages.map((stage, i) => {
-          const isDone = !isError && i < currentStageIndex;
-          const isActive = !isError && stage === project.phase;
-          return (
-            <div key={stage} className="flex items-center justify-center gap-3">
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-                {isDone ? (
-                  <Check className="h-4 w-4 text-foreground-success" />
-                ) : isActive ? (
-                  <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
-                ) : (
-                  <div className="bg-muted-foreground/30 h-2 w-2 rounded-full" />
-                )}
-              </div>
-              <span
-                className={
-                  isActive
-                    ? 'text-sm font-medium text-foreground'
-                    : isDone
-                      ? 'text-muted-foreground text-sm'
-                      : 'text-muted-foreground/50 text-sm'
-                }
-              >
-                {STAGE_LABELS[stage]}
-              </span>
-            </div>
-          );
-        })}
-
-        {!isError && project.progressMessage && (
-          <p className="text-muted-foreground max-w-full text-sm wrap-break-word">
-            {project.progressMessage}
-          </p>
-        )}
-
+      <div className="flex min-h-64 w-full max-w-md min-w-0 flex-col gap-5 text-center">
+        <SteppedLoader
+          className="flex-1"
+          steps={loader.steps}
+          activeStepId={loader.activeStepId}
+          status={loader.status}
+          actions={actions}
+        />
         {isError && (
-          <div className="border-destructive/40 bg-destructive/10 mt-2 flex w-full min-w-0 flex-col gap-3 rounded-md border p-3">
-            <div className="flex min-w-0 items-start gap-2 text-left">
-              <AlertCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-              <span className="text-destructive min-w-0 text-sm wrap-break-word">
-                {project.error ?? 'An error occurred'}
-              </span>
-            </div>
-            <Button size="sm" variant="outline" className="self-center" onClick={handleDismiss}>
-              <X className="mr-1.5 h-3.5 w-3.5" />
-              Dismiss
-            </Button>
-          </div>
+          <p className="text-destructive max-w-full text-sm wrap-break-word">
+            {project.error ?? 'Project creation failed'}
+          </p>
         )}
       </div>
     </div>
   );
 });
+
+function projectToSteppedLoader(
+  project: UnregisteredProject
+): Pick<SteppedLoaderProps, 'steps' | 'activeStepId' | 'status'> {
+  const error = project.phase === 'error' ? projectError(project) : null;
+  if (project.operation) {
+    const progress = projectProgress(project);
+    const model = bootstrapProgressToSteppedLoader(progress, error);
+    const steps = projectSteps(project, model.steps);
+    const activeStepId = project.phase === 'registering' ? 'registering' : model.activeStepId;
+    return {
+      steps,
+      activeStepId,
+      status: error ? 'error' : project.phase === 'registering' ? 'loading' : model.status,
+    };
+  }
+
+  const stages = STAGES_BY_MODE[project.mode];
+  const activeStage = project.phase === 'error' ? stages.at(-1) : (project.phase as Stage);
+  const activeStepId = activeStage ?? stages[0];
+  return {
+    steps: stages.map((stage) => ({ id: stage, name: STAGE_LABELS[stage] })),
+    activeStepId,
+    status: error ? 'error' : 'loading',
+  };
+}
+
+function projectProgress(project: UnregisteredProject): WorkspaceBootstrapProgress {
+  return {
+    step: project.phase === 'registering' ? 'initialising-workspace' : 'setting-up-workspace',
+    message: project.progressMessage ?? STAGE_LABELS.cloning,
+    operation: project.operation,
+  };
+}
+
+function projectSteps(
+  project: UnregisteredProject,
+  runtimeSteps: SteppedLoaderStep[]
+): SteppedLoaderStep[] {
+  const steps =
+    project.mode === 'new'
+      ? [{ id: 'creating-repo', name: STAGE_LABELS['creating-repo'] }, ...runtimeSteps]
+      : runtimeSteps;
+
+  if (steps.some((step) => step.id === 'registering')) {
+    return steps;
+  }
+
+  return [...steps, { id: 'registering', name: STAGE_LABELS.registering }];
+}
+
+function projectError(project: UnregisteredProject): WorkspaceError {
+  return {
+    type: 'project-creation-failed',
+    message: project.error ?? 'Project creation failed',
+  };
+}

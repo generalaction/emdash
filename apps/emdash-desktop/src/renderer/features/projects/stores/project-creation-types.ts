@@ -31,6 +31,7 @@ export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: strin
 
 export type ProjectCreationError =
   | CreateProjectError
+  | { type: 'cancelled'; message: string }
   | { type: 'clone-failed'; message: string }
   | { type: 'repository-create-failed'; message: string }
   | { type: 'repository-response-incomplete'; message: string }

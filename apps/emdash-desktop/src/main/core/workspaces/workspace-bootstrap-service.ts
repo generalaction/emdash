@@ -49,10 +49,10 @@ import {
   getWorkspaceRuntimeClient,
   hostFileRefFromNativePath,
 } from './runtime/workspace-runtime-host';
+import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
-import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { workspaceRegistry } from './workspace-registry';
 
 export type WorkspaceBootstrapResult = {
@@ -782,6 +782,7 @@ function emitRuntimeProgress(
     projectId,
     step: bootstrapProgress.step,
     message: bootstrapProgress.message,
+    operation: bootstrapProgress.operation,
   });
 }
 

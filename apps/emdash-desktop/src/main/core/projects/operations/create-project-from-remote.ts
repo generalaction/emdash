@@ -1,7 +1,9 @@
+import { rm, stat } from 'node:fs/promises';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { LiveJobContext } from '@emdash/wire';
 import { createLocalProject } from '@main/core/projects/operations/create-local-project';
 import { runCloneRepositoryProvision } from '@main/core/workspaces/workspace-bootstrap-service';
+import { log } from '@main/lib/logger';
 import type {
   CreateProjectFromRemoteInput,
   ProjectCreationState,
@@ -16,6 +18,7 @@ export async function createProjectFromRemote(
   ctx: LiveJobContext<WorkspaceBootstrapProgress>,
   publishCreationState: ProjectCreationPublisher
 ) {
+  const targetExistedBeforeClone = await pathExists(input.targetPath);
   publishCreationState(input.projectId, { phase: 'cloning', message: 'Cloning repository…' });
   const clone = await runCloneRepositoryProvision({
     url: input.repositoryUrl,
@@ -37,6 +40,9 @@ export async function createProjectFromRemote(
     },
   });
   if (!clone.success) {
+    if (clone.error.type === 'cancelled' && !targetExistedBeforeClone) {
+      await cleanupCancelledCloneTarget(input.targetPath);
+    }
     publishCreationState(input.projectId, {
       phase: 'error',
       message: clone.error.message,
@@ -75,6 +81,29 @@ export async function createProjectFromRemote(
 
   publishCreationState(input.projectId, { phase: 'ready', project: project.data });
   return { success: true as const, data: project.data satisfies LocalProject };
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false;
+    }
+    return true;
+  }
+}
+
+async function cleanupCancelledCloneTarget(path: string): Promise<void> {
+  try {
+    await rm(path, { recursive: true, force: true });
+  } catch (error) {
+    log.warn('Failed to clean up cancelled project clone target', {
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function creationPhaseForProgress(
