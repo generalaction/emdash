@@ -1,0 +1,21 @@
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_ce704cb479fe14::t_05295d0911ba50 88-89,621,623-625
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-panel.tsx
+  s_ce704cb479fe14::t_05295d0911ba50 44,119-125,135-138,379-392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "a10d950303e3146b62367dbee4268ea421ce9d77",
+  "prompts": {},
+  "sessions": {
+    "s_ce704cb479fe14": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pSMtzP0oP3paMIDlzAv",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
