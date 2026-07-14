@@ -16,6 +16,7 @@ export default defineConfig({
     'primitives-kv-node': 'src/primitives/kv/node/index.ts',
     'primitives-agent-env-api': 'src/primitives/agent-env/api/index.ts',
     'primitives-plugin-fs-api': 'src/primitives/plugin-fs/api/index.ts',
+    'primitives-versioned-schema-api': 'src/primitives/versioned-schema/api/index.ts',
     'services-exec-api': 'src/services/exec/api/index.ts',
     'services-exec-node': 'src/services/exec/node/index.ts',
     'services-pty-api': 'src/services/pty/api/index.ts',

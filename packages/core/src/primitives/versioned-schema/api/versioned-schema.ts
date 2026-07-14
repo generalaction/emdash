@@ -1,6 +1,23 @@
 import z from 'zod';
 
 // ---------------------------------------------------------------------------
+// Environment
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether to run full (dev-only) schema validation. In dev we validate stored
+ * data against its declared schema to catch drift; in production we trust the
+ * data was valid when written and skip validation for performance.
+ *
+ * Uses `process.env.NODE_ENV` so it works across Node, bundled main/renderer
+ * (Vite statically replaces this), and test runners. Falls back to disabled
+ * when `process` is unavailable (e.g. a browser context without a shim).
+ */
+function isDevMode(): boolean {
+  return typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
+}
+
+// ---------------------------------------------------------------------------
 // ParseResult
 // ---------------------------------------------------------------------------
 
@@ -136,7 +153,7 @@ export class VersionedSchema<TLatest> {
     // In dev: validate the stored data against its declared schema to catch drift.
     // In production: trust the data was valid when written, skip validation for performance.
     let current: unknown = data;
-    if (import.meta.env.DEV) {
+    if (isDevMode()) {
       const parsed = entry.schema.safeParse(data);
       if (!parsed.success) {
         return {
@@ -178,7 +195,7 @@ export class VersionedSchema<TLatest> {
         return { status: 'needs-context', version: resolvedVersion, raw: data };
       }
 
-      if (import.meta.env.DEV) {
+      if (isDevMode()) {
         const check = nextEntry.schema.safeParse(upgraded);
         if (!check.success) {
           return {

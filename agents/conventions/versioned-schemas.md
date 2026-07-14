@@ -32,7 +32,7 @@ a serialized non-JSON value), a versioned schema is not necessary.
 
 | File | Purpose |
 |------|---------|
-| `src/shared/lib/versioned-schema/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` |
+| `packages/core/src/primitives/versioned-schema/api/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` (imported as `@emdash/core/primitives/versioned-schema/api`) |
 | `src/main/db/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
 
 ## Defining a versioned schema
@@ -47,7 +47,7 @@ Use `.initial()` if the stored JSON always had a `version` field from the start:
 ```ts
 // src/shared/my-config.ts
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 
 const v1Schema = z.object({
   version: z.literal('1'),

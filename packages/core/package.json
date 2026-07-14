@@ -69,6 +69,10 @@
       "types": "./dist/primitives-plugin-fs-api.d.mts",
       "default": "./dist/primitives-plugin-fs-api.mjs"
     },
+    "./primitives/versioned-schema/api": {
+      "types": "./dist/primitives-versioned-schema-api.d.mts",
+      "default": "./dist/primitives-versioned-schema-api.mjs"
+    },
     "./services/exec/api": {
       "types": "./dist/services-exec-api.d.mts",
       "default": "./dist/services-exec-api.mjs"

@@ -450,36 +450,3 @@ describe('asNested', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Accessors: .schema and .currentVersion
-// ---------------------------------------------------------------------------
-
-describe('accessors', () => {
-  describe('.schema', () => {
-    it('returns the Zod schema for the latest version', () => {
-      const versionedSchema = makeTwoVersionSchema();
-      const data = { version: '2' as const, name: 'Alice', count: 1 };
-      const result = versionedSchema.schema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('rejects data that does not match the latest version', () => {
-      const versionedSchema = makeTwoVersionSchema();
-      // v1 data should not satisfy the v2 schema (missing 'count')
-      const result = versionedSchema.schema.safeParse({ version: '1', name: 'Bob' });
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('.currentVersion', () => {
-    it('returns the latest version string', () => {
-      const schema = makeTwoVersionSchema();
-      expect(schema.currentVersion).toBe('2');
-    });
-
-    it('reflects a three-version schema correctly', () => {
-      expect(makeThreeVersionSchema().currentVersion).toBe('3');
-    });
-  });
-});

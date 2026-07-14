@@ -1,6 +1,6 @@
 import { customType } from 'drizzle-orm/sqlite-core';
 import { log } from '@main/lib/logger';
-import type { VersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
+import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 
 /**
  * Parses a raw TEXT column value into a typed domain object using a versioned

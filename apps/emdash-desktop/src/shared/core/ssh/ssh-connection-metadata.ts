@@ -1,5 +1,5 @@
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 
 // ---------------------------------------------------------------------------
 // v0 schema — unversioned legacy format

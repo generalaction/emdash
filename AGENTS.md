@@ -406,8 +406,9 @@ pnpm run test
 - App path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:
   `@/*`, `@renderer/*`, `@main/*`, `@shared/*`, `@root/*`, and `@tooling/*`.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
-  `src/shared/lib/versioned-schema/versioned-schema.ts` and Drizzle
-  `versionedJsonColumn()` from `src/main/db/versioned-column.ts`.
+  `@emdash/core/primitives/versioned-schema/api`
+ (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle
+ `versionedJsonColumn()` from `src/main/db/versioned-column.ts`.
 
 ## Further Reading
 
