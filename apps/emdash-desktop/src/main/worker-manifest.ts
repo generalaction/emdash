@@ -14,6 +14,10 @@ export const desktopWorkers = {
     entry: 'src/main/core/wire-workers/entries/fs-watch.ts',
     file: 'fs-watch-runtime.js',
   },
+  'file-search': {
+    entry: 'src/main/core/wire-workers/entries/file-search.ts',
+    file: 'file-search-runtime.js',
+  },
   files: {
     entry: 'src/main/core/wire-workers/entries/files.ts',
     file: 'files-runtime.js',

@@ -6,6 +6,8 @@ import {
   type AgentConfigContract,
 } from '@emdash/core/runtimes/agent-config/api';
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
+import { type FileSearchContract } from '@emdash/core/runtimes/file-search/api';
+import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import { filesContract, type FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import { gitContract, type GitContract } from '@emdash/core/runtimes/git/api';
@@ -35,6 +37,7 @@ import { app, ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
+import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { log } from '@main/lib/logger';
@@ -48,6 +51,7 @@ import {
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
+export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
@@ -126,6 +130,9 @@ export const agentConfigWorker = host.create(agentConfigComponent, {
 
 let agentConfigClientPromise: Promise<AgentConfigRuntimeClient> | undefined;
 
+let fileSearchWorker: WireWorker<FileSearchContract> | undefined;
+let fileSearchClientPromise: Promise<FileSearchRuntimeClient> | undefined;
+
 let filesWorker: WireWorker<FilesContract> | undefined;
 let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 
@@ -140,6 +147,10 @@ export async function ensureFilesWorkerReady(): Promise<void> {
   await getFilesRuntimeClient();
 }
 
+export async function ensureFileSearchWorkerReady(): Promise<void> {
+  await getFileSearchRuntimeClient();
+}
+
 export async function ensureGitWorkerReady(): Promise<void> {
   await getGitRuntimeClient();
 }
@@ -152,6 +163,11 @@ export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
 export function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeClient> {
   agentConfigClientPromise ??= agentConfigWorker.ready();
   return agentConfigClientPromise;
+}
+
+export function getFileSearchRuntimeClient(): Promise<FileSearchRuntimeClient> {
+  fileSearchClientPromise ??= createFileSearchRuntimeClient();
+  return fileSearchClientPromise;
 }
 
 export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
@@ -180,6 +196,22 @@ async function createFilesRuntimeClient(): Promise<FilesRuntimeClient> {
     config: {},
   });
   return await filesWorker.ready();
+}
+
+async function createFileSearchRuntimeClient(): Promise<FileSearchRuntimeClient> {
+  const watcher = await fsWatchWorker.ready();
+  fileSearchWorker ??= host.create(fileSearchComponent, {
+    name: 'file-search',
+    executable: desktopWorkerPath('file-search'),
+    env: process.env,
+    dependencies: {
+      watcher,
+    },
+    config: {
+      databasePath: resolveFileSearchDatabasePath(),
+    },
+  });
+  return await fileSearchWorker.ready();
 }
 
 async function createGitRuntimeClient(): Promise<GitRuntimeClient> {

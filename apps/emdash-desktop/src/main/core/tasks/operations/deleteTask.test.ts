@@ -9,7 +9,6 @@ import { deleteTask } from './deleteTask';
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
-  deleteIndex: vi.fn(),
   deleteWhere: vi.fn(),
   delViewState: vi.fn(),
   fileSystemFactory: vi.fn(),
@@ -20,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
+  unregisterFileSearchRoot: vi.fn(),
 }));
 const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 
@@ -66,10 +66,8 @@ vi.mock('@main/core/view-state/view-state-service', () => ({
   },
 }));
 
-vi.mock('@main/core/search/workspace-file-index-service', () => ({
-  workspaceFileIndexService: {
-    deleteIndex: mocks.deleteIndex,
-  },
+vi.mock('@main/core/file-search/runtime-client', () => ({
+  unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,
 }));
 
 vi.mock('@main/lib/telemetry', () => ({
@@ -130,7 +128,7 @@ describe('deleteTask', () => {
     expect(mocks.deleteWhere).toHaveBeenCalledOnce();
   });
 
-  it('preserves the workspace file index when an archived sibling still references the workspace', async () => {
+  it('preserves file-search registration when an archived sibling references the workspace', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([
@@ -141,7 +139,7 @@ describe('deleteTask', () => {
 
     await deleteTask('project-1', 'task-1', { deleteWorktree: false });
 
-    expect(mocks.deleteIndex).not.toHaveBeenCalled();
+    expect(mocks.unregisterFileSearchRoot).not.toHaveBeenCalled();
   });
 
   it('removes an owned local worktree by recorded path when the project is not mounted', async () => {

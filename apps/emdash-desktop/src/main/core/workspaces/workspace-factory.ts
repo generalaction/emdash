@@ -2,9 +2,9 @@ import path from 'node:path';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
@@ -99,14 +99,11 @@ export function createWorkspaceFactory(
     return {
       workspace,
       onCreateSideEffect: (created) => {
-        void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
-          files: created.files,
-        });
+        void registerFileSearchRoot(created.files.root);
       },
       onCreate: context.extraHooks?.onCreate,
       onDestroy: async (destroyed) => {
         await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
         await context.extraHooks?.onDestroy?.(destroyed);
       },
       onDetach: async (detached) => {

@@ -4,7 +4,11 @@ import path from 'node:path';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
+import {
+  hostPathFromNative,
+  nativePathFromHost,
+  resolveRelativePath,
+} from '@shared/core/runtime/paths';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import {
   deleteWorkspaceIfUnused,
@@ -20,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   gitRepository: vi.fn(),
   pruneWorktrees: vi.fn(),
   selectLimit: vi.fn(),
-  deleteIndex: vi.fn(),
+  unregisterFileSearchRoot: vi.fn(),
 }));
 const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 
@@ -44,10 +48,8 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
-vi.mock('@main/core/search/workspace-file-index-service', () => ({
-  workspaceFileIndexService: {
-    deleteIndex: mocks.deleteIndex,
-  },
+vi.mock('@main/core/file-search/runtime-client', () => ({
+  unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,
 }));
 
 describe('task lifecycle workspace cleanup', () => {
@@ -132,18 +134,28 @@ describe('task lifecycle workspace cleanup', () => {
     expect(project.removeTaskWorktree).toHaveBeenCalledWith('task/provisioned');
   });
 
-  it('deletes the workspace index when deleting the unreferenced workspace row', async () => {
+  it('unregisters file search when deleting the unreferenced workspace row', async () => {
     mocks.selectLimit
-      .mockResolvedValueOnce([{ id: 'workspace-1', kind: 'worktree' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'workspace-1',
+          kind: 'worktree',
+          type: 'local',
+          location: 'local',
+          path: '/repo/worktree',
+        },
+      ])
       .mockResolvedValueOnce([]);
 
     await deleteWorkspaceIfUnused('workspace-1', 'task-1');
 
     expect(mocks.deleteWhere).toHaveBeenCalledOnce();
-    expect(mocks.deleteIndex).toHaveBeenCalledWith('workspace-1');
+    expect(mocks.unregisterFileSearchRoot).toHaveBeenCalledWith(
+      hostPathFromNative('/repo/worktree')
+    );
   });
 
-  it('preserves the workspace index while an archived sibling still references the workspace', async () => {
+  it('preserves the file-search root while an archived sibling still references the workspace', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([{ id: 'workspace-1', kind: 'worktree' }])
       .mockResolvedValueOnce([{ id: 'archived-sibling' }]);
@@ -151,7 +163,7 @@ describe('task lifecycle workspace cleanup', () => {
     await deleteWorkspaceIfUnused('workspace-1', 'task-1');
 
     expect(mocks.deleteWhere).not.toHaveBeenCalled();
-    expect(mocks.deleteIndex).not.toHaveBeenCalled();
+    expect(mocks.unregisterFileSearchRoot).not.toHaveBeenCalled();
   });
 
   it('removes an owned local worktree directory and prunes stale git worktree entries', async () => {

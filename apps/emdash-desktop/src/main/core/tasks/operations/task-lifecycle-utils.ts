@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import {
   fileKey,
   fileMutationKey,
@@ -9,7 +10,6 @@ import {
   isFileNotFoundError,
 } from '@main/core/files/runtime-client';
 import { mutationResult, repositorySelector } from '@main/core/git/runtime-client';
-import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
@@ -17,6 +17,7 @@ import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-b
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { hostPathFromNative } from '@shared/core/runtime/paths';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
 import type { ProjectProvider } from '../../projects/project-provider';
@@ -192,7 +193,8 @@ export async function removeWorktreeIfUnused(
 }
 
 /**
- * Deletes the workspace row and its derived file index only when no other task still references it.
+ * Deletes the workspace row and unregisters its file-search root only when no other task still
+ * references it.
  *
  * Tasks are deduplicated onto a single workspace row per resolved path (see
  * `WorkspaceBootstrapService.persistPath`), so for `no-worktree` tasks every task in a
@@ -206,7 +208,13 @@ export async function deleteWorkspaceIfUnused(
   excludeTaskId: string
 ): Promise<void> {
   const [wsRow] = await db
-    .select({ id: workspaces.id, kind: workspaces.kind })
+    .select({
+      id: workspaces.id,
+      kind: workspaces.kind,
+      type: workspaces.type,
+      location: workspaces.location,
+      path: workspaces.path,
+    })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
@@ -222,8 +230,10 @@ export async function deleteWorkspaceIfUnused(
   if (sibling) return;
 
   try {
+    if (wsRow?.path && isLocalWorkspace(wsRow)) {
+      await unregisterFileSearchRoot(hostPathFromNative(path.resolve(wsRow.path)));
+    }
     await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
-    workspaceFileIndexService.deleteIndex(workspaceId);
   } catch (e) {
     log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
       workspaceId,

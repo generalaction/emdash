@@ -13,9 +13,10 @@ import type {
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Project } from '@shared/projects';
 import { conversationEvents } from '../conversations/conversation-events';
+import { searchFileSearchRoot } from '../file-search/runtime-client';
 import { projectEvents } from '../projects/project-events';
 import { taskService } from '../tasks/task-service';
-import { workspaceFileIndexService } from './workspace-file-index-service';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 
 type FtsRow = {
   item_type: string;
@@ -63,11 +64,17 @@ class SearchService {
     this.seedCommands();
   }
 
-  searchFiles(workspaceId: string, query: string, limit?: number): WorkspaceFileHit[] {
-    return workspaceFileIndexService.searchFiles(workspaceId, query, limit);
+  async searchFiles(
+    workspaceId: string,
+    query: string,
+    limit?: number
+  ): Promise<WorkspaceFileHit[]> {
+    const workspace = workspaceRegistry.get(workspaceId);
+    if (!workspace) return [];
+    return await searchFileSearchRoot(workspace.files.root, query, limit);
   }
 
-  search({ query, context }: CommandPaletteQuery): SearchItem[] {
+  async search({ query, context }: CommandPaletteQuery): Promise<SearchItem[]> {
     if (!query.trim()) return this.recents(context);
 
     // Trigram tokenizer requires each term to be at least 3 characters.
@@ -80,9 +87,12 @@ class SearchService {
 
     if (terms.length === 0) return this.recents(context);
 
+    const fileHitsPromise = context?.workspaceId
+      ? this.searchFiles(context.workspaceId, query)
+      : Promise.resolve([]);
     const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
 
-    let rows: FtsRow[];
+    let rows: FtsRow[] = [];
     try {
       if (context?.taskId) {
         rows = sqlite
@@ -109,7 +119,6 @@ class SearchService {
       }
     } catch (e) {
       log.warn('SearchService: FTS query failed', { query, error: String(e) });
-      return [];
     }
 
     const results: SearchItem[] = rows.map((r) => ({
@@ -122,19 +131,17 @@ class SearchService {
       score: r.rank,
     }));
 
-    if (context?.workspaceId) {
-      const fileHits = workspaceFileIndexService.search(context.workspaceId, query);
-      for (const h of fileHits) {
-        results.push({
-          kind: 'file',
-          id: h.path,
-          projectId: context.projectId ?? null,
-          taskId: context.taskId ?? null,
-          title: h.filename,
-          subtitle: h.path,
-          score: 0,
-        });
-      }
+    const fileHits = await fileHitsPromise;
+    for (const hit of fileHits) {
+      results.push({
+        kind: 'file',
+        id: hit.path,
+        projectId: context?.projectId ?? null,
+        taskId: context?.taskId ?? null,
+        title: hit.filename,
+        subtitle: hit.path,
+        score: 0,
+      });
     }
 
     return results;
