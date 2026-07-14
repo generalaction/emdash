@@ -233,7 +233,19 @@ export async function executeTaskCreate(
 
     try {
       const provision = await taskService.launch(taskId);
-      if (await wasManuallyStopped(run.id)) return err('manually_stopped');
+      if (await wasManuallyStopped(run.id)) {
+        const teardown = await taskService.teardown(taskId);
+        if (!teardown.success) {
+          const failed = await markRunFailed(run.id, {
+            step: 'launch_task',
+            code: 'teardown_failed',
+            message: teardown.error.message,
+          });
+          onStepCompleted(failed);
+          return err('teardown_failed');
+        }
+        return err('manually_stopped');
+      }
       if (!provision.success) {
         const msg = provision.error.type === 'setup-failed' ? provision.error.message : undefined;
         const failed = await markRunFailed(run.id, {
@@ -289,7 +301,16 @@ export async function executeTaskCreate(
           throw new Error(startResult.error.message ?? startResult.error.type);
         }
         if (await wasManuallyStopped(run.id)) {
-          await acpClient.cancelTurn({ conversationId });
+          const cancelResult = await acpClient.cancelTurn({ conversationId });
+          if (!cancelResult.success) {
+            const failed = await markRunFailed(run.id, {
+              step: 'create_conversation',
+              code: 'stop_conversation_failed',
+              message: cancelResult.error.message ?? cancelResult.error.type,
+            });
+            onStepCompleted(failed);
+            return err('stop_conversation_failed');
+          }
           return err('manually_stopped');
         }
       }

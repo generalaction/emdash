@@ -22,7 +22,8 @@ import {
 } from '../run-transitions';
 import { executeTaskCreate } from './taskCreate';
 
-const { mockAcpStartSession } = vi.hoisted(() => ({
+const { mockAcpCancelTurn, mockAcpStartSession } = vi.hoisted(() => ({
+  mockAcpCancelTurn: vi.fn(),
   mockAcpStartSession: vi.fn(),
 }));
 
@@ -59,14 +60,16 @@ vi.mock('@main/core/tasks/operations/createTask', () => ({
   finalizeCreateTask: vi.fn(),
 }));
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
+  taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn(), teardown: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
 }));
 vi.mock('@main/core/acp/controller', () => ({
-  getAcpRuntimeClient: vi.fn(() => Promise.resolve({ startSession: mockAcpStartSession })),
+  getAcpRuntimeClient: vi.fn(() =>
+    Promise.resolve({ cancelTurn: mockAcpCancelTurn, startSession: mockAcpStartSession })
+  ),
 }));
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },
@@ -150,7 +153,9 @@ describe('executeTaskCreate', () => {
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
+    vi.mocked(taskService.teardown).mockResolvedValue({ success: true, data: undefined });
     vi.mocked(createConversation).mockResolvedValue({} as never);
+    mockAcpCancelTurn.mockResolvedValue({ success: true, data: undefined });
     mockAcpStartSession.mockResolvedValue({
       success: true,
       data: { sessionId: 'acp-session' },
@@ -249,6 +254,45 @@ describe('executeTaskCreate', () => {
     expect(result).toEqual({ success: false, error: 'manually_stopped' });
     expect(commitCreateTask).not.toHaveBeenCalled();
     expect(taskService.launch).not.toHaveBeenCalled();
+  });
+
+  it('tears down a launched task when the run stops during launch', async () => {
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce({
+        ...run,
+        status: 'skipped',
+        error: { step: 'queue', code: 'manually_stopped' },
+      });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(taskService.teardown).toHaveBeenCalledWith(expect.any(String));
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  it('marks the run failed when launched task teardown fails', async () => {
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce({
+        ...run,
+        status: 'skipped',
+        error: { step: 'queue', code: 'manually_stopped' },
+      });
+    vi.mocked(taskService.teardown).mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'teardown failed' },
+    });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'teardown_failed' });
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'launch_task',
+      code: 'teardown_failed',
+      message: 'teardown failed',
+    });
   });
 
   it('marks run failed when launch fails', async () => {
@@ -399,6 +443,44 @@ describe('executeTaskCreate', () => {
         model: 'sonnet',
         initialQueue: [{ text: 'Check things' }],
       }),
+    });
+  });
+
+  it('marks the run failed when ACP cancellation fails after a stop', async () => {
+    const stoppedRun: AutomationRun = {
+      ...run,
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+    };
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(stoppedRun);
+    mockAcpCancelTurn.mockResolvedValue({
+      success: false,
+      error: { type: 'cancel_failed', message: 'cancel failed' },
+    });
+
+    const result = await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Check things',
+          provider: 'claude',
+          autoApprove: false,
+          type: 'acp',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(result).toEqual({ success: false, error: 'stop_conversation_failed' });
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'create_conversation',
+      code: 'stop_conversation_failed',
+      message: 'cancel failed',
     });
   });
 
