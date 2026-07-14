@@ -85,6 +85,8 @@ export function stopReasonNotice(reason: string): ComposerNotice | null {
 
 // ── Attachment types ──────────────────────────────────────────────────────────
 
+const imageFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
+
 export interface ComposerAttachment {
   id: string;
   name: string;
@@ -228,7 +230,7 @@ export interface ChatComposerProps {
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
   /**
-   * Called with dropped image files before the default data-url attachment path.
+   * Called with pasted or dropped image files before the default data-url attachment path.
    * When supplied, the host owns uploading and adding preview attachments.
    */
   onImageFilesDropped?: (files: File[]) => void;
@@ -613,6 +615,28 @@ export function ChatComposer({
     onSubmit(text);
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const imageFiles = Array.from(e.clipboardData.items).flatMap((item) => {
+      if (item.kind !== 'file') return [];
+      const file = item.getAsFile();
+      if (!file) return [];
+      const mimeType = (item.type || file.type).toLowerCase();
+      return mimeType.startsWith('image/') || imageFileExtension.test(file.name) ? [file] : [];
+    });
+    if (imageFiles.length === 0) return;
+
+    if (!e.clipboardData.types.some((type) => type.startsWith('text/'))) e.preventDefault();
+    if (onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (onAttachmentsChange) {
+      const base = attachments;
+      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
+        onAttachmentsChange([...base, ...newAttachments]);
+      });
+    }
+  };
+
   // ── Drag-and-drop ───────────────────────────────────────────────────────────
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -757,6 +781,7 @@ export function ChatComposer({
 
       <div
         className={styles.composerShell({ hasBand: !!hasBand, dragActive })}
+        onPaste={handlePaste}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
