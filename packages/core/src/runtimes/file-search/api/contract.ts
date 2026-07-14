@@ -1,30 +1,41 @@
-import { defineContract, fallible } from '@emdash/wire';
+import { defineContract, fallible, liveJob } from '@emdash/wire';
 import { z } from 'zod';
 import {
-  fileSearchErrorSchema,
-  fileSearchQuerySchema,
+  contentSearchErrorSchema,
   fileSearchRegisterRootErrorSchema,
-  fileSearchRegisterRootInputSchema,
-  fileSearchResultSchema,
   fileSearchUnregisterRootErrorSchema,
-  fileSearchUnregisterRootInputSchema,
+  pathSearchErrorSchema,
+} from './errors';
+import {
+  contentSearchInputSchema,
+  contentSearchProgressSchema,
+  contentSearchResultSchema,
+  fileSearchRootInputSchema,
+  pathSearchInputSchema,
+  pathSearchResultSchema,
 } from './schemas';
 
 export const fileSearchContract = defineContract({
   registerRoot: fallible({
-    input: fileSearchRegisterRootInputSchema,
+    input: fileSearchRootInputSchema,
     data: z.void(),
     error: fileSearchRegisterRootErrorSchema,
   }),
   unregisterRoot: fallible({
-    input: fileSearchUnregisterRootInputSchema,
+    input: fileSearchRootInputSchema,
     data: z.void(),
     error: fileSearchUnregisterRootErrorSchema,
   }),
-  search: fallible({
-    input: fileSearchQuerySchema,
-    data: fileSearchResultSchema,
-    error: fileSearchErrorSchema,
+  searchPaths: fallible({
+    input: pathSearchInputSchema,
+    data: pathSearchResultSchema,
+    error: pathSearchErrorSchema,
+  }),
+  searchContent: liveJob({
+    input: contentSearchInputSchema,
+    progress: contentSearchProgressSchema,
+    result: contentSearchResultSchema,
+    error: contentSearchErrorSchema,
   }),
 });
 

@@ -1,9 +1,7 @@
 import type { PortableRelativePath } from '@primitives/path/api';
+import type { PathEntryKind } from '@runtimes/file-search/api';
 
-export type FileSearchPathKind = 'file' | 'directory';
-
-/** One policy shared by scanner traversal and native watcher subscription. */
+/** Semantic exclusion policy shared by path indexing and content search implementations. */
 export interface FileSearchExclusionPolicy {
-  readonly watchIgnoreGlobs: readonly string[];
-  excludes(path: PortableRelativePath, kind: FileSearchPathKind): boolean;
+  excludes(path: PortableRelativePath, kind: PathEntryKind): boolean;
 }

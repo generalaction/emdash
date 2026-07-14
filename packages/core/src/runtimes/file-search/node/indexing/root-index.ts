@@ -1,21 +1,24 @@
 import type { Scope } from '@emdash/shared/concurrency';
-import type { FileSearchStore, StoredFileSearchRoot } from '@runtimes/file-search/node/store';
+import type {
+  PathIndexStore,
+  StoredFileSearchRoot,
+} from '@runtimes/file-search/node/path-index-store';
 import type { IWatchService } from '@services/fs-watch/api';
 import type { FileSearchExclusionPolicy } from './exclusions';
-import type { FileScanner } from './scanner';
+import type { PathScanner } from './scanner';
 
 export type RootIndexOptions = Readonly<{
   root: StoredFileSearchRoot;
-  store: FileSearchStore;
+  store: PathIndexStore;
   watcher: IWatchService;
-  scanner: FileScanner;
+  scanner: PathScanner;
   exclusionPolicy: FileSearchExclusionPolicy;
   scope: Scope;
-  maxIndexedFiles?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
 /** Lifecycle resource that keeps one registered root's published generation current. */
 export interface RootIndex {
-  reconcile(): void;
+  /** Coalesces concurrent requests and settles when the current generation is published. */
+  reconcile(): Promise<void>;
 }

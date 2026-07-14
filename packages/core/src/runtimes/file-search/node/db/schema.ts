@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-export const FILE_SEARCH_SCHEMA_VERSION = 1;
+export const FILE_SEARCH_SCHEMA_VERSION = 2;
 
 const controlTablesSql = `
   CREATE TABLE IF NOT EXISTS registered_roots (
@@ -20,59 +20,71 @@ const dropIndexSql = `
   DROP TRIGGER IF EXISTS file_paths_after_insert;
   DROP TRIGGER IF EXISTS file_paths_after_delete;
   DROP TRIGGER IF EXISTS file_paths_after_update;
+  DROP TRIGGER IF EXISTS path_entries_after_insert;
+  DROP TRIGGER IF EXISTS path_entries_after_delete;
+  DROP TRIGGER IF EXISTS path_entries_after_update;
   DROP TABLE IF EXISTS file_paths_fts;
   DROP TABLE IF EXISTS file_paths;
+  DROP TABLE IF EXISTS path_entries_fts;
+  DROP TABLE IF EXISTS path_entries;
 `;
 
-const filePathsTableSql = `
-  CREATE TABLE file_paths (
+const pathEntriesTableSql = `
+  CREATE TABLE path_entries (
     id INTEGER PRIMARY KEY,
     root_id INTEGER NOT NULL,
     generation INTEGER NOT NULL,
     relative_path TEXT NOT NULL,
-    filename TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
 
     FOREIGN KEY (root_id) REFERENCES registered_roots(id) ON DELETE CASCADE,
     UNIQUE (root_id, generation, relative_path),
     CHECK (generation >= 1),
     CHECK (length(relative_path) > 0),
-    CHECK (length(filename) > 0)
+    CHECK (length(name) > 0),
+    CHECK (kind IN ('file', 'directory'))
   ) STRICT;
 `;
 
 const ftsTableSql = `
-  CREATE VIRTUAL TABLE file_paths_fts USING fts5(
+  CREATE VIRTUAL TABLE path_entries_fts USING fts5(
     root_id UNINDEXED,
     generation UNINDEXED,
+    kind UNINDEXED,
     relative_path,
-    filename,
-    content = 'file_paths',
+    name,
+    content = 'path_entries',
     content_rowid = 'id',
     tokenize = 'trigram case_sensitive 0'
   );
 `;
 
 const ftsTriggersSql = `
-  CREATE TRIGGER file_paths_after_insert AFTER INSERT ON file_paths BEGIN
-    INSERT INTO file_paths_fts(rowid, root_id, generation, relative_path, filename)
-    VALUES (new.id, new.root_id, new.generation, new.relative_path, new.filename);
+  CREATE TRIGGER path_entries_after_insert AFTER INSERT ON path_entries BEGIN
+    INSERT INTO path_entries_fts(rowid, root_id, generation, kind, relative_path, name)
+    VALUES (new.id, new.root_id, new.generation, new.kind, new.relative_path, new.name);
   END;
 
-  CREATE TRIGGER file_paths_after_delete AFTER DELETE ON file_paths BEGIN
-    INSERT INTO file_paths_fts(
-      file_paths_fts, rowid, root_id, generation, relative_path, filename
+  CREATE TRIGGER path_entries_after_delete AFTER DELETE ON path_entries BEGIN
+    INSERT INTO path_entries_fts(
+      path_entries_fts, rowid, root_id, generation, kind, relative_path, name
     )
-    VALUES ('delete', old.id, old.root_id, old.generation, old.relative_path, old.filename);
+    VALUES (
+      'delete', old.id, old.root_id, old.generation, old.kind, old.relative_path, old.name
+    );
   END;
 
-  CREATE TRIGGER file_paths_after_update AFTER UPDATE ON file_paths BEGIN
-    INSERT INTO file_paths_fts(
-      file_paths_fts, rowid, root_id, generation, relative_path, filename
+  CREATE TRIGGER path_entries_after_update AFTER UPDATE ON path_entries BEGIN
+    INSERT INTO path_entries_fts(
+      path_entries_fts, rowid, root_id, generation, kind, relative_path, name
     )
-    VALUES ('delete', old.id, old.root_id, old.generation, old.relative_path, old.filename);
+    VALUES (
+      'delete', old.id, old.root_id, old.generation, old.kind, old.relative_path, old.name
+    );
 
-    INSERT INTO file_paths_fts(rowid, root_id, generation, relative_path, filename)
-    VALUES (new.id, new.root_id, new.generation, new.relative_path, new.filename);
+    INSERT INTO path_entries_fts(rowid, root_id, generation, kind, relative_path, name)
+    VALUES (new.id, new.root_id, new.generation, new.kind, new.relative_path, new.name);
   END;
 `;
 
@@ -91,7 +103,7 @@ export function initializeFileSearchSchema(database: DatabaseSync): void {
     if (version < FILE_SEARCH_SCHEMA_VERSION) {
       database.exec(controlTablesSql);
       database.exec(dropIndexSql);
-      database.exec(filePathsTableSql);
+      database.exec(pathEntriesTableSql);
       database.exec(ftsTableSql);
       database.exec(ftsTriggersSql);
       database.exec('UPDATE registered_roots SET current_generation = NULL');

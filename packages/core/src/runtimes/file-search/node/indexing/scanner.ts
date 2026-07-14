@@ -1,11 +1,17 @@
 import type { PortableRelativePath } from '@primitives/path/api';
-import type { FileSearchIndexEntry } from '@runtimes/file-search/node/store';
+import type { PathIndexEntry } from '@runtimes/file-search/node/path-index-store';
+import type { FileSearchExclusionPolicy } from './exclusions';
+
+export type PathScanOptions = Readonly<{
+  signal: AbortSignal;
+  exclusions: FileSearchExclusionPolicy;
+}>;
 
 /** Traversal port for full-root and subtree scans. */
-export interface FileScanner {
+export interface PathScanner {
   scan(
     rootPath: string,
     relativeRoot: PortableRelativePath,
-    signal: AbortSignal
-  ): AsyncIterable<FileSearchIndexEntry>;
+    options: PathScanOptions
+  ): AsyncIterable<PathIndexEntry>;
 }

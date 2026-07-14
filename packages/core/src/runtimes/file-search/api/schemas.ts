@@ -1,79 +1,120 @@
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
 
-export const FILE_SEARCH_MAX_LIMIT = 200;
-export const FILE_SEARCH_DEFAULT_LIMIT = 20;
+export const PATH_SEARCH_MAX_LIMIT = 200;
+export const PATH_SEARCH_DEFAULT_LIMIT = 20;
+export const CONTENT_SEARCH_MAX_LIMIT = 10_000;
+export const CONTENT_SEARCH_DEFAULT_LIMIT = 1_000;
 export const FILE_SEARCH_MAX_QUERY_LENGTH = 512;
 
 export const fileSearchRootInputSchema = z.object({
   root: hostAbsolutePathSchema,
 });
 
-export const fileSearchRegisterRootInputSchema = fileSearchRootInputSchema;
-export const fileSearchUnregisterRootInputSchema = fileSearchRootInputSchema;
+export const pathEntryKindSchema = z.enum(['file', 'directory']);
 
-export const fileSearchQuerySchema = fileSearchRootInputSchema.extend({
-  query: z.string().max(FILE_SEARCH_MAX_QUERY_LENGTH),
-  limit: z.number().int().positive().max(FILE_SEARCH_MAX_LIMIT).optional(),
+export const pathSearchInputSchema = fileSearchRootInputSchema.extend({
+  query: z.string().min(1).max(FILE_SEARCH_MAX_QUERY_LENGTH),
+  kinds: z
+    .array(pathEntryKindSchema)
+    .min(1)
+    .max(pathEntryKindSchema.options.length)
+    .refine((kinds) => new Set(kinds).size === kinds.length, {
+      message: 'Path entry kinds must be unique',
+    }),
+  limit: z.number().int().positive().max(PATH_SEARCH_MAX_LIMIT).optional(),
 });
 
-export const fileSearchHitSchema = z.object({
+export const pathSearchHitSchema = z.object({
   path: portableRelativePathSchema,
+  kind: pathEntryKindSchema,
 });
 
-export const fileSearchResultSchema = z.object({
-  hits: z.array(fileSearchHitSchema),
+export const pathSearchResultSchema = z.object({
+  hits: z.array(pathSearchHitSchema).max(PATH_SEARCH_MAX_LIMIT),
 });
 
-export const fileSearchRootUnavailableReasonSchema = z.enum([
-  'not-found',
-  'not-a-directory',
-  'permission-denied',
-  'invalid-path',
-]);
-
-export const fileSearchRootUnavailableErrorSchema = z.object({
-  type: z.literal('root-unavailable'),
-  root: hostAbsolutePathSchema,
-  reason: fileSearchRootUnavailableReasonSchema,
-  message: z.string(),
+export const contentSearchInputSchema = fileSearchRootInputSchema.extend({
+  query: z.string().min(1).max(FILE_SEARCH_MAX_QUERY_LENGTH),
+  under: portableRelativePathSchema.optional(),
+  limit: z.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT).optional(),
 });
 
-export const fileSearchIndexNotReadyErrorSchema = z.object({
-  type: z.literal('index-not-ready'),
-  root: hostAbsolutePathSchema,
-  message: z.string(),
+/**
+ * One-based UTF-16 editor columns. `endColumn` is exclusive; adapters producing byte offsets
+ * must convert them before crossing this interface.
+ */
+export const contentSearchRangeSchema = z
+  .object({
+    startColumn: z.number().int().positive(),
+    endColumn: z.number().int().positive(),
+  })
+  .refine(({ startColumn, endColumn }) => endColumn > startColumn, {
+    message: 'endColumn must be greater than startColumn',
+    path: ['endColumn'],
+  });
+
+export const contentSearchLineMatchSchema = z.object({
+  lineNumber: z.number().int().positive(),
+  /** The complete line content without its line terminator. */
+  text: z.string(),
+  ranges: z.array(contentSearchRangeSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
 });
 
-export const fileSearchIoErrorSchema = z.object({
-  type: z.literal('io'),
-  root: hostAbsolutePathSchema,
-  message: z.string(),
+export const contentSearchFileResultSchema = z.object({
+  path: portableRelativePathSchema,
+  matches: z.array(contentSearchLineMatchSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
 });
 
-export const fileSearchRegisterRootErrorSchema = z.discriminatedUnion('type', [
-  fileSearchRootUnavailableErrorSchema,
-  fileSearchIoErrorSchema,
-]);
+const contentSearchFilesSchema = z
+  .array(contentSearchFileResultSchema)
+  .max(CONTENT_SEARCH_MAX_LIMIT);
 
-export const fileSearchUnregisterRootErrorSchema = fileSearchIoErrorSchema;
+/**
+ * An append-only batch. A path may occur in later batches; consumers append its new matches.
+ * The terminal result remains authoritative.
+ */
+export const contentSearchProgressSchema = boundedContentSearchPayload(
+  z.object({ files: contentSearchFilesSchema.min(1) })
+);
 
-export const fileSearchErrorSchema = z.discriminatedUnion('type', [
-  fileSearchRootUnavailableErrorSchema,
-  fileSearchIndexNotReadyErrorSchema,
-  fileSearchIoErrorSchema,
-]);
+export const contentSearchResultSchema = boundedContentSearchPayload(
+  z.object({
+    files: contentSearchFilesSchema,
+    limitHit: z.boolean(),
+  })
+);
+
+function boundedContentSearchPayload<
+  Schema extends z.ZodType<{ files: ContentSearchFileResult[] }>,
+>(schema: Schema) {
+  return schema.superRefine(({ files }, context) => {
+    const occurrenceCount = files.reduce(
+      (fileTotal, file) =>
+        fileTotal + file.matches.reduce((matchTotal, match) => matchTotal + match.ranges.length, 0),
+      0
+    );
+    if (occurrenceCount <= CONTENT_SEARCH_MAX_LIMIT) return;
+
+    context.addIssue({
+      code: 'too_big',
+      maximum: CONTENT_SEARCH_MAX_LIMIT,
+      origin: 'array',
+      inclusive: true,
+      message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_LIMIT} matches`,
+      path: ['files'],
+    });
+  });
+}
 
 export type FileSearchRootInput = z.infer<typeof fileSearchRootInputSchema>;
-export type FileSearchRegisterRootInput = z.infer<typeof fileSearchRegisterRootInputSchema>;
-export type FileSearchUnregisterRootInput = z.infer<typeof fileSearchUnregisterRootInputSchema>;
-export type FileSearchQuery = z.infer<typeof fileSearchQuerySchema>;
-export type FileSearchHit = z.infer<typeof fileSearchHitSchema>;
-export type FileSearchResult = z.infer<typeof fileSearchResultSchema>;
-export type FileSearchRootUnavailableReason = z.infer<typeof fileSearchRootUnavailableReasonSchema>;
-export type FileSearchRootUnavailableError = z.infer<typeof fileSearchRootUnavailableErrorSchema>;
-export type FileSearchIndexNotReadyError = z.infer<typeof fileSearchIndexNotReadyErrorSchema>;
-export type FileSearchIoError = z.infer<typeof fileSearchIoErrorSchema>;
-export type FileSearchRegisterRootError = z.infer<typeof fileSearchRegisterRootErrorSchema>;
-export type FileSearchUnregisterRootError = z.infer<typeof fileSearchUnregisterRootErrorSchema>;
-export type FileSearchError = z.infer<typeof fileSearchErrorSchema>;
+export type PathEntryKind = z.infer<typeof pathEntryKindSchema>;
+export type PathSearchInput = z.infer<typeof pathSearchInputSchema>;
+export type PathSearchHit = z.infer<typeof pathSearchHitSchema>;
+export type PathSearchResult = z.infer<typeof pathSearchResultSchema>;
+export type ContentSearchInput = z.infer<typeof contentSearchInputSchema>;
+export type ContentSearchRange = z.infer<typeof contentSearchRangeSchema>;
+export type ContentSearchLineMatch = z.infer<typeof contentSearchLineMatchSchema>;
+export type ContentSearchFileResult = z.infer<typeof contentSearchFileResultSchema>;
+export type ContentSearchProgress = z.infer<typeof contentSearchProgressSchema>;
+export type ContentSearchResult = z.infer<typeof contentSearchResultSchema>;

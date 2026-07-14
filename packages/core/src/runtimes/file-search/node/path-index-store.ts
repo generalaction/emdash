@@ -1,5 +1,5 @@
 import type { PortableRelativePath } from '@primitives/path/api';
-import type { FileSearchHit } from '@runtimes/file-search/api';
+import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
 
 export type StoredFileSearchRoot = Readonly<{
   id: number;
@@ -13,40 +13,49 @@ export type FileSearchRootUpsertResult =
   | Readonly<{ kind: 'unchanged'; root: StoredFileSearchRoot }>
   | Readonly<{ kind: 'root-path-changed'; root: StoredFileSearchRoot }>;
 
-export type FileSearchIndexEntry = Readonly<{
+export type PathIndexEntry = Readonly<{
   path: PortableRelativePath;
-  filename: string;
+  kind: PathEntryKind;
 }>;
 
-export type FileSearchIndexPatch =
-  | Readonly<{ kind: 'upsert'; entry: FileSearchIndexEntry }>
+export type PathIndexPatch =
+  | Readonly<{ kind: 'upsert'; entry: PathIndexEntry }>
   | Readonly<{ kind: 'delete-subtree'; path: PortableRelativePath }>
   | Readonly<{
       kind: 'replace-subtree';
       path: PortableRelativePath;
-      entries: readonly FileSearchIndexEntry[];
+      entries: readonly PathIndexEntry[];
     }>;
 
-export type FileSearchStoreSearchResult =
-  | Readonly<{ kind: 'ready'; hits: FileSearchHit[] }>
+export type PathIndexStoreSearchResult =
+  | Readonly<{ kind: 'ready'; hits: PathSearchHit[] }>
   | Readonly<{ kind: 'not-ready' }>;
 
 /** An unpublished generation being populated by one full-root scan. */
-export interface FileSearchIndexBuild {
-  append(entries: readonly FileSearchIndexEntry[]): void;
-  publish(finalPatches: readonly FileSearchIndexPatch[]): void;
+export interface PathIndexBuild {
+  append(entries: readonly PathIndexEntry[]): void;
+  publish(finalPatches: readonly PathIndexPatch[]): void;
   discard(): void;
 }
 
 /** Persistence port implemented by the private file-search database adapter. */
-export interface FileSearchStore {
+export interface PathIndexStore {
   listRoots(): StoredFileSearchRoot[];
   upsertRoot(input: { rootKey: string; rootPath: string }): FileSearchRootUpsertResult;
-  deleteRoot(rootKey: string): boolean;
+  deleteRoot(rootKey: string): void;
 
-  beginBuild(rootId: number): FileSearchIndexBuild;
-  applyPublishedPatches(rootId: number, patches: readonly FileSearchIndexPatch[]): void;
+  beginBuild(rootId: number): PathIndexBuild;
+  applyPublishedPatches(rootId: number, patches: readonly PathIndexPatch[]): void;
 
-  search(rootKey: string, query: string, limit: number): FileSearchStoreSearchResult;
+  /**
+   * Treats `query` as literal user text and returns relevance-ordered hits. The Adapter owns
+   * FTS escaping and the non-FTS fallback needed for queries shorter than three characters.
+   */
+  searchPaths(
+    rootKey: string,
+    query: string,
+    kinds: readonly PathEntryKind[],
+    limit: number
+  ): PathIndexStoreSearchResult;
   close(): void;
 }

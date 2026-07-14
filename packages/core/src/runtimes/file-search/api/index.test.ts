@@ -7,14 +7,20 @@ describe('@emdash/core/runtimes/file-search/api public exports', () => {
 
     expect(exported.fileSearchContract).toBeTypeOf('object');
     expect(exported.fileSearchRootInputSchema).toBeTypeOf('object');
-    expect(exported.fileSearchQuerySchema).toBeTypeOf('object');
-    expect(exported.fileSearchResultSchema).toBeTypeOf('object');
+    expect(exported.pathSearchInputSchema).toBeTypeOf('object');
+    expect(exported.pathSearchResultSchema).toBeTypeOf('object');
+    expect(exported.contentSearchInputSchema).toBeTypeOf('object');
+    expect(exported.contentSearchResultSchema).toBeTypeOf('object');
+    expect(exported.contentSearchErrorSchema).toBeTypeOf('object');
+    expect(exported.contentSearchModeSchema).toBeUndefined();
+    expect(fileSearch.fileSearchContract.searchPaths.kind).toBe('procedure');
+    expect(fileSearch.fileSearchContract.searchContent.kind).toBe('liveJob');
   });
 
   it('does not expose host runtime values', () => {
     const exported = fileSearch as Record<string, unknown>;
 
     expect(exported.FileSearchRuntime).toBeUndefined();
-    expect(exported.FileSearchStore).toBeUndefined();
+    expect(exported.PathIndexStore).toBeUndefined();
   });
 });
