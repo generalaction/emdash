@@ -5,7 +5,7 @@ import { tokenVars } from '@theme/tokens.css';
 export const root = style({
   display: 'grid',
   width: '100%',
-  gap: '0.75rem',
+  gap: '1rem',
   color: vars.foreground,
 });
 
@@ -15,6 +15,24 @@ export const label = style({
   color: vars.foregroundMuted,
 });
 
+export const progressHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  fontSize: tokenVars.textSm,
+  fontWeight: 400,
+  color: vars.foregroundMuted,
+});
+
+export const progressContainer = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.5rem',
+  border: `1px solid ${vars.border}`,
+  borderRadius: tokenVars.radiusLg,
+  padding: '1rem',
+});
+
 export const stepViewport = style({
   minHeight: '3rem',
   overflow: 'hidden',
@@ -22,14 +40,14 @@ export const stepViewport = style({
 
 export const stepPanel = style({
   display: 'grid',
-  gap: '0.5rem',
+  gap: '1rem',
 });
 
 export const stepRow = style({
   display: 'grid',
   gridTemplateColumns: '1rem minmax(0, 1fr)',
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: '1rem',
   minWidth: 0,
 });
 
@@ -62,14 +80,12 @@ export const stepName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontSize: tokenVars.textLg,
+  fontWeight: 400,
   color: vars.foreground,
 });
 
-export const stepChildren = style({
-  marginLeft: '1.5rem',
-});
+export const stepChildren = style({});
 
 export const divider = style({
   height: '1px',
@@ -83,24 +99,6 @@ export const actions = style({
   alignItems: 'center',
   justifyContent: 'flex-end',
   gap: '0.5rem',
-});
-
-const spinKeyframes = keyframes({
-  from: { transform: 'rotate(0deg)' },
-  to: { transform: 'rotate(360deg)' },
-});
-
-export const iconSpin = style({
-  animationName: spinKeyframes,
-  animationDuration: '1s',
-  animationTimingFunction: 'linear',
-  animationIterationCount: 'infinite',
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      animationDuration: '1ms',
-      animationIterationCount: 1,
-    },
-  },
 });
 
 const stepExitUpKeyframes = keyframes({

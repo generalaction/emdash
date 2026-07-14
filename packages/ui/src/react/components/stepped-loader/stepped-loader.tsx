@@ -1,5 +1,6 @@
+import { SegmentedSpinnerIcon } from '@react/primitives/segmented-spinner';
 import { cx } from '@styles/utilities/cx';
-import { AlertCircleIcon, CheckCircle2Icon, CircleIcon, Loader2Icon } from 'lucide-react';
+import { AlertCircleIcon, CheckCircle2Icon, CircleIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './stepped-loader.css';
 
@@ -41,7 +42,7 @@ const SUCCESS_HOLD_MS = 600;
 const EXIT_MS = 220;
 const ENTER_MS = 180;
 
-const ICON_SIZE: React.CSSProperties = { width: '1rem', height: '1rem', flexShrink: 0 };
+const ICON_SIZE: React.CSSProperties = { width: '1.25rem', height: '1.25rem', flexShrink: 0 };
 
 function clampPercent(percent: number) {
   return Math.max(0, Math.min(100, Math.round(percent)));
@@ -51,16 +52,22 @@ function SteppedLoaderProgress({ percent, 'aria-label': ariaLabel }: SteppedLoad
   const clampedPercent = clampPercent(percent);
 
   return (
-    <div className={styles.progressTrack}>
-      <div
-        className={styles.progressFill}
-        style={{ width: `${clampedPercent}%` }}
-        role="progressbar"
-        aria-label={ariaLabel}
-        aria-valuenow={clampedPercent}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      />
+    <div className={styles.progressContainer}>
+      <div className={styles.progressHeader}>
+        <span>What is happening?</span>
+        <span>54%</span>
+      </div>
+      <div className={styles.progressTrack}>
+        <div
+          className={styles.progressFill}
+          style={{ width: `${clampedPercent}%` }}
+          role="progressbar"
+          aria-label={ariaLabel}
+          aria-valuenow={clampedPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        />
+      </div>
     </div>
   );
 }
@@ -216,7 +223,7 @@ function StatusIcon({ status }: { status: StepStatus }) {
     case 'loading':
       return (
         <span className={cx(styles.iconSlot, styles.iconLoading)} aria-label="Loading">
-          <Loader2Icon style={ICON_SIZE} className={styles.iconSpin} />
+          <SegmentedSpinnerIcon style={ICON_SIZE} />
         </span>
       );
     case 'success':

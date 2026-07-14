@@ -50,6 +50,8 @@ export {
   type SplitButtonOptionTone,
 } from './split-button';
 
+export { SegmentedSpinnerIcon, type SegmentedSpinnerIconProps } from './segmented-spinner';
+
 // ── Theme / provider ──────────────────────────────────────────────────────────
 export {
   ThemeProvider,
