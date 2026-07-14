@@ -25,7 +25,11 @@ import {
   agentSupportsAutoApprove,
   type AgentCapabilities,
 } from '@shared/core/agents/agent-payload';
-import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
+import {
+  extractIssueMentionTargets,
+  issueMentionToken,
+  parseIssueMentionToken,
+} from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { buildIssueContextText } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
@@ -251,16 +255,12 @@ export function InitialConversationField({
     }
   }, [linkedIssueMention, state.issueContext, state.prompt]);
 
-  const renderMentionIcon = useCallback<RenderMentionIcon>(
-    ({ id, kind }) => {
-      if (kind !== 'issue') return null;
-      if (!linkedIssue || id !== issueMentionToken(linkedIssue.provider, linkedIssue.identifier)) {
-        return null;
-      }
-      return <IntegrationIcon provider={linkedIssue.provider} size={12} />;
-    },
-    [linkedIssue]
-  );
+  const renderMentionIcon = useCallback<RenderMentionIcon>(({ id, kind }) => {
+    if (kind !== 'issue') return null;
+    const target = parseIssueMentionToken(id);
+    if (!target) return null;
+    return <IntegrationIcon provider={target.provider} size={12} />;
+  }, []);
 
   const querySlashItems = useCallback(
     async (query: string): Promise<CommandItem[]> => {
