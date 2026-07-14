@@ -15,6 +15,7 @@ import { getTerminalsRuntimeClient } from '@renderer/lib/runtime/terminals-clien
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { watchFileContent } from '@renderer/lib/runtime/files';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { log } from '@renderer/utils/logger';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 import {
   addTabId,
@@ -361,6 +362,30 @@ function createTerminalsConnector(workspace: HostFileRef, id: string): FrontendP
         void logBinding?.dispose();
         logBinding = null;
       };
+    },
+    sendInput(data: string) {
+      void client()
+        .then(async (runtime) => {
+          const result = await runtime.sendInput({ key: { workspace, id }, data });
+          if (!result.success) {
+            log.warn('lifecycle-scripts: terminal input failed', { id, error: result.error });
+          }
+        })
+        .catch((error) => {
+          log.warn('lifecycle-scripts: failed to send terminal input', { id, error });
+        });
+    },
+    resize(cols: number, rows: number) {
+      void client()
+        .then(async (runtime) => {
+          const result = await runtime.resize({ key: { workspace, id }, cols, rows });
+          if (!result.success) {
+            log.warn('lifecycle-scripts: terminal resize failed', { id, error: result.error });
+          }
+        })
+        .catch((error) => {
+          log.warn('lifecycle-scripts: failed to resize terminal', { id, error });
+        });
     },
   };
 }

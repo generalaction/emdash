@@ -56,8 +56,8 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
   ) : undefined;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 p-8">
-      <div className="flex min-h-64 w-full max-w-md min-w-0 flex-col gap-5 text-center">
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-4 p-8">
+      <div className="flex h-64 w-full max-w-md min-w-0">
         <SteppedLoader
           className="flex-1"
           steps={loader.steps}
@@ -65,12 +65,12 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
           status={loader.status}
           actions={actions}
         />
-        {isError && (
-          <p className="text-destructive max-w-full text-sm wrap-break-word">
-            {project.error ?? 'Project creation failed'}
-          </p>
-        )}
       </div>
+      {isError && (
+        <p className="text-destructive max-w-full text-sm wrap-break-word">
+          {project.error ?? 'Project creation failed'}
+        </p>
+      )}
     </div>
   );
 });

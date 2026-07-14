@@ -113,6 +113,10 @@
       "types": "./dist/services-fs-watch-api.d.mts",
       "default": "./dist/services-fs-watch-api.mjs"
     },
+    "./services/script-workflows/api": {
+      "types": "./dist/services-script-workflows-api.d.mts",
+      "default": "./dist/services-script-workflows-api.mjs"
+    },
     "./services/fs-watch/node": {
       "types": "./dist/services-fs-watch-node.d.mts",
       "default": "./dist/services-fs-watch-node.mjs"

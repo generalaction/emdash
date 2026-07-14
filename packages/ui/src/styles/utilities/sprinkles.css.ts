@@ -80,21 +80,21 @@ const layoutProps = defineProperties({
 // ── Spacing ───────────────────────────────────────────────────────────────────
 
 const SPACE = {
-  '0': '0',
-  '0.5': '2px',
-  '1': '4px',
-  '1.5': '6px',
-  '2': '8px',
-  '2.5': '10px',
-  '3': '12px',
-  '3.5': '14px',
-  '4': '16px',
-  '5': '20px',
-  '6': '24px',
-  '7': '28px',
-  '8': '32px',
-  '10': '40px',
-  '12': '48px',
+  '0': tokenVars.space0,
+  '0.5': tokenVars.space0_5,
+  '1': tokenVars.space1,
+  '1.5': tokenVars.space1_5,
+  '2': tokenVars.space2,
+  '2.5': tokenVars.space2_5,
+  '3': tokenVars.space3,
+  '3.5': tokenVars.space3_5,
+  '4': tokenVars.space4,
+  '5': tokenVars.space5,
+  '6': tokenVars.space6,
+  '7': tokenVars.space7,
+  '8': tokenVars.space8,
+  '10': tokenVars.space10,
+  '12': tokenVars.space12,
 } as const;
 
 const spacingProps = defineProperties({

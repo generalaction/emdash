@@ -194,12 +194,14 @@ function SteppedLoader({ steps, activeStepId, status, actions, className }: Step
       {displayedStep.children && (
         <div className={styles.stepChildren}>{displayedStep.children}</div>
       )}
-      <div className={styles.footer}>
-        <span className={styles.footerProgress}>
-          {currentStepNumber}/{steps.length}
-        </span>
-        {actions && <div className={styles.footerActions}>{actions}</div>}
-      </div>
+      {(steps.length > 1 || actions) && (
+        <div className={styles.footer}>
+          <span className={styles.footerProgress}>
+            {currentStepNumber}/{steps.length}
+          </span>
+          {actions && <div className={styles.footerActions}>{actions}</div>}
+        </div>
+      )}
     </div>
   );
 }

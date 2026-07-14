@@ -1,30 +1,26 @@
-import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
+import {
+  scriptWorkflowsDefinitions,
+  terminalErrorSchema,
+  terminalScopeInputSchema,
+} from '@services/script-workflows/api';
 import { z } from 'zod';
 import {
-  runScriptWorkflowInputSchema,
-  scriptWorkflowProgressSchema,
-  scriptWorkflowResultSchema,
   startTerminalInputSchema,
   scriptWorkflowStateSchema,
   terminalControlInputSchema,
   terminalDataInputSchema,
-  terminalErrorSchema,
+  terminalDevServerListSchema,
   terminalKeySchema,
   terminalResizeInputSchema,
-  terminalScopeInputSchema,
   terminalSessionListSchema,
 } from './schemas';
 
 export const terminalsContract = defineContract({
+  ...scriptWorkflowsDefinitions,
   startTerminal: fallible({
     input: startTerminalInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
-  }),
-  runWorkflow: liveJob({
-    input: runScriptWorkflowInputSchema,
-    progress: scriptWorkflowProgressSchema,
-    result: scriptWorkflowResultSchema,
     error: terminalErrorSchema,
   }),
   workflows: liveModel({
@@ -42,6 +38,12 @@ export const terminalsContract = defineContract({
       list: liveState({ data: terminalSessionListSchema }),
     },
   }),
+  devServers: liveModel({
+    key: z.void().optional(),
+    states: {
+      list: liveState({ data: terminalDevServerListSchema }),
+    },
+  }),
   sendInput: fallible({
     input: terminalDataInputSchema,
     data: z.void(),
@@ -54,16 +56,6 @@ export const terminalsContract = defineContract({
   }),
   kill: fallible({
     input: terminalControlInputSchema,
-    data: z.void(),
-    error: terminalErrorSchema,
-  }),
-  killScope: fallible({
-    input: terminalScopeInputSchema,
-    data: z.void(),
-    error: terminalErrorSchema,
-  }),
-  detachScope: fallible({
-    input: terminalScopeInputSchema,
     data: z.void(),
     error: terminalErrorSchema,
   }),

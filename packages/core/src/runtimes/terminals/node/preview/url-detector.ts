@@ -1,15 +1,14 @@
 import net from 'node:net';
-import type {
-  DirectPreviewServerHost,
-  PreviewServerProtocol,
-} from '@shared/core/preview-servers/types';
-import { normalizeTerminalHttpUrl } from '@shared/terminal-url';
+import { normalizeTerminalHttpUrl } from '@runtimes/terminals/api';
 
 const PROBE_INTERVAL_MS = 1000;
 const PROBE_TIMEOUT_MS = 500;
 const PROBE_FAILURES_TO_CLOSE = 2;
 const URL_PATTERN = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d{2,5})?(?:\/\S*)?/g;
 const MAX_BUFFER = 4096;
+
+export type PreviewServerProtocol = 'http:' | 'https:';
+export type DirectPreviewServerHost = 'localhost' | '127.0.0.1';
 
 export type DetectedPreviewUrl = {
   protocol: PreviewServerProtocol;
@@ -27,18 +26,23 @@ export type TerminalOutputSource = {
   onExit(handler: () => void): void;
 };
 
+export type TerminalPortProbe = (host: string, port: number) => Promise<boolean>;
+
 export function wireTerminalUrlDetector({
   pty,
   probeLocalPorts = true,
+  portProbe = isPortOpen,
   onDetected,
   onSourceClosed,
 }: {
   pty: TerminalOutputSource;
   probeLocalPorts?: boolean;
+  portProbe?: TerminalPortProbe;
   onDetected: (server: DetectedPreviewUrl) => void | Promise<void>;
   onSourceClosed?: (event: PreviewSourceClosed) => void | Promise<void>;
-}): void {
+}): () => void {
   let buffer = '';
+  let stopped = false;
   const detected = new Map<string, DetectedPreviewUrl>();
   const stopProbes = new Map<string, () => void>();
 
@@ -47,19 +51,26 @@ export function wireTerminalUrlDetector({
     stopProbes.clear();
   };
 
-  pty.onExit(() => {
+  const stop = () => {
+    stopped = true;
     buffer = '';
     stopAllProbes();
+  };
+
+  pty.onExit(() => {
+    if (stopped) return;
+    stop();
     void onSourceClosed?.({ reason: 'pty-exit' });
   });
 
   pty.onData((chunk) => {
+    if (stopped) return;
     buffer += chunk;
     if (buffer.length > MAX_BUFFER) {
       buffer = buffer.slice(-MAX_BUFFER);
     }
 
-    const clean = stripAnsi(buffer);
+    const clean = stripTerminalControls(buffer);
     for (const match of clean.matchAll(URL_PATTERN)) {
       const parsed = parsePreviewUrl(match[0]);
       if (!parsed) continue;
@@ -73,7 +84,7 @@ export function wireTerminalUrlDetector({
       if (probeLocalPorts) {
         stopProbes.set(
           key,
-          startProbe(parsed, () => {
+          startProbe(parsed, portProbe, () => {
             stopProbes.delete(key);
             detected.delete(key);
             void onSourceClosed?.({ reason: 'local-probe-failed', server: parsed });
@@ -82,9 +93,11 @@ export function wireTerminalUrlDetector({
       }
     }
   });
+
+  return stop;
 }
 
-function stripAnsi(value: string): string {
+function stripTerminalControls(value: string): string {
   return value
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
     .replace(/\r/g, '')
@@ -129,14 +142,18 @@ function isPortOpen(host: string, port: number): Promise<boolean> {
   });
 }
 
-function startProbe(server: DetectedPreviewUrl, onClosed: () => void): () => void {
+function startProbe(
+  server: DetectedPreviewUrl,
+  portProbe: TerminalPortProbe,
+  onClosed: () => void
+): () => void {
   let stopped = false;
   let consecutiveFailures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const tick = async () => {
     if (stopped) return;
-    const open = await isPortOpen(server.host, server.port);
+    const open = await portProbe(server.host, server.port);
     if (stopped) return;
     if (open) {
       consecutiveFailures = 0;

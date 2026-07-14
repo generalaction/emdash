@@ -1,6 +1,11 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
-import { hostFileRef, parseAbsolute, type HostFileRef } from '@primitives/path/api';
+import {
+  hostFileRef,
+  parseAbsolute,
+  resourceKeyFromFileRef,
+  type HostFileRef,
+} from '@primitives/path/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
 import { describe, expect, it } from 'vitest';
 import { TerminalsRuntime } from './runtime';
@@ -140,6 +145,74 @@ describe('TerminalsRuntime', () => {
     await first;
     await scope.dispose();
   });
+
+  it('publishes detected dev servers and prunes them when the session exits', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      now: () => 1000,
+      portProbe: async () => true,
+    });
+    const workspace = testWorkspace();
+    const run = runtime.runWorkflow(
+      {
+        workspace,
+        kind: 'manual:run',
+        nodes: [{ id: 'run', command: 'pnpm dev', cwd: '/repo', env: {} }],
+      },
+      liveJobContext('job-1')
+    );
+    await waitFor(() => spawner.processes.length === 1);
+
+    spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
+
+    await waitFor(() => Object.keys(devServers(runtime)).length === 1);
+    expect(devServers(runtime)).toEqual({
+      [`${workspaceKey(workspace)}:run:http::5173`]: {
+        key: { workspace, id: 'run' },
+        protocol: 'http:',
+        host: 'localhost',
+        port: 5173,
+        urlPath: '/app',
+        detectedAt: 1000,
+      },
+    });
+
+    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+    await run;
+    await waitFor(() => Object.keys(devServers(runtime)).length === 0);
+    await scope.dispose();
+  });
+
+  it('prunes detected dev servers when a scope is killed', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      portProbe: async () => true,
+    });
+    const workspace = testWorkspace();
+    const run = runtime.runWorkflow(
+      {
+        workspace,
+        kind: 'manual:run',
+        nodes: [{ id: 'run', command: 'pnpm dev', cwd: '/repo', env: {} }],
+      },
+      liveJobContext('job-1')
+    );
+    await waitFor(() => spawner.processes.length === 1);
+    spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
+    await waitFor(() => Object.keys(devServers(runtime)).length === 1);
+
+    await runtime.killScope(workspace);
+
+    await waitFor(() => Object.keys(devServers(runtime)).length === 0);
+    await run;
+    await scope.dispose();
+  });
 });
 
 function liveJobContext(jobId: string) {
@@ -154,6 +227,14 @@ function testWorkspace(): HostFileRef {
   const parsed = parseAbsolute('/repo', { profile: { style: 'posix' } });
   if (!parsed.success) throw new Error(parsed.error.message);
   return hostFileRef(LOCAL_HOST_REF, parsed.data);
+}
+
+function devServers(runtime: TerminalsRuntime) {
+  return runtime.devServersHost.get(undefined)?.states.list.snapshot().data ?? {};
+}
+
+function workspaceKey(workspace: HostFileRef): string {
+  return resourceKeyFromFileRef(workspace);
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

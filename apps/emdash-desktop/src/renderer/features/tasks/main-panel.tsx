@@ -138,8 +138,8 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
   }
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex min-h-64 w-full max-w-sm min-w-0 flex-col gap-5">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8">
+      <div className="flex h-64 w-full max-w-sm min-w-0">
         <SteppedLoader
           className="flex-1"
           steps={model.steps}
@@ -153,10 +153,10 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
             ) : undefined
           }
         />
-        {error && errorMessage && (
-          <p className="text-center font-sans text-xs text-foreground-muted">{errorMessage}</p>
-        )}
       </div>
+      {error && errorMessage && (
+        <p className="text-center font-sans text-xs text-foreground-muted">{errorMessage}</p>
+      )}
     </div>
   );
 });

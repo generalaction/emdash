@@ -2,7 +2,7 @@ import {
   scriptWorkflowProgressSchema,
   scriptWorkflowResultSchema,
   terminalErrorSchema,
-} from '@emdash/core/runtimes/terminals/api';
+} from '@emdash/core/services/script-workflows/api';
 import {
   bootstrapRepositoryInitializeSchema,
   workspaceErrorSchema,

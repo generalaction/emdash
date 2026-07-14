@@ -2,7 +2,7 @@ import type {
   ScriptWorkflowProgress,
   ScriptWorkflowResult,
   TerminalError,
-} from '@emdash/core/runtimes/terminals/api';
+} from '@emdash/core/services/script-workflows/api';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';

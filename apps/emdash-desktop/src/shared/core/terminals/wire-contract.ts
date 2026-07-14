@@ -1,8 +1,8 @@
+import { terminalKeySchema } from '@emdash/core/runtimes/terminals/api';
 import {
   terminalErrorSchema,
-  terminalKeySchema,
   terminalSizeSchema,
-} from '@emdash/core/runtimes/terminals/api';
+} from '@emdash/core/services/script-workflows/api';
 import { defineContract, fallible } from '@emdash/wire';
 import { z } from 'zod';
 import { TERMINAL_SHELL_IDS } from './terminal-settings';

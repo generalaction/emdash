@@ -110,6 +110,15 @@ export class WorkspaceRegistry {
       .map(([workspaceId, entry]) => ({ workspaceId, path: entry.workspace.path }));
   }
 
+  findByPath(path: string): { workspaceId: string; projectId: string; path: string } | undefined {
+    for (const [workspaceId, entry] of this.entries.entries()) {
+      if (entry.workspace.path === path) {
+        return { workspaceId, projectId: entry.projectId, path: entry.workspace.path };
+      }
+    }
+    return undefined;
+  }
+
   refCount(key: string): number {
     return this.entries.get(key)?.refCount ?? 0;
   }

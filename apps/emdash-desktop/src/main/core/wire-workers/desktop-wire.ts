@@ -14,6 +14,7 @@ import {
 import { compose } from '@emdash/wire/util';
 import { ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
+import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
 import { createProjectsWireController } from '@main/core/projects/wire-controller';
 import {
   getAcpRuntimeClient,
@@ -77,6 +78,7 @@ function createLazyDesktopController({
   terminalTabsController: ReturnType<typeof createTerminalTabsWireController>;
 }): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
+  let devServerBridge: Awaited<ReturnType<typeof createDevServerBridge>> | undefined;
 
   async function ready(): Promise<void> {
     if (controllers) return;
@@ -88,6 +90,7 @@ function createLazyDesktopController({
       getTerminalsRuntimeClient(),
       getTuiAgentsRuntimeClient(),
     ]);
+    devServerBridge = await createDevServerBridge(terminals);
     controllers = {
       git: forwardController(gitContract, git),
       files: forwardController(filesContract, files),
@@ -127,6 +130,7 @@ function createLazyDesktopController({
       await projectsController.dispose();
       await workspacesController.dispose();
       await terminalTabsController.dispose();
+      await devServerBridge?.dispose();
     },
   };
 }

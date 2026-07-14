@@ -27,11 +27,13 @@ import {
   type WorkspaceTopology,
   workspaceContract,
 } from '@runtimes/workspace/api';
-// oxlint-disable-next-line emdash/core-module-boundaries
-import { terminalsContract, type TerminalsContract } from '@runtimes/terminals/api';
 import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
 import type { IWatchService } from '@services/fs-watch/api';
+import {
+  scriptWorkflowsContract,
+  type ScriptWorkflowsContract,
+} from '@services/script-workflows/api';
 import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activity';
 import { createWorkspaceMachine, type WorkspaceMachine } from './machine/machine';
 import { nativePathFromWorkspace } from './provisioning/paths';
@@ -47,7 +49,7 @@ type WorkspaceRuntimeRecord = {
 export type WorkspaceRuntimeOptions = {
   lifecycle?: WorkspaceLifecycleManager;
   provisioner?: WorkspaceProvisioner;
-  terminals?: ContractClient<TerminalsContract>;
+  terminals?: ContractClient<ScriptWorkflowsContract>;
   activityProviders?: WorkspaceActivityProvider[];
   watcher?: IWatchService;
   scope?: Scope;
@@ -60,7 +62,7 @@ export class WorkspaceRuntime {
 
   private readonly lifecycle: WorkspaceLifecycleManager;
   private readonly provisioner: WorkspaceProvisioner;
-  private readonly terminals: ContractClient<TerminalsContract> | undefined;
+  private readonly terminals: ContractClient<ScriptWorkflowsContract> | undefined;
   private readonly scope: Scope;
   private readonly now: () => number;
   private readonly onError: (context: string, error: unknown) => void;
@@ -398,7 +400,10 @@ export class WorkspaceRuntime {
 
     const stageId = 'script:teardown';
     stage.start(stageId, 'Run teardown script');
-    const jobs = createLiveJobReplica(terminalsContract.runWorkflow, this.terminals.runWorkflow);
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
     const lease = await jobs.start({
       workspace,
       kind: 'teardown',

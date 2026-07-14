@@ -7,8 +7,8 @@
  *
  * Exports a typed `tokenVars` contract so consumers can reference these tokens
  * with full TypeScript safety rather than raw `'var(--text-sm)'` strings.
- * The sprinkles fontSize / fontWeight / fontFamily / borderRadius properties
- * use these refs.
+ * The sprinkles fontSize / fontWeight / fontFamily / borderRadius / spacing
+ * properties use these refs.
  *
  * Also emits composite typography role vars (--type-*) which are derived from
  * the primitive tokens; these remain as plain strings since they chain one var
@@ -59,6 +59,23 @@ export const tokenVars = createGlobalThemeContract(
     radiusXl: 'radius-xl',
     radius2xl: 'radius-2xl',
     radiusFull: 'radius-full',
+
+    // Spacing scale (4px base grid, Tailwind-style step names)
+    space0: 'space-0',
+    space0_5: 'space-0-5',
+    space1: 'space-1',
+    space1_5: 'space-1-5',
+    space2: 'space-2',
+    space2_5: 'space-2-5',
+    space3: 'space-3',
+    space3_5: 'space-3-5',
+    space4: 'space-4',
+    space5: 'space-5',
+    space6: 'space-6',
+    space7: 'space-7',
+    space8: 'space-8',
+    space10: 'space-10',
+    space12: 'space-12',
 
     // Named animation shorthands
     animateAccordionDown: 'animate-accordion-down',
@@ -112,6 +129,23 @@ globalStyle(':root', {
     [tokenVars.radiusXl]: '0.875rem',
     [tokenVars.radius2xl]: '1.25rem',
     [tokenVars.radiusFull]: '9999px',
+
+    // Spacing scale
+    [tokenVars.space0]: '0',
+    [tokenVars.space0_5]: '2px',
+    [tokenVars.space1]: '4px',
+    [tokenVars.space1_5]: '6px',
+    [tokenVars.space2]: '8px',
+    [tokenVars.space2_5]: '10px',
+    [tokenVars.space3]: '12px',
+    [tokenVars.space3_5]: '14px',
+    [tokenVars.space4]: '16px',
+    [tokenVars.space5]: '20px',
+    [tokenVars.space6]: '24px',
+    [tokenVars.space7]: '28px',
+    [tokenVars.space8]: '32px',
+    [tokenVars.space10]: '40px',
+    [tokenVars.space12]: '48px',
 
     // Named animation shorthands
     [tokenVars.animateAccordionDown]: 'accordion-down 0.2s ease-out',

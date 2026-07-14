@@ -17,7 +17,17 @@ import { PortForwardService } from '../port-forwards/port-forward-service';
 import type { PortForwardRecord } from '../port-forwards/port-forward-service';
 import type { SshClientProxy } from '../ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '../ssh/lifecycle/ssh-connection-manager';
-import type { DetectedPreviewUrl, PreviewSourceClosed } from './terminal-url-detector';
+
+export type DetectedPreviewUrl = {
+  protocol: PreviewServerProtocol;
+  host: DirectPreviewServerHost;
+  port: number;
+  urlPath: string;
+};
+
+type PreviewSourceClosed =
+  | { reason: 'pty-exit' }
+  | { reason: 'local-probe-failed'; server: DetectedPreviewUrl };
 
 export type RegisterDetectedPreviewTarget =
   | {
@@ -57,6 +67,12 @@ type PreviewMetadata = {
   tunnelId?: string;
 };
 
+/**
+ * Invoked when a locally detected (terminal-sourced) preview server is stopped by
+ * the user, so the bridge can send an interrupt signal to the source terminal.
+ */
+export type StopTerminalServerHandler = (server: DirectPreviewServer) => Promise<void> | void;
+
 export class PreviewServerService {
   private readonly servers = new Map<string, PreviewServer>();
   private readonly identities = new Map<string, string>();
@@ -68,6 +84,7 @@ export class PreviewServerService {
     connectionId: string
   ) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
   private readonly closeDelayMs: number;
+  private stopTerminalServerHandler: StopTerminalServerHandler | undefined;
 
   constructor({
     portForwards = new PortForwardService(),
@@ -288,6 +305,10 @@ export class PreviewServerService {
     }
   }
 
+  setStopTerminalServerHandler(handler: StopTerminalServerHandler | undefined): void {
+    this.stopTerminalServerHandler = handler;
+  }
+
   async stop(id: string): Promise<void> {
     const server = this.servers.get(id);
     if (!server) return;
@@ -297,6 +318,16 @@ export class PreviewServerService {
     if (metadata) this.identities.delete(metadata.identity);
     if (metadata?.tunnelId) await this.portForwards.stop(metadata.tunnelId);
     this.emit({ type: 'remove', id });
+    if (server.kind === 'direct' && server.source.kind === 'terminal-output') {
+      try {
+        await this.stopTerminalServerHandler?.(server);
+      } catch (error) {
+        log.warn('PreviewServerService: failed to interrupt dev server terminal', {
+          serverId: id,
+          error: String(error),
+        });
+      }
+    }
   }
 
   async restart(id: string): Promise<PreviewServer | undefined> {

@@ -1,4 +1,10 @@
 import { hostFileRefSchema } from '@primitives/path/api';
+import {
+  scriptWorkflowKindSchema,
+  terminalErrorSchema,
+  terminalExitSchema,
+  terminalSizeSchema,
+} from '@services/script-workflows/api';
 import { z } from 'zod';
 
 export const terminalKeySchema = z.object({
@@ -8,12 +14,20 @@ export const terminalKeySchema = z.object({
 
 export type TerminalKey = z.infer<typeof terminalKeySchema>;
 
-export const terminalSizeSchema = z.object({
-  cols: z.number().int().positive(),
-  rows: z.number().int().positive(),
+export const terminalDevServerSchema = z.object({
+  key: terminalKeySchema,
+  protocol: z.enum(['http:', 'https:']),
+  host: z.enum(['localhost', '127.0.0.1']),
+  port: z.number().int().min(1).max(65535),
+  urlPath: z.string(),
+  detectedAt: z.number().int(),
 });
 
-export type TerminalSize = z.infer<typeof terminalSizeSchema>;
+export type TerminalDevServer = z.infer<typeof terminalDevServerSchema>;
+
+export const terminalDevServerListSchema = z.record(z.string(), terminalDevServerSchema);
+
+export type TerminalDevServerList = z.infer<typeof terminalDevServerListSchema>;
 
 export const terminalShellProfileSchema = z.object({
   id: z.string().min(1),
@@ -49,64 +63,6 @@ export const startTerminalInputSchema = z.object({
 });
 
 export type StartTerminalInput = z.infer<typeof startTerminalInputSchema>;
-
-export const scriptWorkflowKindSchema = z.string().min(1);
-
-export const scriptNodeSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1).optional(),
-  command: z.string().min(1),
-  shellSetup: z.string().optional(),
-  cwd: z.string().min(1),
-  env: z.record(z.string(), z.string()),
-  dependsOn: z.array(z.string().min(1)).optional(),
-});
-
-export type ScriptNode = z.infer<typeof scriptNodeSchema>;
-
-export const runScriptWorkflowInputSchema = z
-  .object({
-    workspace: hostFileRefSchema,
-    kind: scriptWorkflowKindSchema,
-    nodes: z.array(scriptNodeSchema).min(1),
-  })
-  .merge(terminalSizeSchema.partial());
-
-export type RunScriptWorkflowInput = z.infer<typeof runScriptWorkflowInputSchema>;
-
-export const scriptWorkflowProgressSchema = z.object({
-  workflowId: z.string().min(1),
-  kind: scriptWorkflowKindSchema,
-  runningNodeId: z.string().min(1).optional(),
-  message: z.string().optional(),
-});
-
-export type ScriptWorkflowProgress = z.infer<typeof scriptWorkflowProgressSchema>;
-
-export const terminalExitSchema = z.object({
-  exitCode: z.number().int().nullable(),
-  signal: z.string().nullable(),
-  outputTail: z.string(),
-});
-
-export type TerminalExit = z.infer<typeof terminalExitSchema>;
-
-export const scriptWorkflowResultSchema = z.object({
-  workflowId: z.string().min(1),
-  kind: scriptWorkflowKindSchema,
-  completedNodes: z.array(z.string().min(1)),
-});
-
-export type ScriptWorkflowResult = z.infer<typeof scriptWorkflowResultSchema>;
-
-export const terminalErrorSchema = z.object({
-  type: z.string().min(1),
-  message: z.string().min(1),
-  nodeId: z.string().optional(),
-  resolutions: z.array(z.string()).optional(),
-});
-
-export type TerminalError = z.infer<typeof terminalErrorSchema>;
 
 export const scriptNodeStatusSchema = z.enum(['pending', 'running', 'done', 'skipped', 'failed']);
 
@@ -183,8 +139,4 @@ export const terminalResizeInputSchema = z
 
 export const terminalControlInputSchema = z.object({
   key: terminalKeySchema,
-});
-
-export const terminalScopeInputSchema = z.object({
-  workspace: hostFileRefSchema,
 });

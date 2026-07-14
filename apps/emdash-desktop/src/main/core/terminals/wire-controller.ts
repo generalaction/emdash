@@ -1,13 +1,7 @@
 import type { TerminalKey } from '@emdash/core/runtimes/terminals/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { Unsubscribe } from '@emdash/shared';
 import type { Contract, ContractImpl } from '@emdash/wire';
 import { and, eq, sql } from 'drizzle-orm';
-import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import {
-  wireTerminalUrlDetector,
-  type TerminalOutputSource,
-} from '@main/core/preview-servers/terminal-url-detector';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -38,7 +32,6 @@ type TerminalTabsDefinitions = typeof terminalTabsWireContract extends Contract<
   ? Defs
   : never;
 type TerminalTabsWireImpl = ContractImpl<TerminalTabsDefinitions>;
-type RuntimeClient = Awaited<ReturnType<typeof getTerminalsRuntimeClient>>;
 type TerminalError = {
   type: string;
   message: string;
@@ -47,8 +40,6 @@ type TerminalError = {
 };
 
 const DEFAULT_TERMINAL_SIZE = { cols: 80, rows: 24 };
-
-const previewSubscriptions = new Map<string, () => void>();
 
 export function createTerminalTabsWireController(): {
   impl: TerminalTabsWireImpl;
@@ -63,10 +54,7 @@ export function createTerminalTabsWireController(): {
       hydrate: (input) => hydrateTerminal(input),
       getShellAvailability: () => getShellAvailability(),
     },
-    async dispose() {
-      for (const stop of previewSubscriptions.values()) stop();
-      previewSubscriptions.clear();
-    },
+    async dispose() {},
   };
 }
 
@@ -145,8 +133,6 @@ async function deleteTerminal({
   if (key.success) {
     const terminalsRuntime = await getTerminalsRuntimeClient();
     await terminalsRuntime.kill({ key: key.data });
-    previewSubscriptions.get(previewSubscriptionKey(projectId, key.data))?.();
-    previewSubscriptions.delete(previewSubscriptionKey(projectId, key.data));
   }
 
   telemetryService.capture('terminal_deleted', {
@@ -232,13 +218,6 @@ async function startRuntimeTerminal(
     },
   });
   if (!startResult.success) return startResult;
-  wirePreviewDetection({
-    projectId: terminal.projectId,
-    workspaceId: context.data.workspace.id,
-    terminalId: terminal.id,
-    terminalsRuntime,
-    key: context.data.key,
-  });
   return ok({ key: context.data.key });
 }
 
@@ -308,91 +287,6 @@ function runtimeKey(
   };
 }
 
-function wirePreviewDetection({
-  projectId,
-  workspaceId,
-  terminalId,
-  terminalsRuntime,
-  key,
-}: {
-  projectId: string;
-  workspaceId: string;
-  terminalId: string;
-  terminalsRuntime: RuntimeClient;
-  key: TerminalKey;
-}): void {
-  const id = previewSubscriptionKey(projectId, key);
-  if (previewSubscriptions.has(id)) return;
-  const pty = liveLogBackedPty(terminalsRuntime.output.handle(key).asLiveSource());
-  wireTerminalUrlDetector({
-    pty,
-    probeLocalPorts: true,
-    onDetected: (server) => {
-      void previewServerService.registerDetectedTarget({
-        projectId,
-        workspaceId,
-        transport: 'local',
-        source: { kind: 'terminal-output', terminalId },
-        protocol: server.protocol,
-        host: server.host,
-        port: server.port,
-        urlPath: server.urlPath,
-      });
-    },
-    onSourceClosed: (event) =>
-      previewServerService.handleTerminalSourceClosed({
-        projectId,
-        workspaceId,
-        terminalId,
-        transport: 'local',
-        reason: event.reason,
-        server: event.reason === 'local-probe-failed' ? event.server : undefined,
-      }),
-  });
-  previewSubscriptions.set(id, () => pty.close());
-}
-
-function liveLogBackedPty(source: {
-  subscribe(cb: (update: { delta?: unknown }) => void): Unsubscribe | Promise<Unsubscribe>;
-}): TerminalOutputSource & { close(): void } {
-  const dataHandlers: Array<(data: string) => void> = [];
-  const exitHandlers: Array<() => void> = [];
-  let closed = false;
-  let unsubscribe: Unsubscribe | undefined;
-  void Promise.resolve(
-    source.subscribe((update) => {
-      if (closed) return;
-      const chunk =
-        typeof update.delta === 'object' &&
-        update.delta !== null &&
-        typeof (update.delta as { chunk?: unknown }).chunk === 'string'
-          ? (update.delta as { chunk: string }).chunk
-          : undefined;
-      if (!chunk) return;
-      for (const handler of dataHandlers) handler(chunk);
-    })
-  ).then((resolved) => {
-    if (closed) {
-      resolved();
-      return;
-    }
-    unsubscribe = resolved;
-  });
-  return {
-    onData(handler) {
-      dataHandlers.push(handler);
-    },
-    onExit(handler) {
-      exitHandlers.push(handler);
-    },
-    close() {
-      closed = true;
-      unsubscribe?.();
-      for (const handler of exitHandlers) handler();
-    },
-  };
-}
-
 function mapTerminalRowToTerminal(row: typeof terminals.$inferSelect): Terminal {
   return {
     id: row.id,
@@ -402,10 +296,6 @@ function mapTerminalRowToTerminal(row: typeof terminals.$inferSelect): Terminal 
     shellId: row.shellId,
     name: row.name,
   };
-}
-
-function previewSubscriptionKey(projectId: string, key: TerminalKey): string {
-  return `${projectId}:${key.id}`;
 }
 
 function terminalError(type: string, message: string): TerminalError {

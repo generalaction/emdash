@@ -11,6 +11,7 @@ import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { Resource } from '@renderer/lib/stores/resource';
+import { log } from '@renderer/utils/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import { type CreateTerminalParams, type Terminal } from '@shared/core/terminals/terminals';
@@ -25,7 +26,9 @@ export class TerminalManagerStore implements Disposable {
   terminals = observable.map<string, TerminalStore>();
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
-  runtimeKeys = observable.map<string, TerminalKey>();
+  // Shallow: TerminalKey values must stay plain objects so they can be
+  // structured-cloned when posted over the wire (MobX proxies cannot).
+  runtimeKeys = observable.map<string, TerminalKey>({}, { deep: false });
   private readonly _disposeReaction: () => void;
 
   constructor(projectId: string, taskId: string) {
@@ -254,14 +257,34 @@ function createTerminalsConnector(key: () => Promise<TerminalKey>): FrontendPtyC
       };
     },
     sendInput(data: string) {
-      void Promise.all([runtime(), key()]).then(([terminalsRuntime, terminalKey]) =>
-        terminalsRuntime.sendInput({ key: terminalKey, data })
-      );
+      void Promise.all([runtime(), key()])
+        .then(async ([terminalsRuntime, terminalKey]) => {
+          const result = await terminalsRuntime.sendInput({ key: terminalKey, data });
+          if (!result.success) {
+            log.warn('TerminalManagerStore: terminal input failed', {
+              terminalId: terminalKey.id,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          log.warn('TerminalManagerStore: failed to send terminal input', { error });
+        });
     },
     resize(cols: number, rows: number) {
-      void Promise.all([runtime(), key()]).then(([terminalsRuntime, terminalKey]) =>
-        terminalsRuntime.resize({ key: terminalKey, cols, rows })
-      );
+      void Promise.all([runtime(), key()])
+        .then(async ([terminalsRuntime, terminalKey]) => {
+          const result = await terminalsRuntime.resize({ key: terminalKey, cols, rows });
+          if (!result.success) {
+            log.warn('TerminalManagerStore: terminal resize failed', {
+              terminalId: terminalKey.id,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          log.warn('TerminalManagerStore: failed to resize terminal', { error });
+        });
     },
   };
 }

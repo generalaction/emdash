@@ -4,7 +4,7 @@ import {
   type DetectedPreviewUrl,
   type PreviewSourceClosed,
   type TerminalOutputSource,
-} from './terminal-url-detector';
+} from './url-detector';
 
 function fakePty(): TerminalOutputSource & {
   emitData(data: string): void;
