@@ -112,7 +112,11 @@ export function initializeFileSearchSchema(database: DatabaseSync): void {
 
     database.exec('COMMIT');
   } catch (error) {
-    database.exec('ROLLBACK');
+    try {
+      database.exec('ROLLBACK');
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], 'File-search schema rollback failed');
+    }
     throw error;
   }
 }

@@ -1,47 +1,134 @@
-import type { Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
-import type {
-  ContentSearchError,
-  ContentSearchInput,
-  ContentSearchResult,
-  FileSearchRegisterRootError,
-  FileSearchRootInput,
-  FileSearchUnregisterRootError,
-  PathSearchError,
-  PathSearchInput,
-  PathSearchResult,
-} from '@runtimes/file-search/api';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { IWatchService } from '@services/fs-watch/api';
-import type { ContentSearchContext, FileContentSearcher } from './content/content-searcher';
-import type { FileSearchExclusionPolicy } from './indexing/exclusions';
-import type { FileSearchRootResolver } from './indexing/root-identity';
-import type { PathScanner } from './indexing/scanner';
-import type { PathIndexStore } from './path-index-store';
+import { createNativeWatchService } from '@services/fs-watch/node';
+import { ConcurrencyLimiter } from './concurrency-limiter';
+import { ContentSearchRuntime } from './content/content-search-runtime';
+import { RipgrepContentSearcher } from './content/ripgrep-content-searcher';
+import { SqlitePathIndexStore } from './db/sqlite-path-index-store';
+import { DefaultFileSearchExclusions } from './indexing/exclusions';
+import { NodeFileSearchRootResolver } from './indexing/root-identity';
+import { NodePathScanner } from './indexing/scanner';
+import { PathSearchRuntime } from './path/path-search-runtime';
+import { FileSearchRootRegistry } from './root/root-registry';
+
+const DEFAULT_MAX_CONCURRENT_SCANS = 2;
+const DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES = 4;
 
 export type FileSearchRuntimeOptions = Readonly<{
-  pathIndex: PathIndexStore;
-  contentSearcher: FileContentSearcher;
-  watcher: IWatchService;
-  scanner: PathScanner;
-  rootResolver: FileSearchRootResolver;
-  exclusionPolicy: FileSearchExclusionPolicy;
-  scope: Scope;
+  databasePath: string;
+  watcher?: IWatchService;
+  ripgrepPath?: string;
+  env?: NodeJS.ProcessEnv;
   maxConcurrentScans?: number;
   maxConcurrentContentSearches?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
 
-/** Host-scoped orchestration Interface exposed through the file-search Wire contract. */
-export interface FileSearchRuntime {
-  /** Idempotently persists interest and starts background reconciliation without awaiting it. */
-  registerRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchRegisterRootError>>;
-  /** Idempotently stops maintenance and deletes the root's disposable path index. */
-  unregisterRoot(input: FileSearchRootInput): Promise<Result<void, FileSearchUnregisterRootError>>;
-  /** Returns `index-not-ready` while reconciling and `io` after a terminal reconcile failure. */
-  searchPaths(input: PathSearchInput): Promise<Result<PathSearchResult, PathSearchError>>;
-  searchContent(
-    input: ContentSearchInput,
-    context: ContentSearchContext
-  ): Promise<Result<ContentSearchResult, ContentSearchError>>;
-  dispose(): Promise<void>;
+/** Host-scoped composition root for durable root, path, and content search runtimes. */
+export class FileSearchRuntime {
+  readonly roots: FileSearchRootRegistry;
+  readonly paths: PathSearchRuntime;
+  readonly content: ContentSearchRuntime;
+
+  private readonly scope: Scope;
+  private readonly store: SqlitePathIndexStore;
+  private readonly watcher: IWatchService;
+  private readonly ownsWatcher: boolean;
+  private disposePromise: Promise<void> | undefined;
+
+  constructor(options: FileSearchRuntimeOptions) {
+    const onError = options.onError ?? (() => {});
+    this.scope = createScope({
+      label: 'file-search-runtime',
+      onCleanupError: (error) => onError('file-search cleanup failed', error),
+    });
+    try {
+      this.store = new SqlitePathIndexStore({ databasePath: options.databasePath });
+    } catch (error) {
+      void this.scope.dispose(error);
+      throw error;
+    }
+    this.ownsWatcher = options.watcher === undefined;
+
+    let watcher: IWatchService | undefined;
+    try {
+      watcher = options.watcher ?? createNativeWatchService({ onError });
+      this.watcher = watcher;
+      const exclusions = new DefaultFileSearchExclusions();
+      const roots = new FileSearchRootRegistry({
+        store: this.store,
+        watcher: this.watcher,
+        scanner: new NodePathScanner(),
+        resolver: new NodeFileSearchRootResolver(),
+        exclusions,
+        scanLimiter: new ConcurrencyLimiter(
+          options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
+        ),
+        scope: this.scope,
+        onError,
+      });
+      this.roots = roots;
+      this.paths = new PathSearchRuntime({ roots, store: this.store });
+      this.content = new ContentSearchRuntime({
+        roots,
+        limiter: new ConcurrencyLimiter(
+          options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
+        ),
+        searcher: new RipgrepContentSearcher({
+          executable: options.ripgrepPath,
+          env: options.env,
+          exclusions,
+        }),
+      });
+    } catch (error) {
+      let constructionError = error;
+      try {
+        this.store.close();
+      } catch (closeError) {
+        constructionError = new AggregateError(
+          [error, closeError],
+          'File-search construction cleanup failed'
+        );
+      }
+      if (this.ownsWatcher && watcher) {
+        void watcher.dispose().catch((disposeError: unknown) => {
+          onError('file-search watcher cleanup failed', disposeError);
+        });
+      }
+      void this.scope.dispose(constructionError);
+      throw constructionError;
+    }
+  }
+
+  dispose(): Promise<void> {
+    if (this.disposePromise) return this.disposePromise;
+    this.disposePromise = this.disposeInternal();
+    return this.disposePromise;
+  }
+
+  private async disposeInternal(): Promise<void> {
+    const failures: unknown[] = [];
+    await attemptCleanup(failures, () => this.roots.dispose());
+    await attemptCleanup(failures, () =>
+      this.scope.dispose(new Error('File-search runtime disposed'))
+    );
+    await attemptCleanup(failures, () => this.store.close());
+    if (this.ownsWatcher) {
+      await attemptCleanup(failures, () => this.watcher.dispose());
+    }
+
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, 'File-search disposal failed');
+  }
+}
+
+async function attemptCleanup(
+  failures: unknown[],
+  cleanup: () => void | Promise<void>
+): Promise<void> {
+  try {
+    await cleanup();
+  } catch (error) {
+    failures.push(error);
+  }
 }

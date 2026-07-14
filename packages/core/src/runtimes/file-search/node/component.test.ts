@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { fileSearchComponentConfigSchema } from './component';
+import { fileSearchComponent, fileSearchComponentConfigSchema } from './component';
 
 describe('fileSearchComponentConfigSchema', () => {
+  it('defines a file-search worker component that depends on the watcher contract', () => {
+    expect(fileSearchComponent.id).toBe('file-search');
+    expect(Object.keys(fileSearchComponent.requirements)).toEqual(['watcher']);
+  });
+
   it('requires a database path and accepts optional search-engine configuration', () => {
     expect(
       fileSearchComponentConfigSchema.parse({
@@ -17,6 +22,9 @@ describe('fileSearchComponentConfigSchema', () => {
       maxConcurrentContentSearches: 4,
     });
     expect(() => fileSearchComponentConfigSchema.parse({ databasePath: '' })).toThrow();
+    expect(() => fileSearchComponentConfigSchema.parse({ databasePath: 'file-search.db' })).toThrow(
+      'must be absolute'
+    );
     expect(() =>
       fileSearchComponentConfigSchema.parse({
         databasePath: '/tmp/file-search.db',

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT,
+  CONTENT_SEARCH_MAX_LINE_LENGTH,
   CONTENT_SEARCH_MAX_LIMIT,
+  CONTENT_SEARCH_MAX_TEXT_LENGTH,
   FILE_SEARCH_MAX_QUERY_LENGTH,
   PATH_SEARCH_DEFAULT_LIMIT,
   PATH_SEARCH_MAX_LIMIT,
@@ -32,8 +34,12 @@ describe('file-search schemas', () => {
     expect(CONTENT_SEARCH_DEFAULT_LIMIT).toBe(1_000);
   });
 
-  it('requires path-search callers to provide text and at least one unique entry kind', () => {
-    expect(() => pathSearchInputSchema.parse({ root, query: '', kinds: ['file'] })).toThrow();
+  it('allows an empty path query and requires at least one unique entry kind', () => {
+    expect(pathSearchInputSchema.parse({ root, query: '', kinds: ['file'] })).toEqual({
+      root,
+      query: '',
+      kinds: ['file'],
+    });
     expect(() => pathSearchInputSchema.parse({ root, query: 'src', kinds: [] })).toThrow();
     expect(() => pathSearchInputSchema.parse({ root, query: 'src', kinds: ['symlink'] })).toThrow();
     expect(() =>
@@ -91,6 +97,8 @@ describe('file-search schemas', () => {
     });
 
     expect(() => contentSearchInputSchema.parse({ root, query: '' })).toThrow();
+    expect(() => contentSearchInputSchema.parse({ root, query: 'first\nsecond' })).toThrow();
+    expect(() => contentSearchInputSchema.parse({ root, query: 'term\0suffix' })).toThrow();
     expect(() =>
       contentSearchInputSchema.parse({
         root,
@@ -149,6 +157,44 @@ describe('file-search schemas', () => {
           {
             path: 'src/index.ts',
             matches: [{ lineNumber: 1, text: 'x', ranges }],
+          },
+        ],
+        limitHit: true,
+      })
+    ).toThrow();
+  });
+
+  it('bounds individual lines and aggregate content text', () => {
+    expect(() =>
+      contentSearchResultSchema.parse({
+        files: [
+          {
+            path: 'src/index.ts',
+            matches: [
+              {
+                lineNumber: 1,
+                text: 'x'.repeat(CONTENT_SEARCH_MAX_LINE_LENGTH + 1),
+                ranges: [{ startColumn: 1, endColumn: 2 }],
+              },
+            ],
+          },
+        ],
+        limitHit: true,
+      })
+    ).toThrow();
+
+    const lineCount =
+      Math.floor(CONTENT_SEARCH_MAX_TEXT_LENGTH / CONTENT_SEARCH_MAX_LINE_LENGTH) + 1;
+    expect(() =>
+      contentSearchResultSchema.parse({
+        files: [
+          {
+            path: 'src/index.ts',
+            matches: Array.from({ length: lineCount }, (_, index) => ({
+              lineNumber: index + 1,
+              text: 'x'.repeat(CONTENT_SEARCH_MAX_LINE_LENGTH),
+              ranges: [{ startColumn: 1, endColumn: 2 }],
+            })),
           },
         ],
         limitHit: true,

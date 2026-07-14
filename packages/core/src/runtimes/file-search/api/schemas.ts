@@ -5,6 +5,8 @@ export const PATH_SEARCH_MAX_LIMIT = 200;
 export const PATH_SEARCH_DEFAULT_LIMIT = 20;
 export const CONTENT_SEARCH_MAX_LIMIT = 10_000;
 export const CONTENT_SEARCH_DEFAULT_LIMIT = 1_000;
+export const CONTENT_SEARCH_MAX_LINE_LENGTH = 16_384;
+export const CONTENT_SEARCH_MAX_TEXT_LENGTH = 4 * 1024 * 1024;
 export const FILE_SEARCH_MAX_QUERY_LENGTH = 512;
 
 export const fileSearchRootInputSchema = z.object({
@@ -14,7 +16,8 @@ export const fileSearchRootInputSchema = z.object({
 export const pathEntryKindSchema = z.enum(['file', 'directory']);
 
 export const pathSearchInputSchema = fileSearchRootInputSchema.extend({
-  query: z.string().min(1).max(FILE_SEARCH_MAX_QUERY_LENGTH),
+  /** Empty text requests the first path-ordered entries, which supports initially-open pickers. */
+  query: z.string().max(FILE_SEARCH_MAX_QUERY_LENGTH),
   kinds: z
     .array(pathEntryKindSchema)
     .min(1)
@@ -35,7 +38,13 @@ export const pathSearchResultSchema = z.object({
 });
 
 export const contentSearchInputSchema = fileSearchRootInputSchema.extend({
-  query: z.string().min(1).max(FILE_SEARCH_MAX_QUERY_LENGTH),
+  query: z
+    .string()
+    .min(1)
+    .max(FILE_SEARCH_MAX_QUERY_LENGTH)
+    .refine((query) => !/[\0\r\n]/u.test(query), {
+      message: 'Content search is line-oriented and cannot contain NUL or newline characters',
+    }),
   under: portableRelativePathSchema.optional(),
   limit: z.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT).optional(),
 });
@@ -57,7 +66,7 @@ export const contentSearchRangeSchema = z
 export const contentSearchLineMatchSchema = z.object({
   lineNumber: z.number().int().positive(),
   /** The complete line content without its line terminator. */
-  text: z.string(),
+  text: z.string().max(CONTENT_SEARCH_MAX_LINE_LENGTH),
   ranges: z.array(contentSearchRangeSchema).min(1).max(CONTENT_SEARCH_MAX_LIMIT),
 });
 
@@ -94,16 +103,32 @@ function boundedContentSearchPayload<
         fileTotal + file.matches.reduce((matchTotal, match) => matchTotal + match.ranges.length, 0),
       0
     );
-    if (occurrenceCount <= CONTENT_SEARCH_MAX_LIMIT) return;
+    if (occurrenceCount > CONTENT_SEARCH_MAX_LIMIT) {
+      context.addIssue({
+        code: 'too_big',
+        maximum: CONTENT_SEARCH_MAX_LIMIT,
+        origin: 'array',
+        inclusive: true,
+        message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_LIMIT} matches`,
+        path: ['files'],
+      });
+    }
 
-    context.addIssue({
-      code: 'too_big',
-      maximum: CONTENT_SEARCH_MAX_LIMIT,
-      origin: 'array',
-      inclusive: true,
-      message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_LIMIT} matches`,
-      path: ['files'],
-    });
+    const textLength = files.reduce(
+      (fileTotal, file) =>
+        fileTotal + file.matches.reduce((matchTotal, match) => matchTotal + match.text.length, 0),
+      0
+    );
+    if (textLength > CONTENT_SEARCH_MAX_TEXT_LENGTH) {
+      context.addIssue({
+        code: 'too_big',
+        maximum: CONTENT_SEARCH_MAX_TEXT_LENGTH,
+        origin: 'string',
+        inclusive: true,
+        message: `Content search payload cannot contain more than ${CONTENT_SEARCH_MAX_TEXT_LENGTH} text characters`,
+        path: ['files'],
+      });
+    }
   });
 }
 

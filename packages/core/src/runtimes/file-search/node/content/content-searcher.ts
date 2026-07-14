@@ -14,6 +14,7 @@ export type ContentSearchExecutionError = Extract<
 export type ResolvedContentSearchInput = Readonly<
   ContentSearchInput & {
     rootPath: string;
+    searchPath: string;
   }
 >;
 

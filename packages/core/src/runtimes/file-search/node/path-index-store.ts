@@ -7,11 +7,10 @@ export type StoredFileSearchRoot = Readonly<{
   rootPath: string;
 }>;
 
-/** A changed canonical path invalidates any generation published for the previous path. */
-export type FileSearchRootUpsertResult =
-  | Readonly<{ kind: 'created'; root: StoredFileSearchRoot }>
-  | Readonly<{ kind: 'unchanged'; root: StoredFileSearchRoot }>
-  | Readonly<{ kind: 'root-path-changed'; root: StoredFileSearchRoot }>;
+export type FileSearchRootUpsertResult = Readonly<{
+  kind: 'created' | 'unchanged';
+  root: StoredFileSearchRoot;
+}>;
 
 export type PathIndexEntry = Readonly<{
   path: PortableRelativePath;

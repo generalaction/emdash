@@ -1,2 +1,14 @@
-export { fileSearchComponentConfigSchema, type FileSearchComponentConfig } from './component';
-export type { FileSearchRuntime, FileSearchRuntimeOptions } from './file-search-runtime';
+export {
+  createFileSearchController,
+  type FileSearchControllerOptions,
+} from '@runtimes/file-search/node/api/controller';
+export {
+  createFileSearchProcedures,
+  type FileSearchProcedures,
+} from '@runtimes/file-search/node/api/procedures';
+export {
+  fileSearchComponent,
+  fileSearchComponentConfigSchema,
+  type FileSearchComponentConfig,
+} from './component';
+export { FileSearchRuntime, type FileSearchRuntimeOptions } from './file-search-runtime';
