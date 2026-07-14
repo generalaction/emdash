@@ -699,6 +699,7 @@ export function ChatComposer({
   const permissionModeItems: PermissionModeItem[] = permissionModeOptions
     ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+  const permissionModeIsFirst = modelItems.length === 0 && !agentOptions?.length;
 
   const canShowQueuedPrompts =
     queuedPrompts.length > 0 &&
@@ -825,7 +826,7 @@ export function ChatComposer({
                 disabled={disabled}
               />
             )}
-            {modelItems.length > 0 ? (
+            {modelItems.length > 0 && (
               <ComboboxPopover<ModelItem>
                 items={modelItems}
                 value={selectedModel ?? null}
@@ -912,8 +913,6 @@ export function ChatComposer({
                     : undefined
                 }
               />
-            ) : (
-              <span />
             )}
             {permissionModeItems.length > 0 && (
               <ComboboxPopover<PermissionModeItem>
@@ -924,6 +923,7 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search"
+                className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
                 contentStyle={{ minWidth: '18rem' }}
                 renderTrigger={(selected) => (
                   <span
