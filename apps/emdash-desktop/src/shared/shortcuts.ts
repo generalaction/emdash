@@ -14,6 +14,15 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
+  /**
+   * Fire this shortcut even while an xterm terminal is focused. On Windows/Linux
+   * xterm consumes Ctrl+<key> combos (mapping them to terminal control codes) and
+   * stops their propagation, so document-level hotkeys never see them. Flag the
+   * few app shortcuts that should win over the terminal here; everything else
+   * keeps reaching the terminal so essential control keys (Ctrl+C/D/L/…) work.
+   * See `TerminalKeyboardBridge`.
+   */
+  overrideTerminalFocus?: boolean;
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -101,12 +110,14 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Command Palette',
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
+    overrideTerminalFocus: true,
   },
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',
     description: 'Open application settings',
     category: 'Navigation',
+    overrideTerminalFocus: true,
   },
   library: {
     defaultHotkey: 'Mod+L',
@@ -125,6 +136,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Toggle Right Sidebar',
     description: 'Show or hide the right sidebar',
     category: 'View',
+    overrideTerminalFocus: true,
   },
   closeModal: {
     defaultHotkey: 'Escape',
@@ -157,6 +169,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'New Project',
     description: 'Create a new project',
     category: 'Navigation',
+    overrideTerminalFocus: true,
   },
   openInEditor: {
     defaultHotkey: 'Mod+O',
@@ -169,18 +182,21 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'View Changes',
     description: 'Open the right sidebar to the Changes panel',
     category: 'Task View',
+    overrideTerminalFocus: true,
   },
   sidebarConversations: {
     defaultHotkey: 'Mod+Shift+3',
     label: 'View Conversations',
     description: 'Open the right sidebar to the Conversations panel',
     category: 'Task View',
+    overrideTerminalFocus: true,
   },
   sidebarFiles: {
     defaultHotkey: 'Mod+Shift+2',
     label: 'View Files',
     description: 'Open the right sidebar to the Files panel',
     category: 'Task View',
+    overrideTerminalFocus: true,
   },
   tabNext: {
     defaultHotkey: 'Mod+Alt+ArrowRight',
@@ -188,6 +204,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the next tab',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+    overrideTerminalFocus: true,
   },
   tabPrev: {
     defaultHotkey: 'Mod+Alt+ArrowLeft',
@@ -195,6 +212,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+    overrideTerminalFocus: true,
   },
   taskNext: {
     defaultHotkey: 'Mod+Alt+ArrowDown',
@@ -202,6 +220,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the next task',
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
+    overrideTerminalFocus: true,
   },
   taskPrev: {
     defaultHotkey: 'Mod+Alt+ArrowUp',
@@ -209,6 +228,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous task',
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
+    overrideTerminalFocus: true,
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
@@ -223,6 +243,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Reopen the most recently closed tab',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+    overrideTerminalFocus: true,
   },
   tabRename: {
     defaultHotkey: 'Mod+Shift+R',
@@ -230,6 +251,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Rename the active tab (when supported)',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+    overrideTerminalFocus: true,
   },
   newConversation: {
     defaultHotkey: 'Mod+T',
@@ -248,12 +270,14 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'New Terminal',
     description: 'Create a new terminal in the current task',
     category: 'Task View',
+    overrideTerminalFocus: true,
   },
   openBrowser: {
     defaultHotkey: 'Mod+Shift+B',
     label: 'Open Browser',
     description: 'Open an in-app browser in the current task',
     category: 'Task View',
+    overrideTerminalFocus: true,
   },
   browserCopyUrl: {
     defaultHotkey: 'Mod+Shift+C',

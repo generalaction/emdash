@@ -3,6 +3,7 @@ import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-b
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
 import { BrowserAppShortcutEvents } from '@renderer/lib/components/browser-app-shortcut-events';
 import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-bridge';
+import { TerminalKeyboardBridge } from '@renderer/lib/components/terminal-keyboard-bridge';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
   useWorkspaceSlots,
@@ -22,6 +23,7 @@ export function Workspace() {
       <BrowserAppShortcutEvents />
       <CommandShortcutBinder />
       <MonacoKeyboardBridge />
+      <TerminalKeyboardBridge />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={
