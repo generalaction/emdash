@@ -93,8 +93,8 @@ export function useWorkspaceViewModel(): WorkspaceViewModel {
 
 /** Returns the ConversationManagerStore for the task. Throws if not registered. */
 export function useConversations(): ConversationManagerStore {
-  const { taskId } = useTaskViewContext();
-  const mgr = getConversationsForTask(taskId);
+  const { projectId, taskId } = useTaskViewContext();
+  const mgr = getConversationsForTask(projectId, taskId);
   if (!mgr) {
     throw new Error('useConversations: task is not registered (no conversation manager)');
   }

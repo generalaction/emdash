@@ -134,8 +134,8 @@ export function getWorkspaceViewModel(
   return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
 }
 
-export function getConversationsForTask(taskId: string) {
-  return conversationRegistry.get(taskId);
+export function getConversationsForTask(projectId: string, taskId: string) {
+  return conversationRegistry.getForProject(projectId, taskId);
 }
 
 export function getTerminalsForTask(taskId: string) {

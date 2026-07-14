@@ -109,7 +109,6 @@ export const ptyController = createRPCController({
       try {
         if (isConversation) {
           await task.conversations.stopSession(leafId);
-          await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
         } else {
           await task.terminals.killTerminal(leafId);
         }
@@ -119,6 +118,17 @@ export const ptyController = createRPCController({
           error: String(e),
         });
         return err({ type: 'stop_failed' as const, message: String((e as Error)?.message || e) });
+      }
+
+      if (isConversation) {
+        try {
+          await agentHookService.resetToIdle({ conversationId: leafId, taskId: scopeId });
+        } catch (e) {
+          log.warn('ptyController.stopSession: error resetting conversation status', {
+            sessionId,
+            error: String(e),
+          });
+        }
       }
       return ok();
     }

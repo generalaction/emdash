@@ -152,7 +152,9 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       if (task) {
         bucketKey = taskId;
         taskName = task.displayName;
-        const conv = getConversationsForTask(taskId)?.conversations.get(entry.leafId);
+        const conv = getConversationsForTask(entry.projectId, taskId)?.conversations.get(
+          entry.leafId
+        );
         const terminal = getTerminalsForTask(taskId)?.terminals.get(entry.leafId);
         providerId = conv?.data.providerId;
         displayTitle = conv?.data.title ?? terminal?.data.name;

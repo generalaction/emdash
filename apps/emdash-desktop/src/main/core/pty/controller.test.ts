@@ -120,6 +120,27 @@ describe('ptyController', () => {
     ptySessionRegistry.unregister(sessionId);
   });
 
+  it('reports success when status reset fails after stopping a conversation PTY', async () => {
+    const stopSession = vi.fn().mockResolvedValue(undefined);
+    const sessionId = 'proj-1:task-1:conv-1';
+    mocks.getTask.mockReturnValue({ conversations: { stopSession } });
+    mocks.resetToIdle.mockRejectedValueOnce(new Error('reset failed'));
+    ptySessionRegistry.register(sessionId, makePty(), {
+      metadata: { providerId: 'amp', isRemote: false },
+    });
+
+    const result = await ptyController.stopSession(sessionId);
+
+    expect(result.success).toBe(true);
+    expect(stopSession).toHaveBeenCalledWith('conv-1');
+    expect(mocks.resetToIdle).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      taskId: 'task-1',
+    });
+
+    ptySessionRegistry.unregister(sessionId);
+  });
+
   it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {
     const bytes = Buffer.from('content');
     const mkdir = vi.fn().mockResolvedValue({ success: true });

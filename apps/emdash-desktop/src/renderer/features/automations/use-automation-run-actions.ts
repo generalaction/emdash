@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
+import { getConversationsForTask } from '@renderer/features/tasks/stores/task-selectors';
 import { getAcpRuntimeClient } from '@renderer/lib/acp/runtime-client';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -17,7 +17,7 @@ export function useAutomationRunActions(automationId: string) {
     const taskId = run.taskId;
     if (!taskId || !projectId || stopPending) return;
 
-    const conversations = conversationRegistry.get(taskId)?.conversations.values();
+    const conversations = getConversationsForTask(projectId, taskId)?.conversations.values();
     const activeConversations = conversations
       ? Array.from(conversations).filter(isAutomationConversationRunning)
       : [];

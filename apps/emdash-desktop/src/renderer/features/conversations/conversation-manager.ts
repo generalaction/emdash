@@ -37,7 +37,7 @@ export class ConversationManagerStore implements IDisposable {
   sessions = observable.map<string, PtySession>();
 
   constructor(
-    private readonly projectId: string,
+    readonly projectId: string,
     private readonly taskId: string,
     preloaded?: Conversation[]
   ) {

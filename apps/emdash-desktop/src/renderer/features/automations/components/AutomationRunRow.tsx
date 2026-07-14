@@ -40,7 +40,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
-  const conversations = taskId ? getConversationsForTask(taskId)?.conversations.values() : null;
+  const conversations =
+    taskId && projectId ? getConversationsForTask(projectId, taskId)?.conversations.values() : null;
   const canStop = conversations
     ? Array.from(conversations).some(isAutomationConversationRunning)
     : false;

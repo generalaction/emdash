@@ -16,6 +16,11 @@ export class ConversationRegistry {
     return this.entries.get(taskId);
   }
 
+  getForProject(projectId: string, taskId: string): ConversationManagerStore | undefined {
+    const store = this.entries.get(taskId);
+    return store?.projectId === projectId ? store : undefined;
+  }
+
   release(taskId: string): void {
     const store = this.entries.get(taskId);
     if (!store) return;
