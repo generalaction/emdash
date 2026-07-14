@@ -7,9 +7,8 @@ import {
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
-import type { FileSearchExclusions } from '../indexing/exclusions';
-import { DefaultFileSearchExclusions } from '../indexing/exclusions';
-import { containsNativePath } from '../native-path';
+import { containsNativePath } from '../allocation/paths';
+import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
 import { errorMessage, expectedNodeIoError, nodeErrorCode } from '../node-errors';
 import { ContentSearchAccumulator } from './content-accumulator';
 import type {

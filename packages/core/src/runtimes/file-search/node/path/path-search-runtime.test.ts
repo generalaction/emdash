@@ -6,13 +6,13 @@ import {
   type PortableRelativePath,
 } from '@primitives/path/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RootWatchReadyError } from '../indexing/errors';
-import type { PathIndexStore, PathIndexStoreSearchResult } from '../path-index-store';
+import { RootWatchReadyError } from '../path-index/errors';
 import type {
   FileSearchRootLookup,
   FileSearchRootState,
   RegisteredFileSearchRoot,
 } from '../root/root-registry';
+import type { PathIndexStore, PathIndexStoreSearchResult } from '../storage/path-index-store';
 import { PathSearchRuntime } from './path-search-runtime';
 
 const disposals: Array<() => Promise<void>> = [];

@@ -7,19 +7,19 @@ import type {
   FileSearchUnregisterRootError,
 } from '@runtimes/file-search/api';
 import type { IWatchService } from '@services/fs-watch/api';
+import { hostAbsolutePathFromNative } from '../allocation/paths';
+import type { FileSearchRootResolver, ResolvedFileSearchRoot } from '../allocation/root-identity';
 import type { ConcurrencyLimiter } from '../concurrency-limiter';
-import { expectedSqliteIoError } from '../db/errors';
-import type { FileSearchExclusions } from '../indexing/exclusions';
-import type { FileSearchRootResolver, ResolvedFileSearchRoot } from '../indexing/root-identity';
-import { RootIndex, type RootIndexStatus } from '../indexing/root-index';
-import type { PathScanner } from '../indexing/scanner';
-import { hostAbsolutePathFromNative } from '../native-path';
+import type { FileSearchExclusions } from '../exclusions';
 import { expectedNodeIoError } from '../node-errors';
+import { RootIndex, type RootIndexStatus } from '../path-index/root-index';
+import type { PathScanner } from '../path-index/scanner';
+import { expectedSqliteIoError } from '../storage/errors';
 import type {
   FileSearchRootUpsertResult,
   PathIndexStore,
   StoredFileSearchRoot,
-} from '../path-index-store';
+} from '../storage/path-index-store';
 import { expectedRootAccessError } from './errors';
 
 type RootStartInput = Readonly<{

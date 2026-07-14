@@ -7,11 +7,11 @@ import type {
   PathIndexPatch,
   PathIndexStore,
   StoredFileSearchRoot,
-} from '@runtimes/file-search/node/path-index-store';
+} from '@runtimes/file-search/node/storage/path-index-store';
 import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
-import { containsNativePath, portableRelativePathFromNative } from '../native-path';
+import { containsNativePath, portableRelativePathFromNative } from '../allocation/paths';
+import type { FileSearchExclusions } from '../exclusions';
 import { RootWatchReadyError } from './errors';
-import type { FileSearchExclusions } from './exclusions';
 import type { PathScanner } from './scanner';
 
 const WATCH_DEBOUNCE_MS = 50;

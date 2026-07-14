@@ -2,9 +2,9 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type { PathSearchError, PathSearchInput, PathSearchResult } from '@runtimes/file-search/api';
 import { PATH_SEARCH_DEFAULT_LIMIT } from '@runtimes/file-search/api';
-import type { PathIndexStore } from '../path-index-store';
 import { rootNotRegistered } from '../root/errors';
 import type { FileSearchRootLookup, RegisteredFileSearchRoot } from '../root/root-registry';
+import type { PathIndexStore } from '../storage/path-index-store';
 import { expectedPathIndexError, indexNotReady } from './errors';
 
 type PathSearchRuntimeOptions = Readonly<{

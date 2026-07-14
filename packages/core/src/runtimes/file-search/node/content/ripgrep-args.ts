@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { CONTENT_SEARCH_MAX_LINE_LENGTH } from '@runtimes/file-search/api';
-import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../indexing/exclusions';
+import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
 import type { ResolvedContentSearchInput } from './content-searcher';
 
 const DEFAULT_EXCLUSIONS = new DefaultFileSearchExclusions();

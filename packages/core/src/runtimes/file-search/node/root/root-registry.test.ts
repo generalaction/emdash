@@ -9,9 +9,10 @@ import {
   type PortableRelativePath,
 } from '@primitives/path/api';
 import type { ContentSearchResult } from '@runtimes/file-search/api';
-import type { PathIndexEntry } from '@runtimes/file-search/node/path-index-store';
+import type { PathIndexEntry } from '@runtimes/file-search/node/storage/path-index-store';
 import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NodeFileSearchRootResolver } from '../allocation/root-identity';
 import { ConcurrencyLimiter } from '../concurrency-limiter';
 import { ContentSearchRuntime } from '../content/content-search-runtime';
 import type {
@@ -19,10 +20,9 @@ import type {
   FileContentSearcher,
   ResolvedContentSearchInput,
 } from '../content/content-searcher';
-import { SqlitePathIndexStore } from '../db/sqlite-path-index-store';
-import { DefaultFileSearchExclusions } from '../indexing/exclusions';
-import { NodeFileSearchRootResolver } from '../indexing/root-identity';
-import { NodePathScanner, type PathScanner, type PathScanOptions } from '../indexing/scanner';
+import { DefaultFileSearchExclusions } from '../exclusions';
+import { NodePathScanner, type PathScanner, type PathScanOptions } from '../path-index/scanner';
+import { SqlitePathIndexStore } from '../storage/sqlite-path-index-store';
 import { FileSearchRootRegistry } from './root-registry';
 
 const cleanups: Array<() => void | Promise<void>> = [];

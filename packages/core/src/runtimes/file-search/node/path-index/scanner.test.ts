@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parsePortableRelativePath, ROOT_RELATIVE_PATH } from '@primitives/path/api';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DefaultFileSearchExclusions } from './exclusions';
+import { DefaultFileSearchExclusions } from '../exclusions';
 import { NodePathScanner } from './scanner';
 
 const temporaryDirectories: string[] = [];

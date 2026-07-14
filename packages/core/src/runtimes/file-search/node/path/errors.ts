@@ -1,9 +1,9 @@
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type { PathSearchError } from '@runtimes/file-search/api';
-import { expectedSqliteIoError } from '../db/errors';
-import { RootWatchReadyError } from '../indexing/errors';
 import { errorMessage, expectedNodeIoError } from '../node-errors';
+import { RootWatchReadyError } from '../path-index/errors';
 import { expectedRootAccessError } from '../root/errors';
+import { expectedSqliteIoError } from '../storage/errors';
 
 export function indexNotReady(
   root: HostAbsolutePath

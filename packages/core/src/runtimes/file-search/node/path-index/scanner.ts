@@ -5,9 +5,9 @@ import {
   portableRelativePathParts,
   type PortableRelativePath,
 } from '@primitives/path/api';
-import type { PathIndexEntry } from '@runtimes/file-search/node/path-index-store';
-import { containsNativePath, sameNativePath } from '../native-path';
-import type { FileSearchExclusions } from './exclusions';
+import type { PathIndexEntry } from '@runtimes/file-search/node/storage/path-index-store';
+import { containsNativePath, sameNativePath } from '../allocation/paths';
+import type { FileSearchExclusions } from '../exclusions';
 
 export type PathScanOptions = Readonly<{
   signal: AbortSignal;

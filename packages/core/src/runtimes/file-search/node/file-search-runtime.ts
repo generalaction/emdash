@@ -1,15 +1,15 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { IWatchService } from '@services/fs-watch/api';
 import { createNativeWatchService } from '@services/fs-watch/node';
+import { NodeFileSearchRootResolver } from './allocation/root-identity';
 import { ConcurrencyLimiter } from './concurrency-limiter';
 import { ContentSearchRuntime } from './content/content-search-runtime';
 import { RipgrepContentSearcher } from './content/ripgrep-content-searcher';
-import { SqlitePathIndexStore } from './db/sqlite-path-index-store';
-import { DefaultFileSearchExclusions } from './indexing/exclusions';
-import { NodeFileSearchRootResolver } from './indexing/root-identity';
-import { NodePathScanner } from './indexing/scanner';
+import { DefaultFileSearchExclusions } from './exclusions';
+import { NodePathScanner } from './path-index/scanner';
 import { PathSearchRuntime } from './path/path-search-runtime';
 import { FileSearchRootRegistry } from './root/root-registry';
+import { SqlitePathIndexStore } from './storage/sqlite-path-index-store';
 
 const DEFAULT_MAX_CONCURRENT_SCANS = 2;
 const DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES = 4;

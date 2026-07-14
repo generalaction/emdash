@@ -3,7 +3,11 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { portableRelativePathParts } from '@primitives/path/api';
 import type { ContentSearchError, ContentSearchInput } from '@runtimes/file-search/api';
-import { containsNativePath, isPortablePathHostCompatible, sameNativePath } from '../native-path';
+import {
+  containsNativePath,
+  isPortablePathHostCompatible,
+  sameNativePath,
+} from '../allocation/paths';
 import { expectedNodeIoError } from '../node-errors';
 import { expectedRootAccessError, rootUnavailable } from '../root/errors';
 

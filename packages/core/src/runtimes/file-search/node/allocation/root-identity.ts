@@ -8,9 +8,9 @@ import {
   type HostAbsolutePath,
 } from '@primitives/path/api';
 import type { FileSearchRegisterRootError } from '@runtimes/file-search/api';
-import { hostAbsolutePathFromNative } from '../native-path';
 import { expectedNodeIoError } from '../node-errors';
 import { expectedRootAccessError, rootUnavailable } from '../root/errors';
+import { hostAbsolutePathFromNative } from './paths';
 
 export type ResolvedFileSearchRoot = Readonly<{
   rootKey: string;
