@@ -14,7 +14,7 @@ export async function deleteProject(id: string): Promise<void> {
   if (provider) {
     const projectTasks = await getTasks(id);
     await Promise.allSettled([
-      ...projectTasks.map((t) => taskSessionManager.teardownTask(t.id)),
+      ...projectTasks.map((t) => taskSessionManager.teardownTask(id, t.id)),
       ...projectTasks.map((t) => viewStateService.del(`task:${t.id}`)),
     ]);
     await projectManager.closeProject(id);

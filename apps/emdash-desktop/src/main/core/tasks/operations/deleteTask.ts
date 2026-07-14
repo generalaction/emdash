@@ -29,10 +29,12 @@ export async function deleteTask(
   const project = projectManager.getProject(projectId);
 
   if (project) {
-    const teardownResult = await taskSessionManager.teardownTask(taskId, 'terminate').catch((e) => {
-      log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
-      return null;
-    });
+    const teardownResult = await taskSessionManager
+      .teardownTask(projectId, taskId, 'terminate')
+      .catch((e) => {
+        log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
+        return null;
+      });
 
     if (teardownResult && !teardownResult.success) {
       log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });

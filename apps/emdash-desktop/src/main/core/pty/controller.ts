@@ -103,7 +103,7 @@ export const ptyController = createRPCController({
     // Conversation PTYs carry a providerId in their registry metadata; plain
     // terminals do not — that distinguishes the two.
     const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
-    const task = taskSessionManager.getTaskForProject(projectId, scopeId);
+    const task = taskSessionManager.getTask(projectId, scopeId);
     if (task) {
       try {
         if (isConversation) {
@@ -168,12 +168,12 @@ export const ptyController = createRPCController({
       if (!parsed) {
         return err({ type: 'invalid_session' as const });
       }
-      const { scopeId } = parsed;
+      const { projectId, scopeId } = parsed;
 
-      const taskProvider = taskSessionManager.getTask(scopeId);
+      const taskProvider = taskSessionManager.getTask(projectId, scopeId);
       if (!taskProvider) return err({ type: 'not_ssh' as const });
 
-      const workspaceId = taskSessionManager.getWorkspaceId(scopeId) ?? '';
+      const workspaceId = taskSessionManager.getWorkspaceId(projectId, scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace) return err({ type: 'not_ssh' as const });
 

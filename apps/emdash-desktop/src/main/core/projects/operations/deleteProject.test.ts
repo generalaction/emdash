@@ -77,6 +77,7 @@ describe('deleteProject', () => {
   it('closes a mounted project before deleting its database row', async () => {
     await deleteProject('project-1');
 
+    expect(mocks.teardownTask).toHaveBeenCalledWith('project-1', 'task-1');
     expect(mocks.closeProject).toHaveBeenCalledWith('project-1');
     expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
     const closeOrder = mocks.closeProject.mock.invocationCallOrder[0];

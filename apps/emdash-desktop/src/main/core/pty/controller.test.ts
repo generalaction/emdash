@@ -6,7 +6,6 @@ import { ptySessionRegistry } from './pty-session-registry';
 
 const mocks = vi.hoisted(() => ({
   getTask: vi.fn(),
-  getTaskForProject: vi.fn(),
   getWorkspace: vi.fn(),
   getWorkspaceId: vi.fn(),
   resetToIdle: vi.fn(),
@@ -50,7 +49,6 @@ vi.mock('@main/lib/events', () => ({
 vi.mock('../tasks/task-session-manager', () => ({
   taskSessionManager: {
     getTask: mocks.getTask,
-    getTaskForProject: mocks.getTaskForProject,
     getWorkspaceId: mocks.getWorkspaceId,
   },
 }));
@@ -105,7 +103,7 @@ describe('ptyController', () => {
   it('resets agent status after intentionally stopping a conversation PTY', async () => {
     const stopSession = vi.fn().mockResolvedValue(undefined);
     const sessionId = 'proj-1:task-1:conv-1';
-    mocks.getTaskForProject.mockReturnValue({ conversations: { stopSession } });
+    mocks.getTask.mockReturnValue({ conversations: { stopSession } });
     ptySessionRegistry.register(sessionId, makePty(), {
       metadata: { providerId: 'amp', isRemote: false },
     });
@@ -114,7 +112,7 @@ describe('ptyController', () => {
 
     expect(result.success).toBe(true);
     expect(stopSession).toHaveBeenCalledWith('conv-1');
-    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-1', 'task-1');
+    expect(mocks.getTask).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(mocks.resetToIdle).toHaveBeenCalledWith({
       conversationId: 'conv-1',
       taskId: 'task-1',
@@ -126,7 +124,7 @@ describe('ptyController', () => {
   it('reports success when status reset fails after stopping a conversation PTY', async () => {
     const stopSession = vi.fn().mockResolvedValue(undefined);
     const sessionId = 'proj-1:task-1:conv-1';
-    mocks.getTaskForProject.mockReturnValue({ conversations: { stopSession } });
+    mocks.getTask.mockReturnValue({ conversations: { stopSession } });
     mocks.resetToIdle.mockRejectedValueOnce(new Error('reset failed'));
     ptySessionRegistry.register(sessionId, makePty(), {
       metadata: { providerId: 'amp', isRemote: false },
@@ -135,7 +133,7 @@ describe('ptyController', () => {
     const result = await ptyController.stopSession(sessionId);
 
     expect(result.success).toBe(true);
-    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-1', 'task-1');
+    expect(mocks.getTask).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(stopSession).toHaveBeenCalledWith('conv-1');
     expect(mocks.resetToIdle).toHaveBeenCalledWith({
       conversationId: 'conv-1',
@@ -146,19 +144,16 @@ describe('ptyController', () => {
   });
 
   it('does not raw-kill a conversation PTY when its project provider is unavailable', async () => {
-    const wrongProjectStopSession = vi.fn();
     const pty = makePty();
     const sessionId = 'proj-2:task-1:conv-1';
-    mocks.getTask.mockReturnValue({ conversations: { stopSession: wrongProjectStopSession } });
-    mocks.getTaskForProject.mockReturnValue(undefined);
+    mocks.getTask.mockReturnValue(undefined);
     ptySessionRegistry.register(sessionId, pty, {
       metadata: { providerId: 'amp', isRemote: false },
     });
 
     const result = await ptyController.stopSession(sessionId);
 
-    expect(mocks.getTaskForProject).toHaveBeenCalledWith('proj-2', 'task-1');
-    expect(wrongProjectStopSession).not.toHaveBeenCalled();
+    expect(mocks.getTask).toHaveBeenCalledWith('proj-2', 'task-1');
     expect(result).toEqual({
       success: false,
       error: {
@@ -197,6 +192,8 @@ describe('ptyController', () => {
         remotePaths: ['/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png'],
       },
     });
+    expect(mocks.getTask).toHaveBeenCalledWith('proj-1', 'task-1');
+    expect(mocks.getWorkspaceId).toHaveBeenCalledWith('proj-1', 'task-1');
     expect(mkdir).toHaveBeenCalledWith('/remote/worktree/.emdash/uploads', { recursive: true });
     expect(writeBytes).toHaveBeenCalledWith(
       '/remote/worktree/.emdash/uploads/upload-id-emdash-drop-abc-image.png',

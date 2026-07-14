@@ -49,8 +49,8 @@ export const taskController = createRPCController({
   async getProjectWorkspaces(projectId: string) {
     return getProjectWorkspaces(projectId);
   },
-  async teardownTask(_projectId: string, taskId: string) {
-    return taskService.teardown(taskId, 'terminate');
+  async teardownTask(projectId: string, taskId: string) {
+    return taskService.teardown(projectId, taskId, 'terminate');
   },
   async provisionWorkspace(taskId: string) {
     return taskService.provisionWorkspace(taskId);

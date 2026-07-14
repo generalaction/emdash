@@ -31,7 +31,15 @@ export type WorkspaceHint = {
   path?: string;
 };
 
-type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
+type StoredTask = ProvisionResult & {
+  projectId: string;
+  taskId: string;
+  ctx: IExecutionContext;
+};
+
+function taskLifecycleKey(projectId: string, taskId: string) {
+  return JSON.stringify([projectId, taskId]);
+}
 
 export type TaskManagerHooks = {
   'task:provisioned': (info: {
@@ -96,17 +104,17 @@ async function cleanupDetachedSessions(
   );
 }
 
-class TaskSessionManager {
+export class TaskSessionManager {
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
   private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError, TeardownTaskError>(
     {
-      postTeardown: (taskId, stored) => {
-        this._tasksByProject.get(stored.projectId)?.delete(taskId);
+      postTeardown: (_key, stored) => {
+        this._tasksByProject.get(stored.projectId)?.delete(stored.taskId);
         this._hooks.callHookBackground('task:torn-down', {
           projectId: stored.projectId,
-          taskId,
+          taskId: stored.taskId,
           workspaceId: stored.persistData.workspaceId,
         });
       },
@@ -136,11 +144,12 @@ class TaskSessionManager {
         workspaceProviderData: result.workspaceProviderData as WorkspaceProviderData | undefined,
       },
       projectId,
+      taskId,
       ctx,
     };
 
     // Use provision() for deduplication: if already active, returns existing immediately.
-    await this._lifecycle.provision(taskId, async () => ok(stored));
+    await this._lifecycle.provision(taskLifecycleKey(projectId, taskId), async () => ok(stored));
 
     const byProject = this._tasksByProject.get(projectId) ?? new Set<string>();
     byProject.add(taskId);
@@ -156,12 +165,13 @@ class TaskSessionManager {
   }
 
   async teardownTask(
+    projectId: string,
     taskId: string,
     mode: TaskTeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
     const result = this._lifecycle.teardown(
-      taskId,
-      async ({ taskProvider, persistData, projectId, ctx }) => {
+      taskLifecycleKey(projectId, taskId),
+      async ({ taskProvider, persistData, ctx }) => {
         try {
           await withTimeout(
             executeTeardown(taskProvider, persistData.workspaceId, mode),
@@ -191,7 +201,7 @@ class TaskSessionManager {
       // workspaceRegistry.teardownAllForProject to handle workspace teardown.
       await Promise.all(
         taskIds.flatMap((id) => {
-          const stored = this._lifecycle.get(id);
+          const stored = this._lifecycle.get(taskLifecycleKey(projectId, id));
           if (!stored) return [];
           return [
             stored.taskProvider.conversations.detachAll(),
@@ -202,40 +212,39 @@ class TaskSessionManager {
       // Remove entries from lifecycle maps without running workspace teardown.
       this._tasksByProject.delete(projectId);
       await Promise.all(
-        taskIds.map((id) => this._lifecycle.teardown(id, async () => ok()) ?? Promise.resolve(ok()))
+        taskIds.map(
+          (id) =>
+            this._lifecycle.teardown(taskLifecycleKey(projectId, id), async () => ok()) ??
+            Promise.resolve(ok())
+        )
       );
     } else {
       // teardownTask handles _tasksByProject cleanup in onFinally.
-      await Promise.all(taskIds.map((id) => this.teardownTask(id, 'terminate')));
+      await Promise.all(taskIds.map((id) => this.teardownTask(projectId, id, 'terminate')));
     }
   }
 
-  getTask(taskId: string): TaskProvider | undefined {
-    return this._lifecycle.get(taskId)?.taskProvider;
+  getTask(projectId: string, taskId: string): TaskProvider | undefined {
+    return this._lifecycle.get(taskLifecycleKey(projectId, taskId))?.taskProvider;
   }
 
-  getTaskForProject(projectId: string, taskId: string): TaskProvider | undefined {
-    const stored = this._lifecycle.get(taskId);
-    return stored?.projectId === projectId ? stored.taskProvider : undefined;
+  getWorkspaceId(projectId: string, taskId: string): string | undefined {
+    return this._lifecycle.get(taskLifecycleKey(projectId, taskId))?.persistData.workspaceId;
   }
 
-  getWorkspaceId(taskId: string): string | undefined {
-    return this._lifecycle.get(taskId)?.persistData.workspaceId;
+  getPersistData(projectId: string, taskId: string): ProvisionResult['persistData'] | undefined {
+    return this._lifecycle.get(taskLifecycleKey(projectId, taskId))?.persistData;
   }
 
-  getPersistData(taskId: string): ProvisionResult['persistData'] | undefined {
-    return this._lifecycle.get(taskId)?.persistData;
-  }
-
-  getBootstrapStatus(taskId: string): TaskBootstrapStatus {
-    const s = this._lifecycle.bootstrapStatus(taskId);
+  getBootstrapStatus(projectId: string, taskId: string): TaskBootstrapStatus {
+    const s = this._lifecycle.bootstrapStatus(taskLifecycleKey(projectId, taskId));
     if (s.status === 'error')
       return { status: 'error', message: formatProvisionTaskError(s.error) };
     return s;
   }
 
-  getTeardownStatus(taskId: string): TaskBootstrapStatus {
-    const s = this._lifecycle.teardownStatus(taskId);
+  getTeardownStatus(projectId: string, taskId: string): TaskBootstrapStatus {
+    const s = this._lifecycle.teardownStatus(taskLifecycleKey(projectId, taskId));
     if (s.status === 'error') return { status: 'error', message: formatTeardownTaskError(s.error) };
     return s;
   }

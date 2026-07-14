@@ -39,7 +39,7 @@ import { setTaskPinned } from './operations/setTaskPinned';
 import { updateLinkedIssue } from './operations/updateLinkedIssue';
 import { updateTaskStatus } from './operations/updateTaskStatus';
 import type { TeardownTaskError } from './provision-task-error';
-import { taskSessionManager } from './task-session-manager';
+import { taskSessionManager, type TaskTeardownMode } from './task-session-manager';
 import { mapTaskRowToTask } from './utils/utils';
 
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
@@ -92,9 +92,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const { projectId } = row;
 
     // Idempotency: task is already live — return current state.
-    const existingTask = taskSessionManager.getTask(taskId);
+    const existingTask = taskSessionManager.getTask(projectId, taskId);
     if (existingTask) {
-      const pd = taskSessionManager.getPersistData(taskId);
+      const pd = taskSessionManager.getPersistData(projectId, taskId);
       const wsId = pd?.workspaceId ?? '';
       const provisionResult: ProvisionResult = {
         path: workspaceRegistry.get(wsId)?.path ?? '',
@@ -159,10 +159,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   async teardown(
+    projectId: string,
     taskId: string,
-    mode: Parameters<typeof taskSessionManager.teardownTask>[1] = 'terminate'
+    mode: TaskTeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    return taskSessionManager.teardownTask(taskId, mode);
+    return taskSessionManager.teardownTask(projectId, taskId, mode);
   }
 
   async getDeletePreflight(projectId: string, taskIds: string[]) {

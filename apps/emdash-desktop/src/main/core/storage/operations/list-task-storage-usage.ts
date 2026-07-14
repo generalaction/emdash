@@ -49,7 +49,7 @@ async function measureRow(row: TaskStorageRow): Promise<TaskStorageUsage> {
   });
   const worktree = isWorktreeRow(row);
   const localWorkspace = isLocalTaskWorkspace(row);
-  const isActive = !!taskSessionManager.getTask(row.taskId);
+  const isActive = !!taskSessionManager.getTask(row.projectId, row.taskId);
   const canDelete =
     row.projectType === 'local' && row.workspaceKind !== 'byoi' && (!worktree || localWorkspace);
 
