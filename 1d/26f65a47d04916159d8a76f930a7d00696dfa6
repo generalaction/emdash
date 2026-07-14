@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/stores/navigation-history-store.test.ts
+  s_144430a1c0efa0::t_9ea0216cd69884 1-17
+apps/emdash-desktop/src/renderer/lib/stores/navigation-history-store.ts
+  s_144430a1c0efa0::t_9ea0216cd69884 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "1d26f65a47d04916159d8a76f930a7d00696dfa6",
+  "prompts": {},
+  "sessions": {
+    "s_144430a1c0efa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f51-cf74-74e2-abca-316b569e5433",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
