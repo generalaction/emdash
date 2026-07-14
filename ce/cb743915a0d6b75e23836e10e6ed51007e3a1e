@@ -1,0 +1,19 @@
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_6e3cc391dcdc7f::t_3947e9997b2985 96,105,226-227,624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "cecb743915a0d6b75e23836e10e6ed51007e3a1e",
+  "prompts": {},
+  "sessions": {
+    "s_6e3cc391dcdc7f": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pM5UiJWj1kxHm2SlVSx",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

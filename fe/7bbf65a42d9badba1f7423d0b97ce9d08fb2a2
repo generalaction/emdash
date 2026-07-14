@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_1e3e9899108721::t_f6a53494347a2c 148,150,153-159,162-175
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_1e3e9899108721::t_f6a53494347a2c 105,135-140
+  s_1e3e9899108721::t_9057c130557f84 141-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "fe7bbf65a42d9badba1f7423d0b97ce9d08fb2a2",
+  "prompts": {},
+  "sessions": {
+    "s_1e3e9899108721": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pL83Ckq5F3SHtE7ICbQ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

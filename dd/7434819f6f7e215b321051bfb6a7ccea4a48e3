@@ -1,0 +1,51 @@
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_12a7a566d67e43::t_3fd083565a664a 106,171,173,176
+apps/emdash-desktop/src/main/core/projects/operations/deleteProject.ts
+  s_12a7a566d67e43::t_3fd083565a664a 17
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_12a7a566d67e43::t_3fd083565a664a 32-37
+apps/emdash-desktop/src/main/core/tasks/controller.ts
+  s_12a7a566d67e43::t_3fd083565a664a 52-53
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.ts
+  s_12a7a566d67e43::t_3fd083565a664a 24-29
+apps/emdash-desktop/src/main/core/storage/operations/list-task-storage-usage.ts
+  s_12a7a566d67e43::t_3fd083565a664a 52
+apps/emdash-desktop/src/main/core/projects/utils.ts
+  s_12a7a566d67e43::t_3fd083565a664a 4-5
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_12a7a566d67e43::t_3fd083565a664a 34-42,107,113-114,117,147,152,168,173-174,204,215-219,223,227-228,231-232,235-236,239-240,246-247
+apps/emdash-desktop/src/main/core/tasks/task-service.ts
+  s_12a7a566d67e43::t_3fd083565a664a 42,95,97,162,164,166
+apps/emdash-desktop/src/main/core/projects/operations/deleteProject.test.ts
+  s_fc552205a197b7::t_e12032b2d667dd 80
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_fc552205a197b7::t_e55a64510ecd58 106,115,127,136,149,156,195-196
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.test.ts
+  s_fc552205a197b7::t_a638b2bdc75b89 68
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.test.ts
+  s_fc552205a197b7::t_256bfe5051ddb4 2-3,5,28-34,76-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "dd7434819f6f7e215b321051bfb6a7ccea4a48e3",
+  "prompts": {},
+  "sessions": {
+    "s_12a7a566d67e43": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pLevwKjvbhDKU61knHZ",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fc552205a197b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c5e61b8-9d57-4f22-9db3-9e6cc7954608",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

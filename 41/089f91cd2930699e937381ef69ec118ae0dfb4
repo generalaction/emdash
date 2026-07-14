@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_c1771079f2da18::t_a1f4f8793e2b33 20,35-36,388-390
+apps/emdash-desktop/src/renderer/lib/pty/pty-keybindings.ts
+  s_c1771079f2da18::t_a1f4f8793e2b33 1-2,18-35
+  s_c1771079f2da18::t_4169e6fab0089d 36
+apps/emdash-desktop/src/renderer/tests/terminalKeybindings.test.ts
+  s_c1771079f2da18::t_a1f4f8793e2b33 7,40-65
+  s_c1771079f2da18::t_c10133803a7383 66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "41089f91cd2930699e937381ef69ec118ae0dfb4",
+  "prompts": {},
+  "sessions": {
+    "s_c1771079f2da18": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033pPmqjPD5ZfIZwTnbxJi",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
