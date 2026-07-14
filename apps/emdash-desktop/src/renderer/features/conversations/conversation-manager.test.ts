@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  agentSessionExitedChannel,
+  type AgentSessionExited,
+} from '@shared/core/agents/agentEvents';
 import { ConversationManagerStore } from './conversation-manager';
 
 const hydrateConversation = vi.hoisted(() => vi.fn());
 const dehydrateConversation = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
+const eventsOn = vi.hoisted(() =>
+  vi.fn((_channel: unknown, _listener: (event: AgentSessionExited) => void) => () => {})
+);
 
 vi.mock('@renderer/features/tasks/stores/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({
@@ -14,7 +21,7 @@ vi.mock('@renderer/features/tasks/stores/open-file-in-file-editor', () => ({
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
-  events: { on: () => () => {} },
+  events: { on: eventsOn },
   rpc: {
     conversations: {
       dehydrateConversation,
@@ -39,6 +46,7 @@ describe('ConversationManagerStore session hydration', () => {
     dehydrateConversation.mockReset();
     frontendConnect.mockReset();
     frontendDispose.mockReset();
+    eventsOn.mockClear();
 
     hydrateConversation.mockResolvedValue(undefined);
     dehydrateConversation.mockResolvedValue(undefined);
@@ -67,5 +75,36 @@ describe('ConversationManagerStore session hydration', () => {
     expect(frontendConnect).toHaveBeenCalledTimes(1);
 
     store.dispose();
+  });
+
+  it('ignores session exits from another project with the same task id', () => {
+    const conversation = {
+      id: 'conversation-1',
+      taskId: 'task-1',
+      providerId: 'codex',
+      title: 'Conversation 1',
+      lastInteractedAt: null,
+      isInitialConversation: false,
+      agentStatus: 'working' as const,
+    };
+    const first = new ConversationManagerStore('project-1', 'task-1', [
+      { ...conversation, projectId: 'project-1' },
+    ]);
+    const second = new ConversationManagerStore('project-2', 'task-1', [
+      { ...conversation, projectId: 'project-2' },
+    ]);
+    const exitListeners = eventsOn.mock.calls
+      .filter(([channel]) => channel === agentSessionExitedChannel)
+      .map(([, listener]) => listener);
+
+    for (const listener of exitListeners) {
+      listener({ conversationId: 'conversation-1', projectId: 'project-1', taskId: 'task-1' });
+    }
+
+    expect(first.conversations.get('conversation-1')?.status).toBe('idle');
+    expect(second.conversations.get('conversation-1')?.status).toBe('working');
+
+    first.dispose();
+    second.dispose();
   });
 });

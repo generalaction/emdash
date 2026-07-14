@@ -129,7 +129,7 @@ export class ConversationManagerStore implements IDisposable {
 
   private listenToSessionExited(): () => void {
     return events.on(agentSessionExitedChannel, (event) => {
-      if (event.taskId !== this.taskId) return;
+      if (event.projectId !== this.projectId || event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();

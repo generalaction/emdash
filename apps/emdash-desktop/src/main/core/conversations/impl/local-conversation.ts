@@ -220,6 +220,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
         events.emit(agentSessionExitedChannel, {
           conversationId: conversation.id,
+          projectId: conversation.projectId,
           taskId: conversation.taskId,
         });
 

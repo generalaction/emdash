@@ -240,10 +240,10 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
     // Reset a stuck 'working' status to 'idle' when the agent PTY exits.
     // This handles the case where the user interrupts/kills the agent before
     // a 'stop' or 'error' hook fires.
-    events.on(agentSessionExitedChannel, ({ conversationId, taskId }) => {
+    events.on(agentSessionExitedChannel, ({ conversationId, projectId, taskId }) => {
       void (async () => {
         try {
-          await this.resetToIdle({ conversationId, taskId });
+          await this.resetToIdle({ conversationId, projectId, taskId });
         } catch (error) {
           log.warn('AgentHookService: failed to reset stuck working status on exit', {
             conversationId,

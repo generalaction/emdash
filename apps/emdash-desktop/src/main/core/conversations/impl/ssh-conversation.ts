@@ -197,6 +197,7 @@ export class SshConversationProvider implements ConversationProvider {
         this.supervisor.failSpawn(sessionId, spawnToken);
         events.emit(agentSessionExitedChannel, {
           conversationId: conversation.id,
+          projectId: conversation.projectId,
           taskId: conversation.taskId,
         });
         return;
@@ -217,6 +218,7 @@ export class SshConversationProvider implements ConversationProvider {
         if (decision.kind === 'failed') {
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
+            projectId: conversation.projectId,
             taskId: conversation.taskId,
           });
           return;
@@ -225,6 +227,7 @@ export class SshConversationProvider implements ConversationProvider {
         if (this.tmux) {
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
+            projectId: conversation.projectId,
             taskId: conversation.taskId,
           });
           return;
@@ -245,6 +248,7 @@ export class SshConversationProvider implements ConversationProvider {
           this.supervisor.stop(sessionId);
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
+            projectId: conversation.projectId,
             taskId: conversation.taskId,
           });
           return;
@@ -252,6 +256,7 @@ export class SshConversationProvider implements ConversationProvider {
 
         events.emit(agentSessionExitedChannel, {
           conversationId: conversation.id,
+          projectId: conversation.projectId,
           taskId: conversation.taskId,
         });
 
