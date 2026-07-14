@@ -46,7 +46,7 @@ export function PrRow({ pr }: { pr: PullRequest }) {
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm text-foreground">{pr.title}</span>
           {pr.identifier && (
-            <span className="shrink-0 font-mono text-xs text-foreground-muted">
+            <span className="shrink-0 font-sans text-xs text-foreground-muted">
               {pr.identifier}
             </span>
           )}

@@ -123,7 +123,7 @@ export const TaskRow = observer(function TaskRow({
           ) : (
             <RelativeTime
               value={task.data.createdAt}
-              className="pr-1 font-mono text-xs text-foreground-passive"
+              className="pr-1 font-sans text-xs text-foreground-passive"
               compact
             />
           )}

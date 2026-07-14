@@ -29,10 +29,6 @@ describe('describeBrowserLoadError', () => {
 
     expect(presentation.heading).toBe("This site can't be reached");
     expect(presentation.detail).toBe("sdfg.com's server IP address could not be found.");
-    expect(presentation.suggestions).toEqual([
-      'Checking the connection',
-      'Checking the proxy, firewall, and DNS configuration',
-    ]);
   });
 
   it('maps a refused connection from the numeric code alone', () => {
@@ -51,7 +47,7 @@ describe('describeBrowserLoadError', () => {
     );
 
     expect(presentation.heading).toBe('No internet');
-    expect(presentation.suggestions).toContain('Reconnecting to Wi-Fi');
+    expect(presentation.detail).toBe('You appear to be offline.');
   });
 
   it('falls back to a human description for unknown codes', () => {

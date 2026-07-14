@@ -142,7 +142,7 @@ export function ShareableSettingsSection({
               className="group text-muted-foreground inline-flex h-auto cursor-pointer items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
               onClick={() => rpc.app.openExternal('https://www.emdash.sh/docs/project-config')}
             >
-              <span className="font-mono text-xs transition-colors group-hover:text-foreground">
+              <span className="font-sans text-xs transition-colors group-hover:text-foreground">
                 docs
               </span>
               <span className="text-muted-foreground text-sm transition-colors group-hover:text-foreground">

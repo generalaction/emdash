@@ -15,7 +15,6 @@ import { IntegrationIcon } from '@renderer/features/integrations/integration-ico
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field } from '@renderer/lib/ui/field';
@@ -26,7 +25,11 @@ import {
   agentSupportsAutoApprove,
   type AgentCapabilities,
 } from '@shared/core/agents/agent-payload';
-import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
+import {
+  extractIssueMentionTargets,
+  issueMentionToken,
+  parseIssueMentionToken,
+} from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { buildIssueContextText } from '../context-bar/context-actions';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
@@ -70,7 +73,6 @@ export function useInitialConversationState(
   const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
-  const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
   const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function useInitialConversationState(
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
-    true
+    false
   );
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -107,7 +109,7 @@ export function useInitialConversationState(
   const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const autoApproveSupported = agentSupportsAutoApprove(capabilities);
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
-  const acpSupported = chatUiFeatureEnabled && agentSupportsAcp(capabilities);
+  const acpSupported = agentSupportsAcp(capabilities);
   const useChatUi = acpSupported && useChatUiPreference;
 
   return {
@@ -213,8 +215,7 @@ export function InitialConversationField({
 
   const capabilities = useAgentCapabilities(state.provider);
   const canToggleAutoApprove = agentSupportsAutoApprove(capabilities);
-  const chatUiFeatureEnabled = useFeatureFlag('chat-ui');
-  const canToggleChatUi = chatUiFeatureEnabled && agentSupportsAcp(capabilities);
+  const canToggleChatUi = agentSupportsAcp(capabilities);
 
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
@@ -254,16 +255,12 @@ export function InitialConversationField({
     }
   }, [linkedIssueMention, state.issueContext, state.prompt]);
 
-  const renderMentionIcon = useCallback<RenderMentionIcon>(
-    ({ id, kind }) => {
-      if (kind !== 'issue') return null;
-      if (!linkedIssue || id !== issueMentionToken(linkedIssue.provider, linkedIssue.identifier)) {
-        return null;
-      }
-      return <IntegrationIcon provider={linkedIssue.provider} size={12} />;
-    },
-    [linkedIssue]
-  );
+  const renderMentionIcon = useCallback<RenderMentionIcon>(({ id, kind }) => {
+    if (kind !== 'issue') return null;
+    const target = parseIssueMentionToken(id);
+    if (!target) return null;
+    return <IntegrationIcon provider={target.provider} size={12} />;
+  }, []);
 
   const querySlashItems = useCallback(
     async (query: string): Promise<CommandItem[]> => {
