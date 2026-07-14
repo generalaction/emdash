@@ -1,3 +1,5 @@
+import { getDomTabNavigationDirection } from '@shared/shortcuts';
+
 export type KeyEventLike = {
   type: string;
   key: string;
@@ -12,6 +14,25 @@ export const CTRL_J_ASCII = '\x0A';
 
 // Ctrl+U (unix-line-discard) kills from cursor to beginning of line
 export const CTRL_U_ASCII = '\x15';
+
+export function shouldDispatchAppHotkeyFromTerminal(
+  event: KeyEventLike,
+  isMacPlatform: boolean
+): boolean {
+  if (event.type !== 'keydown') return false;
+  if (isMacPlatform) return true;
+
+  return Boolean(
+    getDomTabNavigationDirection({
+      type: event.type,
+      key: event.key,
+      ctrlKey: event.ctrlKey === true,
+      shiftKey: event.shiftKey === true,
+      altKey: event.altKey === true,
+      metaKey: event.metaKey === true,
+    })
+  );
+}
 
 export function shouldMapShiftEnterToCtrlJ(event: KeyEventLike): boolean {
   return (
