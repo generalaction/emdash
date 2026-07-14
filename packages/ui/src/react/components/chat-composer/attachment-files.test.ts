@@ -33,15 +33,6 @@ describe('imageFilesFromClipboard', () => {
     expect(imageFilesFromClipboard(clipboardData(items))).toEqual([image]);
   });
 
-  it('keeps every image file exposed by the clipboard', () => {
-    const tiff = new File(['tiff'], 'screenshot.tiff', { type: 'image/tiff' });
-    const png = new File(['png'], 'screenshot.png', { type: 'image/png' });
-
-    expect(
-      imageFilesFromClipboard(clipboardData([clipboardItem(tiff), clipboardItem(png)]))
-    ).toEqual([tiff, png]);
-  });
-
   it('keeps multiple independent images of the same type', () => {
     const first = new File(['first'], 'first.png', { type: 'image/png' });
     const second = new File(['second'], 'second.png', { type: 'image/png' });

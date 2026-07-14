@@ -93,7 +93,7 @@ export interface ComposerAttachment {
   path?: string;
   kind: 'image' | 'file';
   /**
-   * Image source for the preview `<img>`. A `data:` URL for dropped images
+   * Image source for the preview `<img>`. A `data:` URL for added images
    * (so the bytes can be forwarded to the agent); needs no `revokeObjectURL`.
    */
   previewUrl?: string;
@@ -102,7 +102,7 @@ export interface ComposerAttachment {
 }
 
 /**
- * Read a dropped image file into a `ComposerAttachment` with a `data:` URL
+ * Read an image file into a `ComposerAttachment` with a `data:` URL
  * preview. On read failure the attachment is still created (without
  * `previewUrl`) so the host shows a fallback tile rather than dropping it.
  */
@@ -223,8 +223,8 @@ export interface ChatComposerProps {
 
   /**
    * Host-controlled attachment list. By default the composer creates image
-   * attachments itself from drag-drop and forwards them via `onAttachmentsChange`.
-   * Hosts can override image handling with `onImageFilesDropped`.
+   * attachments itself from paste or drag-and-drop and forwards them via
+   * `onAttachmentsChange`. Hosts can override image handling with `onImageFilesAdded`.
    */
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
@@ -621,7 +621,7 @@ export function ChatComposer({
     onSubmit(text);
   };
 
-  // ── Drag-and-drop ───────────────────────────────────────────────────────────
+  // ── Image paste and drag-and-drop ───────────────────────────────────────────
 
   const addImageFiles = (files: File[], hostHandler?: (files: File[]) => void) => {
     if (files.length === 0) return;
