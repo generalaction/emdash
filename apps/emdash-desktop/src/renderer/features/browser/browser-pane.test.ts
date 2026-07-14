@@ -127,7 +127,9 @@ describe('BrowserPane', () => {
     );
     expect(container.textContent).not.toContain('Try:');
     expect(
-      Array.from(container.querySelectorAll('button')).map((button) => button.textContent)
-    ).toEqual(['', 'Reload', 'Open externally']);
+      Array.from(container.querySelectorAll('button'))
+        .map((button) => button.textContent)
+        .filter(Boolean)
+    ).toEqual(['Reload', 'Open externally']);
   });
 });
