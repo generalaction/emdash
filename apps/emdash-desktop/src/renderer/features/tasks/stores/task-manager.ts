@@ -1,4 +1,6 @@
+import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -11,6 +13,7 @@ import {
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
@@ -18,8 +21,6 @@ import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
   taskDeletedChannel,
-  taskProvisionProgressChannel,
-  taskProvisionedChannel,
   taskStatusUpdatedChannel,
 } from '@shared/core/tasks/taskEvents';
 import type {
@@ -27,10 +28,13 @@ import type {
   CreateTaskParams,
   CreateTaskWarning,
   DeleteTaskOptions,
-  ProvisionWorkspaceError,
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
+import {
+  workspacesWireContract,
+  type WorkspaceBootstrapState,
+} from '@shared/core/workspaces/wire-contract';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import {
@@ -86,22 +90,8 @@ function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: b
     .exhaustive();
 }
 
-function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
-  return match(error)
-    .with(
-      { type: 'no-intent' },
-      () => 'Workspace is missing recoverable setup intent and cannot be provisioned.'
-    )
-    .with(
-      { type: 'missing-workspace' },
-      () => 'This task does not have a workspace record and cannot be opened.'
-    )
-    .with(
-      { type: 'setup-failed' },
-      (e) =>
-        `Setup step '${e.stepKind}' failed (${e.stepErrorType})${e.message ? `: ${e.message}` : ''}.`
-    )
-    .exhaustive();
+function formatProvisionWorkspaceError(error: WorkspaceError): string {
+  return error.message || `Workspace provisioning failed (${error.type}).`;
 }
 
 function formatCreateTaskWarning(warning: CreateTaskWarning): string {
@@ -117,6 +107,21 @@ function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function wireErrorToWorkspaceError(error: unknown): WorkspaceError {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { type?: unknown }).type === 'string' &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return error as WorkspaceError;
+  }
+  return {
+    type: 'workspace-wire-error',
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: GitRepositoryStore;
@@ -130,11 +135,13 @@ export class TaskManagerStore {
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _disposeGitHeadReaction: (() => void) | null = null;
-  private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
-  private _unsubProvisioned: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
+  private _bootstrapReplicaPromise: Promise<
+    LiveModelReplica<typeof workspacesWireContract.bootstrap>
+  > | null = null;
+  private _bootstrapDisposers = new Map<string, () => void>();
 
   tasks = observable.map<string, TaskStore>();
 
@@ -158,6 +165,7 @@ export class TaskManagerStore {
         conversationRegistry.acquire(task.id, this.projectId, []);
         terminalRegistry.acquire(task.id, this.projectId);
       });
+      if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
     });
 
     this._unsubTaskDeleted = events.on(
@@ -181,19 +189,6 @@ export class TaskManagerStore {
       }
     );
 
-    this._unsubProvisionProgress = events.on(
-      taskProvisionProgressChannel,
-      ({ taskId, projectId: evtProjectId, message }) => {
-        if (evtProjectId !== this.projectId) return;
-        const store = this.tasks.get(taskId);
-        if (store?.isBootstrapping) {
-          runInAction(() => {
-            store.provisionProgressMessage = message;
-          });
-        }
-      }
-    );
-
     this._unsubLifecycleScriptStatus = events.on(lifecycleScriptStatusChannel, (statusEvent) => {
       if (
         statusEvent.projectId !== this.projectId ||
@@ -209,17 +204,6 @@ export class TaskManagerStore {
         description: message,
       });
     });
-
-    // Handles tasks provisioned by the automation path (or any main-process caller)
-    // without renderer-initiated RPCs. The `isUnprovisioned` guard prevents a
-    // double-transition if the renderer-driven RPC already completed first.
-    this._unsubProvisioned = events.on(
-      taskProvisionedChannel,
-      ({ taskId, projectId: evtProjectId, path, workspaceId, sshConnectionId }) => {
-        if (evtProjectId !== this.projectId) return;
-        void this._doHandleProvisioned(taskId, path, workspaceId, sshConnectionId);
-      }
-    );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.pullRequestRepositoryUrl;
@@ -300,6 +284,8 @@ export class TaskManagerStore {
     const task = this.tasks.get(taskId);
     if (!task) return;
     this._releaseTaskRegistries(taskId);
+    this._bootstrapDisposers.get(taskId)?.();
+    this._bootstrapDisposers.delete(taskId);
     task.dispose();
     runInAction(() => {
       this.tasks.delete(taskId);
@@ -322,6 +308,7 @@ export class TaskManagerStore {
           runInAction(() => {
             for (const t of tasks) {
               this.tasks.set(t.id, createUnprovisionedTask(t));
+              if (t.workspaceId) this._watchWorkspaceBootstrap(t.id, t.workspaceId);
               // Preload conversations for each task so sidebar badges are available immediately.
               conversationRegistry.acquire(
                 t.id,
@@ -423,6 +410,9 @@ export class TaskManagerStore {
         ) {
           current.workspaceId = result.data.task.workspaceId;
         }
+        if (result.data.task.workspaceId) {
+          this._watchWorkspaceBootstrap(result.data.task.id, result.data.task.workspaceId);
+        }
         // Conversation and terminal registries already acquired in the optimistic phase.
       }
     });
@@ -463,14 +453,8 @@ export class TaskManagerStore {
     if (!task || !isUnprovisioned(task)) return;
 
     const wsId = (task.data as Task).workspaceId;
-
-    // Single-phase provision: workspace bootstrap + task provider construction + registration.
-    if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-    const result = await rpc.tasks.provisionWorkspace(taskId);
-    if (!result.success) {
-      const message = formatProvisionWorkspaceError(result.error);
-      if (wsId)
-        workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'error', message });
+    if (!wsId) {
+      const message = 'This task does not have a workspace record and cannot be opened.';
       runInAction(() => {
         const current = this.tasks.get(taskId);
         if (current && isUnprovisioned(current)) {
@@ -481,7 +465,51 @@ export class TaskManagerStore {
       return;
     }
 
-    if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
+    // Single-phase provision: workspace bootstrap + task provider construction + registration.
+    workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+    this._watchWorkspaceBootstrap(taskId, wsId);
+
+    const client = await getWorkspacesWireClient();
+    const jobs = createLiveJobReplica(workspacesWireContract.provision, client.provision);
+    const lease = await jobs.start({ workspaceId: wsId, taskId });
+    const job = await lease.ready();
+    const unsubscribe = job.onProgress((progress) => {
+      workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current?.isBootstrapping) {
+          current.provisionProgressMessage = progress.message;
+        }
+      });
+    });
+
+    let result:
+      | { success: true; data: Awaited<typeof job.result> }
+      | { success: false; error: WorkspaceError };
+    try {
+      result = { success: true, data: await job.result };
+    } catch (error) {
+      result = { success: false, error: wireErrorToWorkspaceError(error) };
+    } finally {
+      unsubscribe();
+      await lease.release();
+      await jobs.dispose();
+    }
+
+    if (!result.success) {
+      const message = formatProvisionWorkspaceError(result.error);
+      workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'error', message });
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          current.phase = 'provision-error';
+          current.errorMessage = message;
+        }
+      });
+      return;
+    }
+
+    workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
 
     const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
       | TaskViewSnapshot
@@ -530,6 +558,79 @@ export class TaskManagerStore {
         current.activate();
       }
     });
+  }
+
+  private _watchWorkspaceBootstrap(taskId: string, workspaceId: string): void {
+    if (this._bootstrapDisposers.has(taskId)) return;
+
+    const pending = { disposed: false };
+    this._bootstrapDisposers.set(taskId, () => {
+      pending.disposed = true;
+    });
+
+    void (async () => {
+      const replica = await this._getBootstrapReplica();
+      const lease = replica.acquire({ workspaceId });
+      const model = await lease.ready();
+      if (pending.disposed) {
+        await lease.release();
+        return;
+      }
+
+      const unsubscribe = model.states.state.onChange((state) =>
+        this._handleBootstrapState(taskId, state)
+      );
+      this._handleBootstrapState(taskId, model.states.state.current());
+      this._bootstrapDisposers.set(taskId, () => {
+        pending.disposed = true;
+        unsubscribe();
+        void lease.release();
+      });
+    })().catch((error: unknown) => {
+      console.warn('Failed to watch workspace bootstrap state', error);
+      this._bootstrapDisposers.delete(taskId);
+    });
+  }
+
+  private _handleBootstrapState(taskId: string, state: WorkspaceBootstrapState): void {
+    const store = this.tasks.get(taskId);
+    if (!store) return;
+
+    if (state.status === 'provisioning' && store.isBootstrapping) {
+      runInAction(() => {
+        store.provisionProgressMessage = state.progress?.message ?? 'Setting up workspace…';
+      });
+      return;
+    }
+
+    if (state.status === 'error' && isUnprovisioned(store)) {
+      const message = formatProvisionWorkspaceError(state.error);
+      runInAction(() => {
+        store.phase = 'provision-error';
+        store.errorMessage = message;
+      });
+      return;
+    }
+
+    if (state.status === 'ready') {
+      void this._doHandleProvisioned(
+        taskId,
+        state.result.path,
+        state.result.workspaceId,
+        state.result.sshConnectionId
+      );
+    }
+  }
+
+  private async _getBootstrapReplica(): Promise<
+    LiveModelReplica<typeof workspacesWireContract.bootstrap>
+  > {
+    if (!this._bootstrapReplicaPromise) {
+      this._bootstrapReplicaPromise = getWorkspacesWireClient().then((client) =>
+        createLiveModelReplica(workspacesWireContract.bootstrap, client.bootstrap)
+      );
+    }
+    return this._bootstrapReplicaPromise;
   }
 
   async teardownTask(taskId: string): Promise<void> {
@@ -695,15 +796,16 @@ export class TaskManagerStore {
     this._unsubPrSyncProgress = null;
     this._disposeGitHeadReaction?.();
     this._disposeGitHeadReaction = null;
-    this._unsubProvisionProgress?.();
-    this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();
     this._unsubStatusUpdated = null;
     this._unsubLifecycleScriptStatus?.();
     this._unsubLifecycleScriptStatus = null;
-    this._unsubProvisioned?.();
-    this._unsubProvisioned = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
+    for (const dispose of this._bootstrapDisposers.values()) dispose();
+    this._bootstrapDisposers.clear();
+    const replicaPromise = this._bootstrapReplicaPromise;
+    this._bootstrapReplicaPromise = null;
+    void replicaPromise?.then((replica) => replica.dispose());
   }
 }

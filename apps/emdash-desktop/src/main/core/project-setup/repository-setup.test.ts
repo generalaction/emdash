@@ -2,12 +2,10 @@ import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primit
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
-import { cloneProjectRepository, initializeProjectRepository } from './repository-setup';
+import { initializeProjectRepository } from './repository-setup';
 
 const mocks = vi.hoisted(() => ({
-  cloneRepository: vi.fn(),
   commit: vi.fn(),
-  ensureAbsoluteDir: vi.fn(),
   ensureRepository: vi.fn(),
   getHead: vi.fn(),
   publishBranch: vi.fn(),
@@ -17,10 +15,6 @@ const mocks = vi.hoisted(() => ({
 }));
 const clients = vi.hoisted(() => ({ git: undefined as unknown, files: undefined as unknown }));
 const runtime = vi.hoisted(() => ({ runGitJob: vi.fn() }));
-
-vi.mock('@main/core/runtime/files-helpers', () => ({
-  ensureAbsoluteDir: mocks.ensureAbsoluteDir,
-}));
 
 vi.mock('@main/core/wire-workers/accessors', () => ({
   getFilesRuntimeClient: async () => clients.files,
@@ -38,10 +32,6 @@ describe('project repository setup', () => {
     clients.git = makeGitClient();
     clients.files = makeFilesClient();
     runtime.runGitJob.mockImplementation((_definition, handle, input) => handle(input));
-    mocks.ensureAbsoluteDir.mockResolvedValue(ok());
-    mocks.cloneRepository.mockResolvedValue(
-      ok({ kind: 'repository', rootPath: '/work/repo', baseRef: 'main' })
-    );
     mocks.stat.mockResolvedValue(
       ok({
         path: '/work/repo',
@@ -60,56 +50,6 @@ describe('project repository setup', () => {
     mocks.commit.mockResolvedValue(ok({ hash: 'abc123' }));
     mocks.getHead.mockResolvedValue({ kind: 'branch', name: 'main', oid: 'abc123' });
     mocks.publishBranch.mockResolvedValue(ok({ output: '' }));
-  });
-
-  it('creates the local parent directory and clones through the Git runtime', async () => {
-    await expect(
-      cloneProjectRepository({
-        repositoryUrl: 'https://github.com/acme/repo.git',
-        targetPath: '/work/repo',
-      })
-    ).resolves.toEqual({ success: true });
-
-    expect(mocks.ensureAbsoluteDir).toHaveBeenCalledWith('/', '/work');
-    expect(mocks.cloneRepository).toHaveBeenCalledWith(
-      'https://github.com/acme/repo.git',
-      '/work/repo'
-    );
-  });
-
-  it('preserves structured clone failure messages', async () => {
-    mocks.cloneRepository.mockResolvedValue({
-      success: false,
-      error: {
-        type: 'target_exists',
-        path: '/work/repo',
-        message: 'Target directory already exists and is not empty',
-      },
-    });
-
-    await expect(
-      cloneProjectRepository({
-        repositoryUrl: 'https://github.com/acme/repo.git',
-        targetPath: '/work/repo',
-      })
-    ).resolves.toEqual({
-      success: false,
-      error: 'Target directory already exists and is not empty',
-    });
-  });
-
-  it('rejects remote setup before invoking a local runtime', async () => {
-    await expect(
-      cloneProjectRepository({
-        repositoryUrl: 'git@github.com:acme/repo.git',
-        targetPath: '/home/user/repo',
-        connectionId: 'connection-1',
-      })
-    ).resolves.toEqual({
-      success: false,
-      error: 'Remote projects require the workspace server and are not supported by this build',
-    });
-    expect(mocks.cloneRepository).not.toHaveBeenCalled();
   });
 
   it('initializes, writes, commits, and publishes the current branch', async () => {
@@ -142,12 +82,8 @@ describe('project repository setup', () => {
 });
 
 function makeGitClient() {
-  const cloneRepository = vi.fn(({ repositoryUrl, targetPath }) =>
-    mocks.cloneRepository(repositoryUrl, nativePathFromHost(targetPath))
-  );
   const publishBranch = vi.fn(({ branchName, remote }) => mocks.publishBranch(branchName, remote));
   return {
-    cloneRepository,
     ensureRepository: ({
       path,
       options,

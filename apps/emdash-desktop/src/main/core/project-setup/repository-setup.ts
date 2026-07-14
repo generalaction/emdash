@@ -17,18 +17,11 @@ import {
   mutationResult,
   runGitJob,
 } from '@main/core/git/runtime-client';
-import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import { getGitRuntimeClient, type GitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 
 export type GitRepositorySetupResult = { success: true } | { success: false; error: string };
-
-export type CloneProjectRepositoryParams = {
-  repositoryUrl: string;
-  targetPath: string;
-  connectionId?: string;
-};
 
 export type InitializeProjectRepositoryParams = {
   targetPath: string;
@@ -63,23 +56,6 @@ async function pushInitialBranch(
     message = gitErrorMessage(result.error) || message;
   }
   return { success: false, error: message };
-}
-
-export async function cloneProjectRepository(
-  params: CloneProjectRepositoryParams
-): Promise<GitRepositorySetupResult> {
-  if (params.connectionId) return unsupportedRemote();
-  const parentPath = path.dirname(params.targetPath);
-  const madeParent = await ensureAbsoluteDir(path.dirname(parentPath), parentPath);
-  if (!madeParent.success) return { success: false, error: fsErrorMessage(madeParent.error) };
-  const git = await getGitRuntimeClient();
-  const result = await runGitJob(gitContract.cloneRepository, git.cloneRepository, {
-    repositoryUrl: params.repositoryUrl,
-    targetPath: hostPathFromNative(params.targetPath),
-  });
-  return result.success
-    ? { success: true }
-    : { success: false, error: gitErrorMessage(result.error) };
 }
 
 export async function initializeProjectRepository(

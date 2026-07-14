@@ -1,10 +1,22 @@
 import type { Result } from '@emdash/shared';
+import z from 'zod';
 
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
   error?: { type: 'inspect-failed'; path: string; message: string };
 };
+
+export const localProjectSchema = z.object({
+  type: z.literal('local'),
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  baseRef: z.string(),
+  repositoryWorkspaceId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 export type LocalProject = {
   type: 'local';

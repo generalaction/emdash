@@ -34,6 +34,11 @@ import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';
+import type {
+  WorkspaceBootstrapProgress,
+  WorkspaceBootstrapStep,
+  WorkspaceCloneProvisionResult,
+} from '@shared/core/workspaces/wire-contract';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
@@ -65,6 +70,15 @@ type RuntimeWorkspacePlan = {
   path: string;
   workspace: ProvisionWorkspaceInput['workspace'];
   lifecycle?: WorkspaceLifecyclePlans;
+};
+
+export type CloneRepositoryProvisionInput = {
+  url: string;
+  destination: string;
+  remoteName?: string;
+  depth?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: WorkspaceBootstrapProgress) => void;
 };
 
 export class WorkspaceBootstrapService {
@@ -630,6 +644,55 @@ async function runWorkspaceProvisionJob(
   }
 }
 
+export async function runCloneRepositoryProvision(
+  input: CloneRepositoryProvisionInput
+): Promise<Result<WorkspaceCloneProvisionResult, WorkspaceError>> {
+  const compiled = compileBootstrapPlan(
+    {
+      kind: 'clone-repository',
+      url: input.url,
+      destination: input.destination,
+      remoteName: input.remoteName,
+      depth: input.depth,
+    },
+    {
+      worktreePoolPath: path.dirname(input.destination),
+      baseRemote: input.remoteName ?? 'origin',
+    }
+  );
+  const workspaceRuntimeClient = getWorkspaceRuntimeClient();
+  const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
+  const lease = await jobs.start({
+    workspace: hostFileRefFromNativePath(compiled.workspacePath),
+    lifecycle: {
+      ref: { kind: 'directory', path: compiled.workspacePath },
+      context: {
+        repoPath: compiled.workspacePath,
+        preservePatterns: [],
+      },
+      setupPlan: compiled.plan,
+    },
+  });
+  const job = await lease.ready();
+  const unsubscribe = job.onProgress((progress) =>
+    input.onProgress?.(workspaceRuntimeProgressToBootstrapProgress(progress))
+  );
+  const cancelRuntimeJob = () => void job.cancel();
+  input.signal?.addEventListener('abort', cancelRuntimeJob, { once: true });
+
+  try {
+    const result = await job.result;
+    return ok({ path: result.path ?? compiled.workspacePath });
+  } catch (error) {
+    return err(liveJobErrorToWorkspaceError(error));
+  } finally {
+    input.signal?.removeEventListener('abort', cancelRuntimeJob);
+    unsubscribe();
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
 async function runWorkspaceActivateJob(
   task: Task,
   project: ProjectProvider,
@@ -754,21 +817,32 @@ function emitRuntimeProgress(
   projectId: string,
   progress: WorkspaceOperationProgress
 ): void {
+  const bootstrapProgress = workspaceRuntimeProgressToBootstrapProgress(progress);
+  emitTaskProvisionProgress({
+    taskId,
+    projectId,
+    step: bootstrapProgress.step,
+    message: bootstrapProgress.message,
+  });
+}
+
+export function workspaceRuntimeProgressToBootstrapProgress(
+  progress: WorkspaceOperationProgress
+): WorkspaceBootstrapProgress {
   const running = progress.stages.find((stage) => stage.status === 'running');
   const failed = progress.stages.find((stage) => stage.status === 'failed');
   const pending = progress.stages.find((stage) => stage.status === 'pending');
   const stage = running ?? failed ?? pending ?? progress.stages.at(-1);
-  emitTaskProvisionProgress({
-    taskId,
-    projectId,
+  return {
     step: runtimeOperationToProvisionStep(progress.kind),
     message: stage?.progress?.message ?? stage?.label ?? 'Preparing workspace…',
-  });
+    operation: progress,
+  };
 }
 
 function runtimeOperationToProvisionStep(
   kind: WorkspaceOperationProgress['kind']
-): Parameters<typeof emitTaskProvisionProgress>[0]['step'] {
+): WorkspaceBootstrapStep {
   switch (kind) {
     case 'provision':
     case 'convert':

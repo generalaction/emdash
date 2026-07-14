@@ -2,9 +2,8 @@ import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { events } from '@main/lib/events';
-import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/core/tasks/taskEvents';
 import type { Task } from '@shared/core/tasks/tasks';
+import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
 import type { TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import {
@@ -17,10 +16,9 @@ import { taskProvisionEvents } from './task-provision-events';
 export function emitTaskProvisionProgress(data: {
   taskId: string;
   projectId: string;
-  step: ProvisionStep;
+  step: WorkspaceBootstrapStep;
   message: string;
 }): void {
-  events.emit(taskProvisionProgressChannel, data);
   taskProvisionEvents.emitProgress(data);
 }
 

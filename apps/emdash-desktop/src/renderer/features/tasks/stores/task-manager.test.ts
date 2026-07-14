@@ -1,3 +1,4 @@
+import type * as Wire from '@emdash/wire';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Task } from '@shared/core/tasks/tasks';
 import { TaskManagerStore } from './task-manager';
@@ -18,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   archiveTask: vi.fn(),
   conversationAcquire: vi.fn(),
   conversationRelease: vi.fn(),
+  createLiveJobReplica: vi.fn(),
+  createLiveModelReplica: vi.fn(),
   draftComments: [] as MockDraftComments[],
   getConversationsForProject: vi.fn(),
   getProjectManagerStore: vi.fn(),
@@ -35,6 +38,22 @@ const mocks = vi.hoisted(() => ({
   workspaceAcquire: vi.fn(),
   workspaceRelease: vi.fn(),
   workspaceSetBootstrapState: vi.fn(),
+}));
+
+vi.mock('@emdash/wire', async (importOriginal) => {
+  const actual = await importOriginal<typeof Wire>();
+  return {
+    ...actual,
+    createLiveJobReplica: mocks.createLiveJobReplica,
+    createLiveModelReplica: mocks.createLiveModelReplica,
+  };
+});
+
+vi.mock('@renderer/lib/runtime/workspaces-wire-client', () => ({
+  getWorkspacesWireClient: async () => ({
+    bootstrap: {},
+    provision: {},
+  }),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -169,6 +188,33 @@ describe('TaskManagerStore archive lifecycle', () => {
         path: '/tmp/workspace-1',
         workspaceId: 'workspace-1',
       },
+    });
+    mocks.createLiveJobReplica.mockReturnValue({
+      start: async () => ({
+        ready: async () => ({
+          result: Promise.resolve({
+            path: '/tmp/workspace-1',
+            workspaceId: 'workspace-1',
+          }),
+          onProgress: () => vi.fn(),
+        }),
+        release: async () => {},
+      }),
+      dispose: async () => {},
+    });
+    mocks.createLiveModelReplica.mockReturnValue({
+      acquire: () => ({
+        ready: async () => ({
+          states: {
+            state: {
+              current: () => ({ status: 'unprovisioned' }),
+              onChange: () => vi.fn(),
+            },
+          },
+        }),
+        release: async () => {},
+      }),
+      dispose: async () => {},
     });
     mocks.viewStateGet.mockResolvedValue(undefined);
   });

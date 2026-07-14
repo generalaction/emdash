@@ -86,6 +86,7 @@ export class ProjectStore {
   createdAt: string;
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
+  progressMessage: string | undefined = undefined;
   errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
@@ -117,6 +118,7 @@ export class ProjectStore {
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
+    this.progressMessage = undefined;
     this.errorCode = undefined;
   }
 
@@ -133,6 +135,7 @@ export class ProjectStore {
     this.state = 'unmounted';
     this.phase = phase;
     this.error = undefined;
+    this.progressMessage = undefined;
     this.errorCode = undefined;
   }
 
@@ -151,6 +154,7 @@ export class ProjectStore {
     this.phase = phase;
     this.mode = mode;
     this.error = undefined;
+    this.progressMessage = undefined;
   }
 }
 
@@ -161,6 +165,7 @@ export type UnregisteredProject = ProjectStore & {
   phase: UnregisteredProjectPhase;
   mode: ProjectMode;
   error: string | undefined;
+  progressMessage: string | undefined;
 };
 
 export type UnmountedProject = ProjectStore & {

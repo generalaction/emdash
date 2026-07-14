@@ -13,11 +13,7 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import {
-  taskCreatedChannel,
-  taskDeletedChannel,
-  taskProvisionedChannel,
-} from '@shared/core/tasks/taskEvents';
+import { taskCreatedChannel, taskDeletedChannel } from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -81,9 +77,8 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    * Provisions the workspace for a task: ensures the path is on disk, acquires
    * the workspace (running lifecycle scripts), builds task providers, and
    * registers the task session. Idempotent — fast-paths when already provisioned.
-   * Fires the `task:workspace-ready` hook and emits the `task:provisioned` IPC
-   * event on success so the renderer can react regardless of which path (renderer
-   * or automation) triggered the provision.
+   * Fires the `task:workspace-ready` hook on success so the workspaces wire host
+   * can publish durable status to renderer replicas.
    */
   async provisionWorkspace(
     taskId: string
@@ -103,7 +98,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         sshConnectionId: pd?.sshConnectionId,
       };
       this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
-      events.emit(taskProvisionedChannel, { taskId, projectId, ...provisionResult });
       return ok(provisionResult);
     }
 
@@ -119,7 +113,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     };
 
     this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
-    events.emit(taskProvisionedChannel, { taskId, projectId, ...provisionResult });
     const project = projectManager.getProject(projectId);
     if (project) {
       startWorkspacePostActivationScripts(mapTaskRowToTask(row), project, result.data);

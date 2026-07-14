@@ -1,10 +1,13 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { createLiveJobReplica, LiveJobFailedError } from '@emdash/wire';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { sshConnectionEventChannel } from '@shared/core/ssh/sshEvents';
 import { type LocalProject, type SshProject } from '@shared/projects';
 import { splitNameWithOwner } from '@shared/repository-ref';
@@ -173,36 +176,22 @@ export class ProjectManagerStore {
         }
 
         case 'clone': {
-          const connectionId = projectType.type === 'ssh' ? projectType.connectionId : undefined;
-          const cloneResult = await rpc.projectSetup.cloneRepository(
-            data.repositoryUrl,
-            targetPath,
-            connectionId
-          );
-          if (!cloneResult.success) {
+          if (projectType.type === 'ssh') {
             result = err({
               type: 'clone-failed',
-              message: cloneResult.error?.trim() || 'Clone failed',
+              message:
+                'Remote projects require the workspace server and are not supported by this build',
             });
             break;
           }
 
-          this._updatePhase(projectId, 'registering');
-          const projectResult =
-            projectType.type === 'ssh'
-              ? await rpc.projects.createProject({
-                  type: 'ssh',
-                  id: projectId,
-                  path: targetPath,
-                  name: data.name,
-                  connectionId: projectType.connectionId,
-                })
-              : await rpc.projects.createProject({
-                  type: 'local',
-                  id: projectId,
-                  path: targetPath,
-                  name: data.name,
-                });
+          const projectResult = await this._createProjectFromRemote({
+            projectId,
+            mode: 'clone',
+            repositoryUrl: data.repositoryUrl,
+            targetPath,
+            name: data.name,
+          });
           if (!projectResult.success) {
             result = err(projectResult.error);
             break;
@@ -517,6 +506,42 @@ export class ProjectManagerStore {
     }
   }
 
+  private async _createProjectFromRemote(opts: {
+    projectId: string;
+    mode: 'clone' | 'new';
+    repositoryUrl: string;
+    targetPath: string;
+    name: string;
+  }): Promise<Result<LocalProject, ProjectCreationError>> {
+    const client = await getProjectsWireClient();
+    const jobs = createLiveJobReplica(projectsWireContract.create, client.create);
+    const lease = await jobs.start({
+      projectId: opts.projectId,
+      mode: opts.mode,
+      repositoryUrl: opts.repositoryUrl,
+      targetPath: opts.targetPath,
+      name: opts.name,
+    });
+    const job = await lease.ready();
+    const unsubscribe = job.onProgress((progress) => {
+      this._updatePhase(
+        opts.projectId,
+        progress.step === 'initialising-workspace' ? 'registering' : 'cloning',
+        progress.message
+      );
+    });
+
+    try {
+      return ok(await job.result);
+    } catch (error) {
+      return err(projectWireErrorToCreationError(error));
+    } finally {
+      unsubscribe();
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
   private async _cloneInitializeAndCreateGitHubProject(opts: {
     projectType: ProjectType;
     projectId: string;
@@ -526,52 +551,26 @@ export class ProjectManagerStore {
     repositoryNameWithOwner: string;
     githubAccountId?: string;
   }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
-    const connectionId =
-      opts.projectType.type === 'ssh' ? opts.projectType.connectionId : undefined;
-
-    let result: Result<LocalProject | SshProject, ProjectCreationError>;
-    try {
-      this._updatePhase(opts.projectId, 'cloning');
-      const cloneResult = await rpc.projectSetup.cloneRepository(
-        opts.cloneUrl,
-        opts.targetPath,
-        connectionId
+    if (opts.projectType.type === 'ssh') {
+      await this._rollbackCreatedGitHubRepository(
+        opts.repositoryNameWithOwner,
+        opts.githubAccountId
       );
-      if (!cloneResult.success) {
-        result = err({
-          type: 'clone-failed',
-          message: cloneResult.error?.trim() || 'Clone failed',
-        });
-      } else {
-        const initResult = await rpc.projectSetup.initializeRepository({
-          targetPath: opts.targetPath,
-          name: opts.name,
-          connectionId,
-        });
-        if (!initResult.success) {
-          result = err({
-            type: 'initialize-failed',
-            message: initResult.error?.trim() || 'Project initialization failed',
-          });
-        } else {
-          this._updatePhase(opts.projectId, 'registering');
-          result =
-            opts.projectType.type === 'ssh'
-              ? await rpc.projects.createProject({
-                  type: 'ssh',
-                  id: opts.projectId,
-                  path: opts.targetPath,
-                  name: opts.name,
-                  connectionId: opts.projectType.connectionId,
-                })
-              : await rpc.projects.createProject({
-                  type: 'local',
-                  id: opts.projectId,
-                  path: opts.targetPath,
-                  name: opts.name,
-                });
-        }
-      }
+      return err({
+        type: 'clone-failed',
+        message: 'Remote projects require the workspace server and are not supported by this build',
+      });
+    }
+
+    let result: Result<LocalProject, ProjectCreationError>;
+    try {
+      result = await this._createProjectFromRemote({
+        projectId: opts.projectId,
+        mode: 'new',
+        repositoryUrl: opts.cloneUrl,
+        targetPath: opts.targetPath,
+        name: opts.name,
+      });
     } catch (error) {
       await this._rollbackCreatedGitHubRepository(
         opts.repositoryNameWithOwner,
@@ -589,10 +588,13 @@ export class ProjectManagerStore {
     return result;
   }
 
-  private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
+  private _updatePhase(id: string, phase: UnregisteredProjectPhase, message?: string): void {
     runInAction(() => {
       const store = this.projects.get(id);
-      if (store && isUnregisteredProject(store)) store.phase = phase;
+      if (store && isUnregisteredProject(store)) {
+        store.phase = phase;
+        store.progressMessage = message;
+      }
     });
   }
 
@@ -631,4 +633,34 @@ function initialCreationPhase(mode: ModeData['mode']): UnregisteredProjectPhase 
     case 'new':
       return 'creating-repo';
   }
+}
+
+function projectWireErrorToCreationError(error: unknown): ProjectCreationError {
+  const payload = error instanceof LiveJobFailedError ? error.error : error;
+  if (typeof payload === 'object' && payload !== null) {
+    const type = (payload as { type?: unknown }).type;
+    const message = (payload as { message?: unknown }).message;
+    const fallback = typeof message === 'string' ? message : 'Project creation failed';
+    if (type === 'initialize-failed') return { type: 'initialize-failed', message: fallback };
+    if (type === 'not-repository') return { type: 'not-repository', path: '' };
+    if (type === 'inspect-failed') {
+      return {
+        type: 'inspect-failed',
+        path: '',
+        message: fallback,
+      };
+    }
+    if (type === 'invalid-directory') {
+      return {
+        type: 'invalid-directory',
+        path: '',
+        message: fallback,
+      };
+    }
+    return { type: 'clone-failed', message: fallback };
+  }
+  return {
+    type: 'clone-failed',
+    message: error instanceof Error ? error.message : String(error),
+  };
 }

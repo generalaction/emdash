@@ -1,11 +1,11 @@
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
+import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
 
 type TaskProvisionProgress = {
   taskId: string;
   projectId: string;
-  step: ProvisionStep;
+  step: WorkspaceBootstrapStep;
   message: string;
 };
 

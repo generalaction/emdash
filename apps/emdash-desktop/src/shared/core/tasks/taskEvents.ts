@@ -22,21 +22,6 @@ export const taskPrUpdatedChannel = defineEvent<{
   prs: PullRequest[];
 }>('task:pr-updated');
 
-export type ProvisionStep =
-  | 'resolving-worktree'
-  | 'initialising-workspace'
-  | 'running-provision-script'
-  | 'connecting'
-  | 'setting-up-workspace'
-  | 'starting-sessions';
-
-export const taskProvisionProgressChannel = defineEvent<{
-  taskId: string;
-  projectId: string;
-  step: ProvisionStep;
-  message: string;
-}>('task:provision-progress');
-
 export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
 export type LifecycleScriptOrigin = 'auto-setup' | 'auto-run' | 'manual' | 'workspace-destroy';
 
@@ -62,11 +47,3 @@ export type LifecycleScriptStatusEvent = {
 export const lifecycleScriptStatusChannel = defineEvent<LifecycleScriptStatusEvent>(
   'task:lifecycle-script-status'
 );
-
-export const taskProvisionedChannel = defineEvent<{
-  taskId: string;
-  projectId: string;
-  path: string;
-  workspaceId: string;
-  sshConnectionId?: string;
-}>('task:provisioned');

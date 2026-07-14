@@ -11,7 +11,6 @@ import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
 import { mcpController } from './core/mcp/controller';
 import { previewServersController } from './core/preview-servers/controller';
-import { projectSetupController } from './core/project-setup/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
@@ -52,7 +51,6 @@ export const rpcRouter = createRPCRouter({
   skills: skillsController,
   ssh: sshController,
   storage: storageController,
-  projectSetup: projectSetupController,
   projects: projectController,
   previewServers: previewServersController,
   tasks: taskController,

@@ -68,11 +68,17 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
           );
         })}
 
+        {!isError && project.progressMessage && (
+          <p className="text-muted-foreground max-w-full text-sm wrap-break-word">
+            {project.progressMessage}
+          </p>
+        )}
+
         {isError && (
           <div className="border-destructive/40 bg-destructive/10 mt-2 flex w-full min-w-0 flex-col gap-3 rounded-md border p-3">
             <div className="flex min-w-0 items-start gap-2 text-left">
               <AlertCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-              <span className="text-destructive min-w-0 text-sm break-words">
+              <span className="text-destructive min-w-0 text-sm wrap-break-word">
                 {project.error ?? 'An error occurred'}
               </span>
             </div>

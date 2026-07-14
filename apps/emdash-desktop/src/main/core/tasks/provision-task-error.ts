@@ -1,13 +1,13 @@
 import { TimeoutError } from '@emdash/shared/scheduling';
 import { match, P } from 'ts-pattern';
-import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
+import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 
 export const TASK_TIMEOUT_MS = 600_000;
 export const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 export type ProvisionTaskError =
-  | { type: 'timeout'; message: string; timeout: number; step: ProvisionStep | null }
+  | { type: 'timeout'; message: string; timeout: number; step: WorkspaceBootstrapStep | null }
   | { type: 'branch-not-found'; branch: string }
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'error'; message: string };
@@ -18,7 +18,7 @@ export type TeardownTaskError =
 
 export function toProvisionError(
   e: unknown,
-  step: ProvisionStep | null = null
+  step: WorkspaceBootstrapStep | null = null
 ): ProvisionTaskError {
   if (isProvisionTaskError(e)) return e;
   if (e instanceof TimeoutError)

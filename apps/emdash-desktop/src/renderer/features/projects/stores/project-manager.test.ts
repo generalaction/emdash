@@ -1,17 +1,20 @@
+import { LiveJobFailedError } from '@emdash/wire';
+import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
-  cloneRepository: vi.fn(),
   createGithubRepository: vi.fn(),
+  createLiveJobReplica: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
-  initializeRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   openProject: vi.fn(),
   patchProjectSettings: vi.fn(),
+  projectWireCreate: vi.fn(),
+  projectWireResult: undefined as Promise<LocalProject> | undefined,
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
   sshConnect: vi.fn(),
@@ -27,10 +30,6 @@ vi.mock('@renderer/lib/ipc', () => ({
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
     },
-    projectSetup: {
-      cloneRepository: mocks.cloneRepository,
-      initializeRepository: mocks.initializeRepository,
-    },
     projects: {
       createProject: mocks.createProject,
       getProjects: vi.fn(async () => []),
@@ -40,6 +39,18 @@ vi.mock('@renderer/lib/ipc', () => ({
       updateProjectSettings: mocks.updateProjectSettings,
     },
   },
+}));
+
+vi.mock('@emdash/wire', async (importOriginal) => {
+  const actual = await importOriginal<typeof Wire>();
+  return {
+    ...actual,
+    createLiveJobReplica: mocks.createLiveJobReplica,
+  };
+});
+
+vi.mock('@renderer/lib/runtime/projects-wire-client', () => ({
+  getProjectsWireClient: async () => ({ create: {} }),
 }));
 
 vi.mock('@renderer/lib/stores/app-state', () => ({
@@ -122,7 +133,33 @@ describe('ProjectManagerStore project creation', () => {
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
     mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
-    mocks.cloneRepository.mockReturnValue(new Promise(() => {}));
+    mocks.projectWireResult = undefined;
+    mocks.createLiveJobReplica.mockReturnValue({
+      start: async (input: {
+        projectId: string;
+        targetPath: string;
+        name: string;
+        repositoryUrl: string;
+      }) => {
+        mocks.projectWireCreate(input);
+        return {
+          ready: async () => ({
+            result:
+              mocks.projectWireResult ??
+              Promise.resolve(
+                localProject({
+                  id: input.projectId,
+                  name: input.name,
+                  path: input.targetPath,
+                })
+              ),
+            onProgress: () => vi.fn(),
+          }),
+          release: async () => {},
+        };
+      },
+      dispose: async () => {},
+    });
     mocks.createGithubRepository.mockResolvedValue({
       success: true,
       repoUrl: 'https://github.com/acme/project.git',
@@ -130,7 +167,6 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
-    mocks.initializeRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },
@@ -290,10 +326,6 @@ describe('ProjectManagerStore project creation', () => {
   });
 
   it('persists the selected GitHub account after registering a new project', async () => {
-    mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(
-      okProject(localProject({ id: 'optimistic-project' }))
-    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -556,10 +588,6 @@ describe('ProjectManagerStore project creation', () => {
       cloneUrl: 'https://ghe.example.com/acme/project.git',
       nameWithOwner: 'acme/project',
     });
-    mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(
-      okProject(localProject({ id: 'optimistic-project' }))
-    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -578,15 +606,18 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.cloneRepository).toHaveBeenCalledWith(
-      'https://ghe.example.com/acme/project.git',
-      '/parent/Project',
-      undefined
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryUrl: 'https://ghe.example.com/acme/project.git',
+        targetPath: '/parent/Project',
+      })
     );
   });
 
   it('deletes a newly created GitHub repository with the selected account if clone fails', async () => {
-    mocks.cloneRepository.mockResolvedValueOnce({ success: false, error: 'Clone failed' });
+    mocks.projectWireResult = Promise.reject(
+      new LiveJobFailedError({ type: 'clone-failed', message: 'Clone failed' })
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
