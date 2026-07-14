@@ -3,11 +3,7 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { portableRelativePathParts } from '@primitives/path/api';
 import type { ContentSearchError, ContentSearchInput } from '@runtimes/file-search/api';
-import {
-  rootUnavailable,
-  toExpectedFileSearchIoError,
-  toExpectedRootAccessError,
-} from '../error-mapping';
+import { rootUnavailable, toExpectedContentScopeError } from '../error-mapping';
 import { containsNativePath, isPortablePathHostCompatible, sameNativePath } from '../native-paths';
 
 type ResolvedContentScope = Readonly<{
@@ -69,9 +65,11 @@ export async function resolveContentScope(
     }
     return ok({ rootPath: canonicalRoot, searchPath: canonicalScope });
   } catch (error) {
-    const expected =
-      toExpectedRootAccessError(input.root, error, 'Content-search root or scope') ??
-      toExpectedFileSearchIoError(input.root, error, 'Unable to resolve content-search scope');
+    const expected = toExpectedContentScopeError(
+      input.root,
+      error,
+      'Unable to resolve content-search scope'
+    );
     if (expected) return err(expected);
     throw error;
   }

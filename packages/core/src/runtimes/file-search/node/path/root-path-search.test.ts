@@ -1,17 +1,16 @@
-import { createScope } from '@emdash/shared/concurrency';
+import { ConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConcurrencyLimiter } from '../concurrency-limiter';
 import { DefaultFileSearchExclusions } from '../exclusions';
 import { createRegisteredRoot } from '../root/registered-root';
+import { hostPath as absolute } from '../testing/paths';
 import type {
   PathIndexBuild,
   PathIndexEntry,
   PathIndexStore,
   PathIndexStoreSearchResult,
-} from '../storage/types';
-import { hostPath as absolute } from '../testing/paths';
+} from './index/path-index-store';
 import type { PathScanner } from './index/scanner';
 import { searchRootPaths } from './root-path-search';
 

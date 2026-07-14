@@ -1,37 +1,50 @@
-const OPERATIONAL_NODE_ERROR_CODES = new Set([
+const ROOT_OPERATIONAL_ERROR_CODES = new Set([
+  'EIO',
+  'EMFILE',
+  'ENFILE',
+  'ENOMEM',
+  'ENOSPC',
+  'ESTALE',
+  'ETIMEDOUT',
+]);
+
+const PATH_INDEX_OPERATIONAL_ERROR_CODES = new Set([
   'EAGAIN',
-  'EACCES',
   'EBUSY',
   'ECANCELED',
   'EDQUOT',
   'EFBIG',
   'EINTR',
-  'EINVAL',
   'EIO',
   'EISDIR',
-  'ELOOP',
   'EMLINK',
   'EMFILE',
-  'ENAMETOOLONG',
   'ENFILE',
   'ENODEV',
-  'ENOENT',
   'ENOLCK',
   'ENOMEM',
   'ENOSYS',
   'ENOSPC',
-  'ENOTDIR',
   'ENOTEMPTY',
   'ENOTSUP',
   'ENXIO',
   'EOPNOTSUPP',
   'EOVERFLOW',
-  'EPERM',
   'EROFS',
   'ESTALE',
   'ETIMEDOUT',
   'ETXTBSY',
   'EXDEV',
+]);
+
+const CONTENT_SCOPE_OPERATIONAL_ERROR_CODES = new Set([
+  'EIO',
+  'EMFILE',
+  'ENFILE',
+  'ENOMEM',
+  'ENOSPC',
+  'ESTALE',
+  'ETIMEDOUT',
 ]);
 
 export function nodeErrorCode(error: unknown): string | undefined {
@@ -41,11 +54,23 @@ export function nodeErrorCode(error: unknown): string | undefined {
     : undefined;
 }
 
-export function isOperationalNodeError(error: unknown): boolean {
-  const code = nodeErrorCode(error);
-  return code !== undefined && OPERATIONAL_NODE_ERROR_CODES.has(code);
+export function isExpectedRootNodeError(error: unknown): boolean {
+  return hasCode(ROOT_OPERATIONAL_ERROR_CODES, error);
+}
+
+export function isExpectedPathIndexNodeError(error: unknown): boolean {
+  return hasCode(PATH_INDEX_OPERATIONAL_ERROR_CODES, error);
+}
+
+export function isExpectedContentScopeNodeError(error: unknown): boolean {
+  return hasCode(CONTENT_SCOPE_OPERATIONAL_ERROR_CODES, error);
 }
 
 export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function hasCode(codes: ReadonlySet<string>, error: unknown): boolean {
+  const code = nodeErrorCode(error);
+  return code !== undefined && codes.has(code);
 }

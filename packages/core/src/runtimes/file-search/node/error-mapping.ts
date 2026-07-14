@@ -6,11 +6,18 @@ import type {
   FileSearchUnregisterRootError,
   PathSearchError,
 } from '@runtimes/file-search/api';
-import { errorMessage, isOperationalNodeError, nodeErrorCode } from './node-errors';
+import {
+  errorMessage,
+  isExpectedContentScopeNodeError,
+  isExpectedPathIndexNodeError,
+  isExpectedRootNodeError,
+  nodeErrorCode,
+} from './node-errors';
 import { RootWatchError } from './path/index/errors';
 import { isOperationalSqliteError } from './storage/errors';
 
 type RootUnavailableError = Extract<FileSearchRegisterRootError, { type: 'root-unavailable' }>;
+type RootOrIoError = FileSearchRegisterRootError;
 
 export function rootUnavailable(
   root: HostAbsolutePath,
@@ -63,51 +70,49 @@ export function toExpectedRootAccessError(
   }
 }
 
-export function toExpectedFileSearchIoError(
+export function toExpectedStoreError(
   root: HostAbsolutePath,
   error: unknown,
   fallback: string
 ): FileSearchUnregisterRootError | undefined {
-  if (!isOperationalNodeError(error) && !isOperationalSqliteError(error)) return undefined;
+  if (!isOperationalSqliteError(error)) return undefined;
+  return ioError(root, error, fallback);
+}
+
+export function toExpectedRootOrIndexError(
+  root: HostAbsolutePath,
+  error: unknown,
+  fallback: string,
+  boundary: 'root' | 'path-index'
+): RootOrIoError | undefined {
+  if (error instanceof RootWatchError) {
+    return (
+      toExpectedRootAccessError(root, error.cause) ?? ioError(root, error.cause, error.message)
+    );
+  }
+  const access = toExpectedRootAccessError(root, error);
+  if (access) return access;
+  const expectedNodeError =
+    boundary === 'root' ? isExpectedRootNodeError(error) : isExpectedPathIndexNodeError(error);
+  if (!expectedNodeError && !isOperationalSqliteError(error)) return undefined;
+  return ioError(root, error, fallback);
+}
+
+export function toExpectedContentScopeError(
+  root: HostAbsolutePath,
+  error: unknown,
+  fallback: string
+): ContentSearchError | undefined {
+  return (
+    toExpectedRootAccessError(root, error, 'Content-search root or scope') ??
+    (isExpectedContentScopeNodeError(error) ? ioError(root, error, fallback) : undefined)
+  );
+}
+
+function ioError(
+  root: HostAbsolutePath,
+  error: unknown,
+  fallback: string
+): FileSearchUnregisterRootError {
   return { type: 'io', root, message: errorMessage(error, fallback) };
-}
-
-export function toExpectedRootError(
-  root: HostAbsolutePath,
-  error: unknown,
-  fallback: string
-): FileSearchRegisterRootError | undefined {
-  if (error instanceof RootWatchError) {
-    return (
-      toExpectedRootAccessError(root, error.cause) ??
-      toExpectedFileSearchIoError(root, error.cause, fallback) ?? {
-        type: 'io',
-        root,
-        message: errorMessage(error.cause, error.message),
-      }
-    );
-  }
-  return (
-    toExpectedRootAccessError(root, error) ?? toExpectedFileSearchIoError(root, error, fallback)
-  );
-}
-
-export function toExpectedPathIndexError(
-  root: HostAbsolutePath,
-  error: unknown,
-  fallback: string
-): PathSearchError | undefined {
-  if (error instanceof RootWatchError) {
-    return (
-      toExpectedRootAccessError(root, error.cause) ??
-      toExpectedFileSearchIoError(root, error.cause, fallback) ?? {
-        type: 'io',
-        root,
-        message: errorMessage(error.cause, error.message),
-      }
-    );
-  }
-  return (
-    toExpectedRootAccessError(root, error) ?? toExpectedFileSearchIoError(root, error, fallback)
-  );
 }

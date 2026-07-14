@@ -49,12 +49,40 @@ export function normalizeDelay(delayMs: number): number {
   return Math.min(MAX_TIMER_DELAY_MS, Math.max(0, Math.floor(delayMs)));
 }
 
-export function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw abortReason(signal);
+export function throwIfAborted(signal: AbortSignal | undefined, fallback?: string): void {
+  if (signal?.aborted) throw abortReason(signal, fallback);
 }
 
-export function abortReason(signal: AbortSignal): unknown {
+export function abortReason(signal: AbortSignal, fallback?: string): unknown {
+  if (signal.reason instanceof Error) return signal.reason;
+  if (fallback !== undefined) return new Error(fallback);
   return signal.reason ?? new DOMException('Aborted', 'AbortError');
+}
+
+export function waitWithSignal<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+  fallback?: string
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal, fallback));
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      cleanup();
+      reject(abortReason(signal, fallback));
+    };
+    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      }
+    );
+  });
 }
 
 export function sleepWithClock(

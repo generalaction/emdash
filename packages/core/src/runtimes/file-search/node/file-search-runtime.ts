@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
 import type {
   ContentSearchError,
   ContentSearchInput,
@@ -12,7 +12,6 @@ import type {
   PathSearchResult,
 } from '@runtimes/file-search/api';
 import type { IWatchService } from '@services/fs-watch/api';
-import { ConcurrencyLimiter } from './concurrency-limiter';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';
@@ -54,6 +53,7 @@ export class FileSearchRuntime {
     });
     try {
       this.store = new SqliteFileSearchStore({ databasePath: options.databasePath });
+      this.scope.add(() => this.store.close());
     } catch (error) {
       void this.scope.dispose(error);
       throw error;
@@ -114,9 +114,7 @@ export class FileSearchRuntime {
   }
 
   async searchPaths(input: PathSearchInput): Promise<Result<PathSearchResult, PathSearchError>> {
-    const root = this.roots.resolveRegisteredRoot(input.root, {
-      whenStarting: 'index-not-ready',
-    });
+    const root = this.roots.resolveRegisteredRoot(input.root);
     return root.success ? searchRootPaths(root.data, input, this.store) : root;
   }
 
@@ -124,9 +122,7 @@ export class FileSearchRuntime {
     input: ContentSearchInput,
     context: ContentSearchContext
   ): Promise<Result<ContentSearchResult, ContentSearchError>> {
-    const root = this.roots.resolveRegisteredRoot(input.root, {
-      whenStarting: 'root-not-registered',
-    });
+    const root = this.roots.resolveRegisteredRoot(input.root);
     return root.success
       ? searchRootContent(root.data, input, context, {
           limiter: this.contentLimiter,
@@ -142,25 +138,10 @@ export class FileSearchRuntime {
   }
 
   private async disposeInternal(): Promise<void> {
-    const failures: unknown[] = [];
-    await attemptCleanup(failures, () => this.roots.dispose());
-    await attemptCleanup(failures, () =>
-      this.scope.dispose(new Error('File-search runtime disposed'))
-    );
-    await attemptCleanup(failures, () => this.store.close());
-
-    if (failures.length === 1) throw failures[0];
-    if (failures.length > 1) throw new AggregateError(failures, 'File-search disposal failed');
-  }
-}
-
-async function attemptCleanup(
-  failures: unknown[],
-  cleanup: () => void | Promise<void>
-): Promise<void> {
-  try {
-    await cleanup();
-  } catch (error) {
-    failures.push(error);
+    try {
+      await this.roots.dispose();
+    } finally {
+      await this.scope.dispose(new Error('File-search runtime disposed'));
+    }
   }
 }

@@ -5,16 +5,16 @@ import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type { PathSearchHit } from '@runtimes/file-search/api';
+import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
+import { afterEach, describe, expect, it } from 'vitest';
+import { DefaultFileSearchExclusions } from '../../exclusions';
+import { SqliteFileSearchStore } from '../../storage/sqlite-file-search-store';
 import type {
   PathIndexBuild,
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
-} from '@runtimes/file-search/node/storage/types';
-import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@services/fs-watch/api';
-import { afterEach, describe, expect, it } from 'vitest';
-import { DefaultFileSearchExclusions } from '../../exclusions';
-import { SqliteFileSearchStore } from '../../storage/sqlite-file-search-store';
+} from './path-index-store';
 import { RootIndex } from './root-index';
 import { NodePathScanner, type PathScanner, type PathScanOptions } from './scanner';
 
@@ -121,6 +121,118 @@ describe('RootIndex', () => {
     ]);
   });
 
+  it('coalesces concurrent reconciliation callers onto one scan', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const scanner = new BlockingFullScanner();
+    const scope = createScope({ label: 'root-index-coalescing-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher: new FakeWatchService(),
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    const first = index.reconcile();
+    await scanner.started.promise;
+    const second = index.reconcile();
+    expect(scanner.fullScans).toBe(1);
+
+    scanner.resume.resolve();
+    await Promise.all([first, second]);
+    expect(index.status).toEqual({ kind: 'ready' });
+  });
+
+  it('runs one trailing reconciliation when resync is requested during a scan', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const watcher = new FakeWatchService();
+    const scanner = new FirstScanPausingScanner();
+    const scope = createScope({ label: 'root-index-trailing-reconcile-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    const reconcile = index.reconcile();
+    await scanner.firstStarted.promise;
+    watcher.resync();
+    scanner.resumeFirst.resolve();
+    await reconcile;
+
+    expect(scanner.fullScans).toBe(2);
+    expect(index.status).toEqual({ kind: 'ready' });
+  });
+
+  it('discards a failed build and can publish a later recovery scan', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const failure = Object.assign(new Error('scan unavailable'), { code: 'EIO' });
+    const scanner = new FailOnceScanner(failure);
+    const scope = createScope({ label: 'root-index-recovery-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher: new FakeWatchService(),
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    await expect(index.reconcile()).rejects.toBe(failure);
+    expect(index.status).toMatchObject({
+      kind: 'failed',
+      failure: { expected: { type: 'io' } },
+    });
+
+    await expect(index.reconcile()).resolves.toBeUndefined();
+    expect(scanner.fullScans).toBe(2);
+    expect(index.status).toEqual({ kind: 'ready' });
+  });
+
+  it('cancels active work and ignores later watcher events after disposal', async () => {
+    const rootPath = await createRoot();
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const watcher = new FakeWatchService();
+    const scanner = new DisposalBlockingScanner();
+    const scope = createScope({ label: 'root-index-disposal-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+
+    const reconcile = index.reconcile();
+    void reconcile.catch(() => {});
+    await scanner.started.promise;
+    await scope.dispose(new Error('test disposal'));
+
+    await expect(reconcile).rejects.toThrow('test disposal');
+    await expect(index.reconcile()).rejects.toThrow('disposed');
+    watcher.emit([{ kind: 'update', path: path.join(rootPath, 'after.ts') }]);
+    expect(watcher.releaseCount).toBe(1);
+  });
+
   it('marks the index degraded before attempting watcher-patch recovery', async () => {
     const rootPath = await createRoot();
     const delegate = createStore();
@@ -146,7 +258,10 @@ describe('RootIndex', () => {
     watcher.emit([{ kind: 'create', path: path.join(rootPath, 'new.ts') }]);
     await scanner.recoveryStarted.promise;
 
-    expect(index.failure).toBe(failure);
+    expect(index.status).toEqual({
+      kind: 'failed',
+      failure: { expected: expect.objectContaining({ type: 'io', message: failure.message }) },
+    });
   });
 });
 
@@ -174,6 +289,64 @@ class SnapshotPausingScanner implements PathScanner {
     this.fullScanStarted.resolve();
     await this.resumeFullScan.promise;
     for (const entry of snapshot) yield entry;
+  }
+}
+
+class BlockingFullScanner implements PathScanner {
+  readonly started = deferred<void>();
+  readonly resume = deferred<void>();
+  fullScans = 0;
+
+  async *scan(): AsyncIterable<PathIndexEntry> {
+    this.fullScans += 1;
+    this.started.resolve();
+    await this.resume.promise;
+    yield* [];
+  }
+}
+
+class FirstScanPausingScanner implements PathScanner {
+  readonly firstStarted = deferred<void>();
+  readonly resumeFirst = deferred<void>();
+  fullScans = 0;
+
+  async *scan(): AsyncIterable<PathIndexEntry> {
+    this.fullScans += 1;
+    if (this.fullScans === 1) {
+      this.firstStarted.resolve();
+      await this.resumeFirst.promise;
+    }
+    yield* [];
+  }
+}
+
+class FailOnceScanner implements PathScanner {
+  fullScans = 0;
+
+  constructor(private readonly failure: unknown) {}
+
+  async *scan(): AsyncIterable<PathIndexEntry> {
+    this.fullScans += 1;
+    if (this.fullScans === 1) throw this.failure;
+    yield* [];
+  }
+}
+
+class DisposalBlockingScanner implements PathScanner {
+  readonly started = deferred<void>();
+
+  async *scan(
+    _rootPath: string,
+    _relativeRoot: PortableRelativePath,
+    options: PathScanOptions
+  ): AsyncIterable<PathIndexEntry> {
+    this.started.resolve();
+    await new Promise<void>((_resolve, reject) => {
+      const cancel = (): void => reject(options.signal.reason);
+      if (options.signal.aborted) cancel();
+      else options.signal.addEventListener('abort', cancel, { once: true });
+    });
+    yield* [];
   }
 }
 
@@ -224,6 +397,7 @@ class PatchFailingStore implements PathIndexStore {
 class FakeWatchService implements IWatchService {
   private onEvents: ((events: WatchEvent[]) => void) | undefined;
   private onResync: (() => void) | undefined;
+  releaseCount = 0;
 
   watch(
     _root: string,
@@ -232,7 +406,12 @@ class FakeWatchService implements IWatchService {
   ): WatchHandle {
     this.onEvents = onEvents;
     this.onResync = options.onResync;
-    return { ready: async () => {}, release: async () => {} };
+    return {
+      ready: async () => {},
+      release: async () => {
+        this.releaseCount += 1;
+      },
+    };
   }
 
   emit(events: WatchEvent[]): void {

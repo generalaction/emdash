@@ -8,7 +8,7 @@ import {
   type HostAbsolutePath,
 } from '@primitives/path/api';
 import type { FileSearchRegisterRootError } from '@runtimes/file-search/api';
-import { rootUnavailable, toExpectedRootError } from '../error-mapping';
+import { rootUnavailable, toExpectedRootOrIndexError } from '../error-mapping';
 import { hostAbsolutePathFromNative } from '../native-paths';
 
 export type ResolvedFileSearchRoot = Readonly<{
@@ -58,7 +58,12 @@ export class NodeFileSearchRootResolver {
       }
       return ok({ rootKey, rootPath: canonicalPath });
     } catch (error) {
-      const expected = toExpectedRootError(root, error, 'Unable to resolve file-search root');
+      const expected = toExpectedRootOrIndexError(
+        root,
+        error,
+        'Unable to resolve file-search root',
+        'root'
+      );
       if (expected) return err(expected);
       throw error;
     }

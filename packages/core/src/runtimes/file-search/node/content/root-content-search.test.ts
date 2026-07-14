@@ -2,11 +2,10 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ok } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
+import { ConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type { ContentSearchResult } from '@runtimes/file-search/api';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ConcurrencyLimiter } from '../concurrency-limiter';
 import type { RegisteredRoot } from '../root/registered-root';
 import { hostPath as absolute } from '../testing/paths';
 import type {

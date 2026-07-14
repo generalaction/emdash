@@ -2,25 +2,17 @@ import { err, ok, type Result } from '@emdash/shared';
 import { LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type {
-  ContentSearchError,
   FileSearchRegisterRootError,
   FileSearchRootInput,
   FileSearchUnregisterRootError,
-  PathSearchError,
 } from '@runtimes/file-search/api';
 import {
-  indexNotReady,
   rootNotRegistered,
-  toExpectedFileSearchIoError,
-  toExpectedRootError,
+  toExpectedRootOrIndexError,
+  toExpectedStoreError,
 } from '../error-mapping';
 import { hostAbsolutePathFromNative } from '../native-paths';
-import type {
-  FileSearchRootUpsertResult,
-  RootCatalogStore,
-  StoredFileSearchRoot,
-} from '../storage/root-catalog-store';
-import type { RegisteredRoot } from './registered-root';
+import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-identity';
 
 type RootStartInput = Readonly<{
@@ -30,17 +22,19 @@ type RootStartInput = Readonly<{
 
 type RootStopContext = Readonly<{ kind: 'unregister'; root: HostAbsolutePath }>;
 
-export type FileSearchRootState =
-  | { kind: 'not-registered' }
-  | { kind: 'starting' }
-  | { kind: 'ready'; resource: RegisteredRoot }
-  | { kind: 'start-failed'; error: FileSearchRegisterRootError }
-  | { kind: 'stopping' }
-  | {
-      kind: 'stop-failed';
-      resource: RegisteredRoot;
-      error: FileSearchUnregisterRootError;
-    };
+type RootResolutionError = FileSearchRegisterRootError | ReturnType<typeof rootNotRegistered>;
+
+export type FileSearchRootUpsertResult = Readonly<{
+  kind: 'created' | 'unchanged';
+  root: StoredFileSearchRoot;
+}>;
+
+/** Persistence view owned by registered-root lifecycle policy. */
+export interface RootCatalogStore {
+  listRoots(): StoredFileSearchRoot[];
+  upsertRoot(input: { rootKey: string; rootPath: string }): FileSearchRootUpsertResult;
+  deleteRoot(rootKey: string): void;
+}
 
 type FileSearchRootRegistryOptions = {
   catalog: RootCatalogStore;
@@ -106,53 +100,21 @@ export class FileSearchRootRegistry {
     return ok();
   }
 
-  state(root: HostAbsolutePath): FileSearchRootState {
+  resolveRegisteredRoot(root: HostAbsolutePath): Result<RegisteredRoot, RootResolutionError> {
     const rootKey = this.options.resolver.comparisonKey(root);
     const state = this.lifecycle.state(rootKey);
     switch (state.kind) {
-      case 'idle':
-        return { kind: 'not-registered' };
-      case 'starting':
-        return { kind: 'starting' };
-      case 'ready':
-        return { kind: 'ready', resource: state.value };
-      case 'start-failed':
-        return { kind: 'start-failed', error: state.error };
-      case 'stopping':
-        return { kind: 'stopping' };
-      case 'stop-failed':
-        return { kind: 'stop-failed', resource: state.value, error: state.error };
-      case 'disposed':
-        throw new Error('File-search root registry is disposed');
-    }
-  }
-
-  resolveRegisteredRoot(
-    root: HostAbsolutePath,
-    options: { whenStarting: 'index-not-ready' }
-  ): Result<RegisteredRoot, PathSearchError>;
-  resolveRegisteredRoot(
-    root: HostAbsolutePath,
-    options: { whenStarting: 'root-not-registered' }
-  ): Result<RegisteredRoot, ContentSearchError>;
-  resolveRegisteredRoot(
-    root: HostAbsolutePath,
-    options: { whenStarting: 'index-not-ready' | 'root-not-registered' }
-  ): Result<RegisteredRoot, PathSearchError | ContentSearchError> {
-    const state = this.state(root);
-    switch (state.kind) {
       case 'ready':
       case 'stop-failed':
-        return ok(state.resource);
-      case 'starting':
-        return err(
-          options.whenStarting === 'index-not-ready' ? indexNotReady(root) : rootNotRegistered(root)
-        );
+        return ok(state.value);
       case 'start-failed':
         return err(state.error);
-      case 'not-registered':
+      case 'idle':
+      case 'starting':
       case 'stopping':
         return err(rootNotRegistered(root));
+      case 'disposed':
+        throw new Error('File-search root registry is disposed');
     }
   }
 
@@ -172,7 +134,7 @@ export class FileSearchRootRegistry {
     try {
       upserted = this.options.catalog.upsertRoot(resolved.data);
     } catch (error) {
-      const expected = toExpectedFileSearchIoError(
+      const expected = toExpectedStoreError(
         input.root,
         error,
         'Unable to persist file-search root'
@@ -184,10 +146,11 @@ export class FileSearchRootRegistry {
     try {
       return ok(this.options.createRoot(upserted.root, scope));
     } catch (error) {
-      const expected = toExpectedRootError(
+      const expected = toExpectedRootOrIndexError(
         input.root,
         error,
-        'Unable to attach file-search maintenance'
+        'Unable to attach file-search maintenance',
+        'root'
       );
       if (upserted.kind === 'created') {
         try {
@@ -213,7 +176,7 @@ export class FileSearchRootRegistry {
       this.options.catalog.deleteRoot(rootKey);
       return ok();
     } catch (error) {
-      const expected = toExpectedFileSearchIoError(
+      const expected = toExpectedStoreError(
         context.root,
         error,
         'Unable to unregister file-search root'
@@ -230,11 +193,7 @@ export class FileSearchRootRegistry {
     try {
       this.options.catalog.deleteRoot(rootKey);
     } catch (error) {
-      const expected = toExpectedFileSearchIoError(
-        root,
-        error,
-        'Unable to unregister file-search root'
-      );
+      const expected = toExpectedStoreError(root, error, 'Unable to unregister file-search root');
       if (expected) return err(expected);
       throw error;
     }

@@ -1,11 +1,15 @@
-import type { Scope } from '@emdash/shared/concurrency';
+import type { ConcurrencyLimiter, Scope } from '@emdash/shared/concurrency';
 import type { IWatchService } from '@services/fs-watch/api';
-import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import type { FileSearchExclusions } from '../exclusions';
+import type { PathIndexStore } from '../path/index/path-index-store';
 import { RootIndex } from '../path/index/root-index';
 import type { PathScanner } from '../path/index/scanner';
-import type { StoredFileSearchRoot } from '../storage/root-catalog-store';
-import type { PathIndexStore } from '../storage/types';
+
+export type StoredFileSearchRoot = Readonly<{
+  id: number;
+  rootKey: string;
+  rootPath: string;
+}>;
 
 export type RegisteredRoot = Readonly<{
   record: StoredFileSearchRoot;

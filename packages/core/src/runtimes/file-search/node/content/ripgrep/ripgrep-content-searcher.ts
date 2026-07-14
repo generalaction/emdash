@@ -1,13 +1,12 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
+import { abortReason } from '@emdash/shared/scheduling';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
-import { abortReason } from '../../abort';
-import { toExpectedFileSearchIoError } from '../../error-mapping';
 import type { FileSearchExclusions } from '../../exclusions';
 import { containsNativePath } from '../../native-paths';
 import { errorMessage, nodeErrorCode } from '../../node-errors';
@@ -311,10 +310,7 @@ function spawnError(
       message: 'ripgrep is not executable',
     };
   }
-  return (
-    toExpectedFileSearchIoError(input.root, error, 'Unable to start ripgrep') ??
-    ioError(input, errorMessage(error, 'Unable to start ripgrep'))
-  );
+  return ioError(input, errorMessage(error, 'Unable to start ripgrep'));
 }
 
 function ioError(input: ResolvedContentSearchInput, message: string): ContentSearchExecutionError {

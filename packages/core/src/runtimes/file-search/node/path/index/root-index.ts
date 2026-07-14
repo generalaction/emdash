@@ -1,18 +1,24 @@
-import path from 'node:path';
 import type { Run, Scope } from '@emdash/shared/concurrency';
-import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
-import type { StoredFileSearchRoot } from '@runtimes/file-search/node/storage/root-catalog-store';
+import { throwIfAborted, waitWithSignal } from '@emdash/shared/scheduling';
+import {
+  ROOT_RELATIVE_PATH,
+  type HostAbsolutePath,
+  type PortableRelativePath,
+} from '@primitives/path/api';
+import type { PathSearchError } from '@runtimes/file-search/api';
+import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
+import { toExpectedRootOrIndexError } from '../../error-mapping';
+import type { FileSearchExclusions } from '../../exclusions';
+import { hostAbsolutePathFromNative } from '../../native-paths';
+import type { StoredFileSearchRoot } from '../../root/registered-root';
+import { affectedSubtrees } from './affected-subtrees';
+import { RootWatchError } from './errors';
 import type {
   PathIndexBuild,
   PathIndexEntry,
   PathIndexPatch,
   PathIndexStore,
-} from '@runtimes/file-search/node/storage/types';
-import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
-import { throwIfAborted, waitWithSignal } from '../../abort';
-import type { FileSearchExclusions } from '../../exclusions';
-import { containsNativePath, portableRelativePathFromNative } from '../../native-paths';
-import { RootWatchError } from './errors';
+} from './path-index-store';
 import type { PathScanner } from './scanner';
 
 const WATCH_DEBOUNCE_MS = 50;
@@ -31,20 +37,32 @@ type RootIndexOptions = Readonly<{
   onError?: (context: string, error: unknown) => void;
 }>;
 
+export type RootIndexFailure =
+  | Readonly<{ expected: PathSearchError }>
+  | Readonly<{ unexpected: unknown }>;
+
+export type RootIndexStatus =
+  | Readonly<{ kind: 'building' }>
+  | Readonly<{ kind: 'ready' }>
+  | Readonly<{ kind: 'failed'; failure: RootIndexFailure }>;
+
 /** Keeps one registered root's published path generation current. */
 export class RootIndex {
   private readonly scope: Scope;
   private readonly watch: WatchHandle;
-  private phase: { kind: 'published' } | { kind: 'building'; patches: PathIndexPatch[] } = {
+  private readonly root: HostAbsolutePath;
+  private publicationState:
+    | { kind: 'published' }
+    | { kind: 'building'; patches: PathIndexPatch[] } = {
     kind: 'published',
   };
-  private patchLane: Promise<void> = Promise.resolve();
+  private eventQueue: Promise<void> = Promise.resolve();
   private reconcileRun: Run<void> | undefined;
-  private reconcileAgain = false;
-  private lastFailure: unknown | undefined;
-  private indexReady = false;
+  private trailingReconcileRequested = false;
+  private currentStatus: RootIndexStatus = { kind: 'building' };
 
   constructor(private readonly options: RootIndexOptions) {
+    this.root = hostAbsolutePathFromNative(options.root.rootPath);
     this.scope = options.scope.child(`file-search-root-${options.root.id}`);
     try {
       this.watch = options.watcher.watch(
@@ -62,12 +80,8 @@ export class RootIndex {
     this.scope.add(() => this.watch.release());
   }
 
-  get failure(): unknown | undefined {
-    return this.lastFailure;
-  }
-
-  get ready(): boolean {
-    return this.indexReady;
+  get status(): RootIndexStatus {
+    return this.currentStatus;
   }
 
   /** Coalesces concurrent requests and settles when the current reconciliation attempt settles. */
@@ -77,13 +91,13 @@ export class RootIndex {
     }
     if (this.reconcileRun) return this.reconcileRun.value();
 
-    this.indexReady = false;
+    if (this.currentStatus.kind !== 'failed') this.currentStatus = { kind: 'building' };
     const run = this.scope.run('reconcile', (signal) => this.reconcileLoop(signal));
     this.reconcileRun = run;
     void run.exit.then(() => {
       if (this.reconcileRun === run) this.reconcileRun = undefined;
-      if (this.reconcileAgain && this.scope.state === 'open') {
-        this.reconcileAgain = false;
+      if (this.trailingReconcileRequested && this.scope.state === 'open') {
+        this.trailingReconcileRequested = false;
         this.requestReconcile();
       }
     });
@@ -92,9 +106,9 @@ export class RootIndex {
 
   private async reconcileLoop(signal: AbortSignal): Promise<void> {
     do {
-      this.reconcileAgain = false;
+      this.trailingReconcileRequested = false;
       await this.reconcileOnce(signal);
-    } while (this.reconcileAgain && this.scope.state === 'open');
+    } while (this.trailingReconcileRequested && this.scope.state === 'open');
   }
 
   private async reconcileOnce(signal: AbortSignal): Promise<void> {
@@ -109,24 +123,22 @@ export class RootIndex {
       throwIfAborted(signal, 'Root index cancelled');
       const activeBuild = this.options.store.beginBuild(this.options.root.id);
       build = activeBuild;
-      this.phase = { kind: 'building', patches: [] };
+      this.publicationState = { kind: 'building', patches: [] };
 
       await this.options.runScan(signal, () => this.populateBuild(activeBuild, signal));
 
       // Events already queued run before this barrier. Later events run after the synchronous
       // publish below and therefore patch the newly-published generation.
-      const barrier = this.patchLane.then(() => undefined);
-      this.patchLane = barrier;
+      const barrier = this.eventQueue.then(() => undefined);
+      this.eventQueue = barrier;
       await waitWithSignal(barrier, signal, 'Root index cancelled');
       throwIfAborted(signal, 'Root index cancelled');
 
-      const finalPatches = this.phase.kind === 'building' ? this.phase.patches : [];
+      const finalPatches =
+        this.publicationState.kind === 'building' ? this.publicationState.patches : [];
       activeBuild.publish(finalPatches);
-      this.phase = { kind: 'published' };
-      if (!this.reconcileAgain) {
-        this.lastFailure = undefined;
-        this.indexReady = true;
-      }
+      this.publicationState = { kind: 'published' };
+      if (!this.trailingReconcileRequested) this.currentStatus = { kind: 'ready' };
     } catch (error) {
       if (build) {
         try {
@@ -135,9 +147,8 @@ export class RootIndex {
           this.report('file-search path-index discard failed', discardError);
         }
       }
-      this.phase = { kind: 'published' };
-      this.lastFailure = error;
-      this.indexReady = false;
+      this.publicationState = { kind: 'published' };
+      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
       throw error;
     }
   }
@@ -159,10 +170,10 @@ export class RootIndex {
 
   private enqueueEvents(events: WatchEvent[]): void {
     if (this.scope.state !== 'open' || events.length === 0) return;
-    const previous = this.patchLane;
+    const previous = this.eventQueue;
     const run = this.scope.run('watch-patch', async (signal) => {
       await waitWithSignal(previous, signal, 'Root index cancelled');
-      const paths = this.coalesceEventPaths(events);
+      const paths = affectedSubtrees(events, this.options.root.rootPath, this.options.exclusions);
       if (paths.some((entry) => entry === ROOT_RELATIVE_PATH)) {
         this.requestReconcile();
         return;
@@ -174,35 +185,16 @@ export class RootIndex {
       }
       if (patches.length === 0) return;
 
-      if (this.phase.kind === 'building') this.phase.patches.push(...patches);
-      else this.options.store.applyPublishedPatches(this.options.root.id, patches);
+      if (this.publicationState.kind === 'building') {
+        this.publicationState.patches.push(...patches);
+      } else this.options.store.applyPublishedPatches(this.options.root.id, patches);
     });
-    this.patchLane = run.value().catch((error: unknown) => {
+    this.eventQueue = run.value().catch((error: unknown) => {
       if (this.scope.signal.aborted) return;
-      this.lastFailure = error;
-      this.indexReady = false;
+      this.currentStatus = { kind: 'failed', failure: this.classifyFailure(error) };
       this.report('file-search watcher patch failed', error);
       this.requestReconcile();
     });
-  }
-
-  private coalesceEventPaths(events: WatchEvent[]): PortableRelativePath[] {
-    const paths = new Set<PortableRelativePath>();
-    for (const event of events) {
-      if (!path.isAbsolute(event.path)) continue;
-      const absolutePath = path.resolve(event.path);
-      if (!containsNativePath(this.options.root.rootPath, absolutePath)) continue;
-      const relativePath = portableRelativePathFromNative(this.options.root.rootPath, absolutePath);
-      if (relativePath !== null && !this.options.exclusions.excludes(relativePath)) {
-        paths.add(relativePath);
-      }
-    }
-
-    const ordered = [...paths].sort((left, right) => depth(left) - depth(right));
-    return ordered.filter(
-      (candidate, index) =>
-        !ordered.slice(0, index).some((parent) => isSameOrDescendant(parent, candidate))
-    );
   }
 
   private async patchForPath(
@@ -230,7 +222,7 @@ export class RootIndex {
   private requestReconcile(): void {
     if (this.scope.state !== 'open') return;
     if (this.reconcileRun) {
-      this.reconcileAgain = true;
+      this.trailingReconcileRequested = true;
       return;
     }
     void this.reconcile().catch((error: unknown) => {
@@ -243,15 +235,14 @@ export class RootIndex {
   private report(context: string, error: unknown): void {
     this.options.onError?.(context, error);
   }
-}
 
-function depth(path: PortableRelativePath): number {
-  return path === '' ? 0 : path.split('/').length;
-}
-
-function isSameOrDescendant(
-  parent: PortableRelativePath,
-  candidate: PortableRelativePath
-): boolean {
-  return parent === '' || candidate === parent || candidate.startsWith(`${parent}/`);
+  private classifyFailure(error: unknown): RootIndexFailure {
+    const expected = toExpectedRootOrIndexError(
+      this.root,
+      error,
+      'The file-search index could not be built',
+      'path-index'
+    );
+    return expected ? { expected } : { unexpected: error };
+  }
 }

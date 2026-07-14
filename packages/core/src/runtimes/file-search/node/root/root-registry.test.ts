@@ -5,10 +5,9 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RootWatchError } from '../path/index/errors';
 import type { RootIndex } from '../path/index/root-index';
-import type { StoredFileSearchRoot } from '../storage/root-catalog-store';
 import { SqliteFileSearchStore } from '../storage/sqlite-file-search-store';
 import { hostPath as absolute } from '../testing/paths';
-import type { RegisteredRoot } from './registered-root';
+import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import { NodeFileSearchRootResolver } from './root-identity';
 import { FileSearchRootRegistry } from './root-registry';
 
@@ -32,7 +31,7 @@ describe('FileSearchRootRegistry', () => {
     expect(createRegistered).toHaveBeenCalledOnce();
     expect(createRegistered.mock.calls[0][0]).toMatchObject({ rootPath });
     expect(createRegistered.mock.calls[0][1].state).toBe('open');
-    expect(registry.state(root).kind).toBe('ready');
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
   });
 
   it('keeps durable registrations when registry shutdown stops maintenance', async () => {
@@ -56,13 +55,21 @@ describe('FileSearchRootRegistry', () => {
     await rm(rootPath, { recursive: true, force: true });
     const { registry } = createRegistry({ store });
 
-    await vi.waitFor(() => expect(registry.state(root).kind).toBe('start-failed'));
+    await vi.waitFor(() =>
+      expect(registry.resolveRegisteredRoot(root)).toMatchObject({
+        success: false,
+        error: { type: 'root-unavailable' },
+      })
+    );
     await expect(registry.unregisterRoot({ root })).resolves.toEqual({
       success: true,
       data: undefined,
     });
     expect(store.listRoots()).toEqual([]);
-    expect(registry.state(root).kind).toBe('not-registered');
+    expect(registry.resolveRegisteredRoot(root)).toMatchObject({
+      success: false,
+      error: { type: 'root-not-registered' },
+    });
   });
 
   it('rolls back a new durable row when registered-root construction fails', async () => {

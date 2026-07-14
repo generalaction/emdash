@@ -5,6 +5,7 @@ export {
   sleepWithClock,
   systemClock,
   throwIfAborted,
+  waitWithSignal,
   type Clock,
   type ScheduleOptions,
   type SleepOptions,

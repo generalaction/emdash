@@ -26,13 +26,13 @@ export interface PathIndexBuild {
   discard(): void;
 }
 
-/** Persistence view used by path-index maintenance and path queries. */
+/** Persistence view owned by path-index maintenance and queries. */
 export interface PathIndexStore {
   beginBuild(rootId: number): PathIndexBuild;
   applyPublishedPatches(rootId: number, patches: readonly PathIndexPatch[]): void;
 
   /**
-   * Treats `query` as literal user text and returns relevance-ordered hits. The Adapter owns
+   * Treats `query` as literal user text and returns relevance-ordered hits. The adapter owns
    * FTS escaping and the non-FTS fallback needed for queries shorter than three characters.
    */
   searchPaths(

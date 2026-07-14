@@ -6,6 +6,7 @@ export {
   type BoundedBufferOverflow,
   type CreateBoundedBufferOptions,
 } from './bounded-buffer';
+export { ConcurrencyLimiter } from './concurrency-limiter';
 export {
   LifecycleRegistry,
   type LifecycleRegistryObserver,

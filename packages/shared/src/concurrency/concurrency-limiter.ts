@@ -1,3 +1,5 @@
+import { abortReason } from '../scheduling/clock';
+
 /** FIFO limiter that bounds concurrent work without rejecting excess callers. */
 export class ConcurrencyLimiter {
   private active = 0;
@@ -69,5 +71,3 @@ export class ConcurrencyLimiter {
     }
   }
 }
-
-import { abortReason } from './abort';

@@ -1,11 +1,11 @@
 import type { Result } from '@emdash/shared';
+import type { ConcurrencyLimiter } from '@emdash/shared/concurrency';
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT,
   type ContentSearchError,
   type ContentSearchInput,
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
-import type { ConcurrencyLimiter } from '../concurrency-limiter';
 import type { RegisteredRoot } from '../root/registered-root';
 import { resolveContentScope } from './content-scope';
 import type { ContentSearchContext, FileContentSearcher } from './content-searcher';

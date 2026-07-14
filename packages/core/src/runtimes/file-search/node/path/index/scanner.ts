@@ -1,14 +1,14 @@
 import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { throwIfAborted } from '@emdash/shared/scheduling';
 import {
   joinPortableRelativePath,
   portableRelativePathParts,
   type PortableRelativePath,
 } from '@primitives/path/api';
-import type { PathIndexEntry } from '@runtimes/file-search/node/storage/types';
-import { throwIfAborted } from '../../abort';
 import type { FileSearchExclusions } from '../../exclusions';
 import { containsNativePath, sameNativePath } from '../../native-paths';
+import type { PathIndexEntry } from './path-index-store';
 
 export type PathScanOptions = Readonly<{
   signal: AbortSignal;
