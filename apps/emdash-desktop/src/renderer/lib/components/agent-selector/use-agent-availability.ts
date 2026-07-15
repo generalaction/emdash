@@ -2,13 +2,19 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMemo } from 'react';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { useAgents } from '@renderer/lib/stores/use-agents';
-import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
+import {
+  buildAgentGroups,
+  getAssumedInstalledAgents,
+  type AgentDisableReason,
+} from './agent-selector-options';
 
 export function useAgentAvailability({
   connectionId,
+  getDisabledReason,
   value,
 }: {
   connectionId?: string;
+  getDisabledReason?: AgentDisableReason;
   value: AgentProviderId | null;
 }) {
   const { data: agents } = useAgents();
@@ -44,7 +50,8 @@ export function useAgentAvailability({
     agents ?? [],
     installedAgents,
     assumedInstalledAgents,
-    installingAgents
+    installingAgents,
+    getDisabledReason
   );
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {

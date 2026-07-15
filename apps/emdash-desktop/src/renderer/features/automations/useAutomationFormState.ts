@@ -1,7 +1,11 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { useAgents } from '@renderer/lib/stores/use-agents';
+import {
+  agentSupportsAcp,
+  agentSupportsInitialPromptDelivery,
+} from '@shared/core/agents/agent-payload';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
@@ -154,11 +158,32 @@ export function useAutomationFormState(
   const prompt = initialConversation.prompt;
   const provider = initialConversation.provider;
   const model = initialConversation.model;
+  const useChatUi = initialConversation.useChatUi;
+  const setUseChatUi = initialConversation.setUseChatUi;
+  const selectedAgent = provider ? agents?.find((agent) => agent.id === provider) : null;
+  const selectedCapabilities = selectedAgent?.capabilities;
+  const providerSupportsAutomationPrompt =
+    !provider ||
+    !agents ||
+    !selectedCapabilities ||
+    agentSupportsInitialPromptDelivery(selectedCapabilities) ||
+    agentSupportsAcp(selectedCapabilities);
+  const shouldForceChatUi =
+    Boolean(selectedCapabilities) &&
+    !agentSupportsInitialPromptDelivery(selectedCapabilities) &&
+    agentSupportsAcp(selectedCapabilities);
+
+  useEffect(() => {
+    if (shouldForceChatUi && !useChatUi) {
+      setUseChatUi(true);
+    }
+  }, [setUseChatUi, shouldForceChatUi, useChatUi]);
 
   const canSave =
     name.trim().length > 0 &&
     prompt.trim().length > 0 &&
     !!provider &&
+    providerSupportsAutomationPrompt &&
     !!effectiveProjectId &&
     workspaceConfig.isValid;
 

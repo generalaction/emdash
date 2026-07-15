@@ -23,7 +23,7 @@ export const plugin = definePlugin(
       versionArgs: ['version'],
     }),
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'stateless',
@@ -34,8 +34,8 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    // The prompt is delivered via keystroke injection into the `jules` TUI, not
-    // as a CLI argument — `jules <text>` would be parsed as an unknown subcommand.
+    // Jules is PTY-only for prompts: `jules <text>` is parsed as an unknown subcommand,
+    // so Emdash opens the TUI and lets the user type manually.
     buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

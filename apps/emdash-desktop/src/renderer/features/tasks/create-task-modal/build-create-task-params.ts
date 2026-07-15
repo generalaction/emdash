@@ -44,7 +44,9 @@ export function buildInitialConversation(
     title: nextDefaultConversationTitle(provider, []),
     ...(type === 'acp'
       ? { initialQueue: buildInitialQueue(state) }
-      : { initialPrompt: buildFinalPrompt(state.issueContext, state.prompt) }),
+      : state.initialPromptSupported
+        ? { initialPrompt: buildFinalPrompt(state.issueContext, state.prompt) }
+        : {}),
     autoApprove: state.autoApprove,
     model: state.model ?? undefined,
     type,

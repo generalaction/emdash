@@ -20,8 +20,8 @@ export const plugin = definePlugin(
     hostDependency: npmDependency({ id: 'freebuff', package: 'freebuff' }),
     prompt: {
       // The freebuff CLI takes no prompt positional/flag (its only positional is
-      // the `login` command); the initial prompt is typed into the interactive TUI.
-      kind: 'keystroke',
+      // the `login` command); prompts are entered manually in the interactive TUI.
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'stateless',

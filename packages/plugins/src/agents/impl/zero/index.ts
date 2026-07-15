@@ -22,7 +22,7 @@ export const plugin = definePlugin(
     },
     hostDependency: npmDependency({ id: 'zero', package: '@gitlawb/zero' }),
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'stateless',

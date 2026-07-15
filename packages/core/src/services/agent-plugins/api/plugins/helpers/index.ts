@@ -9,6 +9,5 @@ export * from './local-plugin-fs';
 export * from './mcp';
 export * from './merge';
 export * from './parse-hook-event';
-export * from './prompt-injection';
 export * from './standard-command';
 export * from './trust';

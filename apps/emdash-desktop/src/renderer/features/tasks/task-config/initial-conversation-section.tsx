@@ -15,15 +15,16 @@ import { IntegrationIcon } from '@renderer/features/integrations/integration-ico
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import type { AgentDisableReason } from '@renderer/lib/components/agent-selector/agent-selector-options';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { useAgents } from '@renderer/lib/stores/use-agents';
-import { Field } from '@renderer/lib/ui/field';
+import { Field, FieldDescription } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import {
   agentSupportsAcp,
+  agentSupportsInitialPromptDelivery,
   agentSupportsAutoApprove,
-  type AgentCapabilities,
 } from '@shared/core/agents/agent-payload';
 import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -52,6 +53,8 @@ export type InitialConversationState = {
   /** Whether to start this conversation as an ACP chat UI conversation. */
   useChatUi: boolean;
   setUseChatUi: (v: boolean) => void;
+  /** Whether the currently selected provider/mode can receive an automated initial prompt. */
+  initialPromptSupported: boolean;
   issueMentionContexts: Record<string, string>;
   setIssueMentionContext: (token: string, context: string | null) => void;
 };
@@ -107,6 +110,7 @@ export function useInitialConversationState(
   const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
   const acpSupported = agentSupportsAcp(capabilities);
   const useChatUi = acpSupported && useChatUiPreference;
+  const initialPromptSupported = useChatUi || agentSupportsInitialPromptDelivery(capabilities);
 
   return {
     provider: providerId,
@@ -125,6 +129,7 @@ export function useInitialConversationState(
     connectionId,
     useChatUi,
     setUseChatUi: setUseChatUiPreference,
+    initialPromptSupported,
     issueMentionContexts,
     setIssueMentionContext: (token, context) =>
       setIssueMentionContexts((current) => {
@@ -145,12 +150,6 @@ function useModelOptions(
   if (!providerId) return null;
   const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
   return models?.kind === 'selectable' ? models.modelOptions : null;
-}
-
-function useAgentCapabilities(providerId: AgentProviderId | null): AgentCapabilities | null {
-  const { data: agents } = useAgents();
-  if (!providerId) return null;
-  return agents?.find((agent) => agent.id === providerId)?.capabilities ?? null;
 }
 
 const SLASH_PROMPTS_SECTION = 'Prompts';
@@ -183,6 +182,7 @@ interface InitialConversationFieldProps {
   placeholder?: string;
   textareaClassName?: string;
   showAutoApproveToggle?: boolean;
+  requirePromptDelivery?: boolean;
 }
 
 export function InitialConversationField({
@@ -193,6 +193,7 @@ export function InitialConversationField({
   placeholder,
   textareaClassName,
   showAutoApproveToggle = true,
+  requirePromptDelivery = false,
 }: InitialConversationFieldProps) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
@@ -209,9 +210,28 @@ export function InitialConversationField({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [defaultIssueContext, includeIssueContextByDefault]);
 
-  const capabilities = useAgentCapabilities(state.provider);
+  const { data: agents } = useAgents();
+  const selectedAgent = state.provider
+    ? agents?.find((agent) => agent.id === state.provider)
+    : null;
+  const capabilities = selectedAgent?.capabilities ?? null;
   const canToggleAutoApprove = agentSupportsAutoApprove(capabilities);
   const canToggleChatUi = agentSupportsAcp(capabilities);
+  const canDeliverInitialPrompt = state.initialPromptSupported;
+  const getDisabledReason = useCallback<AgentDisableReason>(
+    (agent) =>
+      requirePromptDelivery &&
+      !agentSupportsInitialPromptDelivery(agent.capabilities) &&
+      !agentSupportsAcp(agent.capabilities)
+        ? "Doesn't support automation prompts"
+        : null,
+    [requirePromptDelivery]
+  );
+  const initialPromptInfo = !canDeliverInitialPrompt
+    ? canToggleChatUi
+      ? `${selectedAgent?.name ?? 'This agent'} doesn't support initial prompts in terminal mode. Enable Chat UI to send an initial prompt.`
+      : `${selectedAgent?.name ?? 'This agent'} doesn't support initial prompts.`
+    : null;
 
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
@@ -298,6 +318,7 @@ export function InitialConversationField({
 
   const handleComposerInputChange = useCallback(
     (text: string) => {
+      if (!canDeliverInitialPrompt) return;
       state.setPrompt(text);
       if (syncingEditorTextRef.current || !linkedIssueMention || !state.issueContext) return;
 
@@ -305,7 +326,7 @@ export function InitialConversationField({
         state.setIssueContext(null);
       }
     },
-    [linkedIssueMention, state]
+    [canDeliverInitialPrompt, linkedIssueMention, state]
   );
 
   return (
@@ -316,13 +337,14 @@ export function InitialConversationField({
           isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
         )}
         onBlur={onPromptBlur}
-        {...dropHandlers}
+        {...(canDeliverInitialPrompt ? dropHandlers : {})}
       >
         <div className="flex w-full">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
             connectionId={state.connectionId}
+            getDisabledReason={getDisabledReason}
             contentClassName="w-64"
           />
         </div>
@@ -348,9 +370,10 @@ export function InitialConversationField({
           }
           onSubmit={() => {}}
           onInputChange={handleComposerInputChange}
+          disabled={!canDeliverInitialPrompt}
           editorApiRef={editorApiRef}
           renderMentionIcon={renderMentionIcon}
-          queryCommands={querySlashItems}
+          queryCommands={canDeliverInitialPrompt ? querySlashItems : undefined}
           modelOptions={modelOptions}
           selectedModel={state.model ?? undefined}
           onModelChange={(modelId) => state.setModel(modelId || null)}
@@ -361,6 +384,7 @@ export function InitialConversationField({
           onPermissionModeChange={(modeId) => state.setAutoApprove(modeId === 'bypass')}
           className={textareaClassName}
         />
+        {initialPromptInfo ? <FieldDescription>{initialPromptInfo}</FieldDescription> : null}
       </div>
     </Field>
   );

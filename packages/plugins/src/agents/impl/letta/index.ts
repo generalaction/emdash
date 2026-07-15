@@ -26,7 +26,7 @@ export const plugin = definePlugin(
       skipVersionProbe: true,
     }),
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'resumable',

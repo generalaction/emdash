@@ -6,12 +6,14 @@ interface ConversationFieldProps {
   textareaClassName?: string;
   onPromptBlur?: () => void;
   showAutoApproveToggle?: boolean;
+  requirePromptDelivery?: boolean;
 }
 
 export function ConversationField({
   placeholder,
   textareaClassName,
   onPromptBlur,
+  requirePromptDelivery,
   showAutoApproveToggle,
 }: ConversationFieldProps) {
   const { initialConversation, linkedIssue, includeIssueContextByDefault } = useTaskState();
@@ -24,6 +26,7 @@ export function ConversationField({
       placeholder={placeholder}
       textareaClassName={textareaClassName}
       onPromptBlur={onPromptBlur}
+      requirePromptDelivery={requirePromptDelivery}
       showAutoApproveToggle={showAutoApproveToggle}
     />
   );

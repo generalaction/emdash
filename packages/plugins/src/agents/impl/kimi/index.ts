@@ -79,7 +79,7 @@ export const plugin = definePlugin(
       },
     },
     prompt: {
-      kind: 'keystroke',
+      kind: 'pty-only',
     },
     sessions: {
       kind: 'resumable',

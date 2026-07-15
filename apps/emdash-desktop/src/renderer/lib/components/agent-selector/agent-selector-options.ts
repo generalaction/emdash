@@ -2,11 +2,17 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { agentSupportsAcp, type AgentPayload } from '@shared/core/agents/agent-payload';
 import { getAgentInstallActionState } from './agent-install';
 
+export type AgentDisableReason = (
+  agent: Pick<AgentPayload, 'id' | 'name' | 'capabilities'>
+) => string | null | undefined;
+
 export interface AgentOption {
   value: string;
   label: string;
   agentId: AgentProviderId;
   disabled: boolean;
+  disabledReason?: string;
+  canInstall: boolean;
   supportsAcp: boolean;
 }
 
@@ -20,10 +26,12 @@ export function buildAgentGroups(
   agents: readonly Pick<AgentPayload, 'id' | 'name' | 'capabilities'>[],
   installedAgents: string[],
   assumedInstalledAgents: string[] = [],
-  installingAgents: ReadonlySet<AgentProviderId> = new Set()
+  installingAgents: ReadonlySet<AgentProviderId> = new Set(),
+  getDisabledReason?: AgentDisableReason
 ): AgentGroup[] {
   const allAgentIds = agents.map((agent) => agent.id as AgentProviderId);
   const agentNames = new Map(agents.map((agent) => [agent.id, agent.name]));
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]));
   const agentAcpSupport = new Map(
     agents.map((agent) => [agent.id, agentSupportsAcp(agent.capabilities)])
   );
@@ -35,16 +43,25 @@ export function buildAgentGroups(
 
   const resolveName = (id: AgentProviderId) => agentNames.get(id) ?? id;
   const supportsAcp = (id: AgentProviderId) => agentAcpSupport.get(id) ?? false;
+  const disabledReason = (id: AgentProviderId) => {
+    const agent = agentById.get(id);
+    return agent ? (getDisabledReason?.(agent) ?? undefined) : undefined;
+  };
 
   const installedOptions: AgentOption[] = allAgentIds
     .filter((id) => installedSet.has(id) && !installingAgents.has(id))
-    .map((id) => ({
-      value: id,
-      label: resolveName(id),
-      agentId: id,
-      disabled: false,
-      supportsAcp: supportsAcp(id),
-    }));
+    .map((id) => {
+      const reason = disabledReason(id);
+      return {
+        value: id,
+        label: resolveName(id),
+        agentId: id,
+        disabled: Boolean(reason),
+        disabledReason: reason,
+        canInstall: false,
+        supportsAcp: supportsAcp(id),
+      };
+    });
 
   const notInstalledOptions: AgentOption[] = allAgentIds
     .filter((id) => !installedSet.has(id) || installingAgents.has(id))
@@ -53,6 +70,7 @@ export function buildAgentGroups(
       label: resolveName(id),
       agentId: id,
       disabled: true,
+      canInstall: true,
       supportsAcp: supportsAcp(id),
     }));
 
@@ -63,7 +81,7 @@ export function buildAgentGroups(
 }
 
 export function canInstallAgentOption(item: AgentOption, allowInstall: boolean): boolean {
-  return allowInstall && item.disabled;
+  return allowInstall && item.canInstall;
 }
 
 export function getAssumedInstalledAgents(
@@ -84,8 +102,8 @@ export function getInstallButtonState(
 ): { render: boolean; disabled: boolean; installing: boolean; label: string } {
   return getAgentInstallActionState({
     agentName: item.label,
-    canInstall: allowInstall,
-    isInstalled: !item.disabled,
+    canInstall: allowInstall && item.canInstall,
+    isInstalled: !item.canInstall,
     isInstalling: installingAgents.has(item.agentId),
   });
 }

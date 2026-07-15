@@ -41,7 +41,6 @@ import {
   type PtySession,
   type PtySpawnSpec,
 } from '@services/pty/api';
-import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { TuiAgentNotifications } from './notifications';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 
@@ -200,10 +199,7 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
-  deactivateSession(
-    conversationId: string,
-    cause: string
-  ): Result<void, TuiSessionControlError> {
+  deactivateSession(conversationId: string, cause: string): Result<void, TuiSessionControlError> {
     const config = this.configs.get(conversationId);
     if (!config || config.intent === 'stopped') return ok(undefined);
     if (cause === 'idle' && this.isSessionBusy(conversationId)) return ok(undefined);
@@ -424,17 +420,6 @@ export class TuiAgentsRuntime {
         output: session.output,
         onData: () => {
           this.recordOutputActivity(config.input.conversationId);
-        },
-        onProcess: (proc) => {
-          scheduleInitialPromptInjection({
-            pty: proc,
-            providerId: config.input.providerId,
-            provider,
-            conversationId: config.input.conversationId,
-            initialPrompt: config.input.initialPrompt,
-            isResuming,
-            logger: this.deps.logger,
-          });
         },
         onExit: (info) => {
           if (session.pty === pty) session.pty = null;

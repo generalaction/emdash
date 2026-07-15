@@ -191,6 +191,13 @@ export function agentSupportsAcp(capabilities: AgentCapabilities | undefined | n
   return capabilities?.acp.kind === 'supported';
 }
 
+export function agentSupportsInitialPromptDelivery(
+  capabilities: AgentCapabilities | undefined | null
+): boolean {
+  const kind = capabilities?.prompt.kind;
+  return kind === undefined || kind === 'argv' || kind === 'stdin-pipe';
+}
+
 export function agentSupportsAutoApprove(
   capabilities: AgentCapabilities | undefined | null
 ): boolean {

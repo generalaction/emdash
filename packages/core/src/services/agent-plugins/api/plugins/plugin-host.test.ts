@@ -78,7 +78,7 @@ describe('AgentPluginHost', () => {
     const parseHookEvent = (): CanonicalHookEvent => ({ kind: 'ignore' });
     const host = createHost([
       plugin({
-        prompt: { kind: 'keystroke', submitSequence: '\r' },
+        prompt: { kind: 'pty-only' },
         hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
         behavior: {
           prompt: { buildCommand },
@@ -95,7 +95,7 @@ describe('AgentPluginHost', () => {
 
     expect(host.resolveTuiProvider('test')).toEqual({
       name: 'Test Agent',
-      prompt: { kind: 'keystroke', submitSequence: '\r' },
+      prompt: { kind: 'pty-only' },
       hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] },
       buildCommand,
       parseHookEvent,

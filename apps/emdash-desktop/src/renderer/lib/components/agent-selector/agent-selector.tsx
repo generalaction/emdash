@@ -21,6 +21,7 @@ import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from '
 import {
   canInstallAgentOption,
   isComboboxOptionDisabled,
+  type AgentDisableReason,
   type AgentGroup,
   type AgentOption,
 } from './agent-selector-options';
@@ -33,6 +34,7 @@ interface AgentSelectorProps {
   className?: string;
   contentClassName?: string;
   connectionId?: string;
+  getDisabledReason?: AgentDisableReason;
   installable?: boolean;
   autoFocus?: boolean;
 }
@@ -45,6 +47,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     className = '',
     contentClassName,
     connectionId,
+    getDisabledReason,
     installable = true,
     autoFocus = false,
   }) => {
@@ -53,6 +56,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     const hoverCard = useAgentHoverCard();
     const { groups } = useAgentAvailability({
       connectionId,
+      getDisabledReason,
       value,
     });
     const allOptions = useMemo(() => groups.flatMap((group) => group.items), [groups]);
@@ -140,13 +144,17 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                           size={16}
                           className={cn('rounded-sm', showInstall && 'opacity-50')}
                         />
-                        <span
-                          className={cn(
-                            'min-w-0 flex-1 truncate',
-                            showInstall && 'text-foreground-muted'
-                          )}
-                        >
-                          {item.label}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn('block truncate', showInstall && 'text-foreground-muted')}
+                          >
+                            {item.label}
+                          </span>
+                          {item.disabledReason ? (
+                            <span className="block truncate text-xs text-foreground-muted">
+                              {item.disabledReason}
+                            </span>
+                          ) : null}
                         </span>
                         {item.supportsAcp && <AgentUiBadge />}
                       </ComboboxItem>

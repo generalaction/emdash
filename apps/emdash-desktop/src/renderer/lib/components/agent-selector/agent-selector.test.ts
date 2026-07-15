@@ -132,6 +132,25 @@ describe('buildAgentGroups', () => {
     });
   });
 
+  it('disables installed agents with custom reasons without showing install actions', () => {
+    const item = buildAgentGroups(agents, ['codex'], [], new Set(), (agent) =>
+      agent.id === 'codex' ? 'Not available here' : null
+    )
+      .find((group) => group.value === 'installed')
+      ?.items.find((option) => option.agentId === 'codex');
+
+    expect(item).toEqual(
+      expect.objectContaining({
+        agentId: 'codex',
+        disabled: true,
+        disabledReason: 'Not available here',
+      })
+    );
+    expect(canInstallAgentOption(item!, true)).toBe(false);
+    expect(isComboboxOptionDisabled(item!)).toBe(true);
+    expect(getInstallButtonState(item!, true, new Set()).render).toBe(false);
+  });
+
   it('maps permission install errors to friendly copy', () => {
     expect(
       getAgentInstallErrorMessage({

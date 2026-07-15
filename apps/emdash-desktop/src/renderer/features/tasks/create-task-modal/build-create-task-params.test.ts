@@ -25,6 +25,7 @@ function makeInitialConversationState(
     setModel: () => {},
     useChatUi: false,
     setUseChatUi: () => {},
+    initialPromptSupported: true,
     issueMentionContexts: {},
     setIssueMentionContext: () => {},
     ...overrides,
@@ -64,5 +65,16 @@ describe('buildInitialConversation', () => {
         hiddenContext: 'Pinned issue context\n\nMention issue context',
       },
     ]);
+  });
+
+  it('omits PTY initial prompt when the selected agent cannot receive one', () => {
+    const conversation = buildInitialConversation(
+      makeInitialConversationState(agent('jules'), false, {
+        initialPromptSupported: false,
+      })
+    );
+
+    expect(conversation?.type).toBe('pty');
+    expect(conversation?.initialPrompt).toBeUndefined();
   });
 });

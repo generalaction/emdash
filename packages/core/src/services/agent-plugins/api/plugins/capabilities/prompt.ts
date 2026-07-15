@@ -39,9 +39,7 @@ export const promptCapability = definePluginCapability<Prompt>()(
       flag: z.string().optional(),
     }),
     z.object({
-      kind: z.literal('keystroke'),
-      submitSequence: z.string().optional(),
-      submitDelayMs: z.number().optional(),
+      kind: z.literal('pty-only'),
     }),
     z.object({
       kind: z.literal('stdin-pipe'),
@@ -49,5 +47,9 @@ export const promptCapability = definePluginCapability<Prompt>()(
     z.object({
       kind: z.literal('none'),
     }),
-  ])
+  ]),
+  undefined,
+  {
+    requiresBehavior: (descriptor) => descriptor.kind !== 'none',
+  }
 );
