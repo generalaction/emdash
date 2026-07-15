@@ -146,6 +146,12 @@ export interface ComposerEffortOption {
   description?: string;
 }
 
+/** Minimal fast-mode descriptor the composer needs to render the model popover control. */
+export interface ComposerFastModeOption {
+  name: string;
+  description?: string;
+}
+
 // ── Permission mode option types ──────────────────────────────────────────────
 
 /** Minimal mode descriptor the composer needs to render the permission-mode selector. */
@@ -200,6 +206,10 @@ export interface ChatComposerProps {
   effortOptions?: Record<string, ComposerEffortOption> | null;
   selectedEffort?: string;
   onEffortChange?: (effortId: string) => void;
+
+  fastModeOptions?: Record<string, ComposerFastModeOption> | null;
+  selectedFastMode?: string;
+  onFastModeChange?: (fastModeId: string) => void;
 
   permissionModeOptions?: Record<string, ComposerPermissionModeOption> | null;
   selectedPermissionMode?: string;
@@ -544,6 +554,9 @@ export function ChatComposer({
   effortOptions,
   selectedEffort,
   onEffortChange,
+  fastModeOptions,
+  selectedFastMode,
+  onFastModeChange,
   permissionModeOptions,
   selectedPermissionMode,
   onPermissionModeChange,
@@ -710,6 +723,22 @@ export function ChatComposer({
 
   const selectedEffortItem = selectedEffort
     ? (effortItems.find((e) => e.id === selectedEffort) ?? null)
+    : null;
+
+  // ── Fast-mode items ──────────────────────────────────────────────────────────
+
+  interface FastModeItem {
+    id: string;
+    name: string;
+    description?: string;
+  }
+
+  const fastModeItems: FastModeItem[] = fastModeOptions
+    ? Object.entries(fastModeOptions).map(([id, opt]) => ({ id, ...opt }))
+    : [];
+
+  const selectedFastModeItem = selectedFastMode
+    ? (fastModeItems.find((option) => option.id === selectedFastMode) ?? null)
     : null;
 
   // ── Permission mode items ────────────────────────────────────────────────────
@@ -909,31 +938,60 @@ export function ChatComposer({
                 detailSide="right"
                 detailAlign="start"
                 renderFooter={
-                  effortItems.length > 0
+                  effortItems.length > 0 || fastModeItems.length > 0
                     ? () => (
-                        <DropdownMenu.Root>
-                          <DropdownMenu.Trigger className={styles.effortRow}>
-                            <span className={styles.effortRowLabel}>Effort</span>
-                            <span className={styles.effortRowValue}>
-                              {selectedEffortItem?.name ?? 'Default'}
-                              <ChevronRight
-                                style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
-                              />
-                            </span>
-                          </DropdownMenu.Trigger>
-                          <DropdownMenu.Content side="right" align="start" sideOffset={4}>
-                            <DropdownMenu.RadioGroup
-                              value={selectedEffort}
-                              onValueChange={(v) => onEffortChange?.(String(v))}
-                            >
-                              {effortItems.map((e) => (
-                                <DropdownMenu.RadioItem key={e.id} value={e.id}>
-                                  {e.name}
-                                </DropdownMenu.RadioItem>
-                              ))}
-                            </DropdownMenu.RadioGroup>
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Root>
+                        <>
+                          {effortItems.length > 0 && (
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger className={styles.effortRow}>
+                                <span className={styles.effortRowLabel}>Effort</span>
+                                <span className={styles.effortRowValue}>
+                                  {selectedEffortItem?.name ?? 'Default'}
+                                  <ChevronRight
+                                    style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                                  />
+                                </span>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Content side="right" align="start" sideOffset={4}>
+                                <DropdownMenu.RadioGroup
+                                  value={selectedEffort}
+                                  onValueChange={(v) => onEffortChange?.(String(v))}
+                                >
+                                  {effortItems.map((e) => (
+                                    <DropdownMenu.RadioItem key={e.id} value={e.id}>
+                                      {e.name}
+                                    </DropdownMenu.RadioItem>
+                                  ))}
+                                </DropdownMenu.RadioGroup>
+                              </DropdownMenu.Content>
+                            </DropdownMenu.Root>
+                          )}
+                          {fastModeItems.length > 0 && (
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger className={styles.effortRow}>
+                                <span className={styles.effortRowLabel}>Fast mode</span>
+                                <span className={styles.effortRowValue}>
+                                  {selectedFastModeItem?.name ?? 'Default'}
+                                  <ChevronRight
+                                    style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                                  />
+                                </span>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Content side="right" align="start" sideOffset={4}>
+                                <DropdownMenu.RadioGroup
+                                  value={selectedFastMode}
+                                  onValueChange={(v) => onFastModeChange?.(String(v))}
+                                >
+                                  {fastModeItems.map((option) => (
+                                    <DropdownMenu.RadioItem key={option.id} value={option.id}>
+                                      {option.name}
+                                    </DropdownMenu.RadioItem>
+                                  ))}
+                                </DropdownMenu.RadioGroup>
+                              </DropdownMenu.Content>
+                            </DropdownMenu.Root>
+                          )}
+                        </>
                       )
                     : undefined
                 }

@@ -3,14 +3,20 @@
  *
  * The ACP SDK passes config options as a flat array, each tagged with a `category`
  * string and a `type`. This module maps the known categories to first-class typed
- * groups in SessionConfigState. Unknown categories (e.g. Claude's `model_config`
- * fast-mode toggle) are silently ignored — they remain extension points.
+ * groups in SessionConfigState. Unknown categories are silently ignored — they remain
+ * extension points.
  *
  * Stateless and side-effect-free; safe to call on every config_option_update.
  */
 
 import type { SessionConfigOption } from '@agentclientprotocol/sdk';
-import type { EffortOption, ModeOption, ModelChoice, SessionConfigState } from '../models/config';
+import type {
+  EffortOption,
+  FastModeOption,
+  ModeOption,
+  ModelChoice,
+  SessionConfigState,
+} from '../models/config';
 
 /** Shape of a single ACP option entry within a select-type config option. */
 type RawOption = { value: string; name: string; description?: string | null };
@@ -23,6 +29,12 @@ function toEffortOption(raw: RawOption): EffortOption {
 
 function toModeOption(raw: RawOption): ModeOption {
   const opt: ModeOption = { id: raw.value, name: raw.name };
+  if (raw.description) opt.description = raw.description;
+  return opt;
+}
+
+function toFastModeOption(raw: RawOption): FastModeOption {
+  const opt: FastModeOption = { id: raw.value, name: raw.name };
   if (raw.description) opt.description = raw.description;
   return opt;
 }
@@ -41,12 +53,13 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
 }
 
 /**
- * Map a raw `SessionConfigOption[]` to the three typed groups of
- * SessionConfigState: modelOptions, efforts, modeOptions.
+ * Map a raw `SessionConfigOption[]` to the typed groups of SessionConfigState.
  *
  * Category mapping:
  *   'model'         → modelOptions   (model selector)
  *   'thought_level' → efforts        (Claude effort / Codex reasoning effort)
+ *   'fast-mode'     → fastMode       (Codex fast-mode toggle)
+ *   'model_config'  → fastMode       (Claude fast-mode toggle)
  *   'mode'          → modeOptions    (permission mode)
  *
  * `configId` preserves the provider-owned ACP config option id, `selected` is taken from
@@ -56,9 +69,10 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
  */
 export function deriveConfigGroups(
   options: ReadonlyArray<SessionConfigOption>
-): Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'modeOptions'> {
+): Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'fastMode' | 'modeOptions'> {
   let modelOptions: SessionConfigState['modelOptions'] = null;
   let efforts: SessionConfigState['efforts'] = null;
+  let fastMode: SessionConfigState['fastMode'] = null;
   let modeOptions: SessionConfigState['modeOptions'] = null;
 
   for (const opt of options) {
@@ -81,6 +95,14 @@ export function deriveConfigGroups(
           available: rawOptions.map(toEffortOption),
         };
         break;
+      case 'fast-mode':
+      case 'model_config':
+        fastMode = {
+          configId: opt.id,
+          selected: rawSelected,
+          available: rawOptions.map(toFastModeOption),
+        };
+        break;
       case 'mode':
         modeOptions = {
           configId: opt.id,
@@ -88,9 +110,9 @@ export function deriveConfigGroups(
           available: rawOptions.map(toModeOption),
         };
         break;
-      // Unknown categories (e.g. 'model_config') are ignored — extension point.
+      // Unknown categories are ignored — extension point.
     }
   }
 
-  return { modelOptions, efforts, modeOptions };
+  return { modelOptions, efforts, fastMode, modeOptions };
 }

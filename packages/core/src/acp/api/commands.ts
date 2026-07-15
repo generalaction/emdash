@@ -44,7 +44,7 @@ export const changeQueuePromptOrderCommandSchema = z.object({
 export const cancelTurnCommandSchema = z.object({ conversationId: z.string() });
 export const setModelOptionCommandSchema = z.object({
   conversationId: z.string(),
-  dimension: z.enum(['model', 'effort']),
+  dimension: z.enum(['model', 'effort', 'fastMode']),
   value: z.string(),
 });
 export const setModeOptionCommandSchema = z.object({

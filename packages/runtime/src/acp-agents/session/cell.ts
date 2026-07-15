@@ -53,7 +53,7 @@ export interface AcpChatHistory {
   active: TranscriptTurn | null;
 }
 
-type ConfigDimension = 'model' | 'effort';
+type ConfigDimension = 'model' | 'effort' | 'fastMode';
 
 export class SessionCell {
   readonly machine: SessionMachine;
@@ -642,6 +642,7 @@ export class SessionCell {
           ? [this.transcript.config.modelOptions.configId]
           : []),
         ...(this.transcript.config.efforts ? [this.transcript.config.efforts.configId] : []),
+        ...(this.transcript.config.fastMode ? [this.transcript.config.fastMode.configId] : []),
       ],
     };
   }
@@ -652,6 +653,8 @@ export class SessionCell {
         return this.transcript.config.modelOptions?.configId ?? null;
       case 'effort':
         return this.transcript.config.efforts?.configId ?? null;
+      case 'fastMode':
+        return this.transcript.config.fastMode?.configId ?? null;
     }
   }
 
