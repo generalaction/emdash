@@ -1,0 +1,45 @@
+packages/ui/src/react/components/chat-composer/chat-composer.css.ts
+  s_759664ea307dea::t_422e0670edfb27 1,208-222
+  s_238851439dc9c1::t_3a03d4def0b749 223
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.ts
+  s_759664ea307dea::t_0976f83be98cc2 97
+  s_759664ea307dea::t_7d7dd1482c0061 451-454,643
+  s_759664ea307dea::t_422e0670edfb27 57-62,83-84,103,105,135,137-141,352-358,360-373,375-381,478,632-636,641-642,644-646
+  s_759664ea307dea::t_e2d386e2fc00a5 227,292,320
+  s_759664ea307dea::t_e1bb3a7509231d 136
+  s_238851439dc9c1::t_968805ff90b6ee 647
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.test.ts
+  s_759664ea307dea::t_e2d386e2fc00a5 113-114,127-137,147-148,173,179,181-185
+  s_759664ea307dea::t_df0dd41eff71a1 39-47,50-53
+  s_759664ea307dea::t_33477f923464c0 1-5,8-38,48-49,54-55,100-112,115-126,138-146,149-172,174-178,180,186-246
+  s_238851439dc9c1::t_4044494e4ddc64 247
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-panel.tsx
+  s_759664ea307dea::t_422e0670edfb27 602
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_759664ea307dea::t_422e0670edfb27 7,199,545,865,868-872,901-903
+  s_759664ea307dea::t_e2d386e2fc00a5 739-740,1048
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "91d59faa013e58fd816d7d8bf460c3ffa6236377",
+  "prompts": {},
+  "sessions": {
+    "s_238851439dc9c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65c7-6059-7773-b10a-1d8ff07d73dc",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_759664ea307dea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-0e0c-7b50-b5a2-7f5794f98d1e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
