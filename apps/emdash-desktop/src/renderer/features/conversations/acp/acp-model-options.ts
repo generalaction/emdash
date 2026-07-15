@@ -14,6 +14,7 @@ export function mergeComposerModelOptions(
       return [
         id,
         {
+          ...option,
           name: metadata.name,
           ...(metadata.description && { description: metadata.description }),
           ...(metadata.modelFeatures && { modelFeatures: metadata.modelFeatures }),

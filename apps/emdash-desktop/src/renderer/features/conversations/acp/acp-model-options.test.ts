@@ -59,6 +59,27 @@ describe('mergeComposerModelOptions', () => {
     });
   });
 
+  it('preserves runtime metadata omitted from the catalog', () => {
+    expect(
+      mergeComposerModelOptions(
+        {
+          preview: {
+            name: 'Provider Preview',
+            description: 'Runtime description with pricing.',
+            modelFeatures: { speed: 4, intelligence: 3 },
+          },
+        },
+        { preview: { name: 'Preview' } }
+      )
+    ).toEqual({
+      preview: {
+        name: 'Preview',
+        description: 'Runtime description with pricing.',
+        modelFeatures: { speed: 4, intelligence: 3 },
+      },
+    });
+  });
+
   it('preserves runtime-only models without guessing from their names', () => {
     const available = { preview: { name: 'Provider Preview' } };
     expect(mergeComposerModelOptions(available, {})).toEqual(available);
