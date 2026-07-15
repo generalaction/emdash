@@ -1,11 +1,12 @@
+import { initNotificationDeliveryListener } from '@services/notifications/browser';
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
-import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
+import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
@@ -26,6 +27,7 @@ async function bootstrap() {
 
   appState.update.start();
   initSoundPlayer();
+  initNotificationDeliveryListener();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can

@@ -2,7 +2,6 @@ import { sessionSummarySchema, type SessionSummary } from '@emdash/core/runtimes
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
-import { isAppFocused } from '@main/core/agent-status/agent-notification-delivery';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { acpWorker, getAcpRuntimeClient } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
@@ -88,7 +87,7 @@ class AcpAgentStatusBridge {
   private applyActions(actions: AcpAgentStatusAction[]): void {
     for (const action of actions) {
       if (action.kind === 'event') {
-        void agentStatusService.applyAgentEvent(action.event, { appFocused: isAppFocused() });
+        void agentStatusService.applyAgentEvent(action.event);
       } else {
         void agentStatusService
           .resetToIdle({

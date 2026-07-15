@@ -1,6 +1,7 @@
 import './app/configure-app-identity';
 import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
+import { initializeNotificationService } from '@services/notifications/node';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
@@ -154,6 +155,7 @@ void app.whenReady().then(async () => {
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  await initializeNotificationService();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();

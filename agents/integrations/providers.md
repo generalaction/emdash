@@ -43,7 +43,7 @@ for an event, the renderer should not show or notify an inferred status for that
 - Agents that cannot receive an automated initial prompt via argv or stdin declare `pty-only`
   prompt delivery. Their TUI opens without an initial prompt, and automation flows exclude them
   unless they also support ACP.
-- `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into SQLite, renderer IPC, sounds, and Electron OS notifications.
+- `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into the conversation SQLite/cache state, while `src/services/notifications/` turns deliverable agent events into the persisted notification feed, batched sound delivery, and Electron OS notifications over the desktop Wire contract.
 - Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 
 ## Adding Or Changing A Provider

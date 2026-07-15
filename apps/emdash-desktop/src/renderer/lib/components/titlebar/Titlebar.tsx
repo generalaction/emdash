@@ -53,7 +53,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
             )}
             {leftSlot}
           </div>
-          <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
+          <div className="flex items-center justify-end gap-1 [-webkit-app-region:no-drag]">
             {rightSlot}
           </div>
         </div>

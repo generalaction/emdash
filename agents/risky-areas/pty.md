@@ -5,7 +5,8 @@
 - `src/main/core/pty/` — `local-pty.ts`, `ssh2-pty.ts`, `pty.ts`, `pty-env.ts`, `pty-session-registry.ts`, `spawn-utils.ts`, `exit-signals.ts`, `controller.ts`
 - `src/main/core/terminals/` — terminal lifecycle, local and SSH terminal providers
 - `packages/core/src/runtimes/tui-agents/` — PTY-backed agent sessions, runtime-owned hook server, hook installation, and agent state LiveModels
-- `src/main/core/agent-status/` — desktop projection of runtime agent states into SQLite, IPC, sounds, and OS notifications
+- `src/main/core/agent-status/` — desktop projection of runtime agent states into the conversation cache
+- `src/services/notifications/` — desktop notification feed, batching, sound sink, and OS notification sink
 
 ## Core Risks
 

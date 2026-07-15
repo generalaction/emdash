@@ -7,14 +7,12 @@ import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { type AgentEvent, type AgentStatus } from '@shared/core/agents/agentEvents';
 import { conversationAgentStatusChangedChannel } from '@shared/core/conversations/conversationEvents';
-import { isAppFocused, maybeShowNotification } from './agent-notification-delivery';
 
 export type AgentStatusServiceHooks = {
-  'agent:event': (event: AgentEvent, appFocused: boolean) => void | Promise<void>;
+  'agent:event': (event: AgentEvent) => void | Promise<void>;
 };
 
 export type ApplyAgentEventOptions = {
-  appFocused?: boolean;
   deliver?: boolean;
   preserveSeen?: boolean;
 };
@@ -31,15 +29,6 @@ function deriveAgentStatus(event: AgentEvent): AgentStatus | null {
   return null;
 }
 
-function determineSoundEvent(
-  event: AgentEvent,
-  status: AgentStatus
-): 'needs_attention' | 'task_complete' | undefined {
-  if (status === 'awaiting-input') return 'needs_attention';
-  if (status === 'completed' && event.type === 'stop') return 'task_complete';
-  return undefined;
-}
-
 class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
   private readonly observedStatuses = new Map<string, AgentStatus>();
   private readonly hooks = new HookCore<AgentStatusServiceHooks>((name, error) =>
@@ -51,11 +40,9 @@ class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
   }
 
   async applyAgentEvent(event: AgentEvent, options: ApplyAgentEventOptions = {}): Promise<void> {
-    const appFocused = options.appFocused ?? isAppFocused();
     const deliver = options.deliver ?? true;
     if (deliver) {
-      this.hooks.callHookBackground('agent:event', event, appFocused);
-      await maybeShowNotification(event, appFocused);
+      this.hooks.callHookBackground('agent:event', event);
     }
 
     const status = deriveAgentStatus(event);
@@ -75,7 +62,6 @@ class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
             .where(eq(conversations.id, event.conversationId))
             .limit(1)
         : [];
-    const previousStatus = previousObservedStatus ?? current?.agentStatus;
     const seen = options.preserveSeen ? (current?.agentStatusSeen ?? derivedSeen) : derivedSeen;
 
     await db
@@ -93,9 +79,6 @@ class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       projectId: event.projectId,
       status,
       seen: seen === 1,
-      appFocused,
-      soundEvent:
-        deliver && previousStatus !== status ? determineSoundEvent(event, status) : undefined,
     });
   }
 
@@ -129,8 +112,6 @@ class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       projectId,
       status: 'idle',
       seen: true,
-      appFocused: isAppFocused(),
-      soundEvent: undefined,
     });
   }
 

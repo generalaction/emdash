@@ -42,12 +42,6 @@ export const browserAppShortcutChannel = defineEvent<{
   shortcutKey: ShortcutSettingsKey;
 }>('browser:app-shortcut');
 
-export const notificationFocusTaskChannel = defineEvent<{
-  projectId: string;
-  taskId: string;
-  conversationId?: string;
-}>('notification:focus-task');
-
 export type PlanEvent = {
   type: 'write_blocked' | 'remove_blocked';
   root: string;

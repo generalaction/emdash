@@ -9,6 +9,7 @@ const workspaceAliases = {
   '@emdash/core/services': resolve('../../packages/core/src/services'),
   '@emdash/core/primitives': resolve('../../packages/core/src/primitives'),
   '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server'),
+  '@services/notifications': resolve('src/services/notifications'),
   '@runtimes': resolve('../../packages/core/src/runtimes'),
   '@services': resolve('../../packages/core/src/services'),
   '@primitives': resolve('../../packages/core/src/primitives'),

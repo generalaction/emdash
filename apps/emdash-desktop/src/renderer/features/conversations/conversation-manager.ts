@@ -13,7 +13,6 @@ import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getTuiAgentsRuntimeClient } from '@renderer/lib/runtime/tui-agents-client';
 import { Resource } from '@renderer/lib/stores/resource';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type AgentStatus, type NotificationType } from '@shared/core/agents/agentEvents';
 import {
   conversationAgentStatusChangedChannel,
@@ -131,10 +130,6 @@ export class ConversationManagerStore implements Disposable {
           conversationStore.lastNotificationType = null;
         }
       });
-
-      if (payload.soundEvent) {
-        soundPlayer.play(payload.soundEvent, payload.appFocused, payload.conversationId);
-      }
     });
   }
 

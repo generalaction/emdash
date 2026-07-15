@@ -1,6 +1,5 @@
-import { when } from 'mobx';
+import { useRegisterNotificationOpenHandlers } from '@services/notifications/browser';
 import { useEffect } from 'react';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
@@ -10,7 +9,6 @@ import {
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
-  notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
 import { browserLinkCopiedChannel } from '@shared/events/browserEvents';
 
@@ -19,6 +17,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const showConfirmQuitModal = useShowModal('confirmActionModal');
   const showFeedbackModal = useShowModal('feedbackModal');
+  useRegisterNotificationOpenHandlers();
 
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {
@@ -61,41 +60,6 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       toast({ title });
     });
   }, []);
-
-  useEffect(() => {
-    const disposers = new Set<() => void>();
-
-    const unlisten = events.on(
-      notificationFocusTaskChannel,
-      ({ projectId, taskId, conversationId }) => {
-        navigate('task', { projectId, taskId });
-        if (!conversationId) return;
-
-        // Task view may not be provisioned yet — wait for it before opening the conversation tab.
-        const dispose = when(
-          () => !!getTaskView(projectId, taskId),
-          () => {
-            getTaskView(projectId, taskId)?.paneLayout.open(
-              'conversation',
-              { conversationId },
-              { preview: false }
-            );
-          },
-          {
-            timeout: 10_000,
-          }
-        );
-
-        disposers.add(dispose);
-      }
-    );
-
-    return () => {
-      unlisten();
-      disposers.forEach((dispose) => dispose());
-      disposers.clear();
-    };
-  }, [navigate]);
 
   return null;
 }

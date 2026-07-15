@@ -1,3 +1,4 @@
+import { disposeNotificationService } from '@services/notifications/node';
 import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
@@ -41,6 +42,7 @@ export async function runQuitCleanup(): Promise<void> {
   // synchronous stops
   automationsService.stop();
   updateService.dispose();
+  disposeNotificationService();
   prSyncScheduler.dispose();
 
   // critical phase

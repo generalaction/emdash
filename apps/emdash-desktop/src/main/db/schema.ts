@@ -1,3 +1,4 @@
+import { notificationPayload } from '@services/notifications/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
@@ -113,6 +114,26 @@ export const appSettings = sqliteTable(
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_app_settings_key').on(table.key),
+  })
+);
+
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    groupKey: text('group_key').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    payload: versionedJsonColumn(notificationPayload)('payload').notNull(),
+    count: integer('count').notNull().default(1),
+    createdAt: integer('created_at').notNull(),
+    readAt: integer('read_at'),
+  },
+  (table) => ({
+    createdAtIdx: index('idx_notifications_created_at').on(table.createdAt),
+    groupKeyIdx: index('idx_notifications_group_key').on(table.groupKey),
+    readAtIdx: index('idx_notifications_read_at').on(table.readAt),
   })
 );
 

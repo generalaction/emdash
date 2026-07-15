@@ -12,6 +12,8 @@ import {
   type Controller,
 } from '@emdash/wire/api';
 import { compose } from '@emdash/wire/util';
+import { notificationService } from '@services/notifications/node';
+import { createNotificationsWireController } from '@services/notifications/node/wire-controller';
 import { ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
@@ -99,6 +101,7 @@ function createLazyDesktopController({
       terminals: forwardController(terminalsContract, terminals),
       terminalTabs: createController(terminalTabsWireContract, terminalTabsController.impl),
       tuiAgents: forwardController(tuiAgentsContract, tuiAgents),
+      notifications: createNotificationsWireController(notificationService),
       workspaces: createController(workspacesWireContract, workspacesController.impl),
       projects: createController(projectsWireContract, projectsController.impl),
     };

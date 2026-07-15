@@ -7,6 +7,7 @@ const alias = {
   '@emdash/core/services': resolve(__dirname, '../../packages/core/src/services'),
   '@emdash/core/primitives': resolve(__dirname, '../../packages/core/src/primitives'),
   '@emdash/core/workspace-server': resolve(__dirname, '../../packages/core/src/workspace-server'),
+  '@services/notifications': resolve(__dirname, 'src/services/notifications'),
   '@runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
   '@services': resolve(__dirname, '../../packages/core/src/services'),
   '@primitives': resolve(__dirname, '../../packages/core/src/primitives'),
@@ -98,6 +99,7 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
           exclude: [
             '**/_*/**',
+            '**/*.db.test.ts',
             'src/renderer/tests/browser/**',
             'src/main/db/tests/migrations/**',
             'src/main/db/legacy-port/**/*.test.ts',
@@ -113,7 +115,11 @@ export default defineConfig({
         test: {
           name: 'main-db',
           environment: 'node',
-          include: ['src/main/core/**/*.db.test.ts', 'src/main/db/legacy-port/**/*.test.ts'],
+          include: [
+            'src/main/core/**/*.db.test.ts',
+            'src/main/db/legacy-port/**/*.test.ts',
+            'src/services/**/*.db.test.ts',
+          ],
         },
       },
       {

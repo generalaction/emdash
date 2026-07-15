@@ -7,7 +7,7 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 ## Domain Modules (`src/main/core/`)
 
 - **account** — Emdash account service, credential store, provider token registry
-- **agent-status** — Desktop projection of runtime agent states into SQLite, IPC, OS notifications, and navigation
+- **agent-status** — Desktop projection of runtime agent states into SQLite/cache state and renderer status events
 - **app** — App lifecycle service and controller
 - **conversations** — Conversation CRUD and session start
 - **dependencies** — CLI agent detection, probing, dependency management
@@ -35,7 +35,8 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - `src/main/lib/` — Logger, telemetry, events, result type, updater error
 - `src/main/db/` — Database schema and initialization
 - `src/main/utils/` — Shell environment, shell escaping, child process env, external links
-- `src/main/core/agent-status/` — Agent status cache projection, runtime bridges, and OS notification delivery
+- `src/main/core/agent-status/` — Agent status cache projection and runtime bridges
+- `src/services/notifications/` — Desktop notification service with persisted feed, Wire LiveModel/event stream, batching, sound, and OS notification sinks
 
 ## IPC / RPC Structure
 

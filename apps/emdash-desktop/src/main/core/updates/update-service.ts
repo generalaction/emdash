@@ -1,4 +1,10 @@
 import type { Disposable } from '@emdash/shared/concurrency';
+import {
+  notificationService,
+  publishUpdateAvailableNotification,
+  publishUpdateDownloadedNotification,
+  publishUpdateErrorNotification,
+} from '@services/notifications/node';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
@@ -110,6 +116,7 @@ class UpdateService implements Disposable {
       this.updateState.availableVersion = info.version;
       this.updateState.updateInfo = info;
       events.emit(updateAvailableEvent, { version: info.version, updateInfo: info });
+      publishUpdateAvailableNotification(notificationService, info.version);
     });
 
     autoUpdater.on('update-not-available', () => {
@@ -138,6 +145,7 @@ class UpdateService implements Disposable {
       }
 
       events.emit(updateErrorEvent, { message: errorMessage });
+      publishUpdateErrorNotification(notificationService, errorMessage);
     });
 
     autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
@@ -160,6 +168,7 @@ class UpdateService implements Disposable {
       this.updateState.status = 'downloaded';
       this.updateState.rollbackVersion = this.updateState.currentVersion;
       events.emit(updateDownloadedEvent, { version: info.version });
+      publishUpdateDownloadedNotification(notificationService, info.version);
     });
   }
 
@@ -234,6 +243,7 @@ class UpdateService implements Disposable {
       this.updateState.updateInfo = info;
 
       events.emit(updateErrorEvent, { message: errorMessage });
+      publishUpdateErrorNotification(notificationService, errorMessage);
       throw error;
     }
   }
@@ -273,6 +283,7 @@ class UpdateService implements Disposable {
       this.updateState.status = 'downloaded';
       if (this.updateState.availableVersion) {
         events.emit(updateDownloadedEvent, { version: this.updateState.availableVersion });
+        publishUpdateDownloadedNotification(notificationService, this.updateState.availableVersion);
       }
       log.error(reason);
     };

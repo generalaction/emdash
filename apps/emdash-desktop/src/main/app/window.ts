@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import {
@@ -103,6 +103,28 @@ export function createMainWindow(): BrowserWindow {
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
+}
+
+export function isAppFocused(): boolean {
+  const windows = BrowserWindow.getAllWindows();
+  return windows.some((window) => !window.isDestroyed() && window.isFocused());
+}
+
+export function focusAppFromNotification(): BrowserWindow | null {
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return null;
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+
+  if (process.platform === 'darwin') {
+    app.focus({ steal: true });
+  } else {
+    app.focus();
+  }
+
+  win.focus();
+  return win;
 }
 
 function registerBrowserWebviewHandlers(win: BrowserWindow): void {

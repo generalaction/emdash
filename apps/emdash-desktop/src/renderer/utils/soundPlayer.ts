@@ -177,10 +177,7 @@ function stopActivePreview(): void {
 }
 
 export const soundPlayer = {
-  play(event: SoundEvent, appFocused?: boolean, dedupeKey?: string): void {
-    if (!settings.enabled) return;
-    if (!settings.sound) return;
-    if (settings.soundFocusMode === 'unfocused' && appFocused) return;
+  play(event: SoundEvent, dedupeKey?: string): void {
     if (dedupeKey) {
       const now = Date.now();
       pruneRecentSounds(now);
