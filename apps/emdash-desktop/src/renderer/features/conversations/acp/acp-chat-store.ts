@@ -490,10 +490,7 @@ export class AcpChatStore {
 
     return {
       conversationId: this.conversationId,
-      projectId: this.projectId,
-      taskId: this.taskId,
       providerId: conversation.providerId,
-      workspaceId: task.workspaceId,
       cwd: workspace.path,
       sessionId: conversation.sessionId ?? null,
       model: conversation.model ?? null,

@@ -9,10 +9,7 @@ import { z } from 'zod';
 
 export const acpStartInputSchema = z.object({
   conversationId: z.string(),
-  projectId: z.string(),
-  taskId: z.string(),
   providerId: z.string(),
-  workspaceId: z.string(),
   cwd: z.string(),
   sessionId: z.string().nullable(),
   model: z.string().nullable(),

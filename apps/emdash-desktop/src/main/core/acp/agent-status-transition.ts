@@ -9,19 +9,19 @@ const normalStopReasons = new Set<StopReason>([
 ]);
 
 export type AcpAgentStatusAction =
-  | { kind: 'event'; event: AgentEvent }
-  | { kind: 'reset'; conversationId: string; projectId: string; taskId: string };
+  | { kind: 'event'; event: Omit<AgentEvent, 'projectId' | 'taskId'> }
+  | { kind: 'reset'; conversationId: string };
 
 function isBusy(summary: SessionSummary | undefined): boolean {
   return summary !== undefined && (summary.isGenerating || summary.queuedPromptCount > 0);
 }
 
-function eventBase(summary: SessionSummary): Omit<AgentEvent, 'type' | 'payload'> {
+function eventBase(
+  summary: SessionSummary
+): Omit<AgentEvent, 'type' | 'payload' | 'projectId' | 'taskId'> {
   return {
     source: 'input',
     providerId: summary.providerId,
-    projectId: summary.projectId,
-    taskId: summary.taskId,
     conversationId: summary.conversationId,
     timestamp: Date.now(),
   };
@@ -37,8 +37,6 @@ export function deriveAcpAgentStatusActions(
       {
         kind: 'reset',
         conversationId: previous.conversationId,
-        projectId: previous.projectId,
-        taskId: previous.taskId,
       },
     ];
   }
@@ -48,8 +46,6 @@ export function deriveAcpAgentStatusActions(
       {
         kind: 'reset',
         conversationId: next.conversationId,
-        projectId: next.projectId,
-        taskId: next.taskId,
       },
     ];
   }
@@ -84,8 +80,6 @@ export function deriveAcpAgentStatusActions(
       actions.push({
         kind: 'reset',
         conversationId: next.conversationId,
-        projectId: next.projectId,
-        taskId: next.taskId,
       });
     } else if (next.lastStopReason !== null && normalStopReasons.has(next.lastStopReason)) {
       actions.push({

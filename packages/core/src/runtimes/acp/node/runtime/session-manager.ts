@@ -164,7 +164,6 @@ export class SessionManager implements InboundRouter {
 
     const connectionKey: AcpConnectionKey = {
       providerId: input.providerId,
-      workspaceId: input.workspaceId,
       cwd: input.cwd,
     };
     const acquire = await acquireResourceAsResult(
@@ -507,7 +506,6 @@ export class SessionManager implements InboundRouter {
       this.deleteSessionSummary(record.input.conversationId);
       void this.connections.invalidate({
         providerId: record.input.providerId,
-        workspaceId: record.input.workspaceId,
         cwd: record.input.cwd,
       });
     }
@@ -529,8 +527,6 @@ export class SessionManager implements InboundRouter {
     };
     const cell = new SessionCell({
       conversationId: input.conversationId,
-      projectId: input.projectId,
-      taskId: input.taskId,
       providerId: input.providerId,
       acpSessionId,
       agent: connection.agent,
@@ -621,8 +617,6 @@ export class SessionManager implements InboundRouter {
   ): void {
     const summary: SessionSummary = {
       conversationId: input.conversationId,
-      projectId: input.projectId,
-      taskId: input.taskId,
       providerId: input.providerId,
       lifecycle: state.lifecycle,
       isGenerating: state.isGenerating,

@@ -18,11 +18,10 @@ function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {
   };
 }
 
-function connectionKey(workspaceId = 'ws-1') {
+function connectionKey(cwd = '/tmp/workspace') {
   return {
     providerId: 'claude',
-    workspaceId,
-    cwd: '/tmp/workspace',
+    cwd,
   };
 }
 
@@ -46,7 +45,7 @@ function sourceDeps(
 }
 
 describe('createAcpConnectionSource', () => {
-  it('dedupes acquisitions by provider/workspace and refcounts release', async () => {
+  it('dedupes acquisitions by provider and cwd and refcounts release', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
@@ -70,13 +69,13 @@ describe('createAcpConnectionSource', () => {
     expect(source.peek(key)).toBeUndefined();
   });
 
-  it('provisions separate workspaces independently', async () => {
+  it('provisions separate working directories independently', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();
     const source = createAcpConnectionSource(sourceDeps(host, vi.fn(), agent));
 
-    await acquireResourceAsResult(source, connectionKey('ws-1'), isAcpConnectionError);
-    await acquireResourceAsResult(source, connectionKey('ws-2'), isAcpConnectionError);
+    await acquireResourceAsResult(source, connectionKey('/tmp/workspace-1'), isAcpConnectionError);
+    await acquireResourceAsResult(source, connectionKey('/tmp/workspace-2'), isAcpConnectionError);
 
     expect(host.allHandles).toHaveLength(2);
   });
@@ -87,7 +86,7 @@ describe('createAcpConnectionSource', () => {
     const onClosed = vi.fn();
     const source = createAcpConnectionSource(sourceDeps(host, onClosed, agent));
     const key = connectionKey();
-    const routeKey = makeAcpConnectionKey('claude', 'ws-1');
+    const routeKey = makeAcpConnectionKey('claude', '/tmp/workspace');
 
     await acquireResourceAsResult(source, key, isAcpConnectionError);
     host.lastHandle.emitExit(7);

@@ -5,8 +5,6 @@ import { deriveAcpAgentStatusActions } from './agent-status-transition';
 function summary(overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
     conversationId: 'conv-1',
-    projectId: 'project-1',
-    taskId: 'task-1',
     providerId: 'claude',
     lifecycle: 'ready',
     isGenerating: false,
@@ -37,8 +35,6 @@ describe('deriveAcpAgentStatusActions', () => {
       event: {
         type: 'start',
         providerId: 'claude',
-        projectId: 'project-1',
-        taskId: 'task-1',
         conversationId: 'conv-1',
       },
     });
@@ -100,8 +96,6 @@ describe('deriveAcpAgentStatusActions', () => {
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
   });
@@ -111,16 +105,12 @@ describe('deriveAcpAgentStatusActions', () => {
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
     expect(deriveAcpAgentStatusActions(summary(), summary({ lifecycle: 'closed' }))).toEqual([
       {
         kind: 'reset',
         conversationId: 'conv-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
       },
     ]);
   });

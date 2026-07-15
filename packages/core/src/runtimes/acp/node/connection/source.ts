@@ -21,7 +21,6 @@ type AcpConnectionProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 export interface AcpConnectionContext {
   key: string;
   providerId: string;
-  workspaceId: string;
   cwd: string;
   normalize: AcpSessionUpdateNormalizer;
 }
@@ -45,7 +44,6 @@ export interface CreateAcpConnectionSourceDeps {
 
 export interface AcpConnectionKey {
   providerId: string;
-  workspaceId: string;
   cwd: string;
 }
 
@@ -69,12 +67,12 @@ export function createAcpConnectionSource(
   return source;
 }
 
-export function makeAcpConnectionKey(providerId: string, workspaceId: string): string {
-  return `${providerId}:${workspaceId}`;
+export function makeAcpConnectionKey(providerId: string, cwd: string): string {
+  return `${providerId}:${cwd}`;
 }
 
 export function acpConnectionCacheKey(key: AcpConnectionKey): string {
-  return `${makeAcpConnectionKey(key.providerId, key.workspaceId)}:${key.cwd}`;
+  return makeAcpConnectionKey(key.providerId, key.cwd);
 }
 
 export function isAcpConnectionError(error: unknown): error is AcpConnectionError {
@@ -95,7 +93,7 @@ async function provisionAcpConnection(
     ).error;
   }
 
-  const routeKey = makeAcpConnectionKey(key.providerId, key.workspaceId);
+  const routeKey = makeAcpConnectionKey(key.providerId, key.cwd);
   const spawn = await deps.agentHost.buildAcpSpawn(key.providerId, { cwd: key.cwd });
   if (!spawn.success) {
     throw acpErr.spawnFailed(toSerializedError(new Error(agentHostErrorMessage(spawn.error))))
@@ -116,7 +114,6 @@ async function provisionAcpConnection(
         deps.buildClient(agent, {
           key: routeKey,
           providerId: key.providerId,
-          workspaceId: key.workspaceId,
           cwd: key.cwd,
           normalize,
         }),
@@ -128,7 +125,6 @@ async function provisionAcpConnection(
   return {
     key: routeKey,
     providerId: key.providerId,
-    workspaceId: key.workspaceId,
     cwd: key.cwd,
     agent: connection.data.agent,
     normalize: connection.data.normalize,

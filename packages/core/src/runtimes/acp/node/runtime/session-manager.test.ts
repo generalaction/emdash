@@ -30,7 +30,7 @@ describe('AcpRuntime session manager', () => {
     if (!result.success) expect(result.error.type).toBe('auth_required');
   });
 
-  it('shares one process for conversations in the same provider/workspace and releases on last stop', async () => {
+  it('shares one process for conversations with the same provider and cwd', async () => {
     const clock = createManualClock(0);
     const h = makeAcpHarness({ clock, lifecycle: { connectionIdleTtlMs: 500 } });
     const rt = new AcpRuntime(h.deps);
@@ -38,8 +38,8 @@ describe('AcpRuntime session manager', () => {
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
 
-    await rt.startSession(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-1' }));
-    await rt.startSession(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-1' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-a' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-b' }));
 
     expect(h.children).toHaveLength(1);
     rt.stopSession('conv-a');
@@ -71,13 +71,19 @@ describe('AcpRuntime session manager', () => {
     expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
-  it('reconciles active session intents by loading persisted ACP sessions', async () => {
+  it('reconciles legacy session intents and strips desktop identifiers', async () => {
     const intents = createMemorySessionIntentStore();
+    const { sessionId: _, ...legacyInput } = makeStartInput({
+      conversationId: 'conv-reconcile',
+    });
     await intents.saveActive({
       conversationId: 'conv-reconcile',
       sessionId: 'session-old',
       payload: {
-        ...makeStartInput({ conversationId: 'conv-reconcile' }),
+        ...legacyInput,
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
         sessionId: 'session-old',
       },
     });
@@ -86,10 +92,31 @@ describe('AcpRuntime session manager', () => {
 
     await rt.reconcile();
 
-    expect(h.agent.loadSession).toHaveBeenCalled();
+    expect(h.agent.loadSession).toHaveBeenCalledWith({
+      cwd: '/tmp/workspace',
+      sessionId: 'session-old',
+      mcpServers: [],
+    });
     expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
       'conv-reconcile'
     );
+  });
+
+  it('persists the current resume input without desktop identifiers', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const rt = new AcpRuntime(h.deps);
+
+    await rt.startSession(makeStartInput({ conversationId: 'conv-persisted' }));
+
+    await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
+    expect(intents.snapshot()[0]?.payload).toEqual({
+      conversationId: 'conv-persisted',
+      providerId: 'claude',
+      cwd: '/tmp/workspace',
+      sessionId: 'session-1',
+      model: null,
+    });
   });
 
   it('persists idle deactivation as a suspended intent', async () => {
@@ -361,8 +388,8 @@ describe('AcpRuntime session manager', () => {
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
 
-    await rt.startSession(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-1' }));
-    await rt.startSession(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-1' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-a' }));
+    await rt.startSession(makeStartInput({ conversationId: 'conv-b' }));
     expect(h.children).toHaveLength(1);
 
     h.lastChild.emitExit(42);

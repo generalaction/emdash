@@ -21,10 +21,7 @@ describe('createWorkspaceWireController', () => {
       const result = await wireClient.acp.startSession({
         input: {
           conversationId: 'conversation-1',
-          projectId: 'project-1',
-          taskId: 'task-1',
           providerId: 'codex',
-          workspaceId: 'workspace-1',
           cwd: '/tmp/project',
           sessionId: null,
           model: null,
@@ -57,10 +54,7 @@ describe('createWorkspaceWireController', () => {
         wireClient.acp.startSession({
           input: {
             conversationId: 'conversation-1',
-            projectId: 'project-1',
-            taskId: 'task-1',
             providerId: 'codex',
-            workspaceId: 'workspace-1',
             cwd: '/tmp/project',
             sessionId: null,
             model: null,

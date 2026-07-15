@@ -257,10 +257,7 @@ export async function executeTaskCreate(
         const startResult = await acpClient.startSession({
           input: {
             conversationId,
-            projectId,
-            taskId,
             providerId: provider,
-            workspaceId: provision.data.workspaceId,
             cwd: provision.data.path,
             sessionId: null,
             model: automation.conversationConfig?.model || null,

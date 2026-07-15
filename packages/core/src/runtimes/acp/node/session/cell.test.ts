@@ -8,8 +8,6 @@ import { SessionCell } from './cell';
 function makeCell(agent = new FakeAcpAgent()) {
   const cell = new SessionCell({
     conversationId: 'conv-1',
-    projectId: 'proj-1',
-    taskId: 'task-1',
     providerId: 'claude',
     acpSessionId: 'session-1',
     agent,

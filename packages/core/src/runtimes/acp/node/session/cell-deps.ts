@@ -22,8 +22,6 @@ export interface SessionCellCallbacks {
 
 export interface SessionCellDeps {
   conversationId: string;
-  projectId: string;
-  taskId: string;
   providerId: string;
   acpSessionId: string;
   agent: AcpAgentApi;

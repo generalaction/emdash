@@ -355,17 +355,14 @@ describe('executeTaskCreate', () => {
     );
     expect(vi.mocked(createConversation).mock.calls[0]?.[0].initialPrompt).toBeUndefined();
     expect(mockAcpStartSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({
+      input: {
         conversationId: expect.any(String),
-        projectId: 'project-1',
-        taskId: expect.any(String),
         providerId: 'claude',
-        workspaceId: 'workspace-1',
         cwd: '/tmp/task',
         sessionId: null,
         model: 'sonnet',
         initialQueue: [{ text: 'Check things' }],
-      }),
+      },
     });
   });
 

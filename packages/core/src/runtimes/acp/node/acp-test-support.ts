@@ -441,10 +441,7 @@ export function makeStartInput(
 ): AcpStartInput {
   return {
     conversationId: overrides.conversationId ?? 'conv-1',
-    projectId: 'proj-1',
-    taskId: 'task-1',
     providerId: 'claude',
-    workspaceId: 'ws-1',
     cwd: '/tmp/workspace',
     sessionId: null,
     model: null,
