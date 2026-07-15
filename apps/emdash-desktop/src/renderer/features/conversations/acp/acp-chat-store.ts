@@ -54,6 +54,12 @@ type PermissionQueueItem = {
   options: Array<{ optionId: string; name: string; kind: string }>;
 };
 
+type ModelSelection = {
+  requestId: number;
+  model: string;
+  pending: boolean;
+};
+
 export type AcpLoadError =
   | { kind: 'auth_required'; message: string }
   | { kind: 'generic'; message: string };
@@ -74,6 +80,8 @@ export class AcpChatStore {
   private _draftRev = 0;
   private _pendingDraftRev: number | null = null;
   private _draftTimer: number | null = null;
+  private _modelSelection: ModelSelection | null = null;
+  private _modelRequestId = 0;
 
   constructor(
     readonly conversationId: string,
@@ -86,13 +94,15 @@ export class AcpChatStore {
       this.commands.map((command) => command.name)
     );
 
-    makeObservable(this, {
+    makeObservable<this, '_modelSelection'>(this, {
       session: observable.ref,
       historyLoading: observable,
       loadError: observable,
       messageCount: observable,
       draftText: observable,
+      _modelSelection: observable.ref,
       model: computed,
+      isModelChanging: computed,
       modelOptions: computed,
       permissionMode: computed,
       permissionModeOptions: computed,
@@ -122,7 +132,13 @@ export class AcpChatStore {
   }
 
   get model(): string | null {
-    return this.session?.config.current().modelOptions?.selected ?? null;
+    return (
+      this._modelSelection?.model ?? this.session?.config.current().modelOptions?.selected ?? null
+    );
+  }
+
+  get isModelChanging(): boolean {
+    return this._modelSelection?.pending ?? false;
   }
 
   get modelOptions(): Record<string, ComposerModelOption> | null {
@@ -208,7 +224,7 @@ export class AcpChatStore {
       isWorking: state?.isGenerating ?? false,
       isBusy: state?.isGenerating ?? false,
       hasPendingPermission: (state?.pendingPermissions.length ?? 0) > 0,
-      canSubmit: state?.canSubmit ?? false,
+      canSubmit: (state?.canSubmit ?? false) && !this.isModelChanging,
       canCancel: state?.canCancel ?? false,
     };
   }
@@ -273,6 +289,7 @@ export class AcpChatStore {
     attachments: AcpPromptAttachment[] = [],
     hiddenContext?: string
   ): void {
+    if (this.isModelChanging) return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
@@ -300,6 +317,7 @@ export class AcpChatStore {
   }
 
   queuePrompt(text: string, attachments: AcpPromptAttachment[] = [], hiddenContext?: string): void {
+    if (this.isModelChanging) return;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     void this.session
       ?.queuePrompt({
@@ -331,12 +349,36 @@ export class AcpChatStore {
   }
 
   setModel(model: string): void {
-    void this.session
-      ?.setModelOption('model', model)
+    const session = this.session;
+    if (!session || this.isModelChanging || model === this.model) return;
+
+    const requestId = ++this._modelRequestId;
+    this._modelSelection = { requestId, model, pending: true };
+    void session
+      .setModelOption('model', model)
       .then((result) => {
-        if (!result.success) this._toastError('Failed to change model', result.error);
+        if (this._modelSelection?.requestId !== requestId) return;
+        if (!result.success) {
+          runInAction(() => {
+            this._modelSelection = null;
+          });
+          this._toastError('Failed to change model', result.error);
+          return;
+        }
+        runInAction(() => {
+          if (this._modelSelection?.requestId === requestId) {
+            this._modelSelection = { requestId, model, pending: false };
+            this._reconcileModelSelection(session);
+          }
+        });
       })
-      .catch((error: unknown) => this._toastError('Failed to change model', error));
+      .catch((error: unknown) => {
+        if (this._modelSelection?.requestId !== requestId) return;
+        runInAction(() => {
+          this._modelSelection = null;
+        });
+        this._toastError('Failed to change model', error);
+      });
   }
 
   setMode(modeId: string): void {
@@ -406,6 +448,10 @@ export class AcpChatStore {
   }
 
   dispose(): void {
+    this._modelRequestId += 1;
+    runInAction(() => {
+      this._modelSelection = null;
+    });
     unregisterConversationCommands(this.conversationId);
     if (this._draftTimer !== null) {
       window.clearTimeout(this._draftTimer);
@@ -429,6 +475,7 @@ export class AcpChatStore {
       runInAction(() => {
         this.session?.dispose();
         this.session = clientSession;
+        this._modelSelection = null;
         this.chatState.transcript.history.seed(history.data.turns);
         this._subscribeLiveSession(clientSession);
         this._applyDraftSnapshot(clientSession.draft.current());
@@ -582,8 +629,20 @@ export class AcpChatStore {
         runInAction(() => {
           this._applyDraftSnapshot(draft);
         })
+      ),
+      session.config.onChange(() =>
+        runInAction(() => {
+          this._reconcileModelSelection(session);
+        })
       )
     );
+  }
+
+  private _reconcileModelSelection(session: AcpLiveSession): void {
+    const selection = this._modelSelection;
+    if (!selection || selection.pending) return;
+    const confirmedModel = session.config.current().modelOptions?.selected;
+    if (confirmedModel === selection.model) this._modelSelection = null;
   }
 
   private _scheduleDraftWrite(text: string, rev: number): void {

@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronRight,
   CircleAlert,
+  Loader2,
   Paperclip,
   ShieldCheck,
   Square,
@@ -195,6 +196,7 @@ export interface ChatComposerProps {
 
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
+  isModelChanging?: boolean;
   onModelChange?: (modelId: string) => void;
 
   effortOptions?: Record<string, ComposerEffortOption> | null;
@@ -540,6 +542,7 @@ export function ChatComposer({
   agentLocked = false,
   modelOptions,
   selectedModel,
+  isModelChanging = false,
   onModelChange,
   effortOptions,
   selectedEffort,
@@ -733,7 +736,8 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
-  const shouldHandleSubmitAttempt = !disabled && (isWorking ? !!onSubmitWhileWorking : canSubmit);
+  const shouldHandleSubmitAttempt =
+    !disabled && !isModelChanging && (isWorking ? !!onSubmitWhileWorking : canSubmit);
   const resolvedPlaceholder = disabled
     ? 'Session closed'
     : isWorking
@@ -858,10 +862,14 @@ export function ChatComposer({
                 onValueChange={(id) => onModelChange?.(id)}
                 itemToKey={(item) => item.id}
                 itemToLabel={(item) => item.name}
-                disabled={disabled}
+                disabled={disabled || isModelChanging}
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
-                triggerTitle={() => selectedAgentTitle}
+                triggerTitle={(selected) =>
+                  isModelChanging && selected
+                    ? `Changing model to ${selected.name}…`
+                    : selectedAgentTitle
+                }
                 renderTrigger={(selected) => (
                   <span
                     style={{
@@ -890,6 +898,9 @@ export function ChatComposer({
                     >
                       {selected?.name ?? 'Model…'}
                     </span>
+                    {isModelChanging && (
+                      <Loader2 aria-hidden className={styles.modelPendingSpinner} />
+                    )}
                   </span>
                 )}
                 renderItem={(item) => (
@@ -1034,7 +1045,7 @@ export function ChatComposer({
                   icon
                   className={styles.sendButtonRound}
                   onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled || !canSubmit}
+                  disabled={disabled || isModelChanging || !canSubmit}
                   aria-label="Send message"
                 >
                   <ArrowUp />

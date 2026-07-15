@@ -599,6 +599,7 @@ const ComposerForStore = observer(function ComposerForStore({
         editorApiRef={editorApiRef}
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}
+        isModelChanging={store.isModelChanging}
         onModelChange={handleModelChange}
         effortOptions={store.effortOptions}
         selectedEffort={store.effort ?? undefined}
