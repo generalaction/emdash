@@ -180,8 +180,20 @@ export const DEFAULT_CONFIG: ChatConfig = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function quoteFontFamily(fontFamily: string): string {
+  const isQuoted =
+    (fontFamily.startsWith("'") && fontFamily.endsWith("'")) ||
+    (fontFamily.startsWith('"') && fontFamily.endsWith('"'));
+
+  return fontFamily.includes(' ') && !isQuoted
+    ? `'${fontFamily.replaceAll("'", "\\'")}'`
+    : fontFamily;
+}
+
 function familyCss(config: ChatConfig, family: 'sans' | 'mono'): string {
-  return (family === 'mono' ? config.fonts.mono : config.fonts.sans).join(', ');
+  return (family === 'mono' ? config.fonts.mono : config.fonts.sans)
+    .map(quoteFontFamily)
+    .join(', ');
 }
 
 /** Build a CSS font shorthand string (style? weight size family). */
