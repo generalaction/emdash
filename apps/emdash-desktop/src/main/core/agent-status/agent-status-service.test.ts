@@ -95,11 +95,7 @@ describe('AgentStatusService', () => {
   it('serializes each conversation while allowing other conversations to progress', async () => {
     const service = new AgentStatusService();
     mocks.blockUpdates = true;
-    mocks.updateRows.push(
-      row(),
-      row({ projectId: 'project-2', taskId: 'task-2' }),
-      row()
-    );
+    mocks.updateRows.push(row(), row({ projectId: 'project-2', taskId: 'task-2' }), row());
 
     const first = service.applySignal(signal('start'));
     const second = service.applySignal(signal('stop', { timestamp: 2 }));
