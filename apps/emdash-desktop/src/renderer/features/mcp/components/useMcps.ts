@@ -16,7 +16,11 @@ export function useMcps() {
   const queryClient = useQueryClient();
   const { data: installed, isLoading: isLoadingInstalled } = useInstalledMcpServersLiveModel();
   const { data: agents } = useAgents();
-  const { data: agentStatuses, probeAll } = useAgentInstallationStatuses();
+  const {
+    data: agentStatuses,
+    isPending: isLoadingAgentStatuses,
+    probeAll,
+  } = useAgentInstallationStatuses();
 
   // ── Queries ──────────────────────────────────────────────────────────
 
@@ -36,17 +40,16 @@ export function useMcps() {
 
   const providers = useMemo<McpProvidersResponse[]>(() => {
     const statusesById = new Map((agentStatuses ?? []).map((status) => [status.id, status]));
-    return (agents ?? [])
-      .filter((agent) => agent.capabilities.mcp.kind === 'supported')
-      .map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        installed: statusesById.get(agent.id)?.status === 'available',
-        supportsHttp: agentSupportsHttpMcp(agent.capabilities.mcp),
-      }));
+    return (agents ?? []).map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      installed: statusesById.get(agent.id)?.status === 'available',
+      supportsMcp: agent.capabilities.mcp.kind === 'supported',
+      supportsHttp: agentSupportsHttpMcp(agent.capabilities.mcp),
+    }));
   }, [agents, agentStatuses]);
 
-  const isLoading = isLoadingCatalog || isLoadingInstalled;
+  const isLoading = isLoadingCatalog || isLoadingInstalled || isLoadingAgentStatuses;
 
   // ── Mutations ────────────────────────────────────────────────────────
 

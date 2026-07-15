@@ -2,11 +2,11 @@ import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 import { CardGridSection } from '@renderer/lib/components/card-grid';
 import { PageHeader } from '@renderer/lib/components/page-header';
-import { useModalContext, useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { McpCard } from './McpCard';
-import type { McpModalMode } from './McpModal';
+import { McpDrawer, type McpDrawerMode } from './McpDrawer';
 import { useMcps } from './useMcps';
 
 export const McpView: React.FC = () => {
@@ -21,12 +21,12 @@ export const McpView: React.FC = () => {
     refresh,
   } = useMcps();
 
-  const { showModal, closeModal } = useModalContext();
   const showConfirm = useShowModal('confirmActionModal');
   const [search, setSearch] = useState('');
+  const [drawerMode, setDrawerMode] = useState<McpDrawerMode | null>(null);
 
   const handleRemoveRequest = (serverName: string) => {
-    closeModal();
+    setDrawerMode(null);
     showConfirm({
       title: 'Remove MCP server?',
       description: `This will remove "${serverName}" from all agents. This action cannot be undone.`,
@@ -35,16 +35,16 @@ export const McpView: React.FC = () => {
     });
   };
 
-  const openModal = (mode: McpModalMode) => {
-    const source =
-      mode.type === 'add-catalog' ? 'catalog' : mode.type === 'add-custom' ? 'custom' : null;
-    showModal('mcpServerModal', {
-      mode,
-      providers,
-      onSave: (server) => saveServer(server, source),
-      onRemove: handleRemoveRequest,
-    });
+  const openDrawer = (mode: McpDrawerMode) => {
+    setDrawerMode(mode);
   };
+
+  const drawerSource =
+    drawerMode?.type === 'add-catalog'
+      ? 'catalog'
+      : drawerMode?.type === 'add-custom'
+        ? 'custom'
+        : null;
 
   // Filter
   const lowerSearch = search.toLowerCase();
@@ -70,6 +70,16 @@ export const McpView: React.FC = () => {
 
   return (
     <div className="flex flex-col text-foreground">
+      <McpDrawer
+        open={drawerMode !== null}
+        mode={drawerMode}
+        providers={providers}
+        onOpenChange={(open) => {
+          if (!open) setDrawerMode(null);
+        }}
+        onSave={(server) => saveServer(server, drawerSource)}
+        onRemove={handleRemoveRequest}
+      />
       <PageHeader
         sticky
         title="MCP"
@@ -93,7 +103,7 @@ export const McpView: React.FC = () => {
                 className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
               />
             </Button>
-            <Button onClick={() => openModal({ type: 'add-custom' })}>
+            <Button onClick={() => openDrawer({ type: 'add-custom' })}>
               <Plus className="size-4" />
               Custom MCP
             </Button>
@@ -109,7 +119,7 @@ export const McpView: React.FC = () => {
                 key={server.name}
                 server={server}
                 catalogEntry={catalog.find((c) => c.key === server.name)}
-                onEdit={(s) => openModal({ type: 'edit', server: s })}
+                onEdit={(s) => openDrawer({ type: 'edit', server: s })}
               />
             ))}
           </CardGridSection>
@@ -121,7 +131,7 @@ export const McpView: React.FC = () => {
               <McpCard
                 key={entry.key}
                 catalogEntry={entry}
-                onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
+                onAdd={(e) => openDrawer({ type: 'add-catalog', entry: e })}
               />
             ))}
           </CardGridSection>

@@ -6,15 +6,8 @@ import type {
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import {
@@ -24,27 +17,63 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@renderer/lib/ui/sheet';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
-import { ProviderSelect } from './ProviderSelect';
+import { SyncToAgentsSection } from './SyncToAgentsSection';
 
-export type McpModalMode =
+export type McpDrawerMode =
   | { type: 'add-catalog'; entry: McpCatalogEntry }
   | { type: 'add-custom' }
   | { type: 'edit'; server: McpServer };
 
-interface McpModalProps extends BaseModalProps {
-  mode: McpModalMode;
+interface McpDrawerProps {
+  open: boolean;
+  mode: McpDrawerMode | null;
   providers: McpProvidersResponse[];
+  onOpenChange: (open: boolean) => void;
   onSave: (server: McpServer) => Promise<void>;
   onRemove?: (serverName: string) => void;
 }
 
-export const McpModal: React.FC<McpModalProps> = ({
+export const McpDrawer: React.FC<McpDrawerProps> = ({
+  open,
   mode,
   providers,
+  onOpenChange,
   onSave,
   onRemove,
-  onSuccess,
+}) => {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="gap-0 p-0">
+        {mode && (
+          <McpDrawerContent
+            mode={mode}
+            providers={providers}
+            onOpenChange={onOpenChange}
+            onSave={onSave}
+            onRemove={onRemove}
+          />
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+interface McpDrawerContentProps {
+  mode: McpDrawerMode;
+  providers: McpProvidersResponse[];
+  onOpenChange: (open: boolean) => void;
+  onSave: (server: McpServer) => Promise<void>;
+  onRemove?: (serverName: string) => void;
+}
+
+const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
+  mode,
+  providers,
+  onOpenChange,
+  onSave,
+  onRemove,
 }) => {
   const isEdit = mode.type === 'edit';
   const isCatalog = mode.type === 'add-catalog';
@@ -99,7 +128,7 @@ export const McpModal: React.FC<McpModalProps> = ({
         providers: v.selectedProviders,
       };
       await onSave(server);
-      onSuccess(server);
+      onOpenChange(false);
     } catch {
     } finally {
       setSaving(false);
@@ -108,22 +137,21 @@ export const McpModal: React.FC<McpModalProps> = ({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>
+      <SheetHeader label="MCP Server">
+        <SheetTitle>
           {isEdit
             ? 'Edit MCP Server'
             : isCatalog
               ? `Add ${form.state.values.name}`
               : 'Add Custom MCP Server'}
-        </DialogTitle>
-      </DialogHeader>
+        </SheetTitle>
+      </SheetHeader>
 
-      <DialogContentArea>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {isCatalog && mode.entry.description && (
-          <p className="text-muted-foreground text-xs">{mode.entry.description}</p>
+          <p className="text-muted-foreground mb-4 text-xs">{mode.entry.description}</p>
         )}
         <FieldGroup>
-          {/* Name */}
           <form.Field name="name">
             {(field) => (
               <Field>
@@ -138,7 +166,6 @@ export const McpModal: React.FC<McpModalProps> = ({
             )}
           </form.Field>
 
-          {/* Transport */}
           {!isCatalog && (
             <form.Field name="transport">
               {(field) => (
@@ -172,7 +199,6 @@ export const McpModal: React.FC<McpModalProps> = ({
             </form.Field>
           )}
 
-          {/* Transport-specific fields */}
           <form.Subscribe selector={(state) => state.values.transport}>
             {(transport) => (
               <>
@@ -228,7 +254,6 @@ export const McpModal: React.FC<McpModalProps> = ({
             )}
           </form.Subscribe>
 
-          {/* Env vars — both transports */}
           <form.Field name="envEntries">
             {(field) => (
               <KeyValueSection
@@ -243,7 +268,6 @@ export const McpModal: React.FC<McpModalProps> = ({
             )}
           </form.Field>
 
-          {/* Headers — http only */}
           <form.Subscribe selector={(state) => state.values.transport}>
             {(transport) =>
               transport === 'http' && (
@@ -263,12 +287,11 @@ export const McpModal: React.FC<McpModalProps> = ({
             }
           </form.Subscribe>
 
-          {/* Providers */}
           <form.Field name="selectedProviders">
             {(field) => (
               <form.Subscribe selector={(state) => state.values.transport}>
                 {(transport) => (
-                  <ProviderSelect
+                  <SyncToAgentsSection
                     providers={providers}
                     selectedProviders={field.state.value}
                     transport={transport}
@@ -279,17 +302,17 @@ export const McpModal: React.FC<McpModalProps> = ({
                           : [...field.state.value, id]
                       );
                     }}
+                    onSetAll={(ids) => field.handleChange(ids)}
                   />
                 )}
               </form.Subscribe>
             )}
           </form.Field>
         </FieldGroup>
-      </DialogContentArea>
+      </div>
 
-      {/* Actions */}
-      <DialogFooter className="gap-2 sm:gap-2">
-        {isEdit && onRemove && (
+      <SheetFooter className="flex-row items-center justify-between gap-2 sm:flex-row">
+        {isEdit && onRemove ? (
           <Button
             type="button"
             variant="ghost"
@@ -300,6 +323,8 @@ export const McpModal: React.FC<McpModalProps> = ({
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             Remove
           </Button>
+        ) : (
+          <span />
         )}
         <form.Subscribe selector={(state) => state.values}>
           {(values) => {
@@ -320,14 +345,12 @@ export const McpModal: React.FC<McpModalProps> = ({
             );
           }}
         </form.Subscribe>
-      </DialogFooter>
+      </SheetFooter>
     </>
   );
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function getInitialState(mode: McpModalMode) {
+function getInitialState(mode: McpDrawerMode) {
   if (mode.type === 'edit') {
     const s = mode.server;
     return {
@@ -357,7 +380,6 @@ function getInitialState(mode: McpModalMode) {
       providers: [] as string[],
     };
   }
-  // add-custom
   return {
     name: '',
     transport: 'stdio' as const,
