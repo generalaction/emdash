@@ -8,17 +8,13 @@ import {
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
-import { eq } from 'drizzle-orm';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import {
   getTuiAgentsRuntimeClient,
   tuiAgentsWorker,
 } from '@main/core/wire-workers/desktop-workers';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { agentStatusService } from './agent-status-service';
 import {
@@ -26,17 +22,9 @@ import {
   shouldApplyAgentStateTransition,
 } from './tui-agent-status-transition';
 
-type ConversationContext = {
-  conversationId: string;
-  projectId: string;
-  taskId: string;
-  providerId?: string;
-};
-
 class TuiAgentStatusBridge {
   private readonly agentStates = new Map<string, TuiAgentState>();
   private readonly sessions = new Map<string, TuiSessionState>();
-  private readonly contexts = new Map<string, ConversationContext | null>();
   private workerStateUnsubscribe: Unsubscribe | null = null;
   private agentStatesReplica: ReplicaState<TuiAgentStateList> | null = null;
   private sessionsReplica: ReplicaState<TuiSessionList> | null = null;
@@ -164,9 +152,9 @@ class TuiAgentStatusBridge {
       await this.resetConversation(state.conversationId);
       return;
     }
-    const event = await this.eventFromAgentState(state);
+    const event = eventFromTuiAgentState(state);
     if (!event) return;
-    await agentStatusService.cacheAgentEvent(event);
+    await agentStatusService.cacheSignal(event);
   }
 
   private async applyAgentStateTransition(state: TuiAgentState): Promise<void> {
@@ -174,25 +162,13 @@ class TuiAgentStatusBridge {
       await this.resetConversation(state.conversationId);
       return;
     }
-    const event = await this.eventFromAgentState(state);
+    const event = eventFromTuiAgentState(state);
     if (!event) return;
-    await agentStatusService.applyAgentEvent(event);
+    await agentStatusService.applySignal(event);
   }
 
   private async resetConversation(conversationId: string): Promise<void> {
-    const ctx = await this.contextFor(conversationId);
-    if (!ctx) return;
-    await agentStatusService.resetToIdle({
-      conversationId,
-      taskId: ctx.taskId,
-      projectId: ctx.projectId,
-    });
-  }
-
-  private async eventFromAgentState(state: TuiAgentState): Promise<AgentEvent | null> {
-    const ctx = await this.contextFor(state.conversationId);
-    if (!ctx) return null;
-    return eventFromTuiAgentState(state, ctx);
+    await agentStatusService.resetToIdle({ conversationId });
   }
 
   private async persistSessionIdIfChanged(
@@ -200,8 +176,6 @@ class TuiAgentStatusBridge {
     session: TuiSessionState
   ): Promise<void> {
     if (!session.sessionId || previous?.sessionId === session.sessionId) return;
-    const ctx = await this.contextFor(session.conversationId);
-    if (!ctx) return;
     const result = await setSessionId(session.conversationId, session.sessionId);
     if (!result.success) {
       log.warn('TUI agent status bridge failed to persist session id', {
@@ -213,36 +187,10 @@ class TuiAgentStatusBridge {
 
     events.emit(conversationChangedChannel, {
       conversationId: session.conversationId,
-      taskId: ctx.taskId,
-      projectId: ctx.projectId,
+      taskId: result.data.taskId,
+      projectId: result.data.projectId,
       changes: { sessionId: session.sessionId },
     });
-  }
-
-  private async contextFor(conversationId: string): Promise<ConversationContext | null> {
-    if (this.contexts.has(conversationId)) return this.contexts.get(conversationId) ?? null;
-
-    const [row] = await db
-      .select({
-        conversationId: conversations.id,
-        projectId: conversations.projectId,
-        taskId: conversations.taskId,
-        providerId: conversations.provider,
-      })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId))
-      .limit(1);
-
-    const context = row
-      ? {
-          conversationId: row.conversationId,
-          projectId: row.projectId,
-          taskId: row.taskId,
-          providerId: row.providerId ?? undefined,
-        }
-      : null;
-    this.contexts.set(conversationId, context);
-    return context;
   }
 }
 

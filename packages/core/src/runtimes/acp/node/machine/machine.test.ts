@@ -119,6 +119,26 @@ describe('lifecycle control', () => {
     });
     expect(phaseToLifecycle(s2.phase)).toBe('ready');
     expect(s2.lastStopReason).toBe('end_turn');
+    expect(s2.lastTurnErrored).toBe(false);
+  });
+
+  it('retains whether the last turn errored and clears it after a successful turn', () => {
+    const errored = evolve(makeWorking(), {
+      type: 'TurnEnded',
+      outcome: { kind: 'errored' },
+    }).state;
+    const retained = evolve(errored, { type: 'AgentActivity', active: true }).state;
+
+    expect(errored.lastTurnErrored).toBe(true);
+    expect(retained.lastTurnErrored).toBe(true);
+
+    const working = evolve(errored, { type: 'PromptStarted', prompt }).state;
+    const completed = evolve(working, {
+      type: 'TurnEnded',
+      outcome: { kind: 'stopped', stopReason: 'end_turn' },
+    }).state;
+
+    expect(completed.lastTurnErrored).toBe(false);
   });
 
   it('drains one queued prompt when a turn ends', () => {

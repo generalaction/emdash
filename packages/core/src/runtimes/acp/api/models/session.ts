@@ -38,6 +38,8 @@ export const sessionStateSchema = z.object({
   pendingPermissions: z.array(acpPermissionRequestSchema),
   /** Last ACP prompt stop reason observed by the machine; separate from transcript outcomes. */
   lastStopReason: stopReasonSchema.nullable(),
+  /** True when the last turn failed without producing an ACP stop reason. */
+  lastTurnErrored: z.boolean(),
   /** Prompts accepted while busy; attachments are references, never inline bytes. */
   queuedPrompts: z.array(queuedPromptSchema),
   /** True while agent-originated updates are still arriving outside a user prompt turn. */
@@ -59,6 +61,7 @@ export const sessionSummarySchema = z.object({
   lifecycle: sessionLifecycleSchema,
   isGenerating: z.boolean(),
   lastStopReason: stopReasonSchema.nullable(),
+  lastTurnErrored: z.boolean(),
   pendingPermissionCount: z.number().int(),
   backgroundAgentCount: z.number().int(),
   queuedPromptCount: z.number().int(),

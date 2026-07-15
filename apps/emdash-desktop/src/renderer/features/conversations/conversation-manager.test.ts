@@ -144,6 +144,7 @@ function acpSession(conversationId: string, lifecycle: 'ready' | 'closed') {
     lifecycle,
     isGenerating: false,
     lastStopReason: null,
+    lastTurnErrored: false,
     pendingPermissionCount: 0,
     backgroundAgentCount: 0,
     queuedPromptCount: 0,

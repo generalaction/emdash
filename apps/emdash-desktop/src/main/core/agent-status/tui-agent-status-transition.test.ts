@@ -17,18 +17,11 @@ function state(overrides: Partial<TuiAgentState> = {}): TuiAgentState {
 }
 
 describe('TUI agent status transition mapping', () => {
-  it('maps working agent state to a start event with desktop context', () => {
-    expect(
-      eventFromTuiAgentState(state(), {
-        projectId: 'project-1',
-        taskId: 'task-1',
-      })
-    ).toMatchObject({
+  it('maps working agent state to a context-free start signal', () => {
+    expect(eventFromTuiAgentState(state())).toMatchObject({
       type: 'start',
       source: 'hook',
       providerId: 'codex',
-      projectId: 'project-1',
-      taskId: 'task-1',
       conversationId: 'conv-1',
       timestamp: 123,
     });
@@ -41,11 +34,7 @@ describe('TUI agent status transition mapping', () => {
           status: 'awaiting-input',
           notificationType: 'permission_prompt',
           message: 'Approve?',
-        }),
-        {
-          projectId: 'project-1',
-          taskId: 'task-1',
-        }
+        })
       )
     ).toMatchObject({
       type: 'notification',
@@ -57,12 +46,7 @@ describe('TUI agent status transition mapping', () => {
   });
 
   it('does not project idle as an AgentEvent', () => {
-    expect(
-      eventFromTuiAgentState(state({ status: 'idle' }), {
-        projectId: 'project-1',
-        taskId: 'task-1',
-      })
-    ).toBeNull();
+    expect(eventFromTuiAgentState(state({ status: 'idle' }))).toBeNull();
   });
 
   it('suppresses duplicate status and notification-type updates', () => {

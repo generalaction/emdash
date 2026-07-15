@@ -28,4 +28,6 @@ export interface AgentEvent {
   };
 }
 
+export type AgentStatusSignal = Omit<AgentEvent, 'projectId' | 'taskId'>;
+
 export type SoundEvent = 'needs_attention' | 'task_complete';

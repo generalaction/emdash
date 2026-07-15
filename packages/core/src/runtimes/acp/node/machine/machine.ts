@@ -49,6 +49,7 @@ export interface SessionMachineState {
   readonly phase: SessionPhase;
   readonly pendingPermissions: readonly AcpPermissionRequest[];
   readonly lastStopReason: StopReason | null;
+  readonly lastTurnErrored: boolean;
   readonly nextTurnIndex: number;
   readonly queuedPrompts: readonly QueuedPrompt[];
   readonly agentTurnActive: boolean;
@@ -61,6 +62,7 @@ export function initialMachineState(conversationId: string): SessionMachineState
     phase: { kind: 'starting' },
     pendingPermissions: [],
     lastStopReason: null,
+    lastTurnErrored: false,
     nextTurnIndex: 0,
     queuedPrompts: [],
     agentTurnActive: false,
@@ -283,6 +285,7 @@ export function evolve(
           ...s,
           phase: { kind: 'ready' },
           lastStopReason: stopReason,
+          lastTurnErrored: ev.outcome.kind === 'errored',
           queuedPrompts,
           agentTurnActive: false,
         },
@@ -418,6 +421,7 @@ export function projectSessionState(s: SessionMachineState): SessionState {
     activeTurnId: activeTurn?.id ?? null,
     pendingPermissions: structuredClone([...s.pendingPermissions]),
     lastStopReason: s.lastStopReason,
+    lastTurnErrored: s.lastTurnErrored,
     queuedPrompts: structuredClone([...s.queuedPrompts]),
     agentTurnActive: s.agentTurnActive,
     backgroundAgentCount: s.backgroundAgentCount,

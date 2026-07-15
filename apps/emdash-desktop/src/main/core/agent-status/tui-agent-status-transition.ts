@@ -1,11 +1,5 @@
 import type { TuiAgentState } from '@emdash/core/runtimes/tui-agents/api';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
-
-export type TuiAgentStatusContext = {
-  projectId: string;
-  taskId: string;
-  providerId?: string;
-};
+import type { AgentStatusSignal } from '@shared/core/agents/agentEvents';
 
 export function shouldApplyAgentStateTransition(
   previous: TuiAgentState | undefined,
@@ -17,15 +11,10 @@ export function shouldApplyAgentStateTransition(
   return false;
 }
 
-export function eventFromTuiAgentState(
-  state: TuiAgentState,
-  context: TuiAgentStatusContext
-): AgentEvent | null {
+export function eventFromTuiAgentState(state: TuiAgentState): AgentStatusSignal | null {
   const base = {
     source: state.source,
-    providerId: state.providerId ?? context.providerId,
-    projectId: context.projectId,
-    taskId: context.taskId,
+    providerId: state.providerId,
     conversationId: state.conversationId,
     timestamp: state.updatedAt,
     payload: {
@@ -34,7 +23,7 @@ export function eventFromTuiAgentState(
       message: state.message,
       lastAssistantMessage: state.lastAssistantMessage,
     },
-  } satisfies Omit<AgentEvent, 'type'>;
+  } satisfies Omit<AgentStatusSignal, 'type'>;
 
   if (state.status === 'working') return { ...base, type: 'start' };
   if (state.status === 'completed') return { ...base, type: 'stop' };

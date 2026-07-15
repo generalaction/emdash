@@ -1,6 +1,7 @@
 import { disposeNotificationService } from '@services/notifications/node';
 import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
+import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { automationsService } from '@main/core/automations/automations-service';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
@@ -49,6 +50,7 @@ export async function runQuitCleanup(): Promise<void> {
   const criticalSteps: Array<[string, () => Promise<void>]> = [
     ['acpAgentStatusBridge.dispose', async () => acpAgentStatusBridge.dispose()],
     ['tuiAgentStatusBridge.dispose', async () => tuiAgentStatusBridge.dispose()],
+    ['agentStatusService.dispose', async () => agentStatusService.dispose()],
     ['projectManager.release', () => projectManager.release()],
     ['disposeWorkspaceRuntimeHost', () => disposeWorkspaceRuntimeHost()],
     ['disposeDesktopWireWorkers', () => disposeDesktopWireWorkers()],

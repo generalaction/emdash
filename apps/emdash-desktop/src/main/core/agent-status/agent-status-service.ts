@@ -1,23 +1,39 @@
 import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { type AgentEvent, type AgentStatus } from '@shared/core/agents/agentEvents';
+import {
+  type AgentEvent,
+  type AgentStatus,
+  type AgentStatusSignal,
+} from '@shared/core/agents/agentEvents';
 import { conversationAgentStatusChangedChannel } from '@shared/core/conversations/conversationEvents';
 
 export type AgentStatusServiceHooks = {
   'agent:event': (event: AgentEvent) => void | Promise<void>;
 };
 
-export type ApplyAgentEventOptions = {
+export type ApplyAgentStatusSignalOptions = {
   deliver?: boolean;
   preserveSeen?: boolean;
 };
 
-function deriveAgentStatus(event: AgentEvent): AgentStatus | null {
+type ConversationContext = {
+  projectId: string;
+  taskId: string;
+  providerId: string | null;
+};
+
+const conversationContextSelection = {
+  projectId: conversations.projectId,
+  taskId: conversations.taskId,
+  providerId: conversations.provider,
+};
+
+function deriveAgentStatus(event: AgentStatusSignal): AgentStatus | null {
   if (event.type === 'start') return 'working';
   if (event.type === 'stop') return 'completed';
   if (event.type === 'error') return 'error';
@@ -29,8 +45,8 @@ function deriveAgentStatus(event: AgentEvent): AgentStatus | null {
   return null;
 }
 
-class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
-  private readonly observedStatuses = new Map<string, AgentStatus>();
+export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
+  private readonly queues = new Map<string, Promise<void>>();
   private readonly hooks = new HookCore<AgentStatusServiceHooks>((name, error) =>
     log.error(`AgentStatusService: ${String(name)} hook error`, error)
   );
@@ -39,88 +55,114 @@ class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
     return this.hooks.on(name, handler);
   }
 
-  async applyAgentEvent(event: AgentEvent, options: ApplyAgentEventOptions = {}): Promise<void> {
+  applySignal(
+    signal: AgentStatusSignal,
+    options: ApplyAgentStatusSignalOptions = {}
+  ): Promise<void> {
+    return this.enqueue(signal.conversationId, () => this.applySignalQueued(signal, options));
+  }
+
+  cacheSignal(signal: AgentStatusSignal): Promise<void> {
+    return this.applySignal(signal, { deliver: false, preserveSeen: true });
+  }
+
+  resetToIdle(params: { conversationId: string }): Promise<void> {
+    return this.enqueue(params.conversationId, () => this.resetToIdleQueued(params.conversationId));
+  }
+
+  private async applySignalQueued(
+    signal: AgentStatusSignal,
+    options: ApplyAgentStatusSignalOptions
+  ): Promise<void> {
     const deliver = options.deliver ?? true;
-    if (deliver) {
-      this.hooks.callHookBackground('agent:event', event);
+    const status = deriveAgentStatus(signal);
+    let context: ConversationContext;
+
+    if (status) {
+      const derivedSeen = status === 'working' ? 1 : 0;
+      const [row] = await db
+        .update(conversations)
+        .set(
+          options.preserveSeen
+            ? { agentStatus: status }
+            : { agentStatus: status, agentStatusSeen: derivedSeen }
+        )
+        .where(eq(conversations.id, signal.conversationId))
+        .returning({
+          ...conversationContextSelection,
+          agentStatusSeen: conversations.agentStatusSeen,
+        });
+      if (!row) return;
+
+      context = row;
+      events.emit(conversationAgentStatusChangedChannel, {
+        conversationId: signal.conversationId,
+        taskId: row.taskId,
+        projectId: row.projectId,
+        status,
+        seen: (row.agentStatusSeen ?? derivedSeen) === 1,
+      });
+    } else {
+      const [row] = await db
+        .select(conversationContextSelection)
+        .from(conversations)
+        .where(eq(conversations.id, signal.conversationId))
+        .limit(1);
+      if (!row) return;
+      context = row;
     }
 
-    const status = deriveAgentStatus(event);
-    if (!status) return;
-    const derivedSeen = status === 'idle' || status === 'working' ? 1 : 0;
-
-    const previousObservedStatus = this.observedStatuses.get(event.conversationId);
-    this.observedStatuses.set(event.conversationId, status);
-    const [current] =
-      previousObservedStatus === undefined
-        ? await db
-            .select({
-              agentStatus: conversations.agentStatus,
-              agentStatusSeen: conversations.agentStatusSeen,
-            })
-            .from(conversations)
-            .where(eq(conversations.id, event.conversationId))
-            .limit(1)
-        : [];
-    const seen = options.preserveSeen ? (current?.agentStatusSeen ?? derivedSeen) : derivedSeen;
-
-    await db
-      .update(conversations)
-      .set(
-        options.preserveSeen
-          ? { agentStatus: status }
-          : { agentStatus: status, agentStatusSeen: seen }
-      )
-      .where(eq(conversations.id, event.conversationId));
-
-    events.emit(conversationAgentStatusChangedChannel, {
-      conversationId: event.conversationId,
-      taskId: event.taskId,
-      projectId: event.projectId,
-      status,
-      seen: seen === 1,
-    });
+    if (deliver) {
+      this.hooks.callHookBackground('agent:event', {
+        ...signal,
+        providerId: signal.providerId ?? context.providerId ?? undefined,
+        projectId: context.projectId,
+        taskId: context.taskId,
+      });
+    }
   }
 
-  async cacheAgentEvent(event: AgentEvent): Promise<void> {
-    await this.applyAgentEvent(event, { deliver: false, preserveSeen: true });
-  }
-
-  async resetToIdle(params: {
-    conversationId: string;
-    taskId: string;
-    projectId?: string;
-  }): Promise<void> {
+  private async resetToIdleQueued(conversationId: string): Promise<void> {
     const [row] = await db
-      .select({ agentStatus: conversations.agentStatus, projectId: conversations.projectId })
-      .from(conversations)
-      .where(eq(conversations.id, params.conversationId))
-      .limit(1);
-
-    if (!row || (row.agentStatus !== 'working' && row.agentStatus !== 'awaiting-input')) return;
-
-    const projectId = params.projectId ?? row.projectId;
-    await db
       .update(conversations)
       .set({ agentStatus: 'idle', agentStatusSeen: 1 })
-      .where(eq(conversations.id, params.conversationId));
-    this.observedStatuses.set(params.conversationId, 'idle');
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          inArray(conversations.agentStatus, ['working', 'awaiting-input'])
+        )
+      )
+      .returning(conversationContextSelection);
+    if (!row) return;
 
     events.emit(conversationAgentStatusChangedChannel, {
-      conversationId: params.conversationId,
-      taskId: params.taskId,
-      projectId,
+      conversationId,
+      taskId: row.taskId,
+      projectId: row.projectId,
       status: 'idle',
       seen: true,
     });
   }
 
-  forget(conversationId: string): void {
-    this.observedStatuses.delete(conversationId);
+  private enqueue(conversationId: string, work: () => Promise<void>): Promise<void> {
+    const previous = this.queues.get(conversationId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(work);
+    this.queues.set(conversationId, current);
+    void current.then(
+      () => this.removeQueue(conversationId, current),
+      () => this.removeQueue(conversationId, current)
+    );
+    return current;
   }
 
-  dispose(): void {
-    this.observedStatuses.clear();
+  private removeQueue(conversationId: string, queue: Promise<void>): void {
+    if (this.queues.get(conversationId) === queue) this.queues.delete(conversationId);
+  }
+
+  async dispose(): Promise<void> {
+    while (this.queues.size > 0) {
+      await Promise.allSettled(this.queues.values());
+    }
   }
 }
 

@@ -3,9 +3,14 @@ import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { acpWorker, getAcpRuntimeClient } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
-import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
+import {
+  deriveAcpAgentStatusActions,
+  projectAcpStatusSnapshot,
+  type AcpAgentStatusAction,
+} from './agent-status-transition';
 
 type SessionSummaryList = Record<string, SessionSummary>;
 
@@ -14,16 +19,24 @@ const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 class AcpAgentStatusBridge {
   private readonly summaries = new Map<string, SessionSummary>();
   private workerStateUnsubscribe: Unsubscribe | null = null;
+  private conversationCreatedUnsubscribe: Unsubscribe | null = null;
   private replica: ReplicaState<SessionSummaryList> | null = null;
   private attaching = false;
+  private bootstrapped = false;
 
   initialize(): void {
+    this.conversationCreatedUnsubscribe ??= conversationEvents.on(
+      'conversation:created',
+      (conversation) => this.cacheConversationSnapshot(conversation.id)
+    );
     void this.attach().catch((error) => {
       log.warn('ACP agent status bridge failed to attach', { error: String(error) });
     });
   }
 
   dispose(): void {
+    this.conversationCreatedUnsubscribe?.();
+    this.conversationCreatedUnsubscribe = null;
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
     this.detach();
@@ -53,7 +66,8 @@ class AcpAgentStatusBridge {
       );
       await replica.ready;
       this.replica = replica;
-      this.applySummaries(replica.current());
+      this.applySummaries(replica.current(), { bootstrap: true });
+      this.bootstrapped = true;
     } finally {
       this.attaching = false;
     }
@@ -64,16 +78,24 @@ class AcpAgentStatusBridge {
     this.workerStateUnsubscribe = null;
     const replica = this.replica;
     this.replica = null;
+    this.bootstrapped = false;
     if (replica) void replica.dispose();
   }
 
-  private applySummaries(nextSummaries: SessionSummaryList): void {
+  private applySummaries(
+    nextSummaries: SessionSummaryList,
+    options: { bootstrap?: boolean } = {}
+  ): void {
+    const bootstrap = options.bootstrap ?? !this.bootstrapped;
     const seen = new Set<string>();
     for (const summary of Object.values(nextSummaries)) {
       seen.add(summary.conversationId);
-      this.applyActions(
-        deriveAcpAgentStatusActions(this.summaries.get(summary.conversationId), summary)
-      );
+      const actions = bootstrap
+        ? [projectAcpStatusSnapshot(summary)].filter(
+            (action): action is AcpAgentStatusAction => action !== null
+          )
+        : deriveAcpAgentStatusActions(this.summaries.get(summary.conversationId), summary);
+      this.applyActions(actions, { cache: bootstrap });
       this.summaries.set(summary.conversationId, summary);
     }
 
@@ -84,24 +106,15 @@ class AcpAgentStatusBridge {
     }
   }
 
-  private applyActions(actions: AcpAgentStatusAction[]): void {
+  private applyActions(actions: AcpAgentStatusAction[], options: { cache?: boolean } = {}): void {
     for (const action of actions) {
-      if (action.kind === 'event') {
-        void agentStatusService.applyAgentEvent(action.event);
-      } else {
-        void agentStatusService
-          .resetToIdle({
-            conversationId: action.conversationId,
-            taskId: action.taskId,
-            projectId: action.projectId,
-          })
-          .catch((error) => {
-            log.warn('ACP agent status bridge failed to reset conversation status', {
-              conversationId: action.conversationId,
-              error: String(error),
-            });
-          });
-      }
+      const pending =
+        action.kind === 'event'
+          ? options.cache
+            ? agentStatusService.cacheSignal(action.event)
+            : agentStatusService.applySignal(action.event)
+          : agentStatusService.resetToIdle({ conversationId: action.conversationId });
+      void pending.catch((error) => this.logApplyError(action, error));
     }
   }
 
@@ -110,13 +123,25 @@ class AcpAgentStatusBridge {
     this.summaries.clear();
     await Promise.all(
       summaries.map((summary) =>
-        agentStatusService.resetToIdle({
-          conversationId: summary.conversationId,
-          projectId: summary.projectId,
-          taskId: summary.taskId,
-        })
+        agentStatusService.resetToIdle({ conversationId: summary.conversationId })
       )
     );
+  }
+
+  private cacheConversationSnapshot(conversationId: string): void {
+    const summary = this.summaries.get(conversationId);
+    if (!summary) return;
+    const action = projectAcpStatusSnapshot(summary);
+    if (action) this.applyActions([action], { cache: true });
+  }
+
+  private logApplyError(action: AcpAgentStatusAction, error: unknown): void {
+    const conversationId =
+      action.kind === 'event' ? action.event.conversationId : action.conversationId;
+    log.warn('ACP agent status bridge failed to apply conversation status', {
+      conversationId,
+      error: String(error),
+    });
   }
 }
 

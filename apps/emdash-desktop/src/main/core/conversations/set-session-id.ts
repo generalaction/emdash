@@ -11,26 +11,26 @@ type SessionIdDb = Pick<typeof db, 'select' | 'update'>;
  *
  * Performs a single guarded UPDATE rather than a read-then-write: the affected-row
  * count tells us whether the conversation existed, so no existence pre-check is needed.
- * Returns an error when the id is empty or the conversation does not exist.
+ * Returns the conversation routing context for callers that need to emit an update.
  */
 export async function setSessionId(
   conversationId: string,
   sessionId: string
-): Promise<Result<void, SetSessionIdError>> {
+): Promise<Result<{ projectId: string; taskId: string }, SetSessionIdError>> {
   const trimmed = sessionId.trim();
   if (!trimmed) return err({ type: 'empty-session-id' });
 
-  const rows = await db
+  const [context] = await db
     .update(conversations)
     .set({ sessionId: trimmed, updatedAt: new Date().toISOString() })
     .where(eq(conversations.id, conversationId))
-    .returning({ id: conversations.id });
+    .returning({ projectId: conversations.projectId, taskId: conversations.taskId });
 
-  if (rows.length === 0) {
+  if (!context) {
     return err({ type: 'conversation-not-found', message: conversationId });
   }
 
-  return ok();
+  return ok(context);
 }
 
 export async function setSessionIdIfUnset(
