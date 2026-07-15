@@ -1,0 +1,35 @@
+packages/plugins/src/agents/impl/grok/index.ts
+  s_64b7d9ece6c7cc::t_3bc3240d99e62a 101
+  s_64b7d9ece6c7cc::t_19da07fe6ba39f 98
+  s_64b7d9ece6c7cc::t_e3a21bc0b77a45 3,92-97,99-100,102,104-106,119-125
+  s_64b7d9ece6c7cc::t_0377d5fdd1a5e5 103
+packages/plugins/src/agents/impl/index.test.ts
+  s_64b7d9ece6c7cc::t_e3a21bc0b77a45 178-180,189-190
+  s_64b7d9ece6c7cc::t_19da07fe6ba39f 183
+  s_64b7d9ece6c7cc::t_0377d5fdd1a5e5 181-182,184-188
+packages/plugins/src/agents/impl/grok/acp.ts
+  s_64b7d9ece6c7cc::t_e3a21bc0b77a45 1-4,9,12,14-25,28-29,33-38,41-42,63-65,73-74,78-79,94-95,98-100,112-113,118,120-165
+  s_64b7d9ece6c7cc::t_3ea2ec1fdea36d 13
+  s_64b7d9ece6c7cc::t_418d5c7a8e29a4 5-8,10-11,26-27,30-32,39-40,43-55,66-72,75-77,81-85,87-89,91-93,96-97,101-111,114-117,119
+  s_64b7d9ece6c7cc::t_5f4ed4da0b2fb1 80,86,90
+  s_64b7d9ece6c7cc::t_204c951e0d227c 56-62
+packages/plugins/src/agents/impl/grok/acp.test.ts
+  s_64b7d9ece6c7cc::t_e3a21bc0b77a45 1-43,45-92
+  s_64b7d9ece6c7cc::t_0e09f9e8bab20b 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d79b8c6a854da2a900c3511d416ab200839dac71",
+  "prompts": {},
+  "sessions": {
+    "s_64b7d9ece6c7cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6596-2d14-7323-8bf7-108b12092338",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
