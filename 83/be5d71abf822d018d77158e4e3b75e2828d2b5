@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-model-options.ts
+  s_8f6a10e484727f::t_5760c3ed815ac1 17
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-model-options.test.ts
+  s_8f6a10e484727f::t_5760c3ed815ac1 62-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "83be5d71abf822d018d77158e4e3b75e2828d2b5",
+  "prompts": {},
+  "sessions": {
+    "s_8f6a10e484727f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65d4-d22d-73b1-a75c-e8c181d0abb1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
