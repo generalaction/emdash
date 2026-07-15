@@ -1,10 +1,10 @@
+import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
 import { type AgentEvent, type AgentStatus } from '@shared/core/agents/agentEvents';
 import { conversationAgentStatusChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { isAppFocused, maybeShowNotification } from './agent-notification-delivery';
