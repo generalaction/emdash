@@ -1,0 +1,21 @@
+packages/core/src/acp/reducer/config-derive.ts
+  s_1296403ed5d2b9::t_89eb00e73200a9 67,72-75,84,91,99,106,116
+packages/core/src/acp/reducer/acp-transcript-parser.test.ts
+  s_1296403ed5d2b9::t_89eb00e73200a9 988-1047
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cd3ff8c7466b35141c41ed58b720b3b6a90139ef",
+  "prompts": {},
+  "sessions": {
+    "s_1296403ed5d2b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f646d-6476-79d1-bef9-0582a25bc543",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
