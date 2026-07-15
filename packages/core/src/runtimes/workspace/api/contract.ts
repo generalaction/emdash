@@ -1,11 +1,15 @@
 import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import {
   activateWorkspaceInputSchema,
+  cleanWorkspaceArtifactsInputSchema,
+  cleanWorkspaceArtifactsResultSchema,
   convertWorkspaceInputSchema,
   deactivateWorkspaceInputSchema,
+  measureWorkspaceUsageInputSchema,
   provisionWorkspaceInputSchema,
   reconcileWorkspaceInputSchema,
   teardownWorkspaceInputSchema,
+  workspaceUsageSchema,
   workspaceErrorSchema,
   workspaceKeySchema,
   workspaceOperationProgressSchema,
@@ -23,6 +27,11 @@ export const workspaceContract = defineContract({
   reconcile: fallible({
     input: reconcileWorkspaceInputSchema,
     data: workspaceOperationResultSchema,
+    error: workspaceErrorSchema,
+  }),
+  measureUsage: fallible({
+    input: measureWorkspaceUsageInputSchema,
+    data: workspaceUsageSchema,
     error: workspaceErrorSchema,
   }),
   provision: liveJob({
@@ -53,6 +62,12 @@ export const workspaceContract = defineContract({
     input: teardownWorkspaceInputSchema,
     progress: workspaceOperationProgressSchema,
     result: workspaceOperationResultSchema,
+    error: workspaceErrorSchema,
+  }),
+  cleanArtifacts: liveJob({
+    input: cleanWorkspaceArtifactsInputSchema,
+    progress: workspaceOperationProgressSchema,
+    result: cleanWorkspaceArtifactsResultSchema,
     error: workspaceErrorSchema,
   }),
 });

@@ -809,6 +809,7 @@ function runtimeOperationToProvisionStep(
     case 'reconcile':
     case 'deactivate':
     case 'teardown':
+    case 'clean-artifacts':
       return 'setting-up-workspace';
     case 'activate':
       return 'initialising-workspace';

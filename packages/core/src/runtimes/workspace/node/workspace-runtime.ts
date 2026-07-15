@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
@@ -14,8 +16,11 @@ import { bindMachineToLiveState } from '@emdash/wire';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
   type ActivateWorkspaceInput,
+  type CleanWorkspaceArtifactsInput,
+  type CleanWorkspaceArtifactsResult,
   type ConvertWorkspaceInput,
   type DeactivateWorkspaceInput,
+  type MeasureWorkspaceUsageInput,
   type ProvisionWorkspaceInput,
   type ReconcileWorkspaceInput,
   type TeardownWorkspaceInput,
@@ -25,11 +30,14 @@ import {
   type WorkspaceOperationResult,
   type WorkspaceOperationStage,
   type WorkspaceTopology,
+  type WorkspaceUsage,
   workspaceContract,
 } from '@runtimes/workspace/api';
 import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
+import { gitErrorMessage, runGit } from '@runtimes/workspace/node/provisioning/lifecycle/steps/run-git';
 import type { IWatchService } from '@services/fs-watch/api';
+import { measureAbsolutePathUsage } from '@services/fs-usage/node';
 import {
   scriptWorkflowsContract,
   type ScriptWorkflowsContract,
@@ -103,6 +111,26 @@ export class WorkspaceRuntime {
       workspace: input.workspace,
       path: nativePathFromWorkspace(input.workspace),
       topology: inspected.data,
+    });
+  }
+
+  async measureUsage(
+    input: MeasureWorkspaceUsageInput,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceUsage, WorkspaceError>> {
+    const workspacePath = nativePathFromWorkspace(input.workspace);
+    const total = await measureWorkspacePath(workspacePath, '');
+    if (!total.success) return err(total.error);
+
+    const artifacts = await measureIgnoredArtifacts(workspacePath, signal);
+    if (!artifacts.success) return err(artifacts.error);
+
+    return ok({
+      workspace: input.workspace,
+      path: workspacePath,
+      totalBytes: total.data.exclusiveDiskBytes,
+      artifactBytes: artifacts.data.bytes,
+      errors: [...total.data.errors, ...artifacts.data.errors],
     });
   }
 
@@ -270,6 +298,45 @@ export class WorkspaceRuntime {
     });
   }
 
+  async cleanArtifacts(
+    input: CleanWorkspaceArtifactsInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<CleanWorkspaceArtifactsResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'clean-artifacts', ctx, async (stage) => {
+      const workspacePath = nativePathFromWorkspace(input.workspace);
+      stage.start('scan', 'Find ignored artifacts');
+      const artifacts = await listIgnoredArtifacts(workspacePath, ctx.signal);
+      if (!artifacts.success) return err(artifacts.error);
+      const cleanable = artifacts.data.filter(
+        (artifact) => !matchesPreservePatterns(artifact.relativePath, input.preservePatterns)
+      );
+      stage.done('scan');
+
+      stage.start('measure', 'Measure ignored artifacts');
+      const measured = await measureArtifacts(workspacePath, cleanable);
+      if (!measured.success) return err(measured.error);
+      stage.done('measure');
+
+      stage.start('delete', 'Delete ignored artifacts');
+      for (let index = 0; index < cleanable.length; index += 1) {
+        const artifact = cleanable[index];
+        if (ctx.signal.aborted) return err({ type: 'cancelled', message: 'Operation cancelled' });
+        await rm(artifact.absolutePath, { recursive: true, force: true });
+        stage.update('delete', {
+          percent: Math.round(((index + 1) / Math.max(cleanable.length, 1)) * 100),
+          message: artifact.relativePath,
+        });
+      }
+      stage.done('delete');
+
+      return ok({
+        workspace: input.workspace,
+        path: workspacePath,
+        reclaimedBytes: measured.data.bytes,
+      });
+    });
+  }
+
   dispose(): void {
     for (const record of this.records.values()) {
       record.binding.dispose();
@@ -310,12 +377,12 @@ export class WorkspaceRuntime {
     return record;
   }
 
-  private async withOperation(
+  private async withOperation<T>(
     workspace: HostFileRef,
     kind: WorkspaceOperationKind,
     ctx: LiveJobContext<WorkspaceOperationProgress>,
-    run: (stage: StageReporter) => Promise<Result<WorkspaceOperationResult, WorkspaceError>>
-  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    run: (stage: StageReporter) => Promise<Result<T, WorkspaceError>>
+  ): Promise<Result<T, WorkspaceError>> {
     const key = resourceKeyFromFileRef(workspace);
     if (this.operationLane.has(key)) {
       return err({
@@ -550,6 +617,164 @@ function terminalJobErrorToWorkspaceError(error: unknown): WorkspaceError {
     return { type: 'cancelled', message: 'Terminal script workflow was cancelled' };
   }
   return toWorkspaceError(error);
+}
+
+type IgnoredArtifact = {
+  relativePath: string;
+  absolutePath: string;
+};
+
+type ArtifactMeasurement = {
+  bytes: number;
+  errors: { path: string; message: string }[];
+};
+
+async function measureWorkspacePath(
+  absolutePath: string,
+  displayPath: string
+): Promise<Result<Awaited<ReturnType<typeof measureAbsolutePathUsage>>, WorkspaceError>> {
+  try {
+    return ok(await measureAbsolutePathUsage(absolutePath, displayPath));
+  } catch (error) {
+    return err({
+      type: 'io',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function measureIgnoredArtifacts(
+  workspacePath: string,
+  signal?: AbortSignal
+): Promise<Result<ArtifactMeasurement, WorkspaceError>> {
+  const artifacts = await listIgnoredArtifacts(workspacePath, signal);
+  if (!artifacts.success) return artifacts;
+  return measureArtifacts(workspacePath, artifacts.data);
+}
+
+async function measureArtifacts(
+  workspacePath: string,
+  artifacts: IgnoredArtifact[]
+): Promise<Result<ArtifactMeasurement, WorkspaceError>> {
+  let bytes = 0;
+  const errors: { path: string; message: string }[] = [];
+  for (const artifact of artifacts) {
+    if (!isContainedBy(workspacePath, artifact.absolutePath)) {
+      return err({
+        type: 'invalid-path',
+        message: `Ignored artifact escapes workspace: ${artifact.relativePath}`,
+      });
+    }
+    const measured = await measureWorkspacePath(artifact.absolutePath, artifact.relativePath);
+    if (!measured.success) {
+      errors.push({ path: artifact.relativePath, message: measured.error.message });
+      continue;
+    }
+    bytes += measured.data.exclusiveDiskBytes;
+    errors.push(...measured.data.errors);
+  }
+  return ok({ bytes, errors });
+}
+
+async function listIgnoredArtifacts(
+  workspacePath: string,
+  signal?: AbortSignal
+): Promise<Result<IgnoredArtifact[], WorkspaceError>> {
+  const result = await runGit(['-c', 'core.quotePath=false', 'clean', '-ndX', '--'], {
+    cwd: workspacePath,
+    signal,
+  });
+  if (!result.success) {
+    return err({
+      type: result.error.type,
+      message: gitErrorMessage(result.error),
+    });
+  }
+
+  const root = path.resolve(workspacePath);
+  const artifacts: IgnoredArtifact[] = [];
+  for (const line of result.data.stdout.split(/\r?\n/u)) {
+    const relativePath = parseGitCleanDryRunLine(line);
+    if (!relativePath) continue;
+    const absolutePath = path.resolve(root, relativePath);
+    if (!isContainedBy(root, absolutePath)) {
+      return err({
+        type: 'invalid-path',
+        message: `Ignored artifact escapes workspace: ${relativePath}`,
+      });
+    }
+    artifacts.push({ relativePath, absolutePath });
+  }
+  return ok(artifacts);
+}
+
+function parseGitCleanDryRunLine(line: string): string | undefined {
+  const prefix = 'Would remove ';
+  if (!line.startsWith(prefix)) return undefined;
+  return normalizeArtifactPath(line.slice(prefix.length));
+}
+
+function normalizeArtifactPath(value: string): string | undefined {
+  const normalized = value.trim().replace(/\/$/u, '');
+  if (!normalized || normalized === '.' || normalized === '..') return undefined;
+  return normalized.split('\\').join('/');
+}
+
+function matchesPreservePatterns(relativePath: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => matchesPreservePattern(relativePath, pattern));
+}
+
+function matchesPreservePattern(relativePath: string, pattern: string): boolean {
+  if (!isSafePreservePattern(pattern)) return false;
+  const normalized = toPosixPath(pattern);
+  if (globMatcher(normalized)(relativePath)) return true;
+
+  const artifactPrefix = relativePath.endsWith('/') ? relativePath : `${relativePath}/`;
+  return normalized.startsWith(artifactPrefix);
+}
+
+function isSafePreservePattern(pattern: string): boolean {
+  if (!pattern || path.isAbsolute(pattern)) return false;
+  return !toPosixPath(pattern)
+    .split('/')
+    .some((part) => part === '..');
+}
+
+function globMatcher(pattern: string): (relativePath: string) => boolean {
+  const regexp = new RegExp(`^${globToRegex(pattern)}$`);
+  return (relativePath) => regexp.test(relativePath);
+}
+
+function globToRegex(pattern: string): string {
+  let regex = '';
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    const next = pattern[index + 1];
+    if (char === '*' && next === '*') {
+      regex += '.*';
+      index++;
+    } else if (char === '*') {
+      regex += '[^/]*';
+    } else if (char === '?') {
+      regex += '[^/]';
+    } else {
+      regex += escapeRegex(char);
+    }
+  }
+  return regex;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
+function isContainedBy(root: string, target: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function toPosixPath(value: string): string {
+  return value.split(path.sep).join('/');
 }
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {

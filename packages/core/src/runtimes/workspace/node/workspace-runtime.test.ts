@@ -1,6 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
@@ -13,6 +15,8 @@ import type {
 import { describe, expect, it } from 'vitest';
 import type { WorkspaceActivityProvider } from './activity';
 import { WorkspaceRuntime } from './workspace-runtime';
+
+const execFileAsync = promisify(execFile);
 
 describe('WorkspaceRuntime', () => {
   it('publishes observed topology and activated consumers', async () => {
@@ -170,6 +174,54 @@ describe('WorkspaceRuntime', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('measures total and gitignored artifact usage', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      await initIgnoredArtifactRepo(root);
+      const workspace = hostFileRefFromNative(root);
+      const runtime = new WorkspaceRuntime();
+
+      const result = await runtime.measureUsage({ workspace, repoPath: workspace });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.totalBytes).toBeGreaterThan(0);
+        expect(result.data.artifactBytes).toBeGreaterThan(0);
+        expect(result.data.totalBytes).toBeGreaterThanOrEqual(result.data.artifactBytes);
+      }
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('cleans gitignored artifacts while preserving configured files', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      await initIgnoredArtifactRepo(root);
+      const workspace = hostFileRefFromNative(root);
+      const runtime = new WorkspaceRuntime();
+
+      const result = await runtime.cleanArtifacts(
+        { workspace, repoPath: workspace, preservePatterns: ['.env*'] },
+        jobContext('clean-artifacts-1')
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.reclaimedBytes).toBeGreaterThan(0);
+      }
+      await expect(access(path.join(root, 'node_modules', 'pkg', 'index.js'))).rejects.toThrow();
+      await expect(access(path.join(root, 'dist', 'bundle.js'))).rejects.toThrow();
+      await expect(access(path.join(root, '.env.local'))).resolves.toBeUndefined();
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function jobContext(
@@ -192,4 +244,15 @@ function hostFileRefFromNative(nativePath: string): HostFileRef {
   });
   if (!parsed.success) throw new Error(parsed.error.message);
   return hostFileRef(LOCAL_HOST_REF, parsed.data);
+}
+
+async function initIgnoredArtifactRepo(root: string): Promise<void> {
+  await execFileAsync('git', ['init'], { cwd: root });
+  await writeFile(path.join(root, '.gitignore'), 'node_modules/\ndist/\n.env*\n', 'utf8');
+  await writeFile(path.join(root, 'tracked.txt'), 'source', 'utf8');
+  await mkdir(path.join(root, 'node_modules', 'pkg'), { recursive: true });
+  await writeFile(path.join(root, 'node_modules', 'pkg', 'index.js'), 'ignored', 'utf8');
+  await mkdir(path.join(root, 'dist'), { recursive: true });
+  await writeFile(path.join(root, 'dist', 'bundle.js'), 'ignored', 'utf8');
+  await writeFile(path.join(root, '.env.local'), 'secret', 'utf8');
 }

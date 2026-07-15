@@ -1,11 +1,20 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { FileUsage, FileUsageError, FsError } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
-import type { RootPathPolicy } from './path-policy';
+
+export type PathUsageError = {
+  path: string;
+  message: string;
+};
+
+export type PathUsage = {
+  path: string;
+  type: 'file' | 'directory';
+  apparentBytes: number;
+  diskBytes: number;
+  exclusiveDiskBytes: number;
+  errors: PathUsageError[];
+};
 
 type EntryUsage = {
   apparentBytes: number;
@@ -16,53 +25,48 @@ type EntryUsage = {
 };
 
 type ScanState = {
+  root: string;
+  displayPath: string;
   entries: EntryUsage[];
-  errors: FileUsageError[];
+  errors: PathUsageError[];
 };
 
-export async function measurePathUsage(
-  paths: RootPathPolicy,
-  targetPath: PortableRelativePath
-): Promise<Result<FileUsage, FsError>> {
-  const resolved = await paths.resolveExistingEntry(targetPath);
-  if (!resolved.success) return resolved;
-
-  let rootStats: Stats;
-  try {
-    rootStats = await lstat(resolved.data.absolutePath);
-  } catch (error) {
-    return err(toFsError(error, targetPath));
-  }
+export async function measureAbsolutePathUsage(
+  absolutePath: string,
+  displayPath: string
+): Promise<PathUsage> {
+  const root = path.resolve(absolutePath);
+  const rootStats = await lstat(root);
 
   if (!rootStats.isDirectory()) {
     const bytes = diskBytes(rootStats);
-    return ok({
-      path: targetPath,
+    return {
+      path: displayPath,
       type: 'file',
       apparentBytes: rootStats.size,
       diskBytes: bytes,
       exclusiveDiskBytes: rootStats.nlink > 1 ? 0 : bytes,
       errors: [],
-    });
+    };
   }
 
-  const state: ScanState = { entries: [], errors: [] };
-  await scanPath(paths, state, resolved.data.absolutePath, targetPath);
-  return ok({
-    path: targetPath,
+  const state: ScanState = {
+    root,
+    displayPath,
+    entries: [],
+    errors: [],
+  };
+  await scanPath(state, root);
+  return {
+    path: displayPath,
     type: 'directory',
     ...aggregateEntries(state.entries),
     errors: state.errors,
-  });
+  };
 }
 
-async function scanPath(
-  paths: RootPathPolicy,
-  state: ScanState,
-  currentPath: string,
-  fallbackPath: PortableRelativePath
-): Promise<void> {
-  const relative = paths.toRelative(currentPath) ?? fallbackPath;
+async function scanPath(state: ScanState, currentPath: string): Promise<void> {
+  const relative = displayRelativePath(state, currentPath);
   let stats: Stats;
   try {
     stats = await lstat(currentPath);
@@ -89,7 +93,7 @@ async function scanPath(
     return;
   }
   for (const child of children) {
-    await scanPath(paths, state, path.join(currentPath, child.name), relative);
+    await scanPath(state, path.join(currentPath, child.name));
   }
 }
 
@@ -122,6 +126,13 @@ function aggregateEntries(entries: EntryUsage[]) {
     if (group.linkCount <= group.count) exclusiveDiskBytes += group.diskBytes;
   }
   return { apparentBytes, diskBytes: diskBytesTotal, exclusiveDiskBytes };
+}
+
+function displayRelativePath(state: ScanState, currentPath: string): string {
+  const relative = path.relative(state.root, currentPath);
+  if (!relative) return state.displayPath;
+  const suffix = relative.split(path.sep).join('/');
+  return state.displayPath ? `${state.displayPath}/${suffix}` : suffix;
 }
 
 function diskBytes(stats: Stats): number {

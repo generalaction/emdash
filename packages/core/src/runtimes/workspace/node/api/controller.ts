@@ -23,6 +23,7 @@ export function createWorkspaceController(
     createController(contract, {
       workspace: runtime.host,
       reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
+      measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
       provision: {
         run: (input, ctx) => runtime.provision(input, ctx),
         toError: workspaceJobError,
@@ -41,6 +42,10 @@ export function createWorkspaceController(
       },
       teardown: {
         run: (input, ctx) => runtime.teardown(input, ctx),
+        toError: workspaceJobError,
+      },
+      cleanArtifacts: {
+        run: (input, ctx) => runtime.cleanArtifacts(input, ctx),
         toError: workspaceJobError,
       },
     }),

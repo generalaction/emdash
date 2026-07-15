@@ -34,9 +34,9 @@ import type {
 import type { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
 import { expectedFsError, toFsError } from '@runtimes/files/node/api/errors';
 import type { RootResource } from '@runtimes/files/node/root/root-resource';
+import { measureAbsolutePathUsage } from '@services/fs-usage/node';
 import { glob } from 'glob';
 import { enumerateFiles } from './enumerate';
-import { measurePathUsage } from './measure-usage';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import { writeFileContent } from './write-file';
 
@@ -70,7 +70,23 @@ export class FileSystemRuntime {
   }
 
   measureUsage(input: PathKey): Promise<Result<FileUsage, FsError>> {
-    return this.run(input.root, (root) => measurePathUsage(root.paths, input.relative));
+    return this.run(input.root, async (root) => {
+      const resolved = await root.paths.resolveExistingEntry(input.relative);
+      if (!resolved.success) return resolved;
+      try {
+        const usage = await measureAbsolutePathUsage(resolved.data.absolutePath, resolved.data.path);
+        return ok({
+          ...usage,
+          path: resolved.data.path,
+          errors: usage.errors.map((error) => ({
+            path: error.path as PortableRelativePath,
+            message: error.message,
+          })),
+        });
+      } catch (error) {
+        return err(toFsError(error, input.relative));
+      }
+    });
   }
 
   exists(input: PathKey): Promise<Result<boolean, FsError>> {

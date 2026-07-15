@@ -37,6 +37,7 @@ export const workspaceOperationKindSchema = z.enum([
   'activate',
   'deactivate',
   'teardown',
+  'clean-artifacts',
 ]);
 
 export const workspaceOperationStageSchema = z.object({
@@ -124,6 +125,36 @@ export const workspaceOperationResultSchema = z.object({
   topology: workspaceTopologySchema.optional(),
 });
 
+export const workspaceUsageErrorSchema = z.object({
+  path: z.string(),
+  message: z.string(),
+});
+
+export const measureWorkspaceUsageInputSchema = z.object({
+  workspace: hostFileRefSchema,
+  repoPath: hostFileRefSchema,
+});
+
+export const workspaceUsageSchema = z.object({
+  workspace: hostFileRefSchema,
+  path: z.string(),
+  totalBytes: z.number().int().nonnegative(),
+  artifactBytes: z.number().int().nonnegative(),
+  errors: z.array(workspaceUsageErrorSchema),
+});
+
+export const cleanWorkspaceArtifactsInputSchema = z.object({
+  workspace: hostFileRefSchema,
+  repoPath: hostFileRefSchema,
+  preservePatterns: z.array(z.string()).default([]),
+});
+
+export const cleanWorkspaceArtifactsResultSchema = z.object({
+  workspace: hostFileRefSchema,
+  path: z.string(),
+  reclaimedBytes: z.number().int().nonnegative(),
+});
+
 export const reconcileWorkspaceInputSchema = z.object({
   workspace: hostFileRefSchema,
   lifecycle: workspaceLifecyclePlansSchema.optional(),
@@ -193,6 +224,11 @@ export type LegacyWorkspaceAutomation = z.infer<typeof legacyWorkspaceAutomation
 export type WorkspaceLifecyclePlans = z.infer<typeof workspaceLifecyclePlansSchema>;
 export type WorkspaceOperationProgress = z.infer<typeof workspaceOperationProgressSchema>;
 export type WorkspaceOperationResult = z.infer<typeof workspaceOperationResultSchema>;
+export type WorkspaceUsageError = z.infer<typeof workspaceUsageErrorSchema>;
+export type MeasureWorkspaceUsageInput = z.infer<typeof measureWorkspaceUsageInputSchema>;
+export type WorkspaceUsage = z.infer<typeof workspaceUsageSchema>;
+export type CleanWorkspaceArtifactsInput = z.infer<typeof cleanWorkspaceArtifactsInputSchema>;
+export type CleanWorkspaceArtifactsResult = z.infer<typeof cleanWorkspaceArtifactsResultSchema>;
 export type ReconcileWorkspaceInput = z.infer<typeof reconcileWorkspaceInputSchema>;
 export type ProvisionWorkspaceInput = z.infer<typeof provisionWorkspaceInputSchema>;
 export type ConvertWorkspaceInput = z.infer<typeof convertWorkspaceInputSchema>;
