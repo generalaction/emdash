@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/layout/workspace-layout.tsx
+  s_3a0df70744f96d::t_ecc7e61db1bbdb 46
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_3a0df70744f96d::t_ecc7e61db1bbdb 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8e2ae8c86f46956e6776ac4717879c91f9c3c013",
+  "prompts": {},
+  "sessions": {
+    "s_3a0df70744f96d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65c8-f6c7-7db3-af49-63728920e9fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
