@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 interface ResetToDefaultButtonProps {
   /** Optional label shown in the tooltip: "Reset to default: <label>" */
   defaultLabel?: string;
+  ariaLabel?: string;
   onReset: () => void;
   disabled?: boolean;
   visible?: boolean;
@@ -13,6 +14,7 @@ interface ResetToDefaultButtonProps {
 
 export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
   defaultLabel,
+  ariaLabel = 'Reset to default',
   onReset,
   disabled,
   visible = true,
@@ -32,7 +34,7 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
             className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
             onClick={onReset}
             disabled={disabled}
-            aria-label="Reset to default"
+            aria-label={ariaLabel}
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>

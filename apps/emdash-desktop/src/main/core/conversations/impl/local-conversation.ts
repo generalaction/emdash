@@ -123,7 +123,7 @@ export class LocalConversationProvider implements ConversationProvider {
         host: { kind: 'local', homedir: homedir() },
         force: conversation.autoApprove === true,
       });
-      await ensureHooksInstalled({
+      const hookSetup = await ensureHooksInstalled({
         providerId: conversation.providerId,
         taskPath: this.taskPath,
       });
@@ -159,6 +159,7 @@ export class LocalConversationProvider implements ConversationProvider {
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
+        injectAgentNotificationHooks: hookSetup.injectionEnabled,
         model: conversation.model ?? '',
       });
 
@@ -196,7 +197,7 @@ export class LocalConversationProvider implements ConversationProvider {
         cwd: resolved.cwd,
         env: {
           ...buildAgentEnv({
-            hook: port > 0 ? { port, ptyId, token } : undefined,
+            hook: hookSetup.injectionEnabled && port > 0 ? { port, ptyId, token } : undefined,
             providerVars,
             shellProfile: this.shellProfile,
           }),
