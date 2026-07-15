@@ -14,6 +14,10 @@ import {
   hostDependencyResolverContract,
 } from '@services/host-dependencies/node';
 import { NodePtySpawner } from '@services/pty/node';
+import {
+  createSessionIntentStoreFromDependency,
+  sessionIntentsContract,
+} from '@services/session-intents/node';
 import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
@@ -38,6 +42,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
     contract: tuiAgentsContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
+      sessionIntents: requireContract(sessionIntentsContract),
     },
     configSchema: tuiAgentsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -47,6 +52,10 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       const exec = new NodeExecutionContext({ env });
       const dependencyResolver = createHostDependencyResolverFromDependency(
         dependencies.hostDependencies
+      );
+      const intents = createSessionIntentStoreFromDependency(
+        dependencies.sessionIntents,
+        'tui-agents'
       );
       const agentHost = new AgentPluginHost({
         scope,
@@ -60,11 +69,13 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       const runtime = new TuiAgentsRuntime({
         agentHost,
         exec,
+        intents,
         spawner: new NodePtySpawner(),
         hook: config.hook,
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       });
+      void runtime.reconcile();
       scope.add(() => runtime.dispose());
 
       return instance({

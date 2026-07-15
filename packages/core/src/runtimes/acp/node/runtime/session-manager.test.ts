@@ -6,6 +6,7 @@ import {
   makeAcpHarness,
   makeStartInput,
 } from '@runtimes/acp/node/acp-test-support';
+import { createMemorySessionIntentStore } from '@services/session-intents/node';
 import { describe, expect, it, vi } from 'vitest';
 import { AcpRuntime } from './runtime';
 
@@ -68,6 +69,61 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toEqual({});
     await clock.advanceBy(500);
     expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('reconciles active session intents by loading persisted ACP sessions', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conv-reconcile',
+      sessionId: 'session-old',
+      payload: { ...makeStartInput({ conversationId: 'conv-reconcile' }), sessionId: 'session-old' },
+    });
+    const h = makeAcpHarness({ intents });
+    const rt = new AcpRuntime(h.deps);
+
+    await rt.reconcile();
+
+    expect(h.agent.loadSession).toHaveBeenCalled();
+    expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
+      'conv-reconcile'
+    );
+  });
+
+  it('persists idle deactivation as a suspended intent', async () => {
+    const clock = createManualClock(0);
+    const intents = createMemorySessionIntentStore({ now: () => clock.now() });
+    const h = makeAcpHarness({
+      clock,
+      intents,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: 1_000 },
+        sweepIntervalMs: 1_100,
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-idle-intent' }));
+
+    await clock.advanceBy(1_200);
+
+    await vi.waitFor(() => {
+      expect(intents.snapshot()[0]).toMatchObject({
+        conversationId: 'conv-idle-intent',
+        status: 'suspended',
+        suspendedCause: 'idle',
+      });
+    });
+  });
+
+  it('removes persisted ACP intent when a session is killed', async () => {
+    const intents = createMemorySessionIntentStore();
+    const h = makeAcpHarness({ intents });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-kill' }));
+
+    await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
+    rt.killSession('conv-kill');
+
+    await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
   });
 
   it('publishes activeTurn patches without root replacement during incremental text growth', async () => {

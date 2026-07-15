@@ -24,6 +24,8 @@ export default defineConfig({
     'services-pty-node': 'src/services/pty/node/index.ts',
     'services-host-dependencies-api': 'src/services/host-dependencies/api/index.ts',
     'services-host-dependencies-node': 'src/services/host-dependencies/node/index.ts',
+    'services-session-intents-api': 'src/services/session-intents/api/index.ts',
+    'services-session-intents-node': 'src/services/session-intents/node/index.ts',
     'services-agent-plugins-api': 'src/services/agent-plugins/api/index.ts',
     'services-agent-plugins-api-plugins': 'src/services/agent-plugins/api/plugins/index.ts',
     'services-agent-plugins-api-plugins-helpers':

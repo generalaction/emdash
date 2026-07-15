@@ -94,6 +94,14 @@ export class AcpRuntime {
     return this.manager.stop(conversationId);
   }
 
+  killSession(conversationId: string): Result<void, AcpStopSessionError> {
+    return this.manager.kill(conversationId);
+  }
+
+  reconcile(): Promise<void> {
+    return this.manager.reconcile();
+  }
+
   sendPrompt(
     conversationId: string,
     prompt: PromptInput

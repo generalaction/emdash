@@ -27,6 +27,7 @@ export const resumeSessionCommandSchema = z.object({
   input: acpStartInputSchema.extend({ sessionId: z.string() }),
 });
 export const stopSessionCommandSchema = z.object({ conversationId: z.string() });
+export const killSessionCommandSchema = stopSessionCommandSchema;
 export const sendPromptCommandSchema = z.object({
   conversationId: z.string(),
   prompt: promptInputSchema,

@@ -28,6 +28,7 @@ import {
   editQueuedPromptCommandSchema,
   exportAcpTranscriptCommandSchema,
   exportRawAcpLogCommandSchema,
+  killSessionCommandSchema,
   queuePromptCommandSchema,
   resolvePermissionCommandSchema,
   resumeSessionCommandSchema,
@@ -79,6 +80,11 @@ export const acpApiContract = defineContract({
   }),
   stopSession: fallible({
     input: stopSessionCommandSchema,
+    data: z.void(),
+    error: acpStopSessionErrorSchema,
+  }),
+  killSession: fallible({
+    input: killSessionCommandSchema,
     data: z.void(),
     error: acpStopSessionErrorSchema,
   }),

@@ -17,6 +17,10 @@ import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
 } from '@services/host-dependencies/node';
+import {
+  createSessionIntentStoreFromDependency,
+  sessionIntentsContract,
+} from '@services/session-intents/node';
 import { z } from 'zod';
 
 export const acpComponentConfigSchema = z.object({
@@ -42,6 +46,7 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
     contract: acpApiContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
+      sessionIntents: requireContract(sessionIntentsContract),
     },
     configSchema: acpComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -54,6 +59,7 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
       const dependencyResolver = createHostDependencyResolverFromDependency(
         dependencies.hostDependencies
       );
+      const intents = createSessionIntentStoreFromDependency(dependencies.sessionIntents, 'acp');
       const agentHost = new AgentPluginHost({
         scope,
         registry: options.pluginRegistry,
@@ -82,9 +88,11 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
           };
         },
         attachmentStore,
+        intents,
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       } satisfies AcpRuntimeDeps);
+      void acp.reconcile();
 
       scope.add(() => acp.dispose());
       return instance({

@@ -5,6 +5,7 @@ import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
+import { createMemorySessionIntentStore } from '@services/session-intents/node';
 import { describe, expect, it, vi } from 'vitest';
 import { TuiAgentsRuntime } from './runtime';
 
@@ -52,6 +53,7 @@ function createRuntime(options: {
   clock?: ManualClock;
   lifecycle?: ConstructorParameters<typeof TuiAgentsRuntime>[0]['lifecycle'];
   exec?: Partial<IExecutionContext>;
+  intents?: ReturnType<typeof createMemorySessionIntentStore>;
 } = {}) {
   const spawner = new FakePtySpawner();
   const provider: ResolvedTuiProvider = {
@@ -78,6 +80,7 @@ function createRuntime(options: {
   const runtime = new TuiAgentsRuntime({
     agentHost,
     exec,
+    intents: options.intents ?? createMemorySessionIntentStore(),
     spawner,
     clock: options.clock,
     lifecycle: options.lifecycle,
@@ -232,5 +235,65 @@ describe('TuiAgentsRuntime', () => {
     expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
       'conversation-1'
     );
+  });
+
+  it('reconciles active intents only when their tmux session exists', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      sessionId: 'provider-session',
+      payload: startInput({
+        sessionId: 'provider-session',
+        tmuxSessionName: 'emdash-test',
+      }),
+    });
+    const exec = vi.fn(() =>
+      Promise.resolve({
+        stdout: 'emdash-test\t42\n',
+        stderr: '',
+      })
+    );
+    const { runtime, spawner } = createRuntime({
+      intents,
+      exec: { exec },
+    });
+
+    await runtime.reconcile();
+
+    expect(spawner.specs).toHaveLength(0);
+    expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
+      'conversation-1'
+    );
+  });
+
+  it('suspends active intents when their tmux session is missing', async () => {
+    const intents = createMemorySessionIntentStore();
+    await intents.saveActive({
+      conversationId: 'conversation-1',
+      payload: startInput({ tmuxSessionName: 'emdash-missing' }),
+    });
+    const { runtime } = createRuntime({ intents });
+
+    await runtime.reconcile();
+
+    expect(intents.snapshot()[0]).toMatchObject({
+      conversationId: 'conversation-1',
+      status: 'suspended',
+      suspendedCause: 'process-lost',
+    });
+  });
+
+  it('removes persisted TUI intent when a session is killed', async () => {
+    const intents = createMemorySessionIntentStore();
+    const { runtime, spawner } = createRuntime({ intents });
+
+    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
+
+    runtime.killSession('conversation-1');
+
+    expect(spawner.processes[0]!.kill).toHaveBeenCalled();
+    await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
   });
 });

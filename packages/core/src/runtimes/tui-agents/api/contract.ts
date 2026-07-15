@@ -69,6 +69,16 @@ export const tuiAgentsContract = defineContract({
   }),
 
   /**
+   * Terminates any active process and removes the persisted active intent.
+   * The conversation row remains available as an inactive/resumable record.
+   */
+  killSession: fallible({
+    input: conv,
+    data: z.void(),
+    error: tuiSessionControlErrorSchema,
+  }),
+
+  /**
    * Writes raw bytes into the PTY stdin (mirrors rpc.pty.sendInput).
    */
   sendInput: fallible({

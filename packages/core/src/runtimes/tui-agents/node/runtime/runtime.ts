@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result, type Serializable } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import { LiveLog, type LiveSource } from '@emdash/wire';
 import {
@@ -19,6 +19,7 @@ import type {
   TuiSessionState,
   TuiStartSessionError,
 } from '@runtimes/tui-agents/api';
+import { tuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
 import {
   createTuiNotificationsLiveHost,
   createTuiNotificationsListModel,
@@ -133,6 +134,7 @@ export class TuiAgentsRuntime {
 
     const config: TuiSessionConfig = { input, intent: 'fresh' };
     this.configs.set(input.conversationId, config);
+    this.persistActiveIntent(input);
     this.recordInputActivity(input.conversationId);
     this.unexpectedRespawns.delete(input.conversationId);
     void this.ensureActiveSessionUsesConfig(input.conversationId, config);
@@ -147,12 +149,14 @@ export class TuiAgentsRuntime {
 
     const active = this.sessionsSource.peek({ conversationId: input.conversationId });
     if (active?.pty) {
+      this.persistActiveIntent(input);
       return ok({ outcome: 'attached' });
     }
 
     const intent = input.sessionId ? 'resume' : 'fresh';
     const config: TuiSessionConfig = { input, intent };
     this.configs.set(input.conversationId, config);
+    this.persistActiveIntent(input);
     this.recordInputActivity(input.conversationId);
     this.unexpectedRespawns.delete(input.conversationId);
     this.setResumeState(input.conversationId, {
@@ -174,6 +178,7 @@ export class TuiAgentsRuntime {
     if (active) active.pty = null;
     this.markExited(conversationId, null);
     this.notifications.resetToIdle(conversationId);
+    this.persistSuspendedIntent(conversationId, 'user');
     return ok(undefined);
   }
 
@@ -191,6 +196,7 @@ export class TuiAgentsRuntime {
       delete draft[conversationId];
     });
     this.notifications.clear(conversationId);
+    this.removePersistedIntent(conversationId);
     return ok(undefined);
   }
 
@@ -214,6 +220,14 @@ export class TuiAgentsRuntime {
       delete draft[conversationId];
     });
     this.notifications.clear(conversationId);
+    this.persistSuspendedIntent(conversationId, cause);
+    return ok(undefined);
+  }
+
+  killSession(conversationId: string): Result<void, TuiSessionControlError> {
+    const result = this.deactivateSession(conversationId, 'user');
+    if (!result.success) return result;
+    this.removePersistedIntent(conversationId);
     return ok(undefined);
   }
 
@@ -287,6 +301,48 @@ export class TuiAgentsRuntime {
 
   notificationsLiveHost(): TuiNotificationsLiveHost {
     return this.notificationsHost;
+  }
+
+  async reconcile(): Promise<void> {
+    const listed = await this.deps.intents.list();
+    if (!listed.success) {
+      this.deps.logger.warn('TuiAgentsRuntime: failed to load session intents', {
+        error: listed.error,
+      });
+      return;
+    }
+
+    let tmuxActivity: Map<string, number>;
+    try {
+      tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+    } catch (error) {
+      this.deps.logger.warn('TuiAgentsRuntime: failed to reconcile tmux activity', {
+        error: String(error),
+      });
+      return;
+    }
+
+    for (const intent of listed.data) {
+      if (intent.status !== 'active') continue;
+      const parsed = tuiAgentStartInputSchema.safeParse(intent.payload);
+      if (!parsed.success) {
+        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
+        continue;
+      }
+      const input = parsed.data;
+      if (!input.tmuxSessionName || !tmuxActivity.has(input.tmuxSessionName)) {
+        this.persistSuspendedIntent(intent.conversationId, 'process-lost');
+        continue;
+      }
+      const result = this.resumeSession(input);
+      if (!result.success) {
+        this.deps.logger.warn('TuiAgentsRuntime: failed to reconcile session intent', {
+          conversationId: intent.conversationId,
+          error: result.error,
+        });
+        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
+      }
+    }
   }
 
   async dispose(): Promise<void> {
@@ -540,6 +596,47 @@ export class TuiAgentsRuntime {
 
   private now(): number {
     return this.deps.clock?.now() ?? Date.now();
+  }
+
+  private persistActiveIntent(input: TuiAgentStartInput): void {
+    const { initialPrompt: _initialPrompt, ...persisted } = input;
+    const sessionId = this.currentProviderSessionId(input.conversationId, input.sessionId);
+    void this.deps.intents
+      .saveActive({
+        conversationId: input.conversationId,
+        sessionId,
+        payload: { ...persisted, sessionId } as unknown as Serializable,
+      })
+      .then((result) => {
+        if (!result.success) {
+          this.deps.logger.warn('TuiAgentsRuntime: failed to persist active intent', {
+            conversationId: input.conversationId,
+            error: result.error,
+          });
+        }
+      });
+  }
+
+  private persistSuspendedIntent(conversationId: string, cause: string): void {
+    void this.deps.intents.markSuspended(conversationId, cause).then((result) => {
+      if (!result.success) {
+        this.deps.logger.warn('TuiAgentsRuntime: failed to persist suspended intent', {
+          conversationId,
+          error: result.error,
+        });
+      }
+    });
+  }
+
+  private removePersistedIntent(conversationId: string): void {
+    void this.deps.intents.remove(conversationId).then((result) => {
+      if (!result.success) {
+        this.deps.logger.warn('TuiAgentsRuntime: failed to remove session intent', {
+          conversationId,
+          error: result.error,
+        });
+      }
+    });
   }
 
   private setResumeState(

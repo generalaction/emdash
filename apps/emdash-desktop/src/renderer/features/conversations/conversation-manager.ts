@@ -1,3 +1,4 @@
+import { acpApiContract, type SessionSummary } from '@emdash/core/runtimes/acp/api/client';
 import { tuiAgentsContract, type TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { createLiveModelReplica, ReplicaLog } from '@emdash/wire';
@@ -9,6 +10,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getTuiAgentsRuntimeClient } from '@renderer/lib/runtime/tui-agents-client';
 import { Resource } from '@renderer/lib/stores/resource';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
@@ -32,6 +34,7 @@ export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offTuiSessionState: (() => void) | null = null;
+  private offAcpSessionState: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
@@ -42,6 +45,8 @@ export class ConversationManagerStore implements Disposable {
   conversations = observable.map<string, ConversationStore>();
   /** Session layer keyed by conversation id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  activeTuiSessionIds = observable.set<string>();
+  activeAcpSessionIds = observable.set<string>();
 
   constructor(
     private readonly projectId: string,
@@ -51,6 +56,9 @@ export class ConversationManagerStore implements Disposable {
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
+      activeTuiSessionIds: observable,
+      activeAcpSessionIds: observable,
+      activeSessionIds: computed,
       taskStatus: computed,
     });
 
@@ -102,6 +110,7 @@ export class ConversationManagerStore implements Disposable {
     this.offAgentStatusChanged = this.listenToAgentStatusChanged();
     this.offSessionExited = this.listenToSessionExited();
     this.offTuiSessionState = this.listenToTuiSessionState();
+    this.offAcpSessionState = this.listenToAcpSessionState();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
   }
@@ -172,8 +181,48 @@ export class ConversationManagerStore implements Disposable {
 
   private handleTuiSessionListChanged(list: TuiSessionList): void {
     runInAction(() => {
+      this.activeTuiSessionIds.clear();
+      for (const conversationId of Object.keys(list)) this.activeTuiSessionIds.add(conversationId);
       for (const session of Object.values(list)) {
         if (session.status !== 'exited') continue;
+        const conversationStore = this.conversations.get(session.conversationId);
+        conversationStore?.clearWorking();
+      }
+    });
+  }
+
+  private listenToAcpSessionState(): () => void {
+    if (typeof window === 'undefined') return () => {};
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void (async () => {
+      const client = (await getDesktopWireClient()).acp;
+      if (disposed) return;
+      const replica = createLiveModelReplica(acpApiContract.sessions, client.sessions, {
+        onChange: {
+          list: (list: Record<string, SessionSummary>) => this.handleAcpSessionListChanged(list),
+        },
+      });
+      const lease = replica.acquire(undefined);
+      cleanup = () => {
+        void lease.release();
+        void replica.dispose();
+      };
+      await lease.ready();
+      if (disposed) cleanup();
+    })();
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }
+
+  private handleAcpSessionListChanged(list: Record<string, SessionSummary>): void {
+    runInAction(() => {
+      this.activeAcpSessionIds.clear();
+      for (const conversationId of Object.keys(list)) this.activeAcpSessionIds.add(conversationId);
+      for (const session of Object.values(list)) {
+        if (session.lifecycle !== 'closed') continue;
         const conversationStore = this.conversations.get(session.conversationId);
         conversationStore?.clearWorking();
       }
@@ -216,6 +265,16 @@ export class ConversationManagerStore implements Disposable {
     return null;
   }
 
+  get activeSessionIds(): Set<string> {
+    return new Set([...this.activeTuiSessionIds, ...this.activeAcpSessionIds]);
+  }
+
+  isSessionActive(conversationId: string): boolean {
+    return (
+      this.activeTuiSessionIds.has(conversationId) || this.activeAcpSessionIds.has(conversationId)
+    );
+  }
+
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
@@ -256,6 +315,23 @@ export class ConversationManagerStore implements Disposable {
     }
   }
 
+  async killSession(conversationId: string): Promise<void> {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) return;
+    const client = await getDesktopWireClient();
+    const result =
+      conversation.data.type === 'acp'
+        ? await client.acp.killSession({ conversationId })
+        : await client.tuiAgents.killSession({ conversationId });
+    if (!result.success) {
+      throw new Error(result.error.message ?? `Failed to kill session '${conversationId}'`);
+    }
+    runInAction(() => {
+      this.activeAcpSessionIds.delete(conversationId);
+      this.activeTuiSessionIds.delete(conversationId);
+    });
+  }
+
   async renameConversation(conversationId: string, name: string): Promise<void> {
     const store = this.conversations.get(conversationId);
     if (!store) return;
@@ -284,6 +360,8 @@ export class ConversationManagerStore implements Disposable {
     this.offSessionExited = null;
     this.offTuiSessionState?.();
     this.offTuiSessionState = null;
+    this.offAcpSessionState?.();
+    this.offAcpSessionState = null;
     this.offConversationCreated?.();
     this.offConversationCreated = null;
     this.offConversationChanges?.();

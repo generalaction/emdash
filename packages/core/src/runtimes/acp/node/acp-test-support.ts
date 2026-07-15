@@ -30,6 +30,7 @@ import {
 } from '@services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
+import { createMemorySessionIntentStore } from '@services/session-intents/node';
 import { vi } from 'vitest';
 
 /**
@@ -383,6 +384,7 @@ export function makeAcpHarness(options: AcpHarnessOptions = {}) {
       }),
     host: fakeHost,
     resolveAttachment: vi.fn().mockResolvedValue({ data: '', mimeType: 'image/png' }),
+    intents: depOverrides.intents ?? createMemorySessionIntentStore(),
     logger: noopLogger,
     ...depOverrides,
   };

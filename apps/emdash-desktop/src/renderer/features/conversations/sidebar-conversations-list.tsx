@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Download, Pencil, Plus, Square, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { conversationTabKind } from '@renderer/features/conversations/conversation-tab-kind';
@@ -32,6 +32,10 @@ import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;
 
+type SidebarRow =
+  | { kind: 'header'; id: string; label: string }
+  | { kind: 'conversation'; id: string; conversationId: string };
+
 const ConversationRow = observer(function ConversationRow({
   conversationId,
 }: {
@@ -54,6 +58,7 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
+  const isSessionActive = conversations.isSessionActive(conversationId);
 
   const tabKind = conversationTabKind(conversation?.data.type);
   const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
@@ -92,6 +97,24 @@ const ConversationRow = observer(function ConversationRow({
       variant: 'destructive',
       onSuccess: () => {
         void conversations.deleteConversation(conversationId);
+      },
+    });
+  };
+
+  const handleKillSession = () => {
+    showConfirm({
+      title: 'Kill session',
+      description: `"${displayTitle}" will be stopped. The conversation will remain available as inactive/resumable.`,
+      confirmLabel: 'Kill session',
+      variant: 'destructive',
+      onSuccess: () => {
+        void conversations.killSession(conversationId).catch((error) => {
+          toast({
+            title: 'Failed to kill session',
+            description: error instanceof Error ? error.message : String(error),
+            variant: 'destructive',
+          });
+        });
       },
     });
   };
@@ -186,6 +209,15 @@ const ConversationRow = observer(function ConversationRow({
             </ContextMenuItem>
           </>
         )}
+        {isSessionActive && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" onClick={handleKillSession}>
+              <Square className="size-4" />
+              Kill session
+            </ContextMenuItem>
+          </>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={handleDelete}>
           <Trash2 className="size-4" />
@@ -202,18 +234,43 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const conversations = useConversations();
   const { paneLayout } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(conversations.conversations.values())
-    .sort((a, b) => {
-      const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
-      const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
-      return bTime - aTime;
-    })
+  const sortedConversations = Array.from(conversations.conversations.values()).sort((a, b) => {
+    const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
+    const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+  const activeConversationIds = sortedConversations
+    .filter((c) => conversations.isSessionActive(c.data.id))
     .map((c) => c.data.id);
+  const inactiveConversationIds = sortedConversations
+    .filter((c) => !conversations.isSessionActive(c.data.id))
+    .map((c) => c.data.id);
+  const rows: SidebarRow[] = [];
+  if (activeConversationIds.length > 0) {
+    rows.push({ kind: 'header', id: 'active', label: 'Active' });
+    rows.push(
+      ...activeConversationIds.map((conversationId) => ({
+        kind: 'conversation' as const,
+        id: `conversation:${conversationId}`,
+        conversationId,
+      }))
+    );
+  }
+  if (inactiveConversationIds.length > 0) {
+    rows.push({ kind: 'header', id: 'inactive', label: 'Inactive' });
+    rows.push(
+      ...inactiveConversationIds.map((conversationId) => ({
+        kind: 'conversation' as const,
+        id: `conversation:${conversationId}`,
+        conversationId,
+      }))
+    );
+  }
 
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
-    count: conversationIds.length,
+    count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
@@ -245,10 +302,10 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-2">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
-            const conversationId = conversationIds[virtualItem.index]!;
+            const row = rows[virtualItem.index]!;
             return (
               <div
-                key={virtualItem.key}
+                key={row.id}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -258,7 +315,13 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <ConversationRow conversationId={conversationId} />
+                {row.kind === 'header' ? (
+                  <div className="flex h-8 items-end px-2 pb-1">
+                    <MicroLabel className="text-foreground-passive">{row.label}</MicroLabel>
+                  </div>
+                ) : (
+                  <ConversationRow conversationId={row.conversationId} />
+                )}
               </div>
             );
           })}

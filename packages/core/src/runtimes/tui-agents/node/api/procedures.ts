@@ -30,6 +30,9 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     deleteSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
       return runtime.deleteSession(input.conversationId);
     },
+    killSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {
+      return runtime.killSession(input.conversationId);
+    },
     sendInput(input: { conversationId: string; data: string }): Result<void, TuiInputError> {
       return runtime.sendInput(input.conversationId, input.data);
     },

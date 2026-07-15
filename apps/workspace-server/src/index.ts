@@ -10,6 +10,7 @@ import {
   CORE_DEPENDENCIES,
   createHostDependenciesComponent,
 } from '@emdash/core/services/host-dependencies/node';
+import { createSessionIntentsComponent } from '@emdash/core/services/session-intents/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
@@ -78,9 +79,11 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
     const runtime = createWorkspaceServerRuntime(scope);
     const initialPaths = daemonPaths(config.serve.path);
     const hostDependencies = createWorkspaceHostDependencies(scope, initialPaths.socketPath);
+    const sessionIntents = createWorkspaceSessionIntents(scope, initialPaths.socketPath);
     const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
       socketPath: config.serve.path,
       hostDependencies: hostDependencies.client.resolver,
+      sessionIntents: sessionIntents.client,
     });
     let acpClient: Awaited<ReturnType<typeof acpWorker.ready>> | undefined;
     try {
@@ -189,6 +192,19 @@ function createWorkspaceHostDependencies(scope: Scope, socketPath: string) {
         ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
       ],
     },
+    validate: workspaceServerWireValidationPolicy(),
+  });
+}
+
+function createWorkspaceSessionIntents(scope: Scope, socketPath: string) {
+  const root = dirname(dirname(socketPath));
+  const store = createJsonFileKeyValueStore({
+    path: join(root, 'state', 'session-intents.json'),
+  });
+  return createSessionIntentsComponent({ store }).create({
+    scope,
+    dependencies: {},
+    config: {},
     validate: workspaceServerWireValidationPolicy(),
   });
 }

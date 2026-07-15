@@ -21,6 +21,7 @@ import {
   createHostDependenciesComponent,
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
+import { createSessionIntentsComponent } from '@emdash/core/services/session-intents/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
@@ -63,6 +64,9 @@ const hostDependenciesComponent = createHostDependenciesComponent({
   store: desktopKeyValueStore,
   exec: new NodeExecutionContext({ env: process.env }),
 });
+const sessionIntentsComponent = createSessionIntentsComponent({
+  store: desktopKeyValueStore,
+});
 const GIT_RUNTIME_ENV = {
   ...process.env,
   ...NON_INTERACTIVE_GIT_ENV,
@@ -94,12 +98,19 @@ const hostDependencies = hostDependenciesComponent.create({
 
 export const hostDependenciesClient: HostDependenciesClient = hostDependencies.client;
 
+const sessionIntents = sessionIntentsComponent.create({
+  scope: workerScope,
+  dependencies: {},
+  config: {},
+});
+
 export const acpWorker = host.create(acpComponent, {
   name: 'acp',
   executable: desktopWorkerPath('acp'),
   env: process.env,
   dependencies: {
     hostDependencies: hostDependencies.client.resolver,
+    sessionIntents: sessionIntents.client,
   },
   config: {
     attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
@@ -149,6 +160,10 @@ export async function ensureFileSearchWorkerReady(): Promise<void> {
 
 export async function ensureGitWorkerReady(): Promise<void> {
   await getGitRuntimeClient();
+}
+
+export async function ensureTuiAgentsWorkerReady(): Promise<void> {
+  await getTuiAgentsRuntimeClient();
 }
 
 export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
@@ -245,6 +260,7 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
     env: process.env,
     dependencies: {
       hostDependencies: hostDependencies.client.resolver,
+      sessionIntents: sessionIntents.client,
     },
     config: {
       hook:

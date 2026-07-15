@@ -8,6 +8,7 @@ import type {
   PromptInput,
 } from '@runtimes/acp/api';
 import type { AgentPluginHost, ResolvedAcpProvider } from '@services/agent-plugins/api/plugins';
+import type { SessionIntentStore } from '@services/session-intents/api';
 import type { AttachmentStore } from './attachment-store';
 
 export type AcpStartInput = AcpStartInputWire;
@@ -30,6 +31,7 @@ export interface AcpRuntimeDeps {
   host: AcpRuntimeProcessHost;
   resolveAttachment: ResolvePromptAttachment;
   attachmentStore?: AttachmentStore;
+  intents: SessionIntentStore;
   clock?: Clock;
   lifecycle?: {
     session?: IdlePolicyConfig;

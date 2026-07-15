@@ -42,6 +42,7 @@ import {
   ensureFileSearchWorkerReady,
   ensureFilesWorkerReady,
   ensureGitWorkerReady,
+  ensureTuiAgentsWorkerReady,
 } from './core/wire-workers/desktop-workers';
 import { provisionWorkspaceErrorToWorkspaceError } from './core/workspaces/wire-controller';
 import { initializeDatabase } from './db/initialize';
@@ -182,6 +183,9 @@ void app.whenReady().then(async () => {
   });
   ensureGitWorkerReady().catch((e) => {
     log.error('Failed to start Git runtime process:', e);
+  });
+  ensureTuiAgentsWorkerReady().catch((e) => {
+    log.error('Failed to start TUI agents runtime process:', e);
   });
   acpAgentStatusBridge.initialize();
 

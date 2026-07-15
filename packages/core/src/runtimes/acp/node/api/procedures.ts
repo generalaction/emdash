@@ -45,6 +45,9 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     stopSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
       return runtime.stopSession(input.conversationId);
     },
+    killSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
+      return runtime.killSession(input.conversationId);
+    },
     sendPrompt(input: {
       conversationId: string;
       prompt: PromptInput;

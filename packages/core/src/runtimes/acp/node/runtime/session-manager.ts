@@ -8,7 +8,7 @@ import type {
   SessionNotification,
   SessionUpdate,
 } from '@agentclientprotocol/sdk';
-import type { Lease, Result } from '@emdash/shared';
+import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
@@ -50,7 +50,7 @@ import type {
   TerminalState,
   TranscriptTurn,
 } from '@runtimes/acp/api';
-import { acpErr } from '@runtimes/acp/api';
+import { acpErr, acpStartInputSchema } from '@runtimes/acp/api';
 import type { InboundRouter } from '@runtimes/acp/node/agent-ports/agent-client';
 import type { FsPort } from '@runtimes/acp/node/agent-ports/fs-port';
 import type { AgentTerminalManager } from '@runtimes/acp/node/agent-ports/terminal-manager';
@@ -128,8 +128,8 @@ export class SessionManager implements InboundRouter {
       entries: () => Array.from(this.cells.keys()),
       snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
       policy: () => this.sessionIdlePolicy,
-      deactivate: (conversationId) => {
-        this.stop(conversationId);
+      deactivate: (conversationId, reason) => {
+        this.stop(conversationId, reason);
       },
       onError: (error, conversationId) => {
         this.deps.logger.warn('SessionManager: idle sweep failed', {
@@ -142,7 +142,10 @@ export class SessionManager implements InboundRouter {
 
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
     const existing = this.cells.get(input.conversationId);
-    if (existing) return ok({ sessionId: existing.cell.acpSessionId });
+    if (existing) {
+      this.persistActiveIntent(input, existing.cell.acpSessionId);
+      return ok({ sessionId: existing.cell.acpSessionId });
+    }
     this.recordInputActivity(input.conversationId);
 
     this.upsertSessionSummary(input, null, {
@@ -257,6 +260,7 @@ export class SessionManager implements InboundRouter {
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
 
       this.syncRecord(record);
+      this.persistActiveIntent(input, record.cell.acpSessionId);
       return ok({ sessionId: record.cell.acpSessionId });
     } catch (e) {
       if (record) this.removeRecord(record.input.conversationId, false);
@@ -325,11 +329,20 @@ export class SessionManager implements InboundRouter {
     return record.cell.setPromptDraft(draft);
   }
 
-  stop(conversationId: string): Result<void, AcpStopSessionError> {
+  stop(conversationId: string, cause = 'user'): Result<void, AcpStopSessionError> {
     const record = this.cells.get(conversationId);
-    if (!record) return ok();
-    record.cell.closeSession().catch(() => {});
-    this.removeRecord(conversationId, true);
+    if (record) {
+      record.cell.closeSession().catch(() => {});
+      this.removeRecord(conversationId, true);
+    }
+    this.persistSuspendedIntent(conversationId, cause);
+    return ok();
+  }
+
+  kill(conversationId: string): Result<void, AcpStopSessionError> {
+    const result = this.stop(conversationId, 'user');
+    if (!result.success) return result;
+    this.removePersistedIntent(conversationId);
     return ok();
   }
 
@@ -636,6 +649,40 @@ export class SessionManager implements InboundRouter {
     this.idleSweeper.dispose();
   }
 
+  async reconcile(): Promise<void> {
+    const listed = await this.deps.intents.list();
+    if (!listed.success) {
+      this.deps.logger.warn('SessionManager: failed to load session intents', {
+        error: listed.error,
+      });
+      return;
+    }
+
+    for (const intent of listed.data) {
+      if (intent.status !== 'active') continue;
+      const parsed = acpStartInputSchema.safeParse(intent.payload);
+      const sessionId = intent.sessionId ?? (parsed.success ? parsed.data.sessionId : null);
+      if (!parsed.success || !sessionId) {
+        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
+        continue;
+      }
+
+      const input: AcpStartInput = {
+        ...parsed.data,
+        sessionId,
+        initialQueue: undefined,
+      };
+      const result = await this.start(input);
+      if (!result.success) {
+        this.deps.logger.warn('SessionManager: failed to reconcile session intent', {
+          conversationId: intent.conversationId,
+          error: result.error,
+        });
+        this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
+      }
+    }
+  }
+
   private deleteSessionSummary(conversationId: string): void {
     this.sessionsList.states.list.produce((draft) => {
       delete draft[conversationId];
@@ -693,6 +740,46 @@ export class SessionManager implements InboundRouter {
 
   private now(): number {
     return this.deps.clock?.now() ?? Date.now();
+  }
+
+  private persistActiveIntent(input: AcpStartInput, sessionId: string): void {
+    const { initialQueue: _initialQueue, ...persisted } = input;
+    void this.deps.intents
+      .saveActive({
+        conversationId: input.conversationId,
+        sessionId,
+        payload: { ...persisted, sessionId } as unknown as Serializable,
+      })
+      .then((result) => {
+        if (!result.success) {
+          this.deps.logger.warn('SessionManager: failed to persist active intent', {
+            conversationId: input.conversationId,
+            error: result.error,
+          });
+        }
+      });
+  }
+
+  private persistSuspendedIntent(conversationId: string, cause: string): void {
+    void this.deps.intents.markSuspended(conversationId, cause).then((result) => {
+      if (!result.success) {
+        this.deps.logger.warn('SessionManager: failed to persist suspended intent', {
+          conversationId,
+          error: result.error,
+        });
+      }
+    });
+  }
+
+  private removePersistedIntent(conversationId: string): void {
+    void this.deps.intents.remove(conversationId).then((result) => {
+      if (!result.success) {
+        this.deps.logger.warn('SessionManager: failed to remove session intent', {
+          conversationId,
+          error: result.error,
+        });
+      }
+    });
   }
 
   private removeRecord(conversationId: string, releaseConnection: boolean): void {

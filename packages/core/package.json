@@ -101,6 +101,14 @@
       "types": "./dist/services-host-dependencies-node.d.mts",
       "default": "./dist/services-host-dependencies-node.mjs"
     },
+    "./services/session-intents/api": {
+      "types": "./dist/services-session-intents-api.d.mts",
+      "default": "./dist/services-session-intents-api.mjs"
+    },
+    "./services/session-intents/node": {
+      "types": "./dist/services-session-intents-node.d.mts",
+      "default": "./dist/services-session-intents-node.mjs"
+    },
     "./services/agent-plugins/api": {
       "types": "./dist/services-agent-plugins-api.d.mts",
       "default": "./dist/services-agent-plugins-api.mjs"
