@@ -1,0 +1,46 @@
+packages/plugins/src/agents/impl/claude/index.ts
+  s_8a85b947db6349::t_ce4beefe83aded 63,69
+  s_8a85b947db6349::t_4d1f530075fe68 60,67
+packages/runtime/src/acp-agents/runtime/resolve-initial-model-option.ts
+  s_8a85b947db6349::t_ce4beefe83aded 1-17
+packages/runtime/src/acp-agents/runtime/session-manager.ts
+  s_8a85b947db6349::t_6f8d586fae32ac 504-505
+  s_8a85b947db6349::t_ce4beefe83aded 70,167,203,500-503,506-530
+  s_8a85b947db6349::t_1b850eb294ee2d 531-532
+packages/plugins/src/agents/impl/codex/acp.test.ts
+  s_8a85b947db6349::t_25307c0da8170e 15-37
+packages/plugins/src/agents/impl/codex/index.ts
+  s_8a85b947db6349::t_25307c0da8170e 74,77-80
+  s_02e40ce0efb8b1::t_a0d7821262a421 81
+packages/runtime/src/acp-agents/runtime/resolve-initial-model-option.test.ts
+  s_8a85b947db6349::t_ce4beefe83aded 1-4,7-14,18,20-27
+  s_8a85b947db6349::t_0c6687cddec436 17
+  s_8a85b947db6349::t_6f8d586fae32ac 19
+  s_8a85b947db6349::t_4d1f530075fe68 5-6,15-16
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-model-options.test.ts
+  s_8a85b947db6349::t_ce4beefe83aded 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e304b75924b7c67a5bdffd59b56d4fd6204331e2",
+  "prompts": {},
+  "sessions": {
+    "s_02e40ce0efb8b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6589-3dc7-7463-89b7-dbc79a8fabeb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_8a85b947db6349": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5efd-a9b2-7703-8c6a-4af595e3ff16",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
