@@ -45,10 +45,8 @@ import {
 } from '@runtimes/terminals/node/preview/url-detector';
 import {
   buildTerminalEnv,
-  isUnexpectedPtyExit,
   makeTmuxSessionName,
   resolveLocalPtySpawn,
-  type PtyExitInfo,
   PtyRegistry,
   type PtySession,
   type PtySpawner,
@@ -65,8 +63,6 @@ import {
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const OUTPUT_TAIL_CAP = 16 * 1024;
-const MAX_UNEXPECTED_RESPAWNS = 2;
-const RESPAWN_DELAY_MS = 500;
 
 type WorkflowCell = ReturnType<
   LiveModelHost<typeof terminalsContract.workflows>['create']
@@ -151,8 +147,6 @@ export class TerminalsRuntime {
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
   private readonly outputTails = new Map<string, string>();
   private readonly startCounts = new Map<string, number>();
-  private readonly intentionalStops = new Set<string>();
-  private readonly unexpectedRespawns = new Map<string, number>();
   private readonly previewSources = new Map<string, PreviewOutputSource>();
 
   constructor(options: TerminalsRuntimeOptions) {
@@ -194,7 +188,6 @@ export class TerminalsRuntime {
     this.sessionKeys.set(sessionKey, input.key);
     this.sessionKinds.set(sessionKey, 'terminal');
     this.interactiveConfigs.set(sessionKey, { key: input.key, spec: input.spec });
-    this.intentionalStops.delete(sessionKey);
 
     try {
       await this.spawnInteractiveTerminal(sessionKey, input.key, input.spec);
@@ -279,7 +272,6 @@ export class TerminalsRuntime {
 
   async kill(key: TerminalKey): Promise<Result<void, TerminalError>> {
     const sessionKey = sessionKeyFor(key);
-    this.intentionalStops.add(sessionKey);
     if (!this.registry.kill(sessionKey)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
     }
@@ -292,7 +284,6 @@ export class TerminalsRuntime {
     const prefix = `${scopeKeyFor(workspace)}:`;
     for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
       if (!key.startsWith(prefix)) continue;
-      this.intentionalStops.add(key);
       this.registry.kill(key);
       this.closePreviewSource(key);
       await this.killTmuxForSession(key);
@@ -304,7 +295,6 @@ export class TerminalsRuntime {
     const prefix = `${scopeKeyFor(workspace)}:`;
     for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
       if (!key.startsWith(prefix)) continue;
-      this.intentionalStops.add(key);
       this.registry.kill(key);
       this.closePreviewSource(key);
     }
@@ -372,29 +362,13 @@ export class TerminalsRuntime {
           );
           this.previewSourceFor(sessionKey, key).emitData(chunk);
         },
-        onExit: (info) => this.handleInteractiveExit(sessionKey, info),
+        onExit: () => this.handleInteractiveExit(sessionKey),
       }
     );
   }
 
-  private handleInteractiveExit(sessionKey: string, info: PtyExitInfo): void {
+  private handleInteractiveExit(sessionKey: string): void {
     this.closePreviewSource(sessionKey);
-    if (this.intentionalStops.delete(sessionKey)) return;
-
-    const config = this.interactiveConfigs.get(sessionKey);
-    if (!config || config.spec.tmux || !isUnexpectedPtyExit(info)) {
-      this.unexpectedRespawns.delete(sessionKey);
-      return;
-    }
-
-    const respawns = this.unexpectedRespawns.get(sessionKey) ?? 0;
-    if (respawns >= MAX_UNEXPECTED_RESPAWNS) return;
-    this.unexpectedRespawns.set(sessionKey, respawns + 1);
-    setTimeout(() => {
-      const latest = this.interactiveConfigs.get(sessionKey);
-      if (!latest || this.intentionalStops.has(sessionKey)) return;
-      void this.spawnInteractiveTerminal(sessionKey, latest.key, latest.spec);
-    }, RESPAWN_DELAY_MS);
   }
 
   private async killTmuxForSession(sessionKey: string): Promise<void> {
