@@ -5,6 +5,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
+import { EditorSettingsCard } from './EditorSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -126,6 +127,7 @@ function InterfaceSettingsPage() {
       />
       <ThemeCard />
       <TerminalSettingsCard />
+      <EditorSettingsCard />
       <SidebarMetadataSettingsCard />
       <ResourceMonitorSettingsCard />
       <InterfaceSettingsCard />

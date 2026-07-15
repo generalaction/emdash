@@ -1,6 +1,7 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import z from 'zod';
 import { BROWSER_ISOLATED_PROFILE_ID } from '@shared/browser';
+import { EDITOR_FONT_SIZE_MAX, EDITOR_FONT_SIZE_MIN } from '@shared/core/editor/editor-settings';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
@@ -49,6 +50,11 @@ export const terminalSettingsSchema = z.object({
   autoCopyOnSelection: z.boolean(),
   macOptionIsMeta: z.boolean(),
   defaultShell: z.enum(TERMINAL_SHELL_IDS),
+});
+
+export const editorSettingsSchema = z.object({
+  fontFamily: z.string().optional(),
+  fontSize: z.number().min(EDITOR_FONT_SIZE_MIN).max(EDITOR_FONT_SIZE_MAX),
 });
 
 export const themeSchema = z
@@ -148,6 +154,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   openIn: openInSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
+  editor: editorSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
@@ -165,6 +172,7 @@ export const appSettingsSchema = z.object({
   openIn: openInSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
+  editor: editorSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,

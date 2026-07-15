@@ -1,3 +1,5 @@
+import { EDITOR_FONT_SIZE_DEFAULT } from '@shared/core/editor/editor-settings';
+
 const MARKDOWN_EXTENSIONS = ['md', 'mdx'];
 
 /** Returns true if the file path points to a markdown file. */
@@ -16,7 +18,7 @@ export const isMarkdownFile = isMarkdownPath;
 /** Default Monaco editor options shared across all editor instances. */
 export const DEFAULT_EDITOR_OPTIONS = {
   minimap: { enabled: true },
-  fontSize: 13,
+  fontSize: EDITOR_FONT_SIZE_DEFAULT,
   padding: { top: 12, bottom: 12 },
   lineNumbers: 'on' as const,
   rulers: [],
