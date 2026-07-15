@@ -537,27 +537,6 @@ describe('SshConnectionManager', () => {
     expect(secondProxy.client).toBe(clients[1]);
   });
 
-  it('reports and clears degraded health for channel open failures', async () => {
-    const { SshConnectionManager } = await import('./ssh-connection-manager');
-    const published: unknown[] = [];
-    const manager = new SshConnectionManager({
-      publishEvent: (event) => published.push(event),
-    });
-
-    manager.reportChannelError('ssh-1', new Error('ordinary failure'));
-    expect(manager.getAllHealthStates()).toEqual({});
-
-    manager.reportChannelError('ssh-1', { reason: 2, message: 'channel open failure' });
-    expect(manager.getAllHealthStates()).toEqual({ 'ssh-1': { status: 'degraded' } });
-
-    manager.reportChannelRecovered('ssh-1');
-    expect(manager.getAllHealthStates()).toEqual({});
-    expect(published).toEqual([
-      { type: 'health-changed', connectionId: 'ssh-1', health: { status: 'degraded' } },
-      { type: 'health-changed', connectionId: 'ssh-1', health: { status: 'ok' } },
-    ]);
-  });
-
   it('rejects persisted connects when production dependencies or rows are missing', async () => {
     const { SshConnectionManager } = await import('./ssh-connection-manager');
 

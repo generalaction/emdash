@@ -49,12 +49,14 @@ class FakePtySpawner implements PtySpawner {
   }
 }
 
-function createRuntime(options: {
-  clock?: ManualClock;
-  lifecycle?: ConstructorParameters<typeof TuiAgentsRuntime>[0]['lifecycle'];
-  exec?: Partial<IExecutionContext>;
-  intents?: ReturnType<typeof createMemorySessionIntentStore>;
-} = {}) {
+function createRuntime(
+  options: {
+    clock?: ManualClock;
+    lifecycle?: ConstructorParameters<typeof TuiAgentsRuntime>[0]['lifecycle'];
+    exec?: Partial<IExecutionContext>;
+    intents?: ReturnType<typeof createMemorySessionIntentStore>;
+  } = {}
+) {
   const spawner = new FakePtySpawner();
   const provider: ResolvedTuiProvider = {
     name: 'Test Agent',

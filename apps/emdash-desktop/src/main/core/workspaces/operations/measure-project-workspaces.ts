@@ -8,7 +8,11 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@shared/core/workspaces/project-workspaces';
-import { getProjectWorkspaceProject, listProjectWorkspaces, mapWithConcurrency } from './list-project-workspaces';
+import {
+  getProjectWorkspaceProject,
+  listProjectWorkspaces,
+  mapWithConcurrency,
+} from './list-project-workspaces';
 
 const MEASURE_CONCURRENCY = 4;
 

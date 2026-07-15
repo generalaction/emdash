@@ -1,7 +1,7 @@
 import { defineWireComponent } from '@emdash/wire/component';
+import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { terminalsContract } from '@runtimes/terminals/api';
 import { NodePtySpawner } from '@services/pty/node';
-import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { z } from 'zod';
 import { createTerminalsController } from './api/controller';
 import { TerminalsRuntime } from './runtime/runtime';

@@ -4,7 +4,6 @@ import type { SshConnectionRow } from '@main/db/schema';
 import type { ConnectionState, SshHealthState } from '@shared/core/ssh/ssh';
 import type { SshConnectionEvent } from '@shared/core/ssh/sshEvents';
 import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
-import { isSshChannelOpenFailure } from './ssh-channel-open-failure';
 import { SshClientProxy } from './ssh-client-proxy';
 
 const { Client: Ssh2Client } = ssh2;
@@ -214,17 +213,6 @@ export class SshConnectionManager extends EventEmitter {
     return Object.fromEntries(this.healthStates);
   }
 
-  reportChannelError(connectionId: string, error: unknown): void {
-    if (!isSshChannelOpenFailure(error)) return;
-
-    this.healthStates.set(connectionId, { status: 'degraded' });
-    this.emitHealthChanged(connectionId, { status: 'degraded' });
-  }
-
-  reportChannelRecovered(connectionId: string): void {
-    this.clearHealthState(connectionId);
-  }
-
   /**
    * Gracefully close a connection and permanently stop reconnection for it.
    * This is an intentional teardown — auto-reconnect will NOT fire afterward.
@@ -325,7 +313,7 @@ export class SshConnectionManager extends EventEmitter {
     });
 
     // Ensure a stable proxy exists for this ID.
-    const proxy = this.proxies.get(id) ?? new SshClientProxy(id, this);
+    const proxy = this.proxies.get(id) ?? new SshClientProxy(id);
     this.proxies.set(id, proxy);
 
     const client = this.deps.createClient();
@@ -437,15 +425,6 @@ export class SshConnectionManager extends EventEmitter {
 
         proxy.update(client);
         this.clearHealthState(id);
-
-        // Capture the remote login-shell profile once, non-blocking. Failures are
-        // warned but do not prevent the connection from being used.
-        proxy.getRemoteShellProfile().catch((err: unknown) => {
-          this.deps.log.warn('SshConnectionManager: remote shell profile capture failed', {
-            connectionId: id,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
 
         const isReconnect = this.reconnecting.has(id);
         this.cancelReconnect(id);

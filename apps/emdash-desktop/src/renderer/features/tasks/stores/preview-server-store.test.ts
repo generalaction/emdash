@@ -1,4 +1,3 @@
-import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PreviewServer, PreviewServerEvent } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
@@ -11,8 +10,6 @@ function emitPreviewServerEvent(event: PreviewServerEvent): void {
 
 const rpcMocks = vi.hoisted(() => ({
   listForWorkspace: vi.fn(),
-  forwardManual: vi.fn(),
-  restart: vi.fn(),
   stop: vi.fn(),
 }));
 
@@ -67,26 +64,19 @@ describe('PreviewServerStore', () => {
   beforeEach(() => {
     handlers.length = 0;
     rpcMocks.listForWorkspace.mockReset();
-    rpcMocks.forwardManual.mockReset();
-    rpcMocks.restart.mockReset();
     rpcMocks.stop.mockReset();
   });
 
   it('loads preview servers for a workspace and exposes addressable URLs', async () => {
-    const ready = forwardedServer({ id: 'ready' });
-    const reconnecting = forwardedServer({
-      id: 'reconnecting',
+    const first = forwardedServer({ id: 'first', remotePort: 3000 });
+    const second = directServer({ id: 'second', port: 5174 });
+    const pending = forwardedServer({
+      id: 'pending',
       remotePort: 3001,
-      localPort: 6101,
-      status: { kind: 'reconnecting' },
-    });
-    const failed = forwardedServer({
-      id: 'failed',
-      remotePort: 3002,
       localPort: undefined,
-      status: { kind: 'failed', message: 'failed' },
+      status: { kind: 'starting' },
     });
-    rpcMocks.listForWorkspace.mockResolvedValueOnce([ready, reconnecting, failed]);
+    rpcMocks.listForWorkspace.mockResolvedValueOnce([second, pending, first]);
 
     const store = new PreviewServerStore({
       projectId: 'project-1',
@@ -98,8 +88,8 @@ describe('PreviewServerStore', () => {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
     });
-    expect(store.servers.map((server) => server.id)).toEqual(['ready', 'reconnecting', 'failed']);
-    expect(store.urls).toEqual([previewServerUrl(ready), previewServerUrl(reconnecting)]);
+    expect(store.servers.map((server) => server.id)).toEqual(['first', 'pending', 'second']);
+    expect(store.urls).toEqual([previewServerUrl(first), previewServerUrl(second)]);
 
     store.dispose();
   });
@@ -133,75 +123,52 @@ describe('PreviewServerStore', () => {
     store.dispose();
   });
 
-  it('forwards a manual remote port through the workspace connection', async () => {
-    const forwarded = forwardedServer({
-      id: 'manual-1',
-      source: { kind: 'manual' },
-      remotePort: 8080,
-      localPort: 6500,
-    });
-    rpcMocks.forwardManual.mockResolvedValueOnce(ok(forwarded));
-    rpcMocks.listForWorkspace.mockResolvedValueOnce([]);
-
-    const store = new PreviewServerStore({
-      projectId: 'project-1',
-      workspaceId: 'workspace-1',
-      connectionId: 'ssh-1',
-    });
-    const result = await store.forwardManual({ protocol: 'http:', remotePort: 8080 });
-
-    expect(rpcMocks.forwardManual).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      workspaceId: 'workspace-1',
-      connectionId: 'ssh-1',
-      protocol: 'http:',
-      remotePort: 8080,
-    });
-    expect(result).toEqual(ok(forwarded));
-    expect(store.servers.map((server) => server.id)).toEqual(['manual-1']);
-
-    store.dispose();
-  });
-
-  it('requires an SSH connection for manual forwarding', async () => {
+  it('stops a preview server', async () => {
+    const server = directServer();
+    rpcMocks.listForWorkspace.mockResolvedValueOnce([server]);
     const store = new PreviewServerStore({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
     });
+    await store.serversResource.load();
 
-    await expect(store.forwardManual({ protocol: 'http:', remotePort: 8080 })).resolves.toEqual({
-      success: false,
-      error: {
-        type: 'not-ssh-workspace',
-        message: 'Manual port forwarding requires an SSH workspace',
-      },
-    });
+    await store.stop(server.id);
 
-    expect(rpcMocks.forwardManual).not.toHaveBeenCalled();
-    store.dispose();
-  });
-
-  it('does not upsert manual forwards that return an error result', async () => {
-    rpcMocks.forwardManual.mockResolvedValueOnce({
-      success: false,
-      error: {
-        type: 'open-failed',
-        message: 'Failed to open SSH port forward',
-      },
-    });
-    rpcMocks.listForWorkspace.mockResolvedValueOnce([]);
-
-    const store = new PreviewServerStore({
-      projectId: 'project-1',
-      workspaceId: 'workspace-1',
-      connectionId: 'ssh-1',
-    });
-
-    const result = await store.forwardManual({ protocol: 'http:', remotePort: 8080 });
-
-    expect(result.success).toBe(false);
+    expect(rpcMocks.stop).toHaveBeenCalledWith(server.id);
     expect(store.servers).toEqual([]);
 
     store.dispose();
+  });
+
+  it('stubs manual forwarding until the workspace-server client is available', async () => {
+    const localStore = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    await expect(
+      localStore.forwardManual({ protocol: 'http:', remotePort: 8080 })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'not-ssh-workspace',
+        message: 'Manual port forwarding requires a remote workspace',
+      },
+    });
+
+    const remoteStore = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'ssh-1',
+    });
+    await expect(
+      remoteStore.forwardManual({ protocol: 'http:', remotePort: 8080 })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'runtime-unavailable',
+        message:
+          'Port forwarding requires the workspace server and is not available in this build.',
+      },
+    });
   });
 });

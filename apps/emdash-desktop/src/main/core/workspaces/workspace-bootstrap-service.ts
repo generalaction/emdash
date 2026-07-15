@@ -21,7 +21,6 @@ import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   formatProvisionTaskError,
   mapWorktreeErrorToProvisionError,
@@ -98,8 +97,6 @@ export class WorkspaceBootstrapService {
    *   provision script, connects SSH, and acquires the workspace.
    * - **Local/SSH workspaces**: compiles and executes the `WorkspaceSetupSpec`,
    *   applies recovery on failure, persists the resolved path, then acquires.
-   * - **SSH channel recovery**: calls `reportChannelRecovered` after a successful
-   *   setup on an SSH project.
    */
   async ensureWorkspaceSetup(
     workspaceRow: {
@@ -181,10 +178,6 @@ export class WorkspaceBootstrapService {
         connectionId,
         workspaceBranchName
       );
-
-      if (connectionId) {
-        sshConnectionManager.reportChannelRecovered(connectionId);
-      }
 
       return this._acquireAndBuild(
         workspaceRow.id,
@@ -284,10 +277,6 @@ export class WorkspaceBootstrapService {
         connectionId,
         intentBranchName
       );
-    }
-
-    if (connectionId) {
-      sshConnectionManager.reportChannelRecovered(connectionId);
     }
 
     return this._acquireAndBuild(

@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { eq } from 'drizzle-orm';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { mutationResult, repositorySelector } from '@main/core/git/runtime-client';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';

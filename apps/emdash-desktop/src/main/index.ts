@@ -207,7 +207,6 @@ void app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
-
   localDependencyManager.snapshot
     .mutate('refresh', { key: undefined, input: {} })
     .catch((e: unknown) => {

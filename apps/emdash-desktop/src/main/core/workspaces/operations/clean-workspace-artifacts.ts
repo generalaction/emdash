@@ -1,10 +1,10 @@
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { projectManager } from '@main/core/projects/project-manager';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
 import {
   getWorkspaceRuntimeClient,
   hostFileRefFromNativePath,
 } from '@main/core/workspaces/runtime/workspace-runtime-host';
-import { projectManager } from '@main/core/projects/project-manager';
 import { defaultShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import type {
   ProjectWorkspaceActionResult,
@@ -13,12 +13,10 @@ import type {
 } from '@shared/core/workspaces/project-workspaces';
 import { getProjectWorkspaceProject, listProjectWorkspaces } from './list-project-workspaces';
 
-export async function cleanWorkspaceArtifacts(
-  input: {
-    projectId: string;
-    paths: string[];
-  }
-): Promise<ProjectWorkspaceActionSummary> {
+export async function cleanWorkspaceArtifacts(input: {
+  projectId: string;
+  paths: string[];
+}): Promise<ProjectWorkspaceActionSummary> {
   if (input.paths.length === 0) return { succeededCount: 0, failedCount: 0, results: [] };
 
   const [project, rows, preservePatterns] = await Promise.all([

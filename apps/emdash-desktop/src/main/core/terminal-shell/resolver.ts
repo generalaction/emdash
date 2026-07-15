@@ -1,13 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DEFAULT_REMOTE_SHELL,
-  normalizeRemoteShell,
-  type RemoteShellProfile,
-} from '@main/core/ssh/lifecycle/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { quoteShellArg } from '@main/utils/shellEscape';
-import {
   isRuntimeTerminalShellId,
   terminalCommandArgs,
   terminalEnvCaptureArgs,
@@ -21,9 +14,7 @@ import {
 } from '@shared/core/terminals/terminal-settings';
 import type { ResolvedShellProfile } from './types';
 
-export type ShellTarget =
-  | { kind: 'local'; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv }
-  | { kind: 'ssh'; profile: RemoteShellProfile; proxy?: SshClientProxy };
+export type ShellTarget = { kind: 'local'; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv };
 
 export class ShellUnavailableError extends Error {
   constructor(
@@ -311,59 +302,28 @@ export async function resolveTerminalShell({
   fileExists?: FileExists;
   readDirNames?: ReadDirNames;
 }): Promise<ResolvedShellProfile> {
-  if (target.kind === 'local') {
-    const platform = target.platform ?? process.platform;
-    const env = target.env ?? process.env;
-
-    if (intent === 'system') {
-      const executable = localDefaultShell(platform, env);
-      const resolvedShellId = shellIdFromExecutable(
-        executable,
-        platform === 'win32' ? 'cmd' : 'sh'
-      );
-      return buildProfile({
-        id: 'target-default',
-        resolvedShellId,
-        executable,
-        resolvedFromSystem: true,
-        shellForArgs: executable,
-      });
-    }
-
-    const executable = resolveLocalExplicitShell(intent, platform, env, fileExists, readDirs);
-    if (!executable) throw new ShellUnavailableError(intent, 'local');
-    return buildProfile({
-      id: intent,
-      resolvedShellId: intent,
-      executable,
-      resolvedFromSystem: false,
-    });
-  }
+  const platform = target.platform ?? process.platform;
+  const env = target.env ?? process.env;
 
   if (intent === 'system') {
-    const executable = normalizeRemoteShell(target.profile.shell);
-    const resolvedShellId = shellIdFromExecutable(executable, 'sh');
+    const executable = localDefaultShell(platform, env);
+    const resolvedShellId = shellIdFromExecutable(executable, platform === 'win32' ? 'cmd' : 'sh');
     return buildProfile({
       id: 'target-default',
       resolvedShellId,
       executable,
       resolvedFromSystem: true,
-      capturedEnv: target.profile.env,
       shellForArgs: executable,
     });
   }
 
-  if (target.proxy && !(await isRemoteShellAvailable(target.proxy, intent, target.profile.env))) {
-    throw new ShellUnavailableError(intent, 'ssh');
-  }
-
+  const executable = resolveLocalExplicitShell(intent, platform, env, fileExists, readDirs);
+  if (!executable) throw new ShellUnavailableError(intent, 'local');
   return buildProfile({
     id: intent,
     resolvedShellId: intent,
-    executable: intent,
+    executable,
     resolvedFromSystem: false,
-    capturedEnv: target.profile.env,
-    remotePathLookup: true,
   });
 }
 
@@ -501,61 +461,8 @@ export async function getLocalTerminalShellAvailability({
   );
 }
 
-export async function getRemoteTerminalShellAvailability(
-  proxy: SshClientProxy,
-  profile: RemoteShellProfile
-): Promise<TerminalShellAvailability[]> {
-  const targetDefaultShell = normalizeRemoteShell(profile.shell);
-  const targetDefaultId = shellIdFromExecutable(targetDefaultShell, 'sh');
-  const availability = await Promise.all(
-    remoteShellIds()
-      .filter((shell) => shell === 'system' || shell !== targetDefaultId)
-      .map(async (shell) => {
-        if (shell === 'system') {
-          return {
-            id: shell,
-            label: shellLabelFromExecutable(targetDefaultShell, targetDefaultId),
-            isSystemDefault: true,
-            available: true,
-          };
-        }
-        const available = await isRemoteShellAvailable(proxy, shell, profile.env);
-        return {
-          id: shell,
-          label: shell,
-          isSystemDefault: false,
-          available,
-          reason: available ? undefined : 'Not found on this SSH target',
-        };
-      })
-  );
-  return sortShellAvailability(availability);
-}
-
-async function isRemoteShellAvailable(
-  proxy: SshClientProxy,
-  shell: ExplicitTerminalShellId,
-  env: Record<string, string>
-): Promise<boolean> {
-  if (shell === 'cmd' || shell === 'powershell' || shell === 'pwsh' || shell === 'wsl') {
-    return false;
-  }
-  const pathPrefix = env.PATH ? `PATH=${quoteShellArg(env.PATH)} ` : '';
-  const command = `${pathPrefix}command -v ${quoteShellArg(shell)} >/dev/null 2>&1`;
-  try {
-    const result = await execRemote(proxy, `${DEFAULT_REMOTE_SHELL} -c ${quoteShellArg(command)}`);
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-}
-
 function shellIdsForLocalPlatform(platform: NodeJS.Platform): TerminalShellId[] {
   if (platform === 'win32') return ['system', 'powershell', 'cmd', 'wsl', 'bash'];
-  return ['system', 'zsh', 'bash', 'fish'];
-}
-
-function remoteShellIds(): TerminalShellId[] {
   return ['system', 'zsh', 'bash', 'fish'];
 }
 
@@ -565,31 +472,5 @@ function sortShellAvailability(entries: TerminalShellAvailability[]): TerminalSh
     if (b.id === 'system') return 1;
     if (a.available !== b.available) return a.available ? -1 : 1;
     return 0;
-  });
-}
-
-function execRemote(
-  proxy: SshClientProxy,
-  command: string
-): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    let stdout = '';
-    let stderr = '';
-    proxy.exec(command, (err, channel) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      channel.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf-8');
-      });
-      channel.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf-8');
-      });
-      channel.on('close', (code: number | null) => {
-        resolve({ exitCode: code, stdout, stderr });
-      });
-      channel.on('error', reject);
-    });
   });
 }

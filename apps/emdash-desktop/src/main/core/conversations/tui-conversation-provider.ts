@@ -9,8 +9,8 @@ import {
   type SpillLargePromptResult,
 } from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';

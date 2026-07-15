@@ -7,6 +7,7 @@ import { tuiAgentsContract } from '@runtimes/tui-agents/api/contract';
 import { workspaceContract } from '@runtimes/workspace/api';
 import { hostDependenciesContract } from '@services/host-dependencies/api';
 import { z } from 'zod';
+import { portForwardsContract } from '../port-forwards/contract';
 import {
   wireHealthSchema,
   wireInitializeInputSchema,
@@ -28,4 +29,5 @@ export const workspaceWireContract = defineContract({
   acp: acpApiContract,
   hostDependencies: hostDependenciesContract,
   workspace: workspaceContract,
+  portForwards: portForwardsContract,
 });

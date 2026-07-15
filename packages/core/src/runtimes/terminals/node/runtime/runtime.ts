@@ -11,13 +11,6 @@ import {
   type LiveSource,
 } from '@emdash/wire';
 import {
-  createWorkflow,
-  type Workflow,
-  type WorkflowError,
-  type WorkflowNodeDefinition,
-  type WorkflowState,
-} from '@primitives/workflow/api';
-import {
   compileIdlePolicy,
   createIdleSweeper,
   createIoActivityTracker,
@@ -28,6 +21,13 @@ import {
   type IoActivityTracker,
 } from '@primitives/io-activity/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+import {
+  createWorkflow,
+  type Workflow,
+  type WorkflowError,
+  type WorkflowNodeDefinition,
+  type WorkflowState,
+} from '@primitives/workflow/api';
 import {
   terminalsContract,
   type ScriptNodeState,
@@ -44,14 +44,6 @@ import {
   type TerminalPortProbe,
 } from '@runtimes/terminals/node/preview/url-detector';
 import {
-  type RunScriptWorkflowInput,
-  type ScriptNode,
-  type ScriptWorkflowProgress,
-  type ScriptWorkflowResult,
-  type TerminalError,
-  type TerminalExit,
-} from '@services/script-workflows/api';
-import {
   buildTerminalEnv,
   isUnexpectedPtyExit,
   makeTmuxSessionName,
@@ -61,6 +53,14 @@ import {
   type PtySession,
   type PtySpawner,
 } from '@services/pty/api';
+import {
+  type RunScriptWorkflowInput,
+  type ScriptNode,
+  type ScriptWorkflowProgress,
+  type ScriptWorkflowResult,
+  type TerminalError,
+  type TerminalExit,
+} from '@services/script-workflows/api';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -425,7 +425,8 @@ export class TerminalsRuntime {
       scope: runScope,
       signal: ctx.signal,
       nodes: input.nodes.map((node) => this.workflowNode(input, node, ctx, run)),
-      onOutput: ({ nodeId, chunk }) => this.logFor({ workspace: input.workspace, id: nodeId }).append(chunk),
+      onOutput: ({ nodeId, chunk }) =>
+        this.logFor({ workspace: input.workspace, id: nodeId }).append(chunk),
     });
     if (!workflow.success) {
       const error = workflowCompileErrorToTerminalError(workflow.error);
@@ -578,7 +579,10 @@ export class TerminalsRuntime {
 
   private ensureWorkflowCell(workspace: HostFileRef): WorkflowCell {
     const key = { workspace };
-    return this.workflowsHost.get(key)?.states.state ?? this.workflowsHost.create(key, { state: null }).states.state;
+    return (
+      this.workflowsHost.get(key)?.states.state ??
+      this.workflowsHost.create(key, { state: null }).states.state
+    );
   }
 
   private publishFailedWorkflow(
@@ -738,11 +742,7 @@ export class TerminalsRuntime {
     this.pruneDevServersForSession(sessionKey);
   }
 
-  private upsertDevServer(
-    sessionKey: string,
-    key: TerminalKey,
-    server: DetectedPreviewUrl
-  ): void {
+  private upsertDevServer(sessionKey: string, key: TerminalKey, server: DetectedPreviewUrl): void {
     const id = devServerKeyFor(sessionKey, server);
     const record: TerminalDevServer = {
       key,

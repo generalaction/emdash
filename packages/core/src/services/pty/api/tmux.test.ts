@@ -39,9 +39,7 @@ describe('listTmuxSessionActivity', () => {
   });
 });
 
-function stubExecContext(
-  exec: IExecutionContext['exec']
-): IExecutionContext {
+function stubExecContext(exec: IExecutionContext['exec']): IExecutionContext {
   return {
     root: undefined,
     supportsLocalSpawn: false,

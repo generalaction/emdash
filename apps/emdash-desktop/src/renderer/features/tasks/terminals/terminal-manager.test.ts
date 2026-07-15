@@ -83,7 +83,9 @@ describe('TerminalManagerStore session hydration', () => {
     listTerminals.mockResolvedValue({ success: true, data: [] });
     hydrateTerminal.mockResolvedValue({
       success: true,
-      data: { key: { workspace: { host: { type: 'local' }, path: '/tmp/workspace' }, id: 'terminal-1' } },
+      data: {
+        key: { workspace: { host: { type: 'local' }, path: '/tmp/workspace' }, id: 'terminal-1' },
+      },
     });
     renameTerminal.mockResolvedValue({ success: true, data: undefined });
     deleteTerminal.mockResolvedValue({ success: true, data: undefined });

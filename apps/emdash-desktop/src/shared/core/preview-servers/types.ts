@@ -61,8 +61,7 @@ export type ManualPreviewServerRequest = {
 
 export type ManualPreviewServerError =
   | { type: 'not-ssh-workspace'; message: string }
-  | { type: 'cancelled'; message: string }
-  | { type: 'open-failed'; message: string };
+  | { type: 'runtime-unavailable'; message: string };
 
 export type ManualPreviewServerResult = Result<PreviewServer, ManualPreviewServerError>;
 

@@ -1,9 +1,5 @@
-import {
-  systemClock,
-  type Clock,
-  type TimerHandle,
-} from '@emdash/shared/scheduling';
 import type { Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import { z } from 'zod';
 
 export type IoActivitySnapshot = {

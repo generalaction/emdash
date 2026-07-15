@@ -16,9 +16,6 @@ export async function openProject(
   }
   const result = await projectManager.openProject(project);
   if (!result.success) {
-    if (project.type === 'ssh') {
-      return err({ type: 'ssh-disconnected', connectionId: project.connectionId });
-    }
     return err({ type: 'error', message: result.error.message });
   }
 

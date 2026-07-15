@@ -4,12 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
-import { SshProjectSettingsProvider } from './providers/ssh-project-settings-provider';
 
 const storageMockState = vi.hoisted(() => ({
   storage: undefined as ProjectSettingsStorage | undefined,
@@ -80,25 +78,6 @@ function makeLocalProvider(
       },
     }
   );
-}
-
-function makeSshConfigFiles(config: unknown | null = null) {
-  const client = {
-    fs: {
-      exists: vi.fn(async () => ok(config !== null)),
-      readText: vi.fn(async ({ relative }: { relative: string }) => {
-        if (config === null) return err({ type: 'not-found' as const, path: relative });
-        const content = JSON.stringify(config);
-        return ok({
-          content,
-          truncated: false,
-          totalSize: Buffer.byteLength(content),
-          etag: 'test-etag',
-        });
-      }),
-    },
-  };
-  return filesClientScope(client as never, '/remote/repo');
 }
 
 vi.mock('@main/core/settings/settings-service', () => ({
@@ -557,143 +536,5 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     expect(result.success).toBe(true);
 
     await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
-  });
-
-  it('normalizes and canonicalizes ssh absolute worktreeDirectory on update', async () => {
-    const projectFs = makeSshConfigFiles();
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(ok()),
-      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
-    };
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      rootFs,
-      '/remote/repo',
-      undefined
-    );
-    const result = await provider.update({
-      preservePatterns: [],
-      worktreeDirectory: '/remote/repo/worktrees',
-    });
-    expect(result.success).toBe(true);
-
-    expect(rootFs.mkdir).toHaveBeenCalledWith('/remote/repo/worktrees', { recursive: true });
-    expect(rootFs.realPath).toHaveBeenCalledWith('/remote/repo/worktrees');
-
-    await expect(provider.get()).resolves.toMatchObject({
-      worktreeDirectory: '/canonical/ssh-worktrees',
-    });
-  });
-
-  it('rejects ssh relative worktreeDirectory values', async () => {
-    const projectFs = makeSshConfigFiles();
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(ok()),
-      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
-    };
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      rootFs,
-      '/remote/repo',
-      undefined
-    );
-    const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
-
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'invalid-worktree-directory' },
-    });
-    expect(rootFs.mkdir).not.toHaveBeenCalled();
-  });
-
-  it('uses project-scoped ssh default worktree directory when not configured', async () => {
-    const projectFs = makeSshConfigFiles();
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      undefined,
-      '/remote/repo',
-      undefined
-    );
-    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
-  });
-
-  it('rejects tilde worktreeDirectory for ssh projects', async () => {
-    const projectFs = makeSshConfigFiles();
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(ok()),
-      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
-    };
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      rootFs,
-      '/remote/repo',
-      undefined
-    );
-    const result = await provider.update({
-      preservePatterns: [],
-      worktreeDirectory: '~/worktrees',
-    });
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'invalid-worktree-directory' },
-    });
-  });
-
-  it('falls back to project-scoped ssh default when configured directory is invalid', async () => {
-    const projectFs = makeSshConfigFiles({ worktreeDirectory: '~/worktrees' });
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      undefined,
-      '/remote/repo',
-      undefined
-    );
-    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
-  });
-
-  it('expands and caches ssh home for tilde worktreeDirectory values', async () => {
-    const projectFs = makeSshConfigFiles();
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(ok()),
-      realPath: vi.fn().mockResolvedValue(ok('/canonical/ssh-worktrees')),
-    };
-    const ctx = {
-      root: undefined,
-      supportsLocalSpawn: false,
-      exec: vi.fn().mockResolvedValue({ stdout: '/home/ubuntu', stderr: '' }),
-      execStreaming: vi.fn(),
-      dispose: vi.fn(),
-    } as unknown as IExecutionContext;
-
-    const provider = new SshProjectSettingsProvider(
-      projectId(),
-      projectFs,
-      'main',
-      rootFs,
-      '/remote/repo',
-      ctx
-    );
-    const first = await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
-    const second = await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
-    expect(first.success).toBe(true);
-    expect(second.success).toBe(true);
-
-    expect(ctx.exec).toHaveBeenCalledTimes(1);
-    expect(rootFs.mkdir).toHaveBeenCalledWith('/home/ubuntu/worktrees', { recursive: true });
-    expect(rootFs.realPath).toHaveBeenCalledWith('/home/ubuntu/worktrees');
   });
 });

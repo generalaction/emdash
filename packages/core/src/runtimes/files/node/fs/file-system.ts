@@ -74,7 +74,10 @@ export class FileSystemRuntime {
       const resolved = await root.paths.resolveExistingEntry(input.relative);
       if (!resolved.success) return resolved;
       try {
-        const usage = await measureAbsolutePathUsage(resolved.data.absolutePath, resolved.data.path);
+        const usage = await measureAbsolutePathUsage(
+          resolved.data.absolutePath,
+          resolved.data.path
+        );
         return ok({
           ...usage,
           path: resolved.data.path,

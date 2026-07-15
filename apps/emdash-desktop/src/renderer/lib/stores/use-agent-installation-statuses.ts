@@ -37,6 +37,7 @@ const selectOpVars = (m: { state: { variables?: unknown } }) =>
 export function useAgentInstallationStatuses(connectionId?: string) {
   const queryClient = useQueryClient();
   const key = statusQueryKey(connectionId);
+  const remoteUnavailable = Boolean(connectionId);
 
   const { data: agents } = useAgents();
   const agentNameMap = useMemo(() => {
@@ -49,7 +50,9 @@ export function useAgentInstallationStatuses(connectionId?: string) {
   const query = useQuery<AgentInstallationStatus[]>({
     queryKey: key,
     queryFn: () =>
-      rpc.agents.listAgentInstallationStatus(connectionId) as Promise<AgentInstallationStatus[]>,
+      remoteUnavailable
+        ? Promise.resolve([])
+        : (rpc.agents.listAgentInstallationStatus() as Promise<AgentInstallationStatus[]>),
     staleTime: 30_000,
   });
 
@@ -84,7 +87,9 @@ export function useAgentInstallationStatuses(connectionId?: string) {
   >({
     mutationKey: opKey('install', connectionId),
     mutationFn: ({ id, method }) =>
-      rpc.agents.install(id, connectionId, method) as Promise<unknown>,
+      remoteUnavailable
+        ? Promise.resolve(remoteDependencyUnavailableResult())
+        : (rpc.agents.install(id, undefined, method) as Promise<unknown>),
     onSuccess: (result, vars) => {
       invalidate();
       const name = nameOf(vars.id);
@@ -105,7 +110,10 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: AgentProviderId; method?: InstallMethod }
   >({
     mutationKey: opKey('update', connectionId),
-    mutationFn: ({ id, method }) => rpc.agents.update(id, connectionId, method) as Promise<unknown>,
+    mutationFn: ({ id, method }) =>
+      remoteUnavailable
+        ? Promise.resolve(remoteDependencyUnavailableResult())
+        : (rpc.agents.update(id, undefined, method) as Promise<unknown>),
     onSuccess: (result, vars) => {
       invalidate();
       const name = nameOf(vars.id);
@@ -127,7 +135,9 @@ export function useAgentInstallationStatuses(connectionId?: string) {
   >({
     mutationKey: opKey('uninstall', connectionId),
     mutationFn: ({ id, method }) =>
-      rpc.agents.uninstall(id, connectionId, method) as Promise<unknown>,
+      remoteUnavailable
+        ? Promise.resolve(remoteDependencyUnavailableResult())
+        : (rpc.agents.uninstall(id, undefined, method) as Promise<unknown>),
     onSuccess: invalidate,
   });
 
@@ -137,17 +147,23 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: string; selection: HostDependencySelection }
   >({
     mutationFn: ({ id, selection }) =>
-      rpc.agents.setUsedInstallation(id, connectionId, selection) as Promise<void>,
+      remoteUnavailable
+        ? Promise.resolve()
+        : (rpc.agents.setUsedInstallation(id, undefined, selection) as Promise<void>),
     onSuccess: invalidate,
   });
 
   const refreshLatestMutation = useMutation<void, Error, string>({
-    mutationFn: (id) => rpc.agents.refreshLatestVersion(id, connectionId) as Promise<void>,
+    mutationFn: (id) =>
+      remoteUnavailable
+        ? Promise.resolve()
+        : (rpc.agents.refreshLatestVersion(id) as Promise<void>),
     onSuccess: invalidate,
   });
 
   const probeAllMutation = useMutation<void, Error, void>({
-    mutationFn: () => rpc.agents.probeAll(connectionId) as Promise<void>,
+    mutationFn: () =>
+      remoteUnavailable ? Promise.resolve() : (rpc.agents.probeAll() as Promise<void>),
     onSuccess: invalidate,
   });
 
@@ -202,6 +218,16 @@ export type HostDependencyInstallation = {
   fetchLatestVersion(): Promise<void>;
   probeOverride(selection: { path?: string; cli?: string }): Promise<Installation | null>;
 };
+
+function remoteDependencyUnavailableResult() {
+  return {
+    success: false as const,
+    error: {
+      type: 'runtime-unavailable' as const,
+      message: 'Remote host dependencies require the workspace server.',
+    },
+  };
+}
 
 /**
  * Returns the installation status and full per-agent view-model for a single
@@ -325,11 +351,13 @@ export function useAgentInstallationStatus(
 
   const probeOverride = useCallback(
     (selection: { path?: string; cli?: string }) =>
-      rpc.agents.probeOverride(
-        id as AgentProviderId,
-        selection,
-        connectionId
-      ) as Promise<Installation | null>,
+      connectionId
+        ? Promise.resolve(null)
+        : (rpc.agents.probeOverride(
+            id as AgentProviderId,
+            selection,
+            undefined
+          ) as Promise<Installation | null>),
     [id, connectionId]
   );
 

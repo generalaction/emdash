@@ -86,7 +86,7 @@ export class PreviewServerStore implements Disposable {
     if (!this.connectionId) {
       return err({
         type: 'not-ssh-workspace',
-        message: 'Manual port forwarding requires an SSH workspace',
+        message: 'Manual port forwarding requires a remote workspace',
       });
     }
     const request: ManualPreviewServerRequest = {
@@ -97,14 +97,16 @@ export class PreviewServerStore implements Disposable {
       remotePort: input.remotePort,
       ...(input.preferredLocalPort ? { preferredLocalPort: input.preferredLocalPort } : {}),
     };
-    const result = await rpc.previewServers.forwardManual(request);
-    if (result.success) this.upsert(result.data);
-    return result;
+    void request;
+    return err({
+      type: 'runtime-unavailable',
+      message: 'Port forwarding requires the workspace server and is not available in this build.',
+    });
   }
 
-  async restart(id: string): Promise<void> {
-    const server = await rpc.previewServers.restart(id);
-    if (server) this.upsert(server);
+  async restart(_id: string): Promise<void> {
+    // Forwarded preview records are retained for renderer reuse, but the data
+    // plane will be reimplemented when the workspace-server client is available.
   }
 
   async stop(id: string): Promise<void> {
@@ -116,13 +118,6 @@ export class PreviewServerStore implements Disposable {
 
   dispose(): void {
     this.serversResource.dispose();
-  }
-
-  private upsert(server: PreviewServer): void {
-    if (server.projectId !== this.projectId || server.workspaceId !== this.workspaceId) return;
-    const next = new Map(this.serversResource.data ?? []);
-    next.set(server.id, server);
-    this.serversResource.setValue(next);
   }
 }
 

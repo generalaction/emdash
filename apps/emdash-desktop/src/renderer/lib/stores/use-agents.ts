@@ -22,7 +22,7 @@ export function useAgents() {
 export function useAgent(id: string, connectionId?: string) {
   return useQuery<AgentPayload | null>({
     queryKey: [...AGENTS_METADATA_QUERY_KEY, id, connectionId ?? 'local'],
-    queryFn: () => rpc.agents.get(id, connectionId) as Promise<AgentPayload | null>,
+    queryFn: () => rpc.agents.get(id) as Promise<AgentPayload | null>,
     staleTime: 5 * 60 * 1000,
   });
 }

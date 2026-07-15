@@ -1,9 +1,9 @@
+import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type {
   ScriptWorkflowProgress,
   ScriptWorkflowResult,
   TerminalError,
 } from '@emdash/core/services/script-workflows/api';
-import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';

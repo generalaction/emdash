@@ -33,6 +33,10 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.workspace.teardown.kind).toBe('liveJob');
   });
 
+  it('mounts port forwards under the portForwards domain', () => {
+    expect(workspaceWireContract.portForwards.inspect.kind).toBe('procedure');
+  });
+
   it('keeps provisioning input shapes compatible after schema relocation', () => {
     const parsedPath = parseAbsolute('/tmp/emdash-workspace');
     expect(parsedPath.success).toBe(true);

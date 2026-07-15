@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import net from 'node:net';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceJobError } from '@emdash/core/runtimes/workspace/node';
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
@@ -124,6 +125,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
       ? createHostDependenciesProxy(deps.hostDependencies)
       : unavailableHostDependencies(),
     workspace: deps.workspace ? createWorkspaceProxy(deps.workspace) : unavailableWorkspace(),
+    portForwards: createPortForwardsController(),
   });
 }
 
@@ -297,11 +299,13 @@ function createWorkspaceProxy(
   return {
     workspace: client.workspace,
     reconcile: (input, meta) => client.reconcile(input, meta),
+    measureUsage: (input, meta) => client.measureUsage(input, meta),
     provision: client.provision,
     convert: client.convert,
     activate: client.activate,
     deactivate: client.deactivate,
     teardown: client.teardown,
+    cleanArtifacts: client.cleanArtifacts,
   };
 }
 
@@ -313,6 +317,7 @@ function unavailableWorkspace(): NonNullable<
   return {
     workspace: unavailableLiveModel(workspaceWireContract.workspace.workspace),
     reconcile: unavailable,
+    measureUsage: unavailable,
     provision: {
       run: async () =>
         err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
@@ -338,5 +343,53 @@ function unavailableWorkspace(): NonNullable<
         err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
       toError: workspaceJobError,
     },
+    cleanArtifacts: {
+      run: async () =>
+        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
+      toError: workspaceJobError,
+    },
   };
+}
+
+function createPortForwardsController(): NonNullable<
+  ContractImpl<typeof workspaceWireContract>['portForwards']
+> {
+  return {
+    inspect: async ({ port }) => {
+      try {
+        const results = await Promise.all([
+          probeLoopbackPort('127.0.0.1', port),
+          probeLoopbackPort('::1', port),
+        ]);
+        const families = results.flatMap((result, index) =>
+          result ? ([index === 0 ? 'ipv4' : 'ipv6'] as const) : []
+        );
+        return ok({
+          listening: families.length > 0,
+          families,
+        });
+      } catch (error) {
+        return err({
+          type: 'io' as const,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+  };
+}
+
+function probeLoopbackPort(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port });
+    const timeout = setTimeout(() => finish(false), 500);
+    const finish = (listening: boolean) => {
+      clearTimeout(timeout);
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(listening);
+    };
+
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+  });
 }

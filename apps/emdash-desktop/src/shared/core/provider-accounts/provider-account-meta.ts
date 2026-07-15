@@ -1,5 +1,5 @@
-import z from 'zod';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
+import z from 'zod';
 
 // ---------------------------------------------------------------------------
 // v1 schema — initial version

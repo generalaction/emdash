@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import {
   getLocalTerminalShellAvailability,
-  getRemoteTerminalShellAvailability,
   resolveLocalAutomationShellWithSystemFallback,
   resolveTerminalShell,
   ShellUnavailableError,
@@ -365,97 +363,5 @@ describe('terminal shell resolver', () => {
         fileExists: () => false,
       })
     ).rejects.toBeInstanceOf(ShellUnavailableError);
-  });
-
-  it('marks explicit remote shells for PATH lookup after availability succeeds', async () => {
-    const proxy = {
-      exec: vi.fn((_command, callback) => {
-        callback(undefined, {
-          on(event: string, handler: (code?: number | null) => void) {
-            if (event === 'close') handler(0);
-            return this;
-          },
-          stderr: { on: vi.fn() },
-        });
-      }),
-    } as unknown as SshClientProxy;
-
-    const profile = await resolveTerminalShell({
-      intent: 'bash',
-      target: {
-        kind: 'ssh',
-        proxy,
-        profile: { shell: '/bin/zsh', env: { PATH: '/usr/local/bin:/usr/bin' } },
-      },
-    });
-
-    expect(profile).toMatchObject({
-      id: 'bash',
-      resolvedShellId: 'bash',
-      executable: 'bash',
-      remotePathLookup: true,
-    });
-  });
-
-  it('does not offer PowerShell shells for SSH targets', async () => {
-    const proxy = {
-      exec: vi.fn((_command, callback) => {
-        callback(undefined, {
-          on(event: string, handler: (code?: number | null) => void) {
-            if (event === 'close') handler(0);
-            return this;
-          },
-          stderr: { on: vi.fn() },
-        });
-      }),
-    } as unknown as SshClientProxy;
-
-    const availability = await getRemoteTerminalShellAvailability(proxy, {
-      shell: '/bin/zsh',
-      env: { PATH: '/usr/local/bin:/usr/bin' },
-    });
-
-    expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
-    expect(availability.find((entry) => entry.id === 'powershell')).toBeUndefined();
-    expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
-      label: 'zsh',
-      isSystemDefault: true,
-    });
-    expect(availability.find((entry) => entry.id === 'zsh')).toBeUndefined();
-    expect(availability.find((entry) => entry.id === 'fish')?.available).toBe(true);
-  });
-
-  it('rejects explicit remote pwsh even when a proxy is provided', async () => {
-    const proxy = { exec: vi.fn() } as unknown as SshClientProxy;
-
-    await expect(
-      resolveTerminalShell({
-        intent: 'pwsh',
-        target: {
-          kind: 'ssh',
-          proxy,
-          profile: { shell: '/bin/zsh', env: { PATH: '/usr/local/bin:/usr/bin' } },
-        },
-      })
-    ).rejects.toBeInstanceOf(ShellUnavailableError);
-  });
-
-  it('keeps fish as the remote system shell after normalization', async () => {
-    const profile = await resolveTerminalShell({
-      intent: 'system',
-      target: {
-        kind: 'ssh',
-        profile: { shell: '/usr/local/bin/fish', env: { PATH: '/usr/local/bin:/usr/bin' } },
-      },
-    });
-
-    expect(profile).toMatchObject({
-      id: 'target-default',
-      resolvedShellId: 'fish',
-      resolvedFromSystem: true,
-      executable: '/usr/local/bin/fish',
-      interactiveArgs: ['-il'],
-      commandArgs: ['-lc'],
-    });
   });
 });

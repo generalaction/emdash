@@ -20,12 +20,18 @@ inspection, refresh, explicit PATH selection, and plugin-declared update command
 workspace-server dependency state local to the remote host while preserving the same source and
 selection model used by the desktop SQLite-backed component.
 
+Port-forward inspection is mounted under `workspaceWireContract.portForwards`.
+The daemon probes its own loopback interfaces and reports whether a requested
+port is accepting connections on IPv4, IPv6, or both. Desktop clients can use
+this as the wire control plane before opening a transport-native data stream for
+preview traffic.
+
 ## Protocol Version
 
 The wire contract is versioned with a single [semver](https://semver.org) string, defined in [`packages/core/src/workspace-server/versions.ts`](../../packages/core/src/workspace-server/versions.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '3.2.0';
+export const PROTOCOL_VERSION = '3.3.0';
 ```
 
 ### What each component means
@@ -155,7 +161,8 @@ if (session.agreedMinor >= 1) {
 |------|------|
 | [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
 | [`packages/core/src/workspace-server/wire/schemas.ts`](../../packages/core/src/workspace-server/wire/schemas.ts) | initialize/health schemas |
-| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `tuiAgents`, `acp`) |
+| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `tuiAgents`, `acp`, `portForwards`) |
+| [`packages/core/src/workspace-server/port-forwards/contract.ts`](../../packages/core/src/workspace-server/port-forwards/contract.ts) | daemon-local preview port inspection contract |
 | [`apps/workspace-server/src/api/controller.ts`](../../apps/workspace-server/src/api/controller.ts) | Server-side procedure and live-model handlers |
 | [`apps/workspace-server/src/acp/host.ts`](../../apps/workspace-server/src/acp/host.ts) | Parent-side ACP child process host and spawn-context resolution |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |

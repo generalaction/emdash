@@ -11,8 +11,8 @@ import {
   type LiveJobContext,
   type LiveModelHost,
 } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
 import { bindMachineToLiveState } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
   type ActivateWorkspaceInput,
@@ -35,9 +35,12 @@ import {
 } from '@runtimes/workspace/api';
 import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
-import { gitErrorMessage, runGit } from '@runtimes/workspace/node/provisioning/lifecycle/steps/run-git';
-import type { IWatchService } from '@services/fs-watch/api';
+import {
+  gitErrorMessage,
+  runGit,
+} from '@runtimes/workspace/node/provisioning/lifecycle/steps/run-git';
 import { measureAbsolutePathUsage } from '@services/fs-usage/node';
+import type { IWatchService } from '@services/fs-watch/api';
 import {
   scriptWorkflowsContract,
   type ScriptWorkflowsContract,

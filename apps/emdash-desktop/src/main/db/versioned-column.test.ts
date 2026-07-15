@@ -1,6 +1,6 @@
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { describe, expect, it, vi } from 'vitest';
 import z from 'zod';
-import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { parseVersionedColumn, serializeVersionedColumn } from './versioned-column';
 
 // ---------------------------------------------------------------------------

@@ -1,16 +1,13 @@
-import type {
-  TerminalDevServer,
-  TerminalDevServerList,
-} from '@emdash/core/runtimes/terminals/api';
+import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
 import type { TerminalsRuntimeClient } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
+import type { DirectPreviewServer } from '@shared/core/preview-servers/types';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import type { DetectedPreviewUrl, StopTerminalServerHandler } from './preview-server-service';
-import type { DirectPreviewServer } from '@shared/core/preview-servers/types';
 import { previewServerService } from './preview-server-service-instance';
 
 type DevServerBridge = {

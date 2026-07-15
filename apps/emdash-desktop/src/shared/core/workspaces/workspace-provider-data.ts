@@ -1,5 +1,5 @@
-import z from 'zod';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
+import z from 'zod';
 
 // ---------------------------------------------------------------------------
 // v0 schema — unversioned legacy format stored in workspaces.data

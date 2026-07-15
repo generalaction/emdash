@@ -1,15 +1,15 @@
 import type { TerminalKey } from '@emdash/core/runtimes/terminals/api';
+import type { Disposable } from '@emdash/shared/concurrency';
 import { ReplicaLog } from '@emdash/wire';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
-import type { Disposable } from '@emdash/shared/concurrency';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
+import { PtySession } from '@renderer/lib/pty/pty-session';
+import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
 import { getTerminalTabsWireClient } from '@renderer/lib/runtime/terminal-tabs-client';
 import { getTerminalsRuntimeClient } from '@renderer/lib/runtime/terminals-client';
-import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
@@ -147,7 +147,9 @@ export class TerminalManagerStore implements Disposable {
     });
 
     try {
-      const result = await (await getTerminalTabsWireClient()).delete({
+      const result = await (
+        await getTerminalTabsWireClient()
+      ).delete({
         projectId: this.projectId,
         taskId: this.taskId,
         terminalId,
@@ -166,7 +168,9 @@ export class TerminalManagerStore implements Disposable {
   async hydrateTerminal(terminalId: string): Promise<void> {
     const store = this.terminals.get(terminalId);
     if (!store) return;
-    const result = await (await getTerminalTabsWireClient()).hydrate({
+    const result = await (
+      await getTerminalTabsWireClient()
+    ).hydrate({
       projectId: this.projectId,
       taskId: this.taskId,
       terminalId,

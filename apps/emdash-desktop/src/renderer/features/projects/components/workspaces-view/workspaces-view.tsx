@@ -175,7 +175,11 @@ function createProjectWorkspacesListView(store: ProjectWorkspacesStore) {
 
 type ProjectWorkspacesListView = ReturnType<typeof createProjectWorkspacesListView>;
 
-export const WorkspacesView = observer(function WorkspacesView({ projectId }: { projectId: string }) {
+export const WorkspacesView = observer(function WorkspacesView({
+  projectId,
+}: {
+  projectId: string;
+}) {
   const store = useMemo(() => new ProjectWorkspacesStore(projectId), [projectId]);
   const view = useMemo(() => createProjectWorkspacesListView(store), [store]);
 
@@ -206,11 +210,7 @@ export const WorkspacesView = observer(function WorkspacesView({ projectId }: { 
               />
             )}
           </ListView.Body>
-          <WorkspacesSelectionBar
-            store={store}
-            view={view}
-            projectId={projectId}
-          />
+          <WorkspacesSelectionBar store={store} view={view} projectId={projectId} />
         </div>
       </view.Root>
     </TooltipProvider>
@@ -350,7 +350,10 @@ function SelectableCheckbox({
   return (
     <Tooltip>
       <TooltipTrigger>
-        <span className="inline-flex size-4 items-center justify-center" onClick={(event) => event.stopPropagation()}>
+        <span
+          className="inline-flex size-4 items-center justify-center"
+          onClick={(event) => event.stopPropagation()}
+        >
           {checkbox}
         </span>
       </TooltipTrigger>
@@ -360,7 +363,12 @@ function SelectableCheckbox({
 }
 
 function WorkspaceUsageCell({ row }: { row: ProjectWorkspaceRow }) {
-  if (!row.usage && row.pathState !== 'error' && row.pathState !== 'missing' && row.pathState !== 'remote') {
+  if (
+    !row.usage &&
+    row.pathState !== 'error' &&
+    row.pathState !== 'missing' &&
+    row.pathState !== 'remote'
+  ) {
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="h-3.5 w-16 animate-pulse rounded bg-background-2" />
@@ -498,10 +506,19 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={deletableRows.length === 0 || pendingAction !== null}
           onClick={confirmDelete}
         >
-          {pendingAction === 'delete' ? <Spinner className="size-4" /> : <Trash2 className="size-4" />}
+          {pendingAction === 'delete' ? (
+            <Spinner className="size-4" />
+          ) : (
+            <Trash2 className="size-4" />
+          )}
           Delete
         </Button>
-        <Button variant="ghost" size="icon-xs" onClick={() => selection.clear()} aria-label="Clear selection">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => selection.clear()}
+          aria-label="Clear selection"
+        >
           <X className="size-3.5" />
         </Button>
       </div>
@@ -520,7 +537,12 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
         <div className="font-medium">Workspace scan completed with warnings</div>
         <div className="truncate text-foreground-warning/80">{warnings.join(' ')}</div>
       </div>
-      <Button variant="ghost" size="icon-xs" onClick={() => setDismissed(true)} aria-label="Dismiss warning">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss warning"
+      >
         <X className="size-3.5" />
       </Button>
     </div>
@@ -540,7 +562,9 @@ function WorkspacesErrorState({ message }: { message: string | null }) {
   return (
     <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
       <div className="text-foreground-destructive">Could not load workspaces.</div>
-      {message && <div className="max-w-md text-center text-xs text-foreground-muted">{message}</div>}
+      {message && (
+        <div className="max-w-md text-center text-xs text-foreground-muted">{message}</div>
+      )}
     </div>
   );
 }
@@ -557,7 +581,7 @@ function WorkspaceBadges({ row }: { row: ProjectWorkspaceRow }) {
       {badges.map((badge) => (
         <span
           key={badge}
-          className="rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-foreground-muted"
+          className="rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-muted uppercase"
         >
           {badge}
         </span>

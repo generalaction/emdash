@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { eq, isNotNull } from 'drizzle-orm';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
+import { eq, isNotNull } from 'drizzle-orm';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
@@ -9,13 +9,13 @@ import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-b
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
+import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceTask,
   ProjectWorkspacesResult,
 } from '@shared/core/workspaces/project-workspaces';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 const MEASURE_CONCURRENCY = 4;
 
@@ -173,7 +173,9 @@ async function buildCandidateRow(
   const remote = !projectIsLocal || candidate.workspace?.location === 'remote';
   const byoi = candidate.workspace?.type === 'byoi' || candidate.workspace?.kind === 'byoi';
   const exists = await pathExists(candidate.path);
-  const hasActiveSessions = candidate.tasks.some((task) => !!taskSessionManager.getTask(task.taskId));
+  const hasActiveSessions = candidate.tasks.some(
+    (task) => !!taskSessionManager.getTask(task.taskId)
+  );
   const lastActivityAt = latest(
     candidate.tasks.flatMap((task) => [task.lastInteractedAt, task.updatedAt])
   );
@@ -317,7 +319,10 @@ async function pathExists(targetPath: string): Promise<boolean> {
 }
 
 function latest(values: Array<string | undefined>): string | undefined {
-  return values.filter((value): value is string => !!value).sort().at(-1);
+  return values
+    .filter((value): value is string => !!value)
+    .sort()
+    .at(-1);
 }
 
 function pathKey(value: string): string {

@@ -5,7 +5,6 @@ import type { AppDb } from '@main/db/client';
 import { projects, sshConnections, workspaces } from '@main/db/schema';
 
 const mocks = vi.hoisted(() => ({
-  clearDependencyManager: vi.fn(),
   db: undefined as AppDb | undefined,
   deleteAllCredentials: vi.fn(),
   disconnect: vi.fn(),
@@ -17,10 +16,6 @@ vi.mock('@main/db/client', () => ({
     if (!mocks.db) throw new Error('Test database not initialized');
     return mocks.db;
   },
-}));
-
-vi.mock('../dependencies/dependency-managers', () => ({
-  clearDependencyManager: mocks.clearDependencyManager,
 }));
 
 vi.mock('./credentials/ssh-credential-service', () => ({
@@ -68,7 +63,6 @@ describe('sshController', () => {
   beforeEach(async () => {
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
-    mocks.clearDependencyManager.mockReset();
     mocks.deleteAllCredentials.mockReset();
     mocks.disconnect.mockReset();
     mocks.getConnectionState.mockReset();

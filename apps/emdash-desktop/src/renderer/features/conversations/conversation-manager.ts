@@ -374,7 +374,9 @@ export class ConversationManagerStore implements Disposable {
   private createSession(conversation: Conversation): PtySession {
     const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
     const connector =
-      conversation.type === 'acp' ? createNoopConnector() : createTuiAgentsConnector(conversation.id);
+      conversation.type === 'acp'
+        ? createNoopConnector()
+        : createTuiAgentsConnector(conversation.id);
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,

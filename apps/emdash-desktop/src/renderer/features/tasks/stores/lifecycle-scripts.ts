@@ -1,9 +1,6 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
-import {
-  terminalsContract,
-  type ScriptWorkflowState,
-} from '@emdash/core/runtimes/terminals/api';
+import { terminalsContract, type ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
 import { createLiveJobReplica, createLiveModelReplica, ReplicaLog } from '@emdash/wire';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
@@ -11,12 +8,10 @@ import { events, rpc } from '@renderer/lib/ipc';
 import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
+import { watchFileContent } from '@renderer/lib/runtime/files';
 import { getTerminalsRuntimeClient } from '@renderer/lib/runtime/terminals-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
-import { watchFileContent } from '@renderer/lib/runtime/files';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
-import { log } from '@renderer/utils/logger';
-import { hostPathFromNative } from '@shared/core/runtime/paths';
 import {
   addTabId,
   setNextTabActive,
@@ -24,9 +19,11 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
+import { log } from '@renderer/utils/logger';
 import { PROJECT_CONFIG_FILE } from '@shared/core/project-settings/project-settings';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { hostPathFromNative } from '@shared/core/runtime/paths';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 

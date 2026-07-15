@@ -46,10 +46,12 @@ describe('compileIdlePolicy', () => {
   });
 
   it('keeps busy and always/until-complete entries', () => {
-    expect(compileIdlePolicy({ kind: 'idle-after', outputMs: 1_000 })(
-      { ...baseSnapshot, busy: true },
-      10_000
-    )).toEqual({ action: 'keep' });
+    expect(
+      compileIdlePolicy({ kind: 'idle-after', outputMs: 1_000 })(
+        { ...baseSnapshot, busy: true },
+        10_000
+      )
+    ).toEqual({ action: 'keep' });
     expect(compileIdlePolicy({ kind: 'always' })(baseSnapshot, 10_000)).toEqual({
       action: 'keep',
     });

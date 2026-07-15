@@ -1,11 +1,7 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
 import type { KeyValueStore } from '@primitives/kv/api';
 import { z } from 'zod';
-import type {
-  SessionIntent,
-  SessionIntentError,
-  SessionIntentScope,
-} from './schemas';
+import type { SessionIntent, SessionIntentError, SessionIntentScope } from './schemas';
 import { sessionIntentSchema } from './schemas';
 
 const STORE_KEY_PREFIX = 'session-intents';

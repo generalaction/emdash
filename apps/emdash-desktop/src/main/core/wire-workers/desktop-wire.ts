@@ -16,6 +16,7 @@ import { ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
 import { createProjectsWireController } from '@main/core/projects/wire-controller';
+import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
 import {
   getAcpRuntimeClient,
   getAgentConfigRuntimeClient,
@@ -24,7 +25,6 @@ import {
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
 } from '@main/core/wire-workers/desktop-workers';
-import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
 import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,

@@ -13,8 +13,8 @@ import {
 } from '@main/core/terminal-shell/resolver';
 import { getTerminalsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -28,9 +28,8 @@ import type {
   TerminalHydrateResult,
 } from '@shared/core/terminals/wire-contract';
 
-type TerminalTabsDefinitions = typeof terminalTabsWireContract extends Contract<infer Defs>
-  ? Defs
-  : never;
+type TerminalTabsDefinitions =
+  typeof terminalTabsWireContract extends Contract<infer Defs> ? Defs : never;
 type TerminalTabsWireImpl = ContractImpl<TerminalTabsDefinitions>;
 type TerminalError = {
   type: string;
@@ -143,9 +142,10 @@ async function deleteTerminal({
   return ok(undefined);
 }
 
-async function renameTerminal(
-  input: { terminalId: string; name: string }
-): Promise<Result<void, TerminalError>> {
+async function renameTerminal(input: {
+  terminalId: string;
+  name: string;
+}): Promise<Result<void, TerminalError>> {
   await db
     .update(terminals)
     .set({ name: input.name, updatedAt: sql`CURRENT_TIMESTAMP` })

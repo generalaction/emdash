@@ -76,7 +76,10 @@ describe('AcpRuntime session manager', () => {
     await intents.saveActive({
       conversationId: 'conv-reconcile',
       sessionId: 'session-old',
-      payload: { ...makeStartInput({ conversationId: 'conv-reconcile' }), sessionId: 'session-old' },
+      payload: {
+        ...makeStartInput({ conversationId: 'conv-reconcile' }),
+        sessionId: 'session-old',
+      },
     });
     const h = makeAcpHarness({ intents });
     const rt = new AcpRuntime(h.deps);

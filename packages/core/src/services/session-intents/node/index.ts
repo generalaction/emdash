@@ -15,5 +15,8 @@ export type FileSessionIntentStoreOptions = {
 export function createFileSessionIntentStore(
   options: FileSessionIntentStoreOptions
 ): SessionIntentStore {
-  return createKvSessionIntentStore(createJsonFileKeyValueStore({ path: options.path }), options.scope);
+  return createKvSessionIntentStore(
+    createJsonFileKeyValueStore({ path: options.path }),
+    options.scope
+  );
 }

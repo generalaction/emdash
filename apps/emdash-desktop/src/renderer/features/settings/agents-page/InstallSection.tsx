@@ -66,10 +66,37 @@ export const InstallSection = observer(function InstallSection({
   connectionId,
   agentPayload,
   installOptions,
+  installDocs,
+  hideOverrideOptions,
+}: InstallSectionProps) {
+  if (connectionId) {
+    return (
+      <div className="rounded-lg border border-border bg-background-1 px-3 py-2 text-sm text-foreground-muted">
+        Remote host dependency management requires the workspace server and is not available in this
+        build.
+      </div>
+    );
+  }
+
+  return (
+    <LocalInstallSection
+      agentId={agentId}
+      agentPayload={agentPayload}
+      installOptions={installOptions}
+      installDocs={installDocs}
+      hideOverrideOptions={hideOverrideOptions}
+    />
+  );
+});
+
+const LocalInstallSection = observer(function LocalInstallSection({
+  agentId,
+  agentPayload,
+  installOptions,
   installDocs: _installDocs,
   hideOverrideOptions: _hideOverrideOptions,
-}: InstallSectionProps) {
-  const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
+}: Omit<InstallSectionProps, 'connectionId'>) {
+  const vm = useAgentInstallationStatus(agentId, undefined, agentPayload);
 
   const [selectedSource, setSelectedSource] = useState<SelectedSource>(() =>
     seedSource(vm.used, vm.status, installOptions)
@@ -158,11 +185,7 @@ export const InstallSection = observer(function InstallSection({
       />
 
       {state === 'found' && (
-        <DependencyInstallationUpdateCard
-          agentId={agentId}
-          connectionId={connectionId}
-          agentPayload={agentPayload}
-        />
+        <DependencyInstallationUpdateCard agentId={agentId} agentPayload={agentPayload} />
       )}
 
       {state !== 'found' && !isOverrideRef(selectedSource) && (

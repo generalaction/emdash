@@ -1,3 +1,4 @@
+import net from 'node:net';
 import { PassThrough } from 'node:stream';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { ok } from '@emdash/shared';
@@ -200,4 +201,66 @@ describe('createWorkspaceWireController', () => {
       },
     });
   });
+
+  it('inspects daemon-local preview ports', async () => {
+    const server = net.createServer((socket) => socket.end());
+    await listen(server, '127.0.0.1', 0);
+    const address = server.address();
+    if (typeof address !== 'object' || address === null) {
+      throw new Error('expected TCP listener address');
+    }
+
+    const controller = createWorkspaceWireController();
+
+    try {
+      const result = await controller.call('portForwards.inspect', { port: address.port });
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          listening: true,
+          families: ['ipv4'],
+        },
+      });
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it('reports closed preview ports as not listening', async () => {
+    const server = net.createServer();
+    await listen(server, '127.0.0.1', 0);
+    const address = server.address();
+    if (typeof address !== 'object' || address === null) {
+      throw new Error('expected TCP listener address');
+    }
+    await closeServer(server);
+
+    const controller = createWorkspaceWireController();
+    const result = await controller.call('portForwards.inspect', { port: address.port });
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        listening: false,
+        families: [],
+      },
+    });
+  });
 });
+
+function listen(server: net.Server, host: string, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen({ host, port }, () => {
+      server.removeListener('error', reject);
+      resolve();
+    });
+  });
+}
+
+function closeServer(server: net.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}

@@ -1,13 +1,13 @@
 import {
-  scriptWorkflowProgressSchema,
-  scriptWorkflowResultSchema,
-  terminalErrorSchema,
-} from '@emdash/core/services/script-workflows/api';
-import {
   bootstrapRepositoryInitializeSchema,
   workspaceErrorSchema,
   workspaceOperationProgressSchema,
 } from '@emdash/core/runtimes/workspace/api';
+import {
+  scriptWorkflowProgressSchema,
+  scriptWorkflowResultSchema,
+  terminalErrorSchema,
+} from '@emdash/core/services/script-workflows/api';
 import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
 
@@ -110,8 +110,6 @@ export type WorkspaceBootstrapStep = z.infer<typeof workspaceBootstrapStepSchema
 export type WorkspaceBootstrapProgress = z.infer<typeof workspaceBootstrapProgressSchema>;
 export type WorkspaceProvisionResult = z.infer<typeof workspaceProvisionResultSchema>;
 export type WorkspaceCloneProvisionResult = z.infer<typeof workspaceCloneProvisionResultSchema>;
-export type RunWorkspaceScriptWorkflowInput = z.infer<
-  typeof runWorkspaceScriptWorkflowInputSchema
->;
+export type RunWorkspaceScriptWorkflowInput = z.infer<typeof runWorkspaceScriptWorkflowInputSchema>;
 export type WorkspaceBootstrapState = z.infer<typeof workspaceBootstrapStateSchema>;
 export type WorkspacesWireContract = typeof workspacesWireContract;

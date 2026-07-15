@@ -4,7 +4,6 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
@@ -13,9 +12,7 @@ import { getEffectiveTaskSettings } from '../projects/settings/effective-task-se
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { getTaskEnvVars } from './workspace-env';
 
-export type WorkspaceType =
-  | { kind: 'local' }
-  | { kind: 'ssh'; proxy: SshClientProxy; connectionId: string };
+export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 
 type WorkspaceFactoryContext = {
   task: Pick<Task, 'id' | 'name'>;

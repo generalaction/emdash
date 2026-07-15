@@ -2,13 +2,13 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { tuiAgentsContract } from '@runtimes/tui-agents/api';
 import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';
 import { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
 import { NodeExecutionContext } from '@services/exec/api';
-import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
