@@ -5,16 +5,11 @@ import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
-import {
-  getWorkspaceRuntimeClient,
-  hostFileRefFromNativePath,
-} from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type {
-  ProjectWorkspacePathState,
   ProjectWorkspaceRow,
   ProjectWorkspaceTask,
   ProjectWorkspacesResult,
@@ -63,11 +58,13 @@ type RowCandidate = {
 
 export async function listProjectWorkspaces(projectId: string): Promise<ProjectWorkspacesResult> {
   const project = await getProjectWorkspaceProject(projectId);
-  const [workspaceRows, taskRows, worktreeEntries] = await Promise.all([
+  const [workspaceRows, taskRows, worktreesResult] = await Promise.all([
     getWorkspaceRows(),
     getTaskRows(projectId),
-    listGitWorktrees(project),
+    listGitWorktreesSafe(project),
   ]);
+  const worktreeEntries = worktreesResult.worktrees;
+  const warnings = worktreesResult.warning ? [worktreesResult.warning] : [];
 
   const workspacesById = new Map(workspaceRows.map((workspace) => [workspace.id, workspace]));
   const workspacesByPath = new Map(
@@ -128,21 +125,22 @@ export async function listProjectWorkspaces(projectId: string): Promise<ProjectW
   const rows = await mapWithConcurrency(
     Array.from(candidates.values()),
     MEASURE_CONCURRENCY,
-    (candidate) => measureCandidate(project, candidate)
+    (candidate) => buildCandidateRow(project, candidate)
   );
 
   rows.sort((left, right) => {
     if (left.kind === 'root') return -1;
     if (right.kind === 'root') return 1;
-    return right.totalBytes - left.totalBytes || left.path.localeCompare(right.path);
+    return left.path.localeCompare(right.path);
   });
 
   return {
     scannedAt: new Date().toISOString(),
     projectId,
     rows,
-    totalBytes: rows.reduce((sum, row) => sum + row.totalBytes, 0),
-    artifactBytes: rows.reduce((sum, row) => sum + row.artifactBytes, 0),
+    totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
+    artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
+    warnings,
   };
 }
 
@@ -167,7 +165,7 @@ export async function mapWithConcurrency<T, U>(
   return results;
 }
 
-async function measureCandidate(
+async function buildCandidateRow(
   project: ProjectWorkspaceProjectRow,
   candidate: RowCandidate
 ): Promise<ProjectWorkspaceRow> {
@@ -187,8 +185,7 @@ async function measureCandidate(
     path: candidate.path,
     branch: candidate.branch,
     tasks: candidate.tasks,
-    totalBytes: 0,
-    artifactBytes: 0,
+    usage: null,
     pathState: 'no-path',
     canCleanArtifacts: false,
     canDelete: candidate.kind !== 'root' && !remote && !byoi,
@@ -206,31 +203,10 @@ async function measureCandidate(
     };
   }
 
-  const workspaceRuntime = await getWorkspaceRuntimeClient();
-  const workspaceRef = hostFileRefFromNativePath(candidate.path);
-  const usage = await workspaceRuntime.measureUsage({
-    workspace: workspaceRef,
-    repoPath: hostFileRefFromNativePath(project.path),
-  });
-  if (!usage.success) {
-    return {
-      ...base,
-      pathState: 'error',
-      canCleanArtifacts: false,
-      errors: [{ path: candidate.path, message: usage.error.message }],
-    };
-  }
-
-  const pathState: ProjectWorkspacePathState =
-    usage.data.errors.length > 0 ? 'error' : candidate.kind === 'candidate' || candidate.isMain ? 'measured' : 'measured';
-
   return {
     ...base,
-    pathState,
-    totalBytes: usage.data.totalBytes,
-    artifactBytes: usage.data.artifactBytes,
-    canCleanArtifacts: true,
-    errors: usage.data.errors,
+    pathState: 'measured',
+    canCleanArtifacts: !byoi,
   };
 }
 
@@ -287,6 +263,19 @@ async function listGitWorktrees(project: ProjectWorkspaceProjectRow): Promise<Gi
   const result = await git.repository.listWorktrees(repositorySelector(project.path));
   if (!result.success) throw new Error(gitErrorMessage(result.error));
   return result.data;
+}
+
+async function listGitWorktreesSafe(
+  project: ProjectWorkspaceProjectRow
+): Promise<{ worktrees: GitWorktreesState; warning?: string }> {
+  try {
+    return { worktrees: await listGitWorktrees(project) };
+  } catch (error) {
+    return {
+      worktrees: [],
+      warning: `Could not scan git worktrees: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 function groupTasks(rows: TaskRow[]): Map<string, ProjectWorkspaceTask[]> {

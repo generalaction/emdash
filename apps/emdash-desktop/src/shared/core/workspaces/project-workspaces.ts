@@ -17,6 +17,12 @@ export type ProjectWorkspaceTask = {
   lastInteractedAt?: string;
 };
 
+export type ProjectWorkspaceUsage = {
+  totalBytes: number;
+  artifactBytes: number;
+  errors: { path: string; message: string }[];
+};
+
 export type ProjectWorkspaceRow = {
   kind: 'root' | 'workspace' | 'candidate';
   projectId: string;
@@ -24,8 +30,7 @@ export type ProjectWorkspaceRow = {
   path: string;
   branch?: string;
   tasks: ProjectWorkspaceTask[];
-  totalBytes: number;
-  artifactBytes: number;
+  usage: ProjectWorkspaceUsage | null;
   pathState: ProjectWorkspacePathState;
   canCleanArtifacts: boolean;
   canDelete: boolean;
@@ -40,6 +45,31 @@ export type ProjectWorkspacesResult = {
   rows: ProjectWorkspaceRow[];
   totalBytes: number;
   artifactBytes: number;
+  warnings: string[];
+};
+
+export type MeasureProjectWorkspacesInput = {
+  projectId: string;
+  paths: string[];
+};
+
+export type ProjectWorkspaceUsageResult =
+  | {
+      path: string;
+      success: true;
+      usage: ProjectWorkspaceUsage;
+    }
+  | {
+      path: string;
+      success: false;
+      message: string;
+      errors?: { path: string; message: string }[];
+    };
+
+export type MeasureProjectWorkspacesResult = {
+  scannedAt: string;
+  projectId: string;
+  results: ProjectWorkspaceUsageResult[];
 };
 
 export type ProjectWorkspaceActionReason =

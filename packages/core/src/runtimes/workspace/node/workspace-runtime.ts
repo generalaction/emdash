@@ -119,18 +119,21 @@ export class WorkspaceRuntime {
     signal?: AbortSignal
   ): Promise<Result<WorkspaceUsage, WorkspaceError>> {
     const workspacePath = nativePathFromWorkspace(input.workspace);
-    const total = await measureWorkspacePath(workspacePath, '');
-    if (!total.success) return err(total.error);
-
-    const artifacts = await measureIgnoredArtifacts(workspacePath, signal);
+    const artifacts = await listIgnoredArtifacts(workspacePath, signal);
     if (!artifacts.success) return err(artifacts.error);
+    const total = await measureWorkspacePath(
+      workspacePath,
+      '',
+      artifacts.data.map((artifact) => artifact.relativePath)
+    );
+    if (!total.success) return err(total.error);
 
     return ok({
       workspace: input.workspace,
       path: workspacePath,
       totalBytes: total.data.exclusiveDiskBytes,
-      artifactBytes: artifacts.data.bytes,
-      errors: [...total.data.errors, ...artifacts.data.errors],
+      artifactBytes: total.data.artifactBytes,
+      errors: total.data.errors,
     });
   }
 
@@ -631,25 +634,17 @@ type ArtifactMeasurement = {
 
 async function measureWorkspacePath(
   absolutePath: string,
-  displayPath: string
+  displayPath: string,
+  artifactRoots?: string[]
 ): Promise<Result<Awaited<ReturnType<typeof measureAbsolutePathUsage>>, WorkspaceError>> {
   try {
-    return ok(await measureAbsolutePathUsage(absolutePath, displayPath));
+    return ok(await measureAbsolutePathUsage(absolutePath, displayPath, { artifactRoots }));
   } catch (error) {
     return err({
       type: 'io',
       message: error instanceof Error ? error.message : String(error),
     });
   }
-}
-
-async function measureIgnoredArtifacts(
-  workspacePath: string,
-  signal?: AbortSignal
-): Promise<Result<ArtifactMeasurement, WorkspaceError>> {
-  const artifacts = await listIgnoredArtifacts(workspacePath, signal);
-  if (!artifacts.success) return artifacts;
-  return measureArtifacts(workspacePath, artifacts.data);
 }
 
 async function measureArtifacts(

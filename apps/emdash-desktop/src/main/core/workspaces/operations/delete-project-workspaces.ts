@@ -182,6 +182,6 @@ function success(row: ProjectWorkspaceRow): ProjectWorkspaceActionResult {
     path: row.path,
     workspaceId: row.workspaceId ?? undefined,
     success: true,
-    reclaimedBytes: row.totalBytes,
+    reclaimedBytes: row.usage?.totalBytes,
   };
 }

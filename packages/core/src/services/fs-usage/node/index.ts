@@ -13,6 +13,7 @@ export type PathUsage = {
   apparentBytes: number;
   diskBytes: number;
   exclusiveDiskBytes: number;
+  artifactBytes: number;
   errors: PathUsageError[];
 };
 
@@ -22,18 +23,21 @@ type EntryUsage = {
   inodeKey: string | null;
   linkCount: number;
   isDirectory: boolean;
+  isArtifact: boolean;
 };
 
 type ScanState = {
   root: string;
   displayPath: string;
+  artifactRoots: string[];
   entries: EntryUsage[];
   errors: PathUsageError[];
 };
 
 export async function measureAbsolutePathUsage(
   absolutePath: string,
-  displayPath: string
+  displayPath: string,
+  options: { artifactRoots?: string[] } = {}
 ): Promise<PathUsage> {
   const root = path.resolve(absolutePath);
   const rootStats = await lstat(root);
@@ -46,6 +50,7 @@ export async function measureAbsolutePathUsage(
       apparentBytes: rootStats.size,
       diskBytes: bytes,
       exclusiveDiskBytes: rootStats.nlink > 1 ? 0 : bytes,
+      artifactBytes: 0,
       errors: [],
     };
   }
@@ -53,6 +58,7 @@ export async function measureAbsolutePathUsage(
   const state: ScanState = {
     root,
     displayPath,
+    artifactRoots: normalizeArtifactRoots(options.artifactRoots ?? []),
     entries: [],
     errors: [],
   };
@@ -82,6 +88,7 @@ async function scanPath(state: ScanState, currentPath: string): Promise<void> {
     inodeKey: inodeKey(stats),
     linkCount: stats.nlink,
     isDirectory,
+    isArtifact: isArtifactPath(state, relative),
   });
   if (!isDirectory) return;
 
@@ -101,13 +108,19 @@ function aggregateEntries(entries: EntryUsage[]) {
   let apparentBytes = 0;
   let diskBytesTotal = 0;
   let exclusiveDiskBytes = 0;
+  let artifactBytes = 0;
   const linked = new Map<string, { count: number; linkCount: number; diskBytes: number }>();
+  const linkedArtifacts = new Map<
+    string,
+    { count: number; linkCount: number; diskBytes: number }
+  >();
 
   for (const entry of entries) {
     apparentBytes += entry.apparentBytes;
     if (entry.isDirectory || !entry.inodeKey || entry.linkCount <= 1) {
       diskBytesTotal += entry.diskBytes;
       exclusiveDiskBytes += entry.diskBytes;
+      if (entry.isArtifact) artifactBytes += entry.diskBytes;
       continue;
     }
     const existing = linked.get(entry.inodeKey);
@@ -119,13 +132,27 @@ function aggregateEntries(entries: EntryUsage[]) {
         diskBytes: entry.diskBytes,
       });
     }
+    if (entry.isArtifact) {
+      const existingArtifact = linkedArtifacts.get(entry.inodeKey);
+      if (existingArtifact) existingArtifact.count += 1;
+      else {
+        linkedArtifacts.set(entry.inodeKey, {
+          count: 1,
+          linkCount: entry.linkCount,
+          diskBytes: entry.diskBytes,
+        });
+      }
+    }
   }
 
   for (const group of linked.values()) {
     diskBytesTotal += group.diskBytes;
     if (group.linkCount <= group.count) exclusiveDiskBytes += group.diskBytes;
   }
-  return { apparentBytes, diskBytes: diskBytesTotal, exclusiveDiskBytes };
+  for (const group of linkedArtifacts.values()) {
+    if (group.linkCount <= group.count) artifactBytes += group.diskBytes;
+  }
+  return { apparentBytes, diskBytes: diskBytesTotal, exclusiveDiskBytes, artifactBytes };
 }
 
 function displayRelativePath(state: ScanState, currentPath: string): string {
@@ -137,6 +164,24 @@ function displayRelativePath(state: ScanState, currentPath: string): string {
 
 function diskBytes(stats: Stats): number {
   return stats.blocks > 0 ? stats.blocks * 512 : stats.size;
+}
+
+function normalizeArtifactRoots(roots: string[]): string[] {
+  return Array.from(
+    new Set(
+      roots
+        .map((root) => root.trim().replace(/\\/gu, '/').replace(/\/+$/u, ''))
+        .filter((root) => root && root !== '.' && root !== '..')
+    )
+  );
+}
+
+function isArtifactPath(state: ScanState, relativePath: string): boolean {
+  if (!relativePath) return false;
+  const normalized = relativePath.replace(/\\/gu, '/');
+  return state.artifactRoots.some(
+    (root) => normalized === root || normalized.startsWith(`${root}/`)
+  );
 }
 
 function inodeKey(stats: Stats): string | null {
