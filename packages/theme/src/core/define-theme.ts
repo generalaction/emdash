@@ -25,6 +25,7 @@ import { fillGaps } from './generate/fill-gaps';
 import { generateRamp, generateNeutralRamp } from './generate/ramp';
 import type { ScaleTweaks } from './generate/ramp';
 import { resolveCssVars } from './generate/resolve';
+import { generateShadowVars } from './generate/shadows';
 import { generateSurfaces } from './generate/surfaces';
 import { generateSyntaxVars } from './generate/syntax';
 import type { SyntaxThemeInput } from './generate/syntax';
@@ -213,7 +214,10 @@ export function defineTheme(input: ThemeInput): ResolvedTheme {
   // 3. Resolve CSS vars from the semantic template (done in resolve.ts, called here)
   const cssVars = resolveCssVars(scales, surfaces, polarity);
 
-  // 4. Generate syntax token vars (--syntax-<role>, --syntax-editor-*)
+  // 4. Generate elevation shadow vars (--shadow-*)
+  Object.assign(cssVars, generateShadowVars(scales.neutral, polarity));
+
+  // 5. Generate syntax token vars (--syntax-<role>, --syntax-editor-*)
   const syntaxInput: SyntaxThemeInput = input.syntax ?? { generate: true };
   Object.assign(cssVars, generateSyntaxVars(scales, polarity, syntaxInput));
 

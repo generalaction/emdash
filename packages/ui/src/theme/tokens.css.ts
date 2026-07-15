@@ -1,9 +1,12 @@
 /**
  * tokens.css.ts — Non-color design tokens in Vanilla Extract.
  *
- * Replaces the :root { --font-*, --text-*, --radius-*, --font-weight-*, --animate-* }
- * blocks that were hand-maintained in theme.base.css. Values are emitted into
- * dist/style.css via the VE build pipeline.
+ * Replaces the :root { --font-*, --text-*, --font-weight-*, --animate-* }
+ * blocks that were hand-maintained in theme.base.css. Static values are emitted
+ * into dist/style.css via the VE build pipeline.
+ *
+ * Spacing and radius tokens are reference-only here; their values are generated
+ * by @emdash/theme into the default density vars and .density-* classes.
  *
  * Exports a typed `tokenVars` contract so consumers can reference these tokens
  * with full TypeScript safety rather than raw `'var(--text-sm)'` strings.
@@ -15,7 +18,7 @@
  * into another and cannot be represented in the VE typed-vars map.
  */
 
-import { nsName } from '@theme/core/contract/namespace';
+import { nsName } from '@emdash/theme';
 import { createGlobalThemeContract, globalStyle } from '@vanilla-extract/css';
 
 // ── Primitive non-color token contract ────────────────────────────────────────
@@ -119,33 +122,6 @@ globalStyle(':root', {
     [tokenVars.textXlLineHeight]: '1.4',
     [tokenVars.text2xl]: '24px',
     [tokenVars.text2xlLineHeight]: '1.3',
-
-    // Radius scale
-    [tokenVars.radius]: '0.5rem',
-    [tokenVars.radiusXs]: '0.25rem',
-    [tokenVars.radiusSm]: '0.375rem',
-    [tokenVars.radiusMd]: '0.5rem',
-    [tokenVars.radiusLg]: '0.625rem',
-    [tokenVars.radiusXl]: '0.875rem',
-    [tokenVars.radius2xl]: '1.25rem',
-    [tokenVars.radiusFull]: '9999px',
-
-    // Spacing scale
-    [tokenVars.space0]: '0',
-    [tokenVars.space0_5]: '2px',
-    [tokenVars.space1]: '4px',
-    [tokenVars.space1_5]: '6px',
-    [tokenVars.space2]: '8px',
-    [tokenVars.space2_5]: '10px',
-    [tokenVars.space3]: '12px',
-    [tokenVars.space3_5]: '14px',
-    [tokenVars.space4]: '16px',
-    [tokenVars.space5]: '20px',
-    [tokenVars.space6]: '24px',
-    [tokenVars.space7]: '28px',
-    [tokenVars.space8]: '32px',
-    [tokenVars.space10]: '40px',
-    [tokenVars.space12]: '48px',
 
     // Named animation shorthands
     [tokenVars.animateAccordionDown]: 'accordion-down 0.2s ease-out',

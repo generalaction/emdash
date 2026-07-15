@@ -4,7 +4,7 @@
  * from theme.base.css, replacing the text-role-* class indirection.
  */
 
-import { nsVar } from '@theme/core/contract/namespace';
+import { nsVar } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';

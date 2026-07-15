@@ -57,6 +57,11 @@ export type SyntaxRole =
   | 'attribute'
   | 'regexp';
 
+export type ShadowName = 'sm' | 'md' | 'lg' | 'overlay';
+
+/** Canonical elevation shadow tokens generated per color theme. */
+export const SHADOW_NAMES = ['sm', 'md', 'lg', 'overlay'] as const satisfies readonly ShadowName[];
+
 /** Polarity of a theme — determines APCA target direction and L-curve orientation. */
 export type Polarity = 'light' | 'dark';
 

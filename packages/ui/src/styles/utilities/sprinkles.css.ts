@@ -9,9 +9,9 @@ import '../surfaces.css';
  * color/surface reference emits a typed var(--*) that automatically adapts to
  * the active .em<id> theme class and .surface-* cascade scope.
  *
- * Non-color design tokens (radius, font-family, font-size) are referenced as
- * raw CSS variable strings because they come from :root in theme.base.css and
- * do not change per theme — no contract entry is needed for them.
+ * Non-color design tokens use tokenVars. Spacing/radius values are generated
+ * by @emdash/theme density classes; typography and motion values remain static
+ * :root vars emitted by tokens.css.ts.
  *
  * Usage:
  *   import { sx } from '@emdash/ui/theme/sprinkles';
@@ -324,6 +324,13 @@ const borderProps = defineProperties({
       '50': 0.5,
       '75': 0.75,
       '100': 1,
+    },
+    boxShadow: {
+      none: 'none',
+      sm: vars.shadowSm,
+      md: vars.shadowMd,
+      lg: vars.shadowLg,
+      overlay: vars.shadowOverlay,
     },
   },
   shorthands: {

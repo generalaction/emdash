@@ -40,7 +40,7 @@ export const content = recipe({
     backgroundColor: vars.surface,
     fontSize: tokenVars.textSm,
     color: vars.foreground,
-    boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+    boxShadow: `${vars.shadowOverlay}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
     outline: 'none',
     selectors: {
       '&[data-open]': { animation: `${kfPopupIn} 100ms both` },

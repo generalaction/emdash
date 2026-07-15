@@ -51,8 +51,8 @@
 // element defaults, sx() sprinkles atoms, animation keyframes, SVG helpers.
 import '@styles/global.css';
 // Generated palette ramps + per-theme semantic aliases (wrapped in @layer tokens).
-import '@theme/__generated__/theme.css';
-import '@theme/__generated__/semantic.css';
+import '@emdash/theme/theme.css';
+import '@emdash/theme/semantic.css';
 // JetBrains Mono variable font + structural keyframes (accordion, panel-blur).
 import '@styles/theme.base.css';
 // Semantic typography role classes (.text-role-body, .text-role-h1, etc.).
@@ -61,8 +61,10 @@ import '@styles/typography.css';
 import '@styles/effects/overflow-fade.css';
 import { cx } from '@styles/utilities/cx';
 // ── Component ────────────────────────────────────────────────────────────────
-import { THEME_MANIFEST } from '@theme/themes/registry';
-import type { ThemeId } from '@theme/themes/registry';
+import { DENSITY_MANIFEST } from '@emdash/theme/densities';
+import type { DensityId } from '@emdash/theme/densities';
+import { THEME_MANIFEST } from '@emdash/theme/manifest';
+import type { ThemeId } from '@emdash/theme/manifest';
 import React, {
   createContext,
   useCallback,
@@ -74,13 +76,18 @@ import React, {
 
 // Re-export for consumers that want to enumerate themes.
 export type { ThemeId };
-export { THEME_MANIFEST };
+export type { DensityId };
+export { DENSITY_MANIFEST, THEME_MANIFEST };
 
 interface ThemeContextValue {
   /** Active theme id (e.g. "light" | "dark"). */
   themeId: ThemeId;
+  /** Active density id (e.g. "comfortable" | "compact"). */
+  densityId: DensityId;
   /** Change to a specific theme id. */
   setTheme: (id: ThemeId) => void;
+  /** Change to a specific density id. */
+  setDensity: (id: DensityId) => void;
   /** Toggle between available themes in manifest order. */
   toggle: () => void;
 }
@@ -113,8 +120,9 @@ export function useTheme(): ThemeContextValue {
 export function usePortalThemeClass(): string {
   const ctx = useContext(ThemeContext);
   if (!ctx) return '';
-  const entry = THEME_MANIFEST.find((e) => e.id === ctx.themeId) ?? THEME_MANIFEST[0]!;
-  return entry.selector.replace(/^\./, '');
+  const themeEntry = THEME_MANIFEST.find((e) => e.id === ctx.themeId) ?? THEME_MANIFEST[0]!;
+  const densityEntry = DENSITY_MANIFEST.find((e) => e.id === ctx.densityId) ?? DENSITY_MANIFEST[0]!;
+  return cx(themeEntry.selector.replace(/^\./, ''), densityEntry.selector.replace(/^\./, ''));
 }
 
 export interface ThemeProviderProps {
@@ -125,10 +133,20 @@ export interface ThemeProviderProps {
    */
   theme?: ThemeId;
   /**
+   * Controlled density id. When provided, spacing/radius density is controlled
+   * by the parent independently from the color theme.
+   */
+  density?: DensityId;
+  /**
    * Uncontrolled initial theme id. Only used on the first render.
    * Defaults to the first entry in the manifest ("light").
    */
   defaultTheme?: ThemeId;
+  /**
+   * Uncontrolled initial density id. Defaults to the first density manifest
+   * entry ("comfortable").
+   */
+  defaultDensity?: DensityId;
   /**
    * Where to apply the active theme class.
    *
@@ -154,6 +172,7 @@ export interface ThemeProviderProps {
 }
 
 const ALL_THEME_CLASSES = THEME_MANIFEST.map((e) => e.selector.replace(/^\./, ''));
+const ALL_DENSITY_CLASSES = DENSITY_MANIFEST.map((e) => e.selector.replace(/^\./, ''));
 
 /**
  * ThemeProvider — renders the theme class and provides ThemeContext.
@@ -162,7 +181,9 @@ const ALL_THEME_CLASSES = THEME_MANIFEST.map((e) => e.selector.replace(/^\./, ''
  */
 export function ThemeProvider({
   theme: controlledTheme,
+  density: controlledDensity,
   defaultTheme,
+  defaultDensity,
   target = 'documentElement',
   as: As = 'div',
   className,
@@ -172,6 +193,12 @@ export function ThemeProvider({
   const initial: ThemeId =
     controlledTheme ?? defaultTheme ?? (THEME_MANIFEST[0]?.id as ThemeId) ?? 'light';
   const [themeId, setThemeId] = useState<ThemeId>(initial);
+  const initialDensity: DensityId =
+    controlledDensity ??
+    defaultDensity ??
+    (DENSITY_MANIFEST[0]?.id as DensityId) ??
+    'comfortable';
+  const [densityId, setDensityId] = useState<DensityId>(initialDensity);
 
   // Sync internal state whenever the controlled prop changes.
   const prevControlled = React.useRef(controlledTheme);
@@ -179,11 +206,21 @@ export function ThemeProvider({
     prevControlled.current = controlledTheme;
     setThemeId(controlledTheme);
   }
+  const prevControlledDensity = React.useRef(controlledDensity);
+  if (controlledDensity !== undefined && controlledDensity !== prevControlledDensity.current) {
+    prevControlledDensity.current = controlledDensity;
+    setDensityId(controlledDensity);
+  }
 
   const resolvedThemeId = controlledTheme ?? themeId;
+  const resolvedDensityId = controlledDensity ?? densityId;
 
   const setTheme = useCallback((id: ThemeId) => {
     setThemeId(id);
+  }, []);
+
+  const setDensity = useCallback((id: DensityId) => {
+    setDensityId(id);
   }, []);
 
   const toggle = useCallback(() => {
@@ -196,22 +233,25 @@ export function ThemeProvider({
 
   const entry = THEME_MANIFEST.find((e) => e.id === resolvedThemeId) ?? THEME_MANIFEST[0]!;
   const themeClass = entry.selector.replace(/^\./, '');
+  const densityEntry =
+    DENSITY_MANIFEST.find((e) => e.id === resolvedDensityId) ?? DENSITY_MANIFEST[0]!;
+  const densityClass = densityEntry.selector.replace(/^\./, '');
 
   // Apply theme class to <html> in documentElement mode.
   useLayoutEffect(() => {
     if (target !== 'documentElement') return;
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    root.classList.remove(...ALL_THEME_CLASSES);
-    root.classList.add(themeClass);
+    root.classList.remove(...ALL_THEME_CLASSES, ...ALL_DENSITY_CLASSES);
+    root.classList.add(themeClass, densityClass);
     return () => {
-      root.classList.remove(...ALL_THEME_CLASSES);
+      root.classList.remove(...ALL_THEME_CLASSES, ...ALL_DENSITY_CLASSES);
     };
-  }, [target, themeClass]);
+  }, [target, themeClass, densityClass]);
 
   const ctx = useMemo<ThemeContextValue>(
-    () => ({ themeId: resolvedThemeId, setTheme, toggle }),
-    [resolvedThemeId, setTheme, toggle]
+    () => ({ themeId: resolvedThemeId, densityId: resolvedDensityId, setTheme, setDensity, toggle }),
+    [resolvedThemeId, resolvedDensityId, setTheme, setDensity, toggle]
   );
 
   // In "none" mode: supply context without touching the DOM.
@@ -237,7 +277,7 @@ export function ThemeProvider({
   // wrapper mode: apply the theme class to the wrapper element.
   return (
     <ThemeContext.Provider value={ctx}>
-      <As className={cx(themeClass, className)} style={style}>
+      <As className={cx(themeClass, densityClass, className)} style={style}>
         {children}
       </As>
     </ThemeContext.Provider>

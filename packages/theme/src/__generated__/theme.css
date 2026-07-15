@@ -316,6 +316,18 @@
     --em-border-info: color(display-p3 0.6473 0.8163 1);
     --em-foreground-conflict: color(display-p3 0.5743 0.2981 0.0031);
     --em-foreground-merged: color(display-p3 0.6529 0.4392 0.9177);
+    --em-shadow-sm:
+      0 1px 2px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 10%, transparent),
+      0 1px 1px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 6%, transparent);
+    --em-shadow-md:
+      0 8px 24px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 12%, transparent),
+      0 2px 8px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 8%, transparent);
+    --em-shadow-lg:
+      0 16px 48px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 14%, transparent),
+      0 4px 16px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 10%, transparent);
+    --em-shadow-overlay:
+      0 24px 80px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 18%, transparent),
+      0 8px 32px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 12%, transparent);
     --em-syntax-comment: #8f8d8d;
     --em-syntax-keyword: #a43a3b;
     --em-syntax-string: #0d62ad;
@@ -333,6 +345,29 @@
     --em-syntax-editor-find-match-hl: #95c9ff30;
     --em-syntax-editor-scrollbar-bg: #c5c4c460;
     --em-syntax-editor-scrollbar-hover: #cfcece80;
+    --em-space-0: 0;
+    --em-space-0-5: 2px;
+    --em-space-1: 4px;
+    --em-space-1-5: 6px;
+    --em-space-2: 8px;
+    --em-space-2-5: 10px;
+    --em-space-3: 12px;
+    --em-space-3-5: 14px;
+    --em-space-4: 16px;
+    --em-space-5: 20px;
+    --em-space-6: 24px;
+    --em-space-7: 28px;
+    --em-space-8: 32px;
+    --em-space-10: 40px;
+    --em-space-12: 48px;
+    --em-radius: 0.5rem;
+    --em-radius-xs: 0.25rem;
+    --em-radius-sm: 0.375rem;
+    --em-radius-md: 0.5rem;
+    --em-radius-lg: 0.625rem;
+    --em-radius-xl: 0.875rem;
+    --em-radius-2xl: 1.25rem;
+    --em-radius-full: 9999px;
   }
 
   .emlight {
@@ -647,6 +682,18 @@
     --em-border-info: color(display-p3 0.6473 0.8163 1);
     --em-foreground-conflict: color(display-p3 0.5743 0.2981 0.0031);
     --em-foreground-merged: color(display-p3 0.6529 0.4392 0.9177);
+    --em-shadow-sm:
+      0 1px 2px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 10%, transparent),
+      0 1px 1px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 6%, transparent);
+    --em-shadow-md:
+      0 8px 24px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 12%, transparent),
+      0 2px 8px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 8%, transparent);
+    --em-shadow-lg:
+      0 16px 48px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 14%, transparent),
+      0 4px 16px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 10%, transparent);
+    --em-shadow-overlay:
+      0 24px 80px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 18%, transparent),
+      0 8px 32px color-mix(in srgb, color(display-p3 0.1329 0.1309 0.1314) 12%, transparent);
     --em-syntax-comment: #8f8d8d;
     --em-syntax-keyword: #a43a3b;
     --em-syntax-string: #0d62ad;
@@ -978,6 +1025,18 @@
     --em-border-info: color(display-p3 0.1789 0.3709 0.6338);
     --em-foreground-conflict: color(display-p3 0.9519 0.6496 0.4126);
     --em-foreground-merged: color(display-p3 0.6719 0.4585 0.9386);
+    --em-shadow-sm:
+      0 1px 2px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 24%, transparent),
+      0 1px 1px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 14%, transparent);
+    --em-shadow-md:
+      0 8px 24px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 30%, transparent),
+      0 2px 8px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 18%, transparent);
+    --em-shadow-lg:
+      0 16px 48px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 36%, transparent),
+      0 4px 16px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 22%, transparent);
+    --em-shadow-overlay:
+      0 24px 80px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 44%, transparent),
+      0 8px 32px color-mix(in srgb, color(display-p3 0.0671 0.0669 0.067) 28%, transparent);
     --em-syntax-comment: #929091;
     --em-syntax-keyword: #ff9692;
     --em-syntax-string: #71bcff;
@@ -1309,6 +1368,18 @@
     --em-border-info: color(display-p3 0.6218 0.8001 0.988);
     --em-foreground-conflict: color(display-p3 0.5325 0.2562 0.1476);
     --em-foreground-merged: color(display-p3 0.4753 0.4931 0.8014);
+    --em-shadow-sm:
+      0 1px 2px color-mix(in srgb, #073642 10%, transparent),
+      0 1px 1px color-mix(in srgb, #073642 6%, transparent);
+    --em-shadow-md:
+      0 8px 24px color-mix(in srgb, #073642 12%, transparent),
+      0 2px 8px color-mix(in srgb, #073642 8%, transparent);
+    --em-shadow-lg:
+      0 16px 48px color-mix(in srgb, #073642 14%, transparent),
+      0 4px 16px color-mix(in srgb, #073642 10%, transparent);
+    --em-shadow-overlay:
+      0 24px 80px color-mix(in srgb, #073642 18%, transparent),
+      0 8px 32px color-mix(in srgb, #073642 12%, transparent);
     --em-syntax-comment: #839496;
     --em-syntax-keyword: #9d2d28;
     --em-syntax-string: #195a8a;
@@ -1640,6 +1711,18 @@
     --em-border-info: color(display-p3 0.2479 0.4116 0.5807);
     --em-foreground-conflict: color(display-p3 0.9752 0.6644 0.542);
     --em-foreground-merged: color(display-p3 0.5475 0.5684 0.8827);
+    --em-shadow-sm:
+      0 1px 2px color-mix(in srgb, #002b36 24%, transparent),
+      0 1px 1px color-mix(in srgb, #002b36 14%, transparent);
+    --em-shadow-md:
+      0 8px 24px color-mix(in srgb, #002b36 30%, transparent),
+      0 2px 8px color-mix(in srgb, #002b36 18%, transparent);
+    --em-shadow-lg:
+      0 16px 48px color-mix(in srgb, #002b36 36%, transparent),
+      0 4px 16px color-mix(in srgb, #002b36 22%, transparent);
+    --em-shadow-overlay:
+      0 24px 80px color-mix(in srgb, #002b36 44%, transparent),
+      0 8px 32px color-mix(in srgb, #002b36 28%, transparent);
     --em-syntax-comment: #839496;
     --em-syntax-keyword: #ff9b8e;
     --em-syntax-string: #84c4f9;
@@ -1657,5 +1740,57 @@
     --em-syntax-editor-find-match-hl: #123b5930;
     --em-syntax-editor-scrollbar-bg: #2c5a6460;
     --em-syntax-editor-scrollbar-hover: #475c6380;
+  }
+
+  .density-comfortable {
+    --em-space-0: 0;
+    --em-space-0-5: 2px;
+    --em-space-1: 4px;
+    --em-space-1-5: 6px;
+    --em-space-2: 8px;
+    --em-space-2-5: 10px;
+    --em-space-3: 12px;
+    --em-space-3-5: 14px;
+    --em-space-4: 16px;
+    --em-space-5: 20px;
+    --em-space-6: 24px;
+    --em-space-7: 28px;
+    --em-space-8: 32px;
+    --em-space-10: 40px;
+    --em-space-12: 48px;
+    --em-radius: 0.5rem;
+    --em-radius-xs: 0.25rem;
+    --em-radius-sm: 0.375rem;
+    --em-radius-md: 0.5rem;
+    --em-radius-lg: 0.625rem;
+    --em-radius-xl: 0.875rem;
+    --em-radius-2xl: 1.25rem;
+    --em-radius-full: 9999px;
+  }
+
+  .density-compact {
+    --em-space-0: 0;
+    --em-space-0-5: 1.75px;
+    --em-space-1: 3.5px;
+    --em-space-1-5: 5.25px;
+    --em-space-2: 7px;
+    --em-space-2-5: 8.75px;
+    --em-space-3: 10.5px;
+    --em-space-3-5: 12.25px;
+    --em-space-4: 14px;
+    --em-space-5: 17.5px;
+    --em-space-6: 21px;
+    --em-space-7: 24.5px;
+    --em-space-8: 28px;
+    --em-space-10: 35px;
+    --em-space-12: 42px;
+    --em-radius: 6.8px;
+    --em-radius-xs: 3.4px;
+    --em-radius-sm: 5.1px;
+    --em-radius-md: 6.8px;
+    --em-radius-lg: 8.5px;
+    --em-radius-xl: 11.9px;
+    --em-radius-2xl: 17px;
+    --em-radius-full: 9999px;
   }
 }

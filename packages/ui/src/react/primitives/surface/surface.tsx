@@ -12,7 +12,7 @@
  */
 
 import { cx } from '@styles/utilities/cx';
-import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
+import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
 import React, { createContext, useContext } from 'react';
 
 // ── Context ───────────────────────────────────────────────────────────────────

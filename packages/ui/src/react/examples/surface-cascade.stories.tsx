@@ -5,8 +5,8 @@ import {
   SURFACE_ROLES,
   SURFACE_SCOPES,
   SURFACE_STATUSES,
-} from '@theme/core/contract/roles';
-import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
+} from '@emdash/theme';
+import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
 import { Alert } from '../primitives/alert';

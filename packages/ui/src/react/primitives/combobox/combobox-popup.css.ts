@@ -11,7 +11,7 @@ export const popupRoot = style({
   borderRadius: tokenVars.radiusMd,
   backgroundColor: vars.surface,
   color: vars.foreground,
-  boxShadow: `0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+  boxShadow: `${vars.shadowSm}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   animation: `${kfPopupIn} 100ms both`,
 });
 

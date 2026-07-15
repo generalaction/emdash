@@ -45,6 +45,7 @@ const ConversationRow = observer(function ConversationRow({
   const committedRef = useRef(false);
   const conversations = useConversations();
   const { projectId, taskId } = useTaskViewContext();
+  const { paneLayout } = useWorkspaceViewModel();
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -85,6 +86,13 @@ const ConversationRow = observer(function ConversationRow({
     void conversations.renameConversation(conversationId, newTitle);
   };
 
+  const closeConversationTab = () => {
+    for (const group of paneLayout.groups) {
+      const entry = group.pane.findSingleMountEntry(tabKind, conversationId);
+      if (entry) group.pane.closeTab(entry.tabId);
+    }
+  };
+
   const handleDoubleClick = () => {
     openConversation({ conversationId }, { preview: false });
   };
@@ -108,13 +116,18 @@ const ConversationRow = observer(function ConversationRow({
       confirmLabel: 'Kill session',
       variant: 'destructive',
       onSuccess: () => {
-        void conversations.killSession(conversationId).catch((error) => {
-          toast({
-            title: 'Failed to kill session',
-            description: error instanceof Error ? error.message : String(error),
-            variant: 'destructive',
-          });
-        });
+        void (async () => {
+          try {
+            await conversations.killSession(conversationId);
+            closeConversationTab();
+          } catch (error) {
+            toast({
+              title: 'Failed to kill session',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            });
+          }
+        })();
       },
     });
   };
