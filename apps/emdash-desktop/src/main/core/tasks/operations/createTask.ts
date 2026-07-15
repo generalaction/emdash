@@ -1,15 +1,12 @@
 import crypto from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
-import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
-import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
 import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -22,26 +19,6 @@ import type {
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
-
-function emitInitialPtyPromptStarted(
-  conversation: Conversation,
-  prepared: PreparedCreateTask
-): void {
-  const initialConversation = prepared.params.taskConfig.initialConversation;
-  if (conversation.type !== 'pty' || !initialConversation?.initialPrompt?.trim()) return;
-
-  const agentEvent: AgentEvent = {
-    type: 'start',
-    source: 'input',
-    providerId: conversation.providerId,
-    projectId: conversation.projectId,
-    taskId: conversation.taskId,
-    conversationId: conversation.id,
-    timestamp: Date.now(),
-    payload: {},
-  };
-  agentHookService.emitAgentEvent(agentEvent, isAppFocused());
-}
 
 export interface PreparedCreateTask {
   params: CreateTaskParams;
@@ -205,7 +182,6 @@ export function finalizeCreateTask(
   if (convRow) {
     initialConversation = mapConversationRowToConversation(convRow);
     events.emit(conversationCreatedChannel, { conversation: initialConversation });
-    emitInitialPtyPromptStarted(initialConversation, prepared);
   }
 
   return { task: { ...task, workspaceId: prepared.workspaceId }, initialConversation };

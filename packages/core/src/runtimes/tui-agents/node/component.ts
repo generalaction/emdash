@@ -21,8 +21,12 @@ import {
 import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
-  hook: z.object({ port: z.number().int().positive(), token: z.string() }).optional(),
   intentsFilePath: z.string().min(1).optional(),
+  hookInstall: z
+    .object({
+      writeGitIgnoreEntries: z.boolean().optional(),
+    })
+    .optional(),
   lifecycle: z
     .object({
       session: idlePolicyConfigSchema.optional(),
@@ -70,7 +74,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
         exec,
         intents,
         spawner: new NodePtySpawner(),
-        hook: config.hook,
+        hookInstall: config.hookInstall,
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       });

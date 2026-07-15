@@ -42,7 +42,7 @@ When adding a provider:
 1. add or update its plugin in `packages/plugins/src/agents/impl/` and register it in
    `packages/plugins/src/agents/registry.ts`
 2. add any required env passthrough in `src/main/core/pty/pty-env.ts`
-3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
-   supports explicit events
+3. add or update hook/plugin installation and parsing in provider plugin behavior if the provider
+   supports explicit events; the TUI runtime installs and hosts hooks
 4. update renderer surfaces that consume agent metadata from `rpc.agents.*`
 5. add tests for non-standard spawn or detection behavior

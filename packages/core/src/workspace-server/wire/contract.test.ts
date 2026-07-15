@@ -21,8 +21,8 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.output.id).toBe('tuiAgents.output');
     expect(workspaceWireContract.tuiAgents.sessions.kind).toBe('liveModel');
     expect(workspaceWireContract.tuiAgents.sessions.id).toBe('tuiAgents.sessions');
-    expect(workspaceWireContract.tuiAgents.notifications.kind).toBe('liveModel');
-    expect(workspaceWireContract.tuiAgents.notifications.id).toBe('tuiAgents.notifications');
+    expect(workspaceWireContract.tuiAgents.agentStates.kind).toBe('liveModel');
+    expect(workspaceWireContract.tuiAgents.agentStates.id).toBe('tuiAgents.agentStates');
   });
 
   it('mounts the workspace runtime under the workspace domain', () => {

@@ -15,13 +15,14 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { acpAgentStatusBridge } from './core/acp/agent-status-bridge';
-import { agentHookService } from './core/agent-hooks/agent-hook-service';
+import { tuiAgentStatusBridge } from './core/agent-status/tui-agent-status-bridge';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
 import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { resetStaleAcpAgentStatuses } from './core/conversations/reset-stale-acp-agent-statuses';
+import { resetStaleTuiAgentStatuses } from './core/conversations/reset-stale-tui-agent-statuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
@@ -116,6 +117,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     await resetStaleAcpAgentStatuses();
+    await resetStaleTuiAgentStatuses();
     searchService.initialize();
     void editorBufferService.pruneStale();
     void cleanupLegacyBrowserPartitions();
@@ -166,9 +168,6 @@ void app.whenReady().then(async () => {
       return taskService.on('task:workspace-ready', (_taskId, result) => handler(_taskId, result));
     },
   });
-  agentHookService.initialize().catch((e) => {
-    log.error('Failed to start agent event service:', e);
-  });
   acpWorker.ready().catch((e) => {
     log.error('Failed to start ACP runtime process:', e);
   });
@@ -188,6 +187,7 @@ void app.whenReady().then(async () => {
     log.error('Failed to start TUI agents runtime process:', e);
   });
   acpAgentStatusBridge.initialize();
+  tuiAgentStatusBridge.initialize();
 
   emdashAccountService
     .initialize()

@@ -24,10 +24,10 @@ codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, herme
 
 ## Agent Hooks And Notifications
 
-Agent activity, completion, and attention notifications come from explicit hooks or plugins
-installed by `src/main/core/agent-hooks/`. Emdash does not infer agent status from terminal
-output. If a provider has no hook/plugin integration for an event, the renderer should not show
-or notify an inferred status for that event.
+Agent activity, completion, and attention states come from explicit hooks or plugins
+installed by the `tui-agents` runtime in `packages/core/src/runtimes/tui-agents/`. Emdash
+does not infer agent status from terminal output. If a provider has no hook/plugin integration
+for an event, the renderer should not show or notify an inferred status for that event.
 
 ## Provider Runtime Notes
 
@@ -43,7 +43,7 @@ or notify an inferred status for that event.
 - Agents that cannot receive an automated initial prompt via argv or stdin declare `pty-only`
   prompt delivery. Their TUI opens without an initial prompt, and automation flows exclude them
   unless they also support ACP.
-- `src/main/core/agent-hooks/agent-hook-service.ts` forwards hook events to renderer windows and can show OS notifications. It also writes hook config files for hook-capable providers, including `.claude/settings.local.json`, `.qwen/settings.json`, and provider-specific global hook files.
+- `packages/core/src/runtimes/tui-agents/` owns hook ingestion, hook config/plugin installation, and the agent state LiveModel. `src/main/core/agent-status/` projects those runtime states into SQLite, renderer IPC, sounds, and Electron OS notifications.
 - Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 
 ## Adding Or Changing A Provider
@@ -51,7 +51,7 @@ or notify an inferred status for that event.
 1. add or update the plugin in `packages/plugins/src/agents/impl/` and register it in
    `packages/plugins/src/agents/registry.ts`
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
-3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
-   supports explicit events
+3. add or update hook/plugin installation and parsing in the provider plugin if the provider
+   supports explicit events; `tui-agents` installs and hosts those hooks at runtime
 4. validate PATH dependency behavior through the `HostDependencies` component and resolver contract
 5. add or update tests for any non-standard behavior

@@ -19,14 +19,17 @@ import type {
   TuiSessionState,
   TuiStartSessionError,
 } from '@runtimes/tui-agents/api';
-import { tuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
+import { persistedTuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
+import { TuiHookInstaller } from '@runtimes/tui-agents/node/hooks/hook-installer';
+import { TuiHookPipeline } from '@runtimes/tui-agents/node/hooks/hook-pipeline';
+import { TuiHookServer } from '@runtimes/tui-agents/node/hooks/hook-server';
 import {
-  createTuiNotificationsLiveHost,
-  createTuiNotificationsListModel,
+  createTuiAgentStatesLiveHost,
+  createTuiAgentStatesListModel,
   createTuiSessionsLiveHost,
   createTuiSessionsListModel,
-  type TuiNotificationsLiveHost,
-  type TuiNotificationsListModel,
+  type TuiAgentStatesLiveHost,
+  type TuiAgentStatesListModel,
   type TuiSessionsLiveHost,
   type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
@@ -41,7 +44,7 @@ import {
   type PtySession,
   type PtySpawnSpec,
 } from '@services/pty/api';
-import { TuiAgentNotifications } from './notifications';
+import { TuiAgentStates } from './agent-state';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 
 const SESSION_GRACE_MS = 3_000;
@@ -65,10 +68,13 @@ export class TuiAgentsRuntime {
   private readonly logs = new Map<string, LiveLog>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly sessionsHost: TuiSessionsLiveHost;
-  private readonly notificationsHost: TuiNotificationsLiveHost;
+  private readonly agentStatesHost: TuiAgentStatesLiveHost;
   private readonly sessionsList: TuiSessionsListModel;
-  private readonly notificationsList: TuiNotificationsListModel;
-  private readonly notifications: TuiAgentNotifications;
+  private readonly agentStatesList: TuiAgentStatesListModel;
+  private readonly agentStates: TuiAgentStates;
+  private readonly hookInstaller: TuiHookInstaller;
+  private readonly hookServer: TuiHookServer;
+  private readonly hookPipeline: TuiHookPipeline;
   private readonly sessionIdlePolicy: IdlePolicy;
   private readonly idleSweeper: IdleSweeper;
   private readonly activity = new Map<string, IoActivityTracker>();
@@ -78,10 +84,37 @@ export class TuiAgentsRuntime {
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
     this.registry = new PtyRegistry(deps.spawner);
     this.sessionsHost = createTuiSessionsLiveHost();
-    this.notificationsHost = createTuiNotificationsLiveHost();
+    this.agentStatesHost = createTuiAgentStatesLiveHost();
     this.sessionsList = createTuiSessionsListModel(this.sessionsHost);
-    this.notificationsList = createTuiNotificationsListModel(this.notificationsHost);
-    this.notifications = new TuiAgentNotifications(this.sessionsList, this.notificationsList);
+    this.agentStatesList = createTuiAgentStatesListModel(this.agentStatesHost);
+    this.agentStates = new TuiAgentStates(
+      this.sessionsList,
+      this.agentStatesList,
+      (conversationId) => {
+        const config = this.configs.get(conversationId);
+        if (config) this.persistActiveIntent(config.input);
+      },
+      (conversationId) => {
+        const config = this.configs.get(conversationId);
+        if (config) this.persistActiveIntent(config.input);
+      }
+    );
+    this.hookInstaller = new TuiHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
+    this.hookPipeline = new TuiHookPipeline({
+      getConversationConfig: (conversationId) => {
+        const config = this.configs.get(conversationId);
+        if (!config) return null;
+        return {
+          conversationId,
+          providerId: config.input.providerId,
+        };
+      },
+      getProvider: (providerId) => this.deps.agentHost.resolveTuiProvider(providerId),
+      applyCanonicalEvent: (conversationId, providerId, event) =>
+        this.agentStates.applyCanonicalEvent(conversationId, providerId, event),
+      logger: deps.logger,
+    });
+    this.hookServer = new TuiHookServer((raw) => this.hookPipeline.handle(raw), deps.logger);
     this.sessionIdlePolicy = compileIdlePolicy(
       deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: DEFAULT_SESSION_IDLE_MS }
     );
@@ -176,7 +209,7 @@ export class TuiAgentsRuntime {
     const active = this.sessionsSource.peek({ conversationId });
     if (active) active.pty = null;
     this.markExited(conversationId, null);
-    this.notifications.resetToIdle(conversationId);
+    this.agentStates.resetToIdle(conversationId);
     this.persistSuspendedIntent(conversationId, 'user');
     return ok(undefined);
   }
@@ -194,7 +227,7 @@ export class TuiAgentsRuntime {
     this.sessionsList.states.list.produce((draft) => {
       delete draft[conversationId];
     });
-    this.notifications.clear(conversationId);
+    this.agentStates.clear(conversationId);
     this.removePersistedIntent(conversationId);
     return ok(undefined);
   }
@@ -215,7 +248,7 @@ export class TuiAgentsRuntime {
     this.sessionsList.states.list.produce((draft) => {
       delete draft[conversationId];
     });
-    this.notifications.clear(conversationId);
+    this.agentStates.clear(conversationId);
     this.persistSuspendedIntent(conversationId, cause);
     return ok(undefined);
   }
@@ -232,7 +265,7 @@ export class TuiAgentsRuntime {
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.write(data);
     this.recordInputActivity(conversationId);
-    this.notifications.markInputSubmitted(conversationId, active.provider, data);
+    this.agentStates.markInputSubmitted(conversationId, active.provider, data);
     return ok(undefined);
   }
 
@@ -241,19 +274,6 @@ export class TuiAgentsRuntime {
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.resize(cols, rows);
     this.updateSessionSize(conversationId, cols, rows);
-    return ok(undefined);
-  }
-
-  emitHookEvent(input: {
-    conversationId: string;
-    eventType: string;
-    body: Record<string, unknown>;
-  }): Result<void, TuiSessionControlError> {
-    const config = this.configs.get(input.conversationId);
-    const provider = config
-      ? this.deps.agentHost.resolveTuiProvider(config.input.providerId)
-      : null;
-    this.notifications.emitHookEvent(input.conversationId, provider, input.eventType, input.body);
     return ok(undefined);
   }
 
@@ -295,8 +315,8 @@ export class TuiAgentsRuntime {
     return this.sessionsHost;
   }
 
-  notificationsLiveHost(): TuiNotificationsLiveHost {
-    return this.notificationsHost;
+  agentStatesLiveHost(): TuiAgentStatesLiveHost {
+    return this.agentStatesHost;
   }
 
   async reconcile(): Promise<void> {
@@ -320,12 +340,15 @@ export class TuiAgentsRuntime {
 
     for (const intent of listed.data) {
       if (intent.status !== 'active') continue;
-      const parsed = tuiAgentStartInputSchema.safeParse(intent.payload);
+      const parsed = persistedTuiAgentStartInputSchema.safeParse(intent.payload);
       if (!parsed.success) {
         this.persistSuspendedIntent(intent.conversationId, 'reconcile-failed');
         continue;
       }
       const input = parsed.data;
+      if (input.lastAgentState) {
+        this.agentStates.restore(input.lastAgentState);
+      }
       if (!input.tmuxSessionName || !tmuxActivity.has(input.tmuxSessionName)) {
         this.persistSuspendedIntent(intent.conversationId, 'process-lost');
         continue;
@@ -345,6 +368,7 @@ export class TuiAgentsRuntime {
     this.idleSweeper.dispose();
     await this.sessionsSource.dispose();
     this.registry.killAll();
+    this.hookServer.stop();
     this.logs.clear();
     this.configs.clear();
   }
@@ -384,6 +408,7 @@ export class TuiAgentsRuntime {
     });
     if (!commandResult.success) throw new Error(JSON.stringify(commandResult.error));
     const command = commandResult.data;
+    const hookEnv = await this.prepareHookEnv(config.input);
 
     session.config = config;
     session.provider = provider;
@@ -397,6 +422,14 @@ export class TuiAgentsRuntime {
       resume: resumeState,
       startedAt,
     });
+    if (!isResuming) {
+      this.agentStates.markInitialPromptSubmitted(
+        config.input.conversationId,
+        config.input.providerId,
+        provider,
+        config.input.initialPrompt
+      );
+    }
 
     const spawnSpec = this.spawnSpec(command, config.input);
     const pty = await this.registry.create(
@@ -411,7 +444,7 @@ export class TuiAgentsRuntime {
           TERM_PROGRAM: 'emdash',
           ...command.env,
           ...config.input.providerVars,
-          ...this.hookEnv(config.input),
+          ...hookEnv,
         },
         cols: config.input.cols,
         rows: config.input.rows,
@@ -435,7 +468,7 @@ export class TuiAgentsRuntime {
             return;
           }
           this.markExited(config.input.conversationId, info);
-          this.notifications.resetToIdle(config.input.conversationId);
+          this.agentStates.resetToIdle(config.input.conversationId);
           this.maybeRespawnAfterUnexpectedExit(session, config, info);
         },
         onStateChange: () => {
@@ -501,12 +534,29 @@ export class TuiAgentsRuntime {
       : err({ type: 'unknown-provider', providerId });
   }
 
-  private hookEnv(input: TuiAgentStartInput): Record<string, string> {
-    const hook = this.deps.hook;
-    if (!hook || hook.port <= 0) return {};
+  private async prepareHookEnv(input: TuiAgentStartInput): Promise<Record<string, string>> {
+    const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
+      providerId: input.providerId,
+      workspacePath: input.cwd,
+      policy: input.hookInstall ?? this.deps.hookInstall,
+    });
+    if (!hooksAvailable) return {};
+
+    let hook;
+    try {
+      hook = await this.hookServer.ensureStarted();
+    } catch (error) {
+      this.deps.logger.warn('TuiAgentsRuntime: hook server unavailable; spawning without hooks', {
+        conversationId: input.conversationId,
+        providerId: input.providerId,
+        error: String(error),
+      });
+      return {};
+    }
+
     return {
       EMDASH_HOOK_PORT: String(hook.port),
-      EMDASH_PTY_ID: `${input.providerId}-conv-${input.conversationId}`,
+      EMDASH_PTY_ID: input.conversationId,
       EMDASH_HOOK_NONCE: hook.token,
       EMDASH_HOOK_TOKEN: hook.token,
     };
@@ -586,11 +636,12 @@ export class TuiAgentsRuntime {
   private persistActiveIntent(input: TuiAgentStartInput): void {
     const { initialPrompt: _initialPrompt, ...persisted } = input;
     const sessionId = this.currentProviderSessionId(input.conversationId, input.sessionId);
+    const lastAgentState = this.agentStates.current(input.conversationId);
     void this.deps.intents
       .saveActive({
         conversationId: input.conversationId,
         sessionId,
-        payload: { ...persisted, sessionId } as unknown as Serializable,
+        payload: { ...persisted, sessionId, lastAgentState } as unknown as Serializable,
       })
       .then((result) => {
         if (!result.success) {

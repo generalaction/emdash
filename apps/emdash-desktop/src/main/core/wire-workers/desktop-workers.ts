@@ -28,17 +28,20 @@ import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { eq } from 'drizzle-orm';
 import { app } from 'electron';
 import { appScope } from '@main/app/app-scope';
-import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { setSessionId } from '@main/core/conversations/set-session-id';
+import { touchConversation } from '@main/core/conversations/touchConversation';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { conversations } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { desktopWorkerPath } from '@main/worker-manifest';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -137,7 +140,7 @@ let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 let terminalsWorker: WireWorker<TerminalsContract> | undefined;
 let terminalsClientPromise: Promise<TerminalsRuntimeClient> | undefined;
 
-let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
+export let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
 let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
 
 export async function ensureFilesWorkerReady(): Promise<void> {
@@ -244,6 +247,7 @@ async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
 }
 
 async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
+  const localProjectSettings = await appSettingsService.get('localProject');
   tuiAgentsWorker ??= host.create(tuiAgentsComponent, {
     name: 'tui-agents',
     executable: desktopWorkerPath('tui-agents'),
@@ -256,15 +260,11 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
         app?.getPath?.('userData') ?? process.cwd(),
         'tui-session-intents.json'
       ),
-      hook:
-        agentHookService.getPort() > 0
-          ? {
-              port: agentHookService.getPort(),
-              token: agentHookService.getToken(),
-            }
-          : undefined,
       lifecycle: {
         session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+      },
+      hookInstall: {
+        writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
       },
     },
   });
@@ -323,14 +323,14 @@ function withTuiConversationInputEvents(client: TuiAgentsRuntimeClient): TuiAgen
     sendInput: async (input, meta) => {
       const result = await client.sendInput(input, meta);
       if (result.success && input.data.includes('\r')) {
-        await emitTuiInputSubmitted(input.conversationId);
+        await recordTuiInputSubmitted(input.conversationId);
       }
       return result;
     },
   };
 }
 
-async function emitTuiInputSubmitted(conversationId: string): Promise<void> {
+async function recordTuiInputSubmitted(conversationId: string): Promise<void> {
   const [row] = await db
     .select({
       projectId: conversations.projectId,
@@ -341,10 +341,20 @@ async function emitTuiInputSubmitted(conversationId: string): Promise<void> {
     .where(eq(conversations.id, conversationId));
   if (!row) return;
   if (!row.providerId) return;
-  conversationEvents._emit('conversation:input-submitted', {
-    projectId: row.projectId,
-    taskId: row.taskId,
+
+  telemetryService.capture('agent_run_started', {
+    provider: row.providerId,
+    project_id: row.projectId,
+    task_id: row.taskId,
+    conversation_id: conversationId,
+  });
+
+  const now = new Date().toISOString();
+  await touchConversation(conversationId, now);
+  events.emit(conversationChangedChannel, {
     conversationId,
-    providerId: row.providerId,
+    taskId: row.taskId,
+    projectId: row.projectId,
+    changes: { lastInteractedAt: now },
   });
 }

@@ -3,6 +3,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveLogOptions } from '@emdash/wire';
 import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
+import type { HookInstallPolicy } from '@runtimes/tui-agents/node/hooks/types';
 import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtySpawner } from '@services/pty/api';
@@ -13,10 +14,7 @@ export interface TuiAgentsRuntimeDeps {
   exec: IExecutionContext;
   spawner: PtySpawner;
   intents: SessionIntentStore;
-  hook?: {
-    port: number;
-    token: string;
-  };
+  hookInstall?: HookInstallPolicy;
   log?: LiveLogOptions;
   clock?: Clock;
   lifecycle?: {

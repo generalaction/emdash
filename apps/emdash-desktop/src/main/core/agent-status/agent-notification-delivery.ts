@@ -69,7 +69,7 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
 
     const providerName = event.providerId ? getProviderName(event.providerId) : 'Agent';
     const taskName = await getTaskName(event.taskId);
-    const title = taskName ? `${providerName} — ${taskName}` : providerName;
+    const title = taskName ? `${providerName} - ${taskName}` : providerName;
 
     const notification = new Notification({ title, body, silent: true });
     activeNotifications.add(notification);
@@ -99,5 +99,5 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
 
 export function isAppFocused(): boolean {
   const windows = BrowserWindow.getAllWindows();
-  return windows.some((w) => !w.isDestroyed() && w.isFocused());
+  return windows.some((window) => !window.isDestroyed() && window.isFocused());
 }

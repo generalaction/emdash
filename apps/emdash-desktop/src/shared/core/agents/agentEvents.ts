@@ -1,5 +1,3 @@
-import { defineEvent } from '@shared/lib/ipc/events';
-
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
@@ -38,11 +36,3 @@ export interface AgentEvent {
 }
 
 export type SoundEvent = 'needs_attention' | 'task_complete';
-
-export interface AgentSessionExited {
-  conversationId: string;
-  taskId: string;
-}
-
-/** Emitted when an agent PTY session exits. Topic = taskId. */
-export const agentSessionExitedChannel = defineEvent<AgentSessionExited>('agent:session-exited');

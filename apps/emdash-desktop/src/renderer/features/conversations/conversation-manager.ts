@@ -14,11 +14,7 @@ import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client'
 import { getTuiAgentsRuntimeClient } from '@renderer/lib/runtime/tui-agents-client';
 import { Resource } from '@renderer/lib/stores/resource';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
-import {
-  agentSessionExitedChannel,
-  type AgentStatus,
-  type NotificationType,
-} from '@shared/core/agents/agentEvents';
+import { type AgentStatus, type NotificationType } from '@shared/core/agents/agentEvents';
 import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
@@ -32,7 +28,6 @@ import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 
 export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;
-  private offSessionExited: (() => void) | null = null;
   private offTuiSessionState: (() => void) | null = null;
   private offAcpSessionState: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
@@ -108,7 +103,6 @@ export class ConversationManagerStore implements Disposable {
     );
 
     this.offAgentStatusChanged = this.listenToAgentStatusChanged();
-    this.offSessionExited = this.listenToSessionExited();
     this.offTuiSessionState = this.listenToTuiSessionState();
     this.offAcpSessionState = this.listenToAcpSessionState();
     this.offConversationCreated = this.listenToConversationCreated();
@@ -144,15 +138,6 @@ export class ConversationManagerStore implements Disposable {
     });
   }
 
-  private listenToSessionExited(): () => void {
-    return events.on(agentSessionExitedChannel, (event) => {
-      if (event.taskId !== this.taskId) return;
-      const conversationStore = this.conversations.get(event.conversationId);
-      if (!conversationStore) return;
-      conversationStore.clearWorking();
-    });
-  }
-
   private listenToTuiSessionState(): () => void {
     if (typeof window === 'undefined') return () => {};
     let disposed = false;
@@ -183,11 +168,6 @@ export class ConversationManagerStore implements Disposable {
     runInAction(() => {
       this.activeTuiSessionIds.clear();
       for (const conversationId of Object.keys(list)) this.activeTuiSessionIds.add(conversationId);
-      for (const session of Object.values(list)) {
-        if (session.status !== 'exited') continue;
-        const conversationStore = this.conversations.get(session.conversationId);
-        conversationStore?.clearWorking();
-      }
     });
   }
 
@@ -221,11 +201,6 @@ export class ConversationManagerStore implements Disposable {
     runInAction(() => {
       this.activeAcpSessionIds.clear();
       for (const conversationId of Object.keys(list)) this.activeAcpSessionIds.add(conversationId);
-      for (const session of Object.values(list)) {
-        if (session.lifecycle !== 'closed') continue;
-        const conversationStore = this.conversations.get(session.conversationId);
-        conversationStore?.clearWorking();
-      }
     });
   }
 
@@ -356,8 +331,6 @@ export class ConversationManagerStore implements Disposable {
     this._disposeReaction();
     this.offAgentStatusChanged?.();
     this.offAgentStatusChanged = null;
-    this.offSessionExited?.();
-    this.offSessionExited = null;
     this.offTuiSessionState?.();
     this.offTuiSessionState = null;
     this.offAcpSessionState?.();

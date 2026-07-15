@@ -18,6 +18,11 @@ export const tuiAgentStartInputSchema = z.object({
   rows: z.number().int(),
   shellSetup: z.string().optional(),
   tmuxSessionName: z.string().optional(),
+  hookInstall: z
+    .object({
+      writeGitIgnoreEntries: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export type TuiAgentStartInput = z.infer<typeof tuiAgentStartInputSchema>;
@@ -86,7 +91,7 @@ export const tuiSessionListSchema = z.record(z.string(), tuiSessionStateSchema);
 
 export type TuiSessionList = z.infer<typeof tuiSessionListSchema>;
 
-export const tuiNotificationStatusSchema = z.enum([
+export const tuiAgentStateStatusSchema = z.enum([
   'idle',
   'working',
   'awaiting-input',
@@ -94,33 +99,38 @@ export const tuiNotificationStatusSchema = z.enum([
   'completed',
 ]);
 
-export type TuiNotificationStatus = z.infer<typeof tuiNotificationStatusSchema>;
+export type TuiAgentStateStatus = z.infer<typeof tuiAgentStateStatusSchema>;
 
-export const tuiNotificationStateSchema = z.object({
+export const tuiNotificationTypeSchema = z.enum([
+  'permission_prompt',
+  'idle_prompt',
+  'auth_success',
+  'elicitation_dialog',
+]);
+
+export type TuiNotificationType = z.infer<typeof tuiNotificationTypeSchema>;
+
+export const tuiAgentStateSchema = z.object({
   conversationId: z.string(),
-  status: tuiNotificationStatusSchema,
-  notificationType: z
-    .enum(['permission_prompt', 'idle_prompt', 'auth_success', 'elicitation_dialog'])
-    .optional(),
+  providerId: z.string().optional(),
+  status: tuiAgentStateStatusSchema,
+  source: z.enum(['hook', 'input']).optional(),
+  notificationType: tuiNotificationTypeSchema.optional(),
   title: z.string().optional(),
   message: z.string().optional(),
   lastAssistantMessage: z.string().optional(),
-  at: z.number().int(),
+  updatedAt: z.number().int(),
 });
 
-export type TuiNotificationState = z.infer<typeof tuiNotificationStateSchema>;
+export type TuiAgentState = z.infer<typeof tuiAgentStateSchema>;
 
-export const tuiNotificationListSchema = z.record(z.string(), tuiNotificationStateSchema);
+export const tuiAgentStateListSchema = z.record(z.string(), tuiAgentStateSchema);
 
-export type TuiNotificationList = z.infer<typeof tuiNotificationListSchema>;
+export type TuiAgentStateList = z.infer<typeof tuiAgentStateListSchema>;
 
-export const tuiHookEventInputSchema = z.object({
-  conversationId: z.string(),
-  eventType: z.string(),
-  body: z.record(z.string(), z.unknown()),
+export const persistedTuiAgentStartInputSchema = tuiAgentStartInputSchema.extend({
+  lastAgentState: tuiAgentStateSchema.optional(),
 });
-
-export type TuiHookEventInput = z.infer<typeof tuiHookEventInputSchema>;
 
 export const tuiUnknownProviderErrorSchema = z.object({
   type: z.literal('unknown-provider'),

@@ -6,39 +6,17 @@ import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { type AgentEvent } from '@shared/core/agents/agentEvents';
 import { type ConversationConfig } from '@shared/core/conversations/conversation-config';
 import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
 import {
   type Conversation,
   type CreateConversationParams,
 } from '@shared/core/conversations/conversations';
-import { agentHookService } from '../agent-hooks/agent-hook-service';
-import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
 type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select'>;
-
-function emitInitialPromptStarted(
-  conversation: Conversation,
-  params: CreateConversationParams
-): void {
-  if (!params.initialPrompt?.trim()) return;
-
-  const agentEvent: AgentEvent = {
-    type: 'start',
-    source: 'input',
-    providerId: params.provider,
-    projectId: params.projectId,
-    taskId: params.taskId,
-    conversationId: conversation.id,
-    timestamp: Date.now(),
-    payload: {},
-  };
-  agentHookService.emitAgentEvent(agentEvent, isAppFocused());
-}
 
 export async function createConversation(
   params: CreateConversationParams,
@@ -123,7 +101,6 @@ export async function createConversation(
 
   conversationEvents._emit('conversation:created', conversation);
   events.emit(conversationCreatedChannel, { conversation });
-  emitInitialPromptStarted(conversation, params);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

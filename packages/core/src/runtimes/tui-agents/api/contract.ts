@@ -2,9 +2,8 @@ import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash
 import { z } from 'zod';
 import {
   tuiAgentStartInputSchema,
-  tuiHookEventInputSchema,
+  tuiAgentStateListSchema,
   tuiInputErrorSchema,
-  tuiNotificationListSchema,
   tuiResumeOutcomeSchema,
   tuiResumeSessionErrorSchema,
   tuiSessionControlErrorSchema,
@@ -60,7 +59,7 @@ export const tuiAgentsContract = defineContract({
   }),
 
   /**
-   * Terminates any process and purges retained output, session state, and notifications.
+   * Terminates any process and purges retained output, session state, and agent state.
    */
   deleteSession: fallible({
     input: conv,
@@ -97,15 +96,6 @@ export const tuiAgentsContract = defineContract({
   }),
 
   /**
-   * Host-owned hook servers forward raw provider lifecycle events here.
-   */
-  emitHookEvent: fallible({
-    input: tuiHookEventInputSchema,
-    data: z.void(),
-    error: tuiSessionControlErrorSchema,
-  }),
-
-  /**
    * Streams PTY output for a session through a retained wire log.
    */
   output: liveLog({ key: conv }),
@@ -123,12 +113,12 @@ export const tuiAgentsContract = defineContract({
   }),
 
   /**
-   * Reactive global notification list (keyed by conversationId).
+   * Reactive global agent state list (keyed by conversationId).
    */
-  notifications: liveModel({
+  agentStates: liveModel({
     key: z.void().optional(),
     states: {
-      list: liveState({ data: tuiNotificationListSchema }),
+      list: liveState({ data: tuiAgentStateListSchema }),
     },
   }),
 });

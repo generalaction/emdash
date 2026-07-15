@@ -12,6 +12,12 @@ child logs are forwarded from stderr. This mount was added before any
 workspace-server contract deployment, so the initial addition intentionally does
 not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
 
+The TUI agents contract exposes runtime-owned sessions and agent-state LiveModels. Desktop-local
+TUI is currently hosted by the Electron app, while future workspace-server TUI hosting should run
+the same `tui-agents` runtime on the remote host so provider hooks post to that host-local runtime
+over loopback. Clients should treat any persisted desktop database values as a cache of the runtime
+state, not the source of truth.
+
 Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
 The daemon parent owns one local `HostDependencies` component backed by a JSON-file
 `KeyValueStore` under the workspace-server state directory and forwards only the narrow resolver

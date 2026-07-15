@@ -80,13 +80,14 @@ describe('negotiateProtocol', () => {
       expect(result.compatible).toBe(true);
     });
 
-    it('keeps 3.0 clients compatible with the additive error code', () => {
+    it('requires 3.0 clients to upgrade for the TUI agents contract break', () => {
       const result = negotiateProtocol('3.0.0');
 
       expect(result).toEqual({
-        compatible: true,
-        agreedVersion: '3.0.0',
-        agreedMinor: 0,
+        compatible: false,
+        action: 'upgrade-client',
+        clientProtocolVersion: '3.0.0',
+        serverProtocolVersion: '4.0.0',
       });
     });
   });

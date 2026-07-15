@@ -2,8 +2,8 @@ import { sessionSummarySchema, type SessionSummary } from '@emdash/core/runtimes
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
-import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
-import { isAppFocused } from '@main/core/agent-hooks/notification';
+import { isAppFocused } from '@main/core/agent-status/agent-notification-delivery';
+import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { acpWorker, getAcpRuntimeClient } from '@main/core/wire-workers/desktop-workers';
 import { log } from '@main/lib/logger';
 import { deriveAcpAgentStatusActions, type AcpAgentStatusAction } from './agent-status-transition';
@@ -88,9 +88,9 @@ class AcpAgentStatusBridge {
   private applyActions(actions: AcpAgentStatusAction[]): void {
     for (const action of actions) {
       if (action.kind === 'event') {
-        agentHookService.emitAgentEvent(action.event, isAppFocused());
+        void agentStatusService.applyAgentEvent(action.event, { appFocused: isAppFocused() });
       } else {
-        void agentHookService
+        void agentStatusService
           .resetToIdle({
             conversationId: action.conversationId,
             taskId: action.taskId,
@@ -111,7 +111,7 @@ class AcpAgentStatusBridge {
     this.summaries.clear();
     await Promise.all(
       summaries.map((summary) =>
-        agentHookService.resetToIdle({
+        agentStatusService.resetToIdle({
           conversationId: summary.conversationId,
           projectId: summary.projectId,
           taskId: summary.taskId,

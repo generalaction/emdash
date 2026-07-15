@@ -198,10 +198,9 @@ function unavailableTuiAgents(): NonNullable<
     deleteSession: unavailable,
     sendInput: unavailable,
     resize: unavailable,
-    emitHookEvent: unavailable,
     output: () => null,
     sessions: unavailableLiveModel(workspaceWireContract.tuiAgents.sessions),
-    notifications: unavailableLiveModel(workspaceWireContract.tuiAgents.notifications),
+    agentStates: unavailableLiveModel(workspaceWireContract.tuiAgents.agentStates),
   };
 }
 

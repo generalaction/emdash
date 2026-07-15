@@ -1,24 +1,24 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
-import { log } from '@main/lib/logger';
+import type { Logger } from '@emdash/shared/logger';
+import type { HookHandler, HookServerHandle } from './types';
 
-export interface RawHookRequest {
-  ptyId: string;
-  type: string;
-  body: string;
-}
-
-export type HookHandler = (raw: RawHookRequest) => Promise<void>;
-
-export class HookServer {
+export class TuiHookServer {
   private server: http.Server | null = null;
   private port = 0;
   private token = '';
+  private starting: Promise<HookServerHandle> | null = null;
 
-  async start(handler: HookHandler): Promise<void> {
-    if (this.server) return;
+  constructor(
+    private readonly handler: HookHandler,
+    private readonly logger: Logger
+  ) {}
+
+  async ensureStarted(): Promise<HookServerHandle> {
+    if (this.server && this.port > 0) return { port: this.port, token: this.token };
+    if (this.starting) return this.starting;
+
     this.token = crypto.randomUUID();
-
     this.server = http.createServer((req, res) => {
       if (req.method !== 'POST' || req.url !== '/hook') {
         res.writeHead(404);
@@ -26,7 +26,7 @@ export class HookServer {
         return;
       }
       if (req.headers['x-emdash-token'] !== this.token) {
-        log.warn('HookServer: rejected request with invalid token');
+        this.logger.warn('TuiHookServer: rejected request with invalid token');
         res.writeHead(403);
         res.end();
         return;
@@ -44,38 +44,45 @@ export class HookServer {
         const ptyId = String(req.headers['x-emdash-pty-id'] || '');
         const type = String(req.headers['x-emdash-event-type'] || '');
         if (!ptyId || !type) {
-          log.warn('HookServer: malformed request — missing ptyId or type headers');
+          this.logger.warn('TuiHookServer: malformed request: missing ptyId or type headers');
           res.writeHead(400);
           res.end();
           return;
         }
-        handler({ ptyId, type, body })
+        this.handler({ ptyId, type, body })
           .then(() => {
             res.writeHead(200);
             res.end();
           })
-          .catch((err) => {
-            log.warn('HookServer: handler error', { error: String(err) });
+          .catch((error) => {
+            this.logger.warn('TuiHookServer: handler error', { error: String(error) });
             res.writeHead(500);
             res.end();
           });
       });
     });
 
-    return new Promise<void>((resolve, reject) => {
+    this.starting = new Promise<HookServerHandle>((resolve, reject) => {
       this.server!.listen(0, '127.0.0.1', () => {
         const addr = this.server!.address();
         if (addr && typeof addr === 'object') {
           this.port = addr.port;
         }
-        log.info('HookServer: started', { port: this.port });
-        resolve();
+        this.logger.info('TuiHookServer: started', { port: this.port });
+        resolve({ port: this.port, token: this.token });
       });
-      this.server!.on('error', (err) => {
-        log.error('HookServer: failed to start', { error: String(err) });
-        reject(err);
+      this.server!.on('error', (error) => {
+        this.logger.error('TuiHookServer: failed to start', { error: String(error) });
+        this.server = null;
+        this.port = 0;
+        this.starting = null;
+        reject(error);
       });
+    }).finally(() => {
+      this.starting = null;
     });
+
+    return this.starting;
   }
 
   stop(): void {
@@ -84,11 +91,5 @@ export class HookServer {
       this.server = null;
       this.port = 0;
     }
-  }
-  getPort(): number {
-    return this.port;
-  }
-  getToken(): string {
-    return this.token;
   }
 }

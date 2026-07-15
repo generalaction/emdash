@@ -43,13 +43,6 @@ export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
     }): Result<void, TuiInputError> {
       return runtime.resize(input.conversationId, input.cols, input.rows);
     },
-    emitHookEvent(input: {
-      conversationId: string;
-      eventType: string;
-      body: Record<string, unknown>;
-    }): Result<void, TuiSessionControlError> {
-      return runtime.emitHookEvent(input);
-    },
   };
 }
 

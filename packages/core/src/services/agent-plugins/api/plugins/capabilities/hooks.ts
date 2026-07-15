@@ -15,7 +15,7 @@ export type IHooksBehavior = {
   getHooksInstalled(fs: PluginFs): Promise<boolean>;
   /**
    * Parse a raw hook event (event type header + JSON body) into a canonical form.
-   * Optional — the desktop falls back to defaultHookEventParser when absent.
+   * Optional — runtimes fall back to defaultHookEventParser when absent.
    */
   parseHookEvent?(eventType: string, body: Record<string, unknown>): CanonicalHookEvent;
 };

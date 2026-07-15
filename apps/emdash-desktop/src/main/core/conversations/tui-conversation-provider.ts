@@ -2,7 +2,6 @@ import { homedir } from 'node:os';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
-import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import {
   spillLargePrompt,
@@ -10,6 +9,7 @@ import {
 } from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
@@ -76,12 +76,14 @@ export class TuiConversationProvider implements ConversationProvider {
     if (!result.success) {
       throw new Error(`TUI session failed to start: ${JSON.stringify(result.error)}`);
     }
-    telemetryService.capture('agent_run_started', {
-      provider: conversation.providerId,
-      project_id: conversation.projectId,
-      task_id: conversation.taskId,
-      conversation_id: conversation.id,
-    });
+    if (!isResuming && input.initialPrompt?.trim()) {
+      telemetryService.capture('agent_run_started', {
+        provider: conversation.providerId,
+        project_id: conversation.projectId,
+        task_id: conversation.taskId,
+        conversation_id: conversation.id,
+      });
+    }
   }
 
   async detachSession(_conversationId: string): Promise<void> {
@@ -118,9 +120,8 @@ export class TuiConversationProvider implements ConversationProvider {
       host: { kind: 'local', homedir: homedir() },
       force: conversation.autoApprove === true,
     });
-    await ensureHooksInstalled({ providerId: conversation.providerId, taskPath: this.taskPath });
-
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const localProjectSettings = await appSettingsService.get('localProject');
     const agentSession = resolveAgentSession(conversation, isResuming);
     const effectiveInitialPrompt = await this.effectiveInitialPrompt(
       conversation.id,
@@ -148,6 +149,9 @@ export class TuiConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
       shellSetup: this.shellSetup,
       tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      hookInstall: {
+        writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
+      },
     };
   }
 

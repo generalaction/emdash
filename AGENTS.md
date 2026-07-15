@@ -383,7 +383,9 @@ pnpm run test
   event and turn types.
 - Provider detection lives in `src/main/core/dependencies/`.
 - Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
-- Provider event hooks and plugins live under `src/main/core/agent-hooks/`.
+- Provider event hooks and plugins are installed and hosted by
+ `packages/core/src/runtimes/tui-agents/`; desktop projection lives under
+ `src/main/core/agent-status/`.
 - ACP process hosts live under `src/main/core/acp/transport/` for local and SSH-backed
   execution.
 - Modal definitions are centralized in `src/renderer/app/modal-registry.ts`.
