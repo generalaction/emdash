@@ -64,16 +64,15 @@ function selectOptions(opt: SessionConfigOption): RawOption[] {
  *
  * `configId` preserves the provider-owned ACP config option id, `selected` is taken from
  * `currentValue`, and `available` is the full options list.
- * Returns partial — only groups present in `options` are set; others stay null.
+ * Returns partial — only groups present in `options` are set; others are omitted.
  * The runtime merges this partial into the existing SessionConfigState.
  */
 export function deriveConfigGroups(
   options: ReadonlyArray<SessionConfigOption>
-): Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'fastMode' | 'modeOptions'> {
-  let modelOptions: SessionConfigState['modelOptions'] = null;
-  let efforts: SessionConfigState['efforts'] = null;
-  let fastMode: SessionConfigState['fastMode'] = null;
-  let modeOptions: SessionConfigState['modeOptions'] = null;
+): Partial<Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'fastMode' | 'modeOptions'>> {
+  const groups: Partial<
+    Pick<SessionConfigState, 'modelOptions' | 'efforts' | 'fastMode' | 'modeOptions'>
+  > = {};
 
   for (const opt of options) {
     if (opt.type !== 'select') continue;
@@ -82,14 +81,14 @@ export function deriveConfigGroups(
 
     switch (opt.category) {
       case 'model':
-        modelOptions = {
+        groups.modelOptions = {
           configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toModelChoice),
         };
         break;
       case 'thought_level':
-        efforts = {
+        groups.efforts = {
           configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toEffortOption),
@@ -97,14 +96,14 @@ export function deriveConfigGroups(
         break;
       case 'fast-mode':
       case 'model_config':
-        fastMode = {
+        groups.fastMode = {
           configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toFastModeOption),
         };
         break;
       case 'mode':
-        modeOptions = {
+        groups.modeOptions = {
           configId: opt.id,
           selected: rawSelected,
           available: rawOptions.map(toModeOption),
@@ -114,5 +113,5 @@ export function deriveConfigGroups(
     }
   }
 
-  return { modelOptions, efforts, fastMode, modeOptions };
+  return groups;
 }

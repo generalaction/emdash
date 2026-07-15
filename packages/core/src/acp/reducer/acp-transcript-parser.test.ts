@@ -985,6 +985,66 @@ describe('AcpTranscriptParser – session slices', () => {
     expect(p.config.modeOptions).toBeNull();
   });
 
+  it('config_option_update preserves groups omitted from partial updates', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'opus',
+          options: [{ value: 'opus', name: 'Opus' }],
+        },
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'high',
+          options: [{ value: 'high', name: 'High' }],
+        },
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [{ value: 'default', name: 'Default' }],
+        },
+      ])
+    );
+
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'fast',
+          category: 'model_config',
+          type: 'select',
+          currentValue: 'on',
+          options: [{ value: 'on', name: 'On' }],
+        },
+      ])
+    );
+
+    expect(p.config.modelOptions?.selected).toBe('opus');
+    expect(p.config.efforts?.selected).toBe('high');
+    expect(p.config.modeOptions?.selected).toBe('default');
+
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'plan',
+          options: [{ value: 'plan', name: 'Plan' }],
+        },
+      ])
+    );
+
+    expect(p.config.fastMode?.configId).toBe('fast');
+    expect(p.config.fastMode?.selected).toBe('on');
+  });
+
   // ── current_mode_update ────────────────────────────────────────────────────
 
   it('current_mode_update sets modeOptions.selected when modeOptions is already populated', () => {
