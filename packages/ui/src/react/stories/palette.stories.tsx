@@ -1,6 +1,6 @@
+import { SCALE_NAMES, STEPS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { SCALE_NAMES, STEPS } from '@emdash/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';

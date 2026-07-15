@@ -98,7 +98,8 @@ export function defineDensity(input: DensityInput): ResolvedDensity {
 
   for (const name of scalableRadiusNames) {
     cssVars[nsName(name)] =
-      overrides[name] ?? (radiusScale === 1 ? BASE_RADIUS[name] : px(remToPx(BASE_RADIUS[name]) * radiusScale));
+      overrides[name] ??
+      (radiusScale === 1 ? BASE_RADIUS[name] : px(remToPx(BASE_RADIUS[name]) * radiusScale));
   }
   cssVars[nsName('radius-full')] = overrides['radius-full'] ?? BASE_RADIUS['radius-full'];
 

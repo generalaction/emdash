@@ -59,12 +59,12 @@ import '@styles/theme.base.css';
 import '@styles/typography.css';
 // Scroll-aware overflow-fade utility (.scroll-fade / .scroll-fade__viewport).
 import '@styles/effects/overflow-fade.css';
-import { cx } from '@styles/utilities/cx';
 // ── Component ────────────────────────────────────────────────────────────────
 import { DENSITY_MANIFEST } from '@emdash/theme/densities';
 import type { DensityId } from '@emdash/theme/densities';
 import { THEME_MANIFEST } from '@emdash/theme/manifest';
 import type { ThemeId } from '@emdash/theme/manifest';
+import { cx } from '@styles/utilities/cx';
 import React, {
   createContext,
   useCallback,
@@ -194,10 +194,7 @@ export function ThemeProvider({
     controlledTheme ?? defaultTheme ?? (THEME_MANIFEST[0]?.id as ThemeId) ?? 'light';
   const [themeId, setThemeId] = useState<ThemeId>(initial);
   const initialDensity: DensityId =
-    controlledDensity ??
-    defaultDensity ??
-    (DENSITY_MANIFEST[0]?.id as DensityId) ??
-    'comfortable';
+    controlledDensity ?? defaultDensity ?? (DENSITY_MANIFEST[0]?.id as DensityId) ?? 'comfortable';
   const [densityId, setDensityId] = useState<DensityId>(initialDensity);
 
   // Sync internal state whenever the controlled prop changes.
@@ -250,7 +247,13 @@ export function ThemeProvider({
   }, [target, themeClass, densityClass]);
 
   const ctx = useMemo<ThemeContextValue>(
-    () => ({ themeId: resolvedThemeId, densityId: resolvedDensityId, setTheme, setDensity, toggle }),
+    () => ({
+      themeId: resolvedThemeId,
+      densityId: resolvedDensityId,
+      setTheme,
+      setDensity,
+      toggle,
+    }),
     [resolvedThemeId, resolvedDensityId, setTheme, setDensity, toggle]
   );
 

@@ -1,6 +1,6 @@
+import { SEMANTIC_VARS } from '@emdash/theme';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { SEMANTIC_VARS } from '@emdash/theme';
 import React, { useEffect, useRef } from 'react';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';

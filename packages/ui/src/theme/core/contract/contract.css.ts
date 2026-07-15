@@ -12,8 +12,8 @@
  * unaffected by internal refactors.
  */
 
-import { createGlobalThemeContract } from '@vanilla-extract/css';
 import { allSurfaceVarNames, nsName, SEMANTIC_TEMPLATE, SHADOW_NAMES } from '@emdash/theme';
+import { createGlobalThemeContract } from '@vanilla-extract/css';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 
