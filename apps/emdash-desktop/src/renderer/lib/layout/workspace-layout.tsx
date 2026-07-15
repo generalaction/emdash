@@ -43,7 +43,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
       </ResizablePanel>
       <ResizableHandle
         className={cn(
-          'items-center justify-center transition-colors hover:bg-border/80',
+          'items-center justify-center bg-transparent transition-colors hover:bg-border/80',
           isLeftOpen ? 'flex' : 'hidden'
         )}
       />

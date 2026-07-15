@@ -36,7 +36,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   return (
     <div
       className={cn(
-        'relative flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted transition-colors',
+        'relative flex h-full flex-col border-r border-border bg-background-tertiary text-foreground-tertiary-muted transition-colors',
         isDragOver && 'bg-accent/10 ring-2 ring-inset ring-accent/50'
       )}
       onDragOver={onDragOver}
