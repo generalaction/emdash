@@ -24,6 +24,7 @@ import {
   agentSupportsAcp,
   agentSupportsAutoApprove,
   type AgentCapabilities,
+  type AgentModelOption,
 } from '@shared/core/agents/agent-payload';
 import { extractIssueMentionTargets, issueMentionToken } from '@shared/core/issues/issue-context';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -140,7 +141,7 @@ export function useInitialConversationState(
 
 function useModelOptions(
   providerId: AgentProviderId | null
-): Record<string, { name: string }> | null {
+): Record<string, AgentModelOption> | null {
   const { data: agents } = useAgents();
   if (!providerId) return null;
   const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
