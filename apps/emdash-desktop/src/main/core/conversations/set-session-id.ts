@@ -1,9 +1,10 @@
 import { err, ok, type BaseError, type Result } from '@emdash/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 
 export type SetSessionIdError = BaseError<'empty-session-id' | 'conversation-not-found'>;
+type SessionIdDb = Pick<typeof db, 'select' | 'update'>;
 
 /**
  * Writes the agent-facing session id directly to the conversations.session_id column.
@@ -30,4 +31,33 @@ export async function setSessionId(
   }
 
   return ok();
+}
+
+export async function setSessionIdIfUnset(
+  conversationId: string,
+  sessionId: string,
+  database: SessionIdDb = db
+): Promise<Result<{ updated: boolean; sessionId: string }, SetSessionIdError>> {
+  const trimmed = sessionId.trim();
+  if (!trimmed) return err({ type: 'empty-session-id' });
+
+  const rows = await database
+    .update(conversations)
+    .set({ sessionId: trimmed, updatedAt: new Date().toISOString() })
+    .where(and(eq(conversations.id, conversationId), isNull(conversations.sessionId)))
+    .returning({ sessionId: conversations.sessionId });
+
+  if (rows[0]?.sessionId) return ok({ updated: true, sessionId: rows[0].sessionId });
+
+  const [existing] = await database
+    .select({ sessionId: conversations.sessionId })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+
+  if (!existing) {
+    return err({ type: 'conversation-not-found', message: conversationId });
+  }
+
+  return ok({ updated: false, sessionId: existing.sessionId ?? trimmed });
 }

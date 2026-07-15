@@ -8,6 +8,7 @@ import {
   tuiResumeSessionErrorSchema,
   tuiSessionControlErrorSchema,
   tuiSessionListSchema,
+  tuiStartOutcomeSchema,
   tuiStartSessionErrorSchema,
 } from './schemas';
 
@@ -15,22 +16,24 @@ const conv = z.object({ conversationId: z.string() });
 
 export const tuiAgentsContract = defineContract({
   /**
-   * Registers fresh-start intent for a provider CLI agent session.
+   * Starts a fresh provider CLI agent session and resolves after PTY creation.
    *
-   * The process is spawned when the output log is attached; if it is already
-   * running, this call only updates intent/config without respawning.
+   * If the process is already running or another launch won the race, this call
+   * returns `attached` without replacing the active config.
    */
   startSession: fallible({
     input: z.object({ input: tuiAgentStartInputSchema }),
-    data: z.void(),
+    data: z.object({ outcome: tuiStartOutcomeSchema }),
     error: tuiStartSessionErrorSchema,
   }),
 
   /**
-   * Registers resume intent for a provider CLI agent session.
+   * Resumes a provider CLI agent session and resolves after PTY creation.
    *
    * The server builds the provider command via `plugin.behavior.prompt.buildCommand(ctx)`.
    * Provider-native session id changes are published through the sessions LiveModel.
+   * Missing provider session ids are downgraded to a fresh spawn and reported as
+   * `fresh-fallback`.
    */
   resumeSession: fallible({
     input: z.object({ input: tuiAgentStartInputSchema }),

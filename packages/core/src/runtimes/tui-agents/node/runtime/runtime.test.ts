@@ -40,8 +40,10 @@ class FakePtyProcess implements PtyProcess {
 class FakePtySpawner implements PtySpawner {
   readonly specs: PtySpawnSpec[] = [];
   readonly processes: FakePtyProcess[] = [];
+  failWith: Error | null = null;
 
   spawn(spec: PtySpawnSpec): PtyProcess {
+    if (this.failWith) throw this.failWith;
     this.specs.push(spec);
     const process = new FakePtyProcess();
     this.processes.push(process);
@@ -106,13 +108,13 @@ function startInput(overrides: Partial<TuiAgentStartInput> = {}): TuiAgentStartI
 }
 
 describe('TuiAgentsRuntime', () => {
-  it('registers intent and spawns when output is attached', async () => {
+  it('starts eagerly and output attachment does not spawn', async () => {
     const { runtime, spawner } = createRuntime();
 
-    expect(runtime.startSession(startInput()).success).toBe(true);
+    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(0);
 
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await expect(runtime.startSession(startInput())).resolves.toEqual(ok({ outcome: 'started' }));
 
     expect(spawner.specs).toEqual([
       {
@@ -129,18 +131,20 @@ describe('TuiAgentsRuntime', () => {
         rows: 30,
       },
     ]);
+
+    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    expect(spawner.specs).toHaveLength(1);
   });
 
   it('wraps command execution with shellSetup and tmux', async () => {
     const { runtime, spawner } = createRuntime();
 
-    runtime.startSession(
+    await runtime.startSession(
       startInput({
         shellSetup: 'source ~/.profile',
         tmuxSessionName: 'emdash-test',
       })
     );
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
 
     expect(spawner.specs[0]!.command).toBe('/bin/sh');
     expect(spawner.specs[0]!.args[0]).toBe('-c');
@@ -149,11 +153,46 @@ describe('TuiAgentsRuntime', () => {
     expect(spawner.specs[0]!.args[1]).toContain("source ~/.profile && agent run 'hello world'");
   });
 
+  it('attaches to an already running session without replacing config', async () => {
+    const { runtime, spawner, agentHost } = createRuntime();
+
+    await expect(runtime.startSession(startInput({ initialPrompt: 'first' }))).resolves.toEqual(
+      ok({ outcome: 'started' })
+    );
+    await expect(
+      runtime.resumeSession(
+        startInput({ initialPrompt: 'second', sessionId: 'provider-session', cols: 90 })
+      )
+    ).resolves.toEqual(ok({ outcome: 'attached' }));
+
+    expect(spawner.specs).toHaveLength(1);
+    expect(agentHost.buildPromptCommand).toHaveBeenCalledTimes(1);
+    expect(spawner.specs[0]!.cols).toBe(120);
+  });
+
+  it('returns a typed spawn failure when the PTY cannot be created', async () => {
+    const { runtime, spawner } = createRuntime();
+    spawner.failWith = new Error('spawn failed');
+
+    const result = await runtime.startSession(startInput());
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatchObject({
+        type: 'spawn-failed',
+        conversationId: 'conversation-1',
+        message: 'Error: spawn failed',
+      });
+    }
+    expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toMatchObject({
+      'conversation-1': { status: 'exited' },
+    });
+  });
+
   it('stops and deletes sessions while cleaning up tmux', async () => {
     const { runtime, spawner, exec } = createRuntime();
 
-    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
     runtime.stopSession('conversation-1');
 
     expect(spawner.processes[0]!.kill).toHaveBeenCalled();
@@ -161,8 +200,7 @@ describe('TuiAgentsRuntime', () => {
       expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-test']);
     });
 
-    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
     runtime.deleteSession('conversation-1');
 
     await vi.waitFor(() => {
@@ -173,9 +211,8 @@ describe('TuiAgentsRuntime', () => {
   it('falls back to a fresh session when resume exits immediately', async () => {
     const { runtime, spawner, agentHost } = createRuntime();
 
-    const result = runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+    const result = await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
     expect(result).toEqual(ok({ outcome: 'resumed' }));
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
 
     spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
 
@@ -201,8 +238,7 @@ describe('TuiAgentsRuntime', () => {
       lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
     });
 
-    runtime.startSession(startInput());
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await runtime.startSession(startInput());
 
     await clock.advanceBy(1_200);
 
@@ -223,8 +259,7 @@ describe('TuiAgentsRuntime', () => {
       exec: { exec },
     });
 
-    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
 
     await clock.advanceBy(1_200);
 
@@ -262,7 +297,7 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.reconcile();
 
-    expect(spawner.specs).toHaveLength(0);
+    expect(spawner.specs).toHaveLength(1);
     expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
       'conversation-1'
     );
@@ -289,8 +324,7 @@ describe('TuiAgentsRuntime', () => {
     const intents = createMemorySessionIntentStore();
     const { runtime, spawner } = createRuntime({ intents });
 
-    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
-    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+    await runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
     await vi.waitFor(() => expect(intents.snapshot()).toHaveLength(1));
 
     runtime.killSession('conversation-1');

@@ -12,11 +12,11 @@ import {
   type Conversation,
   type CreateConversationParams,
 } from '@shared/core/conversations/conversations';
-import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
+import { launchTuiConversation } from './launch-tui-conversation';
 import { mapConversationRowToConversation } from './utils';
 
-type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select'>;
+type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select' | 'update'>;
 
 export async function createConversation(
   params: CreateConversationParams,
@@ -59,9 +59,9 @@ export async function createConversation(
       title: params.title,
       provider: params.provider,
       config,
-      // ACP conversations do not have an active PTY session; sessionId is left null
-      // and will be populated later when the ACP session establishes a provider session id.
-      sessionId: conversationType === 'acp' ? null : id,
+      // Null means this conversation has not successfully spawned yet. PTY placeholder
+      // ids and ACP/native provider ids are written only after their session exists.
+      sessionId: null,
       isInitialConversation: params.isInitialConversation ?? false,
       type: conversationType,
       createdAt: sql`CURRENT_TIMESTAMP`,
@@ -70,23 +70,19 @@ export async function createConversation(
     })
     .returning();
 
-  const conversation = mapConversationRowToConversation(row);
+  let conversation = mapConversationRowToConversation(row);
 
   // ACP conversations start lazily on hydrateConversation — no PTY session here.
   if (conversationType !== 'acp') {
-    const task = resolveTask(params.projectId, params.taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    await withCompensation({
+    const launched = await withCompensation({
       action: () =>
-        task.conversations.startSession(
-          conversation,
-          params.initialSize,
-          false,
-          params.initialPrompt
-        ),
+        launchTuiConversation({
+          projectId: params.projectId,
+          taskId: params.taskId,
+          conversationId: id,
+          initialSize: params.initialSize,
+          database,
+        }),
       compensate: async () => {
         await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
       },
@@ -97,6 +93,7 @@ export async function createConversation(
         });
       },
     });
+    conversation = launched.conversation;
   }
 
   conversationEvents._emit('conversation:created', conversation);

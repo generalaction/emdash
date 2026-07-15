@@ -7,14 +7,17 @@ import {
   spillLargePrompt,
   type SpillLargePromptResult,
 } from '@main/core/conversations/spill-large-prompt';
-import type { ConversationProvider } from '@main/core/conversations/types';
+import type {
+  ConversationProvider,
+  EnsureConversationSessionRequest,
+  EnsureConversationSessionResult,
+} from '@main/core/conversations/types';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { telemetryService } from '@main/lib/telemetry';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 
@@ -62,37 +65,37 @@ export class TuiConversationProvider implements ConversationProvider {
     this.taskEnvVars = options.taskEnvVars ?? {};
   }
 
-  async startSession(
-    conversation: Conversation,
-    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
-    isResuming = false,
-    initialPrompt?: string
-  ): Promise<void> {
-    const input = await this.buildStartInput(conversation, initialSize, isResuming, initialPrompt);
+  async ensureSession({
+    conversation,
+    mode,
+    initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    initialPrompt,
+  }: EnsureConversationSessionRequest): Promise<EnsureConversationSessionResult> {
+    const input = await this.buildStartInput(conversation, initialSize, mode, initialPrompt);
     const client = await getTuiAgentsRuntimeClient();
-    const result = isResuming
+    const agentSession = resolveAgentSession(conversation, mode);
+    const result = agentSession.isResuming
       ? await client.resumeSession({ input })
       : await client.startSession({ input });
     if (!result.success) {
       throw new Error(`TUI session failed to start: ${JSON.stringify(result.error)}`);
     }
-    if (!isResuming && input.initialPrompt?.trim()) {
-      telemetryService.capture('agent_run_started', {
-        provider: conversation.providerId,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
-    }
+    return { outcome: result.data.outcome };
   }
 
   async detachSession(_conversationId: string): Promise<void> {
-    // Output subscriptions own the runtime lease. Detach is intentionally a no-op.
+    // Output subscriptions are passive; explicit control and idle cleanup own PTY lifetime.
   }
 
   async stopSession(conversationId: string): Promise<void> {
     const client = await getTuiAgentsRuntimeClient();
     await client.stopSession({ conversationId });
+    await this.cleanupSpill(conversationId);
+  }
+
+  async deleteSession(conversationId: string): Promise<void> {
+    const client = await getTuiAgentsRuntimeClient();
+    await client.deleteSession({ conversationId });
     await this.cleanupSpill(conversationId);
   }
 
@@ -111,7 +114,7 @@ export class TuiConversationProvider implements ConversationProvider {
   private async buildStartInput(
     conversation: Conversation,
     initialSize: { cols: number; rows: number },
-    isResuming: boolean,
+    mode: 'start' | 'resume',
     initialPrompt: string | undefined
   ): Promise<TuiAgentStartInput> {
     await workspaceTrustService.maybeAutoTrust({
@@ -122,10 +125,10 @@ export class TuiConversationProvider implements ConversationProvider {
     });
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const localProjectSettings = await appSettingsService.get('localProject');
-    const agentSession = resolveAgentSession(conversation, isResuming);
+    const agentSession = resolveAgentSession(conversation, mode);
     const effectiveInitialPrompt = await this.effectiveInitialPrompt(
       conversation.id,
-      agentSession.isResuming ? undefined : initialPrompt
+      !agentSession.isResuming && mode === 'start' ? initialPrompt : undefined
     );
     const colorEnv = await getTerminalColorEnv();
     const providerVars = {
@@ -176,8 +179,9 @@ export class TuiConversationProvider implements ConversationProvider {
 
 function resolveAgentSession(
   conversation: Conversation,
-  isResuming: boolean
+  mode: 'start' | 'resume'
 ): { sessionId: string; isResuming: boolean } {
+  const isResuming = mode === 'resume';
   if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
     const nativeSessionId = conversation.sessionId;
     if (nativeSessionId && nativeSessionId !== conversation.id) {

@@ -5,6 +5,7 @@ import type {
   TuiResumeOutcome,
   TuiResumeSessionError,
   TuiSessionControlError,
+  TuiStartOutcome,
   TuiStartSessionError,
 } from '@runtimes/tui-agents/api';
 import type { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
@@ -13,12 +14,14 @@ export type StartTuiSessionInput = TuiAgentStartInput;
 
 export function createTuiAgentsProcedures(runtime: TuiAgentsRuntime) {
   return {
-    startSession(input: { input: StartTuiSessionInput }): Result<void, TuiStartSessionError> {
+    startSession(input: {
+      input: StartTuiSessionInput;
+    }): Promise<Result<{ outcome: TuiStartOutcome }, TuiStartSessionError>> {
       return runtime.startSession(input.input);
     },
     resumeSession(input: {
       input: StartTuiSessionInput;
-    }): Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError> {
+    }): Promise<Result<{ outcome: TuiResumeOutcome }, TuiResumeSessionError>> {
       return runtime.resumeSession(input.input);
     },
     stopSession(input: { conversationId: string }): Result<void, TuiSessionControlError> {

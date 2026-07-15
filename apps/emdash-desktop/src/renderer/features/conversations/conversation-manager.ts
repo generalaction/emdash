@@ -167,7 +167,11 @@ export class ConversationManagerStore implements Disposable {
   private handleTuiSessionListChanged(list: TuiSessionList): void {
     runInAction(() => {
       this.activeTuiSessionIds.clear();
-      for (const conversationId of Object.keys(list)) this.activeTuiSessionIds.add(conversationId);
+      for (const [conversationId, session] of Object.entries(list)) {
+        if (session.status === 'starting' || session.status === 'running') {
+          this.activeTuiSessionIds.add(conversationId);
+        }
+      }
     });
   }
 
@@ -200,7 +204,11 @@ export class ConversationManagerStore implements Disposable {
   private handleAcpSessionListChanged(list: Record<string, SessionSummary>): void {
     runInAction(() => {
       this.activeAcpSessionIds.clear();
-      for (const conversationId of Object.keys(list)) this.activeAcpSessionIds.add(conversationId);
+      for (const [conversationId, session] of Object.entries(list)) {
+        if (session.lifecycle !== 'closed') {
+          this.activeAcpSessionIds.add(conversationId);
+        }
+      }
     });
   }
 

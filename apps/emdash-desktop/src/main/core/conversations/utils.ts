@@ -16,10 +16,7 @@ function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undef
   return legacyPrompt ? [{ text: legacyPrompt }] : undefined;
 }
 
-export function mapConversationRowToConversation(
-  row: ConversationRow,
-  resume: boolean = false
-): Conversation {
+export function mapConversationRowToConversation(row: ConversationRow): Conversation {
   const config = row.config;
   return {
     id: row.id,
@@ -31,7 +28,6 @@ export function mapConversationRowToConversation(
     sessionId: row.sessionId ?? undefined,
     model: config?.model,
     initialQueue: initialQueueFromRow(row),
-    resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
     agentStatus: (row.agentStatus as AgentStatus | null) ?? null,

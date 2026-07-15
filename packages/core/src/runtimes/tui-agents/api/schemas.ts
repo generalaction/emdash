@@ -27,6 +27,10 @@ export const tuiAgentStartInputSchema = z.object({
 
 export type TuiAgentStartInput = z.infer<typeof tuiAgentStartInputSchema>;
 
+export const tuiStartOutcomeSchema = z.enum(['started', 'attached']);
+
+export type TuiStartOutcome = z.infer<typeof tuiStartOutcomeSchema>;
+
 export const tuiResumeOutcomeSchema = z.enum(['resumed', 'attached', 'fresh-fallback']);
 
 export type TuiResumeOutcome = z.infer<typeof tuiResumeOutcomeSchema>;
@@ -145,10 +149,16 @@ export const tuiNotFoundErrorSchema = z.object({
   type: z.literal('not-found'),
   conversationId: z.string(),
 });
+export const tuiSpawnFailedErrorSchema = z.object({
+  type: z.literal('spawn-failed'),
+  conversationId: z.string(),
+  message: z.string(),
+});
 
 export const tuiStartSessionErrorSchema = z.discriminatedUnion('type', [
   tuiUnknownProviderErrorSchema,
   tuiNoCommandErrorSchema,
+  tuiSpawnFailedErrorSchema,
   runtimeUnavailableErrorSchema,
 ]);
 export const tuiResumeSessionErrorSchema = tuiStartSessionErrorSchema;
@@ -161,6 +171,7 @@ export const tuiAgentErrorSchema = z.discriminatedUnion('type', [
   tuiUnknownProviderErrorSchema,
   tuiNoCommandErrorSchema,
   tuiNotFoundErrorSchema,
+  tuiSpawnFailedErrorSchema,
   runtimeUnavailableErrorSchema,
 ]);
 
@@ -170,7 +181,10 @@ export type TuiResumeSessionError = z.infer<typeof tuiResumeSessionErrorSchema>;
 export type TuiSessionControlError = z.infer<typeof tuiSessionControlErrorSchema>;
 export type TuiInputError = z.infer<typeof tuiInputErrorSchema>;
 
-export const tuiVoidResultSchema = result(z.void(), tuiAgentErrorSchema);
+export const tuiStartResultSchema = result(
+  z.object({ outcome: tuiStartOutcomeSchema }),
+  tuiAgentErrorSchema
+);
 export const tuiResumeResultSchema = result(
   z.object({ outcome: tuiResumeOutcomeSchema }),
   tuiAgentErrorSchema

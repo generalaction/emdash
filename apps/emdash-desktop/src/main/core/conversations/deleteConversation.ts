@@ -48,7 +48,7 @@ export async function deleteConversation(
 
   const task = resolveTask(projectId, taskId);
   if (task) {
-    await task.conversations.stopSession(conversationId);
+    await task.conversations.deleteSession(conversationId);
   } else {
     const project = projectManager.getProject(projectId);
     if (project) {

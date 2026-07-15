@@ -17,14 +17,14 @@ export type Conversation = {
   providerId: AgentProviderId;
   title: string;
   lastInteractedAt: string | null;
-  resume?: boolean;
   autoApprove?: boolean;
   /**
-   * The agent-facing session identifier. Null / absent means the conversation has never spawned.
-   * For providers that accept a supplied id (most PTY), this is set to conversation.id before
-   * first spawn and may later be overwritten by the agent's own native id (e.g. Droid UUID).
-   * For ACP, set to the id returned by newSession/loadSession.
-   * Resume with this id when sessionId !== conversation.id; treat as fresh otherwise.
+   * The agent-facing session identifier. Null / absent means the conversation has never
+   * successfully established a session.
+   *
+   * PTY conversations write a conversation.id placeholder only after the first fresh
+   * process is spawned; provider hooks may later overwrite it with a native id. ACP
+   * conversations store the id returned by newSession/loadSession.
    */
   sessionId?: string;
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */

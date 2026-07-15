@@ -1,14 +1,31 @@
 import { type Conversation } from '@shared/core/conversations/conversations';
 
+export type EnsureConversationSessionMode = 'start' | 'resume';
+
+export type EnsureConversationSessionOutcome =
+  | 'started'
+  | 'resumed'
+  | 'attached'
+  | 'fresh-fallback';
+
+export type EnsureConversationSessionRequest = {
+  conversation: Conversation;
+  mode: EnsureConversationSessionMode;
+  initialSize?: { cols: number; rows: number };
+  initialPrompt?: string;
+};
+
+export type EnsureConversationSessionResult = {
+  outcome: EnsureConversationSessionOutcome;
+};
+
 export interface ConversationProvider {
-  startSession(
-    conversation: Conversation,
-    initialSize?: { cols: number; rows: number },
-    isResuming?: boolean,
-    initialPrompt?: string
-  ): Promise<void>;
+  ensureSession(
+    request: EnsureConversationSessionRequest
+  ): Promise<EnsureConversationSessionResult>;
   detachSession(conversationId: string): Promise<void>;
   stopSession(conversationId: string): Promise<void>;
+  deleteSession(conversationId: string): Promise<void>;
   destroyAll(): Promise<void>;
   detachAll(): Promise<void>;
 }

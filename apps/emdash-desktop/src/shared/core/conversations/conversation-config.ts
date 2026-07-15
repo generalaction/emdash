@@ -19,7 +19,7 @@ const ptyConfigV1 = z.object({
   version: z.literal('1'),
   type: z.literal('pty'),
   autoApprove: z.boolean().optional(),
-  /** Initial prompt to deliver on first spawn (delivered once, gated on sessionId === null). */
+  /** Initial prompt to deliver once, before the first successful PTY session id is persisted. */
   initialPrompt: z.string().optional(),
   /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
   model: z.string().optional(),
@@ -31,7 +31,7 @@ const acpConfigV1 = z.object({
   autoApprove: z.boolean().optional(),
   /** @deprecated Use initialQueue; kept so older in-progress ACP configs remain readable. */
   initialPrompt: z.string().optional(),
-  /** Initial queued prompts to deliver on first spawn (delivered once, gated on sessionId === null). */
+  /** Initial queued prompts to deliver once, before the first successful ACP session id is persisted. */
   initialQueue: z.array(initialQueuePromptSchema).optional(),
   /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
   model: z.string().optional(),

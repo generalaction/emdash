@@ -9,5 +9,5 @@ export async function getConversations() {
     .from(conversations)
     .innerJoin(tasks, eq(conversations.taskId, tasks.id))
     .where(isNull(tasks.archivedAt));
-  return rows.map(({ conversation }) => mapConversationRowToConversation(conversation, false));
+  return rows.map(({ conversation }) => mapConversationRowToConversation(conversation));
 }

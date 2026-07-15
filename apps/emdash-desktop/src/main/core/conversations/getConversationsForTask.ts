@@ -8,5 +8,5 @@ export async function getConversationsForTask(projectId: string, taskId: string)
     .select()
     .from(conversations)
     .where(and(eq(conversations.projectId, projectId), eq(conversations.taskId, taskId)));
-  return rows.map((r) => mapConversationRowToConversation(r, false));
+  return rows.map((r) => mapConversationRowToConversation(r));
 }
