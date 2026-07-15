@@ -80,6 +80,11 @@ export const agentConfigContract = defineContract({
     data: z.void(),
     error: agentConfigMcpErrorSchema,
   }),
+  removeMcpForAgent: fallible({
+    input: providerCommandSchema.extend({ name: z.string() }),
+    data: z.void(),
+    error: agentConfigMcpErrorSchema,
+  }),
   listMcpForAgent: fallible({
     input: providerCommandSchema,
     data: mcpServerListSchema,

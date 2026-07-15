@@ -44,6 +44,7 @@ import type {
   PromptDraft,
   PromptDraftUpdate,
   SessionConfigState,
+  SessionMcpServer,
   SessionState,
   SessionSummary,
   SessionUsage,
@@ -77,6 +78,7 @@ import {
   type SessionLiveModels,
   type SessionsListModel,
 } from '@runtimes/acp/node/state/live-models';
+import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 interface SessionRecord {
@@ -94,6 +96,7 @@ interface SessionRecord {
     activeTurn?: TranscriptTurn | null;
     draft?: PromptDraft | null;
     terminals?: TerminalState[];
+    mcpServers?: SessionMcpServer[];
   };
 }
 
@@ -178,6 +181,8 @@ export class SessionManager implements InboundRouter {
 
     const acquired = acquire.data;
     const connection = acquired.value;
+    const mcpServers = await this.resolveSessionMcpServers(input.providerId, connection);
+    const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     let record: SessionRecord | null = null;
 
     try {
@@ -190,7 +195,7 @@ export class SessionManager implements InboundRouter {
         let loaded = false;
         try {
           const response = await connection.agent.loadSession(
-            this.buildLoadSessionRequest(input.cwd, input.sessionId)
+            this.buildLoadSessionRequest(input.cwd, input.sessionId, mcpServers)
           );
           record.cell.applySessionLoaded({
             modes: response.modes,
@@ -228,7 +233,9 @@ export class SessionManager implements InboundRouter {
       if (!record) {
         let response;
         try {
-          response = await connection.agent.newSession(this.buildNewSessionRequest(input.cwd));
+          response = await connection.agent.newSession(
+            this.buildNewSessionRequest(input.cwd, mcpServers)
+          );
         } catch (e) {
           if (isAuthRequiredError(e)) throw e;
           this.removeRecord(input.conversationId, false);
@@ -258,6 +265,7 @@ export class SessionManager implements InboundRouter {
 
       this.registerRoute(connection.key, record.cell.acpSessionId, input.conversationId);
 
+      this.publishSessionMcpServers(record, mcpServerSummary);
       this.syncRecord(record);
       this.persistActiveIntent(input, record.cell.acpSessionId);
       return ok({ sessionId: record.cell.acpSessionId });
@@ -556,6 +564,7 @@ export class SessionManager implements InboundRouter {
         activeTurn: null,
         draft: null,
         terminals: [],
+        mcpServers: [],
       },
     });
     this.cells.set(input.conversationId, record);
@@ -601,6 +610,32 @@ export class SessionManager implements InboundRouter {
     this.syncTerminals(record.input.conversationId);
 
     this.upsertSessionSummary(record.input, record.cell, state);
+  }
+
+  private async resolveSessionMcpServers(providerId: string, connection: AcpConnectionEntry) {
+    try {
+      const result = await this.deps.agentHost.readMcpServers(providerId);
+      if (!result.success) {
+        this.deps.logger.warn('SessionManager: failed to read MCP servers for session', {
+          providerId,
+          error: 'message' in result.error ? result.error.message : result.error.type,
+        });
+        return [];
+      }
+
+      return registrationsToAcpMcpServers(result.data, connection.mcpCapabilities);
+    } catch (error) {
+      this.deps.logger.warn('SessionManager: failed to read MCP servers for session', {
+        providerId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private publishSessionMcpServers(record: SessionRecord, mcpServers: SessionMcpServer[]): void {
+    publishLiveModelState(record.live.states.mcpServers, mcpServers, record.lastSynced.mcpServers);
+    record.lastSynced.mcpServers = mcpServers;
   }
 
   private upsertSessionSummary(
@@ -854,12 +889,19 @@ export class SessionManager implements InboundRouter {
     }
   }
 
-  private buildNewSessionRequest(cwd: string): NewSessionRequest {
-    return { cwd, mcpServers: [] };
+  private buildNewSessionRequest(
+    cwd: string,
+    mcpServers: NewSessionRequest['mcpServers']
+  ): NewSessionRequest {
+    return { cwd, mcpServers };
   }
 
-  private buildLoadSessionRequest(cwd: string, sessionId: string): LoadSessionRequest {
-    return { cwd, sessionId, mcpServers: [] };
+  private buildLoadSessionRequest(
+    cwd: string,
+    sessionId: string,
+    mcpServers: LoadSessionRequest['mcpServers']
+  ): LoadSessionRequest {
+    return { cwd, sessionId, mcpServers };
   }
 }
 

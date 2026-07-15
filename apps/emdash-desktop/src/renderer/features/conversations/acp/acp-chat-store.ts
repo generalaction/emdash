@@ -7,6 +7,7 @@ import type {
   PromptDraft,
   PromptInput,
   QueuedPrompt,
+  SessionMcpServer,
 } from '@emdash/core/runtimes/acp/api/client';
 import type {
   CommandItem,
@@ -99,6 +100,7 @@ export class AcpChatStore {
       effort: computed,
       effortOptions: computed,
       commands: computed,
+      mcpServers: computed,
       permissionQueue: computed,
       queuedPrompts: computed,
       usage: computed,
@@ -173,6 +175,10 @@ export class AcpChatStore {
       description: command.description,
       behavior: 'insert',
     }));
+  }
+
+  get mcpServers(): SessionMcpServer[] {
+    return this.session?.mcpServers.current() ?? [];
   }
 
   get permissionQueue(): PermissionQueueItem[] {

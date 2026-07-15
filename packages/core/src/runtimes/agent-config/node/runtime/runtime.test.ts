@@ -165,6 +165,21 @@ describe('AgentConfigRuntime', () => {
     await runtime.dispose();
   });
 
+  it('removes MCP servers from a specific provider', async () => {
+    const { runtime } = makeRuntime();
+    const server: McpServer = {
+      name: 'filesystem',
+      transport: 'stdio',
+      command: 'fs-mcp',
+      providers: ['claude'],
+    };
+
+    await expect(runtime.saveMcpServer(server)).resolves.toEqual(ok(undefined));
+    await expect(runtime.removeMcpForAgent('claude', 'filesystem')).resolves.toEqual(ok(undefined));
+    await expect(runtime.listMcpForAgent('claude')).resolves.toEqual(ok([]));
+    await runtime.dispose();
+  });
+
   it('creates and removes local skills through plugin fs', async () => {
     const { runtime } = makeRuntime();
 

@@ -1,4 +1,4 @@
-import type { Client } from '@agentclientprotocol/sdk';
+import type { Client, McpCapabilities } from '@agentclientprotocol/sdk';
 import { isErr, toSerializedError } from '@emdash/shared';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
@@ -28,6 +28,7 @@ export interface AcpConnectionContext {
 export interface AcpConnectionEntry extends AcpConnectionContext {
   agent: AcpAgentApi;
   supportsLoadSession: boolean;
+  mcpCapabilities: Required<Pick<McpCapabilities, 'http' | 'sse'>>;
 }
 
 export type PooledAcpProcess = AcpConnectionEntry;
@@ -129,6 +130,7 @@ async function provisionAcpConnection(
     agent: connection.data.agent,
     normalize: connection.data.normalize,
     supportsLoadSession: connection.data.supportsLoadSession,
+    mcpCapabilities: connection.data.mcpCapabilities,
   };
 }
 

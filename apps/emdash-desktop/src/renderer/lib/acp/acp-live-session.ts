@@ -3,6 +3,7 @@ import {
   promptDraftSchema,
   sessionUsageSchema,
   sessionConfigStateSchema,
+  sessionMcpServerSchema,
   sessionStateSchema,
   terminalStateSchema,
   transcriptTurnSchema,
@@ -58,6 +59,7 @@ export class AcpLiveSession {
   readonly activeTurn: ReplicaState<z.infer<typeof transcriptTurnSchema> | null>;
   readonly draft: ReplicaState<z.infer<typeof promptDraftSchema> | null>;
   readonly terminals: ReplicaState<TerminalState[]>;
+  readonly mcpServers: ReplicaState<Array<z.infer<typeof sessionMcpServerSchema>>>;
   private readonly terminalLogs = new Map<string, ReplicaLog>();
   private disposed = false;
 
@@ -85,6 +87,10 @@ export class AcpLiveSession {
       client.session.state(key, 'terminals'),
       z.array(terminalStateSchema)
     );
+    this.mcpServers = createReplicaState(
+      client.session.state(key, 'mcpServers'),
+      z.array(sessionMcpServerSchema)
+    );
   }
 
   static async create(conversationId: string, input?: StartSessionInput): Promise<AcpLiveSession> {
@@ -108,6 +114,7 @@ export class AcpLiveSession {
         session.activeTurn.ready,
         session.draft.ready,
         session.terminals.ready,
+        session.mcpServers.ready,
       ]),
       'Timed out connecting ACP live models'
     );
@@ -248,6 +255,7 @@ export class AcpLiveSession {
     void this.activeTurn.dispose();
     void this.draft.dispose();
     void this.terminals.dispose();
+    void this.mcpServers.dispose();
     for (const binding of this.terminalLogs.values()) {
       void binding.dispose();
     }

@@ -176,14 +176,6 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
                     onValueChange={(v) => {
                       const next = v as 'stdio' | 'http';
                       field.handleChange(next);
-                      if (next === 'http') {
-                        form.setFieldValue('selectedProviders', (prev) => {
-                          return prev.filter((id) => {
-                            const provider = providers.find((p) => p.id === id);
-                            return provider?.supportsHttp ?? true;
-                          });
-                        });
-                      }
                     }}
                   >
                     <SelectTrigger>
@@ -289,23 +281,18 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
 
           <form.Field name="selectedProviders">
             {(field) => (
-              <form.Subscribe selector={(state) => state.values.transport}>
-                {(transport) => (
-                  <SyncToAgentsSection
-                    providers={providers}
-                    selectedProviders={field.state.value}
-                    transport={transport}
-                    onToggle={(id) => {
-                      field.handleChange(
-                        field.state.value.includes(id)
-                          ? field.state.value.filter((value) => value !== id)
-                          : [...field.state.value, id]
-                      );
-                    }}
-                    onSetAll={(ids) => field.handleChange(ids)}
-                  />
-                )}
-              </form.Subscribe>
+              <SyncToAgentsSection
+                providers={providers}
+                selectedProviders={field.state.value}
+                onToggle={(id) => {
+                  field.handleChange(
+                    field.state.value.includes(id)
+                      ? field.state.value.filter((value) => value !== id)
+                      : [...field.state.value, id]
+                  );
+                }}
+                onSetAll={(ids) => field.handleChange(ids)}
+              />
             )}
           </form.Field>
         </FieldGroup>

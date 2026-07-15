@@ -11,6 +11,7 @@ import {
   type PlanState,
   type PromptDraft,
   type SessionConfigState,
+  type SessionMcpServer,
   type SessionState,
   type SessionSummary,
   type SessionUsage,
@@ -47,6 +48,7 @@ export function createSessionLiveModels(
       activeTurn: null,
       draft: null,
       terminals: [],
+      mcpServers: [],
     }
   );
 }
@@ -71,6 +73,7 @@ export type {
   PlanState,
   PromptDraft,
   SessionConfigState,
+  SessionMcpServer,
   SessionState,
   SessionSummary,
   SessionUsage,

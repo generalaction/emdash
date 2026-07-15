@@ -111,6 +111,10 @@ export class AgentConfigRuntime {
     return this.mcp.removeServer(name);
   }
 
+  removeMcpForAgent(providerId: string, name: string): Promise<Result<void, AgentConfigMcpError>> {
+    return this.mcp.removeServerForAgent(providerId, name);
+  }
+
   listMcpForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
     return this.mcp.listForAgent(providerId);
   }

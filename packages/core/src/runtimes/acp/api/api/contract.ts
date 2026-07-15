@@ -13,7 +13,11 @@ import {
   attachmentMimeTypeSchema,
   attachmentRefSchema,
 } from '@runtimes/acp/api/models/attachments';
-import { sessionConfigStateSchema, sessionUsageSchema } from '@runtimes/acp/api/models/config';
+import {
+  sessionConfigStateSchema,
+  sessionMcpServerSchema,
+  sessionUsageSchema,
+} from '@runtimes/acp/api/models/config';
 import { planStateSchema } from '@runtimes/acp/api/models/plan';
 import { promptDraftSchema } from '@runtimes/acp/api/models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '@runtimes/acp/api/models/session';
@@ -186,6 +190,7 @@ export const acpApiContract = defineContract({
       activeTurn: liveState({ data: transcriptTurnSchema.nullable() }),
       draft: liveState({ data: promptDraftSchema.nullable() }),
       terminals: liveState({ data: z.array(terminalStateSchema) }),
+      mcpServers: liveState({ data: z.array(sessionMcpServerSchema) }),
     },
   }),
   terminalOutput: liveLog({ key: terminalOutputKeySchema }),

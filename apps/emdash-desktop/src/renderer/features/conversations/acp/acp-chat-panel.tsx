@@ -606,6 +606,7 @@ const ComposerForStore = observer(function ComposerForStore({
         permissionModeOptions={store.permissionModeOptions}
         selectedPermissionMode={store.permissionMode ?? undefined}
         onPermissionModeChange={handleModeChange}
+        mcpServers={store.mcpServers}
         agentOptions={agentOptions}
         selectedAgent={providerId ?? undefined}
         agentLocked

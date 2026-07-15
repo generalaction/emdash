@@ -41,6 +41,12 @@ export const sessionCommandSchema = z.object({
 });
 export type SessionCommand = z.infer<typeof sessionCommandSchema>;
 
+export const sessionMcpServerSchema = z.object({
+  name: z.string(),
+  transport: z.enum(['stdio', 'http', 'sse']),
+});
+export type SessionMcpServer = z.infer<typeof sessionMcpServerSchema>;
+
 export const sessionConfigStateSchema = z.object({
   /** Model selector state; null when the provider has not exposed model configuration. */
   modelOptions: z

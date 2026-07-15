@@ -44,8 +44,6 @@ export function useMcps() {
       id: agent.id,
       name: agent.name,
       installed: statusesById.get(agent.id)?.status === 'available',
-      supportsMcp: agent.capabilities.mcp.kind === 'supported',
-      supportsHttp: agentSupportsHttpMcp(agent.capabilities.mcp),
     }));
   }, [agents, agentStatuses]);
 
@@ -130,15 +128,6 @@ export function useMcps() {
     refresh,
     reload,
   };
-}
-
-function agentSupportsHttpMcp(mcp: { kind: string }): boolean {
-  if (mcp.kind !== 'supported') return false;
-  const detailed = mcp as {
-    supportsHttp?: boolean;
-    supportedTransports?: string[];
-  };
-  return detailed.supportedTransports?.includes('http') ?? detailed.supportsHttp ?? false;
 }
 
 function agentConfigErrorMessage(error: { type: string; message?: string; providerId?: string }) {

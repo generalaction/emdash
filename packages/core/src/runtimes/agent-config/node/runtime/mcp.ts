@@ -78,6 +78,31 @@ export class AgentMcpConfigManager {
     }
   }
 
+  async removeServerForAgent(
+    providerId: string,
+    name: string
+  ): Promise<Result<void, AgentConfigMcpError>> {
+    const provider = this.deps.agentHost.get(providerId);
+    if (!provider) return err({ type: 'unknown-provider', providerId });
+    if (provider.capabilities.mcp.kind !== 'supported' || !provider.behavior.mcp) {
+      return err({
+        type: 'invalid-state',
+        message: `Provider '${providerId}' does not support MCP`,
+      });
+    }
+
+    try {
+      return await this.withWriteLock(async () => {
+        const result = await this.deps.agentHost.removeMcpServer(providerId, name);
+        if (!result.success) throw new Error(agentHostErrorMessage(result.error));
+        await this.refresh();
+        return ok();
+      });
+    } catch (error) {
+      return err(toIoError(error));
+    }
+  }
+
   async listForAgent(providerId: string): Promise<Result<McpServer[], AgentConfigMcpError>> {
     const provider = this.deps.agentHost.get(providerId);
     if (!provider) return err({ type: 'unknown-provider', providerId });

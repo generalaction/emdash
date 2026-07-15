@@ -1,5 +1,5 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { isOk } from '@emdash/shared';
+import { isOk, ok } from '@emdash/shared';
 import { createManualClock } from '@emdash/shared/testing';
 import {
   FakeAcpTerminalProcess,
@@ -100,6 +100,77 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
       'conv-reconcile'
     );
+  });
+
+  it('injects host-scoped MCP servers into new ACP sessions', async () => {
+    const h = makeAcpHarness();
+    h.agent.initialize.mockResolvedValueOnce({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } },
+    });
+    vi.spyOn(h.deps.agentHost, 'readMcpServers').mockResolvedValueOnce(
+      ok([
+        {
+          name: 'filesystem',
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+        },
+        {
+          name: 'docs',
+          type: 'http',
+          url: 'https://example.com/mcp',
+        },
+      ])
+    );
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(makeStartInput({ conversationId: 'conv-mcp' }));
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.newSession).toHaveBeenCalledWith({
+      cwd: '/tmp/workspace',
+      mcpServers: [
+        {
+          name: 'filesystem',
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+          env: [],
+        },
+        {
+          type: 'http',
+          name: 'docs',
+          url: 'https://example.com/mcp',
+          headers: [],
+        },
+      ],
+    });
+    expect(rt.sessionLiveModels('conv-mcp')?.states.mcpServers.snapshot().data).toEqual([
+      { name: 'filesystem', transport: 'stdio' },
+      { name: 'docs', transport: 'http' },
+    ]);
+  });
+
+  it('injects host-scoped MCP servers into loaded ACP sessions', async () => {
+    const h = makeAcpHarness();
+    vi.spyOn(h.deps.agentHost, 'readMcpServers').mockResolvedValueOnce(
+      ok([{ name: 'filesystem', command: 'npx' }])
+    );
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-load-mcp' }),
+      sessionId: 'session-old',
+    });
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.loadSession).toHaveBeenCalledWith({
+      cwd: '/tmp/workspace',
+      sessionId: 'session-old',
+      mcpServers: [{ name: 'filesystem', command: 'npx', args: [], env: [] }],
+    });
+    expect(rt.sessionLiveModels('conv-load-mcp')?.states.mcpServers.snapshot().data).toEqual([
+      { name: 'filesystem', transport: 'stdio' },
+    ]);
   });
 
   it('persists the current resume input without desktop identifiers', async () => {

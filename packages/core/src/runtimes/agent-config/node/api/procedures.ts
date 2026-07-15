@@ -57,6 +57,12 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     removeMcpServer(input: { name: string }): Promise<Result<void, AgentConfigMcpError>> {
       return runtime.removeMcpServer(input.name);
     },
+    removeMcpForAgent(input: {
+      providerId: string;
+      name: string;
+    }): Promise<Result<void, AgentConfigMcpError>> {
+      return runtime.removeMcpForAgent(input.providerId, input.name);
+    },
     listMcpForAgent(input: {
       providerId: string;
     }): Promise<Result<McpServer[], AgentConfigMcpError>> {

@@ -205,6 +205,61 @@ export const permissionModeTrigger = style({
   paddingRight: '0.1875rem',
 });
 
+export const mcpTrigger = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  borderRadius: tokenVars.radiusMd,
+  paddingLeft: '0.1875rem',
+  paddingRight: '0.1875rem',
+  color: vars.foreground,
+  fontSize: tokenVars.textXs,
+  lineHeight: 1,
+  outline: 'none',
+  selectors: {
+    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
+  },
+});
+
+export const mcpPopoverContent = style({
+  width: '16rem',
+  padding: '0.5rem',
+});
+
+export const mcpList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+});
+
+export const mcpRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  borderRadius: tokenVars.radiusMd,
+  padding: '0.375rem 0.5rem',
+  fontSize: tokenVars.textSm,
+  color: vars.foreground,
+});
+
+export const mcpName = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const mcpBadge = style({
+  flexShrink: 0,
+  borderRadius: tokenVars.radiusSm,
+  border: `1px solid ${vars.border}`,
+  padding: '0.0625rem 0.3125rem',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundMuted,
+});
+
 // ── Agent trigger ─────────────────────────────────────────────────────────────
 
 export const agentTrigger = style({

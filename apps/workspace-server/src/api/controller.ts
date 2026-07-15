@@ -222,6 +222,7 @@ function unavailableAgentConfig(): NonNullable<
     mcpServers: unavailableLiveModel(workspaceWireContract.agentConfig.mcpServers),
     saveMcpServer: unavailable,
     removeMcpServer: unavailable,
+    removeMcpForAgent: unavailable,
     listMcpForAgent: unavailable,
     skills: unavailableLiveModel(workspaceWireContract.agentConfig.skills),
     installSkill: unavailable,

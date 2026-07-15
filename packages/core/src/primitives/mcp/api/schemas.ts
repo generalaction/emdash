@@ -46,6 +46,4 @@ export interface McpProvidersResponse {
   id: string;
   name: string;
   installed: boolean;
-  supportsMcp: boolean;
-  supportsHttp: boolean;
 }

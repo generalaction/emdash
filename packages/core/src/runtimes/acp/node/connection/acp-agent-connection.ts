@@ -1,4 +1,4 @@
-import type { Client, SessionUpdate } from '@agentclientprotocol/sdk';
+import type { Client, McpCapabilities, SessionUpdate } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
@@ -38,6 +38,7 @@ export interface AcpAgentConnection {
   agent: AcpAgentApi;
   normalize: AcpSessionUpdateNormalizer;
   supportsLoadSession: boolean;
+  mcpCapabilities: Required<Pick<McpCapabilities, 'http' | 'sse'>>;
 }
 
 /**
@@ -120,12 +121,16 @@ export async function createAcpAgentConnection(
       processClosed.then(failClosedBeforeReady),
     ]);
     const supportsLoadSession = initialized.agentCapabilities?.loadSession === true;
-    logger.debug('createAcpAgentConnection: initialized', { supportsLoadSession });
+    const mcpCapabilities = {
+      http: initialized.agentCapabilities?.mcpCapabilities?.http === true,
+      sse: initialized.agentCapabilities?.mcpCapabilities?.sse === true,
+    };
+    logger.debug('createAcpAgentConnection: initialized', { supportsLoadSession, mcpCapabilities });
     void processClosed.then((closed) => {
       if (connectionScope.disposed) return;
       onClosed(exitCodeFromClosed(closed));
     });
-    return ok({ agent: connection, normalize, supportsLoadSession });
+    return ok({ agent: connection, normalize, supportsLoadSession, mcpCapabilities });
   } catch (e) {
     logger.error('createAcpAgentConnection: initialize failed', {
       error: e instanceof Error ? e.message : String(e),

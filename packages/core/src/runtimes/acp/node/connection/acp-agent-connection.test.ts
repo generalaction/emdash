@@ -47,6 +47,7 @@ describe('createAcpAgentConnection()', () => {
     if (!isOk(result)) return;
     expect(host.allHandles).toHaveLength(1);
     expect(result.data.supportsLoadSession).toBe(true);
+    expect(result.data.mcpCapabilities).toEqual({ http: false, sse: false });
   });
 
   it('returns err(spawn_failed) when spawn throws', async () => {
@@ -85,6 +86,21 @@ describe('createAcpAgentConnection()', () => {
       if (!isOk(result)) return;
       expect(result.data.supportsLoadSession).toBe(loadSession);
     }
+  });
+
+  it('derives MCP capabilities from agent capabilities', async () => {
+    const agent = new FakeAcpAgent();
+    agent.initialize = vi.fn().mockResolvedValue({
+      protocolVersion: 1,
+      agentCapabilities: { mcpCapabilities: { http: true, sse: true } },
+    });
+    const { host, behavior, scope } = makeCtx(agent);
+
+    const result = await createAcpAgentConnection({ host, behavior }, connArgs(scope));
+
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data.mcpCapabilities).toEqual({ http: true, sse: true });
   });
 
   it('returns initialize_failed, kills the partial process, and does not call onClosed', async () => {
