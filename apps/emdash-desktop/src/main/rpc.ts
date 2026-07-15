@@ -9,7 +9,6 @@ import { editorBufferController } from './core/editor/controller';
 import { githubController } from './core/github/controller';
 import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
-import { mcpController } from './core/mcp/controller';
 import { previewServersController } from './core/preview-servers/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
@@ -18,7 +17,6 @@ import { repositoryController } from './core/repository/controller';
 import { searchController } from './core/search/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
-import { skillsController } from './core/skills/controller';
 import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
@@ -43,13 +41,11 @@ export const rpcRouter = createRPCRouter({
   integrations: integrationsController,
   issues: issueController,
   promptLibrary: promptLibraryController,
-  skills: skillsController,
   ssh: sshController,
   projects: projectController,
   previewServers: previewServersController,
   tasks: taskController,
   conversations: conversationController,
-  mcp: mcpController,
   telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,

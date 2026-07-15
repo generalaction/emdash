@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+export const rawServerEntrySchema = z.record(z.string(), z.unknown());
+
+export const credentialKeySchema = z.object({
+  key: z.string(),
+  required: z.boolean(),
+});
+
+export const mcpCatalogEntrySchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  description: z.string(),
+  docsUrl: z.string(),
+  defaultConfig: rawServerEntrySchema,
+  credentialKeys: z.array(credentialKeySchema),
+  _meta: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const mcpServerSchema = z.object({
   name: z.string(),
   transport: z.enum(['stdio', 'http']),
@@ -16,22 +33,9 @@ export const mcpServerSchema = z.object({
 });
 
 export type McpServer = z.infer<typeof mcpServerSchema>;
-
-export interface CredentialKey {
-  key: string;
-  required: boolean;
-}
-
-export type RawServerEntry = Record<string, unknown>;
-
-export interface McpCatalogEntry {
-  key: string;
-  name: string;
-  description: string;
-  docsUrl: string;
-  defaultConfig: RawServerEntry;
-  credentialKeys: CredentialKey[];
-}
+export type RawServerEntry = z.infer<typeof rawServerEntrySchema>;
+export type CredentialKey = z.infer<typeof credentialKeySchema>;
+export type McpCatalogEntry = z.infer<typeof mcpCatalogEntrySchema>;
 
 export interface McpLoadAllResponse {
   installed: McpServer[];

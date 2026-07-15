@@ -1,4 +1,4 @@
-import type { RawServerEntry } from './types';
+import type { RawServerEntry } from '@emdash/core/primitives/mcp/api';
 
 export interface CredentialKeyDef {
   key: string;

@@ -79,8 +79,8 @@ function AgentStatusGlyph({ status }: { status: AgentStatusKind }) {
       return (
         <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
           <rect
-            x="7.75"
-            y="7.75"
+            x="6"
+            y="6"
             width="12"
             height="12"
             rx="1"

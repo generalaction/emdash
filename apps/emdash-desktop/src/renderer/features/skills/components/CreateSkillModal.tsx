@@ -1,6 +1,7 @@
+import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { Button } from '@renderer/lib/ui/button';
@@ -15,7 +16,6 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { isValidSkillName } from '@shared/core/skills/validation';
 
 type Props = BaseModalProps<void>;
 
@@ -44,14 +44,15 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
 
     setIsCreating(true);
     try {
-      const result = await rpc.skills.create({
+      const client = await getAgentConfigRuntimeClient();
+      const result = await client.createSkill({
         name: trimmedName,
         description: description.trim(),
         content: content.trim(),
       });
 
       if (!result.success) {
-        setCreateError(result.error || 'Failed to create skill');
+        setCreateError(result.error.message || 'Failed to create skill');
         return;
       }
 

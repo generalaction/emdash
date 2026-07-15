@@ -1,56 +1,65 @@
+import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useInstalledMcpServersLiveModel } from '@renderer/lib/agent-config/live-model-hooks';
+import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
+import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
+import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 
-const MCP_QUERY_KEY = ['mcp', 'all'] as const;
-const PROVIDERS_QUERY_KEY = ['mcp', 'providers'] as const;
+const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;
 
 export function useMcps() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: installed, isLoading: isLoadingInstalled } = useInstalledMcpServersLiveModel();
+  const { data: agents } = useAgents();
+  const { data: agentStatuses, probeAll } = useAgentInstallationStatuses();
 
   // ── Queries ──────────────────────────────────────────────────────────
 
   const {
-    data: mcpData,
-    isPending: isLoading,
+    data: catalog = [],
+    isPending: isLoadingCatalog,
     refetch: reload,
   } = useQuery({
-    queryKey: MCP_QUERY_KEY,
+    queryKey: MCP_CATALOG_QUERY_KEY,
     queryFn: async () => {
-      const result = await rpc.mcp.loadAll();
-      if (result.success && result.data) return result.data;
-      throw new Error(result.error ?? 'Failed to load MCP servers');
+      const client = await getCatalogRuntimeClient();
+      const result = await client.getMcpCatalog(undefined);
+      if (result.success) return result.data;
+      throw new Error(result.error.message);
     },
   });
 
-  const installed: McpServer[] = mcpData?.installed ?? [];
-  const catalog: McpCatalogEntry[] = mcpData?.catalog ?? [];
+  const providers = useMemo<McpProvidersResponse[]>(() => {
+    const statusesById = new Map((agentStatuses ?? []).map((status) => [status.id, status]));
+    return (agents ?? [])
+      .filter((agent) => agent.capabilities.mcp.kind === 'supported')
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        installed: statusesById.get(agent.id)?.status === 'available',
+        supportsHttp: agentSupportsHttpMcp(agent.capabilities.mcp),
+      }));
+  }, [agents, agentStatuses]);
 
-  const { data: providers = [] } = useQuery({
-    queryKey: PROVIDERS_QUERY_KEY,
-    queryFn: async () => {
-      const result = await rpc.mcp.getProviders();
-      if (result.success && result.data) return result.data as McpProvidersResponse[];
-      throw new Error(result.error ?? 'Failed to get providers');
-    },
-  });
+  const isLoading = isLoadingCatalog || isLoadingInstalled;
 
   // ── Mutations ────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
     mutationFn: async (payload: { server: McpServer; source: 'catalog' | 'custom' | null }) => {
-      const result = await rpc.mcp.saveServer(payload.server);
-      if (!result.success) throw new Error(result.error ?? 'Failed to save server');
+      const client = await getAgentConfigRuntimeClient();
+      const result = await client.saveMcpServer({ server: payload.server });
+      if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: (_, payload) => {
       if (payload.source) {
         captureTelemetry('mcp_server_added', { source: payload.source });
       }
-      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {
       toast({
@@ -70,12 +79,12 @@ export function useMcps() {
 
   const removeMutation = useMutation({
     mutationFn: async (serverName: string) => {
-      const result = await rpc.mcp.removeServer(serverName);
-      if (!result.success) throw new Error(result.error ?? 'Failed to remove server');
+      const client = await getAgentConfigRuntimeClient();
+      const result = await client.removeMcpServer({ name: serverName });
+      if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: () => {
       captureTelemetry('mcp_server_removed');
-      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {
       toast({
@@ -95,13 +104,10 @@ export function useMcps() {
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const result = await rpc.mcp.refreshProviders();
-      if (result.success && result.data) return result.data as McpProvidersResponse[];
-      throw new Error(result.error ?? 'Failed to refresh providers');
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(PROVIDERS_QUERY_KEY, data);
-      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
+      await new Promise<void>((resolve) => {
+        probeAll(undefined, { onSettled: () => resolve() });
+      });
+      await queryClient.invalidateQueries({ queryKey: MCP_CATALOG_QUERY_KEY });
     },
     onError: () => {
       toast({ title: 'Failed to refresh MCP data', variant: 'destructive' });
@@ -121,4 +127,17 @@ export function useMcps() {
     refresh,
     reload,
   };
+}
+
+function agentSupportsHttpMcp(mcp: { kind: string }): boolean {
+  if (mcp.kind !== 'supported') return false;
+  const detailed = mcp as {
+    supportsHttp?: boolean;
+    supportedTransports?: string[];
+  };
+  return detailed.supportedTransports?.includes('http') ?? detailed.supportsHttp ?? false;
+}
+
+function agentConfigErrorMessage(error: { type: string; message?: string; providerId?: string }) {
+  return error.message ?? (error.providerId ? `Unknown provider: ${error.providerId}` : error.type);
 }

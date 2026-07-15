@@ -1,3 +1,5 @@
+import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
+import { parseFrontmatter } from '@emdash/core/primitives/skills/api';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
@@ -11,8 +13,6 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import type { CatalogSkill } from '@shared/core/skills/types';
-import { parseFrontmatter } from '@shared/core/skills/validation';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 const sourceMeta = {

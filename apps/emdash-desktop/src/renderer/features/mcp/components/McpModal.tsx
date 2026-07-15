@@ -1,3 +1,8 @@
+import type {
+  McpCatalogEntry,
+  McpProvidersResponse,
+  McpServer,
+} from '@emdash/core/primitives/mcp/api';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
@@ -19,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
-import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { ProviderSelect } from './ProviderSelect';
 

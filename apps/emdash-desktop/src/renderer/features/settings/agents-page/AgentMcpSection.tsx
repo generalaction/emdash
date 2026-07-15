@@ -1,10 +1,10 @@
+import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { ExternalLink, Globe, Loader2, Terminal } from 'lucide-react';
 import React from 'react';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
-import type { McpServer } from '@shared/core/mcp/types';
 import { useAgentMcps } from './useAgentMcps';
 
 function TransportBadge({ transport }: { transport: 'stdio' | 'http' }) {

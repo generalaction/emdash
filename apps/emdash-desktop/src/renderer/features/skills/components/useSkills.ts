@@ -1,11 +1,17 @@
+import {
+  mergeSkillsInstalledState,
+  type CatalogIndex,
+  type CatalogSkill,
+} from '@emdash/core/primitives/skills/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { useInstalledSkillsLiveModel } from '@renderer/lib/agent-config/live-model-hooks';
+import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
+import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { CatalogIndex, CatalogSkill } from '@shared/core/skills/types';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
@@ -15,21 +21,31 @@ export function useSkills() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const { data: installedLiveSkills, isLoading: isLoadingInstalled } =
+    useInstalledSkillsLiveModel();
 
-  const { data: catalog = null, isPending: isLoading } = useQuery({
+  const { data: rawCatalog = null, isPending: isLoadingCatalog } = useQuery({
     queryKey: CATALOG_QUERY_KEY,
     queryFn: async () => {
-      const result = await rpc.skills.getCatalog();
-      if (result.success && result.data) return result.data;
-      throw new Error(result.error ?? 'Failed to load catalog');
+      const client = await getCatalogRuntimeClient();
+      const result = await client.getSkillsCatalog(undefined);
+      if (result.success) return result.data;
+      throw new Error(result.error.message);
     },
   });
 
+  const catalog = useMemo(
+    () => (rawCatalog ? mergeSkillsInstalledState(rawCatalog, installedLiveSkills) : null),
+    [rawCatalog, installedLiveSkills]
+  );
+  const isLoading = isLoadingCatalog || isLoadingInstalled;
+
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const result = await rpc.skills.refreshCatalog();
-      if (result.success && result.data) return result.data;
-      throw new Error(result.error ?? 'Failed to refresh catalog');
+      const client = await getCatalogRuntimeClient();
+      const result = await client.refreshSkillsCatalog(undefined);
+      if (result.success) return result.data;
+      throw new Error(result.error.message);
     },
     onSuccess: (data) => {
       queryClient.setQueryData(CATALOG_QUERY_KEY, data);
@@ -43,8 +59,12 @@ export function useSkills() {
 
   const installMutation = useMutation({
     mutationFn: async (skillId: string) => {
-      const result = await rpc.skills.install({ skillId });
-      if (!result.success) throw new Error(result.error ?? 'Could not install skill');
+      const catalogClient = await getCatalogRuntimeClient();
+      const payload = await catalogClient.resolveSkillInstall({ skillId });
+      if (!payload.success) throw new Error(payload.error.message);
+      const agentConfigClient = await getAgentConfigRuntimeClient();
+      const result = await agentConfigClient.installSkill({ skill: payload.data });
+      if (!result.success) throw new Error(result.error.message);
       return skillId;
     },
     onError: (error) => {
@@ -64,7 +84,6 @@ export function useSkills() {
         title: 'Skill installed',
         description: `${skillId} is now available across your agents`,
       });
-      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
       queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },
@@ -84,8 +103,15 @@ export function useSkills() {
 
   const uninstallMutation = useMutation({
     mutationFn: async (skillId: string) => {
-      const result = await rpc.skills.uninstall({ skillId });
-      if (!result.success) throw new Error(result.error ?? 'Could not uninstall skill');
+      const skill =
+        catalog?.skills.find((candidate) => candidate.id === skillId) ??
+        installedLiveSkills.find(
+          (candidate) => candidate.id === skillId || candidate.installId === skillId
+        );
+      const name = skill?.installId ?? skillId;
+      const agentConfigClient = await getAgentConfigRuntimeClient();
+      const result = await agentConfigClient.removeSkill({ name });
+      if (!result.success) throw new Error(result.error.message);
       return skillId;
     },
     onError: (error) => {
@@ -99,7 +125,6 @@ export function useSkills() {
       captureTelemetry('skill_uninstalled');
 
       toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
-      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
       queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },
@@ -120,9 +145,10 @@ export function useSkills() {
   const { data: detailData, isFetching: isLoadingDetail } = useQuery({
     queryKey: ['skills', 'detail', selectedSkillId],
     queryFn: async () => {
-      const result = await rpc.skills.getDetail({ skillId: selectedSkillId! });
-      if (result.success && result.data) return result.data;
-      throw new Error('Failed to load skill detail');
+      const client = await getCatalogRuntimeClient();
+      const result = await client.getSkillContent({ skillId: selectedSkillId! });
+      if (result.success) return result.data;
+      throw new Error(result.error.message);
     },
     enabled: !!selectedSkillId && showDetailModal,
   });
@@ -131,23 +157,49 @@ export function useSkills() {
   const { data: skillShSkills = [], isFetching: isSearchingSkillSh } = useQuery({
     queryKey: ['skills', 'skillssh-search', skillShQuery],
     queryFn: async () => {
-      const result = await rpc.skills.searchSkillSh({ query: skillShQuery });
-      if (result.success && result.data) return result.data;
-      throw new Error(result.error ?? 'Failed to search Skills.SH');
+      const client = await getCatalogRuntimeClient();
+      const result = await client.searchSkillSh({ query: skillShQuery });
+      if (result.success) return result.data;
+      throw new Error(result.error.message);
     },
     enabled: skillShQuery.length >= 2,
     staleTime: 60_000,
   });
 
+  const mergedSkillShSkills = useMemo(() => {
+    const index: CatalogIndex = {
+      version: rawCatalog?.version ?? 0,
+      lastUpdated: rawCatalog?.lastUpdated ?? new Date(0).toISOString(),
+      skills: skillShSkills,
+    };
+    return mergeSkillsInstalledState(index, installedLiveSkills).skills;
+  }, [rawCatalog, skillShSkills, installedLiveSkills]);
+
   const selectedSkill = useMemo<CatalogSkill | null>(() => {
     if (!selectedSkillId || !showDetailModal) return null;
-    return (
+    const selected =
       detailData ??
       catalog?.skills.find((s) => s.id === selectedSkillId) ??
-      skillShSkills.find((s) => s.id === selectedSkillId) ??
-      null
-    );
-  }, [selectedSkillId, showDetailModal, detailData, catalog, skillShSkills]);
+      mergedSkillShSkills.find((s) => s.id === selectedSkillId) ??
+      null;
+    if (!selected) return null;
+    return mergeSkillsInstalledState(
+      {
+        version: rawCatalog?.version ?? 0,
+        lastUpdated: rawCatalog?.lastUpdated ?? new Date(0).toISOString(),
+        skills: [selected],
+      },
+      installedLiveSkills
+    ).skills[0];
+  }, [
+    selectedSkillId,
+    showDetailModal,
+    detailData,
+    catalog,
+    mergedSkillShSkills,
+    rawCatalog,
+    installedLiveSkills,
+  ]);
 
   const openDetail = useCallback((skill: CatalogSkill) => {
     setSelectedSkillId(skill.id);
@@ -189,13 +241,13 @@ export function useSkills() {
       if (skill.installId) installedKeys.add(skill.installId);
     }
 
-    return skillShSkills.filter(
+    return mergedSkillShSkills.filter(
       (skill) =>
         !skill.installed &&
         !installedKeys.has(skill.id) &&
         (!skill.installId || !installedKeys.has(skill.installId))
     );
-  }, [catalog, skillShSkills]);
+  }, [catalog, mergedSkillShSkills]);
 
   return {
     catalog,
