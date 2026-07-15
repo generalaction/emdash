@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import type { ViewId } from '@renderer/app/view-registry';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { events } from '@renderer/lib/ipc';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import {
+  type WorkspaceLayoutContextValue,
+  useWorkspaceLayoutContext,
+} from '@renderer/lib/layout/layout-provider';
 import {
   type NavigateFnTyped,
   type NonSettingsViewId,
@@ -18,7 +21,7 @@ import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 export function BrowserAppShortcutEvents() {
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft } = useWorkspaceLayoutContext();
+  const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -44,6 +47,7 @@ export function BrowserAppShortcutEvents() {
         navigate,
         showCommandPalette,
         toggleLeft,
+        toggleZenMode,
       });
     });
   }, [
@@ -54,6 +58,7 @@ export function BrowserAppShortcutEvents() {
     navigate,
     showCommandPalette,
     toggleLeft,
+    toggleZenMode,
   ]);
 
   return null;
@@ -73,6 +78,7 @@ function dispatchAppOnlyShortcut(
       workspaceId?: string;
     }) => void;
     toggleLeft: () => void;
+    toggleZenMode: WorkspaceLayoutContextValue['toggleZenMode'];
   }
 ): void {
   switch (shortcutKey) {
@@ -92,6 +98,22 @@ function dispatchAppOnlyShortcut(
     }
     case 'toggleLeftSidebar':
       context.toggleLeft();
+      break;
+    case 'zenMode':
+      {
+        const taskView =
+          context.currentProjectId && context.currentTaskId
+            ? getTaskView(context.currentProjectId, context.currentTaskId)
+            : undefined;
+        context.toggleZenMode(
+          taskView
+            ? {
+                isCollapsed: taskView.isSidebarCollapsed,
+                setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
+              }
+            : undefined
+        );
+      }
       break;
     case 'closeModal':
       if (context.currentView === 'settings' && !modalStore.isOpen) {

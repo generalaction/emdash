@@ -41,6 +41,7 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
@@ -115,6 +116,13 @@ const supportedAttachmentMimeTypes = new Set<AttachmentMimeType>([
   'image/gif',
   'image/webp',
 ]);
+const attachmentMimeTypeByExtension: Record<string, AttachmentMimeType> = {
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+};
 
 function toAttachmentMimeTypeValue(value: string): AttachmentMimeType | null {
   const mimeType = value.toLowerCase();
@@ -124,7 +132,10 @@ function toAttachmentMimeTypeValue(value: string): AttachmentMimeType | null {
 }
 
 function toAttachmentMimeType(file: File): AttachmentMimeType | null {
-  return toAttachmentMimeTypeValue(file.type);
+  const declaredMimeType = toAttachmentMimeTypeValue(file.type);
+  if (declaredMimeType) return declaredMimeType;
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  return extension ? (attachmentMimeTypeByExtension[extension] ?? null) : null;
 }
 
 function readFileAsDataUrl(file: File): Promise<string | undefined> {
@@ -365,7 +376,20 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const addImageFiles = useCallback(
     async (files: File[]) => {
-      const next = await Promise.all(files.map((file) => uploadImageFile(store, file)));
+      const supportedFiles = files.filter((file) => toAttachmentMimeType(file) !== null);
+      if (supportedFiles.length < files.length) {
+        const unsupportedNames = files
+          .filter((file) => toAttachmentMimeType(file) === null)
+          .map((file) => file.name || 'unnamed image')
+          .join(', ');
+        toast({
+          title: 'Unsupported image format',
+          description: `${unsupportedNames} could not be attached. Use PNG, JPEG, GIF, or WebP.`,
+          variant: 'destructive',
+        });
+      }
+
+      const next = await Promise.all(supportedFiles.map((file) => uploadImageFile(store, file)));
       const uploaded = next.filter((att): att is ComposerAttachment => att !== null);
       if (uploaded.length > 0) {
         setAttachments((prev) => [...prev, ...uploaded]);

@@ -1,4 +1,5 @@
 import { detectPlatform, parseHotkey, type Hotkey } from '@tanstack/react-hotkeys';
+import { ArrowBigUp } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
@@ -37,6 +38,21 @@ interface ShortcutProps {
   variant?: ShortcutVariant;
 }
 
+function ShortcutKey({ keyName }: { keyName: string }) {
+  if (keyName === 'Shift' && PLATFORM === 'mac') {
+    return <ArrowBigUp aria-hidden="true" className="size-[11px]" strokeWidth={2.25} />;
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn('inline-block', getShortcutKeyOpticalAlignClass(keyName))}
+    >
+      {formatShortcutKey(keyName, PLATFORM)}
+    </span>
+  );
+}
+
 /** Display a shortcut when the hotkey string is already resolved. */
 function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
   const parsed = useMemo(() => {
@@ -66,18 +82,10 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
       {keys.map((key, index) =>
         variant === 'keycaps' ? (
           <Kbd key={`${key}-${index}`} aria-hidden="true" className={KEYCAP_KBD_CLASS}>
-            <span className={cn('inline-block', getShortcutKeyOpticalAlignClass(key))}>
-              {formatShortcutKey(key, PLATFORM)}
-            </span>
+            <ShortcutKey keyName={key} />
           </Kbd>
         ) : (
-          <span
-            key={`${key}-${index}`}
-            aria-hidden="true"
-            className={cn('inline-block', getShortcutKeyOpticalAlignClass(key))}
-          >
-            {formatShortcutKey(key, PLATFORM)}
-          </span>
+          <ShortcutKey key={`${key}-${index}`} keyName={key} />
         )
       )}
     </span>
