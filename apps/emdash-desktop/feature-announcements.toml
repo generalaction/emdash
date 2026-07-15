@@ -1,0 +1,22 @@
+#:schema ./feature-announcements.schema.json
+#
+# In-app feature announcement shown as a bottom-left sidebar toast.
+#
+# Edit this file on GitHub to announce major features without shipping a new app
+# release. Set `enabled = false` to hide the toast while keeping content around
+# for the next launch.
+#
+# Runtime validation: src/shared/feature-announcements/schema.ts (Zod).
+# Editor/CI schema: feature-announcements.schema.json (keep in sync with Zod).
+#
+# The app fetches this file from the main branch at startup.
+
+enabled = true
+id = "automations-2026-06"
+eyebrow = "Now available"
+title = "Emdash Automations"
+changelogUrl = "https://emdash.sh/changelog"
+minAppVersion = "1.1.27"
+
+[cta]
+action = "open-automations"

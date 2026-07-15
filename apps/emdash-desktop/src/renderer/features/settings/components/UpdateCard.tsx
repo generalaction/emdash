@@ -5,6 +5,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import { AnnouncementDevControls } from './AnnouncementDevControls';
 import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
@@ -58,6 +59,8 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
           />
         </div>
       )}
+
+      <AnnouncementDevControls />
     </div>
   );
 

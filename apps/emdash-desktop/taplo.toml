@@ -1,0 +1,4 @@
+include = ["feature-announcements.toml"]
+
+[schemas]
+"feature-announcements.toml" = "feature-announcements.schema.json"

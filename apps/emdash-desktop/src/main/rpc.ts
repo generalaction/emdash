@@ -6,6 +6,7 @@ import { automationsController } from './core/automations/controller';
 import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
+import { featureAnnouncementsController } from './core/feature-announcements/controller';
 import { machineFilesController } from './core/files/controller';
 import { workspaceFileSystemController } from './core/files/file-system/controller';
 import { fileTreeController } from './core/files/file-tree/controller';
@@ -49,6 +50,7 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
+  featureAnnouncements: featureAnnouncementsController,
   files: machineFilesController,
   github: githubController,
   integrations: integrationsController,

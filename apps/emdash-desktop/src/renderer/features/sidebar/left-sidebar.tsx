@@ -1,6 +1,7 @@
 import { Clock, FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { FeatureAnnouncementSidebarToast } from '@renderer/features/feature-announcements/feature-announcement-sidebar-toast';
 import {
   isCurrentView,
   useNavigate,
@@ -35,6 +36,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
 
   return (
     <div
+      data-emdash-left-sidebar=""
       className={cn(
         'relative flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted transition-colors',
         isDragOver && 'bg-accent/10 ring-2 ring-inset ring-accent/50'
@@ -119,6 +121,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
           <UpdateSection />
         </div>
       </SidebarContainer>
+      <FeatureAnnouncementSidebarToast />
     </div>
   );
 });

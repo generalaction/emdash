@@ -102,6 +102,11 @@ export const changesViewModeSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const announcementSettingsSchema = z.object({
+  initialized: z.boolean(),
+  dismissedIds: z.array(z.string()),
+});
+
 export const browserProfileIdSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
@@ -149,6 +154,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  announcements: announcementSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
@@ -166,6 +172,7 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  announcements: announcementSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,

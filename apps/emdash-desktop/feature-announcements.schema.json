@@ -1,0 +1,71 @@
+{
+  "$id": "feature-announcements.schema.json",
+  "title": "Emdash feature announcement manifest",
+  "description": "In-app feature announcement shown as a bottom-left sidebar toast. Runtime validation uses the Zod schema in src/shared/feature-announcements/schema.ts — keep both in sync.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "changelogUrl"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to false to hide the announcement without deleting content."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier used for dismissal persistence."
+    },
+    "eyebrow": {
+      "type": "string",
+      "minLength": 1,
+      "default": "Now available"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changelogUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "minAppVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Semver minimum; older app versions ignore this manifest."
+    },
+    "cta": {
+      "$ref": "#/$defs/cta"
+    }
+  },
+  "$defs": {
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["open-automations"]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["action"],
+          "not": {
+            "required": ["url"]
+          }
+        },
+        {
+          "required": ["url"],
+          "not": {
+            "required": ["action"]
+          }
+        }
+      ]
+    }
+  }
+}

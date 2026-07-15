@@ -1,3 +1,4 @@
+import { FeatureAnnouncementStore } from '@renderer/features/feature-announcements/feature-announcement-store';
 import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
 import { NavigationHistoryStore } from './navigation-history-store';
@@ -16,10 +17,12 @@ class AppState {
   readonly navigation: NavigationStore;
   readonly sshConnections: SshConnectionStore;
   readonly resourceMonitor: ResourceMonitorStore;
+  readonly featureAnnouncements: FeatureAnnouncementStore;
 
   constructor() {
     this.snapshots = snapshotRegistry;
     this.update = new UpdateStore();
+    this.featureAnnouncements = new FeatureAnnouncementStore();
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();

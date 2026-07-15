@@ -20,6 +20,7 @@ import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
+import { HAS_SEEN_ONBOARDING } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
@@ -31,6 +32,9 @@ async function bootstrap() {
   wireExternalLinkRequests();
 
   appState.update.start();
+  void appState.featureAnnouncements.start({
+    isFreshInstall: localStorage.getItem(HAS_SEEN_ONBOARDING) !== 'true',
+  });
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
