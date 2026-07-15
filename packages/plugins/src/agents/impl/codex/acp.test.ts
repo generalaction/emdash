@@ -12,6 +12,29 @@ describe('codex acp capability', () => {
   });
 });
 
+describe('codex model catalog', () => {
+  it('exposes the current selectable Codex models', () => {
+    const models = pluginRegistry.get('codex')!.capabilities.models;
+    expect(models.kind).toBe('selectable');
+    if (models.kind !== 'selectable') throw new Error('Expected selectable Codex models');
+
+    expect(Object.keys(models.modelOptions)).toEqual([
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.5',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.3-codex-spark',
+    ]);
+    expect(models.modelOptions['gpt-5.4']).toEqual({
+      name: 'GPT-5.4',
+      description: 'Strong model for everyday coding.',
+      modelFeatures: { intelligence: 4, speed: 3 },
+    });
+  });
+});
+
 describe('codex acp behavior', () => {
   const codex = () => pluginRegistry.get('codex')!;
   const acpBehavior = () => codex().behavior.acp!;

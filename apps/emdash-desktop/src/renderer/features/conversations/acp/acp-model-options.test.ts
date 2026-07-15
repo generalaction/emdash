@@ -3,8 +3,8 @@ import { mergeComposerModelOptions } from './acp-model-options';
 
 describe('mergeComposerModelOptions', () => {
   it.each([
-    ['opus[1m]', 'claude-opus-4-8', 'Claude Opus 4.8', 2, 5],
-    ['claude-fable-5[1m]', 'claude-fable-5', 'Claude Fable 5', 3, 4],
+    ['opus[1m]', 'claude-opus-4-8', 'Claude Opus 4.8', 3, 5],
+    ['claude-fable-5[1m]', 'claude-fable-5', 'Claude Fable 5', 3, 5],
     ['sonnet', 'claude-sonnet-5', 'Claude Sonnet 5', 4, 4],
     ['haiku', 'claude-haiku-4-5', 'Claude Haiku 4.5', 5, 3],
   ])(

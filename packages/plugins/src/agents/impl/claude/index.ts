@@ -57,16 +57,16 @@ export const plugin = definePlugin(
       modelOptions: {
         'claude-fable-5': {
           name: 'Claude Fable 5',
-          aliases: ['fable', 'claude-fable-5[1m]'],
+          aliases: ['claude-fable-5[1m]', 'fable'],
           description:
             'Most capable Claude model for the hardest and longest-running coding tasks.',
-          modelFeatures: { intelligence: 4, speed: 3 },
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
         'claude-opus-4-8': {
           name: 'Claude Opus 4.8',
-          aliases: ['opus', 'opus[1m]'],
+          aliases: ['opus[1m]', 'opus'],
           description: 'Powerful Claude model for everyday complex tasks with a 1M context window.',
-          modelFeatures: { intelligence: 5, speed: 2 },
+          modelFeatures: { intelligence: 5, speed: 3 },
         },
         'claude-sonnet-5': {
           name: 'Claude Sonnet 5',
