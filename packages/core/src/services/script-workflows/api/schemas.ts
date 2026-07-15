@@ -10,6 +10,10 @@ export type TerminalSize = z.infer<typeof terminalSizeSchema>;
 
 export const scriptWorkflowKindSchema = z.string().min(1);
 
+export const scriptNodeLifecycleSchema = z.enum(['background', 'completable']);
+
+export type ScriptNodeLifecycle = z.infer<typeof scriptNodeLifecycleSchema>;
+
 export const scriptNodeSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).optional(),
@@ -18,6 +22,7 @@ export const scriptNodeSchema = z.object({
   cwd: z.string().min(1),
   env: z.record(z.string(), z.string()),
   dependsOn: z.array(z.string().min(1)).optional(),
+  lifecycle: scriptNodeLifecycleSchema.optional(),
 });
 
 export type ScriptNode = z.infer<typeof scriptNodeSchema>;

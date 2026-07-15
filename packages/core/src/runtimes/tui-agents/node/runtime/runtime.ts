@@ -1,6 +1,15 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import { LiveLog, type LiveSource } from '@emdash/wire';
+import {
+  compileIdlePolicy,
+  createIdleSweeper,
+  createIoActivityTracker,
+  type IdlePolicy,
+  type IdleSweeper,
+  type IoActivitySnapshot,
+  type IoActivityTracker,
+} from '@primitives/io-activity/api';
 import type {
   TuiAgentStartInput,
   TuiInputError,
@@ -25,6 +34,7 @@ import { quoteShellArg } from '@services/agent-plugins/api/plugins/helpers/stand
 import {
   buildTmuxShellLine,
   killTmuxSession,
+  listTmuxSessionActivity,
   PtyRegistry,
   type PtyExitInfo,
   type PtySession,
@@ -38,6 +48,8 @@ const SESSION_GRACE_MS = 3_000;
 const RESUME_FALLBACK_WINDOW_MS = 3_000;
 const RESPAWN_DELAY_MS = 500;
 const MAX_UNEXPECTED_RESPAWNS = 1;
+const DEFAULT_SESSION_IDLE_MS = 60 * 60_000;
+const BUSY_OUTPUT_WINDOW_MS = 60_000;
 
 type TuiAgentSession = {
   conversationId: string;
@@ -57,6 +69,10 @@ export class TuiAgentsRuntime {
   private readonly sessionsList: TuiSessionsListModel;
   private readonly notificationsList: TuiNotificationsListModel;
   private readonly notifications: TuiAgentNotifications;
+  private readonly sessionIdlePolicy: IdlePolicy;
+  private readonly idleSweeper: IdleSweeper;
+  private readonly activity = new Map<string, IoActivityTracker>();
+  private tmuxActivity = new Map<string, number>();
   private readonly unexpectedRespawns = new Map<string, number>();
 
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
@@ -66,6 +82,9 @@ export class TuiAgentsRuntime {
     this.sessionsList = createTuiSessionsListModel(this.sessionsHost);
     this.notificationsList = createTuiNotificationsListModel(this.notificationsHost);
     this.notifications = new TuiAgentNotifications(this.sessionsList, this.notificationsList);
+    this.sessionIdlePolicy = compileIdlePolicy(
+      deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: DEFAULT_SESSION_IDLE_MS }
+    );
     this.sessionsSource = createResourceCache<{ conversationId: string }, TuiAgentSession>({
       key: (key) => key.conversationId,
       idleTtlMs: SESSION_GRACE_MS,
@@ -87,6 +106,25 @@ export class TuiAgentsRuntime {
         });
       },
     });
+    this.idleSweeper = createIdleSweeper<string>({
+      ...(deps.clock ? { clock: deps.clock } : {}),
+      intervalMs: deps.lifecycle?.sweepIntervalMs ?? 60_000,
+      beforeSweep: async () => {
+        this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
+      },
+      entries: () => Array.from(this.configs.keys()),
+      snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
+      policy: () => this.sessionIdlePolicy,
+      deactivate: (conversationId, reason) => {
+        this.deactivateSession(conversationId, reason);
+      },
+      onError: (error, conversationId) => {
+        this.deps.logger.warn('TuiAgentsRuntime: idle sweep failed', {
+          conversationId,
+          error: String(error),
+        });
+      },
+    });
   }
 
   startSession(input: TuiAgentStartInput): Result<void, TuiStartSessionError> {
@@ -95,6 +133,7 @@ export class TuiAgentsRuntime {
 
     const config: TuiSessionConfig = { input, intent: 'fresh' };
     this.configs.set(input.conversationId, config);
+    this.recordInputActivity(input.conversationId);
     this.unexpectedRespawns.delete(input.conversationId);
     void this.ensureActiveSessionUsesConfig(input.conversationId, config);
     return ok(undefined);
@@ -114,6 +153,7 @@ export class TuiAgentsRuntime {
     const intent = input.sessionId ? 'resume' : 'fresh';
     const config: TuiSessionConfig = { input, intent };
     this.configs.set(input.conversationId, config);
+    this.recordInputActivity(input.conversationId);
     this.unexpectedRespawns.delete(input.conversationId);
     this.setResumeState(input.conversationId, {
       requested: true,
@@ -154,10 +194,34 @@ export class TuiAgentsRuntime {
     return ok(undefined);
   }
 
+  deactivateSession(
+    conversationId: string,
+    cause: string
+  ): Result<void, TuiSessionControlError> {
+    const config = this.configs.get(conversationId);
+    if (!config || config.intent === 'stopped') return ok(undefined);
+    if (cause === 'idle' && this.isSessionBusy(conversationId)) return ok(undefined);
+    this.unexpectedRespawns.delete(conversationId);
+    void this.killTmuxForConfig(config);
+    this.registry.dispose(conversationId);
+    this.configs.delete(conversationId);
+    this.logs.delete(conversationId);
+    this.activity.delete(conversationId);
+    const active = this.sessionsSource.peek({ conversationId });
+    active?.output.reseed();
+    if (active) active.pty = null;
+    this.sessionsList.states.list.produce((draft) => {
+      delete draft[conversationId];
+    });
+    this.notifications.clear(conversationId);
+    return ok(undefined);
+  }
+
   sendInput(conversationId: string, data: string): Result<void, TuiInputError> {
     const active = this.sessionsSource.peek({ conversationId });
     if (!active?.pty) return err({ type: 'not-found', conversationId });
     active.pty.write(data);
+    this.recordInputActivity(conversationId);
     this.notifications.markInputSubmitted(conversationId, active.provider, data);
     return ok(undefined);
   }
@@ -194,6 +258,8 @@ export class TuiAgentsRuntime {
         }
       },
       subscribe: (cb) => {
+        const tracker = this.activityFor(key.conversationId);
+        tracker.attach();
         let disposed = false;
         let unsubscribe: (() => void) | undefined;
         const lease = this.sessionsSource.acquire(key);
@@ -206,6 +272,8 @@ export class TuiAgentsRuntime {
         });
         return () => {
           disposed = true;
+          tracker.detach();
+          this.syncSessionActivity(key.conversationId);
           unsubscribe?.();
           void lease.release();
         };
@@ -222,6 +290,7 @@ export class TuiAgentsRuntime {
   }
 
   async dispose(): Promise<void> {
+    this.idleSweeper.dispose();
     await this.sessionsSource.dispose();
     this.registry.killAll();
     this.logs.clear();
@@ -297,6 +366,9 @@ export class TuiAgentsRuntime {
       },
       {
         output: session.output,
+        onData: () => {
+          this.recordOutputActivity(config.input.conversationId);
+        },
         onProcess: (proc) => {
           scheduleInitialPromptInjection({
             pty: proc,
@@ -400,9 +472,74 @@ export class TuiAgentsRuntime {
   }
 
   private syncSessionState(state: TuiSessionState): void {
+    const activity = this.activity.get(state.conversationId)?.snapshot();
+    const next: TuiSessionState = { ...state };
+    if (activity?.lastInputAt !== null && activity?.lastInputAt !== undefined) {
+      next.lastInputAt = activity.lastInputAt;
+    }
+    if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
+      next.lastOutputAt = activity.lastOutputAt;
+    }
     this.sessionsList.states.list.produce((draft) => {
-      draft[state.conversationId] = state;
+      draft[state.conversationId] = next;
     });
+  }
+
+  private syncSessionActivity(conversationId: string): void {
+    const activity = this.activity.get(conversationId)?.snapshot();
+    if (!activity) return;
+    this.sessionsList.states.list.produce((draft) => {
+      const current = draft[conversationId];
+      if (!current) return;
+      if (activity.lastInputAt !== null) current.lastInputAt = activity.lastInputAt;
+      if (activity.lastOutputAt !== null) current.lastOutputAt = activity.lastOutputAt;
+    });
+  }
+
+  private activityFor(conversationId: string): IoActivityTracker {
+    let tracker = this.activity.get(conversationId);
+    if (!tracker) {
+      tracker = createIoActivityTracker(() => this.now());
+      this.activity.set(conversationId, tracker);
+    }
+    return tracker;
+  }
+
+  private recordInputActivity(conversationId: string): void {
+    this.activityFor(conversationId).recordInput();
+    this.syncSessionActivity(conversationId);
+  }
+
+  private recordOutputActivity(conversationId: string): void {
+    this.activityFor(conversationId).recordOutput();
+    this.syncSessionActivity(conversationId);
+  }
+
+  private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
+    const config = this.configs.get(conversationId);
+    if (!config || config.intent === 'stopped') return null;
+    const state = this.sessionsList.states.list.snapshot().data[conversationId];
+    const activity = this.activityFor(conversationId).snapshot();
+    const tmuxLastOutputAt = config.input.tmuxSessionName
+      ? this.tmuxActivity.get(config.input.tmuxSessionName)
+      : undefined;
+    const lastOutputAt = maxNullable(activity.lastOutputAt, tmuxLastOutputAt);
+    return {
+      running: state?.status === 'running',
+      busy: lastOutputAt !== null && this.now() - lastOutputAt < BUSY_OUTPUT_WINDOW_MS,
+      attachedClients: activity.attachedClients,
+      detachedAt: activity.detachedAt,
+      lastInputAt: activity.lastInputAt,
+      lastOutputAt,
+    };
+  }
+
+  private isSessionBusy(conversationId: string): boolean {
+    return this.lifecycleSnapshot(conversationId)?.busy ?? false;
+  }
+
+  private now(): number {
+    return this.deps.clock?.now() ?? Date.now();
   }
 
   private setResumeState(
@@ -524,4 +661,10 @@ export class TuiAgentsRuntime {
       });
     });
   }
+}
+
+function maxNullable(a: number | null, b: number | null | undefined): number | null {
+  if (a === null) return b ?? null;
+  if (b === null || b === undefined) return a;
+  return Math.max(a, b);
 }

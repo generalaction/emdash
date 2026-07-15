@@ -1,5 +1,6 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { isOk } from '@emdash/shared';
+import { createManualClock } from '@emdash/shared/testing';
 import {
   FakeAcpTerminalProcess,
   makeAcpHarness,
@@ -29,7 +30,8 @@ describe('AcpRuntime session manager', () => {
   });
 
   it('shares one process for conversations in the same provider/workspace and releases on last stop', async () => {
-    const h = makeAcpHarness();
+    const clock = createManualClock(0);
+    const h = makeAcpHarness({ clock, lifecycle: { connectionIdleTtlMs: 500 } });
     const rt = new AcpRuntime(h.deps);
     h.agent.newSession
       .mockResolvedValueOnce({ sessionId: 'session-a' })
@@ -42,9 +44,30 @@ describe('AcpRuntime session manager', () => {
     rt.stopSession('conv-a');
     expect(h.lastChild.kill).not.toHaveBeenCalled();
     rt.stopSession('conv-b');
+    await clock.advanceBy(500);
     await vi.waitFor(() => {
       expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
     });
+  });
+
+  it('deactivates idle sessions and releases the pooled ACP process after its TTL', async () => {
+    const clock = createManualClock(0);
+    const h = makeAcpHarness({
+      clock,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: 1_000 },
+        sweepIntervalMs: 100,
+        connectionIdleTtlMs: 500,
+      },
+    });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-idle' }));
+
+    await clock.advanceBy(1_200);
+
+    expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toEqual({});
+    await clock.advanceBy(500);
+    expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
   it('publishes activeTurn patches without root replacement during incremental text growth', async () => {

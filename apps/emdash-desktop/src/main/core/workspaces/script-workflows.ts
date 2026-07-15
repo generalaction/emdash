@@ -2,6 +2,7 @@ import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import type { ActivateWorkspaceInput } from '@emdash/core/runtimes/workspace/api';
 import type {
+  ScriptNodeLifecycle,
   ScriptWorkflowProgress,
   ScriptWorkflowResult,
   TerminalError,
@@ -18,6 +19,7 @@ export type ScriptWorkflowNodeInput = {
   label: string;
   command: string;
   dependsOn?: string[];
+  lifecycle?: ScriptNodeLifecycle;
 };
 
 export type TriggerTaskScriptWorkflowInput = {
@@ -61,6 +63,7 @@ export async function triggerTaskScriptWorkflow(
       cwd: input.cwd,
       env,
       dependsOn: node.dependsOn,
+      lifecycle: node.lifecycle,
     })),
   });
   const job = await lease.ready();
@@ -94,6 +97,7 @@ export function postActivationWorkflowNodes(
       label: 'Run',
       command: automation.run,
       dependsOn: nodes.some((node) => node.id === 'setup') ? ['setup'] : undefined,
+      lifecycle: 'background',
     });
   }
   return nodes;

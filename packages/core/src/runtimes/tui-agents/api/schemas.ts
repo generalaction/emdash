@@ -70,6 +70,8 @@ export const tuiSessionStateSchema = z.object({
   resume: tuiSessionResumeStateSchema.nullable(),
   /** Unix ms timestamp when the session was started. */
   startedAt: z.number().int(),
+  lastInputAt: z.number().int().optional(),
+  lastOutputAt: z.number().int().optional(),
   exit: z
     .object({
       exitCode: z.number().int().nullable(),

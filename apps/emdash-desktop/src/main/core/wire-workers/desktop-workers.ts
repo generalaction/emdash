@@ -70,6 +70,7 @@ const GIT_RUNTIME_ENV = {
   LANG: 'C',
   LANGUAGE: 'C',
 };
+const SESSION_IDLE_MS = 60 * 60_000;
 
 const fsWatchWorker = host.create(fsWatchComponent, {
   name: 'fs-watch',
@@ -102,6 +103,10 @@ export const acpWorker = host.create(acpComponent, {
   },
   config: {
     attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
+    lifecycle: {
+      session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+      connectionIdleTtlMs: 120_000,
+    },
   },
 });
 
@@ -249,6 +254,9 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
               token: agentHookService.getToken(),
             }
           : undefined,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+      },
     },
   });
   return withTuiConversationInputEvents(await tuiAgentsWorker.ready());
@@ -260,7 +268,12 @@ async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
     executable: desktopWorkerPath('terminals'),
     env: process.env,
     dependencies: {},
-    config: {},
+    config: {
+      lifecycle: {
+        terminal: { kind: 'always' },
+        backgroundScript: { kind: 'always' },
+      },
+    },
   });
   return await terminalsWorker.ready();
 }

@@ -41,6 +41,8 @@ type WorkspaceRuntime = {
   workspace: ContractClient<WorkspaceContract>;
 };
 
+const DETACHED_TERMINAL_GRACE_MS = 5 * 60_000;
+
 async function main(): Promise<void> {
   initProcessLogging({ name: 'workspace-server' });
   const config = loadWorkspaceServerConfig();
@@ -149,7 +151,12 @@ function createWorkspaceServerRuntime(scope: Scope): WorkspaceRuntime {
   const terminals = terminalsComponent.create({
     scope,
     dependencies: {},
-    config: {},
+    config: {
+      lifecycle: {
+        terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
+        backgroundScript: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
+      },
+    },
     validate: workspaceServerWireValidationPolicy(),
   });
   const workspace = workspaceComponent.create({

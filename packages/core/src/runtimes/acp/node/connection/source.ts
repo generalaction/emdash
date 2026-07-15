@@ -2,6 +2,7 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { isErr, toSerializedError } from '@emdash/shared';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type { AcpProcessHost } from '@runtimes/acp/api';
 import { acpErr } from '@runtimes/acp/api';
 import type {
@@ -36,6 +37,8 @@ export interface CreateAcpConnectionSourceDeps {
   host: AcpConnectionProcessHost;
   agentHost: AgentPluginHost;
   logger: Logger;
+  clock?: Clock;
+  idleTtlMs?: number;
   buildClient: (agent: AcpAgentApi, context: AcpConnectionContext) => Client;
   onClosed: (key: string, exitCode: number | null) => void;
 }
@@ -53,6 +56,8 @@ export function createAcpConnectionSource(
 ): AcpConnectionSource {
   const source: AcpConnectionSource = createResourceCache<AcpConnectionKey, PooledAcpProcess>({
     key: acpConnectionCacheKey,
+    clock: deps.clock,
+    idleTtlMs: deps.idleTtlMs,
     create: (key, scope) => provisionAcpConnection(deps, key, scope),
     onError: (error, keyId) => {
       deps.logger.warn('AcpConnectionSource: provisioning failed', {

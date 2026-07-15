@@ -117,6 +117,8 @@ export const terminalSessionStateSchema = z.object({
   rows: z.number().int().positive(),
   startedAt: z.number().int(),
   exitedAt: z.number().int().optional(),
+  lastInputAt: z.number().int().optional(),
+  lastOutputAt: z.number().int().optional(),
   exit: terminalExitSchema.omit({ outputTail: true }).optional(),
 });
 

@@ -3,6 +3,7 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { acpApiContract } from '@runtimes/acp/api';
 import { createAcpController } from '@runtimes/acp/node/api/controller';
 import { ChildAcpProcessHost } from '@runtimes/acp/node/node/child-process-host';
@@ -20,6 +21,13 @@ import { z } from 'zod';
 
 export const acpComponentConfigSchema = z.object({
   attachmentsDir: z.string().min(1),
+  lifecycle: z
+    .object({
+      session: idlePolicyConfigSchema.optional(),
+      sweepIntervalMs: z.number().int().positive().optional(),
+      connectionIdleTtlMs: z.number().int().positive().optional(),
+    })
+    .optional(),
 });
 
 export type CreateAcpComponentOptions = {
@@ -74,6 +82,7 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
           };
         },
         attachmentStore,
+        lifecycle: config.lifecycle,
         logger: runtimeLogger,
       } satisfies AcpRuntimeDeps);
 

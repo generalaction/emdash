@@ -35,7 +35,9 @@ export {
   buildTmuxShellLine,
   decodeTmuxSessionName,
   killTmuxSession,
+  listTmuxSessionActivity,
   makeTmuxSessionName,
+  parseTmuxSessionActivity,
   TMUX_SESSION_PREFIX,
 } from './tmux';
 export { buildTerminalEnv } from './terminal-env';

@@ -10,6 +10,8 @@ import { workspaceWorkerPath } from '../worker-manifest';
 
 export type WorkspaceAcpRuntimeClient = ContractClient<AcpApiContract>;
 
+const SESSION_IDLE_MS = 60 * 60_000;
+
 export function defineAcpWorkspaceRuntimeWorker(
   host: WireWorkerHost,
   options: {
@@ -27,6 +29,10 @@ export function defineAcpWorkspaceRuntimeWorker(
     },
     config: {
       attachmentsDir: join(dirname(paths.socketPath), 'acp-attachments'),
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+        connectionIdleTtlMs: 120_000,
+      },
     },
   });
 }

@@ -1,4 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
+import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type {
   AcpProcessHost,
   AcpStartInputWire,
@@ -28,6 +30,12 @@ export interface AcpRuntimeDeps {
   host: AcpRuntimeProcessHost;
   resolveAttachment: ResolvePromptAttachment;
   attachmentStore?: AttachmentStore;
+  clock?: Clock;
+  lifecycle?: {
+    session?: IdlePolicyConfig;
+    sweepIntervalMs?: number;
+    connectionIdleTtlMs?: number;
+  };
   logger: Logger;
 }
 

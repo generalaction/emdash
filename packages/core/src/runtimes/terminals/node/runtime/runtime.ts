@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { Clock } from '@emdash/shared/scheduling';
 import {
   bindMachineToLiveState,
   createLiveModelHost,
@@ -16,6 +17,16 @@ import {
   type WorkflowNodeDefinition,
   type WorkflowState,
 } from '@primitives/workflow/api';
+import {
+  compileIdlePolicy,
+  createIdleSweeper,
+  createIoActivityTracker,
+  type IdlePolicy,
+  type IdlePolicyConfig,
+  type IdleSweeper,
+  type IoActivitySnapshot,
+  type IoActivityTracker,
+} from '@primitives/io-activity/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
   terminalsContract,
@@ -102,7 +113,15 @@ export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
   scope?: Scope;
   now?: () => number;
+  clock?: Clock;
   portProbe?: TerminalPortProbe;
+  lifecycle?: TerminalsRuntimeLifecycleOptions;
+};
+
+export type TerminalsRuntimeLifecycleOptions = {
+  terminal?: IdlePolicyConfig;
+  backgroundScript?: IdlePolicyConfig;
+  sweepIntervalMs?: number;
 };
 
 export class TerminalsRuntime {
@@ -113,8 +132,14 @@ export class TerminalsRuntime {
   private readonly registry: PtyRegistry;
   private readonly scope: Scope;
   private readonly now: () => number;
+  private readonly clock: Clock | undefined;
   private readonly portProbe: TerminalPortProbe | undefined;
+  private readonly terminalIdlePolicy: IdlePolicy;
+  private readonly backgroundScriptIdlePolicy: IdlePolicy;
+  private readonly completableScriptIdlePolicy: IdlePolicy;
+  private readonly idleSweeper: IdleSweeper;
   private readonly logs = new Map<string, LiveLog>();
+  private readonly activity = new Map<string, IoActivityTracker>();
   private readonly sessionsList: SessionsCell;
   private readonly devServersList: DevServersCell;
   private readonly activeWorkflows = new Map<string, ActiveWorkflow>();
@@ -122,6 +147,7 @@ export class TerminalsRuntime {
   private readonly workflowRuns = new Map<string, WorkflowRunContext>();
   private readonly sessionKeys = new Map<string, TerminalKey>();
   private readonly sessionKinds = new Map<string, SessionKind>();
+  private readonly scriptNodeLifecycles = new Map<string, ScriptNode['lifecycle']>();
   private readonly interactiveConfigs = new Map<string, InteractiveTerminalConfig>();
   private readonly outputTails = new Map<string, string>();
   private readonly startCounts = new Map<string, number>();
@@ -134,10 +160,29 @@ export class TerminalsRuntime {
       onSessionChanged: (key, session) => this.syncSession(key, session),
     });
     this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
-    this.now = options.now ?? Date.now;
+    this.clock = options.clock;
+    this.now = options.now ?? options.clock?.now.bind(options.clock) ?? Date.now;
     this.portProbe = options.portProbe;
+    this.terminalIdlePolicy = compileIdlePolicy(options.lifecycle?.terminal ?? { kind: 'always' });
+    this.backgroundScriptIdlePolicy = compileIdlePolicy(
+      options.lifecycle?.backgroundScript ?? { kind: 'always' }
+    );
+    this.completableScriptIdlePolicy = compileIdlePolicy({ kind: 'until-complete' });
     this.sessionsList = this.sessionsHost.create(undefined, { list: {} }).states.list;
     this.devServersList = this.devServersHost.create(undefined, { list: {} }).states.list;
+    this.idleSweeper = createIdleSweeper<string>({
+      ...(this.clock ? { clock: this.clock } : {}),
+      scope: this.scope,
+      intervalMs: options.lifecycle?.sweepIntervalMs ?? 60_000,
+      entries: () => Object.keys(this.sessionsList.snapshot().data),
+      snapshot: (sessionKey) => this.lifecycleSnapshot(sessionKey),
+      policy: (sessionKey) => this.policyForSession(sessionKey),
+      deactivate: async (sessionKey) => {
+        const key = this.sessionKeys.get(sessionKey);
+        if (!key) return;
+        await this.kill(key);
+      },
+    });
     this.scope.add(() => this.dispose());
   }
 
@@ -194,7 +239,19 @@ export class TerminalsRuntime {
   }
 
   outputLog(key: TerminalKey): LiveSource {
-    return this.logFor(key);
+    const source = this.logFor(key);
+    const tracker = this.activityFor(sessionKeyFor(key));
+    return {
+      snapshot: () => source.snapshot(),
+      subscribe: (cb) => {
+        tracker.attach();
+        const unsubscribe = source.subscribe(cb);
+        return () => {
+          unsubscribe();
+          tracker.detach();
+        };
+      },
+    };
   }
 
   sendInput(key: TerminalKey, data: string): Result<void, TerminalError> {
@@ -202,6 +259,7 @@ export class TerminalsRuntime {
     if (!this.registry.write(sessionKey, data)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
     }
+    this.activityFor(sessionKey).recordInput();
     return ok(undefined);
   }
 
@@ -254,6 +312,7 @@ export class TerminalsRuntime {
   }
 
   dispose(): void {
+    this.idleSweeper.dispose();
     for (const binding of this.workflowBindings.values()) binding.dispose();
     this.workflowBindings.clear();
     this.workflowRuns.clear();
@@ -306,6 +365,7 @@ export class TerminalsRuntime {
       {
         output: log,
         onData: (chunk) => {
+          this.activityFor(sessionKey).recordOutput();
           this.outputTails.set(
             sessionKey,
             appendOutputTail(this.outputTails.get(sessionKey) ?? '', chunk)
@@ -418,6 +478,7 @@ export class TerminalsRuntime {
     log.reseed();
     this.sessionKeys.set(sessionKey, key);
     this.sessionKinds.set(sessionKey, 'workflow');
+    this.scriptNodeLifecycles.set(sessionKey, node.lifecycle ?? 'completable');
     this.startCounts.set(sessionKey, 1);
     let outputTail = '';
     let resolveExit: (exit: TerminalExit) => void;
@@ -432,6 +493,7 @@ export class TerminalsRuntime {
         if (pid !== undefined) run.nodePids.set(node.id, pid);
       },
       onData: (chunk) => {
+        this.activityFor(sessionKey).recordOutput();
         outputTail = appendOutputTail(outputTail, chunk);
         this.outputTails.set(sessionKey, outputTail);
         this.previewSourceFor(sessionKey, key).emitData(chunk);
@@ -573,6 +635,7 @@ export class TerminalsRuntime {
       if (!terminalKey) return;
       const exit = session.exitStatus ?? undefined;
       const existing = draft[key];
+      const activity = this.activity.get(key)?.snapshot();
       const state: TerminalSessionState = {
         key: terminalKey,
         status: session.exited ? 'exited' : 'running',
@@ -584,6 +647,8 @@ export class TerminalsRuntime {
         rows: session.spec.rows,
         startedAt: session.startedAt,
         exitedAt: session.exited ? (existing?.exitedAt ?? this.now()) : undefined,
+        lastInputAt: activity?.lastInputAt ?? existing?.lastInputAt,
+        lastOutputAt: activity?.lastOutputAt ?? existing?.lastOutputAt,
         exit:
           exit !== undefined
             ? {
@@ -594,6 +659,34 @@ export class TerminalsRuntime {
       };
       draft[key] = state;
     });
+  }
+
+  private activityFor(sessionKey: string): IoActivityTracker {
+    let tracker = this.activity.get(sessionKey);
+    if (!tracker) {
+      tracker = createIoActivityTracker(this.now);
+      this.activity.set(sessionKey, tracker);
+    }
+    return tracker;
+  }
+
+  private lifecycleSnapshot(sessionKey: string): IoActivitySnapshot | null {
+    const session = this.sessionsList.snapshot().data[sessionKey];
+    if (!session || session.status !== 'running') return null;
+    return {
+      running: session.status === 'running',
+      busy: false,
+      ...this.activityFor(sessionKey).snapshot(),
+    };
+  }
+
+  private policyForSession(sessionKey: string): IdlePolicy {
+    if (this.sessionKinds.get(sessionKey) === 'terminal') {
+      return this.terminalIdlePolicy;
+    }
+    return this.scriptNodeLifecycles.get(sessionKey) === 'background'
+      ? this.backgroundScriptIdlePolicy
+      : this.completableScriptIdlePolicy;
   }
 
   private previewSourceFor(sessionKey: string, key: TerminalKey): PreviewOutputSource {

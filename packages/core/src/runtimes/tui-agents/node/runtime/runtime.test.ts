@@ -1,5 +1,6 @@
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
+import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '@services/exec/api';
@@ -47,7 +48,11 @@ class FakePtySpawner implements PtySpawner {
   }
 }
 
-function createRuntime() {
+function createRuntime(options: {
+  clock?: ManualClock;
+  lifecycle?: ConstructorParameters<typeof TuiAgentsRuntime>[0]['lifecycle'];
+  exec?: Partial<IExecutionContext>;
+} = {}) {
   const spawner = new FakePtySpawner();
   const provider: ResolvedTuiProvider = {
     name: 'Test Agent',
@@ -68,11 +73,14 @@ function createRuntime() {
     exec: vi.fn(() => Promise.resolve({ stdout: '', stderr: '' })),
     execStreaming: vi.fn(() => Promise.resolve()),
     dispose: vi.fn(),
+    ...options.exec,
   } satisfies IExecutionContext;
   const runtime = new TuiAgentsRuntime({
     agentHost,
     exec,
     spawner,
+    clock: options.clock,
+    lifecycle: options.lifecycle,
     logger: noopLogger,
   });
   return { runtime, spawner, agentHost, exec };
@@ -178,6 +186,51 @@ describe('TuiAgentsRuntime', () => {
       2,
       'test',
       expect.objectContaining({ isResuming: false, initialPrompt: 'hello' })
+    );
+  });
+
+  it('deactivates idle sessions after the configured output inactivity period', async () => {
+    const clock = createManualClock(0);
+    const { runtime } = createRuntime({
+      clock,
+      lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
+    });
+
+    runtime.startSession(startInput());
+    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+
+    await clock.advanceBy(1_200);
+
+    expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toEqual({});
+  });
+
+  it('uses batched tmux activity to keep detached tmux sessions active', async () => {
+    const clock = createManualClock(1_000_000);
+    const exec = vi.fn(() =>
+      Promise.resolve({
+        stdout: `emdash-test\t${Math.floor(clock.now() / 1000)}\n`,
+        stderr: '',
+      })
+    );
+    const { runtime, spawner } = createRuntime({
+      clock,
+      lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
+      exec: { exec },
+    });
+
+    runtime.startSession(startInput({ tmuxSessionName: 'emdash-test' }));
+    await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
+
+    await clock.advanceBy(1_200);
+
+    expect(exec).toHaveBeenCalledWith('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}\t#{session_activity}',
+    ]);
+    expect(spawner.processes[0]!.kill).not.toHaveBeenCalled();
+    expect(runtime.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
+      'conversation-1'
     );
   });
 });

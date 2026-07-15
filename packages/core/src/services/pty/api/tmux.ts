@@ -34,6 +34,35 @@ export function decodeTmuxSessionName(sessionName: string): string | null {
   }
 }
 
+export async function listTmuxSessionActivity(
+  ctx: IExecutionContext
+): Promise<Map<string, number>> {
+  try {
+    const result = await ctx.exec('tmux', [
+      'list-sessions',
+      '-F',
+      '#{session_name}\t#{session_activity}',
+    ]);
+    return parseTmuxSessionActivity(result.stdout);
+  } catch (error) {
+    if (isExpectedTmuxListFailure(error)) return new Map();
+    throw error;
+  }
+}
+
+export function parseTmuxSessionActivity(output: string): Map<string, number> {
+  const activity = new Map<string, number>();
+  for (const line of output.split('\n')) {
+    if (!line.trim()) continue;
+    const [name, seconds] = line.split('\t');
+    if (!name || !seconds) continue;
+    const parsed = Number(seconds);
+    if (!Number.isFinite(parsed)) continue;
+    activity.set(name, parsed * 1_000);
+  }
+  return activity;
+}
+
 export async function killTmuxSession(
   ctx: IExecutionContext,
   sessionName: string,
@@ -44,4 +73,23 @@ export async function killTmuxSession(
   } catch (error) {
     onError?.(error);
   }
+}
+
+function isExpectedTmuxListFailure(error: unknown): boolean {
+  if (!isExecLikeError(error)) return false;
+  if (error.exitCode === 1 && /no server running|failed to connect to server/i.test(error.stderr)) {
+    return true;
+  }
+  return error.exitCode === 127 || /command not found|not found/i.test(error.stderr);
+}
+
+function isExecLikeError(error: unknown): error is { exitCode: number | null; stderr: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'exitCode' in error &&
+    'stderr' in error &&
+    (typeof error.exitCode === 'number' || error.exitCode === null) &&
+    typeof error.stderr === 'string'
+  );
 }

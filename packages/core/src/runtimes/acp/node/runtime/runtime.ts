@@ -61,6 +61,8 @@ export class AcpRuntime {
       host: deps.host,
       agentHost: deps.agentHost,
       logger: deps.logger,
+      clock: deps.clock,
+      idleTtlMs: deps.lifecycle?.connectionIdleTtlMs ?? 120_000,
       buildClient: (_agent, context) => {
         if (!manager) throw new Error('AcpRuntime session manager not initialized');
         return buildAgentClient(context, manager, { fs, terminals: terminalPort });
@@ -242,6 +244,7 @@ export class AcpRuntime {
   }
 
   async dispose(): Promise<void> {
+    this.manager.dispose();
     this.killAllTerminals();
     await this.connections.dispose();
   }

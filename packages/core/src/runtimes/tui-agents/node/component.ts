@@ -8,6 +8,7 @@ import { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
 import { NodeExecutionContext } from '@services/exec/api';
+import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
@@ -17,6 +18,12 @@ import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   hook: z.object({ port: z.number().int().positive(), token: z.string() }).optional(),
+  lifecycle: z
+    .object({
+      session: idlePolicyConfigSchema.optional(),
+      sweepIntervalMs: z.number().int().positive().optional(),
+    })
+    .optional(),
 });
 
 export type CreateTuiAgentsComponentOptions = {
@@ -55,6 +62,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
         exec,
         spawner: new NodePtySpawner(),
         hook: config.hook,
+        lifecycle: config.lifecycle,
         logger: runtimeLogger,
       });
       scope.add(() => runtime.dispose());

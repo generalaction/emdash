@@ -66,5 +66,7 @@ export const sessionSummarySchema = z.object({
   queuedPromptCount: z.number().int(),
   title: z.string().nullable(),
   updatedAt: z.number(),
+  lastInputAt: z.number().int().optional(),
+  lastOutputAt: z.number().int().optional(),
 });
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;

@@ -13,6 +13,15 @@ import { ok, toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { bindMachineToLiveState, type MachineLiveStateBinding } from '@emdash/wire';
+import {
+  compileIdlePolicy,
+  createIdleSweeper,
+  createIoActivityTracker,
+  type IdlePolicy,
+  type IdleSweeper,
+  type IoActivitySnapshot,
+  type IoActivityTracker,
+} from '@primitives/io-activity/api';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
@@ -100,17 +109,41 @@ export class SessionManager implements InboundRouter {
   private readonly cells = new Map<string, SessionRecord>();
   private readonly routes = new Map<string, Map<string, string>>();
   private readonly loadingConversations = new Map<string, Set<string>>();
+  private readonly activity = new Map<string, IoActivityTracker>();
+  private readonly sessionIdlePolicy: IdlePolicy;
+  private readonly idleSweeper: IdleSweeper;
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
     private readonly connections: AcpConnectionSource,
     private readonly terminals: AgentTerminalManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
-  ) {}
+  ) {
+    this.sessionIdlePolicy = compileIdlePolicy(
+      deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: 60 * 60_000 }
+    );
+    this.idleSweeper = createIdleSweeper<string>({
+      ...(deps.clock ? { clock: deps.clock } : {}),
+      intervalMs: deps.lifecycle?.sweepIntervalMs ?? 60_000,
+      entries: () => Array.from(this.cells.keys()),
+      snapshot: (conversationId) => this.lifecycleSnapshot(conversationId),
+      policy: () => this.sessionIdlePolicy,
+      deactivate: (conversationId) => {
+        this.stop(conversationId);
+      },
+      onError: (error, conversationId) => {
+        this.deps.logger.warn('SessionManager: idle sweep failed', {
+          conversationId,
+          error: String(error),
+        });
+      },
+    });
+  }
 
   async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
     const existing = this.cells.get(input.conversationId);
     if (existing) return ok({ sessionId: existing.cell.acpSessionId });
+    this.recordInputActivity(input.conversationId);
 
     this.upsertSessionSummary(input, null, {
       lifecycle: 'starting',
@@ -239,12 +272,14 @@ export class SessionManager implements InboundRouter {
   async prompt(input: SendPromptInput): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
+    this.recordInputActivity(input.conversationId);
     return record.cell.prompt(input.prompt);
   }
 
   queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpQueuePromptError> {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
+    this.recordInputActivity(input.conversationId);
     const result = record.cell.queuePrompt(input.prompt);
     if (!result.success) return result;
     return ok({ queued: true });
@@ -305,6 +340,7 @@ export class SessionManager implements InboundRouter {
   ): Result<void, AcpResolvePermissionError> {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
+    this.recordInputActivity(conversationId);
     return record.cell.resolvePermission(requestId, optionId);
   }
 
@@ -411,6 +447,7 @@ export class SessionManager implements InboundRouter {
 
     const record = this.cells.get(conversationId);
     if (!record) return;
+    this.recordOutputActivity(conversationId);
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
@@ -431,7 +468,8 @@ export class SessionManager implements InboundRouter {
   ): Promise<RequestPermissionResponse> {
     const conversationId = this.resolveConversationForSession(connection.key, params.sessionId);
     const record = conversationId ? this.cells.get(conversationId) : undefined;
-    if (!record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+    if (!conversationId || !record) return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+    this.recordOutputActivity(conversationId);
     const response = record.cell.requestPermission(params);
     this.syncRecord(record);
     return response;
@@ -580,17 +618,81 @@ export class SessionManager implements InboundRouter {
       backgroundAgentCount: state.backgroundAgentCount,
       queuedPromptCount: state.queuedPromptCount ?? state.queuedPrompts?.length ?? 0,
       title: cell?.transcript.title ?? null,
-      updatedAt: Date.now(),
+      updatedAt: this.now(),
     };
+    const activity = this.activity.get(input.conversationId)?.snapshot();
+    if (activity?.lastInputAt !== null && activity?.lastInputAt !== undefined) {
+      summary.lastInputAt = activity.lastInputAt;
+    }
+    if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
+      summary.lastOutputAt = activity.lastOutputAt;
+    }
     this.sessionsList.states.list.produce((draft) => {
       draft[input.conversationId] = summary;
     });
+  }
+
+  dispose(): void {
+    this.idleSweeper.dispose();
   }
 
   private deleteSessionSummary(conversationId: string): void {
     this.sessionsList.states.list.produce((draft) => {
       delete draft[conversationId];
     });
+  }
+
+  private activityFor(conversationId: string): IoActivityTracker {
+    let tracker = this.activity.get(conversationId);
+    if (!tracker) {
+      tracker = createIoActivityTracker(() => this.now());
+      this.activity.set(conversationId, tracker);
+    }
+    return tracker;
+  }
+
+  private recordInputActivity(conversationId: string): void {
+    this.activityFor(conversationId).recordInput();
+    this.syncSessionActivity(conversationId);
+  }
+
+  private recordOutputActivity(conversationId: string): void {
+    this.activityFor(conversationId).recordOutput();
+    this.syncSessionActivity(conversationId);
+  }
+
+  private syncSessionActivity(conversationId: string): void {
+    const activity = this.activity.get(conversationId)?.snapshot();
+    if (!activity) return;
+    this.sessionsList.states.list.produce((draft) => {
+      const current = draft[conversationId];
+      if (!current) return;
+      if (activity.lastInputAt !== null) current.lastInputAt = activity.lastInputAt;
+      if (activity.lastOutputAt !== null) current.lastOutputAt = activity.lastOutputAt;
+    });
+  }
+
+  private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
+    const record = this.cells.get(conversationId);
+    if (!record) return null;
+    const state = record.cell.sessionState;
+    const activity = this.activityFor(conversationId).snapshot();
+    return {
+      running: true,
+      busy:
+        state.isGenerating ||
+        state.pendingPermissions.length > 0 ||
+        state.queuedPrompts.length > 0 ||
+        state.backgroundAgentCount > 0,
+      attachedClients: activity.attachedClients,
+      detachedAt: activity.detachedAt,
+      lastInputAt: activity.lastInputAt,
+      lastOutputAt: activity.lastOutputAt,
+    };
+  }
+
+  private now(): number {
+    return this.deps.clock?.now() ?? Date.now();
   }
 
   private removeRecord(conversationId: string, releaseConnection: boolean): void {
@@ -600,6 +702,7 @@ export class SessionManager implements InboundRouter {
     record.machineStateBinding.dispose();
     this.unregisterRoutes(record.processKey, conversationId);
     this.cells.delete(conversationId);
+    this.activity.delete(conversationId);
     this.terminals.disposeConversation(conversationId);
     record.live.dispose();
     this.deleteSessionSummary(conversationId);

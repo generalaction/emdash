@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { createManualClock } from '@emdash/shared/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import {
   hostFileRef,
@@ -35,6 +36,10 @@ class FakePtyProcess implements PtyProcess {
 
   getPid(): number {
     return this.pid;
+  }
+
+  get isExited(): boolean {
+    return this.exited;
   }
 
   emit(data: string): void {
@@ -213,6 +218,82 @@ describe('TerminalsRuntime', () => {
     await run;
     await scope.dispose();
   });
+
+  it('kills detached interactive terminals after the configured grace period', async () => {
+    const clock = createManualClock(0);
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      clock,
+      lifecycle: {
+        terminal: { kind: 'while-attached', graceMs: 1_000 },
+        sweepIntervalMs: 100,
+      },
+    });
+    const workspace = testWorkspace();
+    const key = { workspace, id: 'terminal-1' };
+    await runtime.startTerminal({ key, spec: { cwd: '/repo', env: {} } });
+    const unsubscribe = await runtime.outputLog(key).subscribe(() => {});
+    unsubscribe();
+
+    await clock.advanceBy(1_200);
+
+    expect(spawner.processes[0]!.isExited).toBe(true);
+    await scope.dispose();
+  });
+
+  it('keeps completable workflow nodes while reaping background nodes by policy', async () => {
+    const clock = createManualClock(0);
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      clock,
+      lifecycle: {
+        backgroundScript: { kind: 'while-attached', graceMs: 1_000 },
+        sweepIntervalMs: 100,
+      },
+    });
+    const workspace = testWorkspace();
+    const completable = runtime.runWorkflow(
+      {
+        workspace,
+        kind: 'manual:setup',
+        nodes: [{ id: 'setup', command: 'pnpm install', cwd: '/repo', env: {} }],
+      },
+      liveJobContext('job-setup')
+    );
+    await waitFor(() => spawner.processes.length === 1);
+    const background = runtime.runWorkflow(
+      {
+        workspace: hostFileRef(LOCAL_HOST_REF, parseAbsoluteWorkspace('/repo-2')),
+        kind: 'manual:run',
+        nodes: [
+          {
+            id: 'run',
+            command: 'pnpm dev',
+            cwd: '/repo-2',
+            env: {},
+            lifecycle: 'background',
+          },
+        ],
+      },
+      liveJobContext('job-run')
+    );
+    await waitFor(() => spawner.processes.length === 2);
+
+    await clock.advanceBy(1_200);
+
+    expect(spawner.processes[0]!.isExited).toBe(false);
+    expect(spawner.processes[1]!.isExited).toBe(true);
+    spawner.processes[0]!.exit({ exitCode: 0, signal: null });
+    await completable;
+    await background;
+    await scope.dispose();
+  });
 });
 
 function liveJobContext(jobId: string) {
@@ -224,9 +305,13 @@ function liveJobContext(jobId: string) {
 }
 
 function testWorkspace(): HostFileRef {
-  const parsed = parseAbsolute('/repo', { profile: { style: 'posix' } });
+  return hostFileRef(LOCAL_HOST_REF, parseAbsoluteWorkspace('/repo'));
+}
+
+function parseAbsoluteWorkspace(path: string) {
+  const parsed = parseAbsolute(path, { profile: { style: 'posix' } });
   if (!parsed.success) throw new Error(parsed.error.message);
-  return hostFileRef(LOCAL_HOST_REF, parsed.data);
+  return parsed.data;
 }
 
 function devServers(runtime: TerminalsRuntime) {
