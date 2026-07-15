@@ -33,6 +33,11 @@ export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export {
+  AgentStatus,
+  type AgentStatusKind,
+  type AgentStatusProps,
+} from './agent-status/agent-status';
+export {
   SteppedLoader,
   SteppedLoaderProgress,
   type StepStatus,
