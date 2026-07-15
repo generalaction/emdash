@@ -1,0 +1,52 @@
+packages/ui/src/react/components/index.ts
+  s_e96486d2304a0c::t_4a8025b0d7bc0f 6
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_e96486d2304a0c::t_dba240b974b754 149-154,210-213,557-559,728-743,941,943-994
+apps/emdash-desktop/src/renderer/lib/acp/acp-live-session.ts
+  s_e96486d2304a0c::t_dba240b974b754 213-216
+packages/runtime/src/acp-agents/runtime/runtime.ts
+  s_e96486d2304a0c::t_dba240b974b754 148
+packages/runtime/src/acp-agents/session/cell.ts
+  s_e96486d2304a0c::t_dba240b974b754 56,645,656-657
+packages/runtime/src/acp-agents/session/cell.test.ts
+  s_e96486d2304a0c::t_dba240b974b754 278-320
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.ts
+  s_e96486d2304a0c::t_dba240b974b754 14,170-184,376-383
+  s_e96486d2304a0c::t_755a95f854b8fe 384
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-panel.tsx
+  s_e96486d2304a0c::t_dba240b974b754 363-369,613-615
+packages/core/src/acp/api/commands.ts
+  s_e96486d2304a0c::t_dba240b974b754 47
+packages/runtime/src/acp-agents/api/procedures.ts
+  s_e96486d2304a0c::t_dba240b974b754 90
+packages/core/src/acp/reducer/config-derive.ts
+  s_e96486d2304a0c::t_dba240b974b754 6-7,13-19,36-41,56,61-62,72,75,98-105,113,117
+packages/core/src/acp/reducer/acp-transcript-parser.test.ts
+  s_e96486d2304a0c::t_dba240b974b754 871,895-904,918,930-936,959,975-982
+packages/runtime/src/acp-agents/runtime/session-manager.ts
+  s_e96486d2304a0c::t_dba240b974b754 324
+packages/ui/src/react/components/chat-composer/chat-composer.stories.tsx
+  s_e96486d2304a0c::t_dba240b974b754 10,716-720,730,741-743
+packages/core/src/acp/models/config.ts
+  s_e96486d2304a0c::t_dba240b974b754 31-33,66-74,92
+packages/plugins/src/agents/impl/claude/__snapshots__/acp-fixture.test.ts.snap
+  s_e96486d2304a0c::t_2ad974797a7a1d 214-227
+packages/plugins/src/agents/impl/codex/__snapshots__/acp-fixture.test.ts.snap
+  s_e96486d2304a0c::t_9ba7aa7c0dd32f 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cceb4440403e6dacd24ec8e189066e68dc44c439",
+  "prompts": {},
+  "sessions": {
+    "s_e96486d2304a0c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6438-e3c6-7211-a90f-4040e6ff8be9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
