@@ -1,4 +1,4 @@
-const TERMINAL_FONT_FALLBACKS = ['Menlo', 'Monaco', 'Consolas', 'monospace'];
+import { DEFAULT_MONOSPACE_FONT_FAMILIES } from '@renderer/lib/monospace-font';
 
 const CSS_GENERIC_FAMILIES = new Set([
   'serif',
@@ -52,8 +52,8 @@ const splitFontFamilies = (fontFamily: string) => {
 export const buildTerminalFontFamily = (fontFamily?: string) => {
   const customFontFamily = fontFamily?.trim();
   const families = customFontFamily
-    ? [...splitFontFamilies(customFontFamily), ...TERMINAL_FONT_FALLBACKS]
-    : TERMINAL_FONT_FALLBACKS;
+    ? [...splitFontFamilies(customFontFamily), ...DEFAULT_MONOSPACE_FONT_FAMILIES]
+    : DEFAULT_MONOSPACE_FONT_FAMILIES;
 
   return Array.from(new Set(families.map(quoteFontFamily).filter(Boolean))).join(', ');
 };

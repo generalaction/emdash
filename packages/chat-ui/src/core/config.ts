@@ -20,6 +20,8 @@
  * them — see prose/geometry.ts and engine/row-metrics.ts.
  */
 
+import { DEFAULT_MONOSPACE_FONT_FAMILIES } from '@emdash/shared';
+
 // ── VariantMetrics + FontConfig (measurement-side types) ──────────────────────
 //
 // Defined here (not in core/measure/fonts.ts) to avoid circular imports between
@@ -151,7 +153,7 @@ export type ResolvedTheme = {
 export const DEFAULT_CONFIG: ChatConfig = {
   fonts: {
     sans: ['Inter Variable', 'sans-serif'],
-    mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
+    mono: [...DEFAULT_MONOSPACE_FONT_FAMILIES],
   },
   roles: {
     body: { family: 'sans', size: 14, weight: 400, lineHeight: 20 },

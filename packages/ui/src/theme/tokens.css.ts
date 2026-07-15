@@ -15,6 +15,7 @@
  * into another and cannot be represented in the VE typed-vars map.
  */
 
+import { DEFAULT_MONOSPACE_FONT_FAMILY } from '@emdash/shared';
 import { nsName } from '@theme/core/contract/namespace';
 import { createGlobalThemeContract, globalStyle } from '@vanilla-extract/css';
 
@@ -77,7 +78,7 @@ globalStyle(':root', {
   vars: {
     // Font families
     [tokenVars.fontSans]: "'Inter Variable', sans-serif",
-    [tokenVars.fontMono]: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
+    [tokenVars.fontMono]: DEFAULT_MONOSPACE_FONT_FAMILY,
 
     // Font weight scale
     [tokenVars.fontWeightNormal]: '400',

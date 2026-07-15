@@ -58,7 +58,7 @@ export const fileOpHeader = style({
 });
 
 export const monoRunning = style({
-  fontFamily: 'monospace',
+  fontFamily: vars.fontMono,
   fontSize: vars.typeBodyFontSize,
   color: vars.fgPassive,
 });
