@@ -7,7 +7,8 @@ import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { isAttentionNotification, type AgentEvent } from '@shared/core/agents/agentEvents';
+import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
+import { type AgentEvent } from '@shared/core/agents/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 
 const activeNotifications = new Set<Notification>();

@@ -114,6 +114,19 @@ export const tuiNotificationTypeSchema = z.enum([
 
 export type TuiNotificationType = z.infer<typeof tuiNotificationTypeSchema>;
 
+/** Notification types that require explicit user attention before the agent can continue. */
+export const ATTENTION_NOTIFICATION_TYPES: ReadonlySet<TuiNotificationType> = new Set([
+  'permission_prompt',
+  'idle_prompt',
+  'elicitation_dialog',
+]);
+
+export function isAttentionNotification(
+  nt: TuiNotificationType | undefined
+): nt is TuiNotificationType {
+  return nt != null && ATTENTION_NOTIFICATION_TYPES.has(nt);
+}
+
 export const tuiAgentStateSchema = z.object({
   conversationId: z.string(),
   providerId: z.string().optional(),

@@ -1,22 +1,15 @@
+import type {
+  TuiAgentStateStatus,
+  TuiNotificationType,
+} from '@emdash/core/runtimes/tui-agents/api';
+
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
-export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
+/** Desktop-wide agent status; structurally identical to the runtime's TuiAgentStateStatus. */
+export type AgentStatus = TuiAgentStateStatus;
 
-export type NotificationType =
-  | 'permission_prompt'
-  | 'idle_prompt'
-  | 'auth_success'
-  | 'elicitation_dialog';
-
-export const ATTENTION_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
-  'permission_prompt',
-  'idle_prompt',
-  'elicitation_dialog',
-]);
-
-export function isAttentionNotification(nt: NotificationType | undefined): nt is NotificationType {
-  return nt != null && ATTENTION_NOTIFICATION_TYPES.has(nt);
-}
+/** Desktop-wide notification type; structurally identical to the runtime's TuiNotificationType. */
+export type NotificationType = TuiNotificationType;
 
 export interface AgentEvent {
   type: AgentEventType;
