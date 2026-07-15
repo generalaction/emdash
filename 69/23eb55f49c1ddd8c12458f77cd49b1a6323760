@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/conversations/acp/acp-chat-store.ts
+  s_fcda49cfd4d5b3::t_cfd44c647895ab 102-103,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6923eb55f49c1ddd8c12458f77cd49b1a6323760",
+  "prompts": {},
+  "sessions": {
+    "s_fcda49cfd4d5b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f645b-26e6-7993-bad4-8e13a6b65aa0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
