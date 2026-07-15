@@ -6,7 +6,7 @@ import {
   makeAcpHarness,
   makeStartInput,
 } from '@runtimes/acp/node/acp-test-support';
-import { createMemorySessionIntentStore } from '@services/session-intents/node';
+import { createMemorySessionIntentStore } from '@services/session-intents/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AcpRuntime } from './runtime';
 

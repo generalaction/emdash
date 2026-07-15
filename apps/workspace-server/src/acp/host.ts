@@ -2,7 +2,6 @@ import { dirname, join } from 'node:path';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import type { HostDependencyResolverContract } from '@emdash/core/services/host-dependencies/api';
-import type { SessionIntentsContract } from '@emdash/core/services/session-intents/api';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { ContractClient } from '@emdash/wire/api';
 import type { WireWorkerHost } from '@emdash/wire/worker';
@@ -18,7 +17,6 @@ export function defineAcpWorkspaceRuntimeWorker(
   options: {
     socketPath?: string;
     hostDependencies: ContractClient<HostDependencyResolverContract>;
-    sessionIntents: ContractClient<SessionIntentsContract>;
   }
 ) {
   const paths = daemonPaths(options.socketPath);
@@ -28,10 +26,10 @@ export function defineAcpWorkspaceRuntimeWorker(
     env: process.env,
     dependencies: {
       hostDependencies: options.hostDependencies,
-      sessionIntents: options.sessionIntents,
     },
     config: {
       attachmentsDir: join(dirname(paths.socketPath), 'acp-attachments'),
+      intentsFilePath: join(dirname(paths.socketPath), 'acp-session-intents.json'),
       lifecycle: {
         session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
         connectionIdleTtlMs: 120_000,

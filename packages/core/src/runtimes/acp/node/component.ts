@@ -18,13 +18,14 @@ import {
   hostDependencyResolverContract,
 } from '@services/host-dependencies/node';
 import {
-  createSessionIntentStoreFromDependency,
-  sessionIntentsContract,
+  createFileSessionIntentStore,
+  createNoopSessionIntentStore,
 } from '@services/session-intents/node';
 import { z } from 'zod';
 
 export const acpComponentConfigSchema = z.object({
   attachmentsDir: z.string().min(1),
+  intentsFilePath: z.string().min(1).optional(),
   lifecycle: z
     .object({
       session: idlePolicyConfigSchema.optional(),
@@ -46,7 +47,6 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
     contract: acpApiContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
-      sessionIntents: requireContract(sessionIntentsContract),
     },
     configSchema: acpComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -59,7 +59,9 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
       const dependencyResolver = createHostDependencyResolverFromDependency(
         dependencies.hostDependencies
       );
-      const intents = createSessionIntentStoreFromDependency(dependencies.sessionIntents, 'acp');
+      const intents = config.intentsFilePath
+        ? createFileSessionIntentStore({ path: config.intentsFilePath, scope: 'acp' })
+        : createNoopSessionIntentStore();
       const agentHost = new AgentPluginHost({
         scope,
         registry: options.pluginRegistry,

@@ -21,7 +21,6 @@ import {
   createHostDependenciesComponent,
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
-import { createSessionIntentsComponent } from '@emdash/core/services/session-intents/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
@@ -64,9 +63,6 @@ const hostDependenciesComponent = createHostDependenciesComponent({
   store: desktopKeyValueStore,
   exec: new NodeExecutionContext({ env: process.env }),
 });
-const sessionIntentsComponent = createSessionIntentsComponent({
-  store: desktopKeyValueStore,
-});
 const GIT_RUNTIME_ENV = {
   ...process.env,
   ...NON_INTERACTIVE_GIT_ENV,
@@ -98,22 +94,16 @@ const hostDependencies = hostDependenciesComponent.create({
 
 export const hostDependenciesClient: HostDependenciesClient = hostDependencies.client;
 
-const sessionIntents = sessionIntentsComponent.create({
-  scope: workerScope,
-  dependencies: {},
-  config: {},
-});
-
 export const acpWorker = host.create(acpComponent, {
   name: 'acp',
   executable: desktopWorkerPath('acp'),
   env: process.env,
   dependencies: {
     hostDependencies: hostDependencies.client.resolver,
-    sessionIntents: sessionIntents.client,
   },
   config: {
     attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
+    intentsFilePath: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-session-intents.json'),
     lifecycle: {
       session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
       connectionIdleTtlMs: 120_000,
@@ -260,9 +250,12 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
     env: process.env,
     dependencies: {
       hostDependencies: hostDependencies.client.resolver,
-      sessionIntents: sessionIntents.client,
     },
     config: {
+      intentsFilePath: join(
+        app?.getPath?.('userData') ?? process.cwd(),
+        'tui-session-intents.json'
+      ),
       hook:
         agentHookService.getPort() > 0
           ? {

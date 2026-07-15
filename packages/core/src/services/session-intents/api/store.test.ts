@@ -1,28 +1,26 @@
 import { createMemoryKeyValueStore } from '@primitives/kv/api';
 import { describe, expect, it } from 'vitest';
-import { SessionIntentsRuntime } from './component';
+import { createKvSessionIntentStore } from './store';
 
-describe('SessionIntentsRuntime', () => {
-  it('upserts, lists, suspends, and deletes intents within a scope', async () => {
-    const runtime = new SessionIntentsRuntime(createMemoryKeyValueStore());
+describe('createKvSessionIntentStore', () => {
+  it('saves, lists, suspends, and removes intents within a scope', async () => {
+    const store = createMemoryKeyValueStore();
+    const acp = createKvSessionIntentStore(store, 'acp', { now: () => 1 });
+    const tui = createKvSessionIntentStore(store, 'tui-agents', { now: () => 2 });
 
     await expect(
-      runtime.upsert('acp', {
+      acp.saveActive({
         conversationId: 'conv-1',
-        status: 'active',
         payload: { conversationId: 'conv-1', cwd: '/repo' },
         sessionId: 'session-1',
-        updatedAt: 1,
       })
     ).resolves.toEqual({ success: true });
-    await runtime.upsert('tui-agents', {
+    await tui.saveActive({
       conversationId: 'conv-1',
-      status: 'active',
       payload: { conversationId: 'conv-1', cwd: '/repo' },
-      updatedAt: 2,
     });
 
-    await expect(runtime.list('acp')).resolves.toEqual({
+    await expect(acp.list()).resolves.toEqual({
       success: true,
       data: [
         {
@@ -35,8 +33,8 @@ describe('SessionIntentsRuntime', () => {
       ],
     });
 
-    await runtime.setStatus('acp', 'conv-1', 'suspended', 'idle');
-    const suspended = await runtime.list('acp');
+    await acp.markSuspended('conv-1', 'idle');
+    const suspended = await acp.list();
 
     expect(suspended.success ? suspended.data[0] : null).toMatchObject({
       conversationId: 'conv-1',
@@ -44,9 +42,9 @@ describe('SessionIntentsRuntime', () => {
       suspendedCause: 'idle',
     });
 
-    await runtime.delete('acp', 'conv-1');
-    await expect(runtime.list('acp')).resolves.toEqual({ success: true, data: [] });
-    await expect(runtime.list('tui-agents')).resolves.toEqual({
+    await acp.remove('conv-1');
+    await expect(acp.list()).resolves.toEqual({ success: true, data: [] });
+    await expect(tui.list()).resolves.toEqual({
       success: true,
       data: [
         {
@@ -60,7 +58,7 @@ describe('SessionIntentsRuntime', () => {
   });
 
   it('ignores malformed entries when listing', async () => {
-    const runtime = new SessionIntentsRuntime(
+    const store = createKvSessionIntentStore(
       createMemoryKeyValueStore({
         'session-intents:acp:bad': { status: 'active' },
         'session-intents:acp:good': {
@@ -69,10 +67,11 @@ describe('SessionIntentsRuntime', () => {
           payload: { conversationId: 'good' },
           updatedAt: 1,
         },
-      })
+      }),
+      'acp'
     );
 
-    await expect(runtime.list('acp')).resolves.toEqual({
+    await expect(store.list()).resolves.toEqual({
       success: true,
       data: [
         {

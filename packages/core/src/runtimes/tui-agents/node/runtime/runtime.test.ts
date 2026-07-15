@@ -5,7 +5,7 @@ import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { createMemorySessionIntentStore } from '@services/session-intents/node';
+import { createMemorySessionIntentStore } from '@services/session-intents/api';
 import { describe, expect, it, vi } from 'vitest';
 import { TuiAgentsRuntime } from './runtime';
 

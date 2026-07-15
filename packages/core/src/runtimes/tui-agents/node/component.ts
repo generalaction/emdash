@@ -15,13 +15,14 @@ import {
 } from '@services/host-dependencies/node';
 import { NodePtySpawner } from '@services/pty/node';
 import {
-  createSessionIntentStoreFromDependency,
-  sessionIntentsContract,
+  createFileSessionIntentStore,
+  createNoopSessionIntentStore,
 } from '@services/session-intents/node';
 import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   hook: z.object({ port: z.number().int().positive(), token: z.string() }).optional(),
+  intentsFilePath: z.string().min(1).optional(),
   lifecycle: z
     .object({
       session: idlePolicyConfigSchema.optional(),
@@ -42,7 +43,6 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
     contract: tuiAgentsContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
-      sessionIntents: requireContract(sessionIntentsContract),
     },
     configSchema: tuiAgentsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -53,10 +53,9 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
       const dependencyResolver = createHostDependencyResolverFromDependency(
         dependencies.hostDependencies
       );
-      const intents = createSessionIntentStoreFromDependency(
-        dependencies.sessionIntents,
-        'tui-agents'
-      );
+      const intents = config.intentsFilePath
+        ? createFileSessionIntentStore({ path: config.intentsFilePath, scope: 'tui-agents' })
+        : createNoopSessionIntentStore();
       const agentHost = new AgentPluginHost({
         scope,
         registry: options.pluginRegistry,

@@ -38,24 +38,3 @@ export const sessionIntentErrorSchema = z.object({
 });
 
 export type SessionIntentError = z.infer<typeof sessionIntentErrorSchema>;
-
-export const sessionIntentListInputSchema = z.object({
-  scope: sessionIntentScopeSchema,
-});
-
-export const sessionIntentUpsertInputSchema = z.object({
-  scope: sessionIntentScopeSchema,
-  intent: sessionIntentSchema,
-});
-
-export const sessionIntentSetStatusInputSchema = z.object({
-  scope: sessionIntentScopeSchema,
-  conversationId: z.string().min(1),
-  status: sessionIntentStatusSchema,
-  cause: z.string().min(1).optional(),
-});
-
-export const sessionIntentDeleteInputSchema = z.object({
-  scope: sessionIntentScopeSchema,
-  conversationId: z.string().min(1),
-});
