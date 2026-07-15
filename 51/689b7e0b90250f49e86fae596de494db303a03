@@ -1,0 +1,21 @@
+apps/emdash-desktop/package.json
+  s_0d69066c093917::t_d018ffee2564ac 22-23,120
+pnpm-lock.yaml
+  s_0d69066c093917::t_db97bd69035d4b 216-218,1290-1292,5065-5069,9753-9754,13268-13272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "51689b7e0b90250f49e86fae596de494db303a03",
+  "prompts": {},
+  "sessions": {
+    "s_0d69066c093917": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f658f-08f3-7c00-bcc7-67fe157c9e3f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
