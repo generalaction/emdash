@@ -14,3 +14,17 @@ describe('TaskViewStore range selection', () => {
     expect(store.lastSelectedId).toBe('1');
   });
 });
+
+describe('ProjectViewStore snapshots', () => {
+  it('persists and restores the task sort option', () => {
+    const store = new ProjectViewStore();
+    store.taskView.setSortBy('pr-status');
+
+    expect(store.snapshot.taskSortBy).toBe('pr-status');
+
+    const restored = new ProjectViewStore();
+    restored.restoreSnapshot(store.snapshot);
+
+    expect(restored.taskView.sortBy).toBe('pr-status');
+  });
+});
