@@ -44,6 +44,8 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
   remaining provider-destroy cleanup before removing persisted task and worktree state; successful
   archive lifecycle completion is recorded durably and reset when a new provisioning attempt begins,
   before workspace acquire/setup can create resources
+- task-service provisioning, archive, delete, teardown, and restore entrypoints are serialized per
+  task so lifecycle generation resets cannot overlap resource teardown
 - terminate-mode project shutdown records both lifecycle and provider-destroy completion because task
   rows are retained; a later cold delete does not replay either phase for that setup generation
 - cold BYOI tasks cannot be safely archived or deleted after their provider connection is lost;

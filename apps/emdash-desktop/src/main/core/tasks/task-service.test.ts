@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { taskService } from './task-service';
 
 const mocks = vi.hoisted(() => ({
+  archiveTask: vi.fn(),
   beginTaskProvisioning: vi.fn(),
+  deleteTask: vi.fn(),
   emit: vi.fn(),
   ensureWorkspaceSetupForTask: vi.fn(),
   getProject: vi.fn(),
@@ -48,6 +50,14 @@ vi.mock('./operations/persistTaskProvisioned', () => ({
 
 vi.mock('./operations/beginTaskProvisioning', () => ({
   beginTaskProvisioning: mocks.beginTaskProvisioning,
+}));
+
+vi.mock('./operations/archiveTask', () => ({
+  archiveTask: mocks.archiveTask,
+}));
+
+vi.mock('./operations/deleteTask', () => ({
+  deleteTask: mocks.deleteTask,
 }));
 
 vi.mock('./operations/persistTaskResourceTeardown', () => ({
@@ -96,6 +106,8 @@ describe('TaskService provisioning', () => {
       },
     });
     mocks.beginTaskProvisioning.mockResolvedValue(undefined);
+    mocks.archiveTask.mockResolvedValue(undefined);
+    mocks.deleteTask.mockResolvedValue(undefined);
     mocks.persistTaskProvisioned.mockResolvedValue(undefined);
     mocks.persistTaskResourceTeardown.mockResolvedValue(undefined);
     mocks.registerTask.mockResolvedValue(undefined);
@@ -132,6 +144,111 @@ describe('TaskService provisioning', () => {
     expect(mocks.beginTaskProvisioning).toHaveBeenCalledWith('task-1');
     expect(mocks.persistTaskProvisioned).not.toHaveBeenCalled();
     expect(mocks.registerTask).not.toHaveBeenCalled();
+  });
+
+  it('waits for provisioning to finish before archiving the same task', async () => {
+    let finishSetup!: () => void;
+    mocks.ensureWorkspaceSetupForTask.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishSetup = () =>
+            resolve({
+              success: true,
+              data: {
+                taskProvider: {},
+                workspaceId: 'workspace-2',
+                path: '/tmp/workspace-2',
+              },
+            });
+        })
+    );
+
+    const provisioning = taskService.provisionWorkspace('task-1');
+    await vi.waitFor(() => expect(mocks.ensureWorkspaceSetupForTask).toHaveBeenCalled());
+
+    const archiving = taskService.archiveTask('project-1', 'task-1');
+    await Promise.resolve();
+    expect(mocks.archiveTask).not.toHaveBeenCalled();
+
+    finishSetup();
+    await expect(provisioning).resolves.toMatchObject({ success: true });
+    await archiving;
+
+    expect(mocks.registerTask.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.archiveTask.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('waits for failed provisioning before deleting the same task', async () => {
+    let failSetup!: () => void;
+    mocks.ensureWorkspaceSetupForTask.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          failSetup = () =>
+            resolve({
+              success: false,
+              error: { type: 'setup-failed', message: 'setup failed' },
+            });
+        })
+    );
+
+    const provisioning = taskService.provisionWorkspace('task-1');
+    await vi.waitFor(() => expect(mocks.ensureWorkspaceSetupForTask).toHaveBeenCalled());
+
+    const deleting = taskService.deleteTask('project-1', 'task-1');
+    await Promise.resolve();
+    expect(mocks.deleteTask).not.toHaveBeenCalled();
+
+    failSetup();
+    await expect(provisioning).resolves.toMatchObject({ success: false });
+    await deleting;
+    expect(mocks.deleteTask).toHaveBeenCalledWith('project-1', 'task-1', undefined);
+  });
+
+  it('allows provisioning retry after a setup failure', async () => {
+    mocks.ensureWorkspaceSetupForTask
+      .mockResolvedValueOnce({
+        success: false,
+        error: { type: 'setup-failed', message: 'setup failed' },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          taskProvider: {},
+          workspaceId: 'workspace-3',
+          path: '/tmp/workspace-3',
+        },
+      });
+
+    await expect(taskService.provisionWorkspace('task-1')).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(taskService.provisionWorkspace('task-1')).resolves.toMatchObject({
+      success: true,
+    });
+    expect(mocks.ensureWorkspaceSetupForTask).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reprovision a task that won an archive race', async () => {
+    let finishArchive!: () => void;
+    mocks.archiveTask.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishArchive = resolve;
+        })
+    );
+
+    const archiving = taskService.archiveTask('project-1', 'task-1');
+    await vi.waitFor(() => expect(mocks.archiveTask).toHaveBeenCalled());
+
+    const provisioning = taskService.provisionWorkspace('task-1');
+    mocks.selectLimit.mockResolvedValue([{ ...taskRow, archivedAt: '2026-07-16T08:00:00.000Z' }]);
+    finishArchive();
+    await archiving;
+
+    await expect(provisioning).rejects.toThrow('Cannot provision archived task: task-1');
+    expect(mocks.beginTaskProvisioning).not.toHaveBeenCalled();
+    expect(mocks.ensureWorkspaceSetupForTask).not.toHaveBeenCalled();
   });
 
   it('persists successful direct termination when the live task row is retained', async () => {
