@@ -82,16 +82,23 @@ export async function resolveSshConnectConfig(
   const deps = { ...defaultDeps(), ...depsOverride };
   const base = baseConfigForInput(input);
   const alias = base.sshConfigAlias;
-  const resolved = alias ? await deps.resolveSshConfig(alias) : undefined;
+  // Manual form fields stay authoritative; ssh -G only supplements behavior the form cannot
+  // express, such as wildcard/system ProxyCommand rules. Alias-backed connections remain fully
+  // config-driven.
+  const resolved = alias
+    ? await deps.resolveSshConfig(alias)
+    : await deps.resolveSshConfig(base.host).catch(() => undefined);
   const shouldResolveHostForAgent = !alias && base.authType === 'agent';
-  const agentResolved = shouldResolveHostForAgent
-    ? await resolveManualAgentSshConfig(base.host, deps)
-    : resolved;
+  const authResolved = alias
+    ? resolved
+    : shouldResolveHostForAgent
+      ? await resolveManualAgentSshConfig(base.host, deps, resolved)
+      : undefined;
 
-  const host = resolved?.hostname || base.host;
-  const port = resolved?.port ?? base.port;
-  const username = resolved?.user || base.username;
-  const authResult = await buildAuthConfig(input, base, agentResolved, deps);
+  const host = alias ? resolved?.hostname || base.host : base.host;
+  const port = alias ? (resolved?.port ?? base.port) : base.port;
+  const username = alias ? resolved?.user || base.username : base.username;
+  const authResult = await buildAuthConfig(input, base, authResolved, deps);
 
   const config: ConnectConfig = {
     host,
@@ -103,14 +110,18 @@ export async function resolveSshConnectConfig(
     ...authResult.config,
   };
 
-  const forwardAgent = resolved?.forwardAgent ?? base.forwardAgent === true;
-  applyForwardAgent(config, forwardAgent, agentResolved, authResult, deps);
+  const forwardAgent = alias
+    ? resolved?.forwardAgent === true
+    : (base.forwardAgent ?? resolved?.forwardAgent ?? false);
+  const forwardingResolved = base.authType === 'agent' ? authResolved : resolved;
+  applyForwardAgent(config, forwardAgent, forwardingResolved, authResult, deps);
 
   let debugLogs: string[] = [];
   let cleanup = () => {};
   const tokens: ProxyTokens = { host, port, username, originalHost: alias ?? base.host };
-  const proxyCommand = alias ? resolved?.proxyCommand : undefined;
-  const proxyJump = resolved?.proxyJump ?? (!alias ? base.proxyJump : undefined);
+  const manualProxyJump = alias ? undefined : base.proxyJump;
+  const proxyCommand = alias || !manualProxyJump ? resolved?.proxyCommand : undefined;
+  const proxyJump = alias ? resolved?.proxyJump : (manualProxyJump ?? resolved?.proxyJump);
 
   let transport: Omit<TransportResult, 'process'> | undefined;
   if (proxyCommand) {
