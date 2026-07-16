@@ -1,0 +1,23 @@
+export type SqliteRunResult = {
+  changes: number | bigint;
+  lastInsertRowid: number | bigint;
+};
+
+/**
+ * Minimal SQL-shaped connection contract used by SQLite stores.
+ *
+ * Store lifecycle, transactions, and pragmas intentionally live above this
+ * interface so drivers cannot introduce different migration semantics.
+ */
+export interface SqliteConnection {
+  readonly native: unknown;
+  exec(sql: string): void;
+  get<T>(sql: string, params?: readonly unknown[]): T | undefined;
+  all<T>(sql: string, params?: readonly unknown[]): T[];
+  run(sql: string, params?: readonly unknown[]): SqliteRunResult;
+  close(): void;
+}
+
+export interface SqliteDriver {
+  open(path: string): SqliteConnection;
+}
