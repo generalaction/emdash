@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/tests/browser/xterm-host.test.ts
+  s_7ffb39d82584b0::t_5c554f609d40ac 3
+  s_65ee6a2d80c1e9::t_71546ed7ce6184 6-7,14-15
+  s_7ffb39d82584b0::t_733491f5582e6c 2
+  s_65ee6a2d80c1e9::t_79e017c5a617e3 16
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_7ffb39d82584b0::t_5c554f609d40ac 8,470,479
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d7894d59f480770f46742f435f8416a356d53630",
+  "prompts": {},
+  "sessions": {
+    "s_65ee6a2d80c1e9": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033qQO5BXAFmRGalMi7kfA",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_7ffb39d82584b0": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033qQGsjNG6RoNsCAtpheD",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
