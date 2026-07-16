@@ -53,6 +53,8 @@ describe('restoreTask', () => {
     const updatePayload = mocks.updateSet.mock.calls[0]?.[0];
     expect(updatePayload).not.toHaveProperty('status');
     expect(updatePayload).not.toHaveProperty('statusChangedAt');
+    expect(updatePayload).not.toHaveProperty('lifecycleTeardownAt');
+    expect(updatePayload).not.toHaveProperty('providerDestroyAt');
     expect(task?.status).toBe('done');
     expect(task?.archivedAt).toBeUndefined();
   });

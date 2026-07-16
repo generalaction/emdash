@@ -6,7 +6,6 @@ import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-
 import { FileTreeProjector } from '@main/core/files/file-tree/projector';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
-import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { invalidateLegacySshGitWorktreeStatus } from '@main/core/runtime/legacy/ssh-git';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
@@ -30,8 +29,8 @@ import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
-import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 import { getTaskEnvVars } from './workspace-env';
+import { createWorkspaceTeardownHooks } from './workspace-teardown-hooks';
 
 export type WorkspaceType =
   | { kind: 'local' }
@@ -183,6 +182,16 @@ export function createWorkspaceFactory(
     };
 
     const { logPrefix } = context;
+    const teardownHooks = createWorkspaceTeardownHooks({
+      workspaceId,
+      projectId: context.projectId,
+      taskId: context.task.id,
+      settings: context.settings,
+      ownsFetchService,
+      gitRepositoryFetchService,
+      extraHooks: context.extraHooks,
+      logPrefix,
+    });
 
     return {
       workspace,
@@ -281,48 +290,7 @@ export function createWorkspaceFactory(
       },
 
       onCreate: context.extraHooks?.onCreate,
-
-      onDestroy: async (ws) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        if (ownsFetchService) {
-          gitRepositoryFetchService.stop();
-        }
-        workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
-        const latestProjectSettings = await context.settings.get();
-        const latestTaskSettings = await getEffectiveTaskSettings({
-          projectSettings: context.settings,
-          taskFs: ws.fileSystem,
-          taskConfigPath: ws.configPath,
-        });
-        const latestShellSetup = latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
-        const teardownScript = latestTaskSettings.scripts?.teardown;
-
-        if (teardownScript) {
-          await runLifecycleScriptWithPolicy({
-            workspace: ws,
-            projectId: context.projectId,
-            taskId: context.task.id,
-            workspaceId,
-            type: 'teardown',
-            script: teardownScript,
-            shellSetup: latestShellSetup,
-            origin: 'workspace-destroy',
-            policy: {
-              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-              logFailure: true,
-              surfaceFailure: false,
-              continueOnFailure: true,
-            },
-            logPrefix,
-          });
-        }
-        await context.extraHooks?.onDestroy?.(ws);
-      },
-
-      onDetach: async (ws) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        await context.extraHooks?.onDetach?.(ws);
-      },
+      ...teardownHooks,
     };
   };
 }

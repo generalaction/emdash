@@ -29,10 +29,13 @@ import type {
   Task,
 } from '@shared/core/tasks/tasks';
 import { archiveTask } from './operations/archiveTask';
+import { beginTaskProvisioning } from './operations/beginTaskProvisioning';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getDeletePreflight } from './operations/getDeletePreflight';
 import { getTasks } from './operations/getTasks';
+import { persistTaskProvisioned } from './operations/persistTaskProvisioned';
+import { persistTaskResourceTeardown } from './operations/persistTaskResourceTeardown';
 import { renameTask } from './operations/renameTask';
 import { restoreTask } from './operations/restoreTask';
 import { setTaskPinned } from './operations/setTaskPinned';
@@ -106,6 +109,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
+    await beginTaskProvisioning(taskId);
     const result = await workspaceBootstrapService.ensureWorkspaceSetupForTask(taskId);
     if (!result.success) return err(result.error);
 
@@ -138,12 +142,8 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const project = projectManager.getProject(task.projectId);
     if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
+    await persistTaskProvisioned(taskId, data.workspaceId);
     await taskSessionManager.registerTask(taskId, data, task.projectId, project.ctx);
-
-    await db
-      .update(tasks)
-      .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.workspaceId })
-      .where(eq(tasks.id, taskId));
 
     // BYOI: persist the provider data (remote workspace ID, connection details) returned by
     // the provision script so it can be reused on the next session.
@@ -162,7 +162,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskId: string,
     mode: Parameters<typeof taskSessionManager.teardownTask>[1] = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    return taskSessionManager.teardownTask(taskId, mode);
+    const wasLive = taskSessionManager.getTask(taskId) != null;
+    const result = await taskSessionManager.teardownTask(taskId, mode);
+    if (result.success && mode === 'terminate' && wasLive) {
+      await persistTaskResourceTeardown(taskId);
+    }
+    return result;
   }
 
   async getDeletePreflight(projectId: string, taskIds: string[]) {

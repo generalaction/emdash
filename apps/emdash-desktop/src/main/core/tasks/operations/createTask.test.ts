@@ -31,6 +31,8 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     taskBranch: values.taskBranch ?? null,
     linkedIssue: values.linkedIssue ?? null,
     archivedAt: values.archivedAt ?? null,
+    lifecycleTeardownAt: values.lifecycleTeardownAt ?? null,
+    providerDestroyAt: values.providerDestroyAt ?? null,
     createdAt: values.createdAt ?? '2026-05-18 12:00:00',
     updatedAt: values.updatedAt ?? '2026-05-18 12:00:00',
     lastInteractedAt: values.lastInteractedAt ?? null,
