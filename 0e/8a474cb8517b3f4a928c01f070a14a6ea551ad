@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/features/projects/stores/project-view.test.ts
+  s_17908dde31516d::t_6f92ea0253b2f0 2,34
+  s_5e7b20d21650bb::t_60e96c320744d0 31-33,35-39
+apps/emdash-desktop/src/renderer/features/projects/stores/project-view.ts
+  s_5e7b20d21650bb::t_60e96c320744d0 8-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0e8a474cb8517b3f4a928c01f070a14a6ea551ad",
+  "prompts": {},
+  "sessions": {
+    "s_17908dde31516d": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033qPLMigyoNUhBhWb4mRU",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_5e7b20d21650bb": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033qPKwefOksHAeMFMknlY",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
