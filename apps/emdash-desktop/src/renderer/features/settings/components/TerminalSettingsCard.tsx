@@ -31,6 +31,11 @@ import {
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import {
+  CHAT_FONT_SIZE_DEFAULT,
+  CHAT_FONT_SIZE_MAX,
+  CHAT_FONT_SIZE_MIN,
+} from '@shared/core/chat-settings';
+import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
@@ -79,6 +84,12 @@ const TerminalSettingsCard: React.FC = () => {
     isLoading: loading,
     isSaving: saving,
   } = useAppSettingsKey('terminal');
+  const {
+    value: interfaceSettings,
+    update: updateInterface,
+    isLoading: interfaceLoading,
+    isSaving: interfaceSaving,
+  } = useAppSettingsKey('interface');
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
   const { fonts: installedFonts, isLoading: loadingFonts } = useInstalledFonts();
@@ -87,6 +98,7 @@ const TerminalSettingsCard: React.FC = () => {
 
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
+  const chatFontSize = interfaceSettings?.chatFontSize ?? CHAT_FONT_SIZE_DEFAULT;
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
   const macOptionIsMeta = terminal?.macOptionIsMeta ?? false;
   const defaultShell = terminal?.defaultShell ?? 'system';
@@ -337,6 +349,38 @@ const TerminalSettingsCard: React.FC = () => {
               disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
               onClick={() => applyFontSize(fontSize + 1)}
               aria-label="Increase terminal font size"
+            >
+              <Plus />
+            </Button>
+          </div>
+        }
+      />
+      <SettingRow
+        title="Chat font size"
+        description="Zoom chat messages and the composer text in or out."
+        control={
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={interfaceLoading || interfaceSaving || chatFontSize <= CHAT_FONT_SIZE_MIN}
+              onClick={() => updateInterface({ chatFontSize: chatFontSize - 1 })}
+              aria-label="Zoom chat text out"
+            >
+              <Minus />
+            </Button>
+            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm text-foreground tabular-nums">
+              <span>{chatFontSize}</span>
+              <span className="text-muted-foreground text-xs">px</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={interfaceLoading || interfaceSaving || chatFontSize >= CHAT_FONT_SIZE_MAX}
+              onClick={() => updateInterface({ chatFontSize: chatFontSize + 1 })}
+              aria-label="Zoom chat text in"
             >
               <Plus />
             </Button>

@@ -22,6 +22,7 @@ import {
   getProjectStore,
   getProjectViewStore,
 } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
@@ -40,6 +41,7 @@ import {
 } from '@renderer/lib/chat/chat-mention-provider';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
+import { setSharedChatFontSize } from '@renderer/lib/chat/shared-chat-context';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -48,6 +50,7 @@ import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-i
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
+import { CHAT_FONT_SIZE_DEFAULT } from '@shared/core/chat-settings';
 import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -225,10 +228,12 @@ const ComposerForStore = observer(function ComposerForStore({
   store,
   composerSlot,
   onViewerOpen,
+  fontSize,
 }: {
   store: AcpChatStore;
   composerSlot: HTMLElement;
   onViewerOpen: (src?: string, alt?: string) => void;
+  fontSize: number;
 }) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -582,6 +587,7 @@ const ComposerForStore = observer(function ComposerForStore({
     <>
       <input ref={fileInputRef} type="file" multiple hidden onChange={handleFileInputChange} />
       <ChatComposer
+        fontSize={fontSize}
         isWorking={a.isWorking}
         canSubmit={a.canSubmit}
         onSubmit={handleSubmit}
@@ -646,6 +652,12 @@ const ComposerForStore = observer(function ComposerForStore({
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
+  const chatFontSize = interfaceSettings?.chatFontSize ?? CHAT_FONT_SIZE_DEFAULT;
+
+  useEffect(() => {
+    setSharedChatFontSize(chatFontSize);
+  }, [chatFontSize]);
 
   const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
   const store = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
@@ -894,6 +906,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           store={store}
           composerSlot={composerSlot}
           onViewerOpen={handleViewerOpen}
+          fontSize={chatFontSize}
         />
       )}
 

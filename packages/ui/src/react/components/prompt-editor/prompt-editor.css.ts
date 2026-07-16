@@ -19,7 +19,7 @@ export const editorPlaceholder = style({
   position: 'absolute',
   top: 0,
   left: 0,
-  fontSize: tokenVars.textSm,
+  fontSize: `var(--chat-composer-font-size, ${tokenVars.textSm})`,
   lineHeight: 1.4,
   userSelect: 'none',
   color: vars.foregroundPassive,
@@ -28,7 +28,7 @@ export const editorPlaceholder = style({
 // These classes are assigned via TipTap editorProps.attributes.class
 export const promptEditorContentClass = style({
   outline: 'none',
-  fontSize: tokenVars.textSm,
+  fontSize: `var(--chat-composer-font-size, ${tokenVars.textSm})`,
   lineHeight: 1.4,
   color: vars.foreground,
   minHeight: '1.25rem',
