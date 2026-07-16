@@ -1,0 +1,39 @@
+packages/ui/src/react/components/chat-composer/index.tsx
+  s_52c606f7e33ae3::t_65f5f6ecb4dd24 1020
+  s_f27315d06d697b::t_3058f799f9bf88 3
+packages/ui/src/react/components/chat-composer/chat-composer.css.ts
+  s_52c606f7e33ae3::t_65f5f6ecb4dd24 276-278,280-282
+  s_5fa1687a0e21cb::t_97ae4c0a253154 279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "848a2c5168d56f9a5b0faffccb20da81f26aec59",
+  "prompts": {},
+  "sessions": {
+    "s_52c606f7e33ae3": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033q4TA9wlFejp8wlHkUuw",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_5fa1687a0e21cb": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033q4YH6BRA9IxtzUm1rnw",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f27315d06d697b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f672e-7936-7022-a55a-bb446ebd206b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
