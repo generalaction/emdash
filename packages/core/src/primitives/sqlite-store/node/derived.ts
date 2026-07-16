@@ -25,8 +25,8 @@ function clearDerivedSchema(connection: SqliteConnection): void {
     const matching = objects
       .filter((object) => object.type === type)
       .sort((left, right) => {
-        const leftVirtual = left.sql?.startsWith('CREATE VIRTUAL TABLE') ? 1 : 0;
-        const rightVirtual = right.sql?.startsWith('CREATE VIRTUAL TABLE') ? 1 : 0;
+        const leftVirtual = /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(left.sql ?? '') ? 1 : 0;
+        const rightVirtual = /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(right.sql ?? '') ? 1 : 0;
         return rightVirtual - leftVirtual;
       });
     for (const object of matching) {

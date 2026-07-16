@@ -7,10 +7,10 @@ import {
   type SqliteConnection,
 } from '../api';
 import { createBackup } from './backup';
+import { STORE_TABLE } from './constants';
 import { inTransaction } from './transaction';
 
 const RUNNER_SCHEMA_VERSION = 1;
-const STORE_TABLE = '__emdash_migrations';
 
 function readRunnerVersion(connection: SqliteConnection): number {
   return connection.get<{ user_version: number }>('PRAGMA user_version')?.user_version ?? 0;
@@ -73,19 +73,24 @@ export type MigrateDurableOptions = {
   targetExclusiveIdx?: number;
 };
 
+export type MigrateDurableResult = {
+  appliedCount: number;
+};
+
 export function migrateDurable<TDb>(
   connection: SqliteConnection,
   config: DurableStoreConfig<TDb>,
   logger: Logger,
   options: MigrateDurableOptions = {}
-): void {
+): MigrateDurableResult {
   validateMigrationManifest(config.migrations);
   const runnerVersion = readRunnerVersion(connection);
+  const hadUserObjects = hasUserObjects(connection);
   let backupCreated = false;
 
   if (
     runnerVersion < RUNNER_SCHEMA_VERSION &&
-    hasUserObjects(connection) &&
+    hadUserObjects &&
     options.databasePath &&
     config.backup
   ) {
@@ -95,14 +100,15 @@ export function migrateDurable<TDb>(
 
   ensureBookkeeping(connection, config, logger);
 
+  const { targetExclusiveIdx } = options;
   const eligibleMigrations =
-    options.targetExclusiveIdx === undefined
+    targetExclusiveIdx === undefined
       ? config.migrations
-      : config.migrations.filter(({ idx }) => idx < options.targetExclusiveIdx!);
+      : config.migrations.filter(({ idx }) => idx < targetExclusiveIdx);
   const pending = computePendingMigrations(readApplied(connection), eligibleMigrations);
-  if (pending.length === 0) return;
+  if (pending.length === 0) return { appliedCount: 0 };
 
-  if (!backupCreated && options.databasePath && config.backup) {
+  if (!backupCreated && hadUserObjects && options.databasePath && config.backup) {
     createBackup(connection, options.databasePath, config.backup.retain, logger);
   }
 
@@ -133,4 +139,5 @@ export function migrateDurable<TDb>(
   } finally {
     connection.exec('PRAGMA foreign_keys = ON');
   }
+  return { appliedCount: pending.length };
 }

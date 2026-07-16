@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import type { BundledMigration } from '../api';
+import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import type { BundledMigration, SqliteConnection } from '../api';
 import { nodeSqliteDriver } from './node-sqlite-driver';
 import { defineDerivedSqliteStore, defineDurableSqliteStore } from './store';
 
@@ -19,6 +23,14 @@ const migrations: BundledMigration[] = [
     sql: 'ALTER TABLE records ADD COLUMN note TEXT;',
   },
 ];
+
+function tempPath(): string {
+  return join(tmpdir(), `sqlite-store-lifecycle-${randomUUID()}.db`);
+}
+
+function cleanup(path: string): void {
+  for (const suffix of ['', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true });
+}
 
 describe('SQLite store lifecycle', () => {
   it('awaits asynchronous temporary-database seeds', async () => {
@@ -96,5 +108,130 @@ describe('SQLite store lifecycle', () => {
       migrations,
     });
     expect(() => store.openAtMigration(3)).toThrow('Migration boundary');
+  });
+
+  it('enables foreign keys before hooks and on every returned handle', () => {
+    const path = tempPath();
+    const observedForeignKeyStates: number[] = [];
+    const observeForeignKeys = (connection: SqliteConnection): void => {
+      const enabled = connection.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys;
+      observedForeignKeyStates.push(enabled ?? -1);
+    };
+    const store = defineDurableSqliteStore({
+      name: 'foreign-key-state-test',
+      driver: nodeSqliteDriver,
+      migrations,
+      postMigrate: [observeForeignKeys],
+      invariants: [observeForeignKeys],
+    });
+
+    try {
+      const first = store.open(path);
+      expect(
+        first.connection.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys
+      ).toBe(1);
+      first.close();
+
+      const second = store.open(path);
+      expect(
+        second.connection.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys
+      ).toBe(1);
+      second.close();
+
+      const migrationHandle = store.openAtMigration(1);
+      migrationHandle.migrateToLatest();
+      expect(
+        migrationHandle.connection.get<{ foreign_keys: number }>('PRAGMA foreign_keys')
+          ?.foreign_keys
+      ).toBe(1);
+      migrationHandle.close();
+
+      expect(observedForeignKeyStates).toEqual([1, 1, 1, 1, 1]);
+    } finally {
+      cleanup(path);
+    }
+  });
+
+  it('opens the zero-migration boundary and migrates it to latest', () => {
+    const store = defineDurableSqliteStore({
+      name: 'zero-boundary-test',
+      driver: nodeSqliteDriver,
+      migrations,
+    });
+    const handle = store.openAtMigration(0);
+
+    try {
+      expect(
+        handle.connection.get(
+          `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'records'`
+        )
+      ).toBeUndefined();
+      expect(
+        handle.connection.get(
+          `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = '__emdash_migrations'`
+        )
+      ).toBeDefined();
+
+      handle.migrateToLatest();
+      expect(
+        handle.connection.get(
+          `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'records'`
+        )
+      ).toBeDefined();
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('rejects invalid busy timeouts', () => {
+    const path = tempPath();
+    const store = defineDurableSqliteStore({
+      name: 'invalid-busy-timeout-test',
+      driver: nodeSqliteDriver,
+      migrations,
+      busyTimeoutMs: -1,
+    });
+
+    try {
+      expect(() => store.open(path)).toThrow(RangeError);
+    } finally {
+      cleanup(path);
+    }
+  });
+
+  it('runs invariants only after migrations and for temporary latest-schema handles', async () => {
+    const path = tempPath();
+    const postMigrate = vi.fn();
+    const invariant = vi.fn();
+    const store = defineDurableSqliteStore({
+      name: 'invariant-gating-test',
+      driver: nodeSqliteDriver,
+      migrations,
+      postMigrate: [postMigrate],
+      invariants: [invariant],
+    });
+
+    try {
+      store.open(path).close();
+      expect(postMigrate).toHaveBeenCalledTimes(1);
+      expect(invariant).toHaveBeenCalledTimes(1);
+
+      store.open(path).close();
+      expect(postMigrate).toHaveBeenCalledTimes(2);
+      expect(invariant).toHaveBeenCalledTimes(1);
+
+      const temporary = await store.openTemp();
+      temporary.close();
+      expect(postMigrate).toHaveBeenCalledTimes(3);
+      expect(invariant).toHaveBeenCalledTimes(2);
+
+      const migrationHandle = store.openAtMigration(1);
+      migrationHandle.migrateToLatest();
+      migrationHandle.close();
+      expect(postMigrate).toHaveBeenCalledTimes(4);
+      expect(invariant).toHaveBeenCalledTimes(3);
+    } finally {
+      cleanup(path);
+    }
   });
 });

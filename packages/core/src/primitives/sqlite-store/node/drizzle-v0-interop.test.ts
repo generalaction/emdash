@@ -60,6 +60,33 @@ describe('drizzle v0 migration interop', () => {
     }
   });
 
+  it('stores the canonical hash when a timestamp match has a different legacy hash', () => {
+    const path = tempPath();
+    createLegacyDatabase(path, 'legacy-hash', migration.when);
+    const store = defineDurableSqliteStore({
+      name: 'legacy-canonical-hash-test',
+      driver: nodeSqliteDriver,
+      migrations: [migration],
+      interop: drizzleV0Interop,
+    });
+
+    try {
+      const first = store.open(path);
+      expect(
+        first.connection.get<{ hash: string }>('SELECT hash FROM __emdash_migrations')?.hash
+      ).toBe(migration.hash);
+      first.close();
+
+      const second = store.open(path);
+      expect(
+        second.connection.get<{ hash: string }>('SELECT hash FROM __emdash_migrations')?.hash
+      ).toBe(migration.hash);
+      second.close();
+    } finally {
+      cleanup(path);
+    }
+  });
+
   it('falls back to hash when the journal timestamp does not match', () => {
     const path = tempPath();
     createLegacyDatabase(path, migration.hash, 9999);
@@ -76,6 +103,29 @@ describe('drizzle v0 migration interop', () => {
         handle.connection.get<{ tag: string }>('SELECT tag FROM __emdash_migrations')?.tag
       ).toBe(migration.tag);
       handle.close();
+    } finally {
+      cleanup(path);
+    }
+  });
+
+  it('throws when hash fallback matches multiple bundled migrations', () => {
+    const path = tempPath();
+    createLegacyDatabase(path, migration.hash, 9999);
+    const duplicateHashMigration: BundledMigration = {
+      ...migration,
+      idx: 1,
+      tag: '0001_users_duplicate',
+      when: 5678,
+    };
+    const store = defineDurableSqliteStore({
+      name: 'legacy-ambiguous-hash-test',
+      driver: nodeSqliteDriver,
+      migrations: [migration, duplicateHashMigration],
+      interop: drizzleV0Interop,
+    });
+
+    try {
+      expect(() => store.open(path)).toThrow('Ambiguous legacy migration hash');
     } finally {
       cleanup(path);
     }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { Logger } from '../../lib/api/logger';
 import type { SqliteConnection } from '../api';
@@ -12,9 +12,18 @@ export function listBackups(databasePath: string): string[] {
   const directory = dirname(databasePath);
   const prefix = `${basename(databasePath)}.backup-`;
   return readdirSync(directory)
-    .filter((entry) => entry.startsWith(prefix))
-    .map((entry) => join(directory, entry))
-    .sort((left, right) => statSync(right).mtimeMs - statSync(left).mtimeMs);
+    .flatMap((entry) => {
+      if (!entry.startsWith(prefix)) return [];
+      const match = /^(\d+)-[0-9a-f-]+$/i.exec(entry.slice(prefix.length));
+      const timestamp = Number(match?.[1]);
+      return match && Number.isSafeInteger(timestamp)
+        ? [{ entry, path: join(directory, entry), timestamp }]
+        : [];
+    })
+    .sort(
+      (left, right) => right.timestamp - left.timestamp || right.entry.localeCompare(left.entry)
+    )
+    .map(({ path }) => path);
 }
 
 export function createBackup(

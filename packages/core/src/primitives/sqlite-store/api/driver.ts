@@ -8,6 +8,10 @@ export type SqliteRunResult = {
  *
  * Store lifecycle, transactions, and pragmas intentionally live above this
  * interface so drivers cannot introduce different migration semantics.
+ *
+ * INTEGER values within JavaScript's safe range are returned as numbers.
+ * Values outside that range must be returned exactly as bigints; drivers must
+ * never silently round an INTEGER.
  */
 export interface SqliteConnection {
   readonly native: unknown;

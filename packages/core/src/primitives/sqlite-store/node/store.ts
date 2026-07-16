@@ -46,10 +46,11 @@ function configureConnection(connection: SqliteConnection, busyTimeoutMs: number
   connection.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}`);
 }
 
-function openStoreConnection<TDb>(
+function openStoreConnection<TDb, TSchemaResult>(
   config: CommonStoreConfig<TDb>,
   path: string,
-  ensureSchema: (connection: SqliteConnection, logger: Logger) => void,
+  ensureSchema: (connection: SqliteConnection, logger: Logger) => TSchemaResult,
+  afterReady: (connection: SqliteConnection, schemaResult: TSchemaResult) => void,
   onClosed: () => void,
   options: OpenOptions = {}
 ): StoreHandle<TDb> {
@@ -59,8 +60,9 @@ function openStoreConnection<TDb>(
 
   try {
     configureConnection(connection, config.busyTimeoutMs ?? 5000);
-    ensureSchema(connection, logger);
+    const schemaResult = ensureSchema(connection, logger);
     connection.exec('PRAGMA foreign_keys = ON');
+    afterReady(connection, schemaResult);
     const db = config.createOrm ? config.createOrm(connection) : (connection as TDb);
 
     return {
@@ -103,8 +105,11 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
   const latestExclusiveIdx =
     config.migrations.length === 0 ? 0 : Math.max(...config.migrations.map(({ idx }) => idx)) + 1;
 
-  const runLatestHooks = (connection: SqliteConnection): void => {
+  const runPostMigrate = (connection: SqliteConnection): void => {
     for (const hook of config.postMigrate ?? []) hook(connection);
+  };
+
+  const runInvariants = (connection: SqliteConnection): void => {
     for (const invariant of config.invariants ?? []) invariant(connection);
   };
 
@@ -119,12 +124,15 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
       return openStoreConnection(
         config,
         path,
-        (connection, logger) => {
+        (connection, logger) =>
           migrateDurable(connection, config, logger, {
             databasePath: options.cleanupOnClose ? undefined : path,
             targetExclusiveIdx,
-          });
-          if (targetExclusiveIdx === undefined) runLatestHooks(connection);
+          }),
+        (connection, { appliedCount }) => {
+          if (targetExclusiveIdx !== undefined) return;
+          runPostMigrate(connection);
+          if (appliedCount > 0 || options.cleanupOnClose) runInvariants(connection);
         },
         () => openPaths.delete(trackedPath),
         options
@@ -167,7 +175,9 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
         migrateToLatest() {
           if (closed) throw new Error(`SQLite store ${config.name} is closed`);
           migrateDurable(handle.connection, config, config.logger ?? noopLogger);
-          runLatestHooks(handle.connection);
+          handle.connection.exec('PRAGMA foreign_keys = ON');
+          runPostMigrate(handle.connection);
+          runInvariants(handle.connection);
         },
         close() {
           closed = true;
@@ -194,6 +204,7 @@ export function defineDerivedSqliteStore<TDb = SqliteConnection>(
       config,
       path,
       (connection, logger) => ensureDerivedSchema(connection, config, logger),
+      () => {},
       () => {},
       options
     );

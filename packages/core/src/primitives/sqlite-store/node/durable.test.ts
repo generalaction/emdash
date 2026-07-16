@@ -127,7 +127,7 @@ describe('durable SQLite migrations', () => {
     }
   });
 
-  it('invokes migration interop inside bootstrap and apply transactions', () => {
+  it('invokes migration interop inside bootstrap and apply transactions', async () => {
     const backfill = vi.fn();
     const onApplied = vi.fn();
     const interop: MigrationInterop = { backfill, onApplied };
@@ -139,14 +139,16 @@ describe('durable SQLite migrations', () => {
       interop,
     });
 
-    return store.openTemp().then((handle) => {
+    const handle = await store.openTemp();
+    try {
       expect(backfill).toHaveBeenCalledOnce();
       expect(onApplied).toHaveBeenCalledOnce();
       expect(backfill.mock.invocationCallOrder[0]).toBeLessThan(
         onApplied.mock.invocationCallOrder[0]
       );
+    } finally {
       handle.close();
-    });
+    }
   });
 
   it('surfaces foreign-key violations created by a migration', async () => {
@@ -169,5 +171,50 @@ describe('durable SQLite migrations', () => {
     });
 
     await expect(store.openTemp()).rejects.toThrow('foreign-key violations');
+  });
+
+  it('rejects runner metadata written by a newer implementation', () => {
+    const path = tempPath();
+    const setup = nodeSqliteDriver.open(path);
+    setup.exec('PRAGMA user_version = 2');
+    setup.close();
+    const store = defineDurableSqliteStore({
+      name: 'newer-runner-test',
+      driver: nodeSqliteDriver,
+      migrations,
+    });
+
+    try {
+      expect(() => store.open(path)).toThrow('newer than supported version');
+    } finally {
+      cleanup(path);
+    }
+  });
+
+  it('tolerates applied migrations unknown to an older manifest', () => {
+    const path = tempPath();
+    const latestStore = defineDurableSqliteStore({
+      name: 'downgrade-latest-test',
+      driver: nodeSqliteDriver,
+      migrations,
+    });
+    const olderStore = defineDurableSqliteStore({
+      name: 'downgrade-older-test',
+      driver: nodeSqliteDriver,
+      migrations: [migrations[0]],
+    });
+
+    try {
+      latestStore.open(path).close();
+      const downgraded = olderStore.open(path);
+      expect(
+        downgraded.connection.get<{ count: number }>(
+          'SELECT count(*) AS count FROM __emdash_migrations'
+        )?.count
+      ).toBe(2);
+      downgraded.close();
+    } finally {
+      cleanup(path);
+    }
   });
 });

@@ -11,7 +11,7 @@ SQLite package. A host supplies a `SqliteDriver` and may attach an ORM through
 | --- | --- | --- |
 | Intended data | User-authored or otherwise irreplaceable | Cache or index reproducible from another source |
 | Schema changes | Ordered migration history | Drop and rebuild |
-| Version state | `__emdash_migrations` plus runner metadata | `PRAGMA user_version` |
+| Version state | `__emdash_migrations` plus runner metadata | Schema fingerprint in `PRAGMA user_version` |
 | Backups | Optional, before pending migrations | Not supported |
 | Downgrade behavior | Unknown newer migration rows are tolerated | Any version mismatch rebuilds |
 | Migration tests | `openAtMigration()` | Rebuild/idempotence tests |
@@ -49,28 +49,33 @@ handle.close();
 ```
 
 `createOrm` is optional. Without it, `handle.db` is the `SqliteConnection`.
-`postMigrate` hooks run after the latest schema is present. `invariants` run
-after those hooks on every normal open and after `migrateToLatest()`.
+`postMigrate` hooks run with foreign keys enabled whenever the latest schema is
+opened. `invariants` run after those hooks when migrations were applied, for
+every `openTemp()`, and after every `migrateToLatest()`. No-op production opens
+skip invariants so full database scans do not become a startup cost.
 
 ### Derived
 
 ```ts
 import {
   defineDerivedSqliteStore,
+  fingerprintDerivedSchema,
   nodeSqliteDriver,
 } from '@emdash/core/primitives/sqlite-store/node';
+
+const schemaSql = `
+  CREATE TABLE indexed_paths (
+    id INTEGER PRIMARY KEY,
+    path TEXT NOT NULL
+  ) STRICT
+`;
 
 export const searchStore = defineDerivedSqliteStore({
   name: 'file-search',
   driver: nodeSqliteDriver,
-  version: 2,
+  version: fingerprintDerivedSchema(schemaSql),
   createSchema(connection) {
-    connection.exec(`
-      CREATE TABLE indexed_paths (
-        id INTEGER PRIMARY KEY,
-        path TEXT NOT NULL
-      ) STRICT
-    `);
+    connection.exec(schemaSql);
   },
 });
 ```
@@ -79,6 +84,14 @@ When `user_version` is lower or higher than `version`, the primitive removes all
 non-internal schema objects, calls `createSchema`, and stamps the requested
 version in one transaction. Rebuilding a higher version is intentional: derived
 stores remain usable after an application downgrade.
+
+`fingerprintDerivedSchema()` converts the schema SQL itself into a positive
+31-bit `user_version`. It normalizes formatting whitespace outside quoted SQL
+values before computing SHA-256, so reformatting or changing line endings does
+not rebuild production stores. Meaningful DDL and quoted-value changes do. Pass
+the exact SQL constant executed by `createSchema`; when schema codegen is added,
+compute the fingerprint from generator input before formatting generated
+TypeScript.
 
 ## Driver contract
 
@@ -96,7 +109,8 @@ silently change migration semantics. Transaction callbacks must be synchronous.
 
 Use `runSqliteDriverConformance()` from the testing entry point when adding a
 driver. It verifies multi-statement execution, parameter binding, result shape,
-and TEXT/INTEGER/BLOB/NULL round trips.
+TEXT/INTEGER/BLOB/NULL round trips, exact large integers, runner pragmas,
+foreign-key toggling, transaction semantics, and `VACUUM INTO`.
 
 ## Durable migrations
 
@@ -128,6 +142,12 @@ The runner:
 Rows for migrations unknown to an older binary are ignored. This allows additive
 database upgrades to remain downgrade-tolerant. A known tag with a different
 hash throws because shipped migration SQL is immutable.
+
+Durable migration hashes are SHA-256 of the raw SQL file bytes. The algorithm
+is part of the runner schema contract rather than a per-row `hash_algo` column:
+changing it requires a `RUNNER_SCHEMA_VERSION` bump that explicitly rewrites
+bookkeeping. Derived fingerprints need no stored algorithm because a changed
+implementation causes one safe rebuild and then becomes self-consistent.
 
 SQLite ignores `PRAGMA foreign_keys` changes inside a transaction. Migration SQL
 may contain those pragmas, but correctness comes from the outer runner protocol.
@@ -161,11 +181,13 @@ downgrade. Configure this interop only for stores with that legacy history.
 
 Durable stores with `backup: { retain: N }` create consistent sibling backups
 using `VACUUM INTO` before pending migrations. Paths are SQL-escaped, and old
-backups are pruned by modification time.
+backups are pruned by the creation timestamp embedded in their filename.
 
 Call `restoreLatestBackup(path)` only when every handle for that store path is
 closed. Restore removes stale WAL/SHM sidecars and replaces the database through
 a temporary file. The method refuses to run while the path is open.
+That open-path guard is scoped to one store instance; callers must share the
+defined store rather than independently defining stores for the same file.
 
 ## Testing
 
@@ -214,15 +236,23 @@ This replaces opaque binary pre-migration fixtures with reviewable, adversarial
 test setup. `openAtMigration` and backup/restore exist only on the durable store
 type.
 
+`assertIncrementalMigrationEquivalence(store, migrationCount)` opens every
+historical migration boundary, migrates it to latest, and compares its
+`sqlite_schema` with a one-shot latest database. Use it as a compact regression
+test for the complete migration chain.
+
 ## Invariants
 
 - Never edit SQL for a shipped migration. Hash verification will reject it.
 - Hash raw UTF-8 file bytes without trimming or line-ending normalization.
 - Preserve legacy `when` milliseconds while `drizzleV0Interop` is needed.
 - `PRAGMA user_version` belongs exclusively to the store primitive: durable
-  stores use it for runner metadata; derived stores use it for schema version.
+  stores use it for runner metadata; derived stores use it for a schema
+  fingerprint.
 - Domain code must not read or write `user_version`.
 - Derived data must be safe to delete at any time.
-- Store initialization throws on integrity failures. This intentionally differs
-  from expected operational failures that use `Result`: callers cannot safely
-  continue with an unidentified or corrupt schema.
+- Store initialization after migration throws on integrity failures.
+  `assertSqliteIntegrity` runs SQLite's full B-tree and index consistency check;
+  `assertForeignKeyIntegrity` scans for orphaned references. This intentionally
+  differs from expected operational failures that use `Result`: callers cannot
+  safely continue with an unidentified or corrupt schema.

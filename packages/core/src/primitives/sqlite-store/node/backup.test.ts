@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -62,11 +62,48 @@ describe('SQLite store backups', () => {
 
     try {
       v1.open(path).close();
+      expect(listBackups(path)).toEqual([]);
       v2.open(path).close();
       v3.open(path).close();
       expect(listBackups(path)).toHaveLength(1);
     } finally {
       rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('orders valid backups by their embedded timestamp instead of mtime', () => {
+    const directory = tempDirectory();
+    const path = join(directory, 'data.db');
+    const older = `${path}.backup-100-00000000-0000-0000-0000-000000000001`;
+    const newer = `${path}.backup-200-00000000-0000-0000-0000-000000000002`;
+    const malformed = `${path}.backup-not-a-timestamp`;
+
+    try {
+      writeFileSync(older, '');
+      writeFileSync(newer, '');
+      writeFileSync(malformed, '');
+      utimesSync(older, new Date(300), new Date(300));
+      utimesSync(newer, new Date(100), new Date(100));
+
+      expect(listBackups(path)).toEqual([newer, older]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not create backups for temporary handles', async () => {
+    const store = defineDurableSqliteStore({
+      name: 'temporary-backup-test',
+      driver: nodeSqliteDriver,
+      migrations: [firstMigration],
+      backup: { retain: 1 },
+    });
+    const handle = await store.openTemp();
+
+    try {
+      expect(listBackups(handle.path)).toEqual([]);
+    } finally {
+      handle.close();
     }
   });
 

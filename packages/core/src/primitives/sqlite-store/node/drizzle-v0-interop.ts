@@ -1,7 +1,7 @@
 import type { BundledMigration, MigrationInterop, SqliteConnection } from '../api';
+import { STORE_TABLE } from './constants';
 
 const LEGACY_TABLE = '__drizzle_migrations';
-const STORE_TABLE = '__emdash_migrations';
 
 function tableExists(connection: SqliteConnection, table: string): boolean {
   return (
@@ -23,9 +23,14 @@ function backfill(connection: SqliteConnection, migrations: readonly BundledMigr
   );
 
   for (const row of legacyRows) {
-    const migration =
-      migrations.find(({ when }) => when === row.created_at) ??
-      migrations.find(({ hash }) => hash === row.hash);
+    const timestampMatch = migrations.find(({ when }) => when === row.created_at);
+    const hashMatches = timestampMatch ? [] : migrations.filter(({ hash }) => hash === row.hash);
+    if (hashMatches.length > 1) {
+      throw new Error(
+        `Ambiguous legacy migration hash ${row.hash}: matched ${hashMatches.length} migrations`
+      );
+    }
+    const migration = timestampMatch ?? hashMatches[0];
     if (!migration) {
       throw new Error(
         `Unrecognized legacy migration (created_at=${String(row.created_at)}, hash=${row.hash})`
@@ -34,7 +39,7 @@ function backfill(connection: SqliteConnection, migrations: readonly BundledMigr
     connection.run(
       `INSERT OR IGNORE INTO ${STORE_TABLE} (tag, hash, applied_at)
        VALUES (?, ?, ?)`,
-      [migration.tag, row.hash, row.created_at ?? migration.when]
+      [migration.tag, migration.hash, row.created_at ?? migration.when]
     );
   }
 }
