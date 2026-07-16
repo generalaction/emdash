@@ -173,6 +173,10 @@
       "types": "./dist/runtimes-agent-config-node.d.mts",
       "default": "./dist/runtimes-agent-config-node.mjs"
     },
+    "./runtimes/automations/api": {
+      "types": "./dist/runtimes-automations-api.d.mts",
+      "default": "./dist/runtimes-automations-api.mjs"
+    },
     "./runtimes/tui-agents/api": {
       "types": "./dist/runtimes-tui-agents-api.d.mts",
       "default": "./dist/runtimes-tui-agents-api.mjs"

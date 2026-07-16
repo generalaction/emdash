@@ -43,6 +43,7 @@ export default defineConfig({
     'runtimes-acp-node': 'src/runtimes/acp/node/index.ts',
     'runtimes-agent-config-api': 'src/runtimes/agent-config/api/index.ts',
     'runtimes-agent-config-node': 'src/runtimes/agent-config/node/index.ts',
+    'runtimes-automations-api': 'src/runtimes/automations/api/index.ts',
     'runtimes-tui-agents-api': 'src/runtimes/tui-agents/api/index.ts',
     'runtimes-tui-agents-node': 'src/runtimes/tui-agents/node/index.ts',
     'runtimes-terminals-api': 'src/runtimes/terminals/api/index.ts',
