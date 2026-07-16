@@ -958,7 +958,7 @@ export function ChatComposer({
                       gap: '0.25rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
-                      lineHeight: 1,
+                      lineHeight: 1.25,
                     }}
                   >
                     <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
