@@ -327,7 +327,7 @@ const TerminalSettingsCard: React.FC = () => {
         title="Terminal font size"
         description="Adjust the font size used by terminal sessions and CLI agents."
         control={
-          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs select-none">
             <Button
               type="button"
               variant="ghost"
@@ -359,7 +359,7 @@ const TerminalSettingsCard: React.FC = () => {
         title="Chat font size"
         description="Zoom chat messages and the composer text in or out."
         control={
-          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs select-none">
             <Button
               type="button"
               variant="ghost"
