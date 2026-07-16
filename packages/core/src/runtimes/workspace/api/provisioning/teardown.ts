@@ -15,6 +15,7 @@ export type TeardownScript = {
 
 export type CompileTeardownFromProbeOptions = {
   teardownScripts?: TeardownScript[];
+  deleteBranch?: boolean;
 };
 
 export function compileTeardownFromProbe(
@@ -55,7 +56,7 @@ export function compileTeardownFromProbe(
     });
   }
 
-  if (observed.branchCreatedByEmdash) {
+  if (observed.branchCreatedByEmdash && options.deleteBranch !== false) {
     steps.push({
       kind: 'delete-branch',
       args: { branchName: ref.branchName },

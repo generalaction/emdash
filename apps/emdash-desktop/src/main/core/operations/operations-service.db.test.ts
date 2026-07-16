@@ -1,10 +1,19 @@
 import { err, ok } from '@emdash/shared';
 import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
-import { eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
-import { lifecycleOperations, projects, sshConnections, tasks, workspaces } from '@main/db/schema';
+import {
+  conversations,
+  lifecycleOperations,
+  projects,
+  sshConnections,
+  tasks,
+  terminals,
+  workspaces,
+  type LifecycleOperationRow,
+} from '@main/db/schema';
 import type { DeletionList } from '@shared/core/operations/deletion';
 import {
   nonTerminalOperationStatuses,
@@ -98,7 +107,11 @@ vi.mock('@services/notifications/node', () => ({
 
 vi.mock('./plans/compile-operation-plan', () => ({
   compileOperationPlan: vi.fn(
-    async (operation: { kind: string; payload: { deleteWorktree?: boolean } }) => {
+    async (operation: {
+      kind: string;
+      workspaceId?: string | null;
+      payload: { deleteWorktree?: boolean };
+    }) => {
       if (operation.kind === 'cleanup-sessions') {
         return {
           kind: operation.kind,
@@ -112,6 +125,23 @@ vi.mock('./plans/compile-operation-plan', () => ({
           ],
         };
       }
+      if (operation.kind === 'delete-workspace' && operation.workspaceId) {
+        const [liveTask] = await mocks
+          .db!.select({ id: tasks.id })
+          .from(tasks)
+          .where(and(eq(tasks.workspaceId, operation.workspaceId), isNull(tasks.deletedAt)))
+          .limit(1);
+        if (liveTask) {
+          return {
+            kind: operation.kind,
+            steps: [],
+            preconditionFailure: {
+              type: 'workspace-in-use',
+              message: 'Workspace is still referenced by an active task.',
+            },
+          };
+        }
+      }
       return {
         kind: operation.kind,
         steps: [
@@ -121,6 +151,32 @@ vi.mock('./plans/compile-operation-plan', () => ({
                   id: 'teardown-workspace',
                   kind: 'teardown-workspace',
                   label: 'Remove workspace',
+                  destructive: true,
+                },
+              ]
+            : []),
+          ...(operation.kind === 'delete-workspace'
+            ? [
+                {
+                  id: 'kill-tui-sessions',
+                  kind: 'kill-tui-sessions',
+                  label: 'Stop terminal sessions',
+                  destructive: false,
+                },
+                {
+                  id: 'teardown-workspace',
+                  kind: 'teardown-workspace',
+                  label: 'Remove workspace',
+                  destructive: true,
+                },
+              ]
+            : []),
+          ...(operation.kind === 'archive-workspace'
+            ? [
+                {
+                  id: 'clean-artifacts',
+                  kind: 'clean-artifacts',
+                  label: 'Remove ignored artifacts',
                   destructive: true,
                 },
               ]
@@ -163,7 +219,12 @@ describe('OperationsService crash recovery', () => {
     mocks.runOperationPlan.mockImplementation(
       async (
         operation: {
-          kind: 'delete-task' | 'delete-workspace' | 'delete-project' | 'cleanup-sessions';
+          kind:
+            | 'delete-task'
+            | 'delete-workspace'
+            | 'archive-workspace'
+            | 'delete-project'
+            | 'cleanup-sessions';
           taskId: string | null;
           workspaceId: string | null;
           projectId: string | null;
@@ -184,6 +245,16 @@ describe('OperationsService crash recovery', () => {
         }
         if (operation.kind === 'delete-workspace' && operation.workspaceId) {
           await mocks.db!.delete(workspaces).where(eq(workspaces.id, operation.workspaceId));
+        }
+        if (operation.kind === 'archive-workspace' && operation.workspaceId) {
+          const [liveTask] = await mocks
+            .db!.select({ id: tasks.id })
+            .from(tasks)
+            .where(and(eq(tasks.workspaceId, operation.workspaceId), isNull(tasks.deletedAt)))
+            .limit(1);
+          if (!liveTask) {
+            await mocks.db!.delete(workspaces).where(eq(workspaces.id, operation.workspaceId));
+          }
         }
         if (operation.kind === 'delete-project' && operation.projectId) {
           await mocks.db!.delete(projects).where(eq(projects.id, operation.projectId));
@@ -575,6 +646,311 @@ describe('OperationsService crash recovery', () => {
 
     expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
     await driver.dispose();
+  });
+
+  it('rejects deleting a workspace that is referenced by a live task', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1' })
+      .where(eq(tasks.id, 'task-1'));
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    const result = await driver.enqueueDeleteWorkspace('workspace-1');
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'workspace-in-use',
+        message: 'Workspace is still referenced by an active task.',
+      },
+    });
+    expect(await fixture.db.select().from(lifecycleOperations)).toEqual([]);
+    expect((await fixture.db.select().from(workspaces))[0]?.deletedAt).toBeNull();
+    await driver.dispose();
+  });
+
+  it('fails a queued workspace delete if the workspace becomes used before draining', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+      deletedAt: new Date().toISOString(),
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1' })
+      .where(eq(tasks.id, 'task-1'));
+    await fixture.db.insert(lifecycleOperations).values({
+      id: 'operation-1',
+      kind: 'delete-workspace',
+      status: 'pending',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      entityKey: 'workspace-1',
+      hostRef: 'local',
+      payload: {
+        version: '1',
+        source: 'user',
+        workspacePath: '/repo/task-1',
+        deleteWorktree: true,
+      },
+      createdAt: Date.now(),
+    });
+    mocks.runMode = 'complete';
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    const [failed] = await fixture.db.select().from(lifecycleOperations);
+    expect(failed?.status).toBe('failed');
+    expect(failed?.error).toContain('workspace-in-use');
+    expect(mocks.runOperationPlan).not.toHaveBeenCalled();
+    await driver.dispose();
+  });
+
+  it('archives an unused workspace and purges its row', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    mocks.runMode = 'complete';
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    const result = await driver.enqueueArchiveWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/task-1',
+      branchName: 'task-1',
+    });
+    expect(result.success).toBe(true);
+    await driver.waitForIdle();
+
+    expect((await fixture.db.select().from(lifecycleOperations))[0]).toMatchObject({
+      kind: 'archive-workspace',
+      status: 'succeeded',
+      entityKey: 'workspace-1',
+    });
+    expect(await fixture.db.select().from(workspaces)).toEqual([]);
+    await driver.dispose();
+  });
+
+  it('archives an in-use workspace but keeps its row', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1' })
+      .where(eq(tasks.id, 'task-1'));
+    mocks.runMode = 'complete';
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    const result = await driver.enqueueArchiveWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/task-1',
+    });
+    expect(result.success).toBe(true);
+    await driver.waitForIdle();
+
+    expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('succeeded');
+    expect(await fixture.db.select().from(workspaces)).toHaveLength(1);
+    await driver.dispose();
+  });
+
+  it('deduplicates archive and delete operations for the same workspace entity', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    const archive = await driver.enqueueArchiveWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/task-1',
+    });
+    const deletion = await driver.enqueueDeleteWorkspacePath({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/task-1',
+      branchName: 'task-1',
+    });
+
+    expect(archive.success).toBe(true);
+    expect(deletion.success).toBe(true);
+    if (archive.success && deletion.success) {
+      expect(deletion.data.operationId).toBe(archive.data.operationId);
+    }
+    expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
+    await driver.dispose();
+  });
+
+  it('requires confirmation before running a stale archive', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    mocks.runMode = 'complete';
+
+    const result = await driver.enqueueArchiveWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo/task-1',
+    });
+    expect(result.success).toBe(true);
+    await clock.advanceBy(25 * 60 * 60 * 1_000);
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    const [operation] = await fixture.db.select().from(lifecycleOperations);
+    expect(operation?.status).toBe('awaiting-confirmation');
+    expect(operation?.payload.confirmationReason).toBe('stale');
+    expect(mocks.runOperationPlan).not.toHaveBeenCalled();
+    await driver.dispose();
+  });
+
+  it('resolves task, workspace, and explicit session cleanup targets', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1' })
+      .where(eq(tasks.id, 'task-1'));
+    await fixture.db.insert(tasks).values({
+      id: 'task-2',
+      projectId: 'project-1',
+      name: 'Task 2',
+      status: 'in_progress',
+      workspaceId: 'workspace-1',
+      deletedAt: new Date().toISOString(),
+    });
+    await fixture.db.insert(conversations).values([
+      {
+        id: 'acp-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        title: 'ACP',
+        type: 'acp',
+      },
+      {
+        id: 'tui-2',
+        projectId: 'project-1',
+        taskId: 'task-2',
+        title: 'TUI',
+        type: 'tui',
+      },
+    ]);
+    await fixture.db.insert(terminals).values({
+      id: 'terminal-2',
+      projectId: 'project-1',
+      taskId: 'task-2',
+      name: 'Terminal',
+    });
+    const { resolveSessionTargets } = await import('./session-targets');
+    const baseOperation: LifecycleOperationRow = {
+      id: 'operation-1',
+      kind: 'delete-workspace',
+      status: 'pending',
+      projectId: 'project-1',
+      taskId: null,
+      workspaceId: 'workspace-1',
+      entityKey: 'workspace-1',
+      hostRef: 'local',
+      payload: { version: '1', source: 'user' },
+      attempt: 0,
+      error: null,
+      createdAt: Date.now(),
+      finishedAt: null,
+    };
+    const context = {
+      workspace: (await fixture.db.select().from(workspaces))[0],
+      project: (await fixture.db.select().from(projects))[0],
+      workspacePath: '/repo/task-1',
+      projectPath: '/repo',
+      workspaceKind: 'worktree' as const,
+      branchName: 'task-1',
+      preservePatterns: [],
+    };
+
+    const workspaceTargets = await resolveSessionTargets(baseOperation, context, {
+      includeRuntimeTargets: false,
+    });
+    expect(workspaceTargets.acpConversationIds).toEqual(['acp-1']);
+    expect(workspaceTargets.tuiConversationIds).toEqual(['tui-2']);
+    expect(workspaceTargets.terminalSessionIds).toEqual(['project-1:task-2:terminal-2']);
+    expect(workspaceTargets.tmuxSessionNames).toHaveLength(3);
+
+    const taskTargets = await resolveSessionTargets(
+      {
+        ...baseOperation,
+        kind: 'delete-task',
+        taskId: 'task-1',
+        entityKey: 'task-1',
+      },
+      context,
+      { includeRuntimeTargets: false }
+    );
+    expect(taskTargets.acpConversationIds).toEqual(['acp-1']);
+    expect(taskTargets.tuiConversationIds).toEqual([]);
+    expect(taskTargets.terminalSessionIds).toEqual([]);
+    expect(taskTargets.tmuxSessionNames).toHaveLength(1);
+
+    const explicitTargets = await resolveSessionTargets(
+      {
+        ...baseOperation,
+        kind: 'cleanup-sessions',
+        workspaceId: null,
+        payload: {
+          version: '1',
+          source: 'reconciler',
+          acpConversationIds: ['orphan-acp'],
+          terminalSessionIds: ['orphan-terminal'],
+        },
+      },
+      { preservePatterns: [] }
+    );
+    expect(explicitTargets).toEqual({
+      acpConversationIds: ['orphan-acp'],
+      tuiConversationIds: [],
+      terminalSessionIds: ['orphan-terminal'],
+      tmuxSessionNames: [],
+    });
+    await fixture.db.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, 'task-2'));
   });
 
   it('converges a mixed batch to no tombstones or non-terminal operations', async () => {

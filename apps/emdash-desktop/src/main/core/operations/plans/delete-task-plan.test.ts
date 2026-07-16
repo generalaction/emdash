@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LifecycleOperationRow, ProjectRow, TaskRow, WorkspaceRow } from '@main/db/schema';
+import type { SessionTargets } from '../session-targets';
 import { compileDeleteTaskPlan } from './delete-task-plan';
 import type { TaskOperationProbe } from './probe-task-state';
 
@@ -80,14 +81,24 @@ function operation(payload: Partial<LifecycleOperationRow['payload']> = {}): Lif
   };
 }
 
+function sessionTargets(values: Partial<SessionTargets> = {}): SessionTargets {
+  return {
+    acpConversationIds: [],
+    tuiConversationIds: [],
+    terminalSessionIds: [],
+    tmuxSessionNames: [],
+    ...values,
+  };
+}
+
 function probe(values: Partial<TaskOperationProbe> = {}): TaskOperationProbe {
   return {
     task,
     workspace,
     project,
-    acpConversationCount: 0,
-    tuiConversationCount: 0,
-    terminalCount: 0,
+    preservePatterns: [],
+    sessionTargets: sessionTargets(),
+    workspaceSharedWithLiveTasks: false,
     ...values,
   };
 }
@@ -97,9 +108,9 @@ describe('compileDeleteTaskPlan', () => {
     expect(
       compileDeleteTaskPlan(
         {
-          acpConversationCount: 0,
-          tuiConversationCount: 0,
-          terminalCount: 0,
+          preservePatterns: [],
+          sessionTargets: sessionTargets(),
+          workspaceSharedWithLiveTasks: false,
         },
         operation()
       )
@@ -109,9 +120,12 @@ describe('compileDeleteTaskPlan', () => {
   it('cleans explicit orphan sessions without purging an owner', () => {
     const plan = compileDeleteTaskPlan(
       {
-        acpConversationCount: 0,
-        tuiConversationCount: 0,
-        terminalCount: 0,
+        preservePatterns: [],
+        sessionTargets: sessionTargets({
+          acpConversationIds: ['acp-orphan'],
+          terminalSessionIds: ['project-1:task-1:terminal-orphan'],
+        }),
+        workspaceSharedWithLiveTasks: false,
       },
       operation({
         source: 'reconciler',
@@ -127,9 +141,11 @@ describe('compileDeleteTaskPlan', () => {
   it('orders all cleanup steps and marks destructive work', () => {
     const plan = compileDeleteTaskPlan(
       probe({
-        acpConversationCount: 1,
-        tuiConversationCount: 2,
-        terminalCount: 1,
+        sessionTargets: sessionTargets({
+          acpConversationIds: ['acp-1'],
+          tuiConversationIds: ['tui-1', 'tui-2'],
+          terminalSessionIds: ['terminal-1'],
+        }),
         automation: {
           teardown: 'pnpm teardown',
           autoRunSetup: true,
@@ -156,6 +172,13 @@ describe('compileDeleteTaskPlan', () => {
       'deactivate-workspace',
       'purge-task-rows',
     ]);
+  });
+
+  it('keeps a workspace that is still referenced by another live task', () => {
+    const plan = compileDeleteTaskPlan(probe({ workspaceSharedWithLiveTasks: true }), operation());
+
+    expect(plan.steps.some((step) => step.kind === 'teardown-workspace')).toBe(false);
+    expect(plan.steps.at(-1)?.kind).toBe('purge-task-rows');
   });
 
   it('never tears down a project-root workspace', () => {

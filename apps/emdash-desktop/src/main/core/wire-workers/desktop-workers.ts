@@ -32,6 +32,7 @@ import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
+import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
@@ -106,7 +107,7 @@ export const acpWorker = host.create(acpComponent, {
   },
   config: {
     attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
-    intentsFilePath: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-session-intents.json'),
+    intentsFilePath: sessionIntentFilePaths().acp,
     lifecycle: {
       session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
       connectionIdleTtlMs: 120_000,
@@ -256,10 +257,7 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
       hostDependencies: hostDependencies.client.resolver,
     },
     config: {
-      intentsFilePath: join(
-        app?.getPath?.('userData') ?? process.cwd(),
-        'tui-session-intents.json'
-      ),
+      intentsFilePath: sessionIntentFilePaths().tuiAgents,
       lifecycle: {
         session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
       },

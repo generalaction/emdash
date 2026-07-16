@@ -9,7 +9,7 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
-import { AlertTriangle, HardDrive, RefreshCw, Trash2, WandSparkles, X } from 'lucide-react';
+import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -18,6 +18,7 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -27,6 +28,7 @@ import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
 import type { DeletionState } from '@shared/core/operations/deletion';
 import type {
+  ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
   ProjectWorkspacePathState,
   ProjectWorkspaceRow,
@@ -512,11 +514,11 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
   const showConfirm = useShowModal('confirmActionModal');
   const list = view.useListView();
   const selection = view.useSelection();
-  const [pendingAction, setPendingAction] = useState<'clean' | 'delete' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'archive' | 'delete' | null>(null);
   const selectedRows = list.visibleItems.filter((row) => selection.selectedIds.has(row.path));
-  const cleanableRows = selectedRows.filter((row) => row.canCleanArtifacts);
+  const archivableRows = selectedRows.filter((row) => row.canCleanArtifacts);
   const deletableRows = selectedRows.filter((row) => row.canDelete);
-  const selectedArtifactBytes = cleanableRows.reduce(
+  const selectedArtifactBytes = archivableRows.reduce(
     (sum, row) => sum + (row.usage?.artifactBytes ?? 0),
     0
   );
@@ -527,21 +529,22 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
   const activeSelected = selectedRows.some((row) => row.hasActiveSessions);
 
   const runAction = useCallback(
-    async (kind: 'clean' | 'delete', rows: ProjectWorkspaceRow[]) => {
+    async (kind: 'archive' | 'delete', rows: ProjectWorkspaceRow[]) => {
       if (rows.length === 0) return;
       const paths = rows.map((row) => row.path);
       setPendingAction(kind);
       try {
         const result =
-          kind === 'clean'
-            ? await rpc.projectWorkspaces.cleanWorkspaceArtifacts({ projectId, paths })
+          kind === 'archive'
+            ? await archiveProjectWorkspaces(projectId, rows)
             : await rpc.projectWorkspaces.deleteProjectWorkspaces({ projectId, paths });
         showActionResult(kind, result);
         if (result.failedCount === 0) selection.clear();
         await store.load();
       } catch (error) {
         toast({
-          title: kind === 'clean' ? 'Could not clean artifacts' : 'Could not delete workspaces',
+          title:
+            kind === 'archive' ? 'Could not archive workspaces' : 'Could not delete workspaces',
           description: error instanceof Error ? error.message : String(error),
           variant: 'destructive',
         });
@@ -552,19 +555,19 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
     [projectId, selection, store]
   );
 
-  const confirmClean = useCallback(() => {
-    if (cleanableRows.length === 0) return;
+  const confirmArchive = useCallback(() => {
+    if (archivableRows.length === 0) return;
     showConfirm({
-      title: `Clean artifacts from ${workspaceCount(cleanableRows.length)}?`,
+      title: `Archive ${workspaceCount(archivableRows.length)}?`,
       description: activeSelected
-        ? 'This removes gitignored files from selected workspaces. Some selected workspaces have active sessions, so running tools may need dependencies restored.'
-        : 'This removes gitignored files such as dependencies, build output, and caches. The workspaces and tasks stay intact.',
-      confirmLabel: 'Clean Artifacts',
+        ? 'This stops active sessions, runs teardown scripts, and removes gitignored artifacts. Tasks remain restorable, but dependencies may need to be restored.'
+        : 'This runs teardown scripts and removes gitignored dependencies, build output, and caches. Worktrees and tasks stay intact.',
+      confirmLabel: 'Archive',
       onSuccess: () => {
-        void runAction('clean', cleanableRows);
+        void runAction('archive', archivableRows);
       },
     });
-  }, [activeSelected, cleanableRows, runAction, showConfirm]);
+  }, [activeSelected, archivableRows, runAction, showConfirm]);
 
   const confirmDelete = useCallback(() => {
     if (deletableRows.length === 0) return;
@@ -589,7 +592,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         <span className="whitespace-nowrap">{selection.count} selected</span>
         <span className="inline-flex items-center gap-1">
           <HardDrive className="size-3.5" />
-          {formatBytes(selectedArtifactBytes)} artifact cleanup
+          {formatBytes(selectedArtifactBytes)} artifacts to archive
         </span>
         <span>{formatBytes(selectedTotalBytes)} delete total</span>
       </div>
@@ -597,15 +600,15 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         <Button
           variant="outline"
           size="sm"
-          disabled={cleanableRows.length === 0 || pendingAction !== null}
-          onClick={confirmClean}
+          disabled={archivableRows.length === 0 || pendingAction !== null}
+          onClick={confirmArchive}
         >
-          {pendingAction === 'clean' ? (
+          {pendingAction === 'archive' ? (
             <Spinner className="size-4" />
           ) : (
-            <WandSparkles className="size-4" />
+            <Archive className="size-4" />
           )}
-          Clean Artifacts
+          Archive
         </Button>
         <Button
           variant="destructive"
@@ -697,7 +700,55 @@ function WorkspaceBadges({ row }: { row: ProjectWorkspaceRow }) {
   );
 }
 
-function showActionResult(kind: 'clean' | 'delete', result: ProjectWorkspaceActionSummary): void {
+async function archiveProjectWorkspaces(
+  projectId: string,
+  rows: ProjectWorkspaceRow[]
+): Promise<ProjectWorkspaceActionSummary> {
+  const client = await getWorkspacesWireClient();
+  const results: ProjectWorkspaceActionResult[] = [];
+  for (const row of rows) {
+    try {
+      const result = await client.archive({
+        projectId,
+        workspaceId: row.workspaceId ?? undefined,
+        workspacePath: row.path,
+        branchName: row.branch,
+      });
+      results.push(
+        result.success
+          ? {
+              path: row.path,
+              workspaceId: row.workspaceId ?? undefined,
+              success: true,
+              reclaimedBytes: row.usage?.artifactBytes,
+            }
+          : {
+              path: row.path,
+              workspaceId: row.workspaceId ?? undefined,
+              success: false,
+              reason: 'archive-failed',
+              message: result.error.message,
+            }
+      );
+    } catch (error) {
+      results.push({
+        path: row.path,
+        workspaceId: row.workspaceId ?? undefined,
+        success: false,
+        reason: 'archive-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  const succeededCount = results.filter((result) => result.success).length;
+  return {
+    succeededCount,
+    failedCount: results.length - succeededCount,
+    results,
+  };
+}
+
+function showActionResult(kind: 'archive' | 'delete', result: ProjectWorkspaceActionSummary): void {
   if (result.failedCount > 0) {
     const firstFailure = result.results.find((item) => !item.success);
     toast({
@@ -710,8 +761,8 @@ function showActionResult(kind: 'clean' | 'delete', result: ProjectWorkspaceActi
 
   toast({
     title:
-      kind === 'clean'
-        ? `Cleaned ${workspaceCount(result.succeededCount)}`
+      kind === 'archive'
+        ? `Queued archive for ${workspaceCount(result.succeededCount)}`
         : `Deleted ${workspaceCount(result.succeededCount)}`,
   });
 }

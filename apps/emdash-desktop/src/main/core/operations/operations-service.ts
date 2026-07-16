@@ -27,13 +27,16 @@ import type {
 import type { OperationPayload } from '@shared/core/operations/operation-payload';
 import { nonTerminalOperationStatuses } from '@shared/core/operations/operation-types';
 import { purgeProjectLocalState, purgeTaskLocalState } from './local-cleanup';
-import { resolveOperationContext } from './operation-context';
-import type { OperationProgress } from './operation-plan';
+import { resolveOperationContext, type OperationContext } from './operation-context';
+import { workspaceInUseError } from './operation-errors';
+import type { ExecutableOperationPlan, OperationProgress } from './operation-plan';
 import { runOperationPlan } from './plan-runner';
 import { compileOperationPlan } from './plans/compile-operation-plan';
 
 const STALE_AFTER_MS = 24 * 60 * 60 * 1_000;
 const RESUME_AGE_MS = 10 * 60 * 1_000;
+// Path-only orphan cleanup needs a worktree ref, but HEAD is never marked as Emdash-created.
+const UNKNOWN_BRANCH_SENTINEL = 'HEAD';
 const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
 
 type OperationMutationResult = Result<{ operationId?: string }, DeletionMutationError>;
@@ -66,8 +69,14 @@ type OperationDraftInput = Pick<
 
 type InsertOperationOptions = {
   dedupeStatuses?: readonly LifecycleOperationRow['status'][];
+  precondition?: (tx: DrizzleTx) => DeletionMutationError | undefined;
   tombstone?: (tx: DrizzleTx) => number;
 };
+
+type InsertOperationOutcome =
+  | { outcome: 'inserted' }
+  | { outcome: 'duplicate' }
+  | { outcome: 'precondition-failed'; error: DeletionMutationError };
 
 export type OperationsServiceOptions = {
   clock?: Clock;
@@ -91,6 +100,13 @@ export type ReconcilerSessionCleanupInput = {
 };
 
 export type ReconcilerWorkspaceCleanupInput = {
+  projectId: string;
+  workspaceId?: string;
+  workspacePath: string;
+  branchName?: string;
+};
+
+export type ArchiveWorkspaceInput = {
   projectId: string;
   workspaceId?: string;
   workspacePath: string;
@@ -208,8 +224,9 @@ export class OperationsService {
       createdAt,
     });
 
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, {
+        dedupeStatuses: nonTerminalOperationStatuses,
         tombstone: (transaction) =>
           transaction
             .update(tasks)
@@ -219,7 +236,10 @@ export class OperationsService {
       })
     );
 
-    if (!inserted) return this.existingOperationResult('task', input.taskId);
+    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
+    if (insertion.outcome === 'duplicate') {
+      return this.existingOperationResult('task', input.taskId);
+    }
     await this.refreshDeletionStates();
     this.poke();
     return ok({ operationId });
@@ -237,11 +257,7 @@ export class OperationsService {
         ? ok({ operationId: existing.id })
         : err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
     }
-    const [task] = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
-      .limit(1);
+    const [task] = await db.select().from(tasks).where(eq(tasks.workspaceId, workspaceId)).limit(1);
     const [project] = task
       ? await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
       : [];
@@ -265,8 +281,13 @@ export class OperationsService {
       },
       createdAt,
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, {
+        dedupeStatuses: nonTerminalOperationStatuses,
+        precondition: (transaction) =>
+          workspaceHasLiveTaskInTransaction(transaction, workspaceId)
+            ? workspaceInUseError()
+            : undefined,
         tombstone: (transaction) =>
           transaction
             .update(workspaces)
@@ -275,7 +296,10 @@ export class OperationsService {
             .run().changes,
       })
     );
-    if (!inserted) return this.existingOperationResult('workspace', workspaceId);
+    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
+    if (insertion.outcome === 'duplicate') {
+      return this.existingOperationResult('workspace', workspaceId);
+    }
     await this.refreshDeletionStates();
     this.poke();
     return ok({ operationId });
@@ -298,7 +322,6 @@ export class OperationsService {
         message: `Project ${input.projectId} was not found`,
       });
     }
-
     const operationId = randomUUID();
     const entityKey = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
     const createdAt = this.clock.now();
@@ -315,16 +338,22 @@ export class OperationsService {
         source: 'user',
         entityName: input.workspacePath,
         workspacePath: input.workspacePath,
-        branchName: input.branchName ?? 'HEAD',
+        branchName: input.branchName ?? UNKNOWN_BRANCH_SENTINEL,
         hostLabel: project.name,
         deleteWorktree: true,
         deleteBranch: false,
       },
       createdAt,
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: nonTerminalOperationStatuses,
+        precondition: input.workspaceId
+          ? (transaction) =>
+              workspaceHasLiveTaskInTransaction(transaction, input.workspaceId!)
+                ? workspaceInUseError()
+                : undefined
+          : undefined,
         tombstone: input.workspaceId
           ? (transaction) =>
               transaction
@@ -335,10 +364,70 @@ export class OperationsService {
           : undefined,
       })
     );
-    if (!inserted) return this.existingOperationResult('workspace', entityKey);
+    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
+    if (insertion.outcome === 'duplicate') {
+      return this.existingOperationResult('workspace', entityKey);
+    }
     await this.refreshDeletionStates();
     this.poke();
     return ok({ operationId });
+  }
+
+  async enqueueArchiveWorkspace(input: ArchiveWorkspaceInput): Promise<OperationMutationResult> {
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, input.projectId), isNull(projects.deletedAt)))
+      .limit(1);
+    if (!project) {
+      return err({
+        type: 'project-not-found',
+        message: `Project ${input.projectId} was not found`,
+      });
+    }
+
+    const [workspace] = input.workspaceId
+      ? await db
+          .select()
+          .from(workspaces)
+          .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.deletedAt)))
+          .limit(1)
+      : [];
+    if (input.workspaceId && !workspace) {
+      return err({
+        type: 'workspace-not-found',
+        message: `Workspace ${input.workspaceId} was not found`,
+      });
+    }
+
+    const entityKey = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
+    const draft = this.buildOperationDraft({
+      kind: 'archive-workspace',
+      status: 'pending',
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      entityKey,
+      hostRef: workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local',
+      payload: {
+        version: '1',
+        source: 'user',
+        entityName: input.workspacePath,
+        workspacePath: input.workspacePath,
+        branchName: input.branchName,
+        hostLabel: project.name,
+      },
+    });
+    const insertion = db.transaction((tx) =>
+      this.insertOperation(tx, draft, { dedupeStatuses: nonTerminalOperationStatuses })
+    );
+    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
+    if (insertion.outcome === 'duplicate') {
+      return this.existingOperationResult('workspace', entityKey);
+    }
+
+    await this.refreshDeletionStates();
+    this.poke();
+    return ok({ operationId: draft.id });
   }
 
   async proposeReconcilerTaskCleanup(taskId: string): Promise<void> {
@@ -377,7 +466,7 @@ export class OperationsService {
       payload,
       createdAt,
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: (transaction) => {
@@ -390,7 +479,7 @@ export class OperationsService {
         },
       })
     );
-    if (!inserted) return;
+    if (insertion.outcome !== 'inserted') return;
     await this.refreshDeletionStates();
     publishReconcilerNotification(operationId, payload, hostRef);
   }
@@ -416,10 +505,10 @@ export class OperationsService {
         tmuxSessionNames: input.tmuxSessionNames,
       },
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, { dedupeStatuses: reconcilerDedupeStatuses })
     );
-    if (!inserted) return;
+    if (insertion.outcome !== 'inserted') return;
     await this.refreshDeletionStates();
     this.poke();
   }
@@ -440,7 +529,7 @@ export class OperationsService {
       source: 'reconciler',
       entityName: input.workspacePath,
       workspacePath: input.workspacePath,
-      branchName: input.branchName ?? 'HEAD',
+      branchName: input.branchName ?? UNKNOWN_BRANCH_SENTINEL,
       hostLabel: project.name,
       deleteWorktree: true,
       deleteBranch: false,
@@ -457,7 +546,7 @@ export class OperationsService {
       payload,
       createdAt,
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: input.workspaceId
@@ -472,7 +561,7 @@ export class OperationsService {
           : undefined,
       })
     );
-    if (!inserted) return;
+    if (insertion.outcome !== 'inserted') return;
     await this.refreshDeletionStates();
     publishReconcilerNotification(operationId, payload, project.sshConnectionId ?? 'local');
   }
@@ -497,10 +586,10 @@ export class OperationsService {
       hostRef: 'local',
       payload,
     });
-    const inserted = db.transaction((tx) =>
+    const insertion = db.transaction((tx) =>
       this.insertOperation(tx, draft, { dedupeStatuses: reconcilerDedupeStatuses })
     );
-    if (!inserted) return;
+    if (insertion.outcome !== 'inserted') return;
     await this.refreshDeletionStates();
     publishReconcilerNotification(operationId, payload, 'local');
   }
@@ -569,8 +658,8 @@ export class OperationsService {
       },
       createdAt,
     });
-    const inserted = db.transaction((tx) => {
-      const insertedProject = this.insertOperation(tx, projectDraft, {
+    const insertion = db.transaction((tx) => {
+      const projectInsertion = this.insertOperation(tx, projectDraft, {
         tombstone: (transaction) =>
           transaction
             .update(projects)
@@ -578,7 +667,7 @@ export class OperationsService {
             .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
             .run().changes,
       });
-      if (!insertedProject) return false;
+      if (projectInsertion.outcome !== 'inserted') return projectInsertion;
       for (const input of taskInputs) {
         const { task, draft } = input;
         this.insertOperation(tx, draft, {
@@ -590,9 +679,12 @@ export class OperationsService {
               .run().changes,
         });
       }
-      return true;
+      return projectInsertion;
     });
-    if (!inserted) return this.existingOperationResult('project', projectId);
+    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
+    if (insertion.outcome === 'duplicate') {
+      return this.existingOperationResult('project', projectId);
+    }
     await this.refreshDeletionStates();
     this.poke();
     return ok({ operationId: projectOperationId });
@@ -662,7 +754,9 @@ export class OperationsService {
         if (kind === 'task' && operation.kind === 'delete-task') {
           tx.delete(tasks).where(eq(tasks.id, entityId)).run();
         }
-        if (kind === 'workspace') tx.delete(workspaces).where(eq(workspaces.id, entityId)).run();
+        if (kind === 'workspace' && operation.kind === 'delete-workspace') {
+          tx.delete(workspaces).where(eq(workspaces.id, entityId)).run();
+        }
         if (kind === 'project') {
           const workspaceRows = tx
             .select({ id: tasks.workspaceId })
@@ -787,6 +881,18 @@ export class OperationsService {
         }
         if (!this.hostIsOnline(operation.hostRef)) continue;
         const plan = await compileOperationPlan(operation);
+        if (plan.preconditionFailure) {
+          await db
+            .update(lifecycleOperations)
+            .set({
+              status: 'failed',
+              error: `${plan.preconditionFailure.type}: ${plan.preconditionFailure.message}`,
+            })
+            .where(eq(lifecycleOperations.id, operation.id));
+          await this.refreshDeletionStates();
+          madeProgress = true;
+          continue;
+        }
         if (this.isStale(operation) && plan.steps.some((step) => step.destructive)) {
           await this.awaitConfirmation(operation, 'stale');
           madeProgress = true;
@@ -795,7 +901,9 @@ export class OperationsService {
         if (
           this.isResumed(operation) &&
           !operation.payload.confirmedAt &&
-          plan.steps.some((step) => step.kind === 'teardown-workspace') &&
+          plan.steps.some(
+            (step) => step.kind === 'teardown-workspace' || step.kind === 'clean-artifacts'
+          ) &&
           (await this.workspaceIsDirty(operation))
         ) {
           await this.awaitConfirmation(operation, 'workspace-modified');
@@ -811,7 +919,7 @@ export class OperationsService {
 
   private async run(
     operation: LifecycleOperationRow,
-    plan: Awaited<ReturnType<typeof compileOperationPlan>>,
+    plan: ExecutableOperationPlan,
     signal: AbortSignal
   ): Promise<void> {
     await db
@@ -949,17 +1057,23 @@ export class OperationsService {
     tx: DrizzleTx,
     draft: OperationDraft,
     options: InsertOperationOptions = {}
-  ): boolean {
+  ): InsertOperationOutcome {
     if (
       options.dedupeStatuses &&
       draft.entityKey &&
       this.hasOperation(tx, draft.entityKey, options.dedupeStatuses)
     ) {
-      return false;
+      return { outcome: 'duplicate' };
     }
-    if (options.tombstone && options.tombstone(tx) === 0) return false;
+    const preconditionError = options.precondition?.(tx);
+    if (preconditionError) {
+      return { outcome: 'precondition-failed', error: preconditionError };
+    }
+    if (options.tombstone && options.tombstone(tx) === 0) {
+      return { outcome: 'duplicate' };
+    }
     tx.insert(lifecycleOperations).values(draft).run();
-    return true;
+    return { outcome: 'inserted' };
   }
 
   private hasOperation(
@@ -1049,13 +1163,14 @@ export class OperationsService {
 function toDeletionState(
   operation: LifecycleOperationRow,
   hostOnline: boolean,
-  context: Awaited<ReturnType<typeof resolveOperationContext>>,
+  context: OperationContext,
   progress?: OperationProgress
 ): DeletionState | undefined {
   const entity = entityFor(operation);
   if (!entity) return undefined;
   const base = {
     operationId: operation.id,
+    operationKind: operation.kind,
     entityId: entity.id,
     entityKind: entity.kind,
     projectId: operation.projectId ?? undefined,
@@ -1101,7 +1216,7 @@ function entityFor(
   if (operation.kind === 'delete-task' || operation.kind === 'cleanup-sessions') {
     return { kind: 'task', id: operation.entityKey };
   }
-  if (operation.kind === 'delete-workspace') {
+  if (operation.kind === 'delete-workspace' || operation.kind === 'archive-workspace') {
     return { kind: 'workspace', id: operation.entityKey };
   }
   if (operation.kind === 'delete-project') {
@@ -1111,11 +1226,24 @@ function entityFor(
 }
 
 function operationKindsForEntity(kind: DeletionEntityKind): Array<LifecycleOperationRow['kind']> {
-  return kind === 'task' ? ['delete-task', 'cleanup-sessions'] : [`delete-${kind}`];
+  if (kind === 'task') return ['delete-task', 'cleanup-sessions'];
+  if (kind === 'workspace') return ['delete-workspace', 'archive-workspace'];
+  return ['delete-project'];
 }
 
 function deletionStateKey(key: DeletionStateKey): string {
   return `${key.kind}:${key.entityId ?? '*'}`;
+}
+
+function workspaceHasLiveTaskInTransaction(tx: DrizzleTx, workspaceId: string): boolean {
+  return (
+    tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
+      .limit(1)
+      .get() !== undefined
+  );
 }
 
 function publishReconcilerNotification(

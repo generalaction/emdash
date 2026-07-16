@@ -1,9 +1,11 @@
 import z from 'zod';
+import { operationKinds } from './operation-types';
 
 export const deletionEntityKindSchema = z.enum(['task', 'workspace', 'project']);
 
 const deletionBaseSchema = z.object({
   operationId: z.string(),
+  operationKind: z.enum(operationKinds),
   entityId: z.string(),
   entityKind: deletionEntityKindSchema,
   projectId: z.string().optional(),

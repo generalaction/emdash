@@ -89,6 +89,13 @@ const workspaceIdInputSchema = z.object({
   workspaceId: z.string(),
 });
 
+export const archiveWorkspaceInputSchema = z.object({
+  projectId: z.string(),
+  workspaceId: z.string().optional(),
+  workspacePath: z.string().min(1),
+  branchName: z.string().optional(),
+});
+
 export const workspacesWireContract = defineContract({
   bootstrap: liveModel({
     key: workspaceBootstrapKeySchema,
@@ -116,6 +123,11 @@ export const workspacesWireContract = defineContract({
   }),
   delete: fallible({
     input: workspaceIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  archive: fallible({
+    input: archiveWorkspaceInputSchema,
     data: deletionMutationResultSchema,
     error: deletionMutationErrorSchema,
   }),

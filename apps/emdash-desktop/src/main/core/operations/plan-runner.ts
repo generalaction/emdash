@@ -12,11 +12,16 @@ import {
   type Clock,
 } from '@emdash/shared/scheduling';
 import type { LifecycleOperationRow } from '@main/db/schema';
-import type { OperationPlan, OperationProgress, OperationStepKind } from './operation-plan';
+import type {
+  ExecutableOperationPlan,
+  OperationProgress,
+  OperationStepErrorCode,
+  OperationStepKind,
+} from './operation-plan';
 import { operationStepRegistry, type OperationStepRegistry } from './steps/operation-step-registry';
 
 export type OperationPlanError = {
-  type: string;
+  type: OperationStepErrorCode;
   message: string;
 };
 
@@ -32,6 +37,7 @@ const STEP_TIMEOUT_MS: Record<OperationStepKind, number> = {
   'kill-acp-sessions': 30_000,
   'kill-tui-sessions': 30_000,
   'deactivate-workspace': 5 * 60_000,
+  'clean-artifacts': 5 * 60_000,
   'teardown-workspace': 5 * 60_000,
   'purge-task-rows': 30_000,
   'purge-workspace-row': 30_000,
@@ -40,7 +46,7 @@ const STEP_TIMEOUT_MS: Record<OperationStepKind, number> = {
 
 export async function runOperationPlan(
   operation: LifecycleOperationRow,
-  plan: OperationPlan,
+  plan: ExecutableOperationPlan,
   options: OperationPlanRunnerOptions = {}
 ): Promise<Result<void, OperationPlanError>> {
   const registry = options.registry ?? operationStepRegistry;
@@ -54,11 +60,27 @@ export async function runOperationPlan(
       fatal: true,
       async run(ctx) {
         try {
-          await runWithTimeout((signal) => registry.execute(step.kind, operation, signal), {
-            timeoutMs: STEP_TIMEOUT_MS[step.kind],
-            signal: ctx.signal,
-            clock: options.clock,
-          });
+          const stepResult = await runWithTimeout(
+            (signal) => registry.execute(step.kind, operation, signal),
+            {
+              timeoutMs: STEP_TIMEOUT_MS[step.kind],
+              signal: ctx.signal,
+              clock: options.clock,
+            }
+          );
+          if (!stepResult.success) {
+            return {
+              status: 'failed' as const,
+              failure:
+                stepResult.error.code === 'workspace-in-use'
+                  ? ('permanent' as const)
+                  : ('transient' as const),
+              error: {
+                type: stepResult.error.code,
+                message: stepResult.error.message,
+              },
+            };
+          }
           return { status: 'done' as const };
         } catch (error) {
           const timedOut = error instanceof TimeoutError;
@@ -66,7 +88,7 @@ export async function runOperationPlan(
             status: 'failed' as const,
             failure: timedOut ? ('permanent' as const) : ('transient' as const),
             error: {
-              type: timedOut ? 'operation-step-timeout' : 'operation-step-failed',
+              type: timedOut ? 'step-timeout' : 'step-failed',
               message: error instanceof Error ? error.message : String(error),
             },
           };
@@ -82,7 +104,7 @@ export async function runOperationPlan(
   });
   if (!workflow.success) {
     await scope.dispose();
-    return err(workflow.error);
+    return err({ type: 'step-failed', message: workflow.error.message });
   }
 
   const emitProgress = (state: WorkflowState): void => {
@@ -104,5 +126,13 @@ export async function runOperationPlan(
   workflow.data.dispose();
   await scope.dispose();
 
-  return result.success ? ok() : err(result.error);
+  if (result.success) return ok();
+  return err({
+    type: isOperationStepErrorCode(result.error.type) ? result.error.type : 'step-failed',
+    message: result.error.message,
+  });
+}
+
+function isOperationStepErrorCode(value: string): value is OperationStepErrorCode {
+  return value === 'workspace-in-use' || value === 'step-failed' || value === 'step-timeout';
 }

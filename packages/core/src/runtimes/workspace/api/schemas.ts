@@ -107,6 +107,7 @@ export const legacyWorkspaceAutomationSchema = z.object({
 export const workspaceLifecyclePlansSchema = z.object({
   ref: workspaceRefSchema,
   context: bootstrapContextSchema,
+  deleteBranch: z.boolean().optional(),
   setupPlan: lenientBootstrapPlanSchema.optional(),
   activationPlan: lenientBootstrapPlanSchema.optional(),
   deactivationPlan: lenientBootstrapPlanSchema.optional(),

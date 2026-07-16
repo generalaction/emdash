@@ -1,7 +1,13 @@
 import type { LifecycleOperationRow } from '@main/db/schema';
+import { resolveOperationContext } from '../operation-context';
 import type { OperationPlan } from '../operation-plan';
+import { resolveSessionTargets } from '../session-targets';
+import { compileArchiveWorkspacePlan } from './archive-workspace-plan';
 import { compileDeleteTaskPlan } from './delete-task-plan';
+import { compileDeleteWorkspacePlan } from './delete-workspace-plan';
 import { probeTaskState } from './probe-task-state';
+import { probeWorkspaceState } from './probe-workspace-state';
+import { compileSessionKillSteps } from './session-kill-steps';
 
 export async function compileOperationPlan(
   operation: LifecycleOperationRow
@@ -9,24 +15,14 @@ export async function compileOperationPlan(
   switch (operation.kind) {
     case 'delete-task':
       return compileDeleteTaskPlan(await probeTaskState(operation), operation);
-    case 'delete-workspace':
-      return {
-        kind: operation.kind,
-        steps: [
-          {
-            id: 'teardown-workspace',
-            kind: 'teardown-workspace',
-            label: 'Remove workspace',
-            destructive: true,
-          },
-          {
-            id: 'purge-workspace-row',
-            kind: 'purge-workspace-row',
-            label: 'Remove workspace data',
-            destructive: true,
-          },
-        ],
-      };
+    case 'delete-workspace': {
+      const probe = await probeWorkspaceState(operation);
+      return compileDeleteWorkspacePlan(probe, operation);
+    }
+    case 'archive-workspace': {
+      const probe = await probeWorkspaceState(operation);
+      return compileArchiveWorkspacePlan(probe, operation);
+    }
     case 'delete-project':
       return {
         kind: operation.kind,
@@ -39,33 +35,13 @@ export async function compileOperationPlan(
           },
         ],
       };
-    case 'cleanup-sessions':
+    case 'cleanup-sessions': {
+      const context = await resolveOperationContext(operation);
+      const targets = await resolveSessionTargets(operation, context);
       return {
         kind: operation.kind,
-        steps: [
-          ...(operation.payload.acpConversationIds?.length
-            ? [
-                {
-                  id: 'kill-acp-sessions',
-                  kind: 'kill-acp-sessions' as const,
-                  label: 'Stop ACP sessions',
-                  destructive: false,
-                },
-              ]
-            : []),
-          ...(operation.payload.tuiConversationIds?.length ||
-          operation.payload.terminalSessionIds?.length ||
-          operation.payload.tmuxSessionNames?.length
-            ? [
-                {
-                  id: 'kill-tui-sessions',
-                  kind: 'kill-tui-sessions' as const,
-                  label: 'Stop terminal sessions',
-                  destructive: false,
-                },
-              ]
-            : []),
-        ],
+        steps: compileSessionKillSteps(targets),
       };
+    }
   }
 }

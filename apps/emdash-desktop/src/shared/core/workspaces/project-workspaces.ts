@@ -78,6 +78,7 @@ export type ProjectWorkspaceActionReason =
   | 'root-refused'
   | 'missing-path'
   | 'clean-failed'
+  | 'archive-failed'
   | 'delete-failed';
 
 export type ProjectWorkspaceActionResult =

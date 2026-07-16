@@ -283,7 +283,8 @@ export class WorkspaceRuntime {
         input.lifecycle && !input.lifecycle.teardownPlan
           ? compileTeardownFromProbe(
               await probeWorkspace(input.lifecycle.ref, { signal: ctx.signal }),
-              input.lifecycle.ref
+              input.lifecycle.ref,
+              { deleteBranch: input.lifecycle.deleteBranch }
             )
           : input.lifecycle?.teardownPlan;
 

@@ -1,10 +1,10 @@
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { killTmuxSession } from '@emdash/core/services/pty/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -15,102 +15,99 @@ import {
   hostFileRefFromNativePath,
 } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { db } from '@main/db/client';
-import {
-  conversations,
-  projects,
-  tasks,
-  terminals,
-  workspaces,
-  type LifecycleOperationRow,
-} from '@main/db/schema';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { projects, tasks, workspaces, type LifecycleOperationRow } from '@main/db/schema';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 import { purgeProjectLocalState, purgeTaskLocalState } from '../local-cleanup';
 import { resolveOperationContext } from '../operation-context';
-import type { OperationStepKind } from '../operation-plan';
+import { operationStepFailed, workspaceInUseStepError } from '../operation-errors';
+import type { OperationStepError, OperationStepKind } from '../operation-plan';
+import { resolveSessionTargets } from '../session-targets';
+
+type OperationStepResult = Result<void, OperationStepError>;
 
 export type OperationStepRegistry = {
   execute(
     kind: OperationStepKind,
     operation: LifecycleOperationRow,
     signal?: AbortSignal
-  ): Promise<void>;
+  ): Promise<OperationStepResult>;
 };
 
 export const operationStepRegistry: OperationStepRegistry = {
   async execute(kind, operation, signal) {
-    if (signal?.aborted) throw new Error('Operation cancelled');
-    switch (kind) {
-      case 'kill-acp-sessions':
-        return killAcpSessions(operation);
-      case 'kill-tui-sessions':
-        return killTuiAndTerminalSessions(operation);
-      case 'deactivate-workspace':
-        return deactivateWorkspace(operation);
-      case 'teardown-workspace':
-        return teardownWorkspace(operation);
-      case 'purge-task-rows':
-        return purgeTaskRows(operation);
-      case 'purge-workspace-row':
-        return purgeWorkspaceRow(operation);
-      case 'purge-project-row':
-        return purgeProjectRow(operation);
+    if (signal?.aborted) return err(operationStepFailed('Operation cancelled'));
+    try {
+      switch (kind) {
+        case 'kill-acp-sessions':
+          return await killAcpSessions(operation);
+        case 'kill-tui-sessions':
+          return await killTuiAndTerminalSessions(operation);
+        case 'deactivate-workspace':
+          return await deactivateWorkspace(operation);
+        case 'clean-artifacts':
+          return await cleanArtifacts(operation);
+        case 'teardown-workspace':
+          return await teardownWorkspace(operation);
+        case 'purge-task-rows':
+          return await purgeTaskRows(operation);
+        case 'purge-workspace-row':
+          return await purgeWorkspaceRow(operation);
+        case 'purge-project-row':
+          return await purgeProjectRow(operation);
+      }
+    } catch (error) {
+      return err(operationStepFailed(errorMessage(error)));
     }
   },
 };
 
-async function killAcpSessions(operation: LifecycleOperationRow): Promise<void> {
-  const rows = operation.taskId
-    ? await db
-        .select({ id: conversations.id })
-        .from(conversations)
-        .where(and(eq(conversations.taskId, operation.taskId), eq(conversations.type, 'acp')))
-    : [];
-  const conversationIds = new Set([
-    ...rows.map((row) => row.id),
-    ...(operation.payload.acpConversationIds ?? []),
-  ]);
-  if (conversationIds.size === 0) return;
-
-  const client = await getAcpRuntimeClient();
-  for (const conversationId of conversationIds) {
-    const result = await client.killSession({ conversationId });
-    if (!result.success && !isMissingError(result.error)) {
-      throw new Error(errorMessage(result.error));
-    }
+async function cleanArtifacts(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  const context = await resolveOperationContext(operation, { resolveRuntimeConfig: true });
+  if (!context.workspacePath || !context.projectPath) return ok();
+  const hostId = operation.hostRef === 'local' ? undefined : operation.hostRef;
+  const client = await getWorkspaceRuntimeClient();
+  const result = await runRuntimeLiveJob(workspaceContract.cleanArtifacts, client.cleanArtifacts, {
+    workspace: hostFileRefFromNativePath(context.workspacePath, hostId),
+    repoPath: hostFileRefFromNativePath(context.projectPath, hostId),
+    preservePatterns: context.preservePatterns,
+  });
+  if (!result.success && !isMissingError(result.error)) {
+    return err(operationStepFailed(result.error.message));
   }
+  return ok();
 }
 
-async function killTuiAndTerminalSessions(operation: LifecycleOperationRow): Promise<void> {
+async function killAcpSessions(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  const preconditionError = await workspaceDeletePreconditionError(operation);
+  if (preconditionError) return err(preconditionError);
   const context = await resolveOperationContext(operation);
-  const [conversationRows, terminalRows] = operation.taskId
-    ? await Promise.all([
-        db
-          .select({ id: conversations.id })
-          .from(conversations)
-          .where(
-            and(
-              eq(conversations.taskId, operation.taskId),
-              or(ne(conversations.type, 'acp'), isNull(conversations.type))
-            )
-          ),
-        db
-          .select({ id: terminals.id })
-          .from(terminals)
-          .where(eq(terminals.taskId, operation.taskId)),
-      ])
-    : [[], []];
-  const conversationIds = new Set([
-    ...conversationRows.map((row) => row.id),
-    ...(operation.payload.tuiConversationIds ?? []),
-  ]);
+  const targets = await resolveSessionTargets(operation, context);
+  if (targets.acpConversationIds.length === 0) return ok();
 
-  if (conversationIds.size > 0) {
+  const client = await getAcpRuntimeClient();
+  for (const conversationId of targets.acpConversationIds) {
+    const result = await client.killSession({ conversationId });
+    if (!result.success && !isMissingError(result.error)) {
+      return err(operationStepFailed(errorMessage(result.error)));
+    }
+  }
+  return ok();
+}
+
+async function killTuiAndTerminalSessions(
+  operation: LifecycleOperationRow
+): Promise<OperationStepResult> {
+  const preconditionError = await workspaceDeletePreconditionError(operation);
+  if (preconditionError) return err(preconditionError);
+  const context = await resolveOperationContext(operation);
+  const targets = await resolveSessionTargets(operation, context);
+
+  if (targets.tuiConversationIds.length > 0) {
     const tui = await getTuiAgentsRuntimeClient();
-    for (const conversationId of conversationIds) {
+    for (const conversationId of targets.tuiConversationIds) {
       const result = await tui.deleteSession({ conversationId });
       if (!result.success && !isMissingError(result.error)) {
-        throw new Error(errorMessage(result.error));
+        return err(operationStepFailed(errorMessage(result.error)));
       }
     }
   }
@@ -121,13 +118,7 @@ async function killTuiAndTerminalSessions(operation: LifecycleOperationRow): Pro
       context.workspacePath,
       operation.hostRef === 'local' ? undefined : operation.hostRef
     );
-    const terminalSessionIds = new Set(operation.payload.terminalSessionIds ?? []);
-    if (operation.projectId && operation.taskId) {
-      for (const row of terminalRows) {
-        terminalSessionIds.add(makePtySessionId(operation.projectId, operation.taskId, row.id));
-      }
-    }
-    for (const sessionId of terminalSessionIds) {
+    for (const sessionId of targets.terminalSessionIds) {
       const result = await terminalClient.kill({
         key: {
           workspace,
@@ -135,60 +126,92 @@ async function killTuiAndTerminalSessions(operation: LifecycleOperationRow): Pro
         },
       });
       if (!result.success && !isMissingError(result.error)) {
-        throw new Error(errorMessage(result.error));
+        return err(operationStepFailed(errorMessage(result.error)));
       }
     }
   }
 
-  if (!operation.projectId) return;
+  if (!operation.projectId) return ok();
   const project = projectManager.getProject(operation.projectId);
-  if (!project) return;
-  const tmuxSessionNames = new Set(operation.payload.tmuxSessionNames ?? []);
-  if (operation.taskId) {
-    const { conversationIds: taskConversationIds, terminalIds } = await getTaskSessionLeafIds(
-      operation.projectId,
-      operation.taskId
-    );
-    for (const leafId of [...taskConversationIds, ...terminalIds]) {
-      tmuxSessionNames.add(
-        makeTmuxSessionName(makePtySessionId(operation.projectId, operation.taskId, leafId))
-      );
+  if (!project) return ok();
+  await Promise.all(
+    targets.tmuxSessionNames.map((sessionName) => killTmuxSession(project.ctx, sessionName))
+  );
+  return ok();
+}
+
+async function deactivateWorkspace(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  const context = await resolveOperationContext(operation, { resolveRuntimeConfig: true });
+  if (!context.workspacePath) return ok();
+  const workspace = hostFileRefFromNativePath(
+    context.workspacePath,
+    operation.hostRef === 'local' ? undefined : operation.hostRef
+  );
+  const client = await getWorkspaceRuntimeClient();
+  const consumerIds = await resolveDeactivateConsumers(operation, client, workspace);
+  for (const consumerId of consumerIds) {
+    const result = await runRuntimeLiveJob(workspaceContract.deactivate, client.deactivate, {
+      workspace,
+      consumerId,
+      strategy: 'stop',
+      automation: context.automation,
+    });
+    if (!result.success && !isMissingError(result.error)) {
+      return err(operationStepFailed(result.error.message));
     }
   }
-  await Promise.all(
-    [...tmuxSessionNames].map((sessionName) => killTmuxSession(project.ctx, sessionName))
-  );
+  return ok();
 }
 
-async function deactivateWorkspace(operation: LifecycleOperationRow): Promise<void> {
-  const context = await resolveOperationContext(operation, { resolveRuntimeConfig: true });
-  if (!operation.taskId || !context.workspacePath) return;
-  const client = await getWorkspaceRuntimeClient();
-  const result = await runRuntimeLiveJob(workspaceContract.deactivate, client.deactivate, {
-    workspace: hostFileRefFromNativePath(
-      context.workspacePath,
-      operation.hostRef === 'local' ? undefined : operation.hostRef
-    ),
-    consumerId: operation.taskId,
-    strategy: 'stop',
-    automation: context.automation,
-  });
-  if (!result.success && !isMissingError(result.error)) {
-    throw new Error(result.error.message);
+async function resolveDeactivateConsumers(
+  operation: LifecycleOperationRow,
+  client: Awaited<ReturnType<typeof getWorkspaceRuntimeClient>>,
+  workspace: ReturnType<typeof hostFileRefFromNativePath>
+): Promise<string[]> {
+  if (operation.kind !== 'archive-workspace') {
+    return [operation.taskId ?? operation.id];
   }
+
+  // Archive removes every registered consumer so the runtime runs teardown once the last exits.
+  const consumerIds = await client.workspace
+    .state(workspace, 'state')
+    .snapshot()
+    .then((snapshot) => snapshot.data.consumers.map((consumer) => consumer.id))
+    .catch(() => []);
+  return consumerIds.length > 0 ? consumerIds : [operation.id];
 }
 
-async function teardownWorkspace(operation: LifecycleOperationRow): Promise<void> {
+async function teardownWorkspace(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  if (operation.workspaceId && !(await workspaceIsUnused(db, operation.workspaceId))) {
+    if (operation.kind === 'delete-task') return ok();
+    if (operation.kind === 'delete-workspace') {
+      return err(workspaceInUseStepError());
+    }
+  }
   const context = await resolveOperationContext(operation, { resolveRuntimeConfig: true });
   if (
     operation.payload.deleteWorktree === false ||
-    context.workspaceKind !== 'worktree' ||
     !context.workspacePath ||
     !context.projectPath ||
-    !context.branchName
+    context.workspaceKind === 'project-root'
   ) {
-    return;
+    return ok();
   }
+
+  const lifecycleRef =
+    context.workspaceKind === 'worktree'
+      ? context.branchName
+        ? {
+            kind: 'worktree' as const,
+            repoPath: context.projectPath,
+            path: context.workspacePath,
+            branchName: context.branchName,
+          }
+        : undefined
+      : context.workspaceKind === 'byoi'
+        ? { kind: 'directory' as const, path: context.workspacePath }
+        : undefined;
+  if (!lifecycleRef) return ok();
 
   const client = await getWorkspaceRuntimeClient();
   const result = await runRuntimeLiveJob(workspaceContract.teardown, client.teardown, {
@@ -198,25 +221,22 @@ async function teardownWorkspace(operation: LifecycleOperationRow): Promise<void
     ),
     force: true,
     lifecycle: {
-      ref: {
-        kind: 'worktree',
-        repoPath: context.projectPath,
-        path: context.workspacePath,
-        branchName: context.branchName,
-      },
+      ref: lifecycleRef,
       context: {
         repoPath: context.projectPath,
         preservePatterns: context.preservePatterns,
       },
+      deleteBranch: operation.payload.deleteBranch !== false,
     },
   });
   if (!result.success && !isMissingError(result.error)) {
-    throw new Error(result.error.message);
+    return err(operationStepFailed(result.error.message));
   }
+  return ok();
 }
 
-async function purgeTaskRows(operation: LifecycleOperationRow): Promise<void> {
-  if (!operation.taskId) return;
+async function purgeTaskRows(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  if (!operation.taskId) return ok();
   const context = await resolveOperationContext(operation);
   const purgeWorkspace =
     !!operation.workspaceId &&
@@ -242,12 +262,13 @@ async function purgeTaskRows(operation: LifecycleOperationRow): Promise<void> {
     projectId: operation.projectId,
     taskId: operation.taskId,
   });
+  return ok();
 }
 
-async function purgeWorkspaceRow(operation: LifecycleOperationRow): Promise<void> {
-  if (!operation.workspaceId) return;
+async function purgeWorkspaceRow(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  if (!operation.workspaceId) return ok();
   const context = await resolveOperationContext(operation);
-  if (!(await workspaceIsUnused(db, operation.workspaceId))) return;
+  if (!(await workspaceIsUnused(db, operation.workspaceId))) return ok();
   if (context.workspacePath) {
     await unregisterFileSearchRoot(hostPathFromNative(context.workspacePath));
   }
@@ -259,13 +280,15 @@ async function purgeWorkspaceRow(operation: LifecycleOperationRow): Promise<void
         or(ne(workspaces.kind, 'project-root'), isNull(workspaces.kind))
       )
     );
+  return ok();
 }
 
-async function purgeProjectRow(operation: LifecycleOperationRow): Promise<void> {
-  if (!operation.projectId) return;
+async function purgeProjectRow(operation: LifecycleOperationRow): Promise<OperationStepResult> {
+  if (!operation.projectId) return ok();
   await purgeProjectLocalState(operation.projectId, async () => {
     await db.delete(projects).where(eq(projects.id, operation.projectId!));
   });
+  return ok();
 }
 
 async function workspaceIsUnused(tx: typeof db, workspaceId: string): Promise<boolean> {
@@ -275,6 +298,19 @@ async function workspaceIsUnused(tx: typeof db, workspaceId: string): Promise<bo
     .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
     .limit(1);
   return !row;
+}
+
+async function workspaceDeletePreconditionError(
+  operation: LifecycleOperationRow
+): Promise<OperationStepError | undefined> {
+  if (
+    operation.kind === 'delete-workspace' &&
+    operation.workspaceId &&
+    !(await workspaceIsUnused(db, operation.workspaceId))
+  ) {
+    return workspaceInUseStepError();
+  }
+  return undefined;
 }
 
 function isMissingError(error: unknown): boolean {

@@ -95,6 +95,11 @@ export function createWorkspacesWireController(
         await operationsService.initialize();
         return operationsService.enqueueDeleteWorkspace(input.workspaceId);
       },
+      archive: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.enqueueArchiveWorkspace(input);
+      },
       retryDelete: async (input) => {
         const operationsService = await getOperationsService();
         await operationsService.initialize();

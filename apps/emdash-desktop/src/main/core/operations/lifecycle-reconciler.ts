@@ -1,17 +1,15 @@
-import { join } from 'node:path';
 import {
   createIdleSweeper,
   type IdleSweeper,
   type IoActivitySnapshot,
 } from '@emdash/core/primitives/io-activity/api';
 import { decodeTmuxSessionName, listTmuxSessionActivity } from '@emdash/core/services/pty/api';
-import { createFileSessionIntentStore } from '@emdash/core/services/session-intents/node';
 import type { Scope } from '@emdash/shared/concurrency';
 import { eq, isNotNull, isNull } from 'drizzle-orm';
-import { app } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { projectManager } from '@main/core/projects/project-manager';
+import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -331,17 +329,8 @@ async function loadTombstonedProjectIds(): Promise<string[]> {
 async function loadAndPruneSessionIntents(
   validConversationIds: Set<string>
 ): Promise<Map<string, string>> {
-  const userData = app?.getPath?.('userData') ?? process.cwd();
-  const stores = [
-    createFileSessionIntentStore({
-      path: join(userData, 'acp-session-intents.json'),
-      scope: 'acp',
-    }),
-    createFileSessionIntentStore({
-      path: join(userData, 'tui-session-intents.json'),
-      scope: 'tui-agents',
-    }),
-  ];
+  const intentStores = createDesktopSessionIntentStores();
+  const stores = [intentStores.acp, intentStores.tuiAgents];
   const context = new Map<string, string>();
   for (const store of stores) {
     const result = await store.list();

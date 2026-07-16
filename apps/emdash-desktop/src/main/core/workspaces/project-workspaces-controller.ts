@@ -1,5 +1,4 @@
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { cleanWorkspaceArtifacts } from './operations/clean-workspace-artifacts';
 import { deleteProjectWorkspaces } from './operations/delete-project-workspaces';
 import { listProjectWorkspaces } from './operations/list-project-workspaces';
 import { measureProjectWorkspaces } from './operations/measure-project-workspaces';
@@ -7,6 +6,5 @@ import { measureProjectWorkspaces } from './operations/measure-project-workspace
 export const projectWorkspacesController = createRPCController({
   listProjectWorkspaces,
   measureProjectWorkspaces,
-  cleanWorkspaceArtifacts,
   deleteProjectWorkspaces,
 });
