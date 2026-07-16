@@ -13,6 +13,7 @@ import {
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getTasksWireClient } from '@renderer/lib/runtime/tasks-wire-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -760,7 +761,18 @@ export class TaskManagerStore {
         this._releaseTaskRegistries(id);
         t.dispose();
       });
-      await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
+      const client = await getTasksWireClient();
+      const results = await Promise.all(
+        taskIds.map((taskId) =>
+          client.delete({
+            taskId,
+            deleteWorktree: opts?.deleteWorktree,
+            deleteBranch: opts?.deleteBranch,
+          })
+        )
+      );
+      const failed = results.find((result) => !result.success);
+      if (failed && !failed.success) throw new Error(failed.error.message);
     } catch (e) {
       runInAction(() => {
         removed.forEach((t, id) => {

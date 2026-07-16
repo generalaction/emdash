@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
@@ -13,7 +13,7 @@ export async function updateLinkedIssue(
   const [existingRow] = await db
     .select({ id: tasks.id, projectId: tasks.projectId })
     .from(tasks)
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   if (!existingRow) return undefined;
 
@@ -22,7 +22,7 @@ export async function updateLinkedIssue(
     .set({
       linkedIssue: issue ?? null,
     })
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .returning();
 
   if (issue) {

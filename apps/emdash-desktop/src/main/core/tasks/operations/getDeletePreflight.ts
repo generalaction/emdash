@@ -1,4 +1,4 @@
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
@@ -18,13 +18,17 @@ async function getTaskPreflight(
     hasDeletableBranch: false,
   };
 
-  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  const [task] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+    .limit(1);
   if (!task?.workspaceId) return noWorktreeResult;
 
   const [ws] = await db
     .select()
     .from(workspaces)
-    .where(eq(workspaces.id, task.workspaceId))
+    .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
     .limit(1);
   if (!ws) return noWorktreeResult;
 
@@ -34,7 +38,7 @@ async function getTaskPreflight(
   const siblings = await db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(and(eq(tasks.workspaceId, ws.id), ne(tasks.id, taskId)))
+    .where(and(eq(tasks.workspaceId, ws.id), ne(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
 
   const hasWorktree = siblings.length === 0;

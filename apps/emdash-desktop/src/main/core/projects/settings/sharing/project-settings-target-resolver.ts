@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -95,7 +95,7 @@ export async function resolveAllProjectSettingsTargets(
   const [projectRow] = await db
     .select({ name: projectsTable.name })
     .from(projectsTable)
-    .where(eq(projectsTable.id, project.projectId))
+    .where(and(eq(projectsTable.id, project.projectId), isNull(projectsTable.deletedAt)))
     .limit(1);
 
   const projectTarget: ProjectSettingsResolvedTarget = {
@@ -117,8 +117,11 @@ export async function resolveAllProjectSettingsTargets(
       workspaceConfig: workspacesTable.config,
     })
     .from(tasksTable)
-    .leftJoin(workspacesTable, eq(tasksTable.workspaceId, workspacesTable.id))
-    .where(eq(tasksTable.projectId, project.projectId));
+    .leftJoin(
+      workspacesTable,
+      and(eq(tasksTable.workspaceId, workspacesTable.id), isNull(workspacesTable.deletedAt))
+    )
+    .where(and(eq(tasksTable.projectId, project.projectId), isNull(tasksTable.deletedAt)));
 
   const taskTargets = (
     await Promise.all(taskRows.map((task) => resolveTaskTarget(project, task)))

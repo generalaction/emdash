@@ -6,8 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 const select = vi.fn();
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn(() => 'and'),
   eq: vi.fn(() => 'eq'),
   isNotNull: vi.fn(() => 'isNotNull'),
+  isNull: vi.fn(() => 'isNull'),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -20,6 +22,7 @@ vi.mock('@main/db/schema', () => ({
     path: 'projects.path',
     workspaceProvider: 'projects.workspaceProvider',
     repositoryWorkspaceId: 'projects.repositoryWorkspaceId',
+    deletedAt: 'projects.deletedAt',
   },
   tasks: {
     id: 'tasks.id',
@@ -30,6 +33,7 @@ vi.mock('@main/db/schema', () => ({
     lastInteractedAt: 'tasks.lastInteractedAt',
     workspaceId: 'tasks.workspaceId',
     projectId: 'tasks.projectId',
+    deletedAt: 'tasks.deletedAt',
   },
   workspaces: {
     id: 'workspaces.id',
@@ -39,6 +43,7 @@ vi.mock('@main/db/schema', () => ({
     path: 'workspaces.path',
     branchName: 'workspaces.branchName',
     config: 'workspaces.config',
+    deletedAt: 'workspaces.deletedAt',
   },
 }));
 

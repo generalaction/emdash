@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
-import { eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
@@ -223,7 +223,7 @@ export async function getProjectWorkspaceProject(
       repositoryWorkspaceId: projects.repositoryWorkspaceId,
     })
     .from(projects)
-    .where(eq(projects.id, projectId))
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
   if (!project) throw new Error('Project was not found.');
   return project;
@@ -241,7 +241,7 @@ async function getWorkspaceRows(): Promise<WorkspaceRow[]> {
       config: workspaces.config,
     })
     .from(workspaces)
-    .where(isNotNull(workspaces.path))) as WorkspaceRow[];
+    .where(and(isNotNull(workspaces.path), isNull(workspaces.deletedAt)))) as WorkspaceRow[];
 }
 
 async function getTaskRows(projectId: string): Promise<TaskRow[]> {
@@ -256,7 +256,7 @@ async function getTaskRows(projectId: string): Promise<TaskRow[]> {
       workspaceId: tasks.workspaceId,
     })
     .from(tasks)
-    .where(eq(tasks.projectId, projectId));
+    .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
 }
 
 async function listGitWorktrees(project: ProjectWorkspaceProjectRow): Promise<GitWorktreesState> {

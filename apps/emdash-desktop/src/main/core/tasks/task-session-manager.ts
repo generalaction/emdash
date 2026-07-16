@@ -40,7 +40,10 @@ export type WorkspaceHint = {
 };
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
-type RuntimeStoredTask = StoredTask & { runtimeWorkspace?: HostFileRef };
+type RuntimeStoredTask = StoredTask & {
+  runtimeWorkspace?: HostFileRef;
+  automation?: WorkspaceBootstrapResult['postActivationAutomation'];
+};
 type TaskStartInput = { taskId: string; stored: RuntimeStoredTask };
 type TaskLifecycleState = LifecycleRegistryState<
   RuntimeStoredTask,
@@ -87,7 +90,8 @@ export async function executeTeardown(
   task: TaskProvider,
   workspaceId: string,
   mode: TaskTeardownMode,
-  runtimeWorkspace?: HostFileRef
+  runtimeWorkspace?: HostFileRef,
+  automation?: WorkspaceBootstrapResult['postActivationAutomation']
 ): Promise<void> {
   if (mode === 'detach') {
     // Keep the tmux sessions and agent processes alive for a later remount.
@@ -100,7 +104,8 @@ export async function executeTeardown(
     await deactivateWorkspaceConsumer(
       task.taskId,
       runtimeWorkspace,
-      mode === 'detach' ? 'detach' : 'stop'
+      mode === 'detach' ? 'detach' : 'stop',
+      automation
     );
   }
   // Only 'terminate' destroys the workspace (worktree + teardown script). 'archive'
@@ -125,7 +130,8 @@ async function cleanupDetachedSessions(
 async function deactivateWorkspaceConsumer(
   taskId: string,
   workspace: HostFileRef,
-  strategy: 'stop' | 'detach'
+  strategy: 'stop' | 'detach',
+  automation?: WorkspaceBootstrapResult['postActivationAutomation']
 ): Promise<void> {
   const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(
@@ -136,6 +142,7 @@ async function deactivateWorkspaceConsumer(
     workspace,
     consumerId: taskId,
     strategy,
+    automation: strategy === 'stop' ? automation : undefined,
   });
   try {
     const job = await lease.ready();
@@ -182,6 +189,7 @@ class TaskSessionManager {
     const stored: RuntimeStoredTask = {
       taskProvider: result.taskProvider,
       runtimeWorkspace: result.runtimeWorkspace,
+      automation: result.postActivationAutomation,
       persistData: {
         workspaceId: result.workspaceId,
         sshConnectionId: result.sshConnectionId,
@@ -287,12 +295,19 @@ class TaskSessionManager {
 
   private async stopTask(
     taskId: string,
-    { taskProvider, persistData, projectId, ctx, runtimeWorkspace }: RuntimeStoredTask,
+    { taskProvider, persistData, projectId, ctx, runtimeWorkspace, automation }: RuntimeStoredTask,
     mode: TaskTeardownMode
   ): Promise<Result<void, TeardownTaskError>> {
     try {
       await runWithTimeout(
-        () => executeTeardown(taskProvider, persistData.workspaceId, mode, runtimeWorkspace),
+        () =>
+          executeTeardown(
+            taskProvider,
+            persistData.workspaceId,
+            mode,
+            runtimeWorkspace,
+            automation
+          ),
         {
           timeoutMs: TASK_TIMEOUT_MS,
         }

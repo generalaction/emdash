@@ -1,4 +1,4 @@
-import { eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations, tasks } from '@main/db/schema';
 import { mapConversationRowToConversation } from './utils';
@@ -8,6 +8,6 @@ export async function getConversations() {
     .select({ conversation: conversations })
     .from(conversations)
     .innerJoin(tasks, eq(conversations.taskId, tasks.id))
-    .where(isNull(tasks.archivedAt));
+    .where(and(isNull(tasks.archivedAt), isNull(tasks.deletedAt)));
   return rows.map(({ conversation }) => mapConversationRowToConversation(conversation));
 }

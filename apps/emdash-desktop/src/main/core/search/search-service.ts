@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db, sqlite } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -152,14 +152,14 @@ class SearchService {
       ? sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
            FROM tasks t
-           WHERE t.archived_at IS NULL AND t.project_id = ?
+           WHERE t.archived_at IS NULL AND t.deleted_at IS NULL AND t.project_id = ?
            ORDER BY t.last_interacted_at DESC
            LIMIT 10`
         )
       : sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
            FROM tasks t
-           WHERE t.archived_at IS NULL
+           WHERE t.archived_at IS NULL AND t.deleted_at IS NULL
            ORDER BY t.last_interacted_at DESC
            LIMIT 10`
         );
@@ -211,7 +211,7 @@ class SearchService {
       const [ws] = await db
         .select({ branchName: workspaces.branchName })
         .from(workspaces)
-        .where(eq(workspaces.id, task.workspaceId))
+        .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
         .limit(1);
       branchName = ws?.branchName ?? undefined;
     }
@@ -333,9 +333,13 @@ class SearchService {
           branchName: workspaces.branchName,
         })
         .from(tasks)
-        .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
+        .leftJoin(
+          workspaces,
+          and(eq(tasks.workspaceId, workspaces.id), isNull(workspaces.deletedAt))
+        )
+        .where(isNull(tasks.deletedAt))
         .all();
-      const allProjects = db.select().from(projects).all();
+      const allProjects = db.select().from(projects).where(isNull(projects.deletedAt)).all();
       const allConversations = db.select().from(conversations).all();
 
       const upsertStmt = sqlite.prepare(

@@ -20,7 +20,7 @@ import {
   resolveProjectPullRequestContext,
 } from './project-pull-request-context';
 const { tasks, workspaces } = await import('@main/db/schema');
-const { eq } = await import('drizzle-orm');
+const { and, eq, isNull } = await import('drizzle-orm');
 const { db } = await import('@main/db/client');
 
 type PrControllerFailureType =
@@ -157,7 +157,7 @@ export const pullRequestController = createRPCController({
       const [taskRow] = await db
         .select({ workspaceId: tasks.workspaceId })
         .from(tasks)
-        .where(eq(tasks.id, taskId))
+        .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
         .limit(1);
 
       if (!taskRow?.workspaceId) {
@@ -167,7 +167,7 @@ export const pullRequestController = createRPCController({
       const [wsRow] = await db
         .select({ branchName: workspaces.branchName })
         .from(workspaces)
-        .where(eq(workspaces.id, taskRow.workspaceId))
+        .where(and(eq(workspaces.id, taskRow.workspaceId), isNull(workspaces.deletedAt)))
         .limit(1);
 
       if (!wsRow?.branchName) {

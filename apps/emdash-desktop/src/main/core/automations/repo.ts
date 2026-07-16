@@ -245,7 +245,7 @@ async function projectExists(projectId: string): Promise<boolean> {
   const rows = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(eq(projects.id, projectId))
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
   return rows.length > 0;
 }
@@ -572,7 +572,7 @@ export async function isAutomationRunTask(taskId: string): Promise<boolean> {
   const [row] = await db
     .select({ type: tasks.type })
     .from(tasks)
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   return row?.type === 'automation-run';
 }
@@ -651,7 +651,7 @@ export async function findRunsStuckInCreatingTask(): Promise<Array<{ id: string 
   const rows = await db
     .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
-    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
     .where(and(eq(automationRuns.status, 'creating_task'), isNull(tasks.id)));
   return rows.map((r) => ({ id: r.id }));
 }
@@ -662,7 +662,7 @@ export async function findRunsStuckInLaunchingTask(): Promise<
   const rows = await db
     .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
-    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
     .where(eq(automationRuns.status, 'launching_task'));
   return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
 }
@@ -673,7 +673,7 @@ export async function findRunsStuckInCreatingConversation(): Promise<
   const rows = await db
     .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
-    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
     .where(eq(automationRuns.status, 'creating_conversation'));
   return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
 }
@@ -682,7 +682,7 @@ export async function getRun(id: string): Promise<AutomationRun | null> {
   const [row] = await db
     .select({ run: automationRuns, taskId: tasks.id })
     .from(automationRuns)
-    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
     .where(eq(automationRuns.id, id))
     .limit(1);
   return row ? mapAutomationRunRow(row.run, row.taskId) : null;

@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
 import { ok } from '@emdash/shared';
+import type * as WireModule from '@emdash/wire';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
+import type * as WorkspaceRuntimeHostModule from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import type { Task } from '@shared/core/tasks/tasks';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
@@ -18,6 +20,31 @@ const mocks = vi.hoisted(() => ({
 
 // Prevent the module-level singleton from attempting to open the Electron app DB.
 vi.mock('@main/db/client', () => ({ db: {}, sqlite: {} }));
+
+vi.mock('@emdash/wire', async (importOriginal) => {
+  const actual = await importOriginal<typeof WireModule>();
+  return {
+    ...actual,
+    createLiveJobReplica: () => ({
+      start: vi.fn(async () => ({
+        ready: vi.fn(async () => ({
+          result: Promise.resolve({}),
+          onProgress: vi.fn(() => () => {}),
+        })),
+        release: vi.fn(async () => {}),
+      })),
+      dispose: vi.fn(async () => {}),
+    }),
+  };
+});
+
+vi.mock('@main/core/workspaces/runtime/workspace-runtime-host', async (importOriginal) => {
+  const actual = await importOriginal<typeof WorkspaceRuntimeHostModule>();
+  return {
+    ...actual,
+    getWorkspaceRuntimeClient: vi.fn(async () => ({ activate: {}, deactivate: {} })),
+  };
+});
 
 vi.mock('@main/core/tasks/task-builder', () => ({
   buildTaskFromWorkspace: mocks.buildTaskFromWorkspace,

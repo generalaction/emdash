@@ -1,111 +1,47 @@
-import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteProject } from './deleteProject';
 
 const mocks = vi.hoisted(() => ({
-  captureTelemetry: vi.fn(),
-  closeProject: vi.fn(),
-  deleteProjectData: vi.fn(),
-  deleteProjectRow: vi.fn(),
-  deleteWhere: vi.fn(),
-  delViewState: vi.fn(),
-  getProject: vi.fn(),
-  getTasks: vi.fn(),
-  projectEmit: vi.fn(),
-  teardownTask: vi.fn(),
+  initialize: vi.fn(),
+  enqueueDeleteProject: vi.fn(),
 }));
 
-vi.mock('@main/core/projects/project-events', () => ({
-  projectEvents: { _emit: mocks.projectEmit },
-}));
-
-vi.mock('@main/db/client', () => ({
-  db: {
-    delete: mocks.deleteProjectRow,
-  },
-}));
-
-vi.mock('@main/core/tasks/operations/getTasks', () => ({
-  getTasks: mocks.getTasks,
-}));
-
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: {
-    getProject: mocks.getProject,
-    closeProject: mocks.closeProject,
-  },
-}));
-
-vi.mock('@main/core/tasks/task-session-manager', () => ({
-  taskSessionManager: {
-    teardownTask: mocks.teardownTask,
-  },
-}));
-
-vi.mock('@main/core/pull-requests/pr-sync-engine', () => ({
-  prSyncEngine: {
-    deleteProjectData: mocks.deleteProjectData,
-  },
-}));
-
-vi.mock('@main/core/view-state/view-state-service', () => ({
-  viewStateService: {
-    del: mocks.delViewState,
-  },
-}));
-
-vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: {
-    capture: mocks.captureTelemetry,
-  },
+vi.mock('@main/core/operations/operations-service', () => ({
+  operationsService: mocks,
 }));
 
 describe('deleteProject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mocks.deleteProjectRow.mockReturnValue({ where: mocks.deleteWhere });
-    mocks.deleteWhere.mockResolvedValue(undefined);
-    mocks.getTasks.mockResolvedValue([{ id: 'task-1' }]);
-    mocks.getProject.mockReturnValue({ projectId: 'project-1' });
-    mocks.closeProject.mockResolvedValue(ok());
-    mocks.teardownTask.mockResolvedValue(ok());
-    mocks.deleteProjectData.mockResolvedValue(undefined);
-    mocks.delViewState.mockResolvedValue(undefined);
+    mocks.initialize.mockResolvedValue(undefined);
+    mocks.enqueueDeleteProject.mockResolvedValue({
+      success: true,
+      data: { operationId: 'operation-1' },
+    });
   });
 
-  it('closes a mounted project before deleting its database row', async () => {
+  it('enqueues the project and its task cleanups', async () => {
     await deleteProject('project-1');
 
-    expect(mocks.closeProject).toHaveBeenCalledWith('project-1');
-    expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
-    const closeOrder = mocks.closeProject.mock.invocationCallOrder[0];
-    const deleteOrder = mocks.deleteWhere.mock.invocationCallOrder[0];
-    expect(closeOrder).toBeDefined();
-    expect(deleteOrder).toBeDefined();
-    expect(closeOrder!).toBeLessThan(deleteOrder!);
+    expect(mocks.initialize).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueDeleteProject).toHaveBeenCalledWith('project-1');
   });
 
-  it('deletes an unmounted project without closing a provider', async () => {
-    mocks.getProject.mockReturnValue(undefined);
+  it('keeps missing deletes idempotent', async () => {
+    mocks.enqueueDeleteProject.mockResolvedValue({
+      success: false,
+      error: { type: 'project-not-found', message: 'missing' },
+    });
 
-    await deleteProject('project-1');
-
-    expect(mocks.closeProject).not.toHaveBeenCalled();
-    expect(mocks.getTasks).not.toHaveBeenCalled();
-    expect(mocks.teardownTask).not.toHaveBeenCalled();
-    expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
+    await expect(deleteProject('missing')).resolves.toBeUndefined();
   });
 
-  it('cleans PR sync data before deleting the project row', async () => {
-    await deleteProject('project-1');
+  it('surfaces enqueue failures', async () => {
+    mocks.enqueueDeleteProject.mockResolvedValue({
+      success: false,
+      error: { type: 'database-error', message: 'database failed' },
+    });
 
-    expect(mocks.deleteProjectData).toHaveBeenCalledWith('project-1');
-    expect(mocks.deleteProjectRow).toHaveBeenCalledTimes(1);
-    expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
-
-    expect(mocks.deleteProjectData.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteProjectRow.mock.invocationCallOrder[0]
-    );
+    await expect(deleteProject('project-1')).rejects.toThrow('database failed');
   });
 });

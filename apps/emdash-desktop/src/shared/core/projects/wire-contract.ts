@@ -1,6 +1,12 @@
 import { workspaceErrorSchema } from '@emdash/core/runtimes/workspace/api';
-import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
+import {
+  deletionListSchema,
+  deletionModelKeySchema,
+  deletionMutationErrorSchema,
+  deletionMutationResultSchema,
+} from '@shared/core/operations/deletion';
 import { localProjectSchema } from '@shared/projects';
 import { workspaceBootstrapProgressSchema } from '../workspaces/wire-contract';
 
@@ -41,6 +47,10 @@ export const createProjectFromRemoteInputSchema = z.object({
   description: z.string().optional(),
 });
 
+const projectIdInputSchema = z.object({
+  projectId: z.string(),
+});
+
 export const projectsWireContract = defineContract({
   creation: liveModel({
     key: projectCreationKeySchema,
@@ -53,6 +63,27 @@ export const projectsWireContract = defineContract({
     progress: workspaceBootstrapProgressSchema,
     result: localProjectSchema,
     error: workspaceErrorSchema,
+  }),
+  delete: fallible({
+    input: projectIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  retryDelete: fallible({
+    input: projectIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  forgetWithoutCleanup: fallible({
+    input: projectIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  deletions: liveModel({
+    key: deletionModelKeySchema,
+    states: {
+      list: liveState({ data: deletionListSchema }),
+    },
   }),
 });
 

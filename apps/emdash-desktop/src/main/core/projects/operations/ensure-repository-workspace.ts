@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import { db } from '@main/db/client';
 import { projects, workspaces } from '@main/db/schema';
@@ -21,7 +21,7 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
   const [row] = db
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
     .from(projects)
-    .where(eq(projects.id, project.id))
+    .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
     .limit(1)
     .all();
 
@@ -40,7 +40,7 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
     const [current] = tx
       .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
       .from(projects)
-      .where(eq(projects.id, project.id))
+      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
       .limit(1)
       .all();
 
@@ -51,7 +51,7 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
     const [existingWs] = tx
       .select({ id: workspaces.id })
       .from(workspaces)
-      .where(eq(workspaces.key, key))
+      .where(and(eq(workspaces.key, key), isNull(workspaces.deletedAt)))
       .limit(1)
       .all();
 
@@ -73,7 +73,7 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
 
     tx.update(projects)
       .set({ repositoryWorkspaceId: resolvedId })
-      .where(eq(projects.id, project.id))
+      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
       .run();
 
     log.info('ensureRepositoryWorkspace: created project-root workspace', {

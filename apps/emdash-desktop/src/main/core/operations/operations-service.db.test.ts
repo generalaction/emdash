@@ -1,0 +1,646 @@
+import { err, ok } from '@emdash/shared';
+import { ManualClock } from '@emdash/shared/testing';
+import { openFixture } from '@tooling/utils/db';
+import { eq, isNotNull } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppDb } from '@main/db/client';
+import { lifecycleOperations, projects, sshConnections, tasks, workspaces } from '@main/db/schema';
+import type { DeletionList } from '@shared/core/operations/deletion';
+import {
+  nonTerminalOperationStatuses,
+  operationStatuses,
+} from '@shared/core/operations/operation-types';
+
+const mocks = vi.hoisted(() => ({
+  db: undefined as AppDb | undefined,
+  runMode: 'pause' as 'pause' | 'complete',
+  runnerStarted: undefined as (() => void) | undefined,
+  hostConnected: true,
+  connectionListener: undefined as ((event: { type: string }) => void) | undefined,
+  projectProvider: undefined as
+    | {
+        settings: { get(): Promise<{ preservePatterns: string[] }> };
+        git: {
+          checkout: {
+            model: {
+              state(): {
+                snapshot(): Promise<{
+                  data: {
+                    kind: 'ok';
+                    summary: { staged: number; unstaged: number; untracked: number };
+                  };
+                }>;
+              };
+            };
+            getLog(): Promise<{ success: true; data: { commits: [] } }>;
+          };
+        };
+      }
+    | undefined,
+  closeProject: vi.fn(async () => {}),
+  deleteProjectData: vi.fn(async () => {}),
+  deleteViewState: vi.fn(async () => {}),
+  emitProjectEvent: vi.fn(),
+  captureTelemetry: vi.fn(),
+  publishNotification: vi.fn(),
+  runOperationPlan: vi.fn(),
+}));
+
+vi.mock('@main/db/client', () => ({
+  get db() {
+    if (!mocks.db) throw new Error('Test database not initialized');
+    return mocks.db;
+  },
+}));
+
+vi.mock('@main/core/projects/project-manager', () => ({
+  projectManager: {
+    getProject: () => mocks.projectProvider,
+    closeProject: mocks.closeProject,
+  },
+}));
+
+vi.mock('@main/core/projects/project-events', () => ({
+  projectEvents: { _emit: mocks.emitProjectEvent },
+}));
+
+vi.mock('@main/core/pull-requests/pr-sync-engine', () => ({
+  prSyncEngine: { deleteProjectData: mocks.deleteProjectData },
+}));
+
+vi.mock('@main/core/view-state/view-state-service', () => ({
+  viewStateService: { del: mocks.deleteViewState },
+}));
+
+vi.mock('@main/lib/telemetry', () => ({
+  telemetryService: { capture: mocks.captureTelemetry },
+}));
+
+vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
+  workspaceBootstrapService: { resolveLegacyAutomation: vi.fn(async () => undefined) },
+}));
+
+vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
+  sshConnectionManager: {
+    on: vi.fn((_event: string, listener: (event: { type: string }) => void) => {
+      mocks.connectionListener = listener;
+    }),
+    off: vi.fn(() => {
+      mocks.connectionListener = undefined;
+    }),
+    isConnected: vi.fn(() => mocks.hostConnected),
+  },
+}));
+
+vi.mock('@services/notifications/node', () => ({
+  notificationService: { publish: mocks.publishNotification },
+}));
+
+vi.mock('./plans/compile-operation-plan', () => ({
+  compileOperationPlan: vi.fn(
+    async (operation: { kind: string; payload: { deleteWorktree?: boolean } }) => {
+      if (operation.kind === 'cleanup-sessions') {
+        return {
+          kind: operation.kind,
+          steps: [
+            {
+              id: 'kill-tui-sessions',
+              kind: 'kill-tui-sessions',
+              label: 'Stop terminal sessions',
+              destructive: false,
+            },
+          ],
+        };
+      }
+      return {
+        kind: operation.kind,
+        steps: [
+          ...(operation.kind === 'delete-task' && operation.payload.deleteWorktree !== false
+            ? [
+                {
+                  id: 'teardown-workspace',
+                  kind: 'teardown-workspace',
+                  label: 'Remove workspace',
+                  destructive: true,
+                },
+              ]
+            : []),
+          {
+            id: `purge-${operation.kind}`,
+            kind: 'purge-task-rows',
+            label: 'Purge rows',
+            destructive: true,
+          },
+        ],
+      };
+    }
+  ),
+}));
+
+vi.mock('./plan-runner', () => ({
+  runOperationPlan: mocks.runOperationPlan,
+}));
+
+describe('OperationsService crash recovery', () => {
+  let fixture: Awaited<ReturnType<typeof openFixture>>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    fixture = await openFixture('empty');
+    mocks.db = fixture.db;
+    mocks.runMode = 'pause';
+    mocks.runnerStarted = undefined;
+    mocks.hostConnected = true;
+    mocks.connectionListener = undefined;
+    mocks.projectProvider = undefined;
+    mocks.closeProject.mockClear();
+    mocks.deleteProjectData.mockClear();
+    mocks.deleteViewState.mockClear();
+    mocks.emitProjectEvent.mockClear();
+    mocks.captureTelemetry.mockClear();
+    mocks.publishNotification.mockClear();
+    mocks.runOperationPlan.mockReset();
+    mocks.runOperationPlan.mockImplementation(
+      async (
+        operation: {
+          kind: 'delete-task' | 'delete-workspace' | 'delete-project' | 'cleanup-sessions';
+          taskId: string | null;
+          workspaceId: string | null;
+          projectId: string | null;
+        },
+        _plan: unknown,
+        options: { signal?: AbortSignal }
+      ) => {
+        mocks.runnerStarted?.();
+        if (mocks.runMode === 'pause') {
+          await new Promise<void>((resolve) => {
+            if (options.signal?.aborted) resolve();
+            else options.signal?.addEventListener('abort', () => resolve(), { once: true });
+          });
+          return err({ type: 'cancelled', message: 'Driver stopped' });
+        }
+        if (operation.taskId) {
+          await mocks.db!.delete(tasks).where(eq(tasks.id, operation.taskId));
+        }
+        if (operation.kind === 'delete-workspace' && operation.workspaceId) {
+          await mocks.db!.delete(workspaces).where(eq(workspaces.id, operation.workspaceId));
+        }
+        if (operation.kind === 'delete-project' && operation.projectId) {
+          await mocks.db!.delete(projects).where(eq(projects.id, operation.projectId));
+        }
+        return ok();
+      }
+    );
+    await fixture.db.insert(projects).values({ id: 'project-1', name: 'Project', path: '/repo' });
+    await fixture.db.insert(tasks).values({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Task',
+      status: 'in_progress',
+    });
+  });
+
+  afterEach(async () => {
+    if (mocks.db) await assertLifecycleInvariants(mocks.db);
+    fixture.close();
+    mocks.db = undefined;
+  });
+
+  it('resumes a running delete after the driver restarts', async () => {
+    const firstDriver = (await import('./operations-service')).operationsService;
+    await firstDriver.initialize();
+    const runnerStarted = new Promise<void>((resolve) => {
+      mocks.runnerStarted = resolve;
+    });
+
+    const enqueue = await firstDriver.enqueueDeleteTask({ taskId: 'task-1' });
+    expect(enqueue.success).toBe(true);
+    await runnerStarted;
+
+    const [running] = await fixture.db.select().from(lifecycleOperations);
+    const [tombstoned] = await fixture.db.select().from(tasks).where(eq(tasks.id, 'task-1'));
+    expect(running?.status).toBe('running');
+    expect(tombstoned?.deletedAt).not.toBeNull();
+
+    await firstDriver.dispose();
+    expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('pending');
+
+    mocks.runMode = 'complete';
+    mocks.runnerStarted = undefined;
+    vi.resetModules();
+    const restartedDriver = (await import('./operations-service')).operationsService;
+    await restartedDriver.initialize();
+    await restartedDriver.waitForIdle();
+
+    const [completed] = await fixture.db.select().from(lifecycleOperations);
+    expect(completed?.status).toBe('succeeded');
+    expect(completed?.attempt).toBe(2);
+    expect(await fixture.db.select().from(tasks).where(eq(tasks.id, 'task-1'))).toEqual([]);
+
+    await restartedDriver.dispose();
+  });
+
+  it('runs all task deletes before the final project delete', async () => {
+    await fixture.db.insert(tasks).values({
+      id: 'task-2',
+      projectId: 'project-1',
+      name: 'Task 2',
+      status: 'in_progress',
+    });
+    mocks.runMode = 'complete';
+
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    await driver.initialize();
+    const result = await driver.enqueueDeleteProject('project-1');
+    expect(result.success).toBe(true);
+    await driver.waitForIdle();
+
+    const operations = await fixture.db
+      .select()
+      .from(lifecycleOperations)
+      .orderBy(lifecycleOperations.createdAt);
+    expect(mocks.runOperationPlan.mock.calls.map(([operation]) => operation.kind)).toEqual([
+      'delete-task',
+      'delete-task',
+      'delete-project',
+    ]);
+    expect(operations.every((operation) => operation.status === 'succeeded')).toBe(true);
+    expect(await fixture.db.select().from(tasks)).toEqual([]);
+    expect(await fixture.db.select().from(projects)).toEqual([]);
+
+    await driver.dispose();
+  });
+
+  it('parks offline work and requires confirmation when reconnecting after it becomes stale', async () => {
+    await fixture.db.insert(sshConnections).values({
+      id: 'ssh-1',
+      name: 'Remote',
+      host: 'example.com',
+      port: 22,
+      username: 'user',
+    });
+    await fixture.db
+      .update(projects)
+      .set({ sshConnectionId: 'ssh-1' })
+      .where(eq(projects.id, 'project-1'));
+    mocks.hostConnected = false;
+    mocks.runMode = 'complete';
+
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    await driver.initialize();
+    const result = await driver.enqueueDeleteTask({ taskId: 'task-1' });
+    expect(result.success).toBe(true);
+    await driver.waitForIdle();
+
+    const [blocked] = await fixture.db.select().from(lifecycleOperations);
+    expect(blocked?.status).toBe('pending');
+    const lease = driver.acquireDeletionState('task', 'task-1');
+    const source = await lease.ready();
+    const list = (await source.snapshot()).data as DeletionList;
+    expect(list['task-1']?.status).toBe('blocked-host-offline');
+    await lease.release();
+    await clock.advanceBy(25 * 60 * 60 * 1_000);
+
+    mocks.hostConnected = true;
+    mocks.connectionListener?.({ type: 'reconnected' });
+    await driver.waitForIdle();
+
+    const [awaitingConfirmation] = await fixture.db.select().from(lifecycleOperations);
+    expect(awaitingConfirmation?.status).toBe('awaiting-confirmation');
+    expect(awaitingConfirmation?.payload.confirmationReason).toBe('stale');
+
+    await driver.dispose();
+  });
+
+  it('parks destructive reconciler proposals until the user confirms them', async () => {
+    mocks.runMode = 'complete';
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    await driver.proposeReconcilerTaskCleanup('task-1');
+    await driver.waitForIdle();
+
+    const [proposed] = await fixture.db.select().from(lifecycleOperations);
+    expect(proposed?.status).toBe('awaiting-confirmation');
+    expect(proposed?.payload.source).toBe('reconciler');
+    expect(proposed?.payload.confirmationReason).toBe('reconciler-proposed');
+
+    const retry = await driver.retryDelete('task', 'task-1');
+    expect(retry.success).toBe(true);
+    await driver.waitForIdle();
+
+    expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('succeeded');
+    expect(await fixture.db.select().from(tasks).where(eq(tasks.id, 'task-1'))).toEqual([]);
+
+    await driver.dispose();
+  });
+
+  it('requires confirmation for a stale pending local cleanup', async () => {
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    mocks.runMode = 'complete';
+
+    const enqueue = await driver.enqueueDeleteTask({ taskId: 'task-1' });
+    expect(enqueue.success).toBe(true);
+    await clock.advanceBy(25 * 60 * 60 * 1_000);
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    const [parked] = await fixture.db.select().from(lifecycleOperations);
+    expect(parked?.status).toBe('awaiting-confirmation');
+    expect(parked?.payload.confirmationReason).toBe('stale');
+    expect(mocks.runOperationPlan).not.toHaveBeenCalled();
+
+    const retry = await driver.retryDelete('task', 'task-1');
+    expect(retry.success).toBe(true);
+    await driver.waitForIdle();
+    expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('succeeded');
+
+    await driver.dispose();
+  });
+
+  it('runs stale non-destructive session cleanup without confirmation', async () => {
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    mocks.runMode = 'complete';
+
+    await driver.proposeReconcilerSessionCleanup({
+      entityId: 'session:orphan',
+      tuiConversationIds: ['conversation-1'],
+    });
+    await clock.advanceBy(25 * 60 * 60 * 1_000);
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    const [completed] = await fixture.db.select().from(lifecycleOperations);
+    expect(completed?.kind).toBe('cleanup-sessions');
+    expect(completed?.status).toBe('succeeded');
+    expect(mocks.runOperationPlan).toHaveBeenCalledOnce();
+
+    await driver.dispose();
+  });
+
+  it('checks a dirty workspace when a pending cleanup aged before its first attempt', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1' })
+      .where(eq(tasks.id, 'task-1'));
+    mocks.projectProvider = {
+      settings: { get: async () => ({ preservePatterns: [] }) },
+      git: {
+        checkout: {
+          model: {
+            state: () => ({
+              snapshot: async () => ({
+                data: {
+                  kind: 'ok',
+                  summary: { staged: 0, unstaged: 1, untracked: 0 },
+                },
+              }),
+            }),
+          },
+          getLog: async () => ({ success: true, data: { commits: [] } }),
+        },
+      },
+    };
+    const clock = new ManualClock(1_000_000);
+    const { OperationsService } = await import('./operations-service');
+    const driver = new OperationsService({ clock });
+    mocks.runMode = 'complete';
+
+    const enqueue = await driver.enqueueDeleteTask({ taskId: 'task-1' });
+    expect(enqueue.success).toBe(true);
+    await clock.advanceBy(11 * 60 * 1_000);
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    const [parked] = await fixture.db.select().from(lifecycleOperations);
+    expect(parked?.status).toBe('awaiting-confirmation');
+    expect(parked?.payload.confirmationReason).toBe('workspace-modified');
+    expect(mocks.runOperationPlan).not.toHaveBeenCalled();
+
+    await driver.dispose();
+  });
+
+  it('deduplicates concurrent task delete requests', async () => {
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    const results = await Promise.all([
+      driver.enqueueDeleteTask({ taskId: 'task-1' }),
+      driver.enqueueDeleteTask({ taskId: 'task-1' }),
+    ]);
+
+    expect(results.every((result) => result.success)).toBe(true);
+    expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
+
+    await driver.dispose();
+  });
+
+  it('does not apply the dirty-worktree guard when the plan will not remove the workspace', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/repo/task-1',
+    });
+    await fixture.db
+      .update(tasks)
+      .set({ workspaceId: 'workspace-1', deletedAt: new Date().toISOString() })
+      .where(eq(tasks.id, 'task-1'));
+    await fixture.db.insert(lifecycleOperations).values({
+      id: 'operation-1',
+      kind: 'delete-task',
+      status: 'pending',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+      entityKey: 'task-1',
+      hostRef: 'local',
+      payload: {
+        version: '1',
+        source: 'user',
+        workspacePath: '/repo/task-1',
+        deleteWorktree: false,
+        deleteBranch: false,
+      },
+      attempt: 1,
+      createdAt: Date.now(),
+    });
+    mocks.projectProvider = {
+      settings: { get: async () => ({ preservePatterns: [] }) },
+      git: {
+        checkout: {
+          model: {
+            state: () => ({
+              snapshot: async () => ({
+                data: {
+                  kind: 'ok',
+                  summary: { staged: 0, unstaged: 1, untracked: 0 },
+                },
+              }),
+            }),
+          },
+          getLog: async () => ({ success: true, data: { commits: [] } }),
+        },
+      },
+    };
+    mocks.runMode = 'complete';
+
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+    await driver.waitForIdle();
+
+    expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('succeeded');
+    await driver.dispose();
+  });
+
+  it('cleans project-local state when forgetting physical cleanup', async () => {
+    await fixture.db
+      .update(projects)
+      .set({ deletedAt: new Date().toISOString() })
+      .where(eq(projects.id, 'project-1'));
+    await fixture.db.insert(lifecycleOperations).values({
+      id: 'operation-1',
+      kind: 'delete-project',
+      status: 'awaiting-confirmation',
+      projectId: 'project-1',
+      entityKey: 'project-1',
+      hostRef: 'local',
+      payload: { version: '1', source: 'user', entityName: 'Project' },
+      createdAt: Date.now(),
+    });
+
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+    const result = await driver.forgetWithoutCleanup('project', 'project-1');
+
+    expect(result.success).toBe(true);
+    expect(mocks.closeProject).toHaveBeenCalledWith('project-1');
+    expect(mocks.deleteProjectData).toHaveBeenCalledWith('project-1');
+    expect(mocks.deleteViewState).toHaveBeenCalledWith('project:project-1');
+    expect(mocks.emitProjectEvent).toHaveBeenCalledWith('project:deleted', 'project-1');
+    expect(await fixture.db.select().from(projects)).toEqual([]);
+
+    await driver.dispose();
+  });
+
+  it('does not re-propose a path-only workspace cleanup after it was forgotten', async () => {
+    const input = {
+      projectId: 'project-1',
+      workspacePath: '/repo/orphan',
+      branchName: 'orphan',
+    };
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    await driver.proposeReconcilerWorkspaceCleanup(input);
+    const entityId = 'workspace-path:/repo/orphan';
+    const forgotten = await driver.forgetWithoutCleanup('workspace', entityId);
+    expect(forgotten.success).toBe(true);
+
+    await driver.proposeReconcilerWorkspaceCleanup(input);
+
+    expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
+    expect(mocks.publishNotification).toHaveBeenCalledTimes(1);
+    await driver.dispose();
+  });
+
+  it('deduplicates session cleanup proposals by entity key', async () => {
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+    const input = {
+      entityId: 'session:orphan',
+      terminalSessionIds: ['terminal-1'],
+    };
+
+    await Promise.all([
+      driver.proposeReconcilerSessionCleanup(input),
+      driver.proposeReconcilerSessionCleanup(input),
+    ]);
+
+    expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
+    await driver.dispose();
+  });
+
+  it('converges a mixed batch to no tombstones or non-terminal operations', async () => {
+    mocks.runMode = 'complete';
+    const driver = (await import('./operations-service')).operationsService;
+    await driver.initialize();
+
+    await Promise.all([
+      driver.proposeReconcilerSessionCleanup({
+        entityId: 'session:orphan',
+        projectId: 'project-1',
+        tuiConversationIds: ['conversation-1'],
+      }),
+      driver.enqueueDeleteProject('project-1'),
+    ]);
+    await driver.waitForIdle();
+
+    const rows = await fixture.db.select().from(lifecycleOperations);
+    expect(rows.every((row) => row.status === 'succeeded')).toBe(true);
+    expect(await fixture.db.select().from(tasks).where(isNotNull(tasks.deletedAt))).toEqual([]);
+    expect(await fixture.db.select().from(projects).where(isNotNull(projects.deletedAt))).toEqual(
+      []
+    );
+
+    await driver.dispose();
+  });
+});
+
+async function assertLifecycleInvariants(database: AppDb): Promise<void> {
+  const operations = await database.select().from(lifecycleOperations);
+  const nonTerminal = new Set<string>(nonTerminalOperationStatuses);
+  const validStatuses = new Set<string>(operationStatuses);
+  const activeCounts = new Map<string, number>();
+
+  for (const operation of operations) {
+    expect(validStatuses.has(operation.status)).toBe(true);
+    expect(operation.status).not.toBe('blocked-host-offline');
+    if (operation.status === 'awaiting-confirmation') {
+      expect(operation.payload.confirmationReason).toBeDefined();
+    }
+    if (operation.status === 'succeeded' || operation.status === 'abandoned') {
+      expect(operation.finishedAt).not.toBeNull();
+    }
+    if (operation.entityKey && nonTerminal.has(operation.status)) {
+      activeCounts.set(operation.entityKey, (activeCounts.get(operation.entityKey) ?? 0) + 1);
+    }
+  }
+
+  for (const count of activeCounts.values()) expect(count).toBeLessThanOrEqual(1);
+
+  const tombstonedRows = [
+    ...(await database.select({ id: tasks.id }).from(tasks).where(isNotNull(tasks.deletedAt))),
+    ...(await database
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(isNotNull(workspaces.deletedAt))),
+    ...(await database
+      .select({ id: projects.id })
+      .from(projects)
+      .where(isNotNull(projects.deletedAt))),
+  ];
+  for (const row of tombstonedRows) {
+    expect(
+      operations.some(
+        (operation) => operation.entityKey === row.id && nonTerminal.has(operation.status)
+      )
+    ).toBe(true);
+  }
+}

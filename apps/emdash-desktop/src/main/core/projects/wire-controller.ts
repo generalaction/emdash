@@ -1,5 +1,6 @@
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
+import type { OperationsService } from '@main/core/operations/operations-service';
 import {
   projectsWireContract,
   type ProjectCreationState,
@@ -29,11 +30,68 @@ export function createProjectsWireController(): ProjectsWireController {
         run: (input, ctx) => createProjectFromRemote(input, ctx, publishCreationState),
         toError: unknownToWorkspaceError,
       },
+      delete: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.enqueueDeleteProject(input.projectId);
+      },
+      retryDelete: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.retryDelete('project', input.projectId);
+      },
+      forgetWithoutCleanup: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.forgetWithoutCleanup('project', input.projectId);
+      },
+      deletions: createProjectDeletionsProvider(),
     },
     async dispose() {
       creationStates.clear();
     },
   };
+}
+
+function createProjectDeletionsProvider(): LeasedLiveModelProvider<
+  typeof projectsWireContract.deletions
+> {
+  return {
+    kind: 'leasedLiveModelProvider',
+    contract: projectsWireContract.deletions,
+    acquireState(key, name) {
+      let lease: ReturnType<OperationsService['acquireDeletionState']> | undefined;
+      let released = false;
+      return {
+        ready: async () => {
+          if (name !== 'list') {
+            throw new Error(`Unknown project deletion state '${String(name)}'`);
+          }
+          if (released) throw new Error('Project deletion state lease was released before ready');
+          const operationsService = await getOperationsService();
+          await operationsService.initialize();
+          lease ??= operationsService.acquireDeletionState('project', key.entityId);
+          if (released) {
+            await lease.release();
+            throw new Error('Project deletion state lease was released before ready');
+          }
+          return lease.ready();
+        },
+        release: async () => {
+          released = true;
+          await lease?.release();
+        },
+      };
+    },
+    async runMutation() {
+      throw new Error('Project deletions model does not expose mutations');
+    },
+    async dispose() {},
+  };
+}
+
+async function getOperationsService(): Promise<OperationsService> {
+  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 function createCreationProvider(): LeasedLiveModelProvider<typeof projectsWireContract.creation> {

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations, tasks, workspaces } from '@main/db/schema';
 import { type Task } from '@shared/core/tasks/tasks';
@@ -9,9 +9,9 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
     ? await db
         .select()
         .from(tasks)
-        .where(and(eq(tasks.projectId, projectId)))
+        .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)))
         .orderBy(desc(tasks.updatedAt))
-    : await db.select().from(tasks).orderBy(desc(tasks.updatedAt));
+    : await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.updatedAt));
 
   if (rows.length === 0) return [];
 
@@ -43,7 +43,7 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
           linesDeleted: workspaces.linesDeleted,
         })
         .from(workspaces)
-        .where(inArray(workspaces.id, wsIds))
+        .where(and(inArray(workspaces.id, wsIds), isNull(workspaces.deletedAt)))
     : [];
   const wsByWsId = new Map(wsRows.map((r) => [r.id, r]));
 

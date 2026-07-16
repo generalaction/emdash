@@ -1,10 +1,14 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import type { LocalProject, SshProject } from '@shared/projects';
 
 export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
-  const rows = await db.select().from(projects).orderBy(desc(projects.updatedAt));
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(isNull(projects.deletedAt))
+    .orderBy(desc(projects.updatedAt));
   return rows.map((row) =>
     row.workspaceProvider === 'local'
       ? {
@@ -34,7 +38,11 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
 export async function getProjectById(
   projectId: string
 ): Promise<LocalProject | SshProject | undefined> {
-  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+    .limit(1);
   if (!row) return undefined;
   if (row.workspaceProvider === 'local') {
     return {
@@ -62,7 +70,11 @@ export async function getProjectById(
 }
 
 export async function getLocalProjectByPath(path: string): Promise<LocalProject | undefined> {
-  const [row] = await db.select().from(projects).where(eq(projects.path, path)).limit(1);
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.path, path), isNull(projects.deletedAt)))
+    .limit(1);
   if (!row) return undefined;
   return {
     type: 'local' as const,
@@ -83,7 +95,13 @@ export async function getSshProjectByPath(
   const [row] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.path, path), eq(projects.sshConnectionId, connectionId)))
+    .where(
+      and(
+        eq(projects.path, path),
+        eq(projects.sshConnectionId, connectionId),
+        isNull(projects.deletedAt)
+      )
+    )
     .limit(1);
   if (!row) return undefined;
   return {

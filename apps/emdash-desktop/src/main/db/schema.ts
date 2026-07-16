@@ -17,6 +17,8 @@ import {
 } from '@shared/core/automations/config';
 import { conversationConfig } from '@shared/core/conversations/conversation-config';
 import { linkedIssue } from '@shared/core/linked-issue';
+import { operationPayload, type OperationPayload } from '@shared/core/operations/operation-payload';
+import type { OperationKind, OperationStatus } from '@shared/core/operations/operation-types';
 import { providerAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
 import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
@@ -67,6 +69,7 @@ export const projects = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    deletedAt: text('deleted_at'),
   },
   (table) => ({
     pathIdx: uniqueIndex('idx_projects_path').on(table.path),
@@ -167,6 +170,7 @@ export const tasks = sqliteTable(
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
     type: text('type').notNull().default('task'), // 'task' | 'automation-run'
     automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
+    deletedAt: text('deleted_at'),
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -199,9 +203,34 @@ export const workspaces = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    deletedAt: text('deleted_at'),
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
+  })
+);
+
+export const lifecycleOperations = sqliteTable(
+  'lifecycle_operations',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull().$type<OperationKind>(),
+    status: text('status').notNull().$type<OperationStatus>(),
+    projectId: text('project_id'),
+    taskId: text('task_id'),
+    workspaceId: text('workspace_id'),
+    entityKey: text('entity_key'),
+    hostRef: text('host_ref').notNull(),
+    payload: versionedJsonColumn(operationPayload)('payload').$type<OperationPayload>().notNull(),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    createdAt: integer('created_at').notNull(),
+    finishedAt: integer('finished_at'),
+  },
+  (table) => ({
+    statusIdx: index('idx_lifecycle_operations_status').on(table.status),
+    hostStatusIdx: index('idx_lifecycle_operations_host_status').on(table.hostRef, table.status),
+    entityKeyIdx: index('idx_lifecycle_operations_entity_key').on(table.entityKey),
   })
 );
 
@@ -538,6 +567,9 @@ export type AutomationRunRow = typeof automationRuns.$inferSelect;
 export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
 export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
+export type LifecycleOperationRow = Omit<typeof lifecycleOperations.$inferSelect, 'payload'> & {
+  payload: OperationPayload;
+};
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

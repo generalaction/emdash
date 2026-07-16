@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -23,7 +23,7 @@ export async function refreshWorkspaceCurrentBranchCache(
         kind: workspaces.kind,
       })
       .from(workspaces)
-      .where(eq(workspaces.id, workspaceId))
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
       .limit(1);
 
     if (!workspace) {
@@ -41,7 +41,10 @@ export async function refreshWorkspaceCurrentBranchCache(
       return { branchName, changed: false };
     }
 
-    await db.update(workspaces).set({ branchName }).where(eq(workspaces.id, workspaceId));
+    await db
+      .update(workspaces)
+      .set({ branchName })
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
     return { branchName, changed: true };
   } catch (e) {
     log.warn('Failed to refresh workspace current branch cache', {

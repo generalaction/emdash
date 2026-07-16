@@ -367,7 +367,8 @@ export class ProjectManagerStore {
     });
     appState.navigation.revalidate();
     try {
-      await rpc.projects.deleteProject(projectId);
+      const result = await (await getProjectsWireClient()).delete({ projectId });
+      if (!result.success) throw new Error(result.error.message);
     } catch (err) {
       runInAction(() => {
         if (snapshot) this.projects.set(projectId, snapshot);

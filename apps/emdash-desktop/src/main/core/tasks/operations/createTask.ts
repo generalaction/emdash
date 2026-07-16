@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
+import type { OperationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
@@ -47,6 +48,25 @@ export async function prepareCreateTask(
   let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
 
   const wsTarget = workspaceConfig.workspace;
+  const branchName =
+    workspaceConfig.git.kind === 'use-branch' || workspaceConfig.git.kind === 'create-branch'
+      ? workspaceConfig.git.branchName
+      : workspaceConfig.git.kind === 'pr-branch'
+        ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
+        : undefined;
+  const cleanupReady = await (
+    await getOperationsService()
+  ).waitForConflictingCleanup({
+    projectId: params.projectId,
+    workspaceId: wsTarget.kind === 'repository-instance' ? wsTarget.workspaceId : undefined,
+    branchName,
+  });
+  if (!cleanupReady) {
+    return err({
+      type: 'provision-failed',
+      message: 'A previous cleanup for this workspace is waiting for review or connectivity.',
+    });
+  }
 
   if (wsTarget.kind === 'repository-instance') {
     workspaceId = wsTarget.workspaceId;
@@ -69,7 +89,7 @@ export async function prepareCreateTask(
           sshConnectionId: projects.sshConnectionId,
         })
         .from(projects)
-        .where(eq(projects.id, params.projectId))
+        .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
         .limit(1);
 
       const isRemote = projectRow?.workspaceProvider === 'ssh';
@@ -123,6 +143,10 @@ export async function prepareCreateTask(
   }
 
   return ok({ params, initialStatus, workspaceId, newWorkspaceValues, convInsert });
+}
+
+async function getOperationsService(): Promise<OperationsService> {
+  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 /**

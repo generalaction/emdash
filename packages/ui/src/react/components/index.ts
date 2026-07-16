@@ -38,6 +38,11 @@ export {
   type AgentStatusProps,
 } from './agent-status/agent-status';
 export {
+  ScriptStatus,
+  type ScriptStatusKind,
+  type ScriptStatusProps,
+} from './script-status/script-status';
+export {
   SteppedLoader,
   SteppedLoaderProgress,
   type StepStatus,

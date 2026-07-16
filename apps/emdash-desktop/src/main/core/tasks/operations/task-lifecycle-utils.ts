@@ -63,8 +63,8 @@ async function workspaceHasRemainingTasks(
   excludeArchived: boolean
 ): Promise<boolean> {
   const where = excludeArchived
-    ? and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt))
-    : eq(tasks.workspaceId, workspaceId);
+    ? and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt), isNull(tasks.deletedAt))
+    : and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt));
 
   const siblings = await db.select({ id: tasks.id }).from(tasks).where(where).limit(1);
   return siblings.length > 0;
@@ -216,7 +216,7 @@ export async function deleteWorkspaceIfUnused(
       path: workspaces.path,
     })
     .from(workspaces)
-    .where(eq(workspaces.id, workspaceId))
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
     .limit(1);
 
   // project-root workspaces outlive any individual task — never delete them.
@@ -225,7 +225,9 @@ export async function deleteWorkspaceIfUnused(
   const [sibling] = await db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(and(eq(tasks.workspaceId, workspaceId), ne(tasks.id, excludeTaskId)))
+    .where(
+      and(eq(tasks.workspaceId, workspaceId), ne(tasks.id, excludeTaskId), isNull(tasks.deletedAt))
+    )
     .limit(1);
   if (sibling) return;
 

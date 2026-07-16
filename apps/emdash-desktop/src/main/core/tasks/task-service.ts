@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
   startWorkspacePostActivationScripts,
@@ -83,7 +83,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async provisionWorkspace(
     taskId: string
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
-    const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    const [row] = await db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+      .limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
     const { projectId } = row;
 
@@ -129,7 +133,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   private async _registerAndPersist(taskId: string, data: WorkspaceBootstrapResult): Promise<void> {
-    const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    const [row] = await db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+      .limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
 
     const task = mapTaskRowToTask(row);

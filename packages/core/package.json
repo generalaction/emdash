@@ -117,6 +117,14 @@
       "types": "./dist/services-agent-plugins-api-spawn-context.d.mts",
       "default": "./dist/services-agent-plugins-api-spawn-context.mjs"
     },
+    "./services/session-intents/api": {
+      "types": "./dist/services-session-intents-api.d.mts",
+      "default": "./dist/services-session-intents-api.mjs"
+    },
+    "./services/session-intents/node": {
+      "types": "./dist/services-session-intents-node.d.mts",
+      "default": "./dist/services-session-intents-node.mjs"
+    },
     "./services/fs-watch/api": {
       "types": "./dist/services-fs-watch-api.d.mts",
       "default": "./dist/services-fs-watch-api.mjs"

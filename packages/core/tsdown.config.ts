@@ -29,6 +29,8 @@ export default defineConfig({
     'services-agent-plugins-api-plugins-helpers':
       'src/services/agent-plugins/api/plugins/helpers/index.ts',
     'services-agent-plugins-api-spawn-context': 'src/services/agent-plugins/api/spawn-context.ts',
+    'services-session-intents-api': 'src/services/session-intents/api/index.ts',
+    'services-session-intents-node': 'src/services/session-intents/node/index.ts',
     'services-fs-watch-api': 'src/services/fs-watch/api/index.ts',
     'services-fs-watch-node': 'src/services/fs-watch/node/index.ts',
     'services-script-workflows-api': 'src/services/script-workflows/api/index.ts',

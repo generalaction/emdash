@@ -19,6 +19,7 @@ import { appScope } from '@main/app/app-scope';
 import { createCatalogWireController } from '@main/core/catalog/wire-controller';
 import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
 import { createProjectsWireController } from '@main/core/projects/wire-controller';
+import { createTasksWireController } from '@main/core/tasks/wire-controller';
 import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
 import {
   getAcpRuntimeClient,
@@ -36,6 +37,7 @@ import { catalogWireContract } from '@shared/core/catalog/wire-contract';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';
 import { DESKTOP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import { tasksWireContract } from '@shared/core/tasks/wire-contract';
 import { terminalTabsWireContract } from '@shared/core/terminals/wire-contract';
 import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 
@@ -51,11 +53,13 @@ export function installDesktopWire(options: InstallDesktopWireOptions): void {
   const workspacesController = createWorkspacesWireController(options);
   const projectsController = createProjectsWireController();
   const terminalTabsController = createTerminalTabsWireController();
+  const tasksController = createTasksWireController();
   const catalogController = createCatalogWireController();
   const controller = createLazyDesktopController({
     workspacesController,
     projectsController,
     terminalTabsController,
+    tasksController,
     catalogController,
   });
 
@@ -78,11 +82,13 @@ function createLazyDesktopController({
   workspacesController,
   projectsController,
   terminalTabsController,
+  tasksController,
   catalogController,
 }: {
   workspacesController: ReturnType<typeof createWorkspacesWireController>;
   projectsController: ReturnType<typeof createProjectsWireController>;
   terminalTabsController: ReturnType<typeof createTerminalTabsWireController>;
+  tasksController: ReturnType<typeof createTasksWireController>;
   catalogController: ReturnType<typeof createCatalogWireController>;
 }): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
@@ -106,6 +112,7 @@ function createLazyDesktopController({
       agentConfig: forwardController(agentConfigContract, agentConfig),
       terminals: forwardController(terminalsContract, terminals),
       terminalTabs: createController(terminalTabsWireContract, terminalTabsController.impl),
+      tasks: createController(tasksWireContract, tasksController.impl),
       tuiAgents: forwardController(tuiAgentsContract, tuiAgents),
       notifications: createNotificationsWireController(notificationService),
       catalog: createController(catalogWireContract, catalogController.impl),
@@ -140,6 +147,7 @@ function createLazyDesktopController({
       await projectsController.dispose();
       await workspacesController.dispose();
       await terminalTabsController.dispose();
+      await tasksController.dispose();
       await catalogController.dispose();
       await devServerBridge?.dispose();
     },

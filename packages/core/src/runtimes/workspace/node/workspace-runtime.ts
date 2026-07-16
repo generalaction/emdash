@@ -33,8 +33,13 @@ import {
   type WorkspaceUsage,
   workspaceContract,
 } from '@runtimes/workspace/api';
-import type { BootstrapProgress, RunPhaseInput } from '@runtimes/workspace/api/provisioning';
+import {
+  compileTeardownFromProbe,
+  type BootstrapProgress,
+  type RunPhaseInput,
+} from '@runtimes/workspace/api/provisioning';
 import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
+import { probeWorkspace } from '@runtimes/workspace/node/provisioning/lifecycle/probe';
 import {
   gitErrorMessage,
   runGit,
@@ -274,13 +279,21 @@ export class WorkspaceRuntime {
       );
       if (!idle.success) return idle;
 
-      if (input.lifecycle?.teardownPlan && input.lifecycle.teardownPlan.steps.length > 0) {
+      const teardownPlan =
+        input.lifecycle && !input.lifecycle.teardownPlan
+          ? compileTeardownFromProbe(
+              await probeWorkspace(input.lifecycle.ref, { signal: ctx.signal }),
+              input.lifecycle.ref
+            )
+          : input.lifecycle?.teardownPlan;
+
+      if (input.lifecycle && teardownPlan && teardownPlan.steps.length > 0) {
         stage.start('teardown-plan', 'Remove workspace');
         const result = await this.runLifecyclePhase(
           {
             ref: input.lifecycle.ref,
             context: input.lifecycle.context,
-            plan: input.lifecycle.teardownPlan,
+            plan: teardownPlan,
             phase: 'teardown',
             force: input.force,
           },

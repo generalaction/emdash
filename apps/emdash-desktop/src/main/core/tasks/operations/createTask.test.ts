@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getProject: vi.fn(),
   select: vi.fn(),
+  waitForConflictingCleanup: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -21,6 +22,12 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
+vi.mock('@main/core/operations/operations-service', () => ({
+  operationsService: {
+    waitForConflictingCleanup: mocks.waitForConflictingCleanup,
+  },
+}));
+
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
   return {
     id: values.id ?? 'task-1',
@@ -31,6 +38,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     taskBranch: values.taskBranch ?? null,
     linkedIssue: values.linkedIssue ?? null,
     archivedAt: values.archivedAt ?? null,
+    deletedAt: values.deletedAt ?? null,
     createdAt: values.createdAt ?? '2026-05-18 12:00:00',
     updatedAt: values.updatedAt ?? '2026-05-18 12:00:00',
     lastInteractedAt: values.lastInteractedAt ?? null,
@@ -86,6 +94,7 @@ describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getProject.mockReturnValue({});
+    mocks.waitForConflictingCleanup.mockResolvedValue(true);
     setupTransactionMock();
     setupSelectMock();
   });

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -137,7 +137,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const rows = await db
       .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
-      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
       .where(
         and(
           eq(automationRuns.automationId, automationId),
@@ -172,7 +172,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const rows = await db
       .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
-      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
       .where(
         and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
       )
@@ -185,7 +185,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const rows = await db
       .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
-      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
       .where(
         and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
       )

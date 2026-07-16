@@ -8,8 +8,14 @@ import {
   scriptWorkflowResultSchema,
   terminalErrorSchema,
 } from '@emdash/core/services/script-workflows/api';
-import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
+import {
+  deletionListSchema,
+  deletionModelKeySchema,
+  deletionMutationErrorSchema,
+  deletionMutationResultSchema,
+} from '@shared/core/operations/deletion';
 
 export const workspaceBootstrapStepSchema = z.enum([
   'resolving-worktree',
@@ -79,6 +85,10 @@ export const runWorkspaceScriptWorkflowInputSchema = z.object({
   type: z.enum(['setup', 'run', 'teardown']),
 });
 
+const workspaceIdInputSchema = z.object({
+  workspaceId: z.string(),
+});
+
 export const workspacesWireContract = defineContract({
   bootstrap: liveModel({
     key: workspaceBootstrapKeySchema,
@@ -103,6 +113,27 @@ export const workspacesWireContract = defineContract({
     progress: scriptWorkflowProgressSchema,
     result: scriptWorkflowResultSchema,
     error: terminalErrorSchema,
+  }),
+  delete: fallible({
+    input: workspaceIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  retryDelete: fallible({
+    input: workspaceIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  forgetWithoutCleanup: fallible({
+    input: workspaceIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  deletions: liveModel({
+    key: deletionModelKeySchema,
+    states: {
+      list: liveState({ data: deletionListSchema }),
+    },
   }),
 });
 

@@ -16,7 +16,7 @@ import {
 } from '@emdash/core/runtimes/workspace/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
@@ -302,13 +302,17 @@ export class WorkspaceBootstrapService {
   async ensureWorkspaceSetupForTask(
     taskId: string
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
-    const [row] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    const [row] = await this.db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+      .limit(1);
     if (!row?.workspaceId) return err({ type: 'missing-workspace' });
 
     const [wsRow] = await this.db
       .select()
       .from(workspaces)
-      .where(eq(workspaces.id, row.workspaceId))
+      .where(and(eq(workspaces.id, row.workspaceId), isNull(workspaces.deletedAt)))
       .limit(1);
     if (!wsRow) return err({ type: 'missing-workspace' });
 
@@ -338,7 +342,10 @@ export class WorkspaceBootstrapService {
     const key = type !== 'byoi' ? computeWorkspaceKey(type, path, connectionId) : null;
 
     if (key) {
-      const [existing] = await this.db.select().from(workspaces).where(eq(workspaces.key, key));
+      const [existing] = await this.db
+        .select()
+        .from(workspaces)
+        .where(and(eq(workspaces.key, key), isNull(workspaces.deletedAt)));
       if (existing && existing.id !== workspaceId) {
         return existing.id;
       }
@@ -347,7 +354,7 @@ export class WorkspaceBootstrapService {
     await this.db
       .update(workspaces)
       .set({ path, key, branchName: branchName ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(eq(workspaces.id, workspaceId));
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
     return workspaceId;
   }
 
@@ -407,8 +414,7 @@ export class WorkspaceBootstrapService {
     };
   }
 
-  private async resolveLegacyAutomation(
-    task: Task,
+  async resolveLegacyAutomation(
     project: ProjectProvider,
     workDir: string
   ): Promise<ActivateWorkspaceInput['automation']> {
@@ -454,7 +460,7 @@ export class WorkspaceBootstrapService {
       message: 'Initialising workspace…',
     });
 
-    const automation = await this.resolveLegacyAutomation(task, project, workDir);
+    const automation = await this.resolveLegacyAutomation(project, workDir);
     const activation = await runWorkspaceActivateJob(task, project, {
       workspace: runtimePlan.workspace,
       consumerId: task.id,
@@ -485,7 +491,7 @@ export class WorkspaceBootstrapService {
         })
       );
     } catch (e) {
-      await runWorkspaceDeactivateJob(task, runtimePlan.workspace).catch(() => {});
+      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
       return err({
         type: 'setup-failed',
         stepKind: 'workspace-acquire',
@@ -524,7 +530,7 @@ export class WorkspaceBootstrapService {
         postActivationAutomation: automation,
       });
     } catch (e) {
-      await runWorkspaceDeactivateJob(task, runtimePlan.workspace).catch(() => {});
+      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
       return err({
         type: 'setup-failed',
         stepKind: 'build-providers',
@@ -739,7 +745,8 @@ export function startWorkspacePostActivationScripts(
 
 async function runWorkspaceDeactivateJob(
   task: Task,
-  workspace: ActivateWorkspaceInput['workspace']
+  workspace: ActivateWorkspaceInput['workspace'],
+  automation?: ActivateWorkspaceInput['automation']
 ): Promise<void> {
   const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
   const jobs = createLiveJobReplica(
@@ -750,6 +757,7 @@ async function runWorkspaceDeactivateJob(
     workspace,
     consumerId: task.id,
     strategy: 'stop',
+    automation,
   });
   try {
     const job = await lease.ready();

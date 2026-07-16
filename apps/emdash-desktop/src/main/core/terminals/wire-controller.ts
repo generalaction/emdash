@@ -1,7 +1,7 @@
 import type { TerminalKey } from '@emdash/core/runtimes/terminals/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Contract, ContractImpl } from '@emdash/wire';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -222,7 +222,11 @@ async function startRuntimeTerminal(
 }
 
 async function resolveTerminalContext(projectId: string, taskId: string, terminalId: string) {
-  const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  const [taskRow] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
+    .limit(1);
   if (!taskRow) return err(terminalError('missing-task', `Task ${taskId} not found`));
 
   const project = projectManager.getProject(projectId);

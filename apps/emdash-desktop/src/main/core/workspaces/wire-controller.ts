@@ -7,7 +7,8 @@ import type {
 import type { Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import type { OperationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
@@ -89,6 +90,22 @@ export function createWorkspacesWireController(
         run: (input, ctx) => runScriptWorkflowJob(input, ctx),
         toError: unknownToTerminalError,
       },
+      delete: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.enqueueDeleteWorkspace(input.workspaceId);
+      },
+      retryDelete: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.retryDelete('workspace', input.workspaceId);
+      },
+      forgetWithoutCleanup: async (input) => {
+        const operationsService = await getOperationsService();
+        await operationsService.initialize();
+        return operationsService.forgetWithoutCleanup('workspace', input.workspaceId);
+      },
+      deletions: createWorkspaceDeletionsProvider(),
     },
     async dispose() {
       unsubscribeProgress();
@@ -99,11 +116,52 @@ export function createWorkspacesWireController(
   };
 }
 
+function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
+  typeof workspacesWireContract.deletions
+> {
+  return {
+    kind: 'leasedLiveModelProvider',
+    contract: workspacesWireContract.deletions,
+    acquireState(key, name) {
+      let lease: ReturnType<OperationsService['acquireDeletionState']> | undefined;
+      let released = false;
+      return {
+        ready: async () => {
+          if (name !== 'list') {
+            throw new Error(`Unknown workspace deletion state '${String(name)}'`);
+          }
+          if (released) throw new Error('Workspace deletion state lease was released before ready');
+          const operationsService = await getOperationsService();
+          await operationsService.initialize();
+          lease ??= operationsService.acquireDeletionState('workspace', key.entityId);
+          if (released) {
+            await lease.release();
+            throw new Error('Workspace deletion state lease was released before ready');
+          }
+          return lease.ready();
+        },
+        release: async () => {
+          released = true;
+          await lease?.release();
+        },
+      };
+    },
+    async runMutation() {
+      throw new Error('Workspace deletions model does not expose mutations');
+    },
+    async dispose() {},
+  };
+}
+
 async function runScriptWorkflowJob(
   input: RunWorkspaceScriptWorkflowInput,
   ctx: LiveJobContext<ScriptWorkflowProgress>
 ): Promise<Result<ScriptWorkflowResult, TerminalError>> {
-  const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
+  const [taskRow] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, input.taskId), isNull(tasks.deletedAt)))
+    .limit(1);
   if (!taskRow) {
     return {
       success: false,
@@ -258,7 +316,7 @@ async function hydrateBootstrapState(workspaceId: string): Promise<WorkspaceBoot
   const [workspace] = await db
     .select({ id: workspaces.id })
     .from(workspaces)
-    .where(eq(workspaces.id, workspaceId))
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
     .limit(1);
   return workspace ? { status: 'unprovisioned' } : { status: 'unprovisioned' };
 }
@@ -276,7 +334,7 @@ async function resolveTaskIdForWorkspace(workspaceId: string): Promise<string | 
   const [row] = await db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(eq(tasks.workspaceId, workspaceId))
+    .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
     .limit(1);
   return row?.id;
 }
@@ -285,7 +343,7 @@ async function resolveWorkspaceIdForTask(taskId: string): Promise<string | undef
   const [row] = await db
     .select({ workspaceId: tasks.workspaceId })
     .from(tasks)
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   return row?.workspaceId ?? undefined;
 }
@@ -334,6 +392,10 @@ function unknownToWorkspaceError(error: unknown): WorkspaceError {
     'workspace-wire-error',
     error instanceof Error ? error.message : String(error)
   );
+}
+
+async function getOperationsService(): Promise<OperationsService> {
+  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 export function provisionWorkspaceErrorToWorkspaceError(error: unknown): WorkspaceError {

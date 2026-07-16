@@ -18,7 +18,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
   const [projectRow] = await db
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
     .from(projects)
-    .where(eq(projects.id, projectId))
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
 
   const repositoryWorkspaceId = projectRow?.repositoryWorkspaceId ?? null;
@@ -40,7 +40,14 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
     })
     .from(tasks)
     .innerJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
-    .where(and(eq(tasks.projectId, projectId), isNull(tasks.archivedAt)));
+    .where(
+      and(
+        eq(tasks.projectId, projectId),
+        isNull(tasks.archivedAt),
+        isNull(tasks.deletedAt),
+        isNull(workspaces.deletedAt)
+      )
+    );
 
   // 3. If repositoryWorkspaceId exists, load it separately so we always have it
   //    even when no task points to it yet.
@@ -49,7 +56,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
     const [row] = await db
       .select()
       .from(workspaces)
-      .where(eq(workspaces.id, repositoryWorkspaceId))
+      .where(and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.deletedAt)))
       .limit(1);
     repoWsRow = row;
   }

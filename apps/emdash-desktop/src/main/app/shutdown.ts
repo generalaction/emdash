@@ -4,6 +4,7 @@ import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { automationsService } from '@main/core/automations/automations-service';
+import { operationsService } from '@main/core/operations/operations-service';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { updateService } from '@main/core/updates/update-service';
 import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
@@ -51,6 +52,7 @@ export async function runQuitCleanup(): Promise<void> {
     ['acpAgentStatusBridge.dispose', async () => acpAgentStatusBridge.dispose()],
     ['tuiAgentStatusBridge.dispose', async () => tuiAgentStatusBridge.dispose()],
     ['agentStatusService.dispose', async () => agentStatusService.dispose()],
+    ['operationsService.dispose', () => operationsService.dispose()],
     ['projectManager.release', () => projectManager.release()],
     ['disposeWorkspaceRuntimeHost', () => disposeWorkspaceRuntimeHost()],
     ['disposeDesktopWireWorkers', () => disposeDesktopWireWorkers()],

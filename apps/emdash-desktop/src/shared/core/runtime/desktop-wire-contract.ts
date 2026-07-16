@@ -8,6 +8,7 @@ import { defineContract } from '@emdash/wire';
 import { notificationsContract } from '@services/notifications/api';
 import { catalogWireContract } from '@shared/core/catalog/wire-contract';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
+import { tasksWireContract } from '@shared/core/tasks/wire-contract';
 import { terminalTabsWireContract } from '@shared/core/terminals/wire-contract';
 import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
 
@@ -23,6 +24,7 @@ export const desktopWireContract = defineContract({
   catalog: catalogWireContract,
   workspaces: workspacesWireContract,
   projects: projectsWireContract,
+  tasks: tasksWireContract,
 });
 
 export type DesktopWireContract = typeof desktopWireContract;

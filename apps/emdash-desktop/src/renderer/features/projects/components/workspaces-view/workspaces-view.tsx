@@ -25,12 +25,14 @@ import { Spinner } from '@renderer/lib/ui/spinner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
+import type { DeletionState } from '@shared/core/operations/deletion';
 import type {
   ProjectWorkspaceActionSummary,
   ProjectWorkspacePathState,
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@shared/core/workspaces/project-workspaces';
+import { usePendingCleanups } from './use-pending-cleanups';
 
 type UsageFilter = 'all' | 'used' | 'unused';
 type LoadStatus = 'idle' | 'loading' | 'error';
@@ -182,6 +184,7 @@ export const WorkspacesView = observer(function WorkspacesView({
 }) {
   const store = useMemo(() => new ProjectWorkspacesStore(projectId), [projectId]);
   const view = useMemo(() => createProjectWorkspacesListView(store), [store]);
+  const pendingCleanups = usePendingCleanups(projectId);
 
   useEffect(() => {
     void store.load();
@@ -193,6 +196,7 @@ export const WorkspacesView = observer(function WorkspacesView({
         <div className="relative flex h-full min-h-0 w-full flex-col">
           <WorkspacesHeader store={store} view={view} />
           <WorkspaceWarnings warnings={store.warnings} />
+          <PendingCleanupsSection {...pendingCleanups} />
           <ListView.Body className="min-h-0 flex-1">
             {store.status === 'loading' && store.rows.length === 0 ? (
               <WorkspacesLoadingState />
@@ -216,6 +220,109 @@ export const WorkspacesView = observer(function WorkspacesView({
     </TooltipProvider>
   );
 });
+
+function PendingCleanupsSection({
+  cleanups,
+  retry,
+  forget,
+}: {
+  cleanups: DeletionState[];
+  retry(cleanup: DeletionState): Promise<void>;
+  forget(cleanup: DeletionState): Promise<void>;
+}) {
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  if (cleanups.length === 0) return null;
+
+  const runAction = async (action: 'retry' | 'forget', cleanup: DeletionState): Promise<void> => {
+    setPendingAction(`${action}:${cleanup.operationId}`);
+    try {
+      await (action === 'retry' ? retry(cleanup) : forget(cleanup));
+      toast({
+        title: action === 'retry' ? 'Cleanup resumed' : 'Cleanup forgotten',
+        description:
+          action === 'retry'
+            ? 'The cleanup will continue in the background.'
+            : 'Emdash removed its records without deleting files on the host.',
+      });
+    } catch (error) {
+      toast({
+        title: action === 'retry' ? 'Could not resume cleanup' : 'Could not forget cleanup',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  return (
+    <section className="mx-4 mt-4 overflow-hidden rounded-md border border-border-warning bg-background-warning/30">
+      <div className="flex items-start gap-2 border-b border-border-warning/50 px-3 py-2">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-foreground-warning" />
+        <div>
+          <h2 className="text-sm font-medium text-foreground">Pending cleanup</h2>
+          <p className="text-xs text-foreground-muted">
+            Review workspaces that could not be cleaned up automatically.
+          </p>
+        </div>
+      </div>
+      <div className="max-h-56 divide-y divide-border-warning/40 overflow-y-auto">
+        {cleanups.map((cleanup) => {
+          const retryKey = `retry:${cleanup.operationId}`;
+          const forgetKey = `forget:${cleanup.operationId}`;
+          return (
+            <div
+              key={cleanup.operationId}
+              className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium text-foreground">
+                    {cleanup.entityName ?? cleanup.entityId}
+                  </span>
+                  <span className="rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+                    {cleanupStatusLabel(cleanup)}
+                  </span>
+                  <span className="text-foreground-muted">
+                    {cleanup.hostLabel ?? cleanup.hostRef}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate text-foreground-muted">
+                  {cleanup.workspacePath ?? 'No workspace path'}
+                  {cleanup.branchName ? ` · ${cleanup.branchName}` : ''}
+                  {` · Requested ${new Date(cleanup.createdAt).toLocaleString()}`}
+                </div>
+                {cleanup.status === 'failed' && (
+                  <div className="mt-0.5 truncate text-foreground-destructive">{cleanup.error}</div>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pendingAction !== null}
+                  onClick={() => void runAction('retry', cleanup)}
+                >
+                  {pendingAction === retryKey && <Spinner className="size-3.5" />}
+                  Clean up now
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pendingAction !== null}
+                  onClick={() => void runAction('forget', cleanup)}
+                >
+                  {pendingAction === forgetKey && <Spinner className="size-3.5" />}
+                  Forget
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 const WorkspacesHeader = observer(function WorkspacesHeader({
   store,
@@ -631,6 +738,21 @@ function pathStateLabel(state: ProjectWorkspacePathState): string {
       return 'No path';
     case 'error':
       return 'Scan error';
+  }
+}
+
+function cleanupStatusLabel(cleanup: DeletionState): string {
+  switch (cleanup.status) {
+    case 'blocked-host-offline':
+      return 'Host offline';
+    case 'awaiting-confirmation':
+      return cleanup.confirmationReason === 'workspace-modified'
+        ? 'Workspace modified'
+        : 'Needs review';
+    case 'failed':
+      return 'Failed';
+    case 'cleaning':
+      return 'Cleaning';
   }
 }
 

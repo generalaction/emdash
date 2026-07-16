@@ -32,11 +32,17 @@ vi.mock('../utils', () => ({
   resolveWorkspace: vi.fn().mockReturnValue(null),
 }));
 
-vi.mock('@main/lib/logger', () => ({
-  log: {
+vi.mock('@main/lib/logger', () => {
+  const log = {
+    child: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
     warn: vi.fn(),
-  },
-}));
+    error: vi.fn(),
+  };
+  log.child.mockImplementation(() => log);
+  return { log };
+});
 
 const repoPath = '/repo';
 const configPath = `${repoPath}/.emdash.json`;

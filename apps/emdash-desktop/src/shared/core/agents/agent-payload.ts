@@ -194,7 +194,7 @@ export function agentSupportsAcp(capabilities: AgentCapabilities | undefined | n
 export function agentSupportsInitialPromptDelivery(
   capabilities: AgentCapabilities | undefined | null
 ): boolean {
-  const kind = capabilities?.prompt.kind;
+  const kind = capabilities?.prompt?.kind;
   return kind === undefined || kind === 'argv' || kind === 'stdin-pipe';
 }
 

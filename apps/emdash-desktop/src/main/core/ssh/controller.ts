@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import {
   projects,
@@ -63,7 +63,8 @@ export const sshController = createRPCController({
         name: projects.name,
         sshConnectionId: projects.sshConnectionId,
       })
-      .from(projects);
+      .from(projects)
+      .where(isNull(projects.deletedAt));
 
     const usage: SshConnectionUsage = {};
     for (const row of rows) {
@@ -174,7 +175,7 @@ export const sshController = createRPCController({
     const referencingProjects = await db
       .select({ name: projects.name })
       .from(projects)
-      .where(eq(projects.sshConnectionId, id));
+      .where(and(eq(projects.sshConnectionId, id), isNull(projects.deletedAt)));
 
     if (referencingProjects.length > 0) {
       const projectNames = referencingProjects.map((project) => project.name).join(', ');

@@ -43,7 +43,8 @@ function createAppDb(): {
       ssh_connection_id TEXT,
       repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
 
     CREATE TABLE tasks (
@@ -65,7 +66,8 @@ function createAppDb(): {
       workspace_provider_data TEXT,
       workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
-      automation_run_id TEXT
+      automation_run_id TEXT,
+      deleted_at TEXT
     );
 
     CREATE TABLE workspaces (
@@ -82,7 +84,8 @@ function createAppDb(): {
       config TEXT,
       branch_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
 
     CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
