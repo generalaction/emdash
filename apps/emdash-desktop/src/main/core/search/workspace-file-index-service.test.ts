@@ -143,6 +143,28 @@ describe('WorkspaceFileIndexService', () => {
     expect(store.operations).toEqual([]);
   });
 
+  it('reindexes an active workspace when an update-only batch finds missing metadata', async () => {
+    vi.useFakeTimers();
+    const store = new FakeStore();
+    const service = await createService(store, { reindexDebounceMs: 5 });
+
+    await service.onWorkspaceActivated('ws-1', {
+      rootPath: '/repo',
+      enumerate: enumerator(() => ['/repo/changed.ts']),
+    });
+    service.deleteIndex('ws-1');
+    store.operations = [];
+
+    service.onWorkspaceFileChange('ws-1', {
+      kind: 'changes',
+      changes: [{ kind: 'update', path: '/repo/changed.ts', entryType: 'file' }],
+    });
+    await vi.advanceTimersByTimeAsync(5);
+
+    expect([...store.pathSet('ws-1')]).toEqual(['/repo/changed.ts']);
+    expect(store.operations).toEqual(['transaction', 'sync:/repo/changed.ts', 'record:complete:1']);
+  });
+
   it('applies deletes before creates, ignores updates, and recounts once for subtree deletes', async () => {
     const store = new FakeStore();
     store.meta.set('ws-1', {
