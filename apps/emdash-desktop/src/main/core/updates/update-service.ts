@@ -1,10 +1,4 @@
 import type { Disposable } from '@emdash/shared/concurrency';
-import {
-  notificationService,
-  publishUpdateAvailableNotification,
-  publishUpdateDownloadedNotification,
-  publishUpdateErrorNotification,
-} from '@services/notifications/node';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
@@ -13,6 +7,12 @@ import _electronUpdater, {
 import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import {
+  notificationService,
+  publishUpdateAvailableNotification,
+  publishUpdateDownloadedNotification,
+  publishUpdateErrorNotification,
+} from '@root/src/core/services/notifications/node';
 import { IS_CANARY, UPDATE_CHANNEL } from '@shared/app-identity';
 import {
   updateAvailableEvent,

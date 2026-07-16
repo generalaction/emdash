@@ -3,7 +3,6 @@ import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import { createResourceCache, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
-import { notificationService } from '@services/notifications/node';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { appScope } from '@main/app/app-scope';
 import { checkoutSelector } from '@main/core/git/runtime-client';
@@ -18,6 +17,7 @@ import {
   type LifecycleOperationRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { notificationService } from '@root/src/core/services/notifications/node';
 import type {
   DeletionEntityKind,
   DeletionList,

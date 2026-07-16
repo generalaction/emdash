@@ -1,10 +1,10 @@
-import { useRegisterNotificationOpenHandlers } from '@services/notifications/browser';
 import { useEffect } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
 import {
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,

@@ -1,4 +1,3 @@
-import { notificationPayload } from '@services/notifications/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
@@ -10,6 +9,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
 import { versionedJsonColumn } from '@main/db/versioned-column';
+import { notificationPayload } from '@root/src/core/services/notifications/api';
 import {
   automationConversationConfig,
   automationTriggerConfig,

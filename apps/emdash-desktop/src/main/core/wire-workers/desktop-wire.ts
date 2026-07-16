@@ -12,8 +12,6 @@ import {
   type Controller,
 } from '@emdash/wire/api';
 import { compose } from '@emdash/wire/util';
-import { notificationService } from '@services/notifications/node';
-import { createNotificationsWireController } from '@services/notifications/node/wire-controller';
 import { ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { createCatalogWireController } from '@main/core/catalog/wire-controller';
@@ -33,6 +31,8 @@ import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@main/core/workspaces/wire-controller';
+import { notificationService } from '@root/src/core/services/notifications/node';
+import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
 import { catalogWireContract } from '@shared/core/catalog/wire-contract';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';

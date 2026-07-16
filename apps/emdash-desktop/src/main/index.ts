@@ -1,10 +1,10 @@
 import './app/configure-app-identity';
 import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
-import { initializeNotificationService } from '@services/notifications/node';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
+import { initializeNotificationService } from '@root/src/core/services/notifications/node';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';

@@ -51,7 +51,6 @@
       "@emdash/core/services/*": ["../../packages/core/src/services/*"],
       "@emdash/core/primitives/*": ["../../packages/core/src/primitives/*"],
       "@emdash/core/workspace-server/*": ["../../packages/core/src/workspace-server/*"],
-      "@services/notifications/*": ["./src/services/notifications/*"],
       "@runtimes/*": ["../../packages/core/src/runtimes/*"],
       "@services/*": ["../../packages/core/src/services/*"],
       "@primitives/*": ["../../packages/core/src/primitives/*"],
@@ -64,7 +63,7 @@
     "src/renderer/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "src/services/**/*",
+    "src/core/services/**/*",
     "src/types/**/*",
     "src/test/**/*",
     "tooling/**/*"

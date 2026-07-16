@@ -1,4 +1,3 @@
-import { disposeNotificationService } from '@services/notifications/node';
 import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
@@ -11,6 +10,7 @@ import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-worke
 import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { disposeNotificationService } from '@root/src/core/services/notifications/node';
 import { projectManager } from '../core/projects/project-manager';
 import { appScope } from './app-scope';
 
