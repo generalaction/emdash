@@ -10,7 +10,6 @@ import {
   type AttachmentRef,
   type AcpRuntimeError,
   type HistoryPage,
-  type PromptDraftUpdate,
   type PromptInput,
   type SessionState,
   type TerminalState,
@@ -206,8 +205,16 @@ export class AcpLiveSession {
     return this.client.cancelTurn({ conversationId: this.conversationId });
   }
 
-  setPromptDraft(draft: PromptDraftUpdate): Promise<Result<void, unknown>> {
-    return this.client.setPromptDraft({ conversationId: this.conversationId, draft });
+  getPromptDraftState() {
+    return this.client.getPromptDraftState({ conversationId: this.conversationId });
+  }
+
+  compareAndSetPromptDraft(expectedRev: number | null, input: PromptInput | null) {
+    return this.client.compareAndSetPromptDraft({
+      conversationId: this.conversationId,
+      expectedRev,
+      input,
+    });
   }
 
   setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {

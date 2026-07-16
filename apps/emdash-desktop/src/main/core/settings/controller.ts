@@ -1,10 +1,12 @@
 import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
+import { mobileAccessService } from '@main/core/mobile-access/service-instance';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
+  if (key === 'mobileAccess') await mobileAccessService.reconcile();
   if (key === 'resourceMonitor') await reconcileResourceSampler();
   if (key === 'keyboard') {
     // Re-read the effective settings so runtime state observes service-side defaults or merges.

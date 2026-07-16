@@ -2,11 +2,13 @@ import type {
   AcpAttachmentError,
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
+  AcpCompareAndSetPromptDraftError,
   AcpDeleteQueuedPromptError,
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
+  AcpGetPromptDraftStateError,
   AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpResumeSessionError,
@@ -21,6 +23,7 @@ import type {
   AttachmentRef,
   HistoryPage,
   PromptDraftUpdate,
+  PromptDraftState,
   PromptInput,
   ResumeResult,
 } from '@emdash/core/acp';
@@ -84,6 +87,18 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       draft: PromptDraftUpdate;
     }): Result<void, AcpSetPromptDraftError> {
       return runtime.setPromptDraft(input.conversationId, input.draft);
+    },
+    compareAndSetPromptDraft(input: {
+      conversationId: string;
+      expectedRev: number | null;
+      input: PromptInput | null;
+    }): Result<PromptDraftState, AcpCompareAndSetPromptDraftError> {
+      return runtime.compareAndSetPromptDraft(input.conversationId, input.expectedRev, input.input);
+    },
+    getPromptDraftState(input: {
+      conversationId: string;
+    }): Result<PromptDraftState, AcpGetPromptDraftStateError> {
+      return runtime.getPromptDraftState(input.conversationId);
     },
     setModelOption(input: {
       conversationId: string;

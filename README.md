@@ -66,6 +66,32 @@ See [Remote Projects](https://emdash.sh/docs/remote-projects) and
 [Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure)
 for setup details.
 
+## Mobile Access
+
+Keep Emdash running on your desktop and use a phone on the same trusted private LAN or
+user-managed VPN to interact with your work:
+
+1. Open **Settings > Mobile Access** on the desktop.
+2. Select a private network address and port, then enable Mobile Access.
+3. Open the displayed URL on your phone.
+4. Generate a one-time pairing code on the desktop and enter it on the phone.
+
+The desktop must remain running and awake. Pairing and mobile sessions are cleared whenever
+the desktop app or Mobile Access server restarts, so you will need to pair again.
+
+> [!WARNING]
+> Mobile Access v1 uses plaintext HTTP. Use it only on trusted private Wi-Fi or a
+> user-managed private VPN such as Tailscale or WireGuard. Never expose or port-forward the
+> Mobile Access port to the public internet. Pairing grants remote terminal and agent control;
+> a paired device can run commands that modify source files, Git state, and other data available
+> to Emdash.
+
+From mobile you can browse existing projects and tasks, interact with conversations and
+terminals, start and rename sessions, read files and diffs, and open browser URLs. The dedicated
+file and diff viewers are read-only, but terminal commands and approved agent actions are not.
+v1 does not provide a public relay, built-in TLS, desktop browser or cookie streaming, or project
+or task creation.
+
 ## Privacy
 
 Emdash is local-first. App state is stored in a local SQLite database, and Emdash does

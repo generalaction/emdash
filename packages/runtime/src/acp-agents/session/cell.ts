@@ -8,6 +8,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type {
   AcpCancelTurnError,
+  AcpCompareAndSetPromptDraftError,
   AcpPermissionRequest,
   AcpRuntimeError,
   AcpSendPromptError,
@@ -16,6 +17,7 @@ import type {
   InvalidStateError,
   NormalizedEvent,
   PromptDraft,
+  PromptDraftState,
   PromptDraftUpdate,
   PromptInput,
   QueuedPrompt,
@@ -67,6 +69,7 @@ export class SessionCell {
   private interpretingEffects = false;
   private draft: PromptDraft | null = null;
   private draftRev = 0;
+  private hasDraftRevision = false;
 
   constructor(private readonly deps: SessionCellDeps) {
     this._acpSessionId = deps.acpSessionId;
@@ -99,6 +102,10 @@ export class SessionCell {
 
   get promptDraft(): PromptDraft | null {
     return this.draft ? structuredClone(this.draft) : null;
+  }
+
+  get promptDraftState(): PromptDraftState {
+    return { rev: this.hasDraftRevision ? this.draftRev : null, draft: this.promptDraft };
   }
 
   get config(): SessionConfigState {
@@ -233,19 +240,20 @@ export class SessionCell {
 
   setPromptDraft(update: PromptDraftUpdate): Result<void, never> {
     if (update.rev <= this.draftRev) return ok();
-    this.draftRev = update.rev;
+    this.storePromptDraft(update.rev, update.input);
+    return ok();
+  }
 
-    if (update.input === null) {
-      if (this.draft !== null) {
-        this.draft = null;
-        this.deps.callbacks?.onDraftChanged?.();
-      }
-      return ok();
+  compareAndSetPromptDraft(
+    expectedRev: number | null,
+    input: PromptInput | null
+  ): Result<PromptDraftState, AcpCompareAndSetPromptDraftError> {
+    if (expectedRev !== this.promptDraftState.rev) {
+      return acpErr.promptDraftConflict(this.promptDraftState);
     }
 
-    this.draft = { ...update.input, rev: update.rev, updatedAt: Date.now() };
-    this.deps.callbacks?.onDraftChanged?.();
-    return ok();
+    this.storePromptDraft(this.draftRev + 1, input);
+    return ok(this.promptDraftState);
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Result<void, InvalidStateError> {
@@ -612,8 +620,24 @@ export class SessionCell {
 
   private clearDraft(): void {
     this.draftRev += 1;
+    this.hasDraftRevision = true;
     if (this.draft === null) return;
     this.draft = null;
+    this.deps.callbacks?.onDraftChanged?.();
+  }
+
+  private storePromptDraft(rev: number, input: PromptInput | null): void {
+    this.draftRev = rev;
+    this.hasDraftRevision = true;
+    if (input === null) {
+      if (this.draft !== null) {
+        this.draft = null;
+        this.deps.callbacks?.onDraftChanged?.();
+      }
+      return;
+    }
+
+    this.draft = { ...input, rev, updatedAt: Date.now() };
     this.deps.callbacks?.onDraftChanged?.();
   }
 

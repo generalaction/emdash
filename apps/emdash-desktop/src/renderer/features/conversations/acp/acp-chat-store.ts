@@ -4,7 +4,7 @@ import type {
   AttachmentMimeType,
   AttachmentRef,
   PromptAttachment,
-  PromptDraft,
+  PromptDraftState,
   PromptInput,
   QueuedPrompt,
 } from '@emdash/core/acp/client';
@@ -31,6 +31,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from '../stores/conversation-registry';
+import { AcpDraftSyncState } from './acp-draft-sync-state';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
 export interface AgentAffordances {
@@ -71,9 +72,11 @@ export class AcpChatStore {
   private _view: ChatView | null = null;
   private _bootstrapped = false;
   private _unsubs: Array<() => void> = [];
-  private _draftRev = 0;
-  private _pendingDraftRev: number | null = null;
+  private readonly _draftSync = new AcpDraftSyncState();
   private _draftTimer: number | null = null;
+  private _draftWriteInFlight = false;
+  private _draftWriteQueued = false;
+  private _disposed = false;
 
   constructor(
     readonly conversationId: string,
@@ -316,9 +319,8 @@ export class AcpChatStore {
   setDraftText(text: string): void {
     if (text === this.draftText) return;
     this.draftText = text;
-    this._draftRev += 1;
-    this._pendingDraftRev = this._draftRev;
-    this._scheduleDraftWrite(text, this._draftRev);
+    this._draftSync.markLocalEdit();
+    this._scheduleDraftWrite();
   }
 
   stop(): void {
@@ -406,6 +408,7 @@ export class AcpChatStore {
   }
 
   dispose(): void {
+    this._disposed = true;
     unregisterConversationCommands(this.conversationId);
     if (this._draftTimer !== null) {
       window.clearTimeout(this._draftTimer);
@@ -423,19 +426,29 @@ export class AcpChatStore {
       providerId = input.providerId;
       const clientSession = await AcpLiveSession.create(this.conversationId, input);
 
-      const history = await clientSession.getHistory(undefined, 100);
+      const [history, draftState] = await Promise.all([
+        clientSession.getHistory(undefined, 100),
+        clientSession.getPromptDraftState(),
+      ]);
       if (!history.success) throw resultError(history.error);
+      if (!draftState.success) throw resultError(draftState.error);
+      if (this._disposed) {
+        clientSession.dispose();
+        return;
+      }
 
       runInAction(() => {
         this.session?.dispose();
         this.session = clientSession;
         this.chatState.transcript.history.seed(history.data.turns);
         this._subscribeLiveSession(clientSession);
-        this._applyDraftSnapshot(clientSession.draft.current());
+        this._applyDraftState(draftState.data, true);
         this.historyLoading = false;
         this.loadError = null;
         this._syncMessageCount();
       });
+      void this._refreshDraftState(clientSession);
+      if (this._draftSync.hasPendingWrite) this._scheduleDraftWrite(0);
     } catch (error) {
       log.error('ACP chat bootstrap failed', {
         conversationId: this.conversationId,
@@ -578,55 +591,94 @@ export class AcpChatStore {
         })
       ),
       session.activeTurn.onChange(() => runInAction(() => this._syncMessageCount())),
-      session.draft.onChange((draft) =>
-        runInAction(() => {
-          this._applyDraftSnapshot(draft);
-        })
-      )
+      session.draft.onChange(() => void this._refreshDraftState(session))
     );
   }
 
-  private _scheduleDraftWrite(text: string, rev: number): void {
+  private _scheduleDraftWrite(delay = 300): void {
     if (this._draftTimer !== null) window.clearTimeout(this._draftTimer);
     this._draftTimer = window.setTimeout(() => {
       this._draftTimer = null;
-      const draft = { rev, input: text.trim().length > 0 ? { text } : null };
-      void this.session
-        ?.setPromptDraft(draft)
-        .then((result) => {
-          if (!result.success) this._toastError('Failed to sync draft', result.error);
-          if (result.success && draft.input === null && this._pendingDraftRev === rev) {
-            runInAction(() => {
-              this._pendingDraftRev = null;
-            });
-          }
-        })
-        .catch((error: unknown) => this._toastError('Failed to sync draft', error));
-    }, 300);
+      void this._flushDraftWrite();
+    }, delay);
   }
 
-  private _applyDraftSnapshot(draft: PromptDraft | null | undefined): void {
-    if (draft === undefined) return;
-    if (draft === null) {
-      if (this._pendingDraftRev === null) {
-        this._draftRev += 1;
-        this.draftText = '';
-      }
+  private async _flushDraftWrite(): Promise<void> {
+    if (this._disposed || !this._draftSync.hasPendingWrite) return;
+    if (this._draftWriteInFlight) {
+      this._draftWriteQueued = true;
       return;
     }
 
-    if (this._pendingDraftRev !== null) {
-      if (draft.rev >= this._pendingDraftRev) {
-        this._draftRev = Math.max(this._draftRev, draft.rev);
-        this._pendingDraftRev = null;
-      }
-      return;
-    }
+    const session = this.session;
+    if (!session) return;
 
-    if (draft.rev >= this._draftRev) {
-      this._draftRev = draft.rev;
-      this.draftText = draft.text;
+    this._draftWriteInFlight = true;
+    const editVersion = this._draftSync.currentEditVersion;
+    const expectedRevision = this._draftSync.expectedRevision;
+    const text = this.draftText;
+    let retryImmediately = false;
+    let writeSucceeded = false;
+
+    try {
+      const result = await session.compareAndSetPromptDraft(
+        expectedRevision,
+        text.trim().length > 0 ? { text } : null
+      );
+      if (this._disposed || session !== this.session) return;
+
+      if (result.success) {
+        this._draftSync.markWriteApplied(editVersion, result.data);
+        writeSucceeded = true;
+        void this._refreshDraftState(session);
+      } else if (result.error.type === 'prompt_draft_conflict') {
+        this._draftSync.markWriteConflict(result.error.current);
+        retryImmediately = true;
+      } else {
+        this._toastError('Failed to sync draft', result.error);
+      }
+    } catch (error) {
+      if (!this._disposed && session === this.session) {
+        this._toastError('Failed to sync draft', error);
+      }
+    } finally {
+      this._draftWriteInFlight = false;
+      if (!this._disposed && session === this.session) {
+        const queued = this._draftWriteQueued;
+        this._draftWriteQueued = false;
+        if (retryImmediately || queued) {
+          this._scheduleDraftWrite(0);
+        } else if (writeSucceeded && this._draftSync.hasPendingWrite && this._draftTimer === null) {
+          this._scheduleDraftWrite(0);
+        }
+      }
     }
+  }
+
+  private async _refreshDraftState(session: AcpLiveSession): Promise<void> {
+    try {
+      const result = await session.getPromptDraftState();
+      if (this._disposed || session !== this.session) return;
+      if (!result.success) {
+        log.warn('Failed to refresh ACP prompt draft state', {
+          conversationId: this.conversationId,
+          error: result.error,
+        });
+        return;
+      }
+      runInAction(() => this._applyDraftState(result.data));
+    } catch (error) {
+      if (this._disposed || session !== this.session) return;
+      log.warn('Failed to refresh ACP prompt draft state', {
+        conversationId: this.conversationId,
+        error,
+      });
+    }
+  }
+
+  private _applyDraftState(state: PromptDraftState, resetRevision = false): void {
+    const observation = this._draftSync.observe(state, { resetRevision });
+    if (observation.applyText) this.draftText = observation.text;
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {

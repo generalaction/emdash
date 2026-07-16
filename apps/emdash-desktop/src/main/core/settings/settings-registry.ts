@@ -73,6 +73,11 @@ export const SETTINGS_DEFAULTS = {
   resourceMonitor: {
     enabled: false,
   },
+  mobileAccess: {
+    enabled: false,
+    bindAddress: null,
+    port: 7458,
+  },
   changesViewMode: {
     unstaged: 'flat' as const,
     staged: 'flat' as const,

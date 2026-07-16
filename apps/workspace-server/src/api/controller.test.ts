@@ -77,6 +77,8 @@ function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
     setModeOption: vi.fn(),
     resolvePermission: vi.fn(),
     setPromptDraft: vi.fn(),
+    compareAndSetPromptDraft: vi.fn(),
+    getPromptDraftState: vi.fn(),
     exportACPTranscript: vi.fn(),
     exportRawAcpLog: vi.fn(),
     uploadAttachment: vi.fn(),

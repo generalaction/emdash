@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { transcriptTurnSchema } from '../models/turns';
 
+export const getPromptDraftStateInputSchema = z.object({ conversationId: z.string() });
+
 export const historyPageInputSchema = z.object({
   conversationId: z.string(),
   before: z.number().int().optional(),

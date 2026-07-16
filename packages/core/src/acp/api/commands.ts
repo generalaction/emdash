@@ -58,6 +58,11 @@ export const setPromptDraftCommandSchema = z.object({
   conversationId: z.string(),
   draft: promptDraftUpdateSchema,
 });
+export const compareAndSetPromptDraftCommandSchema = z.object({
+  conversationId: z.string(),
+  expectedRev: z.number().nullable(),
+  input: promptInputSchema.nullable(),
+});
 export const exportAcpTranscriptCommandSchema = z.object({ conversationId: z.string() });
 export const exportRawAcpLogCommandSchema = exportAcpTranscriptCommandSchema;
 

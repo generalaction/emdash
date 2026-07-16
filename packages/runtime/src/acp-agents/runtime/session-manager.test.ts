@@ -13,6 +13,34 @@ async function startHarness(conversationId = 'conv-1') {
 }
 
 describe('AcpRuntime session manager', () => {
+  it('coalesces concurrent starts for the same conversation', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    let resolveNewSession!: (value: { sessionId: string }) => void;
+    const newSession = new Promise<{ sessionId: string }>((resolve) => {
+      resolveNewSession = resolve;
+    });
+    h.agent.newSession = vi.fn(() => newSession);
+    const input = makeStartInput({ conversationId: 'conv-concurrent-start' });
+
+    const first = rt.startSession(input);
+    const second = rt.startSession(input);
+
+    await vi.waitFor(() => expect(h.agent.newSession).toHaveBeenCalledTimes(1));
+    resolveNewSession({ sessionId: 'session-shared' });
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { success: true, data: { sessionId: 'session-shared' } },
+      { success: true, data: { sessionId: 'session-shared' } },
+    ]);
+    await expect(rt.startSession(input)).resolves.toEqual({
+      success: true,
+      data: { sessionId: 'session-shared' },
+    });
+    expect(h.agent.newSession).toHaveBeenCalledTimes(1);
+    expect(h.children).toHaveLength(1);
+  });
+
   it('maps ACP auth_required JSON-RPC errors to auth_required', async () => {
     const h = makeAcpHarness();
     const rt = new AcpRuntime(h.deps);

@@ -58,6 +58,49 @@ describe('SessionCell prompts', () => {
     expect(cell.promptDraft).toBeNull();
   });
 
+  it('atomically compares and advances authoritative prompt draft revisions', () => {
+    const { cell } = makeCell();
+
+    const first = cell.compareAndSetPromptDraft(null, { text: 'first writer' });
+    expect(first).toMatchObject({
+      success: true,
+      data: {
+        rev: 1,
+        draft: { text: 'first writer', rev: 1 },
+      },
+    });
+
+    const conflict = cell.compareAndSetPromptDraft(null, { text: 'stale writer' });
+    expect(conflict).toEqual({
+      success: false,
+      error: {
+        type: 'prompt_draft_conflict',
+        current: first.success ? first.data : undefined,
+      },
+    });
+
+    const second = cell.compareAndSetPromptDraft(1, { text: 'second writer' });
+    expect(second).toMatchObject({
+      success: true,
+      data: {
+        rev: 2,
+        draft: { text: 'second writer', rev: 2 },
+      },
+    });
+
+    const cleared = cell.compareAndSetPromptDraft(2, null);
+    expect(cleared).toEqual({ success: true, data: { rev: 3, draft: null } });
+    expect(cell.promptDraftState).toEqual({ rev: 3, draft: null });
+
+    expect(cell.compareAndSetPromptDraft(2, { text: 'stale after clear' })).toEqual({
+      success: false,
+      error: {
+        type: 'prompt_draft_conflict',
+        current: { rev: 3, draft: null },
+      },
+    });
+  });
+
   it('queues while working and drains after the active turn settles', async () => {
     const { cell, agent } = makeCell();
     let resolveFirst!: (value: { stopReason: 'end_turn' }) => void;

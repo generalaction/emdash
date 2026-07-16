@@ -13,12 +13,13 @@ import { agentStateSchema } from '../models/agents';
 import { attachmentMimeTypeSchema, attachmentRefSchema } from '../models/attachments';
 import { sessionConfigStateSchema, sessionUsageSchema } from '../models/config';
 import { planStateSchema } from '../models/plan';
-import { promptDraftSchema } from '../models/prompt';
+import { promptDraftSchema, promptDraftStateSchema } from '../models/prompt';
 import { sessionStateSchema, sessionSummarySchema } from '../models/session';
 import { transcriptTurnSchema } from '../models/turns';
 import {
   cancelTurnCommandSchema,
   changeQueuePromptOrderCommandSchema,
+  compareAndSetPromptDraftCommandSchema,
   deleteAttachmentCommandSchema,
   deleteQueuedPromptCommandSchema,
   downloadAttachmentCommandSchema,
@@ -42,11 +43,13 @@ import {
   acpAttachmentErrorSchema,
   acpCancelTurnErrorSchema,
   acpChangeQueuePromptOrderErrorSchema,
+  acpCompareAndSetPromptDraftErrorSchema,
   acpDeleteQueuedPromptErrorSchema,
   acpEditQueuedPromptErrorSchema,
   acpExportRawLogErrorSchema,
   acpExportTranscriptErrorSchema,
   acpGetHistoryErrorSchema,
+  acpGetPromptDraftStateErrorSchema,
   acpQueuePromptErrorSchema,
   acpResolvePermissionErrorSchema,
   acpResumeSessionErrorSchema,
@@ -57,7 +60,12 @@ import {
   acpStartSessionErrorSchema,
   acpStopSessionErrorSchema,
 } from './errors';
-import { historyPageInputSchema, historyPageSchema, resumeResultSchema } from './queries';
+import {
+  getPromptDraftStateInputSchema,
+  historyPageInputSchema,
+  historyPageSchema,
+  resumeResultSchema,
+} from './queries';
 
 const startSessionResultSchema = z.object({ sessionId: z.string() });
 const sessionKeySchema = z.object({ conversationId: z.string() });
@@ -128,6 +136,16 @@ export const acpApiContract = defineContract({
     input: setPromptDraftCommandSchema,
     data: z.void(),
     error: acpSetPromptDraftErrorSchema,
+  }),
+  compareAndSetPromptDraft: fallible({
+    input: compareAndSetPromptDraftCommandSchema,
+    data: promptDraftStateSchema,
+    error: acpCompareAndSetPromptDraftErrorSchema,
+  }),
+  getPromptDraftState: fallible({
+    input: getPromptDraftStateInputSchema,
+    data: promptDraftStateSchema,
+    error: acpGetPromptDraftStateErrorSchema,
   }),
   exportACPTranscript: fallible({
     input: exportAcpTranscriptCommandSchema,

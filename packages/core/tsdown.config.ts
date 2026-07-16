@@ -8,6 +8,7 @@ export default defineConfig({
     deps: 'src/host-dependencies/capability.ts',
     'deps-runtime': 'src/host-dependencies/runtime/index.ts',
     mcp: 'src/mcp/index.ts',
+    'mobile-access': 'src/mobile-access/index.ts',
     skills: 'src/skills/index.ts',
     exec: 'src/exec/index.ts',
     files: 'src/files/index.ts',

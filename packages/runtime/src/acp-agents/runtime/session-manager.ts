@@ -12,10 +12,12 @@ import type {
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
+  AcpCompareAndSetPromptDraftError,
   AcpDeleteQueuedPromptError,
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
+  AcpGetPromptDraftStateError,
   AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpSendPromptError,
@@ -29,6 +31,7 @@ import type {
   NormalizedEvent,
   PlanState,
   PromptDraft,
+  PromptDraftState,
   PromptDraftUpdate,
   SessionConfigState,
   SessionState,
@@ -92,6 +95,8 @@ export interface HistoryPage {
   nextCursor: number | null;
 }
 
+type StartSessionResult = Result<{ sessionId: string }, AcpStartSessionError>;
+
 export class SessionManager implements InboundRouter {
   readonly sessionHost: AcpSessionLiveHost = createAcpSessionLiveHost();
   readonly sessionsHost: AcpSessionsLiveHost = createAcpSessionsLiveHost();
@@ -99,6 +104,7 @@ export class SessionManager implements InboundRouter {
   private readonly cells = new Map<string, SessionRecord>();
   private readonly routes = new Map<string, Map<string, string>>();
   private readonly loadingConversations = new Map<string, Set<string>>();
+  private readonly startingConversations = new Map<string, Promise<StartSessionResult>>();
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
@@ -107,10 +113,25 @@ export class SessionManager implements InboundRouter {
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {}
 
-  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
-    const existing = this.cells.get(input.conversationId);
-    if (existing) return ok({ sessionId: existing.cell.acpSessionId });
+  start(input: AcpStartInput): Promise<StartSessionResult> {
+    const starting = this.startingConversations.get(input.conversationId);
+    if (starting) return starting;
 
+    const existing = this.cells.get(input.conversationId);
+    if (existing) return Promise.resolve(ok({ sessionId: existing.cell.acpSessionId }));
+
+    const pending = this.startOnce(input);
+    this.startingConversations.set(input.conversationId, pending);
+    const clearPending = (): void => {
+      if (this.startingConversations.get(input.conversationId) === pending) {
+        this.startingConversations.delete(input.conversationId);
+      }
+    };
+    pending.then(clearPending, clearPending);
+    return pending;
+  }
+
+  private async startOnce(input: AcpStartInput): Promise<StartSessionResult> {
     this.upsertSessionSummary(input, null, {
       lifecycle: 'starting',
       isGenerating: false,
@@ -290,6 +311,24 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(conversationId);
     if (!record) return acpErr.conversationNotFound(conversationId);
     return record.cell.setPromptDraft(draft);
+  }
+
+  compareAndSetPromptDraft(
+    conversationId: string,
+    expectedRev: number | null,
+    input: SendPromptInput['prompt'] | null
+  ): Result<PromptDraftState, AcpCompareAndSetPromptDraftError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return record.cell.compareAndSetPromptDraft(expectedRev, input);
+  }
+
+  getPromptDraftState(
+    conversationId: string
+  ): Result<PromptDraftState, AcpGetPromptDraftStateError> {
+    const record = this.cells.get(conversationId);
+    if (!record) return acpErr.conversationNotFound(conversationId);
+    return ok(record.cell.promptDraftState);
   }
 
   stop(conversationId: string): Result<void, AcpStopSessionError> {
