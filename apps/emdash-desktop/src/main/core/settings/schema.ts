@@ -1,7 +1,11 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import z from 'zod';
 import { BROWSER_ISOLATED_PROFILE_ID } from '@shared/browser';
-import { CHAT_FONT_SIZE_MAX, CHAT_FONT_SIZE_MIN } from '@shared/core/chat-settings';
+import {
+  CHAT_FONT_SIZE_DEFAULT,
+  CHAT_FONT_SIZE_MAX,
+  CHAT_FONT_SIZE_MIN,
+} from '@shared/core/chat-settings';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
@@ -93,7 +97,12 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarPrStatus: z.boolean(),
   showLeftSidebarTimestamps: z.boolean(),
   hideContextBar: z.boolean(),
-  chatFontSize: z.number().int().min(CHAT_FONT_SIZE_MIN).max(CHAT_FONT_SIZE_MAX),
+  chatFontSize: z
+    .number()
+    .int()
+    .min(CHAT_FONT_SIZE_MIN)
+    .max(CHAT_FONT_SIZE_MAX)
+    .default(CHAT_FONT_SIZE_DEFAULT),
 });
 
 export const changesViewModeSchema = z.object({
