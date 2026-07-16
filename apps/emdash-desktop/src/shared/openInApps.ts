@@ -49,7 +49,7 @@ const ICON_PATHS = {
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
-  termy: 'termy.png',
+  termy: 'termy.svg',
   zed: 'zed.png',
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
