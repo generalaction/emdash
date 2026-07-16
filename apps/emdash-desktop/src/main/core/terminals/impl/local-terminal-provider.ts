@@ -13,7 +13,8 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
+import { makeTmuxSession } from '@main/core/pty/tmux-session-name';
 import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
@@ -154,14 +155,14 @@ export class LocalTerminalProvider implements TerminalProvider {
           command,
           shellProfile,
           shellSetup: shellSetup ?? this.shellSetup,
-          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+          tmuxSession: this.tmux ? makeTmuxSession(sessionId, this.taskPath) : undefined,
         }
       : {
           kind: 'interactive-shell',
           cwd: this.taskPath,
           shellProfile,
           shellSetup: shellSetup ?? this.shellSetup,
-          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+          tmuxSession: this.tmux ? makeTmuxSession(sessionId, this.taskPath) : undefined,
         };
     const resolved = resolveLocalPtySpawn({
       platform: process.platform,
@@ -308,7 +309,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     }
     this.shellProfiles.delete(sessionId);
     if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
+      await killTmuxSessionsByPtyIds(this.ctx, [sessionId]);
     }
   }
 
@@ -316,7 +317,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+      await killTmuxSessionsByPtyIds(this.ctx, sessionIds);
     }
     this.knownSessionIds.clear();
     this.shellProfiles.clear();

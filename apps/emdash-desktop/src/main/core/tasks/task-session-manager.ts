@@ -1,7 +1,7 @@
 import { LifecycleMap } from '@emdash/shared';
 import { ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
@@ -91,9 +91,7 @@ async function cleanupDetachedSessions(
   const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
     makePtySessionId(projectId, taskId, leafId)
   );
-  await Promise.all(
-    sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
-  );
+  await killTmuxSessionsByPtyIds(ctx, sessionIds);
 }
 
 class TaskSessionManager {

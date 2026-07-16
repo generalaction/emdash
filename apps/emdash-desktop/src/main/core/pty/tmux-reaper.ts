@@ -1,25 +1,123 @@
 import { collectDescendantPids, parsePidPpidPairs } from '@emdash/core/pty';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
-import { killTmuxSession, TMUX_SESSION_PREFIX } from './tmux-session-name';
+import { makePtySessionId, parsePtySessionId } from '@shared/core/pty/ptySessionId';
+import type { TmuxSessionIdentity } from '@shared/core/pty/tmux';
+import {
+  decodeLegacyTmuxSessionName,
+  killTmuxSession,
+  TMUX_LEAF_ID_OPTION,
+  TMUX_PROJECT_ID_OPTION,
+  TMUX_SESSION_PREFIX,
+  TMUX_TASK_ID_OPTION,
+} from './tmux-session-name';
 
 // NOTE: this module must stay free of DB imports. It is loaded by the SSH
 // conversation/terminal providers (for killTmuxSessionTree); pulling in the DB
 // client here would break their unit tests, which run without Electron's `app`.
 // DB-dependent reconciliation lives in ./tmux-reconcile.
 
-/**
- * List the names of all `emdash-*` tmux sessions on the context's host.
- * Returns `[]` when no tmux server is running (tmux exits non-zero), tmux is
- * absent, or the command otherwise fails — callers treat that as "nothing to do".
- */
-export async function listEmdashTmuxSessions(ctx: IExecutionContext): Promise<string[]> {
+export type EmdashTmuxSession = {
+  name: string;
+  identity: TmuxSessionIdentity | null;
+};
+
+const TMUX_SESSION_LIST_FORMAT = [
+  '#{session_name}',
+  `#{${TMUX_PROJECT_ID_OPTION}}`,
+  `#{${TMUX_TASK_ID_OPTION}}`,
+  `#{${TMUX_LEAF_ID_OPTION}}`,
+].join('\t');
+
+function legacyIdentity(sessionName: string): TmuxSessionIdentity | null {
+  const sessionId = decodeLegacyTmuxSessionName(sessionName);
+  if (!sessionId) return null;
+  const parsed = parsePtySessionId(sessionId);
+  if (!parsed) return null;
+  return { projectId: parsed.projectId, taskId: parsed.scopeId, leafId: parsed.leafId };
+}
+
+function identityFromFields(fields: string[]): TmuxSessionIdentity | null {
+  const [projectId, taskId, leafId] = fields;
+  return projectId && taskId && leafId ? { projectId, taskId, leafId } : null;
+}
+
+function identityFromOptionList(stdout: string): TmuxSessionIdentity | null {
+  const options = new Map<string, string>();
+  for (const line of stdout.split('\n')) {
+    const separator = line.indexOf(' ');
+    if (separator <= 0) continue;
+    options.set(line.slice(0, separator), line.slice(separator + 1).trim());
+  }
+  return identityFromFields([
+    options.get(TMUX_PROJECT_ID_OPTION) ?? '',
+    options.get(TMUX_TASK_ID_OPTION) ?? '',
+    options.get(TMUX_LEAF_ID_OPTION) ?? '',
+  ]);
+}
+
+async function readIdentityFromOptions(
+  ctx: IExecutionContext,
+  sessionName: string
+): Promise<TmuxSessionIdentity | null> {
+  try {
+    const { stdout } = await ctx.exec('tmux', ['show-options', '-t', sessionName]);
+    return identityFromOptionList(stdout);
+  } catch {
+    return null;
+  }
+}
+
+async function listSessionLines(ctx: IExecutionContext): Promise<string[]> {
+  let formatError: unknown;
+  try {
+    const { stdout } = await ctx.exec('tmux', ['list-sessions', '-F', TMUX_SESSION_LIST_FORMAT]);
+    const lines = stdout.split('\n').filter(Boolean);
+    if (lines.length > 0) return lines;
+    formatError = new Error('rich tmux session format returned an empty result');
+  } catch (err) {
+    formatError = err;
+  }
+
+  // Old tmux releases may reject user-option expansion in a format or return a
+  // successful empty result for it. Listing names alone still lets us decode
+  // legacy names and read friendly-session options with show-options below.
   try {
     const { stdout } = await ctx.exec('tmux', ['list-sessions', '-F', '#{session_name}']);
-    return stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((name) => name.startsWith(TMUX_SESSION_PREFIX));
+    return stdout.split('\n').filter(Boolean);
+  } catch (err) {
+    log.debug('listEmdashTmuxSessions: no tmux sessions', {
+      error: String(err),
+      formatError: String(formatError),
+    });
+    return [];
+  }
+}
+
+/**
+ * List all `emdash-*` sessions with their persisted identity. Modern tmux
+ * returns every identity in one list-sessions call. Legacy encoded names are
+ * decoded directly, while old tmux versions that cannot expand user options in
+ * formats fall back to one show-options call for each friendly-named session.
+ */
+export async function listEmdashTmuxSessions(ctx: IExecutionContext): Promise<EmdashTmuxSession[]> {
+  try {
+    const lines = await listSessionLines(ctx);
+    const sessions = lines
+      .map((line): EmdashTmuxSession | null => {
+        const [name, ...metadata] = line.split('\t');
+        if (!name?.startsWith(TMUX_SESSION_PREFIX)) return null;
+        return { name, identity: identityFromFields(metadata) ?? legacyIdentity(name) };
+      })
+      .filter((session): session is EmdashTmuxSession => session !== null);
+
+    await Promise.all(
+      sessions.map(async (session) => {
+        if (session.identity) return;
+        session.identity = await readIdentityFromOptions(ctx, session.name);
+      })
+    );
+    return sessions;
   } catch (err) {
     log.debug('listEmdashTmuxSessions: no tmux sessions', { error: String(err) });
     return [];
@@ -103,4 +201,30 @@ export async function killTmuxSessionTree(
   if (descendants.length > 0) {
     await reapPids(ctx, descendants);
   }
+}
+
+/**
+ * Kill every tmux session matching one of the PTY session ids. Resolving by
+ * persisted identity keeps stop/delete behavior compatible with legacy names,
+ * friendly names, and workspace label changes. A batch performs one session
+ * listing on modern tmux.
+ */
+export async function killTmuxSessionsByPtyIds(
+  ctx: IExecutionContext,
+  sessionIds: Iterable<string>,
+  options: { reapDescendants?: boolean } = {}
+): Promise<void> {
+  const wanted = new Set(sessionIds);
+  if (wanted.size === 0) return;
+
+  const sessions = await listEmdashTmuxSessions(ctx);
+  const matches = sessions.filter(({ identity }) => {
+    if (!identity) return false;
+    return wanted.has(makePtySessionId(identity.projectId, identity.taskId, identity.leafId));
+  });
+  await Promise.all(
+    matches.map(({ name }) =>
+      options.reapDescendants ? killTmuxSessionTree(ctx, name) : killTmuxSession(ctx, name)
+    )
+  );
 }

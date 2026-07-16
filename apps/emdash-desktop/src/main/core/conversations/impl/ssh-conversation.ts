@@ -10,8 +10,8 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSessionTree } from '@main/core/pty/tmux-reaper';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
+import { makeTmuxSession } from '@main/core/pty/tmux-session-name';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -156,7 +156,7 @@ export class SshConversationProvider implements ConversationProvider {
       const customEnv = providerConfig?.env ?? {};
       const providerEnv: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
-      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+      const tmuxSession = this.tmux ? makeTmuxSession(sessionId, this.taskPath) : undefined;
 
       const cfg: AgentSessionConfig = {
         taskId: this.taskId,
@@ -166,7 +166,7 @@ export class SshConversationProvider implements ConversationProvider {
         args: agentCommand.args,
         cwd: this.taskPath,
         shellSetup: this.shellSetup,
-        tmuxSessionName,
+        tmuxSession,
         autoApprove: conversation.autoApprove ?? false,
         resume: agentSession.isResuming,
       };
@@ -342,7 +342,7 @@ export class SshConversationProvider implements ConversationProvider {
       }
     }
     if (this.tmux) {
-      await killTmuxSessionTree(this.ctx, makeTmuxSessionName(sessionId));
+      await killTmuxSessionsByPtyIds(this.ctx, [sessionId], { reapDescendants: true });
     }
     this.supervisor.forget(sessionId);
   }
@@ -351,9 +351,7 @@ export class SshConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSessionTree(this.ctx, makeTmuxSessionName(id)))
-      );
+      await killTmuxSessionsByPtyIds(this.ctx, sessionIds, { reapDescendants: true });
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);

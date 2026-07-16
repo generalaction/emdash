@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
@@ -52,10 +52,9 @@ export async function deleteConversation(
   } else {
     const project = projectManager.getProject(projectId);
     if (project) {
-      await killTmuxSession(
-        project.ctx,
-        makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId))
-      );
+      await killTmuxSessionsByPtyIds(project.ctx, [
+        makePtySessionId(projectId, taskId, conversationId),
+      ]);
     }
   }
   telemetryService.capture('conversation_deleted', {

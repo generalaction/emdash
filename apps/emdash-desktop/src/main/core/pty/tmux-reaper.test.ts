@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecResult, IExecutionContext } from '@main/core/execution-context/types';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { killTmuxSessionTree, listEmdashTmuxSessions } from './tmux-reaper';
-import { makeTmuxSessionName } from './tmux-session-name';
+import {
+  killTmuxSessionsByPtyIds,
+  killTmuxSessionTree,
+  listEmdashTmuxSessions,
+} from './tmux-reaper';
+import {
+  makeLegacyTmuxSessionName,
+  TMUX_LEAF_ID_OPTION,
+  TMUX_PROJECT_ID_OPTION,
+  TMUX_TASK_ID_OPTION,
+} from './tmux-session-name';
 
 type ExecCall = { command: string; args: string[] };
 type ExecHandler = (command: string, args: string[]) => ExecResult;
@@ -42,13 +51,130 @@ beforeEach(() => {
 });
 
 describe('listEmdashTmuxSessions', () => {
-  it('returns only emdash-prefixed session names', async () => {
+  it('returns only emdash-prefixed sessions with metadata from one list call', async () => {
     const { ctx } = makeCtx((command, args) =>
       command === 'tmux' && args[0] === 'list-sessions'
-        ? { stdout: 'emdash-a\nother-session\nemdash-b\n', stderr: '' }
+        ? {
+            stdout:
+              'emdash-work-a\tproject-a\ttask-a\tleaf-a\n' +
+              'other-session\tforeign\ttask\tleaf\n' +
+              'emdash-work-b\tproject-b\ttask-b\tleaf-b\n',
+            stderr: '',
+          }
         : { stdout: '', stderr: '' }
     );
-    expect(await listEmdashTmuxSessions(ctx)).toEqual(['emdash-a', 'emdash-b']);
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      {
+        name: 'emdash-work-a',
+        identity: { projectId: 'project-a', taskId: 'task-a', leafId: 'leaf-a' },
+      },
+      {
+        name: 'emdash-work-b',
+        identity: { projectId: 'project-b', taskId: 'task-b', leafId: 'leaf-b' },
+      },
+    ]);
+    expect(ctx.exec).toHaveBeenCalledTimes(1);
+    expect(ctx.exec).toHaveBeenCalledWith('tmux', [
+      'list-sessions',
+      '-F',
+      `#{session_name}\t#{${TMUX_PROJECT_ID_OPTION}}\t#{${TMUX_TASK_ID_OPTION}}\t#{${TMUX_LEAF_ID_OPTION}}`,
+    ]);
+  });
+
+  it('decodes sessions created by versions that stored identity in the name', async () => {
+    const sessionId = makePtySessionId('legacy-project', 'legacy-task', 'legacy-leaf');
+    const name = makeLegacyTmuxSessionName(sessionId);
+    const { ctx } = makeCtx((command, args) =>
+      command === 'tmux' && args[0] === 'list-sessions'
+        ? { stdout: `${name}\t\t\t\n`, stderr: '' }
+        : { stdout: '', stderr: '' }
+    );
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      {
+        name,
+        identity: {
+          projectId: 'legacy-project',
+          taskId: 'legacy-task',
+          leafId: 'legacy-leaf',
+        },
+      },
+    ]);
+    expect(ctx.exec).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to show-options when old tmux cannot expand user options in formats', async () => {
+    const { ctx, calls } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions' && args[2] !== '#{session_name}') {
+        throw new Error('unknown format');
+      }
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-work-token\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        return {
+          stdout: `${TMUX_PROJECT_ID_OPTION} project-1\n${TMUX_TASK_ID_OPTION} task-1\n${TMUX_LEAF_ID_OPTION} leaf-1\n`,
+          stderr: '',
+        };
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      {
+        name: 'emdash-work-token',
+        identity: { projectId: 'project-1', taskId: 'task-1', leafId: 'leaf-1' },
+      },
+    ]);
+    expect(calls.map(({ args }) => args[0])).toEqual([
+      'list-sessions',
+      'list-sessions',
+      'show-options',
+    ]);
+  });
+
+  it('falls back to names when an old tmux returns success with empty rich output', async () => {
+    const { ctx, calls } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions' && args[2] !== '#{session_name}') {
+        return { stdout: '', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-work-token\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        return {
+          stdout: `${TMUX_PROJECT_ID_OPTION} project-1\n${TMUX_TASK_ID_OPTION} task-1\n${TMUX_LEAF_ID_OPTION} leaf-1\n`,
+          stderr: '',
+        };
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      {
+        name: 'emdash-work-token',
+        identity: { projectId: 'project-1', taskId: 'task-1', leafId: 'leaf-1' },
+      },
+    ]);
+    expect(calls.map(({ args }) => args[0])).toEqual([
+      'list-sessions',
+      'list-sessions',
+      'show-options',
+    ]);
+  });
+
+  it('keeps partially tagged or unrelated prefixed sessions unowned', async () => {
+    const { ctx } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-unowned\tproject-1\t\tleaf-1\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        return { stdout: `${TMUX_PROJECT_ID_OPTION} project-1\n`, stderr: '' };
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([{ name: 'emdash-unowned', identity: null }]);
   });
 
   it('returns [] when tmux has no server / errors out', async () => {
@@ -63,7 +189,7 @@ describe('listEmdashTmuxSessions', () => {
 
 describe('killTmuxSessionTree', () => {
   it('snapshots the pane tree before kill-session, then SIGKILLs the escaped descendants', async () => {
-    const name = makeTmuxSessionName(makePtySessionId('p', 't', 'c'));
+    const name = makeLegacyTmuxSessionName(makePtySessionId('p', 't', 'c'));
     const { ctx, calls } = makeCtx(treeHandler());
 
     await killTmuxSessionTree(ctx, name);
@@ -117,5 +243,32 @@ describe('killTmuxSessionTree', () => {
       }),
     } as unknown as IExecutionContext;
     await expect(killTmuxSessionTree(ctx, 'emdash-x')).resolves.toBeUndefined();
+  });
+});
+
+describe('killTmuxSessionsByPtyIds', () => {
+  it('resolves friendly and legacy names by identity with one list call per batch', async () => {
+    const legacyId = makePtySessionId('project-1', 'task-1', 'legacy-leaf');
+    const legacyName = makeLegacyTmuxSessionName(legacyId);
+    const { ctx, calls } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return {
+          stdout:
+            'emdash-work-token\tproject-1\ttask-1\tfriendly-leaf\n' +
+            `${legacyName}\t\t\t\n` +
+            'emdash-foreign\tproject-2\ttask-2\tleaf-2\n',
+          stderr: '',
+        };
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    await killTmuxSessionsByPtyIds(ctx, [
+      makePtySessionId('project-1', 'task-1', 'friendly-leaf'),
+      legacyId,
+    ]);
+
+    expect(killSessionTargets(calls)).toEqual(['emdash-work-token', legacyName]);
+    expect(calls.filter(({ args }) => args[0] === 'list-sessions')).toHaveLength(1);
   });
 });
