@@ -124,6 +124,25 @@ describe('WorkspaceFileIndexService', () => {
     expect(store.meta.get('ws-1')).toMatchObject({ status: 'complete', fileCount: 1 });
   });
 
+  it('ignores update-only batches without touching the path index', async () => {
+    const store = new FakeStore();
+    store.meta.set('ws-1', {
+      rootPath: '/repo',
+      status: 'complete',
+      fileCount: 1,
+      truncateReason: null,
+    });
+    store.paths.set('ws-1', new Set(['/repo/changed.ts']));
+    const service = await createService(store);
+
+    service.onWorkspaceFileChange('ws-1', {
+      kind: 'changes',
+      changes: [{ kind: 'update', path: '/repo/changed.ts', entryType: 'file' }],
+    });
+
+    expect(store.operations).toEqual([]);
+  });
+
   it('applies deletes before creates, ignores updates, and recounts once for subtree deletes', async () => {
     const store = new FakeStore();
     store.meta.set('ws-1', {

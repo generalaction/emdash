@@ -58,6 +58,7 @@ export class WorkspaceFileIndexService {
       return;
     }
     if (update.changes.length === 0) return;
+    if (update.changes.every((change) => change.kind === 'update')) return;
 
     const meta = this.store.getMeta(workspaceId);
     if (this.reindexing.has(workspaceId) || !meta) {
