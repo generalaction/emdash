@@ -24,10 +24,10 @@ function prepare(database: DatabaseSync, sql: string): StatementSync {
   return statement;
 }
 
-export const nodeSqliteDriver: SqliteDriver = {
+export const nodeSqliteDriver: SqliteDriver<DatabaseSync> = {
   open(path) {
     const database = new DatabaseSync(path);
-    const connection: SqliteConnection = {
+    const connection: SqliteConnection<DatabaseSync> = {
       native: database,
       exec: (sql) => database.exec(sql),
       get: <T>(sql: string, params: readonly unknown[] = []) => {

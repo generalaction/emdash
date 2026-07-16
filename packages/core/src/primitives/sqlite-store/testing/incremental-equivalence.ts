@@ -25,8 +25,8 @@ function readSchema(connection: SqliteConnection): SchemaRow[] {
  * Verifies that migrating every supported historical boundary reaches the
  * exact schema produced by applying the full manifest to an empty database.
  */
-export async function assertIncrementalMigrationEquivalence<TDb>(
-  store: DurableSqliteStore<TDb>,
+export async function assertIncrementalMigrationEquivalence<TDb, TNative>(
+  store: DurableSqliteStore<TDb, TNative>,
   migrationCount: number
 ): Promise<void> {
   if (!Number.isSafeInteger(migrationCount) || migrationCount < 0) {

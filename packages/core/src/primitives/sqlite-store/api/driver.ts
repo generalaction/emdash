@@ -13,8 +13,8 @@ export type SqliteRunResult = {
  * Values outside that range must be returned exactly as bigints; drivers must
  * never silently round an INTEGER.
  */
-export interface SqliteConnection {
-  readonly native: unknown;
+export interface SqliteConnection<TNative = unknown> {
+  readonly native: TNative;
   exec(sql: string): void;
   get<T>(sql: string, params?: readonly unknown[]): T | undefined;
   all<T>(sql: string, params?: readonly unknown[]): T[];
@@ -22,6 +22,6 @@ export interface SqliteConnection {
   close(): void;
 }
 
-export interface SqliteDriver {
-  open(path: string): SqliteConnection;
+export interface SqliteDriver<TNative = unknown> {
+  open(path: string): SqliteConnection<TNative>;
 }

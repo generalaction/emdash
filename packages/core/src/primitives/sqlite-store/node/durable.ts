@@ -27,9 +27,9 @@ function hasUserObjects(connection: SqliteConnection): boolean {
   );
 }
 
-function ensureBookkeeping<TDb>(
+function ensureBookkeeping<TDb, TNative>(
   connection: SqliteConnection,
-  config: DurableStoreConfig<TDb>,
+  config: DurableStoreConfig<TDb, TNative>,
   logger: Logger
 ): void {
   const runnerVersion = readRunnerVersion(connection);
@@ -77,9 +77,9 @@ export type MigrateDurableResult = {
   appliedCount: number;
 };
 
-export function migrateDurable<TDb>(
+export function migrateDurable<TDb, TNative>(
   connection: SqliteConnection,
-  config: DurableStoreConfig<TDb>,
+  config: DurableStoreConfig<TDb, TNative>,
   logger: Logger,
   options: MigrateDurableOptions = {}
 ): MigrateDurableResult {

@@ -23,31 +23,34 @@ export interface MigrationInterop {
   onApplied?(connection: SqliteConnection, migration: BundledMigration): void;
 }
 
-export type StoreHandle<TDb> = {
+export type StoreHandle<TDb, TNative = unknown> = {
   readonly db: TDb;
-  readonly connection: SqliteConnection;
+  readonly connection: SqliteConnection<TNative>;
   /** Transactions are synchronous; the callback must not return a promise. */
   transaction<T>(operation: () => T): T;
   close(): void;
 };
 
-export type TempStoreHandle<TDb> = StoreHandle<TDb> & {
+export type TempStoreHandle<TDb, TNative = unknown> = StoreHandle<TDb, TNative> & {
   readonly path: string;
 };
 
-export type TempMigrationHandle<TDb> = TempStoreHandle<TDb> & {
+export type TempMigrationHandle<TDb, TNative = unknown> = TempStoreHandle<TDb, TNative> & {
   migrateToLatest(): void;
 };
 
-type BaseStoreConfig<TDb> = {
+type BaseStoreConfig<TDb, TNative = unknown> = {
   name: string;
-  driver: SqliteDriver;
-  createOrm?: (connection: SqliteConnection) => TDb;
+  driver: SqliteDriver<TNative>;
+  createOrm?: (connection: SqliteConnection<TNative>) => TDb;
   busyTimeoutMs?: number;
   logger?: Logger;
 };
 
-export type DurableStoreConfig<TDb = SqliteConnection> = BaseStoreConfig<TDb> & {
+export type DurableStoreConfig<TDb = SqliteConnection, TNative = unknown> = BaseStoreConfig<
+  TDb,
+  TNative
+> & {
   migrations: readonly BundledMigration[];
   interop?: MigrationInterop;
   backup?: {
@@ -57,21 +60,25 @@ export type DurableStoreConfig<TDb = SqliteConnection> = BaseStoreConfig<TDb> & 
   invariants?: readonly ((connection: SqliteConnection) => void)[];
 };
 
-export type DerivedStoreConfig<TDb = SqliteConnection> = BaseStoreConfig<TDb> & {
+export type DerivedStoreConfig<TDb = SqliteConnection, TNative = unknown> = BaseStoreConfig<
+  TDb,
+  TNative
+> & {
   version: number;
-  createSchema(connection: SqliteConnection): void;
+  createSchema(connection: SqliteConnection<TNative>): void;
 };
 
-export interface SqliteStoreBase<TDb> {
-  open(path: string): StoreHandle<TDb>;
+export interface SqliteStoreBase<TDb, TNative = unknown> {
+  open(path: string): StoreHandle<TDb, TNative>;
   openTemp(
-    seed?: (handle: StoreHandle<TDb>) => void | Promise<void>
-  ): Promise<TempStoreHandle<TDb>>;
+    seed?: (handle: StoreHandle<TDb, TNative>) => void | Promise<void>
+  ): Promise<TempStoreHandle<TDb, TNative>>;
 }
 
-export interface DurableSqliteStore<TDb> extends SqliteStoreBase<TDb> {
-  openAtMigration(uptoIdx: number): TempMigrationHandle<TDb>;
+export interface DurableSqliteStore<TDb, TNative = unknown>
+  extends SqliteStoreBase<TDb, TNative> {
+  openAtMigration(uptoIdx: number): TempMigrationHandle<TDb, TNative>;
   restoreLatestBackup(path: string): void;
 }
 
-export type DerivedSqliteStore<TDb> = SqliteStoreBase<TDb>;
+export type DerivedSqliteStore<TDb, TNative = unknown> = SqliteStoreBase<TDb, TNative>;

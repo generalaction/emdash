@@ -35,9 +35,9 @@ function clearDerivedSchema(connection: SqliteConnection): void {
   }
 }
 
-export function ensureDerivedSchema<TDb>(
+export function ensureDerivedSchema<TDb, TNative>(
   connection: SqliteConnection,
-  config: DerivedStoreConfig<TDb>,
+  config: DerivedStoreConfig<TDb, TNative>,
   logger: Logger
 ): void {
   if (!Number.isSafeInteger(config.version) || config.version < 1) {

@@ -18,8 +18,8 @@ import { ensureDerivedSchema } from './derived';
 import { migrateDurable } from './durable';
 import { inTransaction } from './transaction';
 
-type CommonStoreConfig<TDb> = Pick<
-  DurableStoreConfig<TDb>,
+type CommonStoreConfig<TDb, TNative> = Pick<
+  DurableStoreConfig<TDb, TNative>,
   'busyTimeoutMs' | 'createOrm' | 'driver' | 'logger' | 'name'
 >;
 
@@ -46,14 +46,14 @@ function configureConnection(connection: SqliteConnection, busyTimeoutMs: number
   connection.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}`);
 }
 
-function openStoreConnection<TDb, TSchemaResult>(
-  config: CommonStoreConfig<TDb>,
+function openStoreConnection<TDb, TNative, TSchemaResult>(
+  config: CommonStoreConfig<TDb, TNative>,
   path: string,
   ensureSchema: (connection: SqliteConnection, logger: Logger) => TSchemaResult,
   afterReady: (connection: SqliteConnection, schemaResult: TSchemaResult) => void,
   onClosed: () => void,
   options: OpenOptions = {}
-): StoreHandle<TDb> {
+): StoreHandle<TDb, TNative> {
   const logger = config.logger ?? noopLogger;
   const connection = config.driver.open(path);
   let closed = false;
@@ -94,13 +94,16 @@ function openStoreConnection<TDb, TSchemaResult>(
   }
 }
 
-function withTempMetadata<TDb>(handle: StoreHandle<TDb>, path: string): TempStoreHandle<TDb> {
+function withTempMetadata<TDb, TNative>(
+  handle: StoreHandle<TDb, TNative>,
+  path: string
+): TempStoreHandle<TDb, TNative> {
   return { ...handle, path };
 }
 
-export function defineDurableSqliteStore<TDb = SqliteConnection>(
-  config: DurableStoreConfig<TDb>
-): DurableSqliteStore<TDb> {
+export function defineDurableSqliteStore<TDb = SqliteConnection, TNative = unknown>(
+  config: DurableStoreConfig<TDb, TNative>
+): DurableSqliteStore<TDb, TNative> {
   const openPaths = new Set<string>();
   const latestExclusiveIdx =
     config.migrations.length === 0 ? 0 : Math.max(...config.migrations.map(({ idx }) => idx)) + 1;
@@ -117,7 +120,7 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
     path: string,
     targetExclusiveIdx: number | undefined,
     options: OpenOptions = {}
-  ): StoreHandle<TDb> => {
+  ): StoreHandle<TDb, TNative> => {
     const trackedPath = resolve(path);
     openPaths.add(trackedPath);
     try {
@@ -170,7 +173,7 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
       const path = makeTempPath(config.name);
       const handle = withTempMetadata(openInternal(path, uptoIdx, { cleanupOnClose: true }), path);
       let closed = false;
-      const migrationHandle: TempMigrationHandle<TDb> = {
+      const migrationHandle: TempMigrationHandle<TDb, TNative> = {
         ...handle,
         migrateToLatest() {
           if (closed) throw new Error(`SQLite store ${config.name} is closed`);
@@ -196,10 +199,10 @@ export function defineDurableSqliteStore<TDb = SqliteConnection>(
   };
 }
 
-export function defineDerivedSqliteStore<TDb = SqliteConnection>(
-  config: DerivedStoreConfig<TDb>
-): DerivedSqliteStore<TDb> {
-  const openInternal = (path: string, options: OpenOptions = {}): StoreHandle<TDb> =>
+export function defineDerivedSqliteStore<TDb = SqliteConnection, TNative = unknown>(
+  config: DerivedStoreConfig<TDb, TNative>
+): DerivedSqliteStore<TDb, TNative> {
+  const openInternal = (path: string, options: OpenOptions = {}): StoreHandle<TDb, TNative> =>
     openStoreConnection(
       config,
       path,
