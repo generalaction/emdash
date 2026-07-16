@@ -5,6 +5,12 @@ import type { ProjectTaskSortBy, ProjectViewSnapshot } from '@shared/view-state'
 
 export type ProjectView = 'tasks' | 'pull-request' | 'settings';
 
+function isProjectTaskSortBy(value: unknown): value is ProjectTaskSortBy {
+  return (
+    value === 'created-at' || value === 'updated-at' || value === 'pr-status' || value === 'unread'
+  );
+}
+
 export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';
   taskView: TaskViewStore = new TaskViewStore();
@@ -34,7 +40,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
     if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
     if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
-    if (snapshot.taskSortBy) this.taskView.setSortBy(snapshot.taskSortBy);
+    if (isProjectTaskSortBy(snapshot.taskSortBy)) this.taskView.setSortBy(snapshot.taskSortBy);
     if (snapshot.selectedIssueProvider)
       this.selectedIssueProvider = snapshot.selectedIssueProvider as IssueProviderType;
   }

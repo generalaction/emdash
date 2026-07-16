@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import { ProjectViewStore } from './project-view';
 
 describe('TaskViewStore range selection', () => {
@@ -26,5 +27,14 @@ describe('ProjectViewStore snapshots', () => {
     restored.restoreSnapshot(store.snapshot);
 
     expect(restored.taskView.sortBy).toBe('pr-status');
+  });
+
+  it('keeps the default task sort for an unknown persisted value', () => {
+    const store = new ProjectViewStore();
+    const snapshot = JSON.parse('{"taskSortBy":"future-sort"}') as Partial<ProjectViewSnapshot>;
+
+    store.restoreSnapshot(snapshot);
+
+    expect(store.taskView.sortBy).toBe('updated-at');
   });
 });
