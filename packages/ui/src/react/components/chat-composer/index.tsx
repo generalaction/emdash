@@ -1,14 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import {
-  ArrowUp,
-  ChevronRight,
-  CircleAlert,
-  Paperclip,
-  ShieldCheck,
-  Square,
-  X,
-} from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
@@ -1025,7 +1017,7 @@ export function ChatComposer({
                   onClick={onStop}
                   aria-label="Stop generation"
                 >
-                  <Square style={{ width: '0.625rem', height: '0.625rem', fill: 'currentColor' }} />
+                  <span className={styles.stopIcon} aria-hidden="true" />
                 </Button>
               ) : (
                 <Button
