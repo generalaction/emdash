@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationsView.tsx
+  s_653b55981f9f85::t_7f15b13ac39e6e 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ac1fb0bc974dff5d16b3cf78af62a4ace739a638",
+  "prompts": {},
+  "sessions": {
+    "s_653b55981f9f85": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033qIuG6g8gjWytHUstZNs",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
