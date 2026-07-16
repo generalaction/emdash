@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_0ec02847cb77f1::t_41026c5ff6d92c 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "370fca1395edf1bacb9a679fbe889b917a42efa8",
+  "prompts": {},
+  "sessions": {
+    "s_0ec02847cb77f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6a9d-7746-73a1-b13f-9bdb397ef094",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
