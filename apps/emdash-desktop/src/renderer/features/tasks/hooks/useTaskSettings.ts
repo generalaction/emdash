@@ -8,6 +8,7 @@ export interface TaskSettingsModel {
   deleteBranchByDefault: boolean;
   preserveNameCapitalization: boolean;
   includeIssueContextByDefault: boolean;
+  autoCleanupOnPrMerge: 'off' | 'archive' | 'delete';
   loading: boolean;
   saving: boolean;
   isFieldOverridden: (
@@ -19,6 +20,7 @@ export interface TaskSettingsModel {
       | 'deleteBranchByDefault'
       | 'preserveNameCapitalization'
       | 'includeIssueContextByDefault'
+      | 'autoCleanupOnPrMerge'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
   updateAutoApproveByDefault: (next: boolean) => void;
@@ -27,6 +29,7 @@ export interface TaskSettingsModel {
   updateDeleteBranchByDefault: (next: boolean) => void;
   updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
+  updateAutoCleanupOnPrMerge: (next: 'off' | 'archive' | 'delete') => void;
   resetAutoGenerateName: () => void;
   resetAutoApproveByDefault: () => void;
   resetAutoTrustWorktrees: () => void;
@@ -34,6 +37,7 @@ export interface TaskSettingsModel {
   resetDeleteBranchByDefault: () => void;
   resetPreserveNameCapitalization: () => void;
   resetIncludeIssueContextByDefault: () => void;
+  resetAutoCleanupOnPrMerge: () => void;
 }
 
 export function useTaskSettings(): TaskSettingsModel {
@@ -54,6 +58,7 @@ export function useTaskSettings(): TaskSettingsModel {
     deleteBranchByDefault: tasks?.deleteBranchByDefault ?? false,
     preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
     includeIssueContextByDefault: tasks?.includeIssueContextByDefault ?? true,
+    autoCleanupOnPrMerge: tasks?.autoCleanupOnPrMerge ?? 'off',
     loading,
     saving,
     isFieldOverridden,
@@ -64,6 +69,7 @@ export function useTaskSettings(): TaskSettingsModel {
     updateDeleteBranchByDefault: (next) => update({ deleteBranchByDefault: next }),
     updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
+    updateAutoCleanupOnPrMerge: (next) => update({ autoCleanupOnPrMerge: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
     resetAutoApproveByDefault: () => resetField('autoApproveByDefault'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
@@ -71,5 +77,6 @@ export function useTaskSettings(): TaskSettingsModel {
     resetDeleteBranchByDefault: () => resetField('deleteBranchByDefault'),
     resetPreserveNameCapitalization: () => resetField('preserveNameCapitalization'),
     resetIncludeIssueContextByDefault: () => resetField('includeIssueContextByDefault'),
+    resetAutoCleanupOnPrMerge: () => resetField('autoCleanupOnPrMerge'),
   };
 }

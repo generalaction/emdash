@@ -17,6 +17,7 @@ import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import { StorageSettingsPage } from './StorageSettingsPage';
 import {
   AutoApproveByDefaultRow,
+  AutoCleanupOnPrMergeRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
@@ -63,6 +64,7 @@ function GeneralSettingsPage() {
       <DeleteBranchByDefaultRow />
       <PreserveTaskNameCapitalizationRow />
       <IncludeIssueContextByDefaultRow />
+      <AutoCleanupOnPrMergeRow />
       <EnableTmuxRow />
       <NotificationSettingsCard />
     </div>

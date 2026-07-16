@@ -33,6 +33,7 @@ export const SETTINGS_DEFAULTS = {
     deleteBranchByDefault: false,
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
+    autoCleanupOnPrMerge: 'off' as const,
   },
   notifications: {
     enabled: true,
