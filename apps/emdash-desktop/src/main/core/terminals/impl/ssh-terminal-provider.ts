@@ -335,7 +335,6 @@ export class SshTerminalProvider implements TerminalProvider {
 
   async killTerminal(terminalId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
-    this.knownSessionIds.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -349,6 +348,7 @@ export class SshTerminalProvider implements TerminalProvider {
     if (this.tmux) {
       await killTmuxSessionsByPtyIds(this.ctx, [sessionId], { reapDescendants: true });
     }
+    this.knownSessionIds.delete(sessionId);
   }
 
   async destroyAll(): Promise<void> {

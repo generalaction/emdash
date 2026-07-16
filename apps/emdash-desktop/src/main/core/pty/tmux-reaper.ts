@@ -39,7 +39,62 @@ function legacyIdentity(sessionName: string): TmuxSessionIdentity | null {
 
 function identityFromFields(fields: string[]): TmuxSessionIdentity | null {
   const [projectId, taskId, leafId] = fields;
-  return projectId && taskId && leafId ? { projectId, taskId, leafId } : null;
+  if (!projectId || !taskId || !leafId) return null;
+  if (
+    projectId === `#{${TMUX_PROJECT_ID_OPTION}}` ||
+    taskId === `#{${TMUX_TASK_ID_OPTION}}` ||
+    leafId === `#{${TMUX_LEAF_ID_OPTION}}`
+  ) {
+    return null;
+  }
+  return { projectId, taskId, leafId };
+}
+
+function hasLiteralIdentityOptions(line: string): boolean {
+  const [, projectId, taskId, leafId] = line.split('\t');
+  return (
+    projectId === `#{${TMUX_PROJECT_ID_OPTION}}` ||
+    taskId === `#{${TMUX_TASK_ID_OPTION}}` ||
+    leafId === `#{${TMUX_LEAF_ID_OPTION}}`
+  );
+}
+
+function tmuxErrorText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const withOutput = error as Error & { stderr?: unknown; stdout?: unknown };
+  return [error.message, withOutput.stderr, withOutput.stdout]
+    .filter((value): value is string => typeof value === 'string')
+    .join('\n');
+}
+
+function isNoTmuxServerError(error: unknown): boolean {
+  const text = tmuxErrorText(error);
+  return (
+    /no server running/i.test(text) ||
+    /failed to connect to server:\s*(?:no such file|connection refused)/i.test(text) ||
+    /error connecting to .*tmux.*(?:no such file|connection refused)/i.test(text) ||
+    /no sessions/i.test(text)
+  );
+}
+
+function isMissingTmuxSessionError(error: unknown): boolean {
+  const text = tmuxErrorText(error);
+  return (
+    isNoTmuxServerError(error) ||
+    /can't find session/i.test(text) ||
+    /no such session/i.test(text) ||
+    /session .* not found/i.test(text)
+  );
+}
+
+export class TmuxSessionDiscoveryError extends Error {
+  constructor(
+    readonly richFormatError: unknown,
+    readonly nameListError: unknown
+  ) {
+    super('Failed to discover tmux sessions');
+    this.name = 'TmuxSessionDiscoveryError';
+  }
 }
 
 function identityFromOptionList(stdout: string): TmuxSessionIdentity | null {
@@ -63,8 +118,9 @@ async function readIdentityFromOptions(
   try {
     const { stdout } = await ctx.exec('tmux', ['show-options', '-t', sessionName]);
     return identityFromOptionList(stdout);
-  } catch {
-    return null;
+  } catch (err) {
+    if (isMissingTmuxSessionError(err)) return null;
+    throw err;
   }
 }
 
@@ -73,8 +129,12 @@ async function listSessionLines(ctx: IExecutionContext): Promise<string[]> {
   try {
     const { stdout } = await ctx.exec('tmux', ['list-sessions', '-F', TMUX_SESSION_LIST_FORMAT]);
     const lines = stdout.split('\n').filter(Boolean);
-    if (lines.length > 0) return lines;
-    formatError = new Error('rich tmux session format returned an empty result');
+    if (lines.length > 0 && !lines.some(hasLiteralIdentityOptions)) return lines;
+    formatError = new Error(
+      lines.length === 0
+        ? 'rich tmux session format returned an empty result'
+        : 'rich tmux session format returned literal user-option placeholders'
+    );
   } catch (err) {
     formatError = err;
   }
@@ -86,11 +146,14 @@ async function listSessionLines(ctx: IExecutionContext): Promise<string[]> {
     const { stdout } = await ctx.exec('tmux', ['list-sessions', '-F', '#{session_name}']);
     return stdout.split('\n').filter(Boolean);
   } catch (err) {
-    log.debug('listEmdashTmuxSessions: no tmux sessions', {
-      error: String(err),
-      formatError: String(formatError),
-    });
-    return [];
+    if (isNoTmuxServerError(err)) {
+      log.debug('listEmdashTmuxSessions: no tmux server', {
+        error: tmuxErrorText(err),
+        formatError: tmuxErrorText(formatError),
+      });
+      return [];
+    }
+    throw new TmuxSessionDiscoveryError(formatError, err);
   }
 }
 
@@ -101,27 +164,22 @@ async function listSessionLines(ctx: IExecutionContext): Promise<string[]> {
  * formats fall back to one show-options call for each friendly-named session.
  */
 export async function listEmdashTmuxSessions(ctx: IExecutionContext): Promise<EmdashTmuxSession[]> {
-  try {
-    const lines = await listSessionLines(ctx);
-    const sessions = lines
-      .map((line): EmdashTmuxSession | null => {
-        const [name, ...metadata] = line.split('\t');
-        if (!name?.startsWith(TMUX_SESSION_PREFIX)) return null;
-        return { name, identity: identityFromFields(metadata) ?? legacyIdentity(name) };
-      })
-      .filter((session): session is EmdashTmuxSession => session !== null);
+  const lines = await listSessionLines(ctx);
+  const sessions = lines
+    .map((line): EmdashTmuxSession | null => {
+      const [name, ...metadata] = line.split('\t');
+      if (!name?.startsWith(TMUX_SESSION_PREFIX)) return null;
+      return { name, identity: identityFromFields(metadata) ?? legacyIdentity(name) };
+    })
+    .filter((session): session is EmdashTmuxSession => session !== null);
 
-    await Promise.all(
-      sessions.map(async (session) => {
-        if (session.identity) return;
-        session.identity = await readIdentityFromOptions(ctx, session.name);
-      })
-    );
-    return sessions;
-  } catch (err) {
-    log.debug('listEmdashTmuxSessions: no tmux sessions', { error: String(err) });
-    return [];
-  }
+  await Promise.all(
+    sessions.map(async (session) => {
+      if (session.identity) return;
+      session.identity = await readIdentityFromOptions(ctx, session.name);
+    })
+  );
+  return sessions;
 }
 
 /**

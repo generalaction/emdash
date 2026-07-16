@@ -327,7 +327,6 @@ export class SshConversationProvider implements ConversationProvider {
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    this.knownSessionIds.delete(sessionId);
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
@@ -344,6 +343,7 @@ export class SshConversationProvider implements ConversationProvider {
     if (this.tmux) {
       await killTmuxSessionsByPtyIds(this.ctx, [sessionId], { reapDescendants: true });
     }
+    this.knownSessionIds.delete(sessionId);
     this.supervisor.forget(sessionId);
   }
 

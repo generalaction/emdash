@@ -298,7 +298,6 @@ export class LocalTerminalProvider implements TerminalProvider {
 
   async killTerminal(terminalId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
-    this.knownSessionIds.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -311,6 +310,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     if (this.tmux) {
       await killTmuxSessionsByPtyIds(this.ctx, [sessionId]);
     }
+    this.knownSessionIds.delete(sessionId);
   }
 
   async destroyAll(): Promise<void> {

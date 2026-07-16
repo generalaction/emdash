@@ -25,6 +25,20 @@ export async function deleteConversation(
     )
     .limit(1);
 
+  if (convRow?.type !== 'acp') {
+    const task = resolveTask(projectId, taskId);
+    if (task) {
+      await task.conversations.stopSession(conversationId);
+    } else {
+      const project = projectManager.getProject(projectId);
+      if (project) {
+        await killTmuxSessionsByPtyIds(project.ctx, [
+          makePtySessionId(projectId, taskId, conversationId),
+        ]);
+      }
+    }
+  }
+
   await db
     .delete(conversations)
     .where(
@@ -36,27 +50,6 @@ export async function deleteConversation(
     );
 
   conversationEvents._emit('conversation:deleted', conversationId);
-
-  if (convRow?.type === 'acp') {
-    telemetryService.capture('conversation_deleted', {
-      project_id: projectId,
-      task_id: taskId,
-      conversation_id: conversationId,
-    });
-    return;
-  }
-
-  const task = resolveTask(projectId, taskId);
-  if (task) {
-    await task.conversations.stopSession(conversationId);
-  } else {
-    const project = projectManager.getProject(projectId);
-    if (project) {
-      await killTmuxSessionsByPtyIds(project.ctx, [
-        makePtySessionId(projectId, taskId, conversationId),
-      ]);
-    }
-  }
   telemetryService.capture('conversation_deleted', {
     project_id: projectId,
     task_id: taskId,

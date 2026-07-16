@@ -5,6 +5,7 @@ import {
   killTmuxSessionsByPtyIds,
   killTmuxSessionTree,
   listEmdashTmuxSessions,
+  TmuxSessionDiscoveryError,
 } from './tmux-reaper';
 import {
   makeLegacyTmuxSessionName,
@@ -163,6 +164,39 @@ describe('listEmdashTmuxSessions', () => {
     ]);
   });
 
+  it('falls back to names and show-options when old tmux returns literal metadata placeholders', async () => {
+    const { ctx, calls } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions' && args[2] !== '#{session_name}') {
+        return {
+          stdout: `emdash-work-token\t#{${TMUX_PROJECT_ID_OPTION}}\t#{${TMUX_TASK_ID_OPTION}}\t#{${TMUX_LEAF_ID_OPTION}}\n`,
+          stderr: '',
+        };
+      }
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-work-token\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        return {
+          stdout: `${TMUX_PROJECT_ID_OPTION} project-1\n${TMUX_TASK_ID_OPTION} task-1\n${TMUX_LEAF_ID_OPTION} leaf-1\n`,
+          stderr: '',
+        };
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      {
+        name: 'emdash-work-token',
+        identity: { projectId: 'project-1', taskId: 'task-1', leafId: 'leaf-1' },
+      },
+    ]);
+    expect(calls.map(({ args }) => args[0])).toEqual([
+      'list-sessions',
+      'list-sessions',
+      'show-options',
+    ]);
+  });
+
   it('keeps partially tagged or unrelated prefixed sessions unowned', async () => {
     const { ctx } = makeCtx((command, args) => {
       if (command === 'tmux' && args[0] === 'list-sessions') {
@@ -184,6 +218,65 @@ describe('listEmdashTmuxSessions', () => {
       }),
     } as unknown as IExecutionContext;
     expect(await listEmdashTmuxSessions(ctx)).toEqual([]);
+  });
+
+  it('rejects when both rich and name-only discovery fail for an unknown reason', async () => {
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw Object.assign(new Error('SSH connection dropped'), {
+          stderr: 'channel closed',
+        });
+      }),
+    } as unknown as IExecutionContext;
+
+    await expect(listEmdashTmuxSessions(ctx)).rejects.toBeInstanceOf(TmuxSessionDiscoveryError);
+    expect(ctx.exec).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not treat an unspecified failed-to-connect error as an absent tmux server', async () => {
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('failed to connect to server: permission denied');
+      }),
+    } as unknown as IExecutionContext;
+
+    await expect(listEmdashTmuxSessions(ctx)).rejects.toBeInstanceOf(TmuxSessionDiscoveryError);
+  });
+
+  it('propagates transient show-options failures after name-only fallback', async () => {
+    const { ctx } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions' && args[2] !== '#{session_name}') {
+        throw new Error('unknown format');
+      }
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-work-token\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        throw new Error('SSH connection dropped');
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    await expect(listEmdashTmuxSessions(ctx)).rejects.toThrow('SSH connection dropped');
+  });
+
+  it('keeps a session unowned when it disappears before show-options', async () => {
+    const { ctx } = makeCtx((command, args) => {
+      if (command === 'tmux' && args[0] === 'list-sessions' && args[2] !== '#{session_name}') {
+        throw new Error('unknown format');
+      }
+      if (command === 'tmux' && args[0] === 'list-sessions') {
+        return { stdout: 'emdash-work-token\n', stderr: '' };
+      }
+      if (command === 'tmux' && args[0] === 'show-options') {
+        throw new Error("can't find session: emdash-work-token");
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    expect(await listEmdashTmuxSessions(ctx)).toEqual([
+      { name: 'emdash-work-token', identity: null },
+    ]);
   });
 });
 
@@ -270,5 +363,18 @@ describe('killTmuxSessionsByPtyIds', () => {
 
     expect(killSessionTargets(calls)).toEqual(['emdash-work-token', legacyName]);
     expect(calls.filter(({ args }) => args[0] === 'list-sessions')).toHaveLength(1);
+  });
+
+  it('propagates discovery failure instead of reporting cleanup success', async () => {
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('connection timed out');
+      }),
+    } as unknown as IExecutionContext;
+
+    await expect(
+      killTmuxSessionsByPtyIds(ctx, [makePtySessionId('project-1', 'task-1', 'leaf-1')])
+    ).rejects.toBeInstanceOf(TmuxSessionDiscoveryError);
+    expect(ctx.exec).not.toHaveBeenCalledWith('tmux', expect.arrayContaining(['kill-session']));
   });
 });

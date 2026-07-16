@@ -89,6 +89,24 @@ describe('deleteTask', () => {
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1:tabs');
   });
 
+  it('preserves task and workspace records when mounted runtime teardown fails', async () => {
+    mocks.selectLimit.mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }]);
+    mocks.getProject.mockReturnValue({});
+    mocks.teardownTask.mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'Failed to discover tmux sessions' },
+    });
+
+    await expect(deleteTask('project-1', 'task-1')).rejects.toThrow(
+      'Failed to teardown task before deletion: Failed to discover tmux sessions'
+    );
+
+    expect(mocks.deleteWhere).not.toHaveBeenCalled();
+    expect(mocks.delViewState).not.toHaveBeenCalled();
+    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves the workspace file index when an archived sibling still references the workspace', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }])

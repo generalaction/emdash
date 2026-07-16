@@ -155,7 +155,8 @@ class TaskSessionManager {
 
   async teardownTask(
     taskId: string,
-    mode: TaskTeardownMode = 'terminate'
+    mode: TaskTeardownMode = 'terminate',
+    options: { retainOnFailure?: boolean } = {}
   ): Promise<Result<void, TeardownTaskError>> {
     const result = this._lifecycle.teardown(
       taskId,
@@ -176,10 +177,11 @@ class TaskSessionManager {
           });
           return { success: false as const, error: toTeardownError(e) };
         }
-      }
+      },
+      { retainOnFailure: options.retainOnFailure ?? true }
     );
 
-    return result ?? ok();
+    return (await result) ?? ok();
   }
 
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
@@ -204,7 +206,15 @@ class TaskSessionManager {
       );
     } else {
       // teardownTask handles _tasksByProject cleanup in onFinally.
-      await Promise.all(taskIds.map((id) => this.teardownTask(id, 'terminate')));
+      await Promise.all(
+        taskIds.map((id) =>
+          this.teardownTask(id, 'terminate', {
+            // Project shutdown disposes the execution context immediately after this
+            // call, so retaining providers would leave unusable fast-path entries.
+            retainOnFailure: false,
+          })
+        )
+      );
     }
   }
 

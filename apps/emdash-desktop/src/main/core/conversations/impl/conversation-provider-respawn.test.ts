@@ -962,6 +962,47 @@ describe('conversation provider respawn state', () => {
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
   });
 
+  it('keeps a detached local conversation retryable when tmux discovery fails', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('connection timed out');
+      }),
+    };
+    const provider = localProvider({ tmux: true, ctx: ctx as never });
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+
+    await expect(provider.stopSession(item.id)).rejects.toThrow('Failed to discover tmux sessions');
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
+  });
+
+  it('keeps a detached SSH conversation retryable when tmux discovery fails', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('connection timed out');
+      }),
+    };
+    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+
+    await expect(provider.stopSession(item.id)).rejects.toThrow('Failed to discover tmux sessions');
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
+  });
+
   it('ignores stale local attach exits after a tmux conversation is rehydrated', async () => {
     const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
     const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
