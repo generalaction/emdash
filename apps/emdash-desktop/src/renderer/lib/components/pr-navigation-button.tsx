@@ -5,9 +5,16 @@ import { rpc } from '../ipc';
 
 type PrNavigationButtonProps = Omit<ComponentProps<'button'>, 'aria-label' | 'onClick' | 'type'> & {
   pr: PullRequest;
+  onNavigate?: () => void;
 };
 
-export function PrNavigationButton({ pr, className, children, ...props }: PrNavigationButtonProps) {
+export function PrNavigationButton({
+  pr,
+  className,
+  children,
+  onNavigate,
+  ...props
+}: PrNavigationButtonProps) {
   const prNumber = getPrNumber(pr);
   const accessibleLabel = `Open pull request${
     prNumber == null ? '' : ` #${prNumber}`
@@ -21,6 +28,7 @@ export function PrNavigationButton({ pr, className, children, ...props }: PrNavi
       className={cn('cursor-pointer', className)}
       onClick={(event) => {
         event.stopPropagation();
+        onNavigate?.();
         void rpc.app.openExternal(pr.url);
       }}
     >

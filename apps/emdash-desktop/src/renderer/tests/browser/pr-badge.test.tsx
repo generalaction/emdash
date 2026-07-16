@@ -134,6 +134,18 @@ describe('PrBadge', () => {
     expect(parentClick).not.toHaveBeenCalled();
   });
 
+  it('cancels a delayed hover preview when direct navigation starts', async () => {
+    render(<PrBadge pr={pr} hoverDelay={100} />);
+    const navigation = page.getByRole('button', { name: accessibleName });
+
+    await userEvent.hover(navigation);
+    await userEvent.click(navigation);
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+
+    expect(mocks.openExternal).toHaveBeenCalledOnce();
+    expect(document.querySelector('[aria-label="Copy PR URL"]')).toBeNull();
+  });
+
   it.each([
     ['Enter', '{Enter}'],
     ['Space', ' '],

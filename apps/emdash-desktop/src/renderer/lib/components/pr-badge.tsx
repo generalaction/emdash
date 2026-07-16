@@ -63,6 +63,18 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
     }, 100);
   };
 
+  const cancelPreview = () => {
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setPreviewOpen(false);
+  };
+
   const renderBadge = () => {
     switch (variant) {
       case 'default':
@@ -107,6 +119,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
       >
         <PrNavigationButton
           pr={pr}
+          onNavigate={cancelPreview}
           className="group flex h-full min-w-0 items-center rounded-l-md outline-none focus-visible:bg-background-1"
         >
           {renderBadge()}
