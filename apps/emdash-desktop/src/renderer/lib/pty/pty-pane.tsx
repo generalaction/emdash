@@ -33,6 +33,8 @@ type Props = {
   remoteConnectionId?: string;
   workspaceId: string;
   themeOverride?: SessionTheme['override'];
+  /** Overrides only the bottom of xterm's otherwise uniform internal padding. */
+  paddingBottom?: number;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -118,6 +120,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       remoteConnectionId,
       workspaceId,
       themeOverride,
+      paddingBottom,
       onActivity,
       onFirstMessage,
       onEnterPress,
@@ -129,7 +132,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
     const lastDomImagePasteAtRef = useRef(0);
     const lastSystemPasteAtRef = useRef(0);
 
-    const theme: SessionTheme = { override: themeOverride };
+    const theme: SessionTheme = { override: themeOverride, paddingBottom };
 
     const handleSystemPaste = useCallback<PasteFromClipboardHandler>(
       ({ focus, sendInput }) => {

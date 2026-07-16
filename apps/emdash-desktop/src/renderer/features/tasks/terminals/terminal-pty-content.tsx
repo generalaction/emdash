@@ -5,6 +5,7 @@ import {
   PaneDimensionProvider,
 } from '@renderer/features/tabs/pane-dimension-provider';
 import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
+import { TERMINAL_PADDING_PX } from '@renderer/lib/pty/pty';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
@@ -23,6 +24,8 @@ export interface TerminalPtyContentProps {
   emptyState: ReactNode;
   remoteConnectionId?: string;
   workspaceId: string;
+  /** Defaults to the standard uniform xterm inset. */
+  terminalPaddingBottom?: number;
   className?: string;
 }
 
@@ -37,6 +40,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   emptyState,
   remoteConnectionId,
   workspaceId,
+  terminalPaddingBottom = TERMINAL_PADDING_PX,
   className,
 }: TerminalPtyContentProps) {
   const activeSessionId = activeSession?.sessionId ?? null;
@@ -84,6 +88,9 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
 
   const sessionIds = useMemo(() => allSessionIds, [allSessionIds]);
   const dimensionSink = useMemo(() => createPaneDimensionSink(), []);
+  // The resize controller already accounts for uniform padding; pass only the
+  // delta so its row count stays aligned with the drawer-specific CSS inset.
+  const gridBottomPadding = terminalPaddingBottom - TERMINAL_PADDING_PX;
 
   const hasSessions = sessionIds.length > 0;
 
@@ -100,7 +107,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
       }}
     >
       <PaneDimensionProvider sink={dimensionSink}>
-        <PaneSizingContextProvider sessionIds={sessionIds}>
+        <PaneSizingContextProvider sessionIds={sessionIds} bottomPadding={gridBottomPadding}>
           {!hasSessions || !activeSession ? (
             emptyState
           ) : (
@@ -125,6 +132,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                     themeOverride={{
                       background: cssVar('--background'),
                     }}
+                    paddingBottom={terminalPaddingBottom}
                     onEnterPress={onEnterPress}
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}

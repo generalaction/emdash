@@ -1,6 +1,6 @@
-import { Terminal } from 'lucide-react';
+import { ScrollText, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTabShortcuts } from '@renderer/features/tabs/hooks/useTabShortcuts';
 import {
   useTaskViewContext,
@@ -15,11 +15,10 @@ import {
 } from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
-import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
+import { TerminalDrawerTabBar, type TerminalDrawerMode } from './terminal-drawer-tab-bar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
 import { TerminalPtyContent } from './terminal-pty-content';
 
@@ -35,6 +34,10 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
+  const [mode, setMode] = useState<TerminalDrawerMode>(() =>
+    taskView.terminalDrawerActiveItem?.kind === 'script' ? 'scripts' : 'terminals'
+  );
+  const previousActiveItemRef = useRef(taskView.terminalDrawerActiveItem);
   const { data: shellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
     useTerminalShellAvailability(remoteConnectionId, { enabled: shouldLoadShellAvailability });
 
@@ -60,16 +63,25 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     scriptIds: lifecycleScriptTabs.map((script) => script.data.id),
   });
 
-  const activeTerminalId = activeItem.kind === 'terminal' ? activeItem.id : undefined;
+  const selectedTerminalId =
+    activeItem.kind === 'terminal'
+      ? activeItem.id || undefined
+      : (terminalTabView.activeTabId ?? terminalTabs[0]?.data.id);
+  const selectedScriptId =
+    activeItem.kind === 'script'
+      ? activeItem.id
+      : (lifecycleScriptsMgr?.activeTabId ?? lifecycleScriptTabs[0]?.data.id);
+  const activeTerminalId = mode === 'terminals' ? selectedTerminalId : undefined;
+  const activeScriptId = mode === 'scripts' ? selectedScriptId : undefined;
   const activeTerminalIsOpenInMain =
     activeTerminalId !== undefined && terminalIdsOpenInMain.has(activeTerminalId);
 
   const activeSession =
-    activeItem.kind === 'terminal'
+    mode === 'terminals'
       ? activeTerminalIsOpenInMain
         ? null
         : (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
-      : (lifecycleScriptTabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
+      : (lifecycleScriptTabs.find((script) => script.data.id === activeScriptId)?.session ?? null);
 
   const allSessionIds = [
     ...terminalTabs
@@ -79,22 +91,37 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     ...lifecycleScriptTabs.map((s) => s.session.sessionId),
   ];
 
+  useEffect(() => {
+    const previousActiveItem = previousActiveItemRef.current;
+    const currentActiveItem = taskView.terminalDrawerActiveItem;
+    const changed =
+      currentActiveItem &&
+      (currentActiveItem.kind !== previousActiveItem?.kind ||
+        currentActiveItem.id !== previousActiveItem.id);
+
+    if (changed) {
+      setMode(currentActiveItem.kind === 'script' ? 'scripts' : 'terminals');
+    }
+    previousActiveItemRef.current = currentActiveItem;
+  }, [taskView, taskView.terminalDrawerActiveItem?.id, taskView.terminalDrawerActiveItem?.kind]);
+
   const handleHoverTerminal = (id: string) => {
     const session = terminalMgr.sessions.get(id);
     if (session?.status === 'disconnected') void session.connect();
   };
 
-  const activeStore =
-    activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
+  const activeStore = mode === 'terminals' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
   const handleCreate = async (shell?: TerminalShellId) => {
+    setMode('terminals');
     await taskView.openNewTerminal(shell);
   };
 
   const handleRunScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script || script.isRunning) return;
+    setMode('scripts');
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
     void script.run(projectId, taskId, workspaceId).catch(() => {});
@@ -106,7 +133,24 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     script.stop();
   };
 
-  const emptyState = (
+  const handleModeChange = (nextMode: TerminalDrawerMode) => {
+    setMode(nextMode);
+
+    if (nextMode === 'terminals') {
+      const terminalId = terminalTabView.activeTabId ?? terminalTabs[0]?.data.id;
+      if (!terminalId) return;
+      terminalTabView.setActiveTab(terminalId);
+      taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id: terminalId });
+      return;
+    }
+
+    const scriptId = lifecycleScriptsMgr?.activeTabId ?? lifecycleScriptTabs[0]?.data.id;
+    if (!scriptId) return;
+    lifecycleScriptsMgr?.setActiveTab(scriptId);
+    taskView.setTerminalDrawerActiveItem({ kind: 'script', id: scriptId });
+  };
+
+  const terminalEmptyState = (
     <EmptyState
       icon={<Terminal className="text-muted-foreground h-5 w-5" />}
       label={activeTerminalIsOpenInMain ? 'Terminal open in main pane' : 'No terminals yet'}
@@ -131,11 +175,17 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     />
   );
 
+  const scriptsEmptyState = (
+    <EmptyState
+      icon={<ScrollText className="text-muted-foreground h-5 w-5" />}
+      label="No scripts configured"
+      description="Add setup, run, or teardown scripts to your project configuration."
+    />
+  );
+
   return (
-    <ResizablePanelGroup
-      orientation="horizontal"
-      id="terminal-drawer-inner"
-      className="h-full"
+    <div
+      className="flex h-full flex-col"
       onFocus={() => {
         setIsPanelFocused(true);
         taskView.setFocusedRegion('bottom');
@@ -146,44 +196,42 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         }
       }}
     >
-      <ResizablePanel id="terminal-drawer-pty" minSize="30%">
-        <TerminalPtyContent
-          className="h-full"
-          activeSession={activeSession}
-          allSessionIds={allSessionIds}
-          autoFocus={autoFocus}
-          emptyState={emptyState}
-          remoteConnectionId={remoteConnectionId}
-          workspaceId={workspaceId}
-        />
-      </ResizablePanel>
-      <ResizableHandle className="bg-transparent hover:bg-background-2" />
-      <ResizablePanel id="terminal-drawer-sidebar" defaultSize="25%" minSize="150px" maxSize="50%">
-        <TerminalDrawerSidebar
-          className="h-full"
-          projectId={projectId}
-          lifecycleScriptsMgr={lifecycleScriptsMgr}
-          activeScriptId={activeItem.kind === 'script' ? activeItem.id : undefined}
-          onSelectScript={(id) => {
-            lifecycleScriptsMgr?.setActiveTab(id);
-            taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-          }}
-          onRunScript={handleRunScript}
-          onStopScript={handleStopScript}
-          terminalTabView={terminalTabView}
-          activeTerminalId={activeTerminalId}
-          shellAvailability={shellAvailability}
-          onShellMenuOpen={() => setShouldLoadShellAvailability(true)}
-          onSelectTerminal={(id) => {
-            terminalTabView.setActiveTab(id);
-            taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
-          }}
-          onAddTerminal={(shell) => void handleCreate(shell)}
-          onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
-          onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
-          onHoverTerminal={handleHoverTerminal}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      <TerminalDrawerTabBar
+        mode={mode}
+        onModeChange={handleModeChange}
+        lifecycleScriptsMgr={lifecycleScriptsMgr}
+        activeScriptId={activeScriptId}
+        onSelectScript={(id) => {
+          setMode('scripts');
+          lifecycleScriptsMgr?.setActiveTab(id);
+          taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
+        }}
+        onRunScript={handleRunScript}
+        onStopScript={handleStopScript}
+        terminalTabView={terminalTabView}
+        activeTerminalId={activeTerminalId}
+        shellAvailability={shellAvailability}
+        onShellMenuOpen={() => setShouldLoadShellAvailability(true)}
+        onSelectTerminal={(id) => {
+          setMode('terminals');
+          terminalTabView.setActiveTab(id);
+          taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
+        }}
+        onAddTerminal={(shell) => void handleCreate(shell)}
+        onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
+        onRenameTerminal={(id, name) => void terminalMgr.renameTerminal(id, name)}
+        onHoverTerminal={handleHoverTerminal}
+      />
+      <TerminalPtyContent
+        className="min-h-0 flex-1"
+        activeSession={activeSession}
+        allSessionIds={allSessionIds}
+        autoFocus={autoFocus}
+        emptyState={mode === 'scripts' ? scriptsEmptyState : terminalEmptyState}
+        remoteConnectionId={remoteConnectionId}
+        workspaceId={workspaceId}
+        terminalPaddingBottom={0}
+      />
+    </div>
   );
 });

@@ -19,6 +19,8 @@ export const TERMINAL_LETTER_SPACING = 0;
 
 export interface SessionTheme {
   override?: ITerminalOptions['theme'];
+  /** Optional per-mount bottom inset; other sides retain the standard terminal padding. */
+  paddingBottom?: number;
 }
 
 export type FrontendPtyConnector = {
@@ -151,7 +153,7 @@ export class FrontendPty {
       el.style.height = '100%';
       el.style.boxSizing = 'border-box';
       el.style.padding = `${TERMINAL_PADDING_PX}px`;
-      el.style.backgroundColor = 'var(--xterm-bg)';
+      this.applyElementTheme(theme);
     }
 
     FrontendPty.all.add(this);
@@ -161,10 +163,19 @@ export class FrontendPty {
   setTheme(theme?: SessionTheme): void {
     this.theme = theme;
     this.terminal.options.theme = buildTheme(theme);
+    this.applyElementTheme(theme);
   }
 
   refreshTheme(): void {
     this.terminal.options.theme = buildTheme(this.theme);
+    this.applyElementTheme(this.theme);
+  }
+
+  private applyElementTheme(theme?: SessionTheme): void {
+    const element = this.terminal.element;
+    if (!element) return;
+    element.style.paddingBottom = `${theme?.paddingBottom ?? TERMINAL_PADDING_PX}px`;
+    element.style.backgroundColor = theme?.override?.background ?? 'var(--xterm-bg)';
   }
 
   clear(): void {
