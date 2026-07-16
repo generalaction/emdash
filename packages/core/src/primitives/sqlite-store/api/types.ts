@@ -75,8 +75,7 @@ export interface SqliteStoreBase<TDb, TNative = unknown> {
   ): Promise<TempStoreHandle<TDb, TNative>>;
 }
 
-export interface DurableSqliteStore<TDb, TNative = unknown>
-  extends SqliteStoreBase<TDb, TNative> {
+export interface DurableSqliteStore<TDb, TNative = unknown> extends SqliteStoreBase<TDb, TNative> {
   openAtMigration(uptoIdx: number): TempMigrationHandle<TDb, TNative>;
   restoreLatestBackup(path: string): void;
 }
