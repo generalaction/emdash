@@ -1,5 +1,5 @@
-import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
-import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
+import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
+import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 

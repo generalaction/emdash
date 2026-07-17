@@ -74,11 +74,11 @@ vi.mock('@main/core/projects/project-events', () => ({
   projectEvents: { _emit: mocks.emitProjectEvent },
 }));
 
-vi.mock('@main/core/wire-workers/pull-requests-registration', () => ({
+vi.mock('@core/services/pull-requests/node/pull-requests-registration', () => ({
   pullRequestsRegistration: { deleteProjectData: mocks.deleteProjectData },
 }));
 
-vi.mock('@main/core/wire-workers/desktop-workers', () => ({
+vi.mock('@main/gateway/desktop-workers', () => ({
   getMementosRuntimeClient: async () => ({
     deleteBySubject: mocks.deleteViewState,
     deleteOrphans: mocks.deleteOrphanedMementos,

@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared/result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequestsRuntimeClient } from './desktop-workers';
+import type { PullRequestsRuntimeClient } from '@main/gateway/desktop-workers';
 import { PullRequestsRegistration } from './pull-requests-registration';
 
 const mocks = vi.hoisted(() => ({
@@ -57,7 +57,7 @@ vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: { hooks: { on: vi.fn(() => () => {}) } },
 }));
 
-vi.mock('@main/core/wire-workers/desktop-workers', () => ({
+vi.mock('@main/gateway/desktop-workers', () => ({
   getPullRequestsRuntimeClient: vi.fn(),
 }));
 

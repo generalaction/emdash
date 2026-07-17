@@ -2,7 +2,7 @@ import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';

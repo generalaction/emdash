@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock('@main/core/wire-workers/accessors', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getFileSearchRuntimeClient: mocks.getClient,
 }));
 

@@ -11,12 +11,12 @@ import {
   getLocalTerminalShellAvailability,
   resolveTerminalShellWithSystemFallback,
 } from '@main/core/terminal-shell/resolver';
-import { getTerminalsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, terminals } from '@main/db/schema';
+import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';

@@ -1,4 +1,4 @@
-import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
+import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 
 export class SshCredentialService {
   private passwordSecretKey(connectionId: string): string {

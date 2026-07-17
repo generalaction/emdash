@@ -1,6 +1,6 @@
-import { isAppFocused } from '@main/app/window';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
+import { isAppFocused } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { NotificationService } from './notification-service';
 import { installAgentStatusNotificationProducer } from './producers';

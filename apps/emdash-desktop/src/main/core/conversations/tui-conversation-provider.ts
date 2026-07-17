@@ -15,9 +15,9 @@ import type {
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
-import { getTuiAgentsRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { getTuiAgentsRuntimeClient } from '@main/gateway/accessors';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 

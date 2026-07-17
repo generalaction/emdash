@@ -56,7 +56,7 @@ vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: { getTask: vi.fn(() => undefined) },
 }));
 
-vi.mock('@main/core/wire-workers/accessors', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getGitRuntimeClient: vi.fn(async () => ({
     repository: {
       listWorktrees: vi.fn(async () => ({

@@ -8,7 +8,7 @@ import {
   type MenuItemConstructorOptions,
   type WebContents,
 } from 'electron';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import {
   browserProfilePartition,

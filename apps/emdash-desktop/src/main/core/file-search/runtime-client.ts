@@ -7,7 +7,7 @@ import {
   PATH_SEARCH_MAX_LIMIT,
   type PathSearchError,
 } from '@emdash/core/runtimes/file-search/api';
-import { getFileSearchRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getFileSearchRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import type { WorkspaceFileHit } from '@shared/core/search';

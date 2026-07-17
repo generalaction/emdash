@@ -1,16 +1,16 @@
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
-import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
+import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import {
   hardenBrowserWebviewPreferences,
   stripBrowserWebviewParams,
   validateBrowserWebviewAttach,
-} from '@main/core/browser/webview-security';
-import { events } from '@main/lib/events';
+} from '@main/host/browser/webview-security';
+import { events } from '@main/host/events';
+import { registerExternalLinkHandlers } from '@main/host/externalLinks';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { windowMaximizeChangedChannel } from '@shared/events/appEvents';
 import { APP_ORIGIN } from './protocol';

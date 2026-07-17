@@ -9,11 +9,8 @@ import {
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { setSessionId } from '@main/core/conversations/set-session-id';
-import {
-  getTuiAgentsRuntimeClient,
-  tuiAgentsWorker,
-} from '@main/core/wire-workers/desktop-workers';
-import { events } from '@main/lib/events';
+import { getTuiAgentsRuntimeClient, tuiAgentsWorker } from '@main/gateway/desktop-workers';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { agentStatusService } from './agent-status-service';

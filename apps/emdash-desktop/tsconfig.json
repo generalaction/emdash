@@ -60,9 +60,9 @@
     }
   },
   "include": [
+    "src/entry/**/*",
     "src/main/**/*",
     "src/renderer/**/*",
-    "src/preload/**/*",
     "src/shared/**/*",
     "src/core/**/*",
     "src/types/**/*",

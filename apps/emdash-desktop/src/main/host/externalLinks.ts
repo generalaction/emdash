@@ -1,6 +1,6 @@
 import { shell, type BrowserWindow } from 'electron';
-import { getMainWindow } from '@main/app/window';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
+import { getMainWindow } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { externalLinkOpenRequestedChannel } from '@shared/events/appEvents';
 

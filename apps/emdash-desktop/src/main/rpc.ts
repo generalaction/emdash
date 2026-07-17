@@ -3,7 +3,6 @@ import { accountController } from './core/account/controller';
 import { agentsController } from './core/agents/controller';
 import { appController } from './core/app/controller';
 import { automationsController } from './core/automations/controller';
-import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
 import { githubController } from './core/github/controller';
@@ -19,10 +18,11 @@ import { providerSettingsController } from './core/settings/provider-settings-co
 import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
-import { updateController } from './core/updates/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
 import { projectWorkspacesController } from './core/workspaces/project-workspaces-controller';
 import { legacyPortController } from './db/legacy-port/controller';
+import { browserController } from './host/browser/controller';
+import { updateController } from './host/updates/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,

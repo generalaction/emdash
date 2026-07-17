@@ -1,7 +1,7 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
-import type { TerminalsRuntimeClient } from '@main/core/wire-workers/desktop-workers';
+import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import type { DirectPreviewServer } from '@shared/core/preview-servers/types';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';

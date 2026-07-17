@@ -4,10 +4,10 @@ import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
-import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
+import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type {

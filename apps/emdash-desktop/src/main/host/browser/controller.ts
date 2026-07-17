@@ -1,8 +1,8 @@
 import { webContents } from 'electron';
-import { configureBrowserProfileSession } from '@main/core/browser/browser-profile-session';
-import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
-import { isBrowserPartition } from '@main/core/browser/webview-security';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { configureBrowserProfileSession } from '@main/host/browser/browser-profile-session';
+import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
+import { isBrowserPartition } from '@main/host/browser/webview-security';
 import {
   browserProfilePartition,
   DEFAULT_BROWSER_PROFILE_ID,

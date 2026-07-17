@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { type ConversationConfig } from '@shared/core/conversations/conversation-config';

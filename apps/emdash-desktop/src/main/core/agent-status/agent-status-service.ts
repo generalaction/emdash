@@ -2,7 +2,7 @@ import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import {

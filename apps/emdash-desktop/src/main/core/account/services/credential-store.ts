@@ -1,5 +1,5 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
-import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
+import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { type AccountSessionPersistenceError, unknownErrorMessage } from '../account-errors';
 

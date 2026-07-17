@@ -1,6 +1,6 @@
+import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import { err, ok } from '@emdash/shared/result';
 import { describe, expect, it, vi } from 'vitest';
-import { createPullRequestsGitHubAuthController } from './pull-requests-auth';
 
 vi.mock('@main/core/github/services/github-api-auth-service-instance', () => ({
   githubApiAuthService: { getToken: vi.fn() },

@@ -11,7 +11,7 @@ import type {
   LiveJobEndpointDef,
 } from '@emdash/wire';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import type { FilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { FilesRuntimeClient } from '@main/gateway/accessors';
 import {
   hostPathFromNative,
   nativePathFromHost,

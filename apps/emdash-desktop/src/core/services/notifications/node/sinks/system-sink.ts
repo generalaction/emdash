@@ -1,5 +1,5 @@
 import { Notification } from 'electron';
-import { focusAppFromNotification } from '@main/app/window';
+import { focusAppFromNotification } from '@main/host/window';
 import type { EmitNotificationDelivery, NotificationSink } from '../../api/ports';
 
 export function createSystemNotificationSink(

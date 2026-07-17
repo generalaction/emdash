@@ -3,7 +3,7 @@ import type { GitRefsState } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-client';
-import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
 import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { WorktreeService } from './worktree-service';
@@ -20,7 +20,7 @@ vi.mock('@main/core/git/runtime-client', async (importOriginal) => ({
   runGitJob: runtime.runGitJob,
 }));
 
-vi.mock('@main/core/wire-workers/accessors', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getFilesRuntimeClient: async () => filesRuntime.client,
 }));
 

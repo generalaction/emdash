@@ -27,9 +27,9 @@ import {
 } from '@main/core/tasks/provision-task-error';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
-import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';

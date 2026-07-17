@@ -8,7 +8,7 @@ import {
   parentFilePaths,
   type FilesClientScope,
 } from '@main/core/files/runtime-client';
-import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../files/realpath-containment';
 

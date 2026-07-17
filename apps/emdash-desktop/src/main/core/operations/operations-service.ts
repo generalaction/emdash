@@ -4,7 +4,7 @@ import { createResourceCache, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
-import { appScope } from '@main/app/app-scope';
+import { appScope } from '@main/bootstrap/app-scope';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';

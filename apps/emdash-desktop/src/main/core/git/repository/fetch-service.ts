@@ -5,7 +5,7 @@ import {
 } from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
 import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-client';
-import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;

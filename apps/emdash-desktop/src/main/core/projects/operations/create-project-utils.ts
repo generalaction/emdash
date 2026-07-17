@@ -1,7 +1,7 @@
 import type { RepositorySelector } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { gitErrorMessage, repositorySelector } from '@main/core/git/runtime-client';
-import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,

@@ -1,6 +1,6 @@
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
 import type { ContractClient } from '@emdash/wire/api';
-import { hostDependenciesClient } from '@main/core/wire-workers/desktop-workers';
+import { hostDependenciesClient } from '@main/gateway/desktop-workers';
 
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 

@@ -8,7 +8,7 @@ const capture = vi.hoisted(() => vi.fn());
 
 vi.mock('../projects/utils', () => ({ resolveTask }));
 vi.mock('@main/db/client', () => ({ db: {} }));
-vi.mock('@main/lib/events', () => ({ events: { emit } }));
+vi.mock('@main/host/events', () => ({ events: { emit } }));
 vi.mock('@main/lib/telemetry', () => ({ telemetryService: { capture } }));
 vi.mock('@main/lib/logger', () => ({ log: { debug: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
 

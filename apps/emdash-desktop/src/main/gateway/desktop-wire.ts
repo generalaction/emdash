@@ -14,12 +14,16 @@ import {
   type Controller,
 } from '@emdash/wire/api';
 import { ipcMain, MessageChannelMain } from 'electron';
-import { appScope } from '@main/app/app-scope';
+import { appScope } from '@main/bootstrap/app-scope';
 import { createCatalogWireController } from '@main/core/catalog/wire-controller';
 import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
 import { createProjectsWireController } from '@main/core/projects/wire-controller';
 import { createTasksWireController } from '@main/core/tasks/wire-controller';
 import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
+import {
+  createWorkspacesWireController,
+  type CreateWorkspacesWireControllerOptions,
+} from '@main/core/workspaces/wire-controller';
 import {
   getAcpRuntimeClient,
   getAgentConfigRuntimeClient,
@@ -29,11 +33,7 @@ import {
   getPullRequestsRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
-} from '@main/core/wire-workers/desktop-workers';
-import {
-  createWorkspacesWireController,
-  type CreateWorkspacesWireControllerOptions,
-} from '@main/core/workspaces/wire-controller';
+} from '@main/gateway/desktop-workers';
 import { notificationService } from '@root/src/core/services/notifications/node';
 import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';

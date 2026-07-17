@@ -5,7 +5,7 @@ import _electronUpdater, {
   type Logger as UpdaterLogger,
 } from 'electron-updater';
 import { resolveAppVersion } from '@main/core/app/utils';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import {
   notificationService,

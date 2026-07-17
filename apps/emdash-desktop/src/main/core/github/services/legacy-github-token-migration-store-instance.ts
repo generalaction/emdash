@@ -1,5 +1,5 @@
-import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
+import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import type { GitHubTokenSource } from '@shared/github';
 import { LegacyGitHubTokenMigrationStore } from './legacy-github-token-migration-store';
 

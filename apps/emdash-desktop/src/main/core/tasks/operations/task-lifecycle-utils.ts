@@ -10,12 +10,12 @@ import {
   isFileNotFoundError,
 } from '@main/core/files/runtime-client';
 import { mutationResult, repositorySelector } from '@main/core/git/runtime-client';
-import { getFilesRuntimeClient } from '@main/core/wire-workers/accessors';
-import { getGitRuntimeClient } from '@main/core/wire-workers/accessors';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { getFilesRuntimeClient } from '@main/gateway/accessors';
+import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';

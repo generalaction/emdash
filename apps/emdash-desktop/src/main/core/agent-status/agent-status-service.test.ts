@@ -50,7 +50,7 @@ vi.mock('@main/db/client', () => {
   return { db: { select: mocks.select, update: mocks.update } };
 });
 
-vi.mock('@main/lib/events', () => ({ events: { emit: mocks.emit } }));
+vi.mock('@main/host/events', () => ({ events: { emit: mocks.emit } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn() } }));
 
 function row(overrides: Partial<TestConversationRow> = {}): TestConversationRow {

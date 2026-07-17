@@ -4,9 +4,11 @@ import { resolveProjectGitHubAuthContext } from '@main/core/github/services/proj
 import { projectManager } from '@main/core/projects/project-manager';
 import { projectSettingsService } from '@main/core/projects/settings/project-settings-service';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
+import {
+  getPullRequestsRuntimeClient,
+  type PullRequestsRuntimeClient,
+} from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
-import type { PullRequestsRuntimeClient } from './desktop-workers';
-import { getPullRequestsRuntimeClient } from './desktop-workers';
 
 type PullRequestsRegistrationClient = Pick<
   PullRequestsRuntimeClient,

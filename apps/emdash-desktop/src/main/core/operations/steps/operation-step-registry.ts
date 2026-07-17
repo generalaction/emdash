@@ -6,16 +6,16 @@ import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client'
 import { projectManager } from '@main/core/projects/project-manager';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
 import {
-  getAcpRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-} from '@main/core/wire-workers/accessors';
-import {
   getWorkspaceRuntimeClient,
   hostFileRefFromNativePath,
 } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces, type LifecycleOperationRow } from '@main/db/schema';
+import {
+  getAcpRuntimeClient,
+  getTerminalsRuntimeClient,
+  getTuiAgentsRuntimeClient,
+} from '@main/gateway/accessors';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 import { purgeProjectLocalState, purgeTaskLocalState } from '../local-cleanup';
 import { resolveOperationContext } from '../operation-context';

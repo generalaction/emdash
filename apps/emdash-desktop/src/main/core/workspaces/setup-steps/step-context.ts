@@ -3,7 +3,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
-import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
 
 /**
  * Context passed to every workspace setup step executor.

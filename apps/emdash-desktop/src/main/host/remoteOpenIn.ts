@@ -1,4 +1,4 @@
-import { quoteShellArg } from './shellEscape';
+import { quoteShellArg } from '@main/lib/shellEscape';
 
 type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor' | 'zed';
 

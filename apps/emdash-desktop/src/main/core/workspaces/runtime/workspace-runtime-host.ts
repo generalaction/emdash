@@ -6,7 +6,7 @@ import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
 import { createScope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '@emdash/wire/api';
 import type { WireComponentInstance } from '@emdash/wire/component';
-import { getTerminalsRuntimeClient } from '@main/core/wire-workers/accessors';
+import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { hostPathFromNative } from '@shared/core/runtime/paths';
 

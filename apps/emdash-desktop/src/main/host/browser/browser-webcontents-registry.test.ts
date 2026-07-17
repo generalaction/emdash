@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('@main/lib/events', () => ({
+vi.mock('@main/host/events', () => ({
   events: {
     emit: vi.fn(),
   },

@@ -4,7 +4,7 @@ import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/
 import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
 import { app } from 'electron';
 import type pinoLib from 'pino';
-import { APP_SCHEME } from '@main/app/protocol';
+import { APP_SCHEME } from '@main/host/protocol';
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const DIAGNOSTIC_LOG_BYTES = 500 * 1024;

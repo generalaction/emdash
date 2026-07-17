@@ -29,8 +29,8 @@ import {
   isRealPathContained,
   realPathAbsolute,
 } from '@main/core/runtime/files-helpers';
-import type { FilesRuntimeClient } from '@main/core/wire-workers/accessors';
-import type { GitRuntimeClient } from '@main/core/wire-workers/accessors';
+import type { FilesRuntimeClient } from '@main/gateway/accessors';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';

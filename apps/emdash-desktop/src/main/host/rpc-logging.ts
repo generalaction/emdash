@@ -1,5 +1,5 @@
 import { type IpcMain } from 'electron';
-import { log } from './logger';
+import { log } from '@main/lib/logger';
 
 export function withRpcLogging(target: IpcMain): IpcMain {
   return new Proxy(target, {

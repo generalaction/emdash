@@ -30,7 +30,7 @@ vi.mock('@main/core/github/services/repo-service', () => ({
   repoService: {},
 }));
 
-vi.mock('@main/lib/events', () => ({
+vi.mock('@main/host/events', () => ({
   events: {
     emit: mocks.emit,
   },

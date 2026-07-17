@@ -1,5 +1,5 @@
 import { app, clipboard, Menu, shell } from 'electron';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { telemetryService } from '@main/lib/telemetry';
 import {
   menuCheckForUpdatesChannel,

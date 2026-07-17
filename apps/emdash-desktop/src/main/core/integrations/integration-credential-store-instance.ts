@@ -1,6 +1,6 @@
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
-import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
+import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { IntegrationCredentialStore } from './integration-credential-store';
 

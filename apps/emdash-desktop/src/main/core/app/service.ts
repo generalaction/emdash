@@ -5,17 +5,17 @@ import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
-import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
+import { events } from '@main/host/events';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
-} from '@main/utils/remoteOpenIn';
+} from '@main/host/remoteOpenIn';
+import { getMainWindow } from '@main/host/window';
+import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
+import { log } from '@main/lib/logger';
 import {
   appPasteChannel,
   appRedoChannel,

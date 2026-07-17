@@ -1,11 +1,11 @@
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { getMementosRuntimeClient } from '@main/core/wire-workers/desktop-workers';
-import { pullRequestsRegistration } from '@main/core/wire-workers/pull-requests-registration';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { getMementosRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 

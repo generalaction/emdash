@@ -1,8 +1,17 @@
-import { resolve } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
-import { desktopWorkerBuildInputs } from './src/main/worker-manifest';
+import { desktopWorkers } from './src/core/manifests/workers';
+
+function desktopWorkerBuildInputs(): Record<string, string> {
+  return Object.fromEntries(
+    Object.values(desktopWorkers).map((worker) => [
+      basename(worker.file, extname(worker.file)),
+      resolve(worker.entry),
+    ])
+  );
+}
 
 const workspaceAliases = {
   '@emdash/core/runtimes': resolve('../../packages/core/src/runtimes'),
@@ -55,7 +64,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/main/index.ts'),
+          index: resolve('src/entry/main.ts'),
           ...desktopWorkerBuildInputs(),
         },
         output: {
@@ -75,7 +84,14 @@ export default defineConfig({
     },
   },
   preload: {
-    root: 'src/preload',
+    root: 'src/entry',
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/entry/preload.ts'),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),

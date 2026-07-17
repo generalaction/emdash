@@ -9,7 +9,7 @@ import {
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';

@@ -1,4 +1,4 @@
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { previewServerEventChannel } from '@shared/core/preview-servers/events';
 import { PreviewServerService } from './preview-server-service';
 

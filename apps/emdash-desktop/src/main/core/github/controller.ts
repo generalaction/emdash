@@ -2,7 +2,7 @@ import { Result } from '@emdash/shared/result';
 import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
 import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
 import { repoService } from '@main/core/github/services/repo-service';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';

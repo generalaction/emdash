@@ -6,7 +6,7 @@ import {
   persistClipboardImagePath,
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
-import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
+import { getDiagnosticLogAttachment } from '@main/host/file-logger';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/lib/ipc/rpc';

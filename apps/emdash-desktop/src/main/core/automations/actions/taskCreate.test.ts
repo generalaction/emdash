@@ -61,11 +61,11 @@ vi.mock('@main/core/tasks/operations/createTask', () => ({
 vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
 }));
-vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
+vi.mock('@main/host/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
 }));
-vi.mock('@main/core/wire-workers/accessors', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getAcpRuntimeClient: vi.fn(async () => ({ startSession: mockAcpStartSession })),
 }));
 vi.mock('@main/core/issues/controller', () => ({

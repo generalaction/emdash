@@ -1,6 +1,6 @@
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import {
   defaultGitHubDeviceAuthFactory,
   GitHubDeviceFlowService,

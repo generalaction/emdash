@@ -22,7 +22,7 @@ vi.mock('@main/core/terminal-shell/color-env', () => ({
   getTerminalColorEnv: vi.fn(() => Promise.resolve({})),
 }));
 
-vi.mock('@main/core/wire-workers/accessors', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getTuiAgentsRuntimeClient: vi.fn(() =>
     Promise.resolve({
       startSession,

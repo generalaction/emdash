@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Disposable } from '@emdash/shared/concurrency';
-import { app } from 'electron';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
 import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
+  appVersion?: string;
+  isPackaged?: boolean;
   installSource?: string;
 }
 
@@ -37,6 +38,8 @@ class TelemetryService implements Disposable {
   private cachedEmail: string | null = null;
   private cachedFeatureFlags: Record<string, boolean> = {};
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private appVersion = 'unknown';
+  private isPackaged = false;
   private readonly kv = new KV<TelemetryKVSchema>('telemetry');
 
   // ---------------------------------------------------------------------------
@@ -55,25 +58,17 @@ class TelemetryService implements Disposable {
     );
   }
 
-  private getVersionSafe(): string {
-    try {
-      return app.getVersion();
-    } catch {
-      return 'unknown';
-    }
-  }
-
   private getBaseProps() {
     return {
       schema_version: 1,
-      app_version: this.getVersionSafe(),
+      app_version: this.appVersion,
       build_variant: appEnv.build.VITE_BUILD,
       source: 'desktop_app',
       electron_version: process.versions.electron,
       platform: process.platform,
       arch: process.arch,
-      is_dev: !app.isPackaged,
-      install_source: this.installSource ?? (app.isPackaged ? 'dmg' : 'dev'),
+      is_dev: !this.isPackaged,
+      install_source: this.installSource ?? (this.isPackaged ? 'dmg' : 'dev'),
       $lib: LIB_NAME,
       ...(this.cachedGithubUsername ? { github_username: this.cachedGithubUsername } : {}),
       ...(this.cachedAccountId ? { account_id: this.cachedAccountId } : {}),
@@ -315,6 +310,8 @@ class TelemetryService implements Disposable {
   // ---------------------------------------------------------------------------
 
   async initialize(options?: InitOptions): Promise<void> {
+    this.appVersion = options?.appVersion ?? 'unknown';
+    this.isPackaged = options?.isPackaged ?? false;
     const enabledEnv = (appEnv.runtime.TELEMETRY_ENABLED ?? 'true').toLowerCase();
     this.enabled =
       !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';

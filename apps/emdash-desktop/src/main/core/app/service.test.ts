@@ -39,7 +39,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('@main/app/window', () => ({
+vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(),
 }));
 
@@ -51,7 +51,7 @@ vi.mock('@main/db/schema', () => ({
   sshConnections: {},
 }));
 
-vi.mock('@main/lib/events', () => ({
+vi.mock('@main/host/events', () => ({
   events: {
     emit: mocks.eventEmit,
     on: vi.fn(() => vi.fn()),
@@ -64,7 +64,7 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 
-vi.mock('@main/utils/childProcessEnv', () => ({
+vi.mock('@main/lib/childProcessEnv', () => ({
   buildExternalToolEnv: () => ({}),
 }));
 

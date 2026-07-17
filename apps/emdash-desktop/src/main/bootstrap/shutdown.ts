@@ -1,13 +1,13 @@
+import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { app } from 'electron';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { automationsService } from '@main/core/automations/automations-service';
 import { operationsService } from '@main/core/operations/operations-service';
-import { updateService } from '@main/core/updates/update-service';
-import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
-import { pullRequestsRegistration } from '@main/core/wire-workers/pull-requests-registration';
 import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
+import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
+import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { disposeNotificationService } from '@root/src/core/services/notifications/node';

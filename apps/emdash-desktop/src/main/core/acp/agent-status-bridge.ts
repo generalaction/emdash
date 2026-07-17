@@ -4,7 +4,7 @@ import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { acpWorker, getAcpRuntimeClient } from '@main/core/wire-workers/desktop-workers';
+import { acpWorker, getAcpRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import {
   deriveAcpAgentStatusActions,

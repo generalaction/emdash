@@ -6,18 +6,18 @@ import {
 import { decodeTmuxSessionName, listTmuxSessionActivity } from '@emdash/core/services/pty/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { eq, isNotNull, isNull } from 'drizzle-orm';
-import { appScope } from '@main/app/app-scope';
+import { appScope } from '@main/bootstrap/app-scope';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
+import { listProjectWorkspaces } from '@main/core/workspaces/operations/list-project-workspaces';
+import { db } from '@main/db/client';
+import { conversations, projects, tasks, terminals, workspaces } from '@main/db/schema';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
-} from '@main/core/wire-workers/accessors';
-import { listProjectWorkspaces } from '@main/core/workspaces/operations/list-project-workspaces';
-import { db } from '@main/db/client';
-import { conversations, projects, tasks, terminals, workspaces } from '@main/db/schema';
+} from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { makePtySessionId, parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { nativePathFromHost } from '@shared/core/runtime/paths';

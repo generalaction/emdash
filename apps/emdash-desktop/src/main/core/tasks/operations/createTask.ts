@@ -7,7 +7,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
 import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';

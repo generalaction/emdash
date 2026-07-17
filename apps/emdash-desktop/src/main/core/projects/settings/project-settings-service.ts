@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { events } from '@main/lib/events';
+import { events } from '@main/host/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import {

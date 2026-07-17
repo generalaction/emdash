@@ -15,9 +15,9 @@ import {
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
-import { getAcpRuntimeClient } from '@main/core/wire-workers/accessors';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
+import { getAcpRuntimeClient } from '@main/gateway/accessors';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import type { InitialQueuePrompt } from '@shared/core/conversations/conversations';
