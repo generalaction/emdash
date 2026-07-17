@@ -37,13 +37,13 @@ const ioErrorSchema = z.object({
   message: z.string(),
 });
 
-export const deployErrorSchema = z.discriminatedUnion('type', [
+export const automationDeploymentErrorSchema = z.discriminatedUnion('type', [
   invalidScheduleErrorSchema,
   repositoryUnavailableErrorSchema,
   ioErrorSchema,
 ]);
 
-export const removeErrorSchema = z.discriminatedUnion('type', [
+export const automationRemoveErrorSchema = z.discriminatedUnion('type', [
   automationNotFoundErrorSchema,
   ioErrorSchema,
 ]);
@@ -63,8 +63,8 @@ export const stopRunErrorSchema = z.discriminatedUnion('type', [
 
 export const getRunsErrorSchema = ioErrorSchema;
 
-export type DeployError = z.infer<typeof deployErrorSchema>;
-export type RemoveError = z.infer<typeof removeErrorSchema>;
+export type AutomationDeploymentError = z.infer<typeof automationDeploymentErrorSchema>;
+export type AutomationRemoveError = z.infer<typeof automationRemoveErrorSchema>;
 export type StartRunError = z.infer<typeof startRunErrorSchema>;
 export type StopRunError = z.infer<typeof stopRunErrorSchema>;
 export type GetRunsError = z.infer<typeof getRunsErrorSchema>;
