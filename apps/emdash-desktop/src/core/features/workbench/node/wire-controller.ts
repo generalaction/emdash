@@ -7,6 +7,7 @@ export function createDesktopHostWireController(): Controller {
   return createController(desktopHostContract, {
     openExternal: ({ url }) => appOperations.openExternal(url),
     openPath: ({ path }) => appOperations.openPath(path),
+    showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
     readUserFile: ({ path }) => appOperations.readUserFile(path),
     writeRendererLog: (input) => appOperations.writeRendererLog(input),
     clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),

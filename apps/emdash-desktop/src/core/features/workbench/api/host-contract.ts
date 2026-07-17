@@ -54,6 +54,10 @@ export const desktopHostContract = defineContract({
     input: z.object({ path: z.string() }),
     output: z.custom<ActionResult>(),
   }),
+  showWorkspaceItemInFolder: procedure({
+    input: z.object({ workspaceId: z.string(), relativePath: z.string() }),
+    output: z.custom<ActionResult>(),
+  }),
   readUserFile: procedure({
     input: z.object({ path: z.string() }),
     output: z.custom<ReadResult>(),

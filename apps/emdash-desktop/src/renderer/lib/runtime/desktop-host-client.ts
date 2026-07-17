@@ -8,6 +8,8 @@ export const rpc = {
   app: {
     openExternal: (url: string) => host().then((client) => client.openExternal({ url })),
     openPath: (path: string) => host().then((client) => client.openPath({ path })),
+    showWorkspaceItemInFolder: (input: { workspaceId: string; relativePath: string }) =>
+      host().then((client) => client.showWorkspaceItemInFolder(input)),
     readUserFile: (path: string) => host().then((client) => client.readUserFile({ path })),
     clipboardWriteText: (text: string) =>
       host().then((client) => client.clipboardWriteText({ text })),

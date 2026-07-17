@@ -62,8 +62,14 @@ export const appOperations = {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
-  showWorkspaceItemInFolder: (args: { workspaceId: string; relativePath: string }) =>
-    appService.showWorkspaceItemInFolder(args),
+  showWorkspaceItemInFolder: async (args: { workspaceId: string; relativePath: string }) => {
+    const result = await appService.showWorkspaceItemInFolder(args);
+    if (result.success) return { success: true };
+    return {
+      success: false,
+      error: 'message' in result.error ? result.error.message : result.error.type,
+    };
+  },
   readUserFile: async (path: string) => {
     try {
       const result = await appService.readUserFile(path);
