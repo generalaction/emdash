@@ -21,11 +21,13 @@ vi.mock('./app-state', () => ({
 }));
 
 const { NavigationStore } = await import('./navigation-store');
+const { appState } = await import('./app-state');
 
 function buildStore() {
   const store = new NavigationStore();
   store.registerView('home');
   store.registerView('project');
+  store.registerView('task');
   store.registerView('settings');
   store.registerView('library');
   store.registerView('skills');
@@ -129,5 +131,96 @@ describe('NavigationStore memento attachment', () => {
     store.navigate('mcp');
     expect(store.currentViewId).toBe('mcp');
     expect(store.lastNonLibraryView).toBe('project');
+  });
+
+  it('reuses stored params when navigating without params', () => {
+    const store = buildStore();
+    store.attachMemento(
+      handle({
+        currentViewId: 'home',
+        viewParams: { project: { projectId: 'p1' } },
+      })
+    );
+
+    store.navigate('project');
+
+    expect(store.currentViewId).toBe('project');
+    expect(store.viewParamsStore.project).toEqual({ projectId: 'p1' });
+    expect(appState.history.push).toHaveBeenCalledWith({
+      kind: 'view',
+      viewId: 'project',
+      params: { projectId: 'p1' },
+    });
+  });
+
+  it('overwrites stored params when navigating with params', () => {
+    const store = buildStore();
+    store.attachMemento(
+      handle({
+        currentViewId: 'home',
+        viewParams: { project: { projectId: 'p1' } },
+      })
+    );
+
+    store.navigate('project', { projectId: 'p2' });
+
+    expect(store.viewParamsStore.project).toEqual({ projectId: 'p2' });
+    expect(appState.history.push).toHaveBeenCalledWith({
+      kind: 'view',
+      viewId: 'project',
+      params: { projectId: 'p2' },
+    });
+  });
+
+  it('does not push task navigation into view history', () => {
+    const store = buildStore();
+
+    store.navigate('task', { projectId: 'p1', taskId: 't1' });
+
+    expect(store.currentViewId).toBe('task');
+    expect(appState.history.push).not.toHaveBeenCalled();
+  });
+
+  it('merges object view-param updates and supports functional updates', () => {
+    const store = buildStore();
+    store.attachMemento(
+      handle({
+        currentViewId: 'settings',
+        viewParams: { settings: { tab: 'general' } },
+      })
+    );
+
+    store.updateViewParams('settings', { tab: 'browser' });
+    expect(store.viewParamsStore.settings).toEqual({ tab: 'browser' });
+
+    store.updateViewParams('settings', (current) => ({
+      ...current,
+      tab: 'interface' as const,
+    }));
+    expect(store.viewParamsStore.settings).toEqual({ tab: 'interface' });
+  });
+
+  it('applies redirect params returned by a guard', () => {
+    const store = buildStore();
+    store.registerGuard('project', () => ({
+      ok: false,
+      redirect: 'task',
+      params: { projectId: 'p1', taskId: 't1' },
+    }));
+
+    store.navigate('project', { projectId: 'p1' });
+
+    expect(store.currentViewId).toBe('task');
+    expect(store.viewParamsStore.task).toEqual({ projectId: 'p1', taskId: 't1' });
+  });
+
+  it('revalidates the current view and applies a guard redirect', () => {
+    const store = buildStore();
+    store.navigate('project', { projectId: 'p1' });
+    store.registerGuard('project', () => ({ ok: false, redirect: 'home' }));
+
+    store.revalidate();
+
+    expect(store.currentViewId).toBe('home');
   });
 });

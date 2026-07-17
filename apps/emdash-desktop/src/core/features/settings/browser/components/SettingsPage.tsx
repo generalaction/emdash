@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -27,17 +28,6 @@ import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
 import { UpdateCard } from './UpdateCard';
-
-export type SettingsPageTab =
-  | 'general'
-  | 'account'
-  | 'clis-models'
-  | 'integrations'
-  | 'connections'
-  | 'browser'
-  | 'repository'
-  | 'interface'
-  | 'docs';
 
 // ---------------------------------------------------------------------------
 // Tab page components

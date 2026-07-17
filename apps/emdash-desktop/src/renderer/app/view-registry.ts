@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { featureViewContributions } from '@core/manifests/browser-contributions';
+import type { ViewId as CatalogViewId } from '@core/manifests/view-catalog';
 import { homeView } from '@renderer/app/home-view';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -34,6 +35,15 @@ export type ViewDefinition<TParams extends object = Record<never, never>> = {
 type Views = typeof views;
 
 export type ViewId = keyof Views;
+
+type Equal<TLeft, TRight> = [TLeft] extends [TRight]
+  ? [TRight] extends [TLeft]
+    ? true
+    : false
+  : false;
+type Assert<TValue extends true> = TValue;
+
+export type ViewIdCatalogParity = Assert<Equal<ViewId, CatalogViewId>>;
 
 export type WrapParams<TId extends ViewId> = Views[TId] extends {
   WrapView: ComponentType<infer P>;
