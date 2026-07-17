@@ -16,7 +16,7 @@ import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
-import { useAutomations } from '../use-automations';
+import { useAutomationTargetAvailability, useCreateAutomation } from '../use-automations';
 import { useAutomationFormState } from '../useAutomationFormState';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { AutomationTemplateRail } from './AutomationTemplateRail';
@@ -55,12 +55,15 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     false
   );
 
-  const { create } = useAutomations();
+  const create = useCreateAutomation();
+  const availability = useAutomationTargetAvailability(effectiveProjectId);
+  const runtimeAvailable = availability.data?.available === true;
+  const canCreate = canSave && runtimeAvailable;
   const { toast } = useToast();
   const isPending = create.isPending;
 
   async function handleSave() {
-    if (!effectiveProjectId || !provider || !canSave) return;
+    if (!effectiveProjectId || !provider || !canCreate) return;
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
@@ -127,6 +130,11 @@ export const CreateAutomationView = observer(function CreateAutomationView({
             onCronErrorClear={() => setCronError(null)}
             error={error}
           />
+          {availability.data?.available === false && effectiveProjectId && (
+            <p className="rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+              {availability.data.reason}
+            </p>
+          )}
         </div>
       </div>
       <Collapsible
@@ -162,7 +170,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
           onClick={() => {
             void handleSave();
           }}
-          disabled={!canSave || isPending}
+          disabled={!canCreate || isPending}
         >
           {isPending ? 'Saving…' : 'Create'}
         </ConfirmButton>

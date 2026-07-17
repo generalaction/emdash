@@ -3,19 +3,20 @@ import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig, TriggerConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { formatAutomationError } from './automation-run-format';
-import { useAutomations } from './use-automations';
+import { useAutomationTargetAvailability, useUpdateAutomation } from './use-automations';
 import { useAutomationFormState } from './useAutomationFormState';
 
 export type AutomationSettingsAutoSave = ReturnType<typeof useAutomationSettingsAutoSave>;
 
-export function useAutomationSettingsAutoSave(automation: Automation) {
+export function useAutomationSettingsAutoSave(automation: Automation, editable = true) {
   const formState = useAutomationFormState(automation);
-  const { updateSettings, rename } = useAutomations();
+  const update = useUpdateAutomation();
 
   const {
     effectiveProjectId,
     prompt,
     provider,
+    model,
     triggerConfig,
     cronTz,
     canSave,
@@ -23,6 +24,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     name,
     workspaceConfig,
   } = formState;
+  const availability = useAutomationTargetAvailability(effectiveProjectId);
 
   function buildConversationConfig(): ConversationConfig {
     if (!provider) throw new Error('Cannot build automation conversation config without provider');
@@ -32,10 +34,15 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
       provider,
       autoApprove: false,
       type: useChatUi ? 'acp' : 'pty',
+      ...(model && { model }),
+      ...(automation.conversationConfig?.title && {
+        title: automation.conversationConfig.title,
+      }),
     };
   }
 
   function savePatch(overrideTrigger?: TriggerConfig) {
+    if (!editable) return;
     if (!effectiveProjectId || !provider) return;
     const activeTrigger = overrideTrigger ?? triggerConfig;
     const taskConfig = buildTaskConfig(effectiveProjectId);
@@ -46,7 +53,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
       return;
     }
     if (!name.trim() || !prompt.trim()) return;
-    void updateSettings.mutateAsync({
+    void update.mutateAsync({
       id: automation.id,
       patch: {
         triggerConfig: activeTrigger,
@@ -70,7 +77,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
       isFirstRender.current = false;
       return;
     }
-    if (canSave) savePatch();
+    if (editable && canSave) savePatch();
     // We intentionally only track provider here; other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
   }, [provider]);
@@ -86,24 +93,25 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
       isFirstWorkspaceRender.current = false;
       return;
     }
-    if (canSave) savePatch();
+    if (editable && canSave) savePatch();
     // oxlint-disable-next-line react/exhaustive-deps
   }, [resolvedConfigKey]);
 
   function handlePromptBlur() {
-    if (canSave) savePatch();
+    if (editable && canSave) savePatch();
   }
 
   function handleNameBlur() {
+    if (!editable) return;
     const trimmed = name.trim();
     if (!trimmed || trimmed === automation.name) return;
-    void rename.mutateAsync({ id: automation.id, name: trimmed });
+    void update.mutateAsync({ id: automation.id, patch: { name: trimmed } });
   }
 
-  const saveError = updateSettings.error
-    ? formatAutomationError(updateSettings.error)
-    : rename.error
-      ? formatAutomationError(rename.error)
+  const saveError = update.error
+    ? formatAutomationError(update.error)
+    : availability.data?.available === false
+      ? availability.data.reason
       : null;
 
   return {
@@ -111,7 +119,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     setCronExpr,
     handlePromptBlur,
     handleNameBlur,
-    isSaving: updateSettings.isPending || rename.isPending,
+    isSaving: update.isPending,
     saveError,
   };
 }

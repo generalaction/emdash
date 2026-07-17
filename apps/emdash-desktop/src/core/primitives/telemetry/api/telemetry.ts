@@ -72,7 +72,7 @@ export type TelemetryEventProperties = {
   automation_enabled_changed: { enabled: boolean; trigger_kind: 'cron' };
   automation_run_started: { trigger_kind: AutomationRunTriggerKind };
   automation_run_completed: {
-    status: Extract<AutomationRunStatus, 'done' | 'failed' | 'skipped'>;
+    status: Extract<AutomationRunStatus, 'done' | 'failed' | 'skipped' | 'cancelled'>;
     trigger_kind: AutomationRunTriggerKind;
     duration_ms?: number;
     task_id?: string;

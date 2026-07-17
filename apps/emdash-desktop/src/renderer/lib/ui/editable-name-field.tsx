@@ -10,6 +10,7 @@ interface EditableNameFieldProps {
   autoFocus?: boolean;
   className?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  disabled?: boolean;
 }
 
 export function EditableNameField({
@@ -21,6 +22,7 @@ export function EditableNameField({
   autoFocus,
   className,
   onKeyDown,
+  disabled,
 }: EditableNameFieldProps) {
   return (
     <Input
@@ -29,6 +31,7 @@ export function EditableNameField({
       placeholder={placeholder}
       maxLength={maxLength}
       className={cn('border-none px-0 text-lg! focus-visible:ring-0', className)}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       onKeyDown={onKeyDown}

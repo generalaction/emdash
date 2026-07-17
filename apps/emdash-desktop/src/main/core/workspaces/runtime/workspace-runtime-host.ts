@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { hostFileRef, type HostFileRef } from '@emdash/core/primitives/path/api';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
@@ -9,6 +10,7 @@ import type { WireComponentInstance } from '@emdash/wire/component';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
+import { workspaceRuntimePaths } from './workspace-runtime-paths';
 
 export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
 
@@ -45,6 +47,8 @@ function ensureHost(): Promise<WorkspaceRuntimeHost> {
 
 async function createHost(): Promise<WorkspaceRuntimeHost> {
   const scope = createScope({ label: 'workspace-runtime' });
+  const { worktreePoolPath } = workspaceRuntimePaths();
+  mkdirSync(worktreePoolPath, { recursive: true });
   const terminals = await getTerminalsRuntimeClient();
   const watcher = fsWatchComponent.create({
     scope,
@@ -58,7 +62,12 @@ async function createHost(): Promise<WorkspaceRuntimeHost> {
       terminals,
       watcher: watcher.client,
     },
-    config: {},
+    config: {
+      provisioning: {
+        worktreePoolPath,
+        baseRemote: 'origin',
+      },
+    },
     logger: log,
     validate: 'inputs',
   });

@@ -187,9 +187,9 @@ async function initializeServicesPhase(): Promise<void> {
   wireAccountTelemetry();
   projectSettingsService.initialize();
   pullRequestsRegistration.initialize();
-  automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  await automationsService.initialize();
   await initializeNotificationService();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));

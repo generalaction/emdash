@@ -1,5 +1,9 @@
 import type { ConversationConfig, TriggerConfig, StoredAutomationTaskConfig } from './config';
 
+export type AutomationRuntimeAvailability =
+  | { available: true }
+  | { available: false; reason: string };
+
 export type Automation = {
   id: string;
   projectId?: string;
@@ -8,6 +12,7 @@ export type Automation = {
   conversationConfig?: ConversationConfig;
   taskConfig?: StoredAutomationTaskConfig;
   enabled: boolean;
+  revision: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -21,7 +26,9 @@ export type CreateAutomationParams = {
   enabled?: boolean;
 };
 
-export type UpdateAutomationSettingsPatch = {
+export type UpdateAutomationPatch = {
+  name?: string;
+  enabled?: boolean;
   projectId?: string;
   triggerConfig?: TriggerConfig;
   conversationConfig?: ConversationConfig;

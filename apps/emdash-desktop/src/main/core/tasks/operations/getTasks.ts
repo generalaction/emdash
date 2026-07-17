@@ -1,8 +1,9 @@
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { type Task } from '@core/primitives/tasks/api';
+import { getRunProjectionsByRunIds } from '@main/core/automations/run-projection';
 import { db } from '@main/db/client';
 import { conversations, tasks, workspaces } from '@main/db/schema';
-import { mapTaskRowToTask } from '../utils/utils';
+import { mapAutomationRunRowToMeta, mapTaskRowToTask } from '../utils/utils';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {
   const rows = projectId
@@ -16,6 +17,7 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
   if (rows.length === 0) return [];
 
   const taskIds = rows.map((r) => r.id);
+  const runIds = rows.flatMap((row) => (row.automationRunId ? [row.automationRunId] : []));
 
   const convRows = await db
     .select({
@@ -46,13 +48,20 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
         .where(and(inArray(workspaces.id, wsIds), isNull(workspaces.deletedAt)))
     : [];
   const wsByWsId = new Map(wsRows.map((r) => [r.id, r]));
+  const runProjections = await getRunProjectionsByRunIds(runIds);
+  const runMetaByRunId = new Map(
+    runProjections.map((row) => [row.id, mapAutomationRunRowToMeta(row)])
+  );
 
   return rows.map((row) => {
     const ws = row.workspaceId ? wsByWsId.get(row.workspaceId) : undefined;
     return {
-      ...mapTaskRowToTask(row),
-      prs: [],
-      conversations: convByTask.get(row.id) ?? {},
+      ...mapTaskRowToTask(
+        row,
+        [],
+        convByTask.get(row.id) ?? {},
+        row.automationRunId ? runMetaByRunId.get(row.automationRunId) : undefined
+      ),
       workspaceGit:
         ws?.linesAdded != null
           ? { linesAdded: ws.linesAdded, linesDeleted: ws.linesDeleted ?? 0 }

@@ -1,10 +1,17 @@
-import { useAutomation, useAutomations } from './use-automations';
+import {
+  useAdoptAutomationRun,
+  useAutomationTargetAvailability,
+  useStopAutomationRun,
+} from './use-automations';
 
-export function useAutomationRunActions(automationId: string) {
-  const { stop } = useAutomations();
-  const automation = useAutomation(automationId);
+export function useAutomationRunActions(automationId: string, projectId: string | null) {
+  const adopt = useAdoptAutomationRun();
+  const stop = useStopAutomationRun();
+  const availability = useAutomationTargetAvailability(projectId ?? undefined);
   return {
-    stopRun: stop.mutate,
-    projectId: automation?.projectId ?? null,
+    stopRun: (runId: string) => stop.mutate({ automationId, runId }),
+    adoptRun: (runId: string) => adopt.mutateAsync({ automationId, runId }),
+    isAdopting: adopt.isPending,
+    runtimeAvailable: availability.data?.available === true,
   };
 }

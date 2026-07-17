@@ -1,51 +1,30 @@
-import { useQuery } from '@tanstack/react-query';
 import { Clock } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
+import { registeredTaskData } from '../stores/task-store';
 import type { TaskStore } from '../stores/task-store';
 
 type AutomationRunPillProps = {
-  runId: string;
-  projectId: string;
   taskStore: TaskStore;
   isConverted: boolean;
 };
 
 export const AutomationRunPill = observer(function AutomationRunPill({
-  runId,
-  projectId,
   taskStore,
   isConverted,
 }: AutomationRunPillProps) {
   const [open, setOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
 
-  const runQuery = useQuery({
-    queryKey: ['automations', 'run', runId],
-    queryFn: async () => (await getDesktopWireClient()).automations.getRun({ runId }),
-    enabled: !!runId,
-  });
-
-  const automationsQuery = useQuery({
-    queryKey: ['automations', projectId],
-    queryFn: async () => (await getDesktopWireClient()).automations.listAutomations({ projectId }),
-    enabled: !!projectId && open,
-  });
-
-  const run = runQuery.data ?? null;
-  const automation = run
-    ? automationsQuery.data?.find((a) => a.id === run.automationId)
-    : undefined;
-
-  const timestamp = run?.finishedAt ?? run?.startedAt ?? run?.scheduledAt ?? null;
-  const automationName = automation?.name ?? run?.automationId ?? '…';
+  const runMeta = registeredTaskData(taskStore)?.automationRunMeta;
+  const timestamp = runMeta?.finishedAt ?? runMeta?.startedAt ?? runMeta?.scheduledAt ?? null;
+  const automationName = runMeta?.automationName ?? 'Automation run';
 
   async function handleConvert() {
     setIsConverting(true);

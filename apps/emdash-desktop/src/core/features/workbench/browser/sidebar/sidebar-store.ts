@@ -33,6 +33,13 @@ export function getSortInstant(task: TaskStore, kind: TaskSortKind): string | un
   return undefined;
 }
 
+function isVisibleRegularTask(task: TaskStore): boolean {
+  return (
+    task.data.type !== 'automation-run' &&
+    (task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt))
+  );
+}
+
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
@@ -121,9 +128,7 @@ export class SidebarStore {
       rows.push({ kind: 'project', projectId });
       if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
-          (t) =>
-            t.data.type !== 'automation-run' &&
-            (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
+          isVisibleRegularTask
         );
         const manualOrder = this.taskOrderByProject[projectId];
         const ordered = manualOrder?.length
@@ -152,9 +157,7 @@ export class SidebarStore {
       if (!project.mountedProject) continue;
       const projectId = project.id;
       for (const task of project.mountedProject.taskManager.tasks.values()) {
-        const visible =
-          task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt);
-        if (!visible || !task.data.isPinned) continue;
+        if (!isVisibleRegularTask(task) || !task.data.isPinned) continue;
         pairs.push({ projectId, task });
       }
     }
@@ -171,10 +174,7 @@ export class SidebarStore {
     const project = this.projectManager.projects.get(projectId);
     if (!project?.mountedProject) return [];
     const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
-      (t) =>
-        t.data.type !== 'automation-run' &&
-        !t.data.isPinned &&
-        (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
+      (task) => isVisibleRegularTask(task) && !task.data.isPinned
     );
     const manualOrder = this.taskOrderByProject[projectId];
     const ordered = manualOrder?.length

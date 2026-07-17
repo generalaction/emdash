@@ -1,3 +1,4 @@
+import type { AutomationRunStatus } from '@emdash/core/runtimes/automations/api';
 import type {
   CreateBranchError,
   FetchPrForReviewError,
@@ -58,6 +59,14 @@ export const taskLifecycleStatuses = z.enum([
 export type TaskLifecycleStatus = z.infer<typeof taskLifecycleStatuses>;
 export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
 
+export type AutomationRunMeta = {
+  automationName: string;
+  status: AutomationRunStatus;
+  scheduledAt: number | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+};
+
 export type Task = {
   id: string;
   projectId: string;
@@ -77,6 +86,7 @@ export type Task = {
   workspaceId?: string;
   type: 'task' | 'automation-run';
   automationRunId?: string;
+  automationRunMeta?: AutomationRunMeta;
 };
 
 export type TaskEvent =
@@ -96,8 +106,6 @@ export type CreateTaskParams = {
   taskConfig: TaskConfig;
   /** Typed, versioned workspace configuration (git setup + workspace location). */
   workspaceConfig: WorkspaceConfig;
-  /** Set when the task is created by an automation run; stored on the task row for audit trail. */
-  automationRunId?: string;
 };
 
 export type CreateTaskError =

@@ -5,7 +5,7 @@ import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client'
 
 async function listProjectAutomations(projectId: string): Promise<Automation[]> {
   return getDesktopWireClient()
-    .then((client) => client.automations.listAutomations({ projectId }))
+    .then((client) => client.automations.list({ projectId }))
     .catch(() => []);
 }
 

@@ -1,5 +1,9 @@
-import { automationsContract as runtimeAutomationsContract } from '@emdash/core/runtimes/automations/api';
-import { defineContract, procedure } from '@emdash/wire';
+import {
+  automationIdSchema,
+  automationsContract as runtimeAutomationsContract,
+  runEventsEventSchema,
+} from '@emdash/core/runtimes/automations/api';
+import { defineContract, eventStream, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import type {
   Automation,
@@ -39,7 +43,10 @@ export const automationsContract = defineContract({
   listRuns: runtimeAutomationsContract.listRuns,
   listChangedRuns: runtimeAutomationsContract.listChangedRuns,
   getRunOverview: runtimeAutomationsContract.getRunOverview,
-  runEvents: runtimeAutomationsContract.runEvents,
+  runEvents: eventStream({
+    key: z.object({ automationId: automationIdSchema }),
+    event: runEventsEventSchema,
+  }),
 });
 
 export type AutomationsContract = typeof automationsContract;

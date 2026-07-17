@@ -12,12 +12,17 @@ import { observer } from 'mobx-react-lite';
 import {
   useLatestAutomationRun,
   useScheduledAutomationRun,
+  useAutomationTargetAvailability,
 } from '@core/features/automations/browser/use-automations';
 import {
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/browser/stores/project-selectors';
-import { getTaskStore, taskAgentStatus } from '@core/features/tasks/browser/stores/task-selectors';
+import {
+  getTaskIdForAutomationRun,
+  getTaskStore,
+  taskAgentStatus,
+} from '@core/features/tasks/browser/stores/task-selectors';
 import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
@@ -32,12 +37,12 @@ const RUN_STATUS_ICON: Record<
 > = {
   scheduled: { Icon: Clock, textClass: 'text-foreground-info' },
   queued: { Icon: Clock, textClass: 'text-foreground-muted' },
-  creating_task: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
-  launching_task: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
-  creating_conversation: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
+  provisioning_workspace: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
+  starting_session: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
   done: { Icon: CheckCircle2, textClass: 'text-foreground-success' },
   failed: { Icon: XCircle, textClass: 'text-foreground-error' },
   skipped: { Icon: MinusCircle, textClass: 'text-foreground-muted' },
+  cancelled: { Icon: MinusCircle, textClass: 'text-foreground-muted' },
 };
 
 interface AutomationRowProps {
@@ -51,14 +56,16 @@ export const AutomationRow = observer(function AutomationRow({
   onToggleEnabled,
   onClick,
 }: AutomationRowProps) {
-  const latestRunQuery = useLatestAutomationRun(automation.id);
-  const scheduledRunQuery = useScheduledAutomationRun(automation.id);
+  const availability = useAutomationTargetAvailability(automation.projectId);
+  const runtimeAvailable = availability.data?.available === true;
+  const latestRunQuery = useLatestAutomationRun(automation.id, runtimeAvailable);
+  const scheduledRunQuery = useScheduledAutomationRun(automation.id, runtimeAvailable);
 
   const run = latestRunQuery.data ?? null;
-  const scheduledAt = scheduledRunQuery.data?.scheduledAt ?? null;
+  const scheduledAt = runtimeAvailable ? (scheduledRunQuery.data?.scheduledAt ?? null) : null;
 
-  const taskId = run?.taskId ?? null;
   const projectId = automation.projectId ?? null;
+  const taskId = run && projectId ? getTaskIdForAutomationRun(projectId, run.id) : null;
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
@@ -87,6 +94,8 @@ export const AutomationRow = observer(function AutomationRow({
       >
         <Switch
           checked={automation.enabled}
+          disabled={!runtimeAvailable}
+          title={availability.data?.available === false ? availability.data.reason : undefined}
           onCheckedChange={(checked) => onToggleEnabled?.(checked)}
         />
       </div>
@@ -128,7 +137,9 @@ export const AutomationRow = observer(function AutomationRow({
 
         {/* Row 2: latest run sentence left, next run / disabled right */}
         <div className="flex min-w-0 items-center justify-between gap-2">
-          {run ? (
+          {!runtimeAvailable ? (
+            <span className="text-sm text-foreground-warning">Remote runtime unavailable</span>
+          ) : run ? (
             (() => {
               const { Icon, textClass, spin } = RUN_STATUS_ICON[run.status];
               const time = run.startedAt ?? run.finishedAt;

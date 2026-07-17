@@ -1,260 +1,342 @@
-import { and, asc, count, desc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { automationEvents } from '@core/features/automations/node';
+import { randomUUID } from 'node:crypto';
+import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
+import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
+import type { Unsubscribe } from '@emdash/shared';
 import type {
   Automation,
   CreateAutomationParams,
-  UpdateAutomationSettingsPatch,
+  UpdateAutomationPatch,
 } from '@core/primitives/automations/api';
-import type { AutomationRun } from '@core/primitives/automations/api';
-import { db } from '@main/db/client';
-import { automationRuns, tasks } from '@main/db/schema';
+import { getLocalTimeZone } from '@core/primitives/automations/api';
+import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { AutomationScheduler } from './automation-scheduler';
+import { buildAutomationDeployment } from './deployment-builder';
 import {
-  createAutomation as repoCreateAutomation,
-  ensureNextCronRun,
+  deleteAutomationDefinition,
   getAutomation,
-  getRun,
-  insertRun,
-  listAutomations as repoListAutomations,
-  softDeleteAutomation,
-  renameAutomation as renameInRepo,
-  setAutomationEnabled as repoSetAutomationEnabled,
-  skipQueuedCronRuns,
-  updateAutomationSettings as updateSettingsInRepo,
+  insertAutomation,
+  listAutomations as listAutomationDefinitions,
+  projectExists,
+  replaceAutomation,
+  setAutomationRevision,
 } from './repo';
-import { markRunSkipped } from './run-transitions';
-import { mapAutomationRunRowToAutomationRun } from './utils';
+import { upsertRunProjection } from './run-projection';
+import {
+  getAutomationRuntimeAvailability,
+  resolveAutomationRuntime,
+  resolveLocalAutomationRuntime,
+  type AutomationRuntimeTarget,
+} from './runtime-client-resolver';
 
 export type AutomationsServiceHooks = {
   'automation:created': (automation: Automation) => void | Promise<void>;
   'automation:updated': (automation: Automation) => void | Promise<void>;
   'automation:enabled': (automation: Automation) => void | Promise<void>;
   'automation:deleted': (id: string) => void | Promise<void>;
-  'run:started': (run: AutomationRun) => void | Promise<void>;
-  'run:stopped': (run: AutomationRun) => void | Promise<void>;
   'run:step-completed': (run: AutomationRun) => void | Promise<void>;
 };
 
 export class AutomationsService implements Hookable<AutomationsServiceHooks> {
-  private readonly _hooks = new HookCore<AutomationsServiceHooks>((name, e) =>
-    log.error(`AutomationsService: ${String(name)} hook error`, e)
+  private readonly hooks = new HookCore<AutomationsServiceHooks>((name, error) =>
+    log.error(`AutomationsService: ${String(name)} hook error`, error)
   );
-
-  private readonly scheduler = new AutomationScheduler({
-    onRunStep: (run) => {
-      this._hooks.callHookBackground('run:step-completed', run);
-      automationEvents.emit(undefined, {
-        type: 'run-changed',
-        automationId: run.automationId,
-        run,
-      });
-    },
-    onScheduledRunChanged: (automationId) => {
-      automationEvents.emit(undefined, { type: 'automation-changed', automationId });
-    },
-  });
+  private readonly definitionMutationMutex = new KeyedMutex();
+  private runEventsUnsubscribe: Unsubscribe | undefined;
+  private initializationPromise: Promise<void> | undefined;
 
   on<K extends keyof AutomationsServiceHooks>(name: K, handler: AutomationsServiceHooks[K]) {
-    return this._hooks.on(name, handler);
+    return this.hooks.on(name, handler);
   }
 
-  start(): void {
-    this.scheduler.start();
+  initialize(): Promise<void> {
+    this.initializationPromise ??= this.initializeOnce();
+    return this.initializationPromise;
   }
 
   stop(): void {
-    this.scheduler.stop();
+    this.runEventsUnsubscribe?.();
+    this.runEventsUnsubscribe = undefined;
   }
 
-  notifyRunStep(run: AutomationRun): void {
-    this._hooks.callHookBackground('run:step-completed', run);
+  list(projectId?: string): Promise<Automation[]> {
+    return listAutomationDefinitions(projectId);
   }
 
-  async listAutomations(projectId?: string): Promise<Automation[]> {
-    return repoListAutomations(projectId);
+  getTargetAvailability(projectId?: string) {
+    return getAutomationRuntimeAvailability(projectId);
   }
 
-  async createAutomation(params: CreateAutomationParams): Promise<Automation> {
-    const automation = await repoCreateAutomation(params);
-    this._hooks.callHookBackground('automation:created', automation);
-    automationEvents.emit(undefined, {
-      type: 'automation-changed',
-      automationId: automation.id,
-    });
-    void this.scheduler.reload();
-    return automation;
-  }
-
-  async updateAutomationSettings(
-    id: string,
-    patch: UpdateAutomationSettingsPatch
-  ): Promise<Automation> {
-    const automation = await updateSettingsInRepo(id, patch);
-    if (!automation) throw new Error('automation_not_found');
-    if (patch.triggerConfig !== undefined) {
-      await skipQueuedCronRuns(id, 'trigger_changed');
-      if (automation.enabled) {
-        await ensureNextCronRun(automation);
-        automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
-      }
-      void this.scheduler.reload();
-    }
-    this._hooks.callHookBackground('automation:updated', automation);
-    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
-    return automation;
-  }
-
-  async renameAutomation(id: string, name: string): Promise<Automation> {
-    const automation = await renameInRepo(id, name);
-    if (!automation) throw new Error('automation_not_found');
-    this._hooks.callHookBackground('automation:updated', automation);
-    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
-    return automation;
-  }
-
-  async toggleAutomationEnabled(id: string, enabled: boolean): Promise<void> {
-    return this.setAutomationEnabled(id, enabled);
-  }
-
-  async setAutomationEnabled(id: string, enabled: boolean): Promise<void> {
-    const automation = await repoSetAutomationEnabled(id, enabled);
-    if (!automation) throw new Error('automation_not_found');
-    if (enabled) {
-      await ensureNextCronRun(automation);
-    } else {
-      await skipQueuedCronRuns(id, 'disabled');
-    }
-    this._hooks.callHookBackground('automation:enabled', automation);
-    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
-    void this.scheduler.reload();
-  }
-
-  async listAutomationRuns(
-    automationId: string,
-    limit: number,
-    offset: number,
-    statusFilter?: 'done' | 'failed' | 'skipped'
-  ): Promise<AutomationRun[]> {
-    const rows = await db
-      .select({ run: automationRuns, taskId: tasks.id })
-      .from(automationRuns)
-      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
-      .where(
-        and(
-          eq(automationRuns.automationId, automationId),
-          ne(automationRuns.status, 'scheduled'),
-          statusFilter ? eq(automationRuns.status, statusFilter) : undefined
-        )
-      )
-      .orderBy(desc(automationRuns.startedAt))
-      .limit(limit)
-      .offset(offset);
-    return rows.map(({ run, taskId }) => mapAutomationRunRowToAutomationRun(run, taskId));
-  }
-
-  async countAutomationRunsByStatus(
-    automationId: string
-  ): Promise<{ all: number; done: number; failed: number; skipped: number }> {
-    const [result] = await db
-      .select({
-        all: count(),
-        done: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'done' THEN 1 END)`,
-        failed: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'failed' THEN 1 END)`,
-        skipped: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'skipped' THEN 1 END)`,
-      })
-      .from(automationRuns)
-      .where(
-        and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
-      );
-    return result ?? { all: 0, done: 0, failed: 0, skipped: 0 };
-  }
-
-  async getLatestRun(automationId: string): Promise<AutomationRun | null> {
-    const rows = await db
-      .select({ run: automationRuns, taskId: tasks.id })
-      .from(automationRuns)
-      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
-      .where(
-        and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
-      )
-      .orderBy(desc(automationRuns.startedAt))
-      .limit(1);
-    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0].run, rows[0].taskId) : null;
-  }
-
-  async getNextScheduledRun(automationId: string): Promise<AutomationRun | null> {
-    const rows = await db
-      .select({ run: automationRuns, taskId: tasks.id })
-      .from(automationRuns)
-      .leftJoin(tasks, and(eq(tasks.automationRunId, automationRuns.id), isNull(tasks.deletedAt)))
-      .where(
-        and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
-      )
-      .orderBy(asc(automationRuns.scheduledAt))
-      .limit(1);
-    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0].run, rows[0].taskId) : null;
-  }
-
-  async runAutomation(id: string): Promise<AutomationRun> {
-    const automation = await getAutomation(id);
-    if (!automation) throw new Error('automation_not_found');
-    if (!automation.projectId) throw new Error('no_project_attached');
-    if (!automation.conversationConfig || !automation.triggerConfig)
-      throw new Error('automation_not_configured');
-
+  async create(params: CreateAutomationParams): Promise<Automation> {
+    if (!(await projectExists(params.projectId))) throw new Error('project_not_found');
     const now = Date.now();
-    const run = await insertRun({
-      automationId: id,
-      triggerConfigSnapshot: automation.triggerConfig,
-      conversationConfigSnapshot: automation.conversationConfig,
-      taskConfigSnapshot: automation.taskConfig ?? null,
-      scheduledAt: now,
-      deadlineAt: null,
-      status: 'creating_task',
-      triggerKind: 'manual',
-      startedAt: now,
+    const automation = normalizeDefinition({
+      id: randomUUID(),
+      projectId: params.projectId,
+      name: validateName(params.name),
+      triggerConfig: params.triggerConfig,
+      conversationConfig: params.conversationConfig,
+      taskConfig: params.taskConfig,
+      enabled: params.enabled !== false,
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
     });
+    validateDefinition(automation);
 
-    this.scheduler.executeNow(automation, run);
-
-    this._hooks.callHookBackground('run:started', run);
-    return run;
-  }
-
-  async stopRun(runId: string): Promise<AutomationRun> {
-    const run = await getRun(runId);
-    if (!run) throw new Error('run_not_found');
-    let stopped: AutomationRun;
-    if (run.status === 'queued') {
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
-    } else if (
-      run.status === 'creating_task' ||
-      run.status === 'launching_task' ||
-      run.status === 'creating_conversation'
-    ) {
-      // In-progress steps — mark as failed (PTY stop is handled by renderer via run.taskId)
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
-    } else {
-      throw new Error('run_not_stoppable');
+    const target = await this.deploy(automation);
+    try {
+      const inserted = await insertAutomation(automation);
+      this.hooks.callHookBackground('automation:created', inserted);
+      return inserted;
+    } catch (error) {
+      await this.removeFromRuntime(target, automation.id, true);
+      throw error;
     }
-    this._hooks.callHookBackground('run:stopped', stopped);
-    this._hooks.callHookBackground('run:step-completed', stopped);
-    return stopped;
   }
 
-  async getRun(runId: string): Promise<AutomationRun | null> {
-    return getRun(runId);
+  update(id: string, patch: UpdateAutomationPatch): Promise<Automation> {
+    return this.definitionMutationMutex.runExclusive(id, async () => {
+      const existing = await requireAutomation(id);
+      if (patch.projectId !== undefined && !(await projectExists(patch.projectId))) {
+        throw new Error('project_not_found');
+      }
+      const updated = normalizeDefinition({
+        ...existing,
+        name: patch.name === undefined ? existing.name : validateName(patch.name),
+        enabled: patch.enabled ?? existing.enabled,
+        projectId: patch.projectId ?? existing.projectId,
+        triggerConfig: patch.triggerConfig ?? existing.triggerConfig,
+        conversationConfig: patch.conversationConfig ?? existing.conversationConfig,
+        taskConfig:
+          patch.taskConfig === null ? undefined : (patch.taskConfig ?? existing.taskConfig),
+        revision: existing.revision + 1,
+        updatedAt: Date.now(),
+      });
+      const hook =
+        patch.enabled !== undefined && patch.enabled !== existing.enabled
+          ? 'automation:enabled'
+          : 'automation:updated';
+      return this.replaceDeployedDefinition(existing, updated, hook);
+    });
   }
 
-  async deleteAutomation(id: string): Promise<void> {
-    await skipQueuedCronRuns(id, 'automation_deleted');
-    const deleted = await softDeleteAutomation(id);
-    if (!deleted) throw new Error('automation_not_found');
-    this._hooks.callHookBackground('automation:deleted', id);
-    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
+  delete(id: string): Promise<void> {
+    return this.definitionMutationMutex.runExclusive(id, async () => {
+      const automation = await requireAutomation(id);
+      const target = automation.projectId
+        ? await resolveAutomationRuntime(automation.projectId)
+        : await resolveLocalAutomationRuntime();
+      await this.removeFromRuntime(target, id, true);
+      try {
+        if (!(await deleteAutomationDefinition(id))) throw new Error('automation_not_found');
+      } catch (error) {
+        await this.restoreDeploymentAfterFailure(automation, target, 'desktop deletion');
+        throw error;
+      }
+      this.hooks.callHookBackground('automation:deleted', id);
+    });
   }
+
+  async removeProjectDeployments(projectId: string): Promise<void> {
+    const definitions = await listAutomationDefinitions(projectId);
+    if (definitions.length === 0) return;
+    const target = await resolveLocalAutomationRuntime();
+    await Promise.all(
+      definitions.map((automation) =>
+        this.definitionMutationMutex.runExclusive(automation.id, async () => {
+          const current = await getAutomation(automation.id);
+          if (!current || current.projectId !== projectId) return;
+          await this.removeFromRuntime(target, current.id, true);
+        })
+      )
+    );
+  }
+
+  private async initializeOnce(): Promise<void> {
+    const target = await resolveLocalAutomationRuntime();
+    this.runEventsUnsubscribe = await target.client.runEvents.subscribe(
+      {},
+      {
+        onEvent: ({ run }) => this.handleRunEvent(run),
+        onGap: () => {},
+        onError: (error, { retrying }) => {
+          if (!retrying) log.warn('Automation telemetry event stream disconnected', { error });
+        },
+      }
+    );
+    await this.migrateDefinitions();
+  }
+
+  private async migrateDefinitions(): Promise<void> {
+    await this.removeOrphanedLocalDeployments();
+    const definitions = await listAutomationDefinitions();
+    for (const automation of definitions) {
+      const availability = await getAutomationRuntimeAvailability(automation.projectId);
+      if (!availability.available) continue;
+      try {
+        const normalized = normalizeDefinition(automation);
+        if (normalized === automation) {
+          await this.deploy(automation);
+          continue;
+        }
+        const migrated = {
+          ...normalized,
+          revision: automation.revision + 1,
+          updatedAt: Date.now(),
+        };
+        await this.deploy(migrated);
+        if (!(await replaceAutomation(migrated))) throw new Error('automation_not_found');
+      } catch (error) {
+        log.warn('Failed to deploy an automation definition to the core runtime', {
+          automationId: automation.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  private async removeOrphanedLocalDeployments(): Promise<void> {
+    try {
+      const definitions = (await listAutomationDefinitions()).filter(
+        (automation) => !automation.projectId
+      );
+      if (definitions.length === 0) return;
+      const target = await resolveLocalAutomationRuntime();
+      for (const automation of definitions) {
+        await this.definitionMutationMutex.runExclusive(automation.id, async () => {
+          const current = await getAutomation(automation.id);
+          if (!current || current.projectId) return;
+          await this.removeFromRuntime(target, current.id, true);
+        });
+      }
+    } catch (error) {
+      log.warn('Failed to remove local deployments whose project was deleted', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async replaceDeployedDefinition(
+    existing: Automation,
+    updated: Automation,
+    hook: 'automation:updated' | 'automation:enabled'
+  ): Promise<Automation> {
+    validateDefinition(updated);
+    const currentTarget = await resolveAutomationRuntime(existing.projectId);
+    const nextTarget = await this.deploy(updated);
+
+    try {
+      if (currentTarget.key !== nextTarget.key) {
+        await this.removeFromRuntime(currentTarget, existing.id, true);
+      }
+      const saved = await replaceAutomation(updated);
+      if (!saved) throw new Error('automation_conflict');
+      this.hooks.callHookBackground(hook, saved);
+      return saved;
+    } catch (error) {
+      await this.restoreDeploymentAfterFailure(existing, currentTarget, 'desktop update');
+      if (currentTarget.key !== nextTarget.key) {
+        await this.removeFromRuntime(nextTarget, updated.id, true).catch((rollbackError) => {
+          log.error('Failed to remove the new automation target after a desktop DB error', {
+            automationId: existing.id,
+            rollbackError,
+          });
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async restoreDeploymentAfterFailure(
+    automation: Automation,
+    target: AutomationRuntimeTarget,
+    operation: string
+  ): Promise<void> {
+    const rollback = { ...automation, revision: automation.revision + 2 };
+    try {
+      await this.deployToTarget(rollback, target);
+      if (!(await setAutomationRevision(automation.id, rollback.revision))) {
+        throw new Error('automation_not_found');
+      }
+    } catch (rollbackError) {
+      log.error(`Failed to restore an automation after its ${operation} failed`, {
+        automationId: automation.id,
+        rollbackError,
+      });
+    }
+  }
+
+  private async deploy(automation: Automation): Promise<AutomationRuntimeTarget> {
+    validateDefinition(automation);
+    const target = await resolveAutomationRuntime(automation.projectId);
+    await this.deployToTarget(automation, target);
+    return target;
+  }
+
+  private async deployToTarget(
+    automation: Automation,
+    target: AutomationRuntimeTarget
+  ): Promise<void> {
+    const deployment = await buildAutomationDeployment(automation);
+    const result = await target.client.deploy(deployment);
+    if (!result.success) throw new Error(result.error.message);
+    if (result.data.deployment.revision !== deployment.revision) {
+      throw new Error('automation_deployment_stale');
+    }
+  }
+
+  private async removeFromRuntime(
+    target: AutomationRuntimeTarget,
+    automationId: string,
+    allowMissing: boolean
+  ): Promise<void> {
+    const result = await target.client.remove({ automationId });
+    if (result.success || (allowMissing && result.error.type === 'automation-not-found')) return;
+    throw new Error(result.error.message);
+  }
+
+  private handleRunEvent(run: AutomationRun): void {
+    void upsertRunProjection(run).catch((error) => {
+      log.warn('Failed to update the automation run projection', {
+        automationId: run.automationId,
+        runId: run.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    this.hooks.callHookBackground('run:step-completed', run);
+  }
+}
+
+function validateName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('name_required');
+  return trimmed;
+}
+
+function normalizeDefinition(automation: Automation): Automation {
+  if (!automation.triggerConfig || automation.triggerConfig.tz?.trim()) return automation;
+  return {
+    ...automation,
+    triggerConfig: { ...automation.triggerConfig, tz: getLocalTimeZone() },
+  };
+}
+
+function validateDefinition(automation: Automation): void {
+  validateName(automation.name);
+  if (!automation.triggerConfig || !automation.conversationConfig || !automation.taskConfig) {
+    throw new Error('automation_not_configured');
+  }
+  assertValidCronTrigger(automation.triggerConfig);
+  if (!automation.conversationConfig.prompt.trim()) {
+    throw new Error('conversation_config_prompt_required');
+  }
+}
+
+async function requireAutomation(id: string): Promise<Automation> {
+  const automation = await getAutomation(id);
+  if (!automation) throw new Error('automation_not_found');
+  return automation;
 }
 
 export const automationsService = new AutomationsService();

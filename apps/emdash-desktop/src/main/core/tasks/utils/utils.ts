@@ -1,11 +1,22 @@
-import type { Task, TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import type { TaskRow } from '@main/db/schema';
+import type { AutomationRunMeta, Task, TaskLifecycleStatus } from '@core/primitives/tasks/api';
+import type { AutomationRunRow, TaskRow } from '@main/db/schema';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+
+export function mapAutomationRunRowToMeta(row: AutomationRunRow): AutomationRunMeta {
+  return {
+    automationName: row.automationName,
+    status: row.status,
+    scheduledAt: row.scheduledAt,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+  };
+}
 
 export function mapTaskRowToTask(
   row: TaskRow,
   prs: PullRequest[] = [],
-  conversations: Record<string, number> = {}
+  conversations: Record<string, number> = {},
+  automationRunMeta?: AutomationRunMeta
 ): Task {
   return {
     id: row.id,
@@ -24,5 +35,6 @@ export function mapTaskRowToTask(
     workspaceId: row.workspaceId ?? undefined,
     type: (row.type as 'task' | 'automation-run') ?? 'task',
     automationRunId: row.automationRunId ?? undefined,
+    automationRunMeta,
   };
 }

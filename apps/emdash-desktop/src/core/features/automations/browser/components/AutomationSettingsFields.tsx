@@ -17,6 +17,7 @@ interface AutomationSettingsFieldsProps {
   onCronErrorClear: () => void;
   onPromptBlur?: () => void;
   error?: string | null;
+  disabled?: boolean;
 }
 
 export function AutomationSettingsFields({
@@ -26,6 +27,7 @@ export function AutomationSettingsFields({
   onCronErrorClear,
   onPromptBlur,
   error,
+  disabled = false,
 }: AutomationSettingsFieldsProps) {
   const {
     initialConversation,
@@ -39,7 +41,7 @@ export function AutomationSettingsFields({
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
 
   return (
-    <>
+    <fieldset disabled={disabled} className="contents">
       <FieldGroup>
         <Field>
           <Label>Project</Label>
@@ -96,6 +98,6 @@ export function AutomationSettingsFields({
       </FieldGroup>
 
       {error && <p className="text-destructive text-xs">{error}</p>}
-    </>
+    </fieldset>
   );
 }

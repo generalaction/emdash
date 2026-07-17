@@ -12,9 +12,8 @@ interface RunStatusBadgeProps {
 const BASE = 'flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs';
 
 const PROGRESS_LABELS: Partial<Record<AutomationRunStatus, string>> = {
-  creating_task: 'Creating task',
-  launching_task: 'Launching task',
-  creating_conversation: 'Starting agent',
+  provisioning_workspace: 'Preparing workspace',
+  starting_session: 'Starting agent',
 };
 
 export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
@@ -24,7 +23,7 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
     return (
       <span className={cn(BASE, 'bg-background-success text-foreground-success')}>
         <CheckCircle2 className="size-3" />
-        Task created
+        Agent started
       </span>
     );
   }
@@ -61,11 +60,11 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
     );
   }
 
-  if (status === 'skipped') {
+  if (status === 'skipped' || status === 'cancelled') {
     return (
       <span className={cn(BASE, 'bg-background-3 text-muted-foreground')}>
         <MinusCircle className="size-3" />
-        Skipped
+        {status === 'cancelled' ? 'Cancelled' : 'Skipped'}
       </span>
     );
   }

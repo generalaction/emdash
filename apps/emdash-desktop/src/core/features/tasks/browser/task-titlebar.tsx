@@ -301,12 +301,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </button>
           )}
           {taskPayload.automationRunId && (
-            <AutomationRunPill
-              runId={taskPayload.automationRunId}
-              projectId={projectId}
-              taskStore={taskStore}
-              isConverted={taskPayload.type === 'task'}
-            />
+            <AutomationRunPill taskStore={taskStore} isConverted={taskPayload.type === 'task'} />
           )}
         </div>
       }

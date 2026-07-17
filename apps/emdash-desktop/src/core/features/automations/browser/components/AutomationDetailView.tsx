@@ -13,7 +13,7 @@ import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { useAutomationEventBridge, useAutomations } from '../use-automations';
+import { useAutomationTargetAvailability, useRunAutomationNow } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { NextRunBanner } from './NextRunBanner';
@@ -45,16 +45,28 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 }: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
   const [cronError, setCronError] = useState<string | null>(null);
-
-  useAutomationEventBridge(automation.id);
+  const availability = useAutomationTargetAvailability(automation.projectId);
+  const runtimeAvailability = availability.data ?? {
+    available: false as const,
+    reason: 'Checking automation runtime…',
+  };
+  const canEdit = runtimeAvailability.available;
+  const canDelete = canEdit || automation.projectId == null;
 
   const { formState, setCronExpr, handlePromptBlur, handleNameBlur, saveError } =
-    useAutomationSettingsAutoSave(automation);
+    useAutomationSettingsAutoSave(automation, canEdit);
   const { name, setName } = formState;
 
-  const { runNow } = useAutomations();
+  const runNow = useRunAutomationNow();
 
-  const canRunNow = !!automation.projectId && !runNow.isPending;
+  const canRunNow =
+    canEdit &&
+    automation.enabled &&
+    !!automation.projectId &&
+    !!automation.conversationConfig &&
+    !!automation.triggerConfig &&
+    !!automation.taskConfig &&
+    !runNow.isPending;
 
   return (
     <div className="flex h-full flex-col">
@@ -69,6 +81,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
               onBlur={handleNameBlur}
               placeholder="Name this automation"
               className="flex-1"
+              disabled={!canEdit}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -77,7 +90,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 <Ellipsis className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent side="bottom" align="end">
-                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={!canDelete}
+                  onClick={() => onDelete?.(automation)}
+                >
                   <Trash2 />
                   Delete automation
                 </DropdownMenuItem>
@@ -85,12 +102,18 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             </DropdownMenu>
             <Switch
               checked={automation.enabled}
+              disabled={!canEdit}
               onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
               aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
             />
           </div>
         </div>
-        <NextRunBanner automationId={automation.id} />
+        {!runtimeAvailability.available && (
+          <p className="rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+            {runtimeAvailability.reason}
+          </p>
+        )}
+        <NextRunBanner automationId={automation.id} runtimeAvailable={canEdit} />
         <div className="flex items-center gap-2 py-2">
           <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
           {activeTab === 'runs' && (
@@ -111,9 +134,15 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 <TooltipContent>
                   {automation.projectId == null
                     ? 'Assign a project before running'
-                    : !automation.conversationConfig || !automation.triggerConfig
-                      ? 'Configure the automation before running'
-                      : 'Run now'}
+                    : !canEdit
+                      ? runtimeAvailability.reason
+                      : !automation.enabled
+                        ? 'Enable the automation before running'
+                        : !automation.conversationConfig ||
+                            !automation.triggerConfig ||
+                            !automation.taskConfig
+                          ? 'Configure the automation before running'
+                          : 'Run now'}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -133,6 +162,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             onCronErrorClear={() => setCronError(null)}
             onPromptBlur={handlePromptBlur}
             error={saveError}
+            disabled={!canEdit}
           />
         )}
       </div>

@@ -1,6 +1,7 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
+import { automationRuns, tasks } from '@main/db/schema';
 import { getTasks } from './getTasks';
 
 const mocks = vi.hoisted(() => ({
@@ -63,5 +64,38 @@ describe('getTasks', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.name).toBe('My Task');
     expect(rows[0]!.id).toBe('task-1');
+    expect(rows[0]!.automationRunMeta).toBeUndefined();
+  });
+
+  it('joins projected automation run metadata onto automation tasks', async () => {
+    await fixture.db.insert(automationRuns).values({
+      id: 'run-1',
+      automationId: 'automation-1',
+      automationName: 'Review changes',
+      status: 'done',
+      scheduledAt: 100,
+      startedAt: 110,
+      finishedAt: 120,
+      seq: 4,
+    });
+    await fixture.db.insert(tasks).values({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Automation task',
+      status: 'in_progress',
+      type: 'automation-run',
+      automationRunId: 'run-1',
+    });
+
+    const rows = await getTasks('project-1');
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.automationRunMeta).toEqual({
+      automationName: 'Review changes',
+      status: 'done',
+      scheduledAt: 100,
+      startedAt: 110,
+      finishedAt: 120,
+    });
   });
 });

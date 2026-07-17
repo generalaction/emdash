@@ -36,6 +36,19 @@ export function getRegisteredTaskData(projectId: string, taskId: string): Task |
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
+export function getTaskIdForAutomationRun(
+  projectId: string,
+  automationRunId: string
+): string | null {
+  const manager = getTaskManagerStore(projectId);
+  if (!manager) return null;
+  for (const task of manager.tasks.values()) {
+    if (task.data.automationRunId === automationRunId) return task.data.id;
+  }
+  return null;
+}
+
+/** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskView(projectId: string, taskId: string): WorkspaceViewModel | undefined {
   return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
 }

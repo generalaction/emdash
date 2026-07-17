@@ -1,6 +1,7 @@
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import { automationsService } from '@main/core/automations/automations-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
@@ -33,6 +34,7 @@ export async function purgeProjectLocalState(
       error: String(error),
     });
   });
+  await automationsService.removeProjectDeployments(projectId);
   await purgeDatabaseRows();
   const client = await getMementosRuntimeClient();
   const taskRows = await db.select({ id: tasks.id }).from(tasks);

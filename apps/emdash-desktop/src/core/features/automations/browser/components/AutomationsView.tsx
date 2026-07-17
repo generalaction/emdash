@@ -6,7 +6,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
-import { useAutomations } from '../use-automations';
+import { useAutomations, useDeleteAutomation, useUpdateAutomation } from '../use-automations';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
@@ -14,7 +14,9 @@ import { AutomationTemplatesEmptyState } from './AutomationTemplatesEmptyState';
 import { CreateAutomationView } from './CreateAutomationView';
 
 export function AutomationsView() {
-  const { automations, toggleEnabled, destroy } = useAutomations();
+  const automations = useAutomations();
+  const update = useUpdateAutomation();
+  const destroy = useDeleteAutomation();
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const [initialTemplate, setInitialTemplate] = useState<BuiltinAutomationTemplate | undefined>();
@@ -48,7 +50,7 @@ export function AutomationsView() {
   }
 
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
-    void toggleEnabled.mutateAsync({ id: automation.id, enabled });
+    void update.mutateAsync({ id: automation.id, patch: { enabled } });
   }
 
   function handleDelete(automation: Automation) {
@@ -65,7 +67,7 @@ export function AutomationsView() {
     setPendingDelete(null);
     showConfirm({
       title: 'Delete automation',
-      description: `"${automation.name}" will be permanently deleted. Run history will be preserved.`,
+      description: `"${automation.name}" and its run history will be permanently deleted.`,
       confirmLabel: 'Delete',
       onSuccess: () => {
         void destroy

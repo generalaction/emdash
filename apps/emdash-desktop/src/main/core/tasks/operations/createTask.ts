@@ -169,8 +169,7 @@ export function commitCreateTask(
       status: initialStatus,
       workspaceId,
       linkedIssue: params.taskConfig.linkedIssue ?? null,
-      type: params.automationRunId ? 'automation-run' : 'task',
-      automationRunId: params.automationRunId ?? null,
+      type: 'task',
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -199,7 +198,7 @@ export function finalizeCreateTask(
   taskRow: TaskRow,
   convRow: ConversationRow | undefined
 ): CreateTaskSuccess {
-  const task = mapTaskRowToTask(taskRow, []);
+  const task = mapTaskRowToTask(taskRow);
 
   let initialConversation: Conversation | undefined;
   if (convRow) {

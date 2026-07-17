@@ -165,4 +165,28 @@ describe('SidebarStore project ordering', () => {
       { projectId: 'project-2', taskId: 'task-2a' },
     ]);
   });
+
+  it('excludes pinned automation runs from every sidebar selector', () => {
+    const manager = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['regular-task', 'automation-task'],
+      },
+    ]);
+    const project = manager.projects.get('project-1')!;
+    const tasks = project.mountedProject!.taskManager.tasks;
+    tasks.get('regular-task')!.data.isPinned = true;
+    tasks.get('automation-task')!.data.isPinned = true;
+    tasks.get('automation-task')!.data.type = 'automation-run';
+
+    const store = new SidebarStore(manager);
+    store.ensureProjectExpanded('project-1');
+
+    expect(store.pinnedSidebarEntries).toEqual([
+      { projectId: 'project-1', taskId: 'regular-task' },
+    ]);
+    expect(store.visibleTaskIdsForProject('project-1')).toEqual([]);
+    expect(store.sidebarRows).toEqual([{ kind: 'project', projectId: 'project-1' }]);
+  });
 });

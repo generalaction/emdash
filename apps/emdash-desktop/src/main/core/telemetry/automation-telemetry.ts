@@ -5,7 +5,12 @@ import { isValidProviderId } from '@main/core/agents/plugin-registry';
 import { automationsService } from '@main/core/automations/automations-service';
 import { telemetryService } from '@main/lib/telemetry';
 
-const TERMINAL_RUN_STATUSES = new Set<AutomationRunStatus>(['done', 'failed', 'skipped']);
+const TERMINAL_RUN_STATUSES = new Set<AutomationRunStatus>([
+  'done',
+  'failed',
+  'skipped',
+  'cancelled',
+]);
 const startedRunIds = new Set<string>();
 const completedRunIds = new Set<string>();
 
@@ -20,7 +25,6 @@ function automationTelemetryProps(automation: Automation) {
 function runTelemetryProps(run: AutomationRun) {
   return {
     automation_id: run.automationId,
-    task_id: run.taskId ?? undefined,
     trigger_kind: run.triggerKind,
   };
 }
@@ -62,12 +66,8 @@ automationsService.on('automation:enabled', (automation) => {
   });
 });
 
-automationsService.on('run:started', (run) => {
-  captureRunStarted(run);
-});
-
 automationsService.on('run:step-completed', (run) => {
-  if (run.status === 'creating_task') {
+  if (run.status === 'provisioning_workspace') {
     captureRunStarted(run);
   }
 
@@ -76,7 +76,7 @@ automationsService.on('run:step-completed', (run) => {
 
   telemetryService.capture('automation_run_completed', {
     ...runTelemetryProps(run),
-    status: run.status as 'done' | 'failed' | 'skipped',
+    status: run.status as 'done' | 'failed' | 'skipped' | 'cancelled',
     duration_ms: getDurationMs(run),
     error_step: run.error?.step,
     error_code: run.error?.code,
