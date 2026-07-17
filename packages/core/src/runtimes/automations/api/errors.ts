@@ -56,11 +56,11 @@ export const cancelRunErrorSchema = z.discriminatedUnion('type', [
   runtimeUnavailableErrorSchema,
 ]);
 
-export const getRunsErrorSchema = runtimeUnavailableErrorSchema;
+export const runReadErrorSchema = runtimeUnavailableErrorSchema;
 
 export type InvalidScheduleError = z.infer<typeof invalidScheduleErrorSchema>;
 export type DeployError = z.infer<typeof deployErrorSchema>;
 export type RemoveError = z.infer<typeof removeErrorSchema>;
 export type StartRunError = z.infer<typeof startRunErrorSchema>;
 export type CancelRunError = z.infer<typeof cancelRunErrorSchema>;
-export type GetRunsError = z.infer<typeof getRunsErrorSchema>;
+export type RunReadError = z.infer<typeof runReadErrorSchema>;

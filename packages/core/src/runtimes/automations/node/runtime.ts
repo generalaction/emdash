@@ -8,22 +8,28 @@ import type { AutomationId } from '../api/deployment';
 import type {
   CancelRunError,
   DeployError,
-  GetRunsError,
+  RunReadError,
   RemoveError,
   StartRunError,
 } from '../api/errors';
-import type { AutomationRun } from '../api/run';
+import { automationRunStatuses, type AutomationRun } from '../api/run';
 import type {
   CancelRunInput,
   DeployInput,
   DeployResult,
-  GetRunsInput,
-  GetRunsResult,
+  GetRunInput,
+  GetRunOverviewInput,
+  GetRunOverviewResult,
+  GetRunResult,
+  ListChangedRunsInput,
+  ListChangedRunsResult,
+  ListRunsInput,
+  ListRunsResult,
   RemoveInput,
   StartRunInput,
   StartRunResult,
 } from '../api/schemas';
-import { GET_RUNS_DEFAULT_LIMIT } from '../api/schemas';
+import { LIST_CHANGED_RUNS_DEFAULT_LIMIT, LIST_RUNS_DEFAULT_LIMIT } from '../api/schemas';
 import { AutomationDeploymentStore } from './persistence/deployment-store';
 import { AutomationRunStore } from './persistence/run-store';
 import type { AutomationsDb } from './persistence/store';
@@ -51,6 +57,7 @@ export class AutomationsRuntime {
   private readonly scheduler: AutomationScheduler;
   private readonly clock: Clock;
   private readonly activeAutomationIds = new Set<AutomationId>();
+  private allRunEventsActive = false;
   readonly runEventsHost: EventStreamHost<typeof automationsContract.runEvents>;
 
   constructor(options: AutomationsRuntimeOptions) {
@@ -61,8 +68,14 @@ export class AutomationsRuntime {
     this.runStore = new AutomationRunStore(options.handle);
 
     this.runEventsHost = createEventStreamHost(automationsContract.runEvents, {
-      onActive: (key) => this.activeAutomationIds.add(key.automationId),
-      onIdle: (key) => this.activeAutomationIds.delete(key.automationId),
+      onActive: (key) => {
+        if (key.automationId) this.activeAutomationIds.add(key.automationId);
+        else this.allRunEventsActive = true;
+      },
+      onIdle: (key) => {
+        if (key.automationId) this.activeAutomationIds.delete(key.automationId);
+        else this.allRunEventsActive = false;
+      },
     });
 
     const onRunChanged: OnRunChanged = (run) => {
@@ -158,19 +171,16 @@ export class AutomationsRuntime {
     return ok({ run });
   }
 
-  getRuns(input: GetRunsInput): Result<GetRunsResult, GetRunsError> {
-    const limit = input.limit ?? GET_RUNS_DEFAULT_LIMIT;
-    const runs = this.runStore.listRunsSince({
-      sinceSeq: input.sinceSeq,
-      automationIds: input.automationIds,
-      limit,
-    });
-    const nextSeq = runs.length > 0 ? runs[runs.length - 1].seq : input.sinceSeq;
-    return ok({ runs, nextSeq });
-  }
-
   cancelRun(input: CancelRunInput): Result<void, CancelRunError> {
-    const { runId } = input;
+    const { automationId, runId } = input;
+    const run = this.runStore.getRun(runId);
+    if (!run || run.automationId !== automationId) {
+      return err({
+        type: 'run-not-found',
+        runId,
+        message: `Run ${runId} not found`,
+      });
+    }
     if (!this.scheduler.cancelRun(runId)) {
       return err({
         type: 'run-not-found',
@@ -181,7 +191,48 @@ export class AutomationsRuntime {
     return ok(undefined);
   }
 
+  getRun(input: GetRunInput): Result<GetRunResult, RunReadError> {
+    return ok({
+      run: this.runStore.getRunForAutomation(input.automationId, input.runId),
+    });
+  }
+
+  listRuns(input: ListRunsInput): Result<ListRunsResult, RunReadError> {
+    return ok({
+      runs: this.runStore.listRuns({
+        automationId: input.automationId,
+        status: input.status,
+        before: input.before,
+        limit: input.limit ?? LIST_RUNS_DEFAULT_LIMIT,
+      }),
+    });
+  }
+
+  listChangedRuns(input: ListChangedRunsInput): Result<ListChangedRunsResult, RunReadError> {
+    const limit = input.limit ?? LIST_CHANGED_RUNS_DEFAULT_LIMIT;
+    const runs = this.runStore.listChangedRuns({
+      sinceSeq: input.sinceSeq,
+      automationId: input.automationId,
+      limit,
+    });
+    const nextSeq = runs.length > 0 ? runs[runs.length - 1].seq : input.sinceSeq;
+    return ok({ runs, nextSeq });
+  }
+
+  getRunOverview(input: GetRunOverviewInput): Result<GetRunOverviewResult, RunReadError> {
+    const counts = Object.fromEntries(
+      automationRunStatuses.map((status) => [status, 0])
+    ) as GetRunOverviewResult['counts'];
+    Object.assign(counts, this.runStore.countRunsByStatus(input.automationId));
+    return ok({
+      counts,
+      latestRun: this.runStore.getLatestRun(input.automationId),
+      nextScheduledRun: this.runStore.getNextScheduledRun(input.automationId),
+    });
+  }
+
   private emitRunEvent(run: AutomationRun): void {
+    if (this.allRunEventsActive) this.runEventsHost.emit({}, { run });
     if (this.activeAutomationIds.has(run.automationId)) {
       this.runEventsHost.emit({ automationId: run.automationId }, { run });
     }

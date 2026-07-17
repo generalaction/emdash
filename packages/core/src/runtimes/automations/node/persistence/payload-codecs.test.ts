@@ -36,7 +36,7 @@ function deployment(): AutomationDeployment {
         pushRemote: null,
       },
     },
-    updatedAt: Date.UTC(2026, 0, 1),
+    revision: 1,
   };
 }
 

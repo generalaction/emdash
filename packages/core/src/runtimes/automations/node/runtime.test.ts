@@ -46,7 +46,7 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
         pushRemote: null,
       },
     },
-    updatedAt: START,
+    revision: 1,
     ...overrides,
   };
 }
@@ -63,9 +63,9 @@ function fakeSessionPort(): AutomationSessionPort {
   };
 }
 
-function runsOf(runtime: AutomationsRuntime, automationIds: string[]) {
-  const result = runtime.getRuns({ sinceSeq: 0, automationIds });
-  if (!result.success) throw new Error('getRuns failed');
+function runsOf(runtime: AutomationsRuntime, automationId: string) {
+  const result = runtime.listChangedRuns({ sinceSeq: 0, automationId });
+  if (!result.success) throw new Error('listChangedRuns failed');
   return result.data.runs;
 }
 
@@ -100,7 +100,7 @@ describe('AutomationsRuntime', () => {
     const deployResult = await runtime.deploy(deployment());
     expect(deployResult.success).toBe(true);
 
-    const runs = runsOf(runtime, ['auto-1']);
+    const runs = runsOf(runtime, 'auto-1');
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
       automationId: 'auto-1',
@@ -121,16 +121,16 @@ describe('AutomationsRuntime', () => {
       },
     });
     expect(new AutomationDeploymentStore(handle).getDeployment('auto-1')).toBeNull();
-    expect(runsOf(runtime, ['auto-1'])).toHaveLength(0);
+    expect(runsOf(runtime, 'auto-1')).toHaveLength(0);
   });
 
   it('redeploy with a new schedule skips the old scheduled run', async () => {
     await runtime.deploy(deployment());
-    expect(runsOf(runtime, ['auto-1'])[0]?.status).toBe('scheduled');
+    expect(runsOf(runtime, 'auto-1')[0]?.status).toBe('scheduled');
 
-    await runtime.deploy(deployment({ schedule: { expr: '30 9 * * *', tz: 'UTC' } }));
+    await runtime.deploy(deployment({ revision: 2, schedule: { expr: '30 9 * * *', tz: 'UTC' } }));
 
-    const runs = runsOf(runtime, ['auto-1']);
+    const runs = runsOf(runtime, 'auto-1');
     const statuses = runs.map((run) => run.status);
     expect(statuses).toContain('skipped');
     expect(statuses).toContain('scheduled');
@@ -138,9 +138,9 @@ describe('AutomationsRuntime', () => {
 
   it('redeploy disabling skips the scheduled run', async () => {
     await runtime.deploy(deployment());
-    await runtime.deploy(deployment({ enabled: false }));
+    await runtime.deploy(deployment({ enabled: false, revision: 2 }));
 
-    const runs = runsOf(runtime, ['auto-1']);
+    const runs = runsOf(runtime, 'auto-1');
     const statuses = runs.map((run) => run.status);
     expect(statuses).toContain('skipped');
     expect(statuses.filter((s) => s === 'scheduled')).toHaveLength(0);
@@ -150,7 +150,7 @@ describe('AutomationsRuntime', () => {
     const current = deployment({
       name: 'Current',
       schedule: { expr: '30 9 * * *', tz: 'UTC' },
-      updatedAt: START + 2,
+      revision: 2,
     });
     await runtime.deploy(current);
 
@@ -158,7 +158,7 @@ describe('AutomationsRuntime', () => {
       deployment({
         name: 'Stale',
         schedule: { expr: '45 9 * * *', tz: 'UTC' },
-        updatedAt: START + 1,
+        revision: 1,
       })
     );
 
@@ -168,7 +168,19 @@ describe('AutomationsRuntime', () => {
         deployedAt: START,
       })
     );
-    const scheduled = runsOf(runtime, ['auto-1']).filter((run) => run.status === 'scheduled');
+    const scheduled = runsOf(runtime, 'auto-1').filter((run) => run.status === 'scheduled');
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.configSnapshot.name).toBe('Current');
+  });
+
+  it('treats an equal deployment revision as an idempotent replay', async () => {
+    const current = deployment({ name: 'Current' });
+    await runtime.deploy(current);
+
+    const result = await runtime.deploy(deployment({ name: 'Conflicting replay' }));
+
+    expect(result).toEqual(ok({ deployment: current, deployedAt: START }));
+    const scheduled = runsOf(runtime, 'auto-1').filter((run) => run.status === 'scheduled');
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0]?.configSnapshot.name).toBe('Current');
   });
@@ -182,11 +194,11 @@ describe('AutomationsRuntime', () => {
 
   it('remove deletes deployment and all runs', async () => {
     await runtime.deploy(deployment());
-    expect(runsOf(runtime, ['auto-1']).length).toBeGreaterThan(0);
+    expect(runsOf(runtime, 'auto-1').length).toBeGreaterThan(0);
 
     const result = await runtime.remove({ automationId: 'auto-1' });
     expect(result.success).toBe(true);
-    expect(runsOf(runtime, ['auto-1'])).toHaveLength(0);
+    expect(runsOf(runtime, 'auto-1')).toHaveLength(0);
   });
 
   it('startRun creates a manual run and executes it', async () => {
@@ -222,33 +234,83 @@ describe('AutomationsRuntime', () => {
   });
 
   it('cancelRun errors for missing run', () => {
-    const result = runtime.cancelRun({ runId: 'missing' });
+    const result = runtime.cancelRun({ automationId: 'auto-1', runId: 'missing' });
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.type).toBe('run-not-found');
   });
 
-  it('getRuns paginates with nextSeq', async () => {
+  it('cancelRun does not cross automation boundaries', async () => {
     await runtime.deploy(deployment());
+    const started = await runtime.startRun({ automationId: 'auto-1' });
+    if (!started.success) throw new Error('startRun failed');
+
+    const result = runtime.cancelRun({
+      automationId: 'auto-2',
+      runId: started.data.run.id,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.type).toBe('run-not-found');
+  });
+
+  it('getRun returns only a run belonging to the requested automation', async () => {
+    await runtime.deploy(deployment());
+    const started = await runtime.startRun({ automationId: 'auto-1' });
+    if (!started.success) throw new Error('startRun failed');
+
+    expect(runtime.getRun({ automationId: 'auto-1', runId: started.data.run.id })).toEqual(
+      ok({ run: started.data.run })
+    );
+    expect(runtime.getRun({ automationId: 'auto-2', runId: started.data.run.id })).toEqual(
+      ok({ run: null })
+    );
+    expect(runtime.getRun({ automationId: 'auto-1', runId: 'missing' })).toEqual(ok({ run: null }));
+  });
+
+  it('listChangedRuns is automation-scoped and paginates with nextSeq', async () => {
+    await runtime.deploy(deployment());
+    await runtime.startRun({ automationId: 'auto-1' });
     await runtime.deploy(deployment({ automationId: 'auto-2' }));
 
-    const page1 = runtime.getRuns({
+    const page1 = runtime.listChangedRuns({
       sinceSeq: 0,
-      automationIds: ['auto-1', 'auto-2'],
+      automationId: 'auto-1',
       limit: 1,
     });
     expect(page1.success).toBe(true);
     if (!page1.success) return;
     expect(page1.data.runs).toHaveLength(1);
 
-    const page2 = runtime.getRuns({
+    const page2 = runtime.listChangedRuns({
       sinceSeq: page1.data.nextSeq,
-      automationIds: ['auto-1', 'auto-2'],
+      automationId: 'auto-1',
       limit: 10,
     });
     expect(page2.success).toBe(true);
     if (!page2.success) return;
-    expect(page2.data.runs).toHaveLength(1);
+    expect(page2.data.runs.length).toBeGreaterThan(0);
+    expect(
+      [...page1.data.runs, ...page2.data.runs].every((run) => run.automationId === 'auto-1')
+    ).toBe(true);
     expect(page2.data.nextSeq).toBeGreaterThan(page1.data.nextSeq);
+  });
+
+  it('listRuns and getRunOverview return bounded history metadata', async () => {
+    await runtime.deploy(deployment());
+    await runtime.startRun({ automationId: 'auto-1' });
+
+    const history = runtime.listRuns({ automationId: 'auto-1', limit: 1 });
+    expect(history.success).toBe(true);
+    if (!history.success) return;
+    expect(history.data.runs).toHaveLength(1);
+
+    const overview = runtime.getRunOverview({ automationId: 'auto-1' });
+    expect(overview.success).toBe(true);
+    if (!overview.success) return;
+    expect(overview.data.counts.scheduled).toBe(1);
+    expect(overview.data.latestRun?.automationId).toBe('auto-1');
+    expect(overview.data.nextScheduledRun?.status).toBe('scheduled');
   });
 });

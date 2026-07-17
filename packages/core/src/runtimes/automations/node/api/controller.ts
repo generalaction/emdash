@@ -8,7 +8,10 @@ export function createAutomationsController(runtime: AutomationsRuntime): Contro
     remove: (input) => runtime.remove(input),
     startRun: (input) => runtime.startRun(input),
     cancelRun: (input) => runtime.cancelRun(input),
-    getRuns: (input) => runtime.getRuns(input),
+    getRun: (input) => runtime.getRun(input),
+    listRuns: (input) => runtime.listRuns(input),
+    listChangedRuns: (input) => runtime.listChangedRuns(input),
+    getRunOverview: (input) => runtime.getRunOverview(input),
     runEvents: runtime.runEventsHost,
   });
 }

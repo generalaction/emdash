@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   cancelRunErrorSchema,
   deployErrorSchema,
-  getRunsErrorSchema,
+  runReadErrorSchema,
   removeErrorSchema,
   startRunErrorSchema,
 } from './errors';
@@ -11,8 +11,14 @@ import {
   cancelRunInputSchema,
   deployInputSchema,
   deployResultSchema,
-  getRunsInputSchema,
-  getRunsResultSchema,
+  getRunInputSchema,
+  getRunOverviewInputSchema,
+  getRunOverviewResultSchema,
+  getRunResultSchema,
+  listChangedRunsInputSchema,
+  listChangedRunsResultSchema,
+  listRunsInputSchema,
+  listRunsResultSchema,
   removeInputSchema,
   runEventsEventSchema,
   runEventsKeySchema,
@@ -41,15 +47,30 @@ export const automationsContract = defineContract({
     data: z.void(),
     error: cancelRunErrorSchema,
   }),
-  getRuns: fallible({
-    input: getRunsInputSchema,
-    data: getRunsResultSchema,
-    error: getRunsErrorSchema,
+  getRun: fallible({
+    input: getRunInputSchema,
+    data: getRunResultSchema,
+    error: runReadErrorSchema,
+  }),
+  listRuns: fallible({
+    input: listRunsInputSchema,
+    data: listRunsResultSchema,
+    error: runReadErrorSchema,
+  }),
+  listChangedRuns: fallible({
+    input: listChangedRunsInputSchema,
+    data: listChangedRunsResultSchema,
+    error: runReadErrorSchema,
+  }),
+  getRunOverview: fallible({
+    input: getRunOverviewInputSchema,
+    data: getRunOverviewResultSchema,
+    error: runReadErrorSchema,
   }),
   runEvents: eventStream({
     key: runEventsKeySchema,
     event: runEventsEventSchema,
   }),
-});
+})
 
 export type AutomationsContract = typeof automationsContract;

@@ -35,7 +35,7 @@ export class AutomationDeploymentStore {
         .get();
       if (existing) {
         const current = parseDeploymentPayload(existing.payload);
-        if (parsed.updatedAt < current.updatedAt) {
+        if (parsed.revision <= current.revision) {
           return { deployment: current, deployedAt: existing.deployedAt };
         }
       }

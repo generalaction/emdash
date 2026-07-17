@@ -1,6 +1,6 @@
 import type { StoreHandle } from '@primitives/sqlite-store/api';
-import { and, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm';
-import { automationIdSchema, type AutomationId } from '../../api/deployment';
+import { and, desc, eq, gt, inArray, isNotNull, lt, lte, ne, sql } from 'drizzle-orm';
+import type { AutomationId } from '../../api/deployment';
 import {
   automationRunSchema,
   automationRunStatusSchema,
@@ -62,6 +62,15 @@ export class AutomationRunStore {
       .select({ payload: automationRuns.payload })
       .from(automationRuns)
       .where(eq(automationRuns.id, id))
+      .get();
+    return row ? parseRunPayload(row.payload) : null;
+  }
+
+  getRunForAutomation(automationId: AutomationId, id: AutomationRunId): AutomationRun | null {
+    const row = this.handle.db
+      .select({ payload: automationRuns.payload })
+      .from(automationRuns)
+      .where(and(eq(automationRuns.automationId, automationId), eq(automationRuns.id, id)))
       .get();
     return row ? parseRunPayload(row.payload) : null;
   }
@@ -175,9 +184,9 @@ export class AutomationRunStore {
       .map(({ payload }) => parseRunPayload(payload));
   }
 
-  listRunsSince(input: {
+  listChangedRuns(input: {
     sinceSeq: number;
-    automationIds: AutomationId[];
+    automationId: AutomationId;
     limit: number;
   }): AutomationRun[] {
     if (!Number.isSafeInteger(input.sinceSeq) || input.sinceSeq < 0) {
@@ -186,24 +195,84 @@ export class AutomationRunStore {
       );
     }
     validateLimit(input.limit, 'Run journal limit');
-    if (input.automationIds.length === 0) {
-      throw new RangeError('Run journal automation ids must not be empty');
-    }
-    const automationIds = automationIdSchema.array().min(1).parse(input.automationIds);
-
     return this.handle.db
       .select({ payload: automationRuns.payload })
       .from(automationRuns)
       .where(
         and(
           gt(automationRuns.seq, input.sinceSeq),
-          inArray(automationRuns.automationId, automationIds)
+          eq(automationRuns.automationId, input.automationId)
         )
       )
       .orderBy(automationRuns.seq)
       .limit(input.limit)
       .all()
       .map(({ payload }) => parseRunPayload(payload));
+  }
+
+  listRuns(input: {
+    automationId: AutomationId;
+    status?: AutomationRunStatus;
+    before?: number;
+    limit: number;
+  }): AutomationRun[] {
+    validateLimit(input.limit, 'Run history limit');
+    if (input.before !== undefined && (!Number.isSafeInteger(input.before) || input.before <= 0)) {
+      throw new RangeError(`Run history cursor must be a positive safe integer: ${input.before}`);
+    }
+
+    const conditions = [eq(automationRuns.automationId, input.automationId)];
+    if (input.status !== undefined) {
+      conditions.push(eq(automationRuns.status, automationRunStatusSchema.parse(input.status)));
+    } else {
+      conditions.push(ne(automationRuns.status, 'scheduled'));
+    }
+    if (input.before !== undefined) conditions.push(lt(automationRuns.seq, input.before));
+
+    return this.handle.db
+      .select({ payload: automationRuns.payload })
+      .from(automationRuns)
+      .where(and(...conditions))
+      .orderBy(desc(automationRuns.seq))
+      .limit(input.limit)
+      .all()
+      .map(({ payload }) => parseRunPayload(payload));
+  }
+
+  countRunsByStatus(automationId: AutomationId): Partial<Record<AutomationRunStatus, number>> {
+    const rows = this.handle.db
+      .select({ status: automationRuns.status, count: sql<number>`count(*)` })
+      .from(automationRuns)
+      .where(eq(automationRuns.automationId, automationId))
+      .groupBy(automationRuns.status)
+      .all();
+    return Object.fromEntries(rows.map(({ status, count }) => [status, Number(count)]));
+  }
+
+  getLatestRun(automationId: AutomationId): AutomationRun | null {
+    const row = this.handle.db
+      .select({ payload: automationRuns.payload })
+      .from(automationRuns)
+      .where(
+        and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
+      )
+      .orderBy(desc(automationRuns.seq))
+      .limit(1)
+      .get();
+    return row ? parseRunPayload(row.payload) : null;
+  }
+
+  getNextScheduledRun(automationId: AutomationId): AutomationRun | null {
+    const row = this.handle.db
+      .select({ payload: automationRuns.payload })
+      .from(automationRuns)
+      .where(
+        and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
+      )
+      .orderBy(automationRuns.scheduledAt, automationRuns.seq)
+      .limit(1)
+      .get();
+    return row ? parseRunPayload(row.payload) : null;
   }
 
   deleteRunsForAutomation(automationId: AutomationId): number {

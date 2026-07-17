@@ -33,7 +33,7 @@ const deployment = {
       pushRemote: 'fork',
     },
   },
-  updatedAt: 1_700_000_000_000,
+  revision: 1,
 };
 
 describe('automation deployment schemas', () => {
@@ -44,7 +44,7 @@ describe('automation deployment schemas', () => {
     expect(parsed.automationId).toBe('auto-1');
     expect(snapshot).not.toHaveProperty('automationId');
     expect(snapshot).not.toHaveProperty('enabled');
-    expect(snapshot).not.toHaveProperty('updatedAt');
+    expect(snapshot).not.toHaveProperty('revision');
     expect(snapshot.workspace).toEqual(deployment.workspace);
   });
 

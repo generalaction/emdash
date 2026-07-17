@@ -41,7 +41,7 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
         pushRemote: null,
       },
     },
-    updatedAt: START,
+    revision: 1,
     ...overrides,
   };
 }
@@ -105,12 +105,10 @@ describe('AutomationScheduler', () => {
     harness.scheduler.start();
     harness.scheduler.reconcile();
 
-    const scheduled = harness.runStore
-      .listRunsSince({
-        sinceSeq: 0,
-        automationIds: ['auto-1', 'auto-2', 'auto-3'],
-        limit: 100,
-      })
+    const scheduled = ['auto-1', 'auto-2', 'auto-3']
+      .flatMap((automationId) =>
+        harness.runStore.listChangedRuns({ sinceSeq: 0, automationId, limit: 100 })
+      )
       .filter((run) => run.status === 'scheduled');
     expect(scheduled).toHaveLength(2);
     expect(scheduled.map((run) => run.automationId).sort()).toEqual(['auto-1', 'auto-3']);
@@ -327,7 +325,7 @@ describe('AutomationScheduler', () => {
     if (!original) return;
 
     harness.deploymentStore.upsertDeployment(
-      deployment({ schedule: { expr: '30 9 * * *', tz: 'UTC' } }),
+      deployment({ revision: 2, schedule: { expr: '30 9 * * *', tz: 'UTC' } }),
       START
     );
     harness.scheduler.reconcile();

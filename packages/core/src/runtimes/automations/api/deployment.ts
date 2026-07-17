@@ -43,12 +43,12 @@ export const automationAgentConfigSchema = z.discriminatedUnion('type', [
 
 export const automationDeploymentSchema = z.object({
   automationId: automationIdSchema,
+  revision: z.number().int().positive(),
   enabled: z.boolean(),
   name: nonBlankStringSchema,
   schedule: automationScheduleSchema,
   agent: automationAgentConfigSchema,
   workspace: workspaceProvisioningConfigSchema,
-  updatedAt: z.number().int().nonnegative(),
 });
 
 export const automationRunConfigSnapshotSchema = automationDeploymentSchema.pick({
