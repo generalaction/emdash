@@ -93,6 +93,18 @@ the exact SQL constant executed by `createSchema`; when schema codegen is added,
 compute the fingerprint from generator input before formatting generated
 TypeScript.
 
+#### Build-time Drizzle codegen
+
+`@emdash/core/primitives/sqlite-store/codegen` exposes
+`compileDrizzleSchemaToSql(schema)`. It uses `drizzle-kit/api` entirely in
+memory to diff an empty SQLite snapshot against imported Drizzle table exports.
+The helper sorts export keys before compilation so generated DDL is stable
+across module loaders.
+
+Keep this import in build scripts and drift tests only. Runtime stores should
+import a checked-in generated statement array, compute their fingerprint from
+that array, and never bundle `drizzle-kit`.
+
 ## Driver contract
 
 `SqliteConnection` exposes only:

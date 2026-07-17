@@ -161,6 +161,105 @@ describe('ListViewStore — async pipeline', () => {
   });
 });
 
+describe('ListViewStore — reload', () => {
+  it('loads page one once when an async source also has pagination', async () => {
+    const loadSource = vi.fn(async () => AGENTS);
+    const loadMore = vi.fn(async () => ({ items: [AGENTS[0]!], nextCursor: null }));
+    const spec: ListViewSpec<Agent> = {
+      getItemId: (agent) => agent.id,
+      source: { kind: 'async', load: loadSource },
+      pagination: { kind: 'infinite', loadMore },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+
+    store.initialize();
+
+    await vi.waitFor(() => expect(loadMore).toHaveBeenCalledTimes(1));
+    expect(loadSource).not.toHaveBeenCalled();
+    expect(loadMore).toHaveBeenCalledWith(null, expect.any(AbortSignal));
+    store.dispose();
+  });
+
+  it('aborts the current page, clears accumulation, and loads page one', async () => {
+    const requests: Array<{
+      cursor: string | null;
+      signal: AbortSignal;
+      resolve: (page: { items: Agent[]; nextCursor: string | null }) => void;
+    }> = [];
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      pagination: {
+        kind: 'infinite',
+        loadMore: (cursor, signal) =>
+          new Promise((resolve) => {
+            requests.push({ cursor, signal, resolve });
+          }),
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.initialize();
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+
+    const reload = store.reload();
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[0]!.signal.aborted).toBe(true);
+    expect(requests[1]!.cursor).toBeNull();
+
+    requests[1]!.resolve({ items: [AGENTS[2]!], nextCursor: null });
+    await reload;
+    expect(store.visibleItems).toEqual([AGENTS[2]]);
+    store.dispose();
+  });
+
+  it('surfaces pagination failures through list status', async () => {
+    const failure = new Error('Unable to load page');
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      pagination: {
+        kind: 'infinite',
+        loadMore: async () => await Promise.reject(failure),
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+
+    store.initialize();
+
+    await vi.waitFor(() => expect(store.status).toBe('error'));
+    expect(store.error).toBe(failure);
+    store.dispose();
+  });
+
+  it('aborts replaced async sources and resolves after the pipeline completes', async () => {
+    const requests: Array<{
+      signal: AbortSignal;
+      resolve: (items: Agent[]) => void;
+    }> = [];
+    const spec: ListViewSpec<Agent> = {
+      getItemId: (agent) => agent.id,
+      source: {
+        kind: 'async',
+        load: (signal) =>
+          new Promise((resolve) => {
+            requests.push({ signal, resolve });
+          }),
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.initialize();
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+
+    const reload = store.reload();
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[0]!.signal.aborted).toBe(true);
+    requests[1]!.resolve([AGENTS[1]!]);
+
+    await reload;
+    expect(store.visibleItems).toEqual([AGENTS[1]]);
+    expect(store.status).toBe('idle');
+    store.dispose();
+  });
+});
+
 describe('ListViewStore — reactive sync source', () => {
   it('updates visibleItems when the getter result changes', () => {
     const items: Agent[] = [AGENTS[0]!, AGENTS[1]!];

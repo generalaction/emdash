@@ -22,10 +22,10 @@ function normalizeRow<T>(row: unknown): T {
   ) as T;
 }
 
-export const betterSqlite3Driver: SqliteDriver<Database.Database> = {
+export const betterSqlite3Driver: SqliteDriver = {
   open(path) {
     const native = new Database(path);
-    const connection: SqliteConnection<Database.Database> = {
+    const connection: SqliteConnection = {
       native,
       exec: (sql) => {
         native.exec(sql);

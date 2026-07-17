@@ -81,6 +81,10 @@
       "types": "./dist/primitives-sqlite-store-api.d.mts",
       "default": "./dist/primitives-sqlite-store-api.mjs"
     },
+    "./primitives/sqlite-store/codegen": {
+      "types": "./dist/primitives-sqlite-store-codegen.d.mts",
+      "default": "./dist/primitives-sqlite-store-codegen.mjs"
+    },
     "./primitives/sqlite-store/node": {
       "types": "./dist/primitives-sqlite-store-node.d.mts",
       "default": "./dist/primitives-sqlite-store-node.mjs"

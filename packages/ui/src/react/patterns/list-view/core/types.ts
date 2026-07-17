@@ -176,6 +176,7 @@ export interface SortApi<K extends string> {
 
 export interface PaginationApi {
   loadMore: () => void;
+  reload: () => void;
   isFetchingMore: boolean;
   hasMore: boolean;
 }
@@ -210,6 +211,7 @@ export interface ListViewSnapshot<T> {
   error?: unknown;
   visibleItems: T[];
   orderedIds: string[];
+  reload: () => Promise<void>;
 }
 
 // ── Context value types ───────────────────────────────────────────────────────
