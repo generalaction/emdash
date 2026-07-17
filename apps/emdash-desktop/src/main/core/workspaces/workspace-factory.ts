@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { TuiConversationProvider } from '@main/core/conversations/tui-conversation-provider';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
@@ -46,6 +47,7 @@ export function createWorkspaceFactory(
     const configPath = path.join(workDir, '.emdash.json');
     const workspace: Workspace = {
       id: workspaceId,
+      host: LOCAL_HOST_REF,
       path: workDir,
       configPath,
       files,

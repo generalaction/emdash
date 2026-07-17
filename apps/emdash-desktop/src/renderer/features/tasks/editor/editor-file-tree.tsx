@@ -1,4 +1,5 @@
 import { MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
+import { detectPlatform } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -51,6 +52,13 @@ import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
+const PLATFORM = detectPlatform();
+const REVEAL_LABEL =
+  PLATFORM === 'mac'
+    ? 'Show in Finder'
+    : PLATFORM === 'windows'
+      ? 'Show in File Explorer'
+      : 'Show in File Manager';
 
 type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
 
@@ -330,6 +338,28 @@ const FileTreeRow = observer(function FileTreeRow({
     }
   };
 
+  const revealInFileManager = async () => {
+    try {
+      const result = await rpc.app.showWorkspaceItemInFolder({
+        workspaceId,
+        relativePath: relNodePath,
+      });
+      if (!result.success) {
+        toast({
+          title: 'Show failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Show failed',
+        description: error instanceof Error ? error.message : 'The item could not be shown.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const closeDeletedFileTabs = () => {
     for (const { pane } of taskView.paneLayout.groups) {
       for (const tab of pane.resolvedTabs) {
@@ -520,6 +550,12 @@ const FileTreeRow = observer(function FileTreeRow({
           <Copy className="size-4" />
           Copy relative path
         </ContextMenuItem>
+        {!workspace.sshConnectionId && (
+          <ContextMenuItem onClick={() => void revealInFileManager()}>
+            <FolderOpen className="size-4" />
+            {REVEAL_LABEL}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={confirmDelete}>
           <Trash2 className="size-4" />

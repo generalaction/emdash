@@ -1,3 +1,4 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { describe, expect, it, vi } from 'vitest';
 import type { Workspace } from './workspace';
 import { WorkspaceRegistry } from './workspace-registry';
@@ -11,6 +12,7 @@ function makeWorkspace(id: string): {
   return {
     workspace: {
       id,
+      host: LOCAL_HOST_REF,
       path: `/tmp/${id}`,
       configPath: `/tmp/${id}/.emdash.json`,
       files: {} as Workspace['files'],

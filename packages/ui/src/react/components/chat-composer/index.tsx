@@ -1,14 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import {
-  ArrowUp,
-  ChevronRight,
-  CircleAlert,
-  Paperclip,
-  Plug,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, Plug, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';

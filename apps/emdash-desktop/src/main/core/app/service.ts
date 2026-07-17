@@ -2,9 +2,14 @@ import { exec } from 'node:child_process';
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import { parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/host/events';
@@ -16,6 +21,7 @@ import {
 import { getMainWindow } from '@main/host/window';
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
+import { nativePathFromHost } from '@shared/core/runtime/paths';
 import {
   appPasteChannel,
   appRedoChannel,
@@ -82,6 +88,20 @@ type RemoteTerminalLaunchAttempt = {
   file: string;
   args: string[];
 };
+
+type ShowWorkspaceItemInFolderError =
+  | FsError
+  | {
+      type: 'not_found';
+      entity: 'workspace';
+      workspaceId: string;
+      message: string;
+    }
+  | {
+      type: 'unsupported_host';
+      host: HostRef;
+      message: string;
+    };
 
 class AppService implements Disposable {
   private cachedAppVersion: string | null = null;
@@ -221,6 +241,48 @@ class AppService implements Disposable {
     const realPath = await resolveHomeJailedPath(rawPath);
     const errorMessage = await shell.openPath(realPath);
     if (errorMessage) throw new Error(errorMessage);
+  }
+
+  async showWorkspaceItemInFolder(args: {
+    workspaceId: string;
+    relativePath: string;
+  }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
+    const workspace = workspaceRegistry.get(args.workspaceId);
+    if (!workspace) {
+      return err({
+        type: 'not_found',
+        entity: 'workspace',
+        workspaceId: args.workspaceId,
+        message: `Workspace not found: ${args.workspaceId}`,
+      });
+    }
+    if (workspace.host.type !== 'local') {
+      return err({
+        type: 'unsupported_host',
+        host: workspace.host,
+        message: 'Show in file manager is only available for local workspaces',
+      });
+    }
+
+    const relativePath = parsePortableRelativePath(args.relativePath, {
+      unicodeNormalization: 'preserve',
+    });
+    if (!relativePath.success) {
+      return err({
+        type: 'invalid-path',
+        path: args.relativePath,
+        message: relativePath.error.message,
+      });
+    }
+
+    const resolved = await workspace.files.client.fs.realPath({
+      root: workspace.files.root,
+      relative: relativePath.data,
+    });
+    if (!resolved.success) return resolved;
+
+    shell.showItemInFolder(nativePathFromHost(resolved.data));
+    return ok();
   }
 
   /**

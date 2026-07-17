@@ -1,10 +1,15 @@
+import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { hostPathFromNative } from '@shared/core/runtime/paths';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   getVersion: vi.fn(() => '1.1.27'),
   openExternal: vi.fn(),
   openPath: vi.fn(),
+  showItemInFolder: vi.fn(),
+  workspaceGet: vi.fn(),
+  filesRealPath: vi.fn(),
   menuPopup: vi.fn(),
   menuBuildFromTemplate: vi.fn((template: Electron.MenuItemConstructorOptions[]) => ({
     popup: mocks.menuPopup,
@@ -33,6 +38,7 @@ vi.mock('electron', () => ({
   shell: {
     openExternal: mocks.openExternal,
     openPath: mocks.openPath,
+    showItemInFolder: mocks.showItemInFolder,
   },
   Menu: {
     buildFromTemplate: mocks.menuBuildFromTemplate,
@@ -41,6 +47,12 @@ vi.mock('electron', () => ({
 
 vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(),
+}));
+
+vi.mock('@main/core/workspaces/workspace-registry', () => ({
+  workspaceRegistry: {
+    get: mocks.workspaceGet,
+  },
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -113,6 +125,146 @@ describe('AppService.openIn', () => {
     );
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppService.showWorkspaceItemInFolder', () => {
+  const workspaceRoot = hostPathFromNative('/workspace');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.workspaceGet.mockReturnValue({
+      host: LOCAL_HOST_REF,
+      files: {
+        root: workspaceRoot,
+        client: { fs: { realPath: mocks.filesRealPath } },
+      },
+    });
+  });
+
+  it('resolves and reveals a path through the workspace files runtime', async () => {
+    const resolvedPath = hostPathFromNative('/workspace/reports/summary.md');
+    mocks.filesRealPath.mockResolvedValue({ success: true, data: resolvedPath });
+
+    const result = await appService.showWorkspaceItemInFolder({
+      workspaceId: 'workspace-1',
+      relativePath: 'reports/summary.md',
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(mocks.workspaceGet).toHaveBeenCalledWith('workspace-1');
+    expect(mocks.filesRealPath).toHaveBeenCalledWith({
+      root: workspaceRoot,
+      relative: 'reports/summary.md',
+    });
+    expect(mocks.showItemInFolder).toHaveBeenCalledWith('/workspace/reports/summary.md');
+  });
+
+  it('returns a typed error for paths that are not relative to the workspace', async () => {
+    const result = await appService.showWorkspaceItemInFolder({
+      workspaceId: 'workspace-1',
+      relativePath: '/etc/passwd',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'invalid-path',
+        path: '/etc/passwd',
+        message: 'Path must be relative',
+      },
+    });
+    expect(mocks.filesRealPath).not.toHaveBeenCalled();
+    expect(mocks.showItemInFolder).not.toHaveBeenCalled();
+  });
+
+  it('does not reveal paths rejected by the workspace files runtime', async () => {
+    mocks.filesRealPath.mockResolvedValue({
+      success: false,
+      error: {
+        type: 'invalid-path',
+        path: 'outside-link',
+        message: 'Path resolves outside the workspace root',
+      },
+    });
+
+    const result = await appService.showWorkspaceItemInFolder({
+      workspaceId: 'workspace-1',
+      relativePath: 'outside-link',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'invalid-path',
+        path: 'outside-link',
+        message: 'Path resolves outside the workspace root',
+      },
+    });
+    expect(mocks.showItemInFolder).not.toHaveBeenCalled();
+  });
+
+  it('returns a typed error when the workspace is unavailable', async () => {
+    mocks.workspaceGet.mockReturnValue(undefined);
+
+    const result = await appService.showWorkspaceItemInFolder({
+      workspaceId: 'missing-workspace',
+      relativePath: 'reports/summary.md',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'not_found',
+        entity: 'workspace',
+        workspaceId: 'missing-workspace',
+        message: 'Workspace not found: missing-workspace',
+      },
+    });
+    expect(mocks.filesRealPath).not.toHaveBeenCalled();
+    expect(mocks.showItemInFolder).not.toHaveBeenCalled();
+  });
+
+  it('returns a typed error without resolving paths for a remote workspace', async () => {
+    const remoteHost = hostRef('remote', 'ssh-connection-1');
+    mocks.workspaceGet.mockReturnValue({
+      host: remoteHost,
+      files: {
+        root: workspaceRoot,
+        client: { fs: { realPath: mocks.filesRealPath } },
+      },
+    });
+
+    const result = await appService.showWorkspaceItemInFolder({
+      workspaceId: 'remote-workspace',
+      relativePath: 'reports/summary.md',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'unsupported_host',
+        host: remoteHost,
+        message: 'Show in file manager is only available for local workspaces',
+      },
+    });
+    expect(mocks.filesRealPath).not.toHaveBeenCalled();
+    expect(mocks.showItemInFolder).not.toHaveBeenCalled();
+  });
+
+  it('throws unexpected Electron shell failures', async () => {
+    const resolvedPath = hostPathFromNative('/workspace/reports/summary.md');
+    mocks.filesRealPath.mockResolvedValue({ success: true, data: resolvedPath });
+    mocks.showItemInFolder.mockImplementationOnce(() => {
+      throw new Error('Electron shell unavailable');
+    });
+
+    await expect(
+      appService.showWorkspaceItemInFolder({
+        workspaceId: 'workspace-1',
+        relativePath: 'reports/summary.md',
+      })
+    ).rejects.toThrow('Electron shell unavailable');
   });
 });
 

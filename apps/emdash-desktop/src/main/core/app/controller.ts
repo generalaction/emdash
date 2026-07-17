@@ -62,6 +62,8 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  showWorkspaceItemInFolder: (args: { workspaceId: string; relativePath: string }) =>
+    appService.showWorkspaceItemInFolder(args),
   readUserFile: async (path: string) => {
     try {
       const result = await appService.readUserFile(path);
