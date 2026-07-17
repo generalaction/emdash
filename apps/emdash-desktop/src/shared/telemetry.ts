@@ -1,9 +1,9 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { PullRequestMergeStrategy } from '@root/src/core/services/pull-requests/api';
 import type {
   AutomationRunStatus,
   AutomationRunTriggerKind,
 } from '@shared/core/automations/automation-run';
-import type { PullRequestMergeStrategy } from '@shared/core/pull-requests/pull-requests';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type { OpenInAppId } from '@shared/openInApps';
 

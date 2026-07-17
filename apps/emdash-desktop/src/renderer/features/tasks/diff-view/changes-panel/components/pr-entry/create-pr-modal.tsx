@@ -7,8 +7,8 @@ import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-reg
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
-import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -25,7 +25,7 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
-import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
+import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { formatPushErrorDetail } from '../../../../utils';
 import { resolveInitialBaseBranch } from './base-branch';
@@ -125,7 +125,8 @@ export const CreatePrModal = observer(function CreatePrModal({
           ? `${headRepository.owner}:${branchName}`
           : branchName;
 
-      const result = await rpc.pullRequests.createPullRequest(projectId, {
+      const client = await getPullRequestsRuntimeClient();
+      const result = await client.createPullRequest({
         repositoryUrl: targetRepositoryUrl,
         headRepositoryUrl: headRepository?.repositoryUrl,
         head,
@@ -136,6 +137,10 @@ export const CreatePrModal = observer(function CreatePrModal({
       });
 
       if (result.success) {
+        await client.syncSingle({
+          repositoryUrl: targetRepositoryUrl,
+          number: result.data.number,
+        });
         onSuccess();
       } else {
         setError(pullRequestErrorMessage(result.error));

@@ -5,7 +5,6 @@ import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { GitRepositoryStore } from './git-repository-store';
-import { PrSyncStore } from './pr-sync-store';
 import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';
 
@@ -28,7 +27,6 @@ export class MountedProject {
   readonly view: ProjectViewStore;
   readonly settings: ProjectSettingsStore;
   readonly gitRepository: GitRepositoryStore;
-  readonly prSync: PrSyncStore;
   readonly data: LocalProject | SshProject;
 
   private _snapshotDisposer: (() => void) | null = null;
@@ -49,7 +47,6 @@ export class MountedProject {
     );
     this.gitRepository = new GitRepositoryStore(data.id, data.path, this.settings, data.baseRef);
     this.gitRepository.start();
-    this.prSync = new PrSyncStore(data.id);
     this.taskManager = new TaskManagerStore(data.id, this.gitRepository, this.settings);
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
@@ -59,7 +56,6 @@ export class MountedProject {
       view: false,
       settings: false,
       gitRepository: false,
-      prSync: false,
     });
 
     this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
@@ -67,7 +63,6 @@ export class MountedProject {
 
   dispose(): void {
     this.gitRepository.dispose();
-    this.prSync.dispose();
     this.settings.dispose();
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;

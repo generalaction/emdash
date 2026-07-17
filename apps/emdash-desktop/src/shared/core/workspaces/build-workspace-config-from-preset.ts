@@ -1,4 +1,4 @@
-import { getPrNumber, isForkPr } from '@shared/core/pull-requests/pull-requests';
+import { getPrNumber, isForkPr } from '@root/src/core/services/pull-requests/api';
 import type { WorkspaceConfig } from './workspace-config';
 import type { PresetContext, PresetOverrides, WorkspacePresetId } from './workspace-presets';
 

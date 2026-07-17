@@ -1,9 +1,8 @@
-import type { FetchNextPageOptions, InfiniteQueryObserverResult } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {
@@ -13,7 +12,7 @@ interface PrVirtualListProps {
   error: string | null;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
-  fetchNextPage: (options?: FetchNextPageOptions) => Promise<InfiniteQueryObserverResult>;
+  fetchNextPage: () => Promise<void>;
 }
 
 export function PrVirtualList({

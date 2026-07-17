@@ -1,6 +1,7 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
+import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -13,11 +14,12 @@ import {
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { getTasksWireClient } from '@renderer/lib/runtime/tasks-wire-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   taskCreatedChannel,
   taskDeletedChannel,
@@ -132,8 +134,9 @@ export class TaskManagerStore {
 
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubTaskDeleted: (() => void) | null = null;
-  private _unsubPrUpdated: (() => void) | null = null;
-  private _unsubPrSyncProgress: (() => void) | null = null;
+  private _prSyncModel: OptimisticLiveModel<typeof pullRequestsContract.syncState> | null = null;
+  private _disposePrSyncReaction: (() => void) | null = null;
+  private _prSyncGeneration = 0;
   private _disposeGitHeadReaction: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
@@ -188,39 +191,6 @@ export class TaskManagerStore {
       }
     );
 
-    this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
-      const repoUrl = this._repository.pullRequestRepositoryUrl;
-      if (!repoUrl) return;
-      for (const pr of prs) {
-        if (pr.repositoryUrl !== repoUrl) continue;
-        for (const [, store] of this.tasks) {
-          if (!isRegistered(store)) continue;
-          const task = store.data as Task;
-          const branchName = getTaskGitCheckoutStore(task.projectId, task.id)?.branchName;
-          if (branchName !== pr.headRefName) continue;
-          runInAction(() => {
-            const idx = task.prs.findIndex((p) => p.url === pr.url);
-            if (idx >= 0) {
-              task.prs.splice(idx, 1, pr);
-            } else {
-              task.prs.push(pr);
-            }
-          });
-        }
-      }
-    });
-
-    this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
-      if (progress.status !== 'done') return;
-      const repoUrl = this._repository.pullRequestRepositoryUrl;
-      if (!repoUrl || progress.remoteUrl !== repoUrl) return;
-      for (const [, store] of this.tasks) {
-        if (isRegistered(store)) {
-          void this._reloadPrsForTask(store);
-        }
-      }
-    });
-
     this._disposeGitHeadReaction = reaction(
       () =>
         [...this.tasks.values()].filter(isRegistered).map((store) => {
@@ -236,26 +206,86 @@ export class TaskManagerStore {
 
     this._disposeRepositoryReaction = reaction(
       () => this._repository.pullRequestRepositoryUrl,
-      () => {
+      (repositoryUrl) => {
+        void this._watchPullRequestSync(repositoryUrl);
         for (const [, store] of this.tasks) {
           if (isRegistered(store)) {
             void this._reloadPrsForTask(store);
           }
         }
-      }
+      },
+      { fireImmediately: true }
     );
   }
 
   private async _reloadPrsForTask(store: TaskStore): Promise<void> {
     if (!isRegistered(store)) return;
-    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
+    const repositoryUrl = this._repository.pullRequestRepositoryUrl;
+    const branch = getTaskGitCheckoutStore(this.projectId, store.data.id)?.branchName;
+    if (!repositoryUrl || !branch) return;
+    const client = await getPullRequestsRuntimeClient();
+    const result = await client.getPullRequestsForBranch({ repositoryUrl, branch });
     if (!result.success) return;
+    if (
+      this._repository.pullRequestRepositoryUrl !== repositoryUrl ||
+      getTaskGitCheckoutStore(this.projectId, store.data.id)?.branchName !== branch
+    ) {
+      return;
+    }
     const prs = result.data.prs;
     runInAction(() => {
       if (isRegistered(store)) {
         (store.data as Task).prs = prs;
       }
     });
+  }
+
+  private async _watchPullRequestSync(repositoryUrl: string | null): Promise<void> {
+    const generation = ++this._prSyncGeneration;
+    this._disposePrSyncReaction?.();
+    this._disposePrSyncReaction = null;
+    if (this._prSyncModel) {
+      void this._prSyncModel.dispose();
+      this._prSyncModel = null;
+    }
+    if (!repositoryUrl) return;
+
+    const client = await getPullRequestsRuntimeClient();
+    if (generation !== this._prSyncGeneration) return;
+    const replica = createLiveModelReplica(pullRequestsContract.syncState, client.syncState);
+    const model = new OptimisticLiveModel(
+      pullRequestsContract.syncState,
+      { repositoryUrl },
+      replica
+    );
+    this._prSyncModel = model;
+    let previousLastSyncedAt: number | undefined;
+    this._disposePrSyncReaction = reaction(
+      () => model.values.state,
+      (state) => {
+        if (
+          state?.phase !== 'idle' ||
+          state.lastSyncedAt === undefined ||
+          state.lastSyncedAt === previousLastSyncedAt
+        ) {
+          return;
+        }
+        previousLastSyncedAt = state.lastSyncedAt;
+        for (const taskStore of this.tasks.values()) {
+          if (isRegistered(taskStore)) void this._reloadPrsForTask(taskStore);
+        }
+      }
+    );
+    try {
+      await model.ready;
+    } catch {
+      if (this._prSyncModel === model) {
+        this._disposePrSyncReaction?.();
+        this._disposePrSyncReaction = null;
+        this._prSyncModel = null;
+      }
+      await model.dispose();
+    }
   }
 
   private _releaseTaskRegistries(taskId: string): void {
@@ -793,10 +823,13 @@ export class TaskManagerStore {
     this._unsubTaskCreated = null;
     this._unsubTaskDeleted?.();
     this._unsubTaskDeleted = null;
-    this._unsubPrUpdated?.();
-    this._unsubPrUpdated = null;
-    this._unsubPrSyncProgress?.();
-    this._unsubPrSyncProgress = null;
+    this._prSyncGeneration++;
+    this._disposePrSyncReaction?.();
+    this._disposePrSyncReaction = null;
+    if (this._prSyncModel) {
+      void this._prSyncModel.dispose();
+      this._prSyncModel = null;
+    }
     this._disposeGitHeadReaction?.();
     this._disposeGitHeadReaction = null;
     this._unsubStatusUpdated?.();

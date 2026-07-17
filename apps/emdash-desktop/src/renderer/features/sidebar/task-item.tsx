@@ -16,7 +16,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
-import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
+import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { useAppSettingsKey } from '../settings/use-app-settings-key';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';

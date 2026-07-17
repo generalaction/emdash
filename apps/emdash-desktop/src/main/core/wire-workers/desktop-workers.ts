@@ -42,7 +42,10 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { desktopWorkerPath } from '@main/worker-manifest';
+import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
+import { pullRequestsComponent } from '@root/src/core/services/pull-requests/node';
 import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
+import { pullRequestsGitHubAuthController } from './pull-requests-auth';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -50,6 +53,7 @@ export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 
@@ -138,6 +142,9 @@ let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 let gitWorker: WireWorker<GitContract> | undefined;
 let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 
+let pullRequestsWorker: WireWorker<PullRequestsContract> | undefined;
+let pullRequestsClientPromise: Promise<PullRequestsRuntimeClient> | undefined;
+
 let terminalsWorker: WireWorker<TerminalsContract> | undefined;
 let terminalsClientPromise: Promise<TerminalsRuntimeClient> | undefined;
 
@@ -183,6 +190,11 @@ export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
 export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
   gitClientPromise ??= createGitRuntimeClient();
   return gitClientPromise;
+}
+
+export function getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {
+  pullRequestsClientPromise ??= createPullRequestsRuntimeClient();
+  return pullRequestsClientPromise;
 }
 
 export function getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
@@ -245,6 +257,22 @@ async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
     },
   });
   return await gitWorker.ready();
+}
+
+async function createPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {
+  pullRequestsWorker ??= host.create(pullRequestsComponent, {
+    name: 'pull-requests',
+    executable: desktopWorkerPath('pull-requests'),
+    env: process.env,
+    dependencies: {
+      githubAuth: pullRequestsGitHubAuthController,
+    },
+    config: {
+      databasePath: join(app.getPath('userData'), 'pull-requests.db'),
+      incrementalIntervalMs: 5 * 60_000,
+    },
+  });
+  return await pullRequestsWorker.ready();
 }
 
 async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {

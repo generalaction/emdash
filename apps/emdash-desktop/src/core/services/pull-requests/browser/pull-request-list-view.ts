@@ -1,5 +1,6 @@
 import { createListView } from '@emdash/ui/react/patterns';
 import type { ContractClient } from '@emdash/wire/api';
+import { toJS } from 'mobx';
 import { pullRequestErrorMessage } from '../api';
 import type {
   PullRequest,
@@ -68,7 +69,7 @@ export function createPullRequestListView(options: {
 
   getQueryState = () => ({
     searchQuery: view.store.search?.activeQuery ?? '',
-    filters: (view.store.filter?.model ?? {}) as PullRequestFilters,
+    filters: toJS(view.store.filter?.model ?? {}) as PullRequestFilters,
     sort: (view.store.sort?.key ?? 'newest') as PullRequestSort,
   });
 

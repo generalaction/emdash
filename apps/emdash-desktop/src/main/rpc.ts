@@ -12,7 +12,6 @@ import { issueController } from './core/issues/controller';
 import { previewServersController } from './core/preview-servers/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
-import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
 import { searchController } from './core/search/controller';
 import { appSettingsController } from './core/settings/controller';
@@ -47,7 +46,6 @@ export const rpcRouter = createRPCRouter({
   tasks: taskController,
   conversations: conversationController,
   telemetry: telemetryController,
-  pullRequests: pullRequestController,
   viewState: viewStateController,
   search: searchController,
   projectWorkspaces: projectWorkspacesController,

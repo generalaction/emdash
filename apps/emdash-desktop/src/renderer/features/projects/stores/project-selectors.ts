@@ -1,7 +1,6 @@
 import { appState } from '@renderer/lib/stores/app-state';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { GitRepositoryStore } from './git-repository-store';
-import type { PrSyncStore } from './pr-sync-store';
 import {
   isUnmountedProject,
   isUnregisteredProject,
@@ -96,11 +95,6 @@ export function getGitRepositoryStore(projectId: string): GitRepositoryStore | u
 /** Returns the ProjectSettingsStore for a mounted project, or undefined if not ready. */
 export function getProjectSettingsStore(projectId: string): ProjectSettingsStore | undefined {
   return asMounted(getProjectStore(projectId))?.settings;
-}
-
-/** Returns the PrSyncStore for a mounted project, or undefined if not ready. */
-export function getPrSyncStore(projectId: string): PrSyncStore | undefined {
-  return asMounted(getProjectStore(projectId))?.prSync;
 }
 
 /** Returns the ProjectViewStore for a mounted project, or undefined if not ready. */

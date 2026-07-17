@@ -49,8 +49,8 @@ function configureConnection(connection: SqliteConnection, busyTimeoutMs: number
 function openStoreConnection<TDb, TNative, TSchemaResult>(
   config: CommonStoreConfig<TDb, TNative>,
   path: string,
-  ensureSchema: (connection: SqliteConnection, logger: Logger) => TSchemaResult,
-  afterReady: (connection: SqliteConnection, schemaResult: TSchemaResult) => void,
+  ensureSchema: (connection: SqliteConnection<TNative>, logger: Logger) => TSchemaResult,
+  afterReady: (connection: SqliteConnection<TNative>, schemaResult: TSchemaResult) => void,
   onClosed: () => void,
   options: OpenOptions = {}
 ): StoreHandle<TDb, TNative> {

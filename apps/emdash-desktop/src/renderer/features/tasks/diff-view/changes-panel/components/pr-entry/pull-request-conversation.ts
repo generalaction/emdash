@@ -1,4 +1,4 @@
-import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 
 export type PullRequestDescriptionItem = {
   id: string;

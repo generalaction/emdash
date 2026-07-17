@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import {
   getPrNumber,
   pullRequestErrorMessage,
   type PullRequest,
-} from '@shared/core/pull-requests/pull-requests';
+} from '@root/src/core/services/pull-requests/api';
 
 export function usePullRequestComments(projectId: string, pr: PullRequest) {
   const prNumber = getPrNumber(pr);
@@ -14,11 +14,11 @@ export function usePullRequestComments(projectId: string, pr: PullRequest) {
     queryFn: async () => {
       if (prNumber === null) return [];
 
-      const response = await rpc.pullRequests.getPullRequestComments(
-        projectId,
-        pr.repositoryUrl,
-        prNumber
-      );
+      const client = await getPullRequestsRuntimeClient();
+      const response = await client.getPullRequestComments({
+        repositoryUrl: pr.repositoryUrl,
+        number: prNumber,
+      });
       if (!response.success) {
         throw new Error(pullRequestErrorMessage(response.error));
       }

@@ -1,5 +1,5 @@
 import type { TaskRow } from '@main/db/schema';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import type { Task, TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export function mapTaskRowToTask(

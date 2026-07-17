@@ -11,7 +11,6 @@ import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
-import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
@@ -22,7 +21,6 @@ import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
-  wirePrCacheInvalidation();
   wireExternalLinkRequests();
 
   appState.update.start();

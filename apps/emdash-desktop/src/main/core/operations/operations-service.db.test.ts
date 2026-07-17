@@ -73,8 +73,8 @@ vi.mock('@main/core/projects/project-events', () => ({
   projectEvents: { _emit: mocks.emitProjectEvent },
 }));
 
-vi.mock('@main/core/pull-requests/pr-sync-engine', () => ({
-  prSyncEngine: { deleteProjectData: mocks.deleteProjectData },
+vi.mock('@main/core/wire-workers/pull-requests-registration', () => ({
+  pullRequestsRegistration: { deleteProjectData: mocks.deleteProjectData },
 }));
 
 vi.mock('@main/core/view-state/view-state-service', () => ({

@@ -1,31 +1,25 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
-import { makeAutoObservable, reaction } from 'mobx';
+import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
-import { rpc } from '@renderer/lib/ipc';
 import { checkoutSelector } from '@renderer/lib/runtime/git';
 import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { commitRef, mergeBaseRange } from '@shared/core/git/utils';
 import {
+  getPrNumber,
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
   type PullRequestMergeOptions,
-} from '@shared/core/pull-requests/pull-requests';
+} from '@root/src/core/services/pull-requests/api';
+import { commitRef, mergeBaseRange } from '@shared/core/git/utils';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { GitCheckoutStore } from './git-checkout-store';
 import { isRegistered, type TaskStore } from './task-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };
-
-/** Extract the numeric PR number from the identifier field (e.g. "#123" → 123). */
-function prNumberFromIdentifier(identifier: string | null): number | null {
-  if (!identifier) return null;
-  const n = Number.parseInt(identifier.replace('#', ''), 10);
-  return Number.isNaN(n) ? null : n;
-}
 
 export class PrStore {
   private readonly _prFiles = new Map<
@@ -107,16 +101,17 @@ export class PrStore {
       return { success: false, error: 'Pull request not found' };
     }
 
-    const prNumber = prNumberFromIdentifier(pr.identifier);
+    const prNumber = getPrNumber(pr);
     if (!prNumber) return { success: false, error: 'Could not determine PR number' };
 
-    const result = await rpc.pullRequests.mergePullRequest(
-      this.projectId,
-      pr.repositoryUrl,
-      prNumber,
-      options
-    );
+    const client = await getPullRequestsRuntimeClient();
+    const result = await client.mergePullRequest({
+      repositoryUrl: pr.repositoryUrl,
+      number: prNumber,
+      options,
+    });
     if (result.success) {
+      await this._refreshPr(pr, client);
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
         bypass_requirements: options.bypassRequirements ?? false,
@@ -141,27 +136,35 @@ export class PrStore {
   async markReadyForReview(id: string): Promise<void> {
     const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) return;
-    const prNumber = prNumberFromIdentifier(pr.identifier);
+    const prNumber = getPrNumber(pr);
     if (!prNumber) return;
-    await rpc.pullRequests.markReadyForReview(this.projectId, pr.repositoryUrl, prNumber);
+    const client = await getPullRequestsRuntimeClient();
+    const result = await client.markReadyForReview({
+      repositoryUrl: pr.repositoryUrl,
+      number: prNumber,
+    });
+    if (result.success) await this._refreshPr(pr, client);
   }
 
-  /**
-   * Trigger a single PR refresh from GitHub. The updated PR will arrive via
-   * `prUpdatedChannel` and be merged into `task.data.prs` by `TaskManagerStore`.
-   */
+  /** Refresh the pull request and its check runs from GitHub. */
   refresh(id: string): void {
     const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) return;
 
-    const prNumber = prNumberFromIdentifier(pr.identifier);
+    const prNumber = getPrNumber(pr);
     if (prNumber) {
-      void rpc.pullRequests.refreshPullRequest(this.projectId, pr.repositoryUrl, prNumber);
+      void getPullRequestsRuntimeClient()
+        .then(async (client) => {
+          await this._refreshPr(pr, client);
+          await client.syncChecks({
+            repositoryUrl: pr.repositoryUrl,
+            pullRequestUrl: pr.url,
+            headRefOid: pr.headRefOid,
+          });
+          await this._refreshPr(pr, client);
+        })
+        .catch(() => {});
     }
-
-    // Also trigger a check-run sync — the result arrives embedded in the
-    // next prUpdatedChannel event emitted by syncChecks.
-    void rpc.pullRequests.syncChecks(this.projectId, pr.url, pr.headRefOid);
   }
 
   dispose(): void {
@@ -197,7 +200,7 @@ export class PrStore {
     if (first) return first;
 
     await this.gitRepositoryStore.fetchRemote();
-    const prNumber = prNumberFromIdentifier(pr.identifier);
+    const prNumber = getPrNumber(pr);
     if (prNumber) {
       await this.gitRepositoryStore.fetchPrForReview({
         prNumber,
@@ -211,5 +214,25 @@ export class PrStore {
 
     const retry = await tryRange();
     return retry ?? [];
+  }
+
+  private async _refreshPr(
+    pullRequest: PullRequest,
+    client: Awaited<ReturnType<typeof getPullRequestsRuntimeClient>>
+  ): Promise<void> {
+    const number = getPrNumber(pullRequest);
+    if (!number) return;
+    const result = await client.syncSingle({
+      repositoryUrl: pullRequest.repositoryUrl,
+      number,
+    });
+    if (!result.success || !isRegistered(this.taskStore)) return;
+    runInAction(() => {
+      if (!isRegistered(this.taskStore)) return;
+      const task = this.taskStore.data as Task;
+      const index = task.prs.findIndex((candidate) => candidate.url === result.data.pr.url);
+      if (index >= 0) task.prs.splice(index, 1, result.data.pr);
+      else task.prs.push(result.data.pr);
+    });
   }
 }

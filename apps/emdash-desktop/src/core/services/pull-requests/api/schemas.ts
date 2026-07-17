@@ -192,6 +192,7 @@ export const syncStateKeySchema = repositoryInputSchema;
 export type PullRequestStatus = z.infer<typeof pullRequestStatusSchema>;
 export type MergeableState = z.infer<typeof mergeableStateSchema>;
 export type MergeStateStatus = z.infer<typeof mergeStateStatusSchema>;
+export type PullRequestMergeStrategy = z.infer<typeof pullRequestMergeStrategySchema>;
 export type PullRequestMergeOptions = z.infer<typeof pullRequestMergeOptionsSchema>;
 export type PullRequestUser = z.infer<typeof pullRequestUserSchema>;
 export type PullRequestLabel = z.infer<typeof pullRequestLabelSchema>;

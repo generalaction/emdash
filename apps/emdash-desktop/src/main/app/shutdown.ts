@@ -4,9 +4,9 @@ import { agentStatusService } from '@main/core/agent-status/agent-status-service
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { automationsService } from '@main/core/automations/automations-service';
 import { operationsService } from '@main/core/operations/operations-service';
-import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { updateService } from '@main/core/updates/update-service';
 import { disposeDesktopWireWorkers } from '@main/core/wire-workers/desktop-workers';
+import { pullRequestsRegistration } from '@main/core/wire-workers/pull-requests-registration';
 import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -45,7 +45,7 @@ export async function runQuitCleanup(): Promise<void> {
   automationsService.stop();
   updateService.dispose();
   disposeNotificationService();
-  prSyncScheduler.dispose();
+  pullRequestsRegistration.dispose();
 
   // critical phase
   const criticalSteps: Array<[string, () => Promise<void>]> = [

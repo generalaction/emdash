@@ -1,15 +1,15 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
+import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { getTaskGitCheckoutStore } from '../../stores/task-selectors';
 import {
   useTaskViewContext,
@@ -60,12 +60,10 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount;
   const showCreatePrModal = useShowModal('createPrModal');
   const { toast } = useToast();
-  const prSyncStore = getPrSyncStore(projectId);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
-  const isRefreshing = repositoryUrl ? (prSyncStore?.isSyncing(repositoryUrl) ?? false) : false;
-  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
-  const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
 
   const onCreatePr =
     taskBranch && repositoryUrl
@@ -101,12 +99,18 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   ];
 
   const handleRefresh = async () => {
+    if (!repositoryUrl) return;
+    setIsRefreshing(true);
+    setSyncError(null);
     try {
-      const result = await rpc.pullRequests.syncPullRequests(projectId);
+      const client = await getPullRequestsRuntimeClient();
+      const result = await client.sync({ repositoryUrl });
       if (!result.success) {
+        const message = pullRequestErrorMessage(result.error);
+        setSyncError(message);
         toast({
           title: 'Failed to refresh pull requests',
-          description: pullRequestErrorMessage(result.error),
+          description: message,
           variant: 'destructive',
         });
       }
@@ -116,6 +120,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 

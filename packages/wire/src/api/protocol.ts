@@ -4,6 +4,7 @@ import type { LiveUpdate } from '../live/protocol';
 export type WireErrorCode =
   | 'CANCELLED'
   | 'DISCONNECTED'
+  | 'SERIALIZATION'
   | 'UNKNOWN_PROCEDURE'
   | 'UNKNOWN_TOPIC'
   | 'NOT_FOUND'

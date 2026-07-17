@@ -1,9 +1,10 @@
-import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState, type ReactNode } from 'react';
-import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { Button } from '@renderer/lib/ui/button';
+import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
+import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 
 const KIND_LABELS: Record<string, string> = {
   full: 'Full sync',
@@ -54,32 +55,28 @@ function SyncErrorStatusCard({
 }
 
 interface Props {
-  projectId: string;
   repositoryUrl: string;
   manualError?: string | null;
 }
 
 export const PrSyncStatusCard = observer(function PrSyncStatusCard({
-  projectId,
   repositoryUrl,
   manualError,
 }: Props) {
-  const prSync = getPrSyncStore(projectId);
-  const state = prSync?.getState(repositoryUrl);
+  const store = usePullRequestsStore();
+  const state = store.syncState(repositoryUrl);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (state?.status === 'done') {
+    if (state?.phase === 'idle' && state.lastSyncedAt !== undefined) {
       setShowSuccess(true);
-      const timer = setTimeout(() => {
-        setShowSuccess(false);
-        prSync?.clear(repositoryUrl);
-      }, 1000);
+      const timer = setTimeout(() => setShowSuccess(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [state?.status, prSync, repositoryUrl]);
+  }, [state?.lastSyncedAt, state?.phase]);
 
-  if (manualError && (!state || state.status === 'done')) {
+  if (manualError && (!state || state.phase === 'idle')) {
     return <SyncErrorStatusCard error={manualError} />;
   }
 
@@ -92,11 +89,11 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
     );
   }
 
-  if (!state || state.status === 'done') return null;
+  if (!state || state.phase === 'idle') return null;
 
-  const kindLabel = KIND_LABELS[state.kind] ?? state.kind;
+  const kindLabel = state.kind ? (KIND_LABELS[state.kind] ?? state.kind) : undefined;
 
-  if (state.status === 'running' && state.kind !== 'single') {
+  if (state.phase === 'running' && state.kind !== 'single') {
     const hasProgress = state.total != null && state.total > 0;
     return (
       <SyncStatusCard
@@ -110,7 +107,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
             variant="ghost"
             size="sm"
             className="h-6 shrink-0 px-2 text-xs"
-            onClick={() => prSync?.cancel(repositoryUrl)}
+            onClick={() => store.cancelSync(repositoryUrl)}
           >
             Cancel
           </Button>
@@ -119,44 +116,25 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
     );
   }
 
-  if (state.status === 'cancelled' && state.kind !== 'single') {
-    return (
-      <SyncStatusCard
-        icon={<RotateCcw className="text-muted-foreground size-3.5 shrink-0" />}
-        label={kindLabel}
-        content="Sync cancelled"
-        actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => prSync?.retry()}
-          >
-            Resume
-          </Button>
-        }
-      />
-    );
-  }
-
-  // error state
+  const error = state.error ? pullRequestErrorMessage(state.error) : 'Unknown error';
+  if (dismissedError === error) return null;
   return (
     <SyncErrorStatusCard
-      error={state.error}
+      error={error}
       actions={
         <>
           <Button
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-xs"
-            onClick={() => prSync?.retry()}
+            onClick={() => store.sync(repositoryUrl)}
           >
             Retry
           </Button>
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => prSync?.clear(repositoryUrl)}
+            onClick={() => setDismissedError(error)}
             aria-label="Dismiss"
           >
             <X className="size-3.5" />

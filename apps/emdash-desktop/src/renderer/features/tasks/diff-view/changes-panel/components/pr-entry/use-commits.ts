@@ -2,8 +2,8 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { checkoutSelector } from '@renderer/lib/runtime/git';
 import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { commitRef } from '@shared/core/git/utils';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 const PAGE_SIZE = 50;
 

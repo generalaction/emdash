@@ -4,7 +4,7 @@ import {
   SelectedPrValue,
 } from '@renderer/features/tasks/components/pr-selector/pr-selector';
 import { cn } from '@renderer/utils/utils';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { parseRepositoryRef } from '@shared/repository-ref';
 
 interface PrComboboxFieldProps {

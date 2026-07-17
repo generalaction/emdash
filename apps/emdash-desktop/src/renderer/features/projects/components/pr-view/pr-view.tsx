@@ -28,11 +28,12 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { PrSortField } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequestSort } from '@root/src/core/services/pull-requests/api';
+import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
-const SORT_OPTIONS: { value: PrSortField; label: string }[] = [
+const SORT_OPTIONS: { value: PullRequestSort; label: string }[] = [
   { value: 'newest', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
   { value: 'recently-updated', label: 'Recently Updated' },
@@ -212,6 +213,31 @@ export const PullRequestView = observer(function PullRequestView() {
   const repositoryStore = getGitRepositoryStore(projectId);
   const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
 
+  if (!repositoryUrl) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <p className="text-muted-foreground py-4 text-center text-sm">
+          Pull requests are currently available only for configured GitHub remotes. You can change
+          the remote in the project settings.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <ProjectPullRequestsProvider repositoryUrls={[repositoryUrl]}>
+      <PullRequestViewContent projectId={projectId} repositoryUrl={repositoryUrl} />
+    </ProjectPullRequestsProvider>
+  );
+});
+
+const PullRequestViewContent = observer(function PullRequestViewContent({
+  projectId,
+  repositoryUrl,
+}: {
+  projectId: string;
+  repositoryUrl: string;
+}) {
   const {
     statusFilter,
     sortFilter,
@@ -242,18 +268,7 @@ export const PullRequestView = observer(function PullRequestView() {
     selectedAssigneeItem,
     selectedLabelItems,
     hasPills,
-  } = usePrViewState(projectId, repositoryUrl);
-
-  if (!repositoryUrl) {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <p className="text-muted-foreground py-4 text-center text-sm">
-          Pull requests are currently available only for configured GitHub remotes. You can change
-          the remote in the project settings.
-        </p>
-      </div>
-    );
-  }
+  } = usePrViewState(repositoryUrl);
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
@@ -380,11 +395,7 @@ export const PullRequestView = observer(function PullRequestView() {
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
       />
-      <PrSyncStatusCard
-        projectId={projectId}
-        repositoryUrl={repositoryUrl}
-        manualError={prs.length > 0 ? error : null}
-      />
+      <PrSyncStatusCard repositoryUrl={repositoryUrl} manualError={prs.length > 0 ? error : null} />
     </div>
   );
 });

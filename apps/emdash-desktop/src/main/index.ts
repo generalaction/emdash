@@ -33,7 +33,6 @@ import { operationsService } from './core/operations/operations-service';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
-import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { taskService } from './core/tasks/task-service';
@@ -48,6 +47,7 @@ import {
   ensureGitWorkerReady,
   ensureTuiAgentsWorkerReady,
 } from './core/wire-workers/desktop-workers';
+import { pullRequestsRegistration } from './core/wire-workers/pull-requests-registration';
 import { provisionWorkspaceErrorToWorkspaceError } from './core/workspaces/wire-controller';
 import { initializeDatabase } from './db/initialize';
 import { events } from './lib/events';
@@ -153,7 +153,7 @@ void app.whenReady().then(async () => {
   });
 
   projectSettingsService.initialize();
-  prSyncScheduler.initialize();
+  pullRequestsRegistration.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();

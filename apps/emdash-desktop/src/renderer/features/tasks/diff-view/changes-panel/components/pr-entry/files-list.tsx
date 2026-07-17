@@ -8,8 +8,8 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { commitRef, refsEqual } from '@shared/core/git/utils';
-import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { ChangesListOrTree } from '../changes-list-or-tree';
 

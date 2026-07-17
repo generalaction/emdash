@@ -24,6 +24,7 @@ import {
   getAgentConfigRuntimeClient,
   getFilesRuntimeClient,
   getGitRuntimeClient,
+  getPullRequestsRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
 } from '@main/core/wire-workers/desktop-workers';
@@ -33,6 +34,7 @@ import {
 } from '@main/core/workspaces/wire-controller';
 import { notificationService } from '@root/src/core/services/notifications/node';
 import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
+import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { catalogWireContract } from '@shared/core/catalog/wire-contract';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
 import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';
@@ -96,17 +98,19 @@ function createLazyDesktopController({
 
   async function ready(): Promise<void> {
     if (controllers) return;
-    const [acp, agentConfig, files, git, terminals, tuiAgents] = await Promise.all([
+    const [acp, agentConfig, files, git, pullRequests, terminals, tuiAgents] = await Promise.all([
       getAcpRuntimeClient(),
       getAgentConfigRuntimeClient(),
       getFilesRuntimeClient(),
       getGitRuntimeClient(),
+      getPullRequestsRuntimeClient(),
       getTerminalsRuntimeClient(),
       getTuiAgentsRuntimeClient(),
     ]);
     devServerBridge = await createDevServerBridge(terminals);
     controllers = {
       git: forwardController(gitContract, git),
+      pullRequests: forwardController(pullRequestsContract, pullRequests),
       files: forwardController(filesContract, files),
       acp: forwardController(acpApiContract, acp),
       agentConfig: forwardController(agentConfigContract, agentConfig),

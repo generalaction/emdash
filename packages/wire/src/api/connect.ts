@@ -2,6 +2,11 @@ import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
 import {
+  findStructuredCloneFailure,
+  formatStructuredCloneFailure,
+  isStructuredCloneError,
+} from '../util/structured-clone';
+import {
   createBlobConsumer,
   createBlobProducer,
   type BlobConsumer,
@@ -223,12 +228,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       } catch (error) {
         pending.delete(message.id);
         cleanup();
-        reject(
-          new WireError(
-            'DISCONNECTED',
-            error instanceof Error ? error.message : 'Wire transport disconnected'
-          )
-        );
+        reject(createPostError(message, error));
       }
     });
   }
@@ -416,6 +416,25 @@ function toWireError(error: unknown): WireError {
   return new WireError('HANDLER_ERROR', error instanceof Error ? error.message : String(error), {
     cause: error,
   });
+}
+
+function createPostError(message: WireMessage, error: unknown): WireError {
+  if (isStructuredCloneError(error)) {
+    const callContext = message.kind === 'call' ? `Wire call '${message.path}'` : 'Wire message';
+    const inputFailure =
+      message.kind === 'call' ? findStructuredCloneFailure(message.input, 'input') : null;
+    const diagnostic = inputFailure
+      ? `'${inputFailure.path}' ${inputFailure.reason}`
+      : formatStructuredCloneFailure(message, 'message');
+    return new WireError('SERIALIZATION', `${callContext} could not be serialized: ${diagnostic}`, {
+      cause: error,
+    });
+  }
+  return new WireError(
+    'DISCONNECTED',
+    error instanceof Error ? error.message : 'Wire transport disconnected',
+    { cause: error }
+  );
 }
 
 function wireErrorFromSerialized(error: SerializedWireError): WireError {

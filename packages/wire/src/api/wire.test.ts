@@ -37,6 +37,15 @@ function setup() {
   return { pair: wire.pair, connection: wire.connection, model };
 }
 
+function structuredCloneTransport(transport: WireTransport): WireTransport {
+  return {
+    ...transport,
+    post(message) {
+      transport.post(structuredClone(message));
+    },
+  };
+}
+
 describe('wire serve/connect', () => {
   it('calls procedures and propagates errors', async () => {
     const { connection } = setup();
@@ -62,6 +71,45 @@ describe('wire serve/connect', () => {
         message: 'boom',
       },
     });
+  });
+
+  it('reports non-cloneable call inputs as SERIALIZATION errors with a value path', async () => {
+    const pair = memoryTransportPair();
+    const connection = connect(structuredCloneTransport(pair.left));
+    const labelNames = new Proxy(['bug'], {});
+
+    await expect(
+      connection.call('pullRequests.listPullRequests', {
+        filters: { labelNames },
+      })
+    ).rejects.toMatchObject({
+      code: 'SERIALIZATION',
+      message:
+        "Wire call 'pullRequests.listPullRequests' could not be serialized: " +
+        "'input.filters.labelNames' is an Array value that cannot be structured-cloned " +
+        '(it may be Proxy-backed)',
+    });
+  });
+
+  it('reports non-cloneable handler results as SERIALIZATION errors with a value path', async () => {
+    const pair = memoryTransportPair();
+    const output = { filters: { labelNames: new Proxy(['bug'], {}) } };
+    serve(structuredCloneTransport(pair.right), {
+      call: async () => output,
+      resolveLive: () => null,
+      acquireLive: () => null,
+    });
+    const connection = connect(pair.left);
+
+    await expect(connection.call('pullRequests.listPullRequests', undefined)).rejects.toMatchObject(
+      {
+        code: 'SERIALIZATION',
+        message:
+          "Wire response for call 'pullRequests.listPullRequests' could not be serialized: " +
+          "'value.filters.labelNames' is an Array value that cannot be structured-cloned " +
+          '(it may be Proxy-backed)',
+      }
+    );
   });
 
   it('preserves serialized causes on thrown wire errors', async () => {

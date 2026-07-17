@@ -36,7 +36,7 @@ function clearDerivedSchema(connection: SqliteConnection): void {
 }
 
 export function ensureDerivedSchema<TDb, TNative>(
-  connection: SqliteConnection,
+  connection: SqliteConnection<TNative>,
   config: DerivedStoreConfig<TDb, TNative>,
   logger: Logger
 ): void {

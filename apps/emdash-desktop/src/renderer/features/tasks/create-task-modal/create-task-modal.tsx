@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';

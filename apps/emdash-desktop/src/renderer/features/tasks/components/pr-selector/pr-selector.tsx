@@ -4,8 +4,8 @@ import { type ReactNode, useState } from 'react';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -22,7 +22,7 @@ import { cn } from '@renderer/utils/utils';
 import {
   pullRequestErrorMessage,
   type PullRequest,
-} from '@shared/core/pull-requests/pull-requests';
+} from '@root/src/core/services/pull-requests/api';
 
 type StatusFilter = 'open' | 'not-open';
 
@@ -87,21 +87,26 @@ export function PrSelector({
   // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
   const syncQuery = useQuery({
     queryKey: ['pr-sync', projectId],
-    queryFn: () => rpc.pullRequests.syncPullRequests(projectId!),
+    queryFn: async () => {
+      const client = await getPullRequestsRuntimeClient();
+      return await client.sync({ repositoryUrl });
+    },
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 60_000,
   });
 
   const { data: listResult } = useQuery({
     queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, searchQuery],
-    queryFn: () =>
-      rpc.pullRequests.listPullRequests(projectId!, {
+    queryFn: async () => {
+      const client = await getPullRequestsRuntimeClient();
+      return await client.listPullRequests({
+        repositoryUrls: [repositoryUrl],
+        cursor: null,
         limit: 50,
-        offset: 0,
         filters: { status: statusFilter },
         searchQuery: searchQuery || undefined,
-        repositoryUrl,
-      }),
+      });
+    },
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 30_000,
   });

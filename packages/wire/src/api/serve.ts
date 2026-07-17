@@ -1,6 +1,7 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../observability';
+import { formatStructuredCloneFailure, isStructuredCloneError } from '../util/structured-clone';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -23,6 +24,8 @@ type ServerAttachment = {
   disposed: boolean;
 };
 
+type PostAttempt = { ok: true } | { ok: false; error: unknown };
+
 export function serve(
   transport: WireTransport,
   controller: Controller,
@@ -34,16 +37,44 @@ export function serve(
   const blobConsumers = new Map<string, BlobConsumer>();
   const instrumentation = options.instrumentation;
 
-  function post(message: WireMessage): void {
+  function tryPost(message: WireMessage): PostAttempt {
     try {
       transport.post(message);
-    } catch {
-      // The peer may disconnect while async work is settling.
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error };
     }
+  }
+
+  function post(message: WireMessage): void {
+    tryPost(message);
+  }
+
+  function postSuccessfulResult(
+    id: string,
+    value: unknown,
+    context: string
+  ): ReturnType<typeof serializeWireError> | undefined {
+    const attempt = tryPost({ kind: 'result', id, ok: true, value });
+    if (attempt.ok || !isStructuredCloneError(attempt.error)) return undefined;
+
+    const serialized = serializeWireError(
+      new WireError(
+        'SERIALIZATION',
+        `Wire response for ${context} could not be serialized: ${formatStructuredCloneFailure(
+          value,
+          'value'
+        )}`,
+        { cause: attempt.error }
+      )
+    );
+    post({ kind: 'result', id, ok: false, ...serialized });
+    return serialized;
   }
 
   function replyRequest(
     id: string,
+    context: string,
     work: (signal: AbortSignal) => Promise<unknown> | unknown,
     onEnd?: (event: {
       durationMs: number;
@@ -65,9 +96,11 @@ export function serve(
     result
       .then(
         (value) => {
-          onEnd?.({ durationMs: performanceNow() - start, ok: true, value });
+          let responseValue = value;
+          let downloadChannel: string | undefined;
           if (isDownloadFileOpenResult(value)) {
             const channel = createChannelId();
+            downloadChannel = channel;
             blobProducers.set(
               channel,
               createBlobProducer({
@@ -77,15 +110,27 @@ export function serve(
                 onClose: () => blobProducers.delete(channel),
               })
             );
-            post({
-              kind: 'result',
-              id,
-              ok: true,
-              value: { success: true, data: { meta: value.data.meta, channel } },
-            });
-            return;
+            responseValue = { success: true, data: { meta: value.data.meta, channel } };
           }
-          post({ kind: 'result', id, ok: true, value });
+          const serializationError = postSuccessfulResult(id, responseValue, context);
+          if (serializationError) {
+            if (downloadChannel) {
+              blobProducers.get(downloadChannel)?.close();
+              blobProducers.delete(downloadChannel);
+            }
+            onEnd?.({
+              durationMs: performanceNow() - start,
+              ok: false,
+              errorCode: serializationError.code,
+              errorMessage: serializationError.message,
+            });
+          } else {
+            onEnd?.({
+              durationMs: performanceNow() - start,
+              ok: true,
+              value,
+            });
+          }
         },
         (error: unknown) => {
           const serialized = abort.signal.aborted
@@ -123,6 +168,7 @@ export function serve(
     if (uploadConsumer) blobConsumers.set(uploadConsumer.channel, uploadConsumer);
     replyRequest(
       id,
+      `call '${path}'`,
       async (signal) => {
         try {
           return await runWithLogger(logger.child({ wireCallId: id, wirePath: path }), () =>
@@ -156,7 +202,7 @@ export function serve(
 
   function replySnapshot(id: string, topic: string): void {
     const start = performanceNow();
-    replyRequest(id, async (signal) => {
+    replyRequest(id, `snapshot '${topic}'`, async (signal) => {
       if (signal.aborted) throw new WireError('CANCELLED', 'Wire snapshot cancelled');
       try {
         const lease = requireLiveLease(controller, topic);
@@ -222,7 +268,7 @@ export function serve(
         replySnapshot(message.id, message.topic);
         break;
       case 'attach':
-        replyRequest(message.id, async (signal) => {
+        replyRequest(message.id, `attach '${message.topic}'`, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
           const existing = attached.get(message.topic);
           if (existing) {

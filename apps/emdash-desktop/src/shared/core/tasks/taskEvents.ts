@@ -1,4 +1,4 @@
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import type { Task } from '@shared/core/tasks/tasks';
 import { defineEvent } from '@shared/lib/ipc/events';
 

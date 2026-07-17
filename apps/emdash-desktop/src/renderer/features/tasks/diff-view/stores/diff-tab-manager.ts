@@ -1,6 +1,6 @@
 import { reaction } from 'mobx';
+import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import { commitRef } from '@shared/core/git/utils';
-import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffTabResource } from './diff-tab-resource';

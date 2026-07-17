@@ -5,9 +5,9 @@ import type {
   PushError,
 } from '@emdash/core/runtimes/git/api';
 import z from 'zod';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import type { TaskConfig } from '@shared/core/tasks/task-config';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 

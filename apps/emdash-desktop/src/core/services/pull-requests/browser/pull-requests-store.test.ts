@@ -110,14 +110,7 @@ describe('PullRequestsStore', () => {
             syncChecks: () => ok({ hasRunning: false }),
             cancelSync: () => ok(),
             createPullRequest: () => ok({ url: `${repositoryUrl}/pull/1`, number: 1 }),
-            mergePullRequest: () => {
-              syncInstance!.states.state.produce(() => ({
-                phase: 'idle',
-                kind: 'single',
-                lastSyncedAt: 2,
-              }));
-              return ok({ sha: null, merged: true });
-            },
+            mergePullRequest: () => ok({ sha: null, merged: true }),
             markReadyForReview: () => ok(),
             getPullRequestFiles: () => ok({ files: [] }),
             getPullRequestComments: () => ok({ comments: [] }),

@@ -148,25 +148,31 @@ export class PullRequestsStore {
   }
 
   async createPullRequest(input: CreatePullRequestInput) {
-    return await this.client.createPullRequest({
+    const result = await this.client.createPullRequest({
       ...input,
       repositoryUrl: normalizeRepositoryUrl(input.repositoryUrl) ?? input.repositoryUrl,
     });
+    if (result.success) await this.reload();
+    return result;
   }
 
   async mergePullRequest(repositoryUrl: string, number: number, options: PullRequestMergeOptions) {
-    return await this.client.mergePullRequest({
+    const result = await this.client.mergePullRequest({
       repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
       number,
       options,
     });
+    if (result.success) await this.reload();
+    return result;
   }
 
   async markReadyForReview(repositoryUrl: string, number: number) {
-    return await this.client.markReadyForReview({
+    const result = await this.client.markReadyForReview({
       repositoryUrl: normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl,
       number,
     });
+    if (result.success) await this.reload();
+    return result;
   }
 
   async dispose(): Promise<void> {

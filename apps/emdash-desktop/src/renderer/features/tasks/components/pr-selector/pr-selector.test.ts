@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrSelector } from './pr-selector';
 
 (
@@ -12,16 +12,14 @@ import { PrSelector } from './pr-selector';
 
 const mocks = vi.hoisted(() => ({
   listPullRequests: vi.fn(),
-  syncPullRequests: vi.fn(),
+  sync: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
-  rpc: {
-    pullRequests: {
-      listPullRequests: mocks.listPullRequests,
-      syncPullRequests: mocks.syncPullRequests,
-    },
-  },
+vi.mock('@renderer/lib/runtime/pull-requests-client', () => ({
+  getPullRequestsRuntimeClient: async () => ({
+    listPullRequests: mocks.listPullRequests,
+    sync: mocks.sync,
+  }),
 }));
 
 vi.mock('@renderer/lib/components/pr-status-icon', async () => {
@@ -194,7 +192,7 @@ describe('PrSelector', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
-    mocks.syncPullRequests.mockResolvedValue({ success: true });
+    mocks.sync.mockResolvedValue({ success: true });
 
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -236,7 +234,6 @@ describe('PrSelector', () => {
     });
 
     expect(mocks.listPullRequests).toHaveBeenCalledWith(
-      PROJECT_ID,
       expect.objectContaining({ searchQuery: undefined })
     );
 
@@ -252,7 +249,6 @@ describe('PrSelector', () => {
     });
 
     expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
-      PROJECT_ID,
       expect.objectContaining({ searchQuery: 'eng-1463' })
     );
   });
@@ -283,7 +279,6 @@ describe('PrSelector', () => {
       vi.advanceTimersByTime(200);
     });
     expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
-      PROJECT_ID,
       expect.objectContaining({
         filters: { status: 'open' },
         searchQuery: 'eng-1463',
@@ -298,7 +293,6 @@ describe('PrSelector', () => {
     });
 
     expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
-      PROJECT_ID,
       expect.objectContaining({
         filters: { status: 'not-open' },
         searchQuery: undefined,
@@ -307,7 +301,7 @@ describe('PrSelector', () => {
   });
 
   it('shows background sync errors instead of the empty pull request message', async () => {
-    mocks.syncPullRequests.mockResolvedValue({
+    mocks.sync.mockResolvedValue({
       success: false,
       error: {
         type: 'github_not_found_or_no_access',
@@ -342,7 +336,7 @@ describe('PrSelector', () => {
   });
 
   it('shows background sync errors above cached pull request results', async () => {
-    mocks.syncPullRequests.mockResolvedValue({
+    mocks.sync.mockResolvedValue({
       success: false,
       error: {
         type: 'github_account_disabled',

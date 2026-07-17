@@ -9,28 +9,19 @@ import { PrSyncStatusCard } from './pr-sync-status-card';
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
-  syncState: undefined as
-    | {
-        status: 'running' | 'done' | 'error' | 'cancelled';
-        kind: 'full' | 'incremental' | 'single';
-        error?: string;
-      }
-    | undefined,
-  retry: vi.fn(),
-  clear: vi.fn(),
-  cancel: vi.fn(),
+  syncState: undefined,
+  sync: vi.fn(),
+  cancelSync: vi.fn(),
 }));
 
-vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
-  getPrSyncStore: () => ({
-    getState: () => mocks.syncState,
-    retry: mocks.retry,
-    clear: mocks.clear,
-    cancel: mocks.cancel,
+vi.mock('@root/src/core/services/pull-requests/browser', () => ({
+  usePullRequestsStore: () => ({
+    syncState: () => mocks.syncState,
+    sync: mocks.sync,
+    cancelSync: mocks.cancelSync,
   }),
 }));
 
-const PROJECT_ID = 'project-1';
 const REPOSITORY_URL = 'https://github.com/acme/repo';
 
 describe('PrSyncStatusCard', () => {
@@ -62,7 +53,6 @@ describe('PrSyncStatusCard', () => {
     await act(async () => {
       root.render(
         React.createElement(PrSyncStatusCard, {
-          projectId: PROJECT_ID,
           repositoryUrl: REPOSITORY_URL,
           manualError: 'GitHub API is disabled for this project.',
         })

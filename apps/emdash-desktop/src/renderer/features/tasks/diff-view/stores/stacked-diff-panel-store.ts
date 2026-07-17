@@ -5,9 +5,9 @@ import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { commitRef } from '@shared/core/git/utils';
-import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
 

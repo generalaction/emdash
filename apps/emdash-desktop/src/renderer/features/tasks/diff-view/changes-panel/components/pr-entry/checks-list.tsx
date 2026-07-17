@@ -10,7 +10,7 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
-import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
+import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
@@ -113,7 +113,7 @@ export const PrChecksList = observer(function PrChecksList({
   projectId: string;
   pr: PullRequest;
 }) {
-  const { checks } = useSyncCheckRuns(projectId, pr);
+  const { checks } = useSyncCheckRuns(pr);
   const commentsQuery = usePullRequestComments(projectId, pr);
   const comments = commentsQuery.data ?? EMPTY_COMMENTS;
   const conversationItems = useMemo(
