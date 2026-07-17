@@ -69,6 +69,11 @@ vi.mock('@renderer/lib/ipc', () => ({
     conversations: {
       markConversationSeen: vi.fn().mockResolvedValue(undefined),
     },
+    sessionLeases: {
+      acquire: vi.fn().mockResolvedValue({ id: 'lease-1' }),
+      release: vi.fn().mockResolvedValue(undefined),
+      releaseOwner: vi.fn().mockResolvedValue(undefined),
+    },
     gitRepository: {
       getDefaultBranch: vi
         .fn()

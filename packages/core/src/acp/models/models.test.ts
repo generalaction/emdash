@@ -4,6 +4,7 @@ import { AcpTranscriptParser } from '../reducer/parser';
 import { agentStateSchema } from './agents';
 import { sessionConfigStateSchema, sessionUsageSchema } from './config';
 import { planStateSchema } from './plan';
+import { promptDraftStateSchema } from './prompt';
 import { transcriptTurnSchema } from './turns';
 
 function buildParserOutput(): AcpTranscriptParser {
@@ -89,5 +90,16 @@ describe('ACP zod models', () => {
     ).not.toThrow();
     expect(() => agentStateSchema.array().parse(parser.agents)).not.toThrow();
     expect(() => (parser.plan === null ? null : planStateSchema.parse(parser.plan))).not.toThrow();
+  });
+
+  it('preserves an authoritative revision for cleared prompt drafts', () => {
+    expect(promptDraftStateSchema.parse({ rev: 3, draft: null })).toEqual({
+      rev: 3,
+      draft: null,
+    });
+    expect(promptDraftStateSchema.parse({ rev: null, draft: null })).toEqual({
+      rev: null,
+      draft: null,
+    });
   });
 });

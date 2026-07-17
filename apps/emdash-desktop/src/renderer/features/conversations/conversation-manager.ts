@@ -28,6 +28,10 @@ export class ConversationManagerStore implements IDisposable {
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
+  private readonly leaseOwnerId = crypto.randomUUID();
+  private readonly leaseIds = new Map<string, string>();
+  private readonly pendingLeases = new Map<string, Promise<void>>();
+  private disposed = false;
 
   /** Data layer: plain Conversation records loaded from the main process. */
   readonly list: Resource<Conversation[]>;
@@ -181,13 +185,43 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {
-    await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
+    if (this.disposed) return;
+    if (this.leaseIds.has(conversationId)) return;
+    const pending = this.pendingLeases.get(conversationId);
+    if (pending) return await pending;
+
+    const conversation = this.conversations.get(conversationId)?.data;
+    if (!conversation) return;
+
+    const acquire = (async () => {
+      const lease = await rpc.sessionLeases.acquire({
+        kind: conversation.type === 'acp' ? 'acp' : 'conversation',
+        projectId: this.projectId,
+        taskId: this.taskId,
+        resourceId: conversationId,
+        ownerType: 'desktop',
+        ownerId: this.leaseOwnerId,
+      });
+      if (this.disposed) {
+        await rpc.sessionLeases.release(lease.id);
+        return;
+      }
+      this.leaseIds.set(conversationId, lease.id);
+    })().finally(() => {
+      this.pendingLeases.delete(conversationId);
+    });
+    this.pendingLeases.set(conversationId, acquire);
+    await acquire;
   }
 
   async dehydrateConversation(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
     session?.dispose();
-    await rpc.conversations.dehydrateConversation(this.projectId, this.taskId, conversationId);
+    await this.pendingLeases.get(conversationId);
+    const leaseId = this.leaseIds.get(conversationId);
+    if (!leaseId) return;
+    await rpc.sessionLeases.release(leaseId);
+    this.leaseIds.delete(conversationId);
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -233,6 +267,7 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   dispose(): void {
+    this.disposed = true;
     this._disposeReaction();
     this.offAgentStatusChanged?.();
     this.offAgentStatusChanged = null;
@@ -245,6 +280,8 @@ export class ConversationManagerStore implements IDisposable {
     for (const session of this.sessions.values()) {
       session.destroy();
     }
+    this.leaseIds.clear();
+    void rpc.sessionLeases.releaseOwner(this.leaseOwnerId);
   }
 
   private createSession(conversation: Conversation): PtySession {

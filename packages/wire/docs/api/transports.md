@@ -100,18 +100,66 @@ closed ports are removed from the session map. Internally, the helper uses
 
 ## Node Streams
 
-`streamTransport(input, output)` frames messages as newline-delimited JSON. It is
-useful for subprocess, stdio, and SSH-style boundaries:
+`streamTransport(input, output)` uses length-prefixed binary frames. Ordinary
+messages contain JSON, while `blob-chunk` messages keep their bytes in a raw
+binary body. It is useful for subprocess, stdio, and SSH-style boundaries:
 
 ```ts
 const transport = streamTransport(child.stdout, child.stdin);
 const contractClient = client(api, connect(transport));
 ```
 
-Malformed frames are ignored. `close`, `end`, and `error` on the readable side
-trigger disconnect listeners. `close()` stops parsing and clears local listeners;
-it does not close the readable or writable streams because those streams are owned
-by the caller.
+Frames may be split across chunks or coalesced into one chunk. Invalid JSON,
+unknown frame kinds, and frames over the 16 MiB default limit disconnect the
+transport; well-formed messages that are not part of the Wire protocol are
+ignored. `close`, `end`, and `error` on the readable side also trigger disconnect
+listeners. `close()` stops parsing and clears local listeners; it does not close
+the readable or writable streams because those streams are owned by the caller.
+
+## WebSockets
+
+`webSocketTransport(socket, options?)` adapts both browser `WebSocket` objects and
+Node `ws`-style sockets without importing either implementation. The adapter uses
+the same length-prefixed JSON/binary codec as `streamTransport`, so blob chunks
+remain binary and no base64 conversion is needed:
+
+```ts
+const socket = new WebSocket('wss://example.test/wire');
+const transport = webSocketTransport(socket);
+await transport.ready;
+const contractClient = client(api, connect(transport));
+```
+
+`browserWebSocketTransport()` and `nodeWebSocketTransport()` provide narrower
+structural types when an integration wants to state which event API it expects.
+Browser sockets are switched to `binaryType = 'arraybuffer'`; Blob-like values,
+ArrayBuffers, typed-array views, Node Buffers, and fragmented Node payloads are
+accepted on receive. Text messages are rejected. `close` and `error` notify
+disconnect listeners exactly once. Malformed or oversized frames close the socket
+with WebSocket protocol-error code `1002`. `maxFrameBytes` can lower the shared
+codec's 16 MiB default for an internet-facing boundary.
+
+For clients that should reconnect, use the WebSocket-specific convenience wrapper:
+
+```ts
+const transport = reconnectingWebSocketTransport(
+  () => new WebSocket('wss://example.test/wire'),
+  {
+    backoffMs: [100, 250, 500, 1000, 2000],
+    maxQueuedMessages: 1000,
+    maxFrameBytes: 128 * 1024,
+  }
+);
+const contractClient = client(api, connect(transport));
+```
+
+It waits for each socket's `open` event before handing it to the standard
+`reconnectingTransport`. Calls posted while offline use the same bounded queue.
+When that queue is full, `post()` throws without discarding earlier messages, so
+the rejected call cannot remain pending indefinitely. Blob-channel frames are
+never replayed because their credit and sequence state belongs to the disconnected
+socket. `onReconnect` fires after a replacement socket is open and queued messages
+have flushed.
 
 ## Reconnecting
 
@@ -129,7 +177,9 @@ const transport = reconnectingTransport(
 
 Messages posted while no inner transport is connected are queued. When an inner
 transport disconnects, listeners are notified and reconnection starts. The queue
-is bounded with drop-oldest semantics; `maxQueuedMessages` defaults to `1000`.
+is bounded; `maxQueuedMessages` defaults to `1000`. Posting another non-blob
+message when it is full throws synchronously and preserves the messages already
+queued.
 
 `onReconnect` fires after a replacement inner transport is connected and queued
 messages are flushed. `Connection` listens for that signal and re-issues active

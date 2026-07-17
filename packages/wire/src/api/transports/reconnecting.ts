@@ -97,9 +97,10 @@ export function reconnectingTransport(
 
   function enqueue(message: WireMessage): void {
     if (isBlobChannelMessage(message)) return;
-    if (maxQueuedMessages === 0) return;
+    if (queue.length >= maxQueuedMessages) {
+      throw new Error(`Wire reconnect queue is full (limit ${maxQueuedMessages})`);
+    }
     queue.push(message);
-    while (queue.length > maxQueuedMessages) queue.shift();
   }
 
   function notifyReconnect(): void {

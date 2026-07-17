@@ -79,5 +79,5 @@ Download handles are single-consumption: choose `chunks()`, `bytes()`, or `file(
   larger backing `ArrayBuffer`.
 
 Structured-clone transports carry `Uint8Array` chunks natively. `streamTransport`
-uses length-prefixed binary framing so workspace-server stdio/socket/SSH paths send
-raw bytes with no base64 expansion.
+and the WebSocket transports use shared length-prefixed binary framing so remote
+paths send raw bytes with no base64 expansion.

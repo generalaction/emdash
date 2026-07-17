@@ -15,6 +15,7 @@ import { githubController } from './core/github/controller';
 import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
 import { mcpController } from './core/mcp/controller';
+import { mobileAccessController } from './core/mobile-access/controller';
 import { previewServersController } from './core/preview-servers/controller';
 import { projectSetupController } from './core/project-setup/controller';
 import { projectController } from './core/projects/controller';
@@ -23,6 +24,7 @@ import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { resourceMonitorController } from './core/resource-monitor/controller';
 import { searchController } from './core/search/controller';
+import { sessionLeasesController } from './core/session-leases/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
@@ -64,6 +66,8 @@ export const rpcRouter = createRPCRouter({
   conversations: conversationController,
   terminals: terminalsController,
   mcp: mcpController,
+  mobileAccess: mobileAccessController,
+  sessionLeases: sessionLeasesController,
   telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,

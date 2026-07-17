@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { promptDraftStateSchema } from '../models/prompt';
 
 export const serializedErrorSchema = z.object({
   name: z.string(),
@@ -27,6 +28,11 @@ export const promptFailedErrorSchema = failedErrorSchema('prompt_failed');
 export const cancelFailedErrorSchema = failedErrorSchema('cancel_failed');
 export const setConfigFailedErrorSchema = failedErrorSchema('set_config_failed');
 export const setModeFailedErrorSchema = failedErrorSchema('set_mode_failed');
+export const promptDraftConflictErrorSchema = z.object({
+  type: z.literal('prompt_draft_conflict'),
+  message: z.string().optional(),
+  current: promptDraftStateSchema,
+});
 
 export const acpStartSessionErrorSchema = z.union([
   providerUnsupportedErrorSchema,
@@ -52,6 +58,11 @@ export const acpDeleteQueuedPromptErrorSchema = acpQueuePromptErrorSchema;
 export const acpChangeQueuePromptOrderErrorSchema = acpQueuePromptErrorSchema;
 export const acpResolvePermissionErrorSchema = acpQueuePromptErrorSchema;
 export const acpSetPromptDraftErrorSchema = conversationNotFoundErrorSchema;
+export const acpCompareAndSetPromptDraftErrorSchema = z.union([
+  conversationNotFoundErrorSchema,
+  promptDraftConflictErrorSchema,
+]);
+export const acpGetPromptDraftStateErrorSchema = conversationNotFoundErrorSchema;
 export const acpCancelTurnErrorSchema = z.union([invalidStateErrorSchema, cancelFailedErrorSchema]);
 export const acpSetModelOptionErrorSchema = z.union([
   conversationNotFoundErrorSchema,
@@ -80,4 +91,5 @@ export const acpRuntimeErrorSchema = z.union([
   cancelFailedErrorSchema,
   setConfigFailedErrorSchema,
   setModeFailedErrorSchema,
+  promptDraftConflictErrorSchema,
 ]);

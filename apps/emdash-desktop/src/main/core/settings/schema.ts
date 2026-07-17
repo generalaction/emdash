@@ -132,6 +132,12 @@ export const browserSettingsSchema = z
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const mobileAccessSettingsSchema = z.object({
+  enabled: z.boolean(),
+  bindAddress: z.ipv4().nullable(),
+  port: z.number().int().min(1024).max(65535),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -151,6 +157,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  mobileAccess: mobileAccessSettingsSchema,
   changesViewMode: changesViewModeSchema,
 } as const;
 
@@ -168,5 +175,6 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  mobileAccess: mobileAccessSettingsSchema,
   changesViewMode: changesViewModeSchema,
 });

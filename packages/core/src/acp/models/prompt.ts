@@ -28,6 +28,18 @@ export const promptDraftUpdateSchema = z.object({
 });
 export type PromptDraftUpdate = z.infer<typeof promptDraftUpdateSchema>;
 
+/**
+ * Authoritative runtime state returned by atomic draft updates.
+ *
+ * `rev` remains populated after a clear so clients cannot mistake a newer
+ * cleared draft for the never-written initial state.
+ */
+export const promptDraftStateSchema = z.object({
+  rev: z.number().nullable(),
+  draft: promptDraftSchema.nullable(),
+});
+export type PromptDraftState = z.infer<typeof promptDraftStateSchema>;
+
 export const queuedPromptSchema = promptInputSchema.extend({
   /** Runtime-generated id used for queue removal and stable UI keys. */
   id: z.string(),

@@ -9,6 +9,7 @@ import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
+import { MobileAccessSettingsPage } from './MobileAccessSettingsPage';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
@@ -36,6 +37,7 @@ export type SettingsPageTab =
   | 'clis-models'
   | 'integrations'
   | 'connections'
+  | 'mobile-access'
   | 'browser'
   | 'repository'
   | 'storage'
@@ -179,6 +181,7 @@ export function SettingsPage({
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
+    { id: 'mobile-access', label: 'Mobile Access' },
     { id: 'repository', label: 'Repository' },
     { id: 'storage', label: 'Storage' },
     { id: 'interface', label: 'Interface' },
@@ -192,6 +195,16 @@ export function SettingsPage({
     'clis-models': <AgentsSettingsPage />,
     integrations: <IntegrationsSettingsPage />,
     connections: <ConnectionsSettingsPage />,
+    'mobile-access': (
+      <div className="space-y-8">
+        <PageHeader
+          sticky
+          title="Mobile Access"
+          description="Pair a phone to interact with tasks while this desktop app is running."
+        />
+        <MobileAccessSettingsPage />
+      </div>
+    ),
     browser: (
       <div className="space-y-8">
         <PageHeader

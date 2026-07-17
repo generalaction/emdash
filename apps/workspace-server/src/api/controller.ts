@@ -118,6 +118,8 @@ function createAcpProxy(
     setModeOption: (input, meta) => client.setModeOption(input, meta),
     resolvePermission: (input, meta) => client.resolvePermission(input, meta),
     setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
+    compareAndSetPromptDraft: (input, meta) => client.compareAndSetPromptDraft(input, meta),
+    getPromptDraftState: (input, meta) => client.getPromptDraftState(input, meta),
     exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
     exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
     uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),

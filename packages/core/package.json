@@ -37,6 +37,10 @@
       "types": "./dist/mcp.d.mts",
       "default": "./dist/mcp.mjs"
     },
+    "./mobile-access": {
+      "types": "./dist/mobile-access.d.mts",
+      "default": "./dist/mobile-access.mjs"
+    },
     "./skills": {
       "types": "./dist/skills.d.mts",
       "default": "./dist/skills.mjs"

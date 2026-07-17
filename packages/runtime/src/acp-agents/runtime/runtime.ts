@@ -2,11 +2,13 @@ import type {
   AcpAttachmentError,
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
+  AcpCompareAndSetPromptDraftError,
   AcpDeleteQueuedPromptError,
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
+  AcpGetPromptDraftStateError,
   AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpResumeSessionError,
@@ -19,6 +21,7 @@ import type {
   AttachmentMimeType,
   AttachmentRef,
   PromptDraftUpdate,
+  PromptDraftState,
   PromptInput,
   ResumeResult,
   SessionState,
@@ -126,6 +129,20 @@ export class AcpRuntime {
     draft: PromptDraftUpdate
   ): Result<void, AcpSetPromptDraftError> {
     return this.manager.setPromptDraft(conversationId, draft);
+  }
+
+  compareAndSetPromptDraft(
+    conversationId: string,
+    expectedRev: number | null,
+    input: PromptInput | null
+  ): Result<PromptDraftState, AcpCompareAndSetPromptDraftError> {
+    return this.manager.compareAndSetPromptDraft(conversationId, expectedRev, input);
+  }
+
+  getPromptDraftState(
+    conversationId: string
+  ): Result<PromptDraftState, AcpGetPromptDraftStateError> {
+    return this.manager.getPromptDraftState(conversationId);
   }
 
   resolvePermission(

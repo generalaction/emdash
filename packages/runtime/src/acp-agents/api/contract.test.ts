@@ -2,6 +2,7 @@ import {
   acpApiContract,
   acpRuntimeErrorSchema,
   promptDraftSchema,
+  promptDraftStateSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
   sessionSummarySchema,
@@ -77,6 +78,75 @@ describe('ACP API contract schemas', () => {
     }
   });
 
+  it('round-trips atomic prompt draft updates and typed conflicts', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpRuntime(h.deps);
+    const wire = createTestWire(acpApiContract, createAcpController(rt), { validate: 'full' });
+
+    try {
+      const started = await wire.client.startSession({
+        input: makeStartInput({ conversationId: 'conv-draft-cas' }),
+      });
+      expect(isOk(started)).toBe(true);
+
+      const applied = await wire.client.compareAndSetPromptDraft({
+        conversationId: 'conv-draft-cas',
+        expectedRev: null,
+        input: { text: 'phone draft' },
+      });
+      expect(applied).toMatchObject({
+        success: true,
+        data: { rev: 1, draft: { text: 'phone draft', rev: 1 } },
+      });
+      if (applied.success) {
+        expect(() => promptDraftStateSchema.parse(applied.data)).not.toThrow();
+      }
+
+      const conflict = await wire.client.compareAndSetPromptDraft({
+        conversationId: 'conv-draft-cas',
+        expectedRev: null,
+        input: { text: 'desktop draft' },
+      });
+      expect(conflict).toMatchObject({
+        success: false,
+        error: {
+          type: 'prompt_draft_conflict',
+          current: { rev: 1, draft: { text: 'phone draft', rev: 1 } },
+        },
+      });
+
+      await expect(
+        wire.client.compareAndSetPromptDraft({
+          conversationId: 'conv-draft-cas',
+          expectedRev: 1,
+          input: null,
+        })
+      ).resolves.toEqual({ success: true, data: { rev: 2, draft: null } });
+      await expect(
+        wire.client.getPromptDraftState({ conversationId: 'conv-draft-cas' })
+      ).resolves.toEqual({ success: true, data: { rev: 2, draft: null } });
+
+      await expect(
+        wire.client.compareAndSetPromptDraft({
+          conversationId: 'missing-conversation',
+          expectedRev: null,
+          input: null,
+        })
+      ).resolves.toEqual({
+        success: false,
+        error: { type: 'conversation_not_found', message: 'missing-conversation' },
+      });
+      await expect(
+        wire.client.getPromptDraftState({ conversationId: 'missing-conversation' })
+      ).resolves.toEqual({
+        success: false,
+        error: { type: 'conversation_not_found', message: 'missing-conversation' },
+      });
+    } finally {
+      wire.dispose();
+    }
+  });
+
   it('accepts attachment upload sidecar input with or without original path', () => {
     expect(() => uploadAttachmentCommandSchema.parse({})).not.toThrow();
     expect(() =>
@@ -91,6 +161,15 @@ describe('ACP API contract schemas', () => {
       acpRuntimeErrorSchema.parse({
         type: 'auth_required',
         cause: { name: 'RequestError', message: 'Authentication required' },
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts prompt draft conflict runtime errors', () => {
+    expect(() =>
+      acpRuntimeErrorSchema.parse({
+        type: 'prompt_draft_conflict',
+        current: { rev: 4, draft: null },
       })
     ).not.toThrow();
   });

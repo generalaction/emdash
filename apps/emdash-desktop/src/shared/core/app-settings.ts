@@ -5,6 +5,7 @@ import {
   type changesViewModeSchema,
   type interfaceSettingsSchema,
   type localProjectSettingsSchema,
+  type mobileAccessSettingsSchema,
   type notificationSettingsSchema,
   type projectSettingsSchema,
   type providerCustomConfigEntrySchema,
@@ -25,6 +26,7 @@ export type ProviderCustomConfig = z.infer<typeof providerCustomConfigEntrySchem
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
 export type ChangesViewMode = z.infer<typeof changesViewModeSchema>;
 export type BrowserSettings = z.infer<typeof browserSettingsSchema>;
+export type MobileAccessSettings = z.infer<typeof mobileAccessSettingsSchema>;
 export type ChangesSection = keyof ChangesViewMode;
 export type ChangesListViewMode = ChangesViewMode[ChangesSection];
 export type AppSettings = z.infer<typeof appSettingsSchema>;

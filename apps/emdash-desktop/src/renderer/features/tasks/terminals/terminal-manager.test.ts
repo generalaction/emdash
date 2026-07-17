@@ -3,7 +3,9 @@ import { TerminalManagerStore } from './terminal-manager';
 
 const createTerminal = vi.hoisted(() => vi.fn());
 const getTerminalsForTask = vi.hoisted(() => vi.fn());
-const hydrateTerminal = vi.hoisted(() => vi.fn());
+const acquireLease = vi.hoisted(() => vi.fn());
+const releaseLease = vi.hoisted(() => vi.fn());
+const releaseLeaseOwner = vi.hoisted(() => vi.fn());
 const renameTerminal = vi.hoisted(() => vi.fn());
 const deleteTerminal = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
@@ -32,8 +34,12 @@ vi.mock('@renderer/lib/ipc', () => ({
       createTerminal,
       deleteTerminal,
       getTerminalsForTask,
-      hydrateTerminal,
       renameTerminal,
+    },
+    sessionLeases: {
+      acquire: acquireLease,
+      release: releaseLease,
+      releaseOwner: releaseLeaseOwner,
     },
   },
 }));
@@ -63,7 +69,9 @@ describe('TerminalManagerStore session hydration', () => {
   beforeEach(() => {
     createTerminal.mockReset();
     getTerminalsForTask.mockReset();
-    hydrateTerminal.mockReset();
+    acquireLease.mockReset();
+    releaseLease.mockReset();
+    releaseLeaseOwner.mockReset();
     renameTerminal.mockReset();
     deleteTerminal.mockReset();
     frontendConnect.mockReset();
@@ -72,7 +80,9 @@ describe('TerminalManagerStore session hydration', () => {
 
     createTerminal.mockImplementation(async (terminal) => terminal);
     getTerminalsForTask.mockResolvedValue([]);
-    hydrateTerminal.mockResolvedValue(undefined);
+    acquireLease.mockResolvedValue({ id: 'lease-1' });
+    releaseLease.mockResolvedValue(undefined);
+    releaseLeaseOwner.mockResolvedValue(undefined);
     renameTerminal.mockResolvedValue(undefined);
     deleteTerminal.mockResolvedValue(undefined);
     frontendConnect.mockResolvedValue(undefined);
@@ -101,24 +111,27 @@ describe('TerminalManagerStore session hydration', () => {
       },
     ]);
 
-    expect(hydrateTerminal).not.toHaveBeenCalled();
+    expect(acquireLease).not.toHaveBeenCalled();
 
     const session = store.sessions.get('terminal-1');
     expect(session).toBeDefined();
 
     await session?.connect();
 
-    expect(hydrateTerminal).toHaveBeenCalledTimes(1);
-    expect(hydrateTerminal).toHaveBeenCalledWith({
+    expect(acquireLease).toHaveBeenCalledTimes(1);
+    expect(acquireLease).toHaveBeenCalledWith({
+      kind: 'terminal',
       projectId: 'project-1',
       taskId: 'task-1',
-      terminalId: 'terminal-1',
+      resourceId: 'terminal-1',
+      ownerType: 'desktop',
+      ownerId: expect.any(String),
     });
     expect(frontendConnect).toHaveBeenCalledTimes(1);
 
     await session?.connect();
 
-    expect(hydrateTerminal).toHaveBeenCalledTimes(1);
+    expect(acquireLease).toHaveBeenCalledTimes(1);
     expect(frontendConnect).toHaveBeenCalledTimes(1);
 
     store.dispose();

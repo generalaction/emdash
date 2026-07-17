@@ -3,7 +3,8 @@
  */
 
 import type { BaseError, SerializedError } from '@emdash/shared';
-import { fail } from '@emdash/shared';
+import { err, fail } from '@emdash/shared';
+import type { PromptDraftState } from './models/prompt';
 
 /** Provider does not support the ACP transport. */
 export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
@@ -41,6 +42,11 @@ export type SetConfigFailedError = BaseError<'set_config_failed', SerializedErro
 /** A setSessionMode() call to the agent failed. */
 export type SetModeFailedError = BaseError<'set_mode_failed', SerializedError>;
 
+/** The expected draft revision did not match the runtime's current revision. */
+export type PromptDraftConflictError = BaseError<'prompt_draft_conflict'> & {
+  readonly current: PromptDraftState;
+};
+
 export type AcpRuntimeError =
   | ProviderUnsupportedError
   | ConversationNotFoundError
@@ -52,7 +58,8 @@ export type AcpRuntimeError =
   | PromptFailedError
   | CancelFailedError
   | SetConfigFailedError
-  | SetModeFailedError;
+  | SetModeFailedError
+  | PromptDraftConflictError;
 
 export type AcpStartSessionError =
   | ProviderUnsupportedError
@@ -70,6 +77,8 @@ export type AcpDeleteQueuedPromptError = AcpQueuePromptError;
 export type AcpChangeQueuePromptOrderError = AcpQueuePromptError;
 export type AcpResolvePermissionError = AcpQueuePromptError;
 export type AcpSetPromptDraftError = ConversationNotFoundError;
+export type AcpCompareAndSetPromptDraftError = ConversationNotFoundError | PromptDraftConflictError;
+export type AcpGetPromptDraftStateError = ConversationNotFoundError;
 export type AcpCancelTurnError = InvalidStateError | CancelFailedError;
 export type AcpSetModelOptionError =
   | ConversationNotFoundError
@@ -108,4 +117,7 @@ export const acpErr = {
   setConfigFailed: (cause: SerializedError) => fail('set_config_failed', { cause }),
 
   setModeFailed: (cause: SerializedError) => fail('set_mode_failed', { cause }),
+
+  promptDraftConflict: (current: PromptDraftState) =>
+    err<PromptDraftConflictError>({ type: 'prompt_draft_conflict', current }),
 } as const;

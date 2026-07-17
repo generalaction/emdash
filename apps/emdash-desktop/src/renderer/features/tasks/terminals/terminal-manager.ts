@@ -20,6 +20,10 @@ export class TerminalManagerStore implements IDisposable {
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
   private readonly _disposeReaction: () => void;
+  private readonly leaseOwnerId = crypto.randomUUID();
+  private readonly leaseIds = new Map<string, string>();
+  private readonly pendingLeases = new Map<string, Promise<void>>();
+  private disposed = false;
 
   constructor(projectId: string, taskId: string) {
     this.projectId = projectId;
@@ -150,19 +154,41 @@ export class TerminalManagerStore implements IDisposable {
   async hydrateTerminal(terminalId: string): Promise<void> {
     const store = this.terminals.get(terminalId);
     if (!store) return;
-    await rpc.terminals.hydrateTerminal({
-      projectId: this.projectId,
-      taskId: this.taskId,
-      terminalId,
+    if (this.disposed) return;
+    if (this.leaseIds.has(terminalId)) return;
+    const pending = this.pendingLeases.get(terminalId);
+    if (pending) return await pending;
+
+    const acquire = (async () => {
+      const lease = await rpc.sessionLeases.acquire({
+        kind: 'terminal',
+        projectId: this.projectId,
+        taskId: this.taskId,
+        resourceId: terminalId,
+        ownerType: 'desktop',
+        ownerId: this.leaseOwnerId,
+      });
+      if (this.disposed) {
+        await rpc.sessionLeases.release(lease.id);
+        return;
+      }
+      this.leaseIds.set(terminalId, lease.id);
+    })().finally(() => {
+      this.pendingLeases.delete(terminalId);
     });
+    this.pendingLeases.set(terminalId, acquire);
+    await acquire;
   }
 
   dispose(): void {
+    this.disposed = true;
     this._disposeReaction();
     for (const session of this.sessions.values()) {
       session.destroy();
     }
     this.list.dispose();
+    this.leaseIds.clear();
+    void rpc.sessionLeases.releaseOwner(this.leaseOwnerId);
   }
 
   async renameTerminal(terminalId: string, name: string): Promise<void> {

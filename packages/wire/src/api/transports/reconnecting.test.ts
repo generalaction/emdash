@@ -1,6 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deferred } from '../../testing';
+import { connect } from '../connect';
 import type { WireMessage, WireTransport } from '../protocol';
 import { reconnectingTransport } from './reconnecting';
 
@@ -27,14 +28,16 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
-  it('drops the oldest queued messages beyond maxQueuedMessages', async () => {
+  it('rejects new messages without discarding queued messages when the queue is full', async () => {
     const connected = deferred<WireTransport>();
     const transport = reconnectingTransport(() => connected.promise, { maxQueuedMessages: 2 });
     const inner = new FakeTransport();
 
-    transport.post({ kind: 'detach', topic: 'dropped' });
     transport.post({ kind: 'detach', topic: 'kept-a' });
     transport.post({ kind: 'cancel', id: 'kept-b' });
+    expect(() => transport.post({ kind: 'detach', topic: 'rejected' })).toThrow(
+      'Wire reconnect queue is full (limit 2)'
+    );
     connected.resolve(inner);
 
     await vi.waitFor(() =>
@@ -43,6 +46,29 @@ describe('reconnectingTransport', () => {
         { kind: 'cancel', id: 'kept-b' },
       ])
     );
+    transport.close();
+  });
+
+  it('rejects an RPC call when the reconnect queue is full', async () => {
+    const connected = deferred<WireTransport>();
+    const transport = reconnectingTransport(() => connected.promise, { maxQueuedMessages: 1 });
+    const connection = connect(transport);
+    const inner = new FakeTransport();
+
+    const queued = connection.call('queued', null);
+    await expect(connection.call('rejected', null)).rejects.toMatchObject({
+      code: 'DISCONNECTED',
+      message: 'Wire reconnect queue is full (limit 1)',
+    });
+
+    connected.resolve(inner);
+    await vi.waitFor(() => expect(inner.sent).toHaveLength(1));
+    const sent = inner.sent[0];
+    expect(sent?.kind).toBe('call');
+    if (sent?.kind !== 'call') throw new Error('Expected a queued call');
+    inner.receive({ kind: 'result', id: sent.id, ok: true, value: 'done' });
+    await expect(queued).resolves.toBe('done');
+
     transport.close();
   });
 
@@ -153,6 +179,10 @@ class FakeTransport implements WireTransport {
   onDisconnect(cb: () => void): Unsubscribe {
     this.disconnectListeners.add(cb);
     return () => this.disconnectListeners.delete(cb);
+  }
+
+  receive(message: WireMessage): void {
+    for (const listener of this.messageListeners) listener(message);
   }
 
   disconnect(): void {
