@@ -45,6 +45,8 @@ export class TreeResource {
   private readonly unsubscribeRoot: () => void;
   private readonly onError: (context: string, error: unknown) => void;
   private lane: Promise<void> = Promise.resolve();
+  private resyncRun: Promise<void> | null = null;
+  private trailingResyncRequested = false;
   private disposed = false;
 
   constructor(private readonly options: TreeResourceOptions) {
@@ -125,6 +127,7 @@ export class TreeResource {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.trailingResyncRequested = false;
     this.unsubscribeRoot();
     await this.lane;
     this.state.dispose();
@@ -157,6 +160,10 @@ export class TreeResource {
   }
 
   private onRootChanges(changes: RootChange[]): void {
+    if (classifyTreeChanges(this.current(), changes).resync) {
+      this.requestResync();
+      return;
+    }
     void this.run(() => this.reconcileChanges(changes)).catch((error: unknown) => {
       this.onError(`files tree watch ${this.identity.treeId}`, error);
     });
@@ -201,6 +208,39 @@ export class TreeResource {
       reconcileDirectory(next, entryPath, children.data);
     }
     this.state.replace(next);
+  }
+
+  private requestResync(): void {
+    if (this.disposed) return;
+    if (this.resyncRun) {
+      this.trailingResyncRequested = true;
+      return;
+    }
+
+    const run = this.run(() => this.drainResyncs());
+    this.resyncRun = run;
+    void run.then(
+      () => this.finishResyncRun(run),
+      (error: unknown) => {
+        this.onError(`files tree resync ${this.identity.treeId}`, error);
+        this.finishResyncRun(run);
+      }
+    );
+  }
+
+  private async drainResyncs(): Promise<void> {
+    do {
+      this.trailingResyncRequested = false;
+      await this.resync(this.current());
+    } while (this.trailingResyncRequested && !this.disposed);
+  }
+
+  private finishResyncRun(run: Promise<void>): void {
+    if (this.resyncRun !== run) return;
+    this.resyncRun = null;
+    if (!this.trailingResyncRequested || this.disposed) return;
+    this.trailingResyncRequested = false;
+    this.requestResync();
   }
 
   private current(): FileTreeModel {
