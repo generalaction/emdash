@@ -1,7 +1,4 @@
-export {
-  automationsContract,
-  type AutomationsContract,
-} from './contract';
+export { automationsContract, type AutomationsContract } from './contract';
 export {
   automationAcpAgentConfigSchema,
   automationAgentConfigSchema,

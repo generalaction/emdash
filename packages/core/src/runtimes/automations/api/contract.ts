@@ -71,6 +71,6 @@ export const automationsContract = defineContract({
     key: runEventsKeySchema,
     event: runEventsEventSchema,
   }),
-})
+});
 
 export type AutomationsContract = typeof automationsContract;

@@ -62,7 +62,9 @@ const REVEAL_LABEL =
 
 type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
 
-function resultErrorMessage(error: ResultLikeError): string {
+function resultErrorMessage(error: ResultLikeError | string | undefined): string {
+  if (typeof error === 'string') return error;
+  if (!error) return 'Unknown error';
   return error.message ?? error.type ?? 'Unknown error';
 }
 

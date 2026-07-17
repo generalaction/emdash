@@ -13,8 +13,6 @@ export const rpc = {
     readUserFile: (path: string) => host().then((client) => client.readUserFile({ path })),
     clipboardWriteText: (text: string) =>
       host().then((client) => client.clipboardWriteText({ text })),
-    showWorkspaceItemInFolder: (input: { workspaceId: string; relativePath: string }) =>
-      host().then((client) => client.showWorkspaceItemInFolder(input)),
     persistDroppedBlob: (input: { bytes: Uint8Array; name?: string; mimeType?: string }) =>
       host().then((client) => client.persistDroppedBlob(input)),
     persistClipboardImage: () => host().then((client) => client.persistClipboardImage()),
