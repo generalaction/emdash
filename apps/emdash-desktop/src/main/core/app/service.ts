@@ -223,6 +223,11 @@ class AppService implements IInitializable, IDisposable {
     if (errorMessage) throw new Error(errorMessage);
   }
 
+  async showItemInFolder(rawPath: string): Promise<void> {
+    const realPath = await resolveHomeJailedPath(rawPath);
+    shell.showItemInFolder(realPath);
+  }
+
   /**
    * Restricted to the user home directory: terminal output drives these reads,
    * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.

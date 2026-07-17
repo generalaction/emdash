@@ -3,13 +3,21 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IWatchService, WatchEvent, WatchHandle } from '../../services/fs-watch/api';
+import type {
+  IWatchService,
+  WatchEvent,
+  WatchHandle,
+  WatchOptions,
+} from '../../services/fs-watch/api';
 import { FilesRuntime } from '../files-runtime';
 import { FileTree } from './file-tree';
 import type { FileNode } from './models/tree';
 
 class ManualWatchService implements IWatchService {
-  private consumers: Array<(events: WatchEvent[]) => void> = [];
+  private consumers: Array<{
+    onEvents: (events: WatchEvent[]) => void;
+    onResync?: () => void;
+  }> = [];
   private readyCalls = 0;
   private releaseCalls = 0;
 
@@ -21,20 +29,29 @@ class ManualWatchService implements IWatchService {
     return this.releaseCalls;
   }
 
-  watch(_root: string, onEvents: (events: WatchEvent[]) => void): WatchHandle {
-    this.consumers.push(onEvents);
+  watch(
+    _root: string,
+    onEvents: (events: WatchEvent[]) => void,
+    options: WatchOptions = {}
+  ): WatchHandle {
+    const consumer = { onEvents, onResync: options.onResync };
+    this.consumers.push(consumer);
     this.readyCalls += 1;
     return {
       ready: async () => {},
       release: async () => {
         this.releaseCalls += 1;
-        this.consumers = this.consumers.filter((consumer) => consumer !== onEvents);
+        this.consumers = this.consumers.filter((candidate) => candidate !== consumer);
       },
     };
   }
 
   emit(events: WatchEvent[]): void {
-    for (const consumer of this.consumers) consumer(events);
+    for (const consumer of this.consumers) consumer.onEvents(events);
+  }
+
+  resync(): void {
+    for (const consumer of this.consumers) consumer.onResync?.();
   }
 
   async dispose(): Promise<void> {}
@@ -549,6 +566,45 @@ describe('FileTree', () => {
     patched.refreshRegisteredScopes = originalRefreshLoadedScopes;
     patched.applyWatchEvents = originalApplyWatchEvents;
     tree.dispose();
+  });
+
+  it('coalesces a resync burst to one active and one trailing refresh', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'a.txt'), 'x', 'utf8');
+    const watcher = new ManualWatchService();
+    const tree = new FileTree({ rootPath: root, watcher });
+    unwrap(await tree.ready());
+
+    const patched = tree as unknown as {
+      refreshRegisteredScopes(): Promise<Result<unknown, unknown>>;
+    };
+    const originalRefreshRegisteredScopes = patched.refreshRegisteredScopes;
+    let refreshCount = 0;
+    let releaseFirstRefresh: () => void = () => {};
+    const firstRefreshEntered = new Promise<void>((resolve) => {
+      patched.refreshRegisteredScopes = async () => {
+        refreshCount += 1;
+        if (refreshCount === 1) {
+          resolve();
+          await new Promise<void>((release) => {
+            releaseFirstRefresh = release;
+          });
+        }
+        return originalRefreshRegisteredScopes.call(tree);
+      };
+    });
+
+    watcher.resync();
+    await firstRefreshEntered;
+    for (let index = 0; index < 10; index += 1) watcher.resync();
+
+    expect(refreshCount).toBe(1);
+    releaseFirstRefresh();
+    await tree.refresh();
+
+    expect(refreshCount).toBe(3);
+    patched.refreshRegisteredScopes = originalRefreshRegisteredScopes;
+    await tree.dispose();
   });
 
   it('runtime leases share one tree per resolved root', async () => {
