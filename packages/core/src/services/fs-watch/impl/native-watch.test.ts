@@ -157,18 +157,34 @@ describe('NativeWatch', () => {
     expect(finalUnsubscribe).toHaveBeenCalledOnce();
   });
 
-  it('does not unsubscribe twice when stopping the previous subscription fails', async () => {
-    const unsubscribe = vi.fn().mockRejectedValue(new Error('Failed to stop watcher'));
-    queueSubscription({ unsubscribe });
-    const watch = await openWatch();
+  it('keeps the previous subscription active and retries when stopping it fails', async () => {
+    const firstUnsubscribe = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to stop watcher'))
+      .mockResolvedValueOnce(undefined);
+    const finalUnsubscribe = vi.fn(async () => {});
+    queueSubscription({ unsubscribe: firstUnsubscribe });
+    queueSubscription({ unsubscribe: finalUnsubscribe });
+    const deliver = vi.fn();
+    const watch = new NativeWatch(root, [], deliver, vi.fn(), vi.fn(), subscribe);
+    await watch.ready();
 
     callbacks[0](new Error('Watcher failed'), []);
     await vi.advanceTimersByTimeAsync(250);
-    await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(firstUnsubscribe).toHaveBeenCalledOnce());
 
-    await expect(watch.dispose()).resolves.toBeUndefined();
-    expect(unsubscribe).toHaveBeenCalledOnce();
     expect(subscribe).toHaveBeenCalledOnce();
+    callbacks[0](null, [{ type: 'update', path: path.join(root, 'changed.txt') }]);
+    expect(deliver).toHaveBeenCalledWith([
+      { kind: 'update', path: path.join(root, 'changed.txt') },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+
+    expect(firstUnsubscribe).toHaveBeenCalledTimes(2);
+    await watch.dispose();
+    expect(finalUnsubscribe).toHaveBeenCalledOnce();
   });
 
   it('does not create a replacement when disposed during unsubscribe', async () => {

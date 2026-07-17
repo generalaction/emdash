@@ -142,17 +142,22 @@ export class NativeWatch implements IDisposable {
 
   private async restart(): Promise<boolean> {
     const previousPromise = this.subscription;
+    const previousGeneration = this.activeGeneration;
     this.activeGeneration = 0;
     const previous = await previousPromise?.catch(() => null);
     if (this.disposed) return false;
-    if (this.subscription === previousPromise) this.subscription = null;
 
     try {
       await previous?.unsubscribe();
     } catch (error) {
       this.onError(`unsubscribe ${this.root}`, error);
-      return false;
+      if (!this.disposed && this.subscription === previousPromise) {
+        this.activeGeneration = previousGeneration;
+        this.scheduleResync();
+      }
+      return !this.disposed;
     }
+    if (this.subscription === previousPromise) this.subscription = null;
     if (this.disposed) return false;
 
     const next = this.subscribe();
