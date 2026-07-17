@@ -1,13 +1,12 @@
 import { err } from '@emdash/shared';
-import { projectManager } from '@main/core/projects/project-manager';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
   IssueContextResult,
   IssueListResult,
   IssueProviderType,
-} from '@shared/issue-providers';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+} from '@core/primitives/issue-providers/api';
+import { projectManager } from '@main/core/projects/project-manager';
 import type {
   IssueContextOpts,
   IssueProvider,
@@ -97,7 +96,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   return { ...opts, remote: selectedRemote, repositoryUrl };
 }
 
-export const issueController = createRPCController({
+export const issueOperations = {
   checkConnection: async (provider: IssueProviderType) => {
     const issueProvider = getIssueProvider(provider);
     if (!issueProvider) {
@@ -176,4 +175,4 @@ export const issueController = createRPCController({
 
     return issueProvider.getIssueContext(await withResolvedRemote(opts));
   },
-});
+};

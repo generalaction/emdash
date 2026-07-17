@@ -11,7 +11,7 @@ import {
   type RuntimeTerminalShellId,
   type TerminalShellAvailability,
   type TerminalShellId,
-} from '@shared/core/terminals/terminal-settings';
+} from '@core/primitives/terminals/api';
 import type { ResolvedShellProfile } from './types';
 
 export type ShellTarget = { kind: 'local'; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv };

@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
+import type { AgentEvent } from '@core/primitives/agents/api';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { getPluginMetadata } from '@main/core/agents/plugin-registry';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import type { NotificationService } from '../notification-service';
 import { agentNotificationInputFromEvent, notificationMapping } from './agent-status-mapping';
 

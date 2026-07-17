@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export const GITHUB_ACCOUNTS_QUERY_KEY = ['github:accounts'] as const;
 export const GITHUB_ACCOUNT_STATE_QUERY_KEY = ['github:account-state'] as const;
@@ -14,7 +14,7 @@ function invalidateGitHubAccountState(queryClient: ReturnType<typeof useQueryCli
 export function useGitHubAccounts() {
   return useQuery({
     queryKey: GITHUB_ACCOUNTS_QUERY_KEY,
-    queryFn: () => rpc.github.listAccounts(),
+    queryFn: async () => (await getDesktopWireClient()).github.listAccounts(undefined),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -23,7 +23,7 @@ export function useGitHubAccounts() {
 export function useImportGitHubCliAccounts() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => rpc.github.importCliAccounts(),
+    mutationFn: async () => (await getDesktopWireClient()).github.importCliAccounts(undefined),
     onSuccess: () => invalidateGitHubAccountState(queryClient),
   });
 }
@@ -31,7 +31,7 @@ export function useImportGitHubCliAccounts() {
 export function useGitHubDeviceFlowAuth() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => rpc.github.auth(),
+    mutationFn: async () => (await getDesktopWireClient()).github.auth(undefined),
     onSettled: () => invalidateGitHubAccountState(queryClient),
   });
 }
@@ -39,7 +39,8 @@ export function useGitHubDeviceFlowAuth() {
 export function useSetDefaultGitHubAccount() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (accountId: string) => rpc.github.setDefaultAccount(accountId),
+    mutationFn: async (accountId: string) =>
+      (await getDesktopWireClient()).github.setDefaultAccount({ accountId }),
     onSuccess: () => invalidateGitHubAccountState(queryClient),
   });
 }
@@ -47,7 +48,8 @@ export function useSetDefaultGitHubAccount() {
 export function useRemoveGitHubAccount() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (accountId: string) => rpc.github.removeAccount(accountId),
+    mutationFn: async (accountId: string) =>
+      (await getDesktopWireClient()).github.removeAccount({ accountId }),
     onSuccess: () => invalidateGitHubAccountState(queryClient),
   });
 }

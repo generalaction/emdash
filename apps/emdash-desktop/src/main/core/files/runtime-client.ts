@@ -10,15 +10,15 @@ import type {
   LiveJobClientHandle,
   LiveJobEndpointDef,
 } from '@emdash/wire';
-import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import type { FilesRuntimeClient } from '@main/gateway/accessors';
 import {
   hostPathFromNative,
   nativePathFromHost,
   portablePath,
   relativePathWithin,
   resolveRelativePath,
-} from '@shared/core/runtime/paths';
+} from '@core/primitives/desktop-runtime/api';
+import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
+import type { FilesRuntimeClient } from '@main/gateway/accessors';
 
 export type FilesClientScope = {
   client: FilesRuntimeClient;

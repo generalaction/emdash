@@ -1,8 +1,8 @@
-import type { MementoDef } from '@core/primitives/mementos/api';
-import type { SubjectDef } from '@core/primitives/subjects/api';
 import { reaction } from 'mobx';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { z } from 'zod';
+import type { MementoDef } from '@core/primitives/mementos/api';
+import type { SubjectDef } from '@core/primitives/subjects/api';
 import type { MementoHandle } from '../browser';
 import { useSubjectSpace } from './subject-context';
 

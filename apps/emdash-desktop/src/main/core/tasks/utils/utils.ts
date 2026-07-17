@@ -1,6 +1,6 @@
+import type { Task, TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type { TaskRow } from '@main/db/schema';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
-import type { Task, TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export function mapTaskRowToTask(
   row: TaskRow,

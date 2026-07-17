@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
+import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import type { LegacyImportSource } from '@shared/legacy-port';
-import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
 import {

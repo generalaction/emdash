@@ -1,5 +1,5 @@
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '../runtime/desktop-host-client';
 
 export async function copyPrUrl(url: string): Promise<boolean> {
   try {

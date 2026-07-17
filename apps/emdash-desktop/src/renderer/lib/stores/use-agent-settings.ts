@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
-import type { AgentSettings } from '@shared/core/agents/agent-payload';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import type { AgentSettings } from '@core/primitives/agents/api';
+import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 function agentSettingsQueryKey(id: string) {
   return ['agents', 'settings', id] as const;
@@ -20,14 +20,15 @@ export function useAgentSettings(id: string) {
   const query = useQuery<AgentSettings | null>({
     queryKey,
     queryFn: async () => {
-      const result = await (rpc.agents.getSettings(id) as Promise<AgentSettings | null>);
+      const result = await (await getDesktopWireClient()).agents.getSettings({ id });
       return result;
     },
     staleTime: 60_000,
   });
 
   const updateMutation = useMutation<void, Error, Partial<ProviderCustomConfig>>({
-    mutationFn: (config) => rpc.agents.updateSettings(id, config) as Promise<void>,
+    mutationFn: async (config) =>
+      (await getDesktopWireClient()).agents.updateSettings({ id, config }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
     },
@@ -35,11 +36,9 @@ export function useAgentSettings(id: string) {
 
   const resetMutation = useMutation<void, Error, void>({
     mutationFn: async () => {
-      const defaults = await (rpc.agents.getDefaultSettings(
-        id
-      ) as Promise<ProviderCustomConfig | null>);
+      const defaults = await (await getDesktopWireClient()).agents.getDefaultSettings({ id });
       if (defaults) {
-        await (rpc.agents.updateSettings(id, defaults) as Promise<void>);
+        await (await getDesktopWireClient()).agents.updateSettings({ id, config: defaults });
       }
     },
     onSuccess: () => {

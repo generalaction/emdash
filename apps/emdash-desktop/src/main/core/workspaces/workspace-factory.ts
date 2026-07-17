@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type { Task } from '@core/primitives/tasks/api';
 import { TuiConversationProvider } from '@main/core/conversations/tui-conversation-provider';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
@@ -8,7 +9,6 @@ import { previewServerService } from '@main/core/preview-servers/preview-server-
 import type { Workspace } from '@main/core/workspaces/workspace';
 import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
-import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { getTaskEnvVars } from './workspace-env';

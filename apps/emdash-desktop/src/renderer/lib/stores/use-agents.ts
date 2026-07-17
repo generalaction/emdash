@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
-import type { AgentMetadata, AgentPayload } from '@shared/core/agents/agent-payload';
+import type { AgentMetadata, AgentPayload } from '@core/primitives/agents/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export const AGENTS_METADATA_QUERY_KEY = ['agents', 'metadata'] as const;
 
@@ -11,7 +11,7 @@ export const AGENTS_METADATA_QUERY_KEY = ['agents', 'metadata'] as const;
 export function useAgents() {
   return useQuery<AgentPayload[]>({
     queryKey: AGENTS_METADATA_QUERY_KEY,
-    queryFn: () => rpc.agents.list() as Promise<AgentPayload[]>,
+    queryFn: async () => (await getDesktopWireClient()).agents.list({}),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -22,7 +22,7 @@ export function useAgents() {
 export function useAgent(id: string, connectionId?: string) {
   return useQuery<AgentPayload | null>({
     queryKey: [...AGENTS_METADATA_QUERY_KEY, id, connectionId ?? 'local'],
-    queryFn: () => rpc.agents.get(id) as Promise<AgentPayload | null>,
+    queryFn: async () => (await getDesktopWireClient()).agents.get({ id }),
     staleTime: 5 * 60 * 1000,
   });
 }

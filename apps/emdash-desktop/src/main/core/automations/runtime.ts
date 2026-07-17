@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { Automation } from '@core/primitives/automations/api';
+import type { AutomationRun } from '@core/primitives/automations/api';
 import { log } from '@main/lib/logger';
-import type { Automation } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
 import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
 

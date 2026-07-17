@@ -1,8 +1,8 @@
 import { ok, type Result } from '@emdash/shared';
+import type { WriteProjectConfigRequest } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { fileKey, fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
-import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import { errorMessage, writeConfigFailed } from './config-migration-utils';
 import {

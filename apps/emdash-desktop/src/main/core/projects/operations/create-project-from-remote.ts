@@ -1,15 +1,15 @@
 import { rm, stat } from 'node:fs/promises';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { LiveJobContext } from '@emdash/wire';
-import { createLocalProject } from '@main/core/projects/operations/create-local-project';
-import { runCloneRepositoryProvision } from '@main/core/workspaces/workspace-bootstrap-service';
-import { log } from '@main/lib/logger';
 import type {
   CreateProjectFromRemoteInput,
   ProjectCreationState,
-} from '@shared/core/projects/wire-contract';
-import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
-import type { LocalProject } from '@shared/projects';
+} from '@core/features/projects/api';
+import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
+import type { LocalProject } from '@core/primitives/projects/api';
+import { createLocalProject } from '@main/core/projects/operations/create-local-project';
+import { runCloneRepositoryProvision } from '@main/core/workspaces/workspace-bootstrap-service';
+import { log } from '@main/lib/logger';
 
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
 

@@ -12,8 +12,8 @@ import type {
   LiveJobClientHandle,
   LiveJobEndpointDef,
 } from '@emdash/wire';
+import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
 
 export function repositorySelector(nativePath: string): RepositorySelector {
   return { repository: hostPathFromNative(nativePath) };

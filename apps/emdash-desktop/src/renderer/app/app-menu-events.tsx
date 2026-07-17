@@ -1,16 +1,10 @@
 import { useEffect } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
-import {
-  menuGiveFeedbackChannel,
-  menuOpenSettingsChannel,
-  menuQuitRequestedChannel,
-} from '@shared/events/appEvents';
-import { browserLinkCopiedChannel } from '@shared/events/browserEvents';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
@@ -20,45 +14,73 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   useRegisterNotificationOpenHandlers();
 
   useEffect(() => {
-    return events.on(menuOpenSettingsChannel, () => {
-      if (currentView !== 'settings') {
-        const shouldOpen = onOpenSettings?.() ?? true;
-        if (shouldOpen === false) return;
-      }
-
-      toggleSettingsView(navigate, currentView, lastNonSettingsView);
-    });
-  }, [navigate, onOpenSettings, currentView, lastNonSettingsView]);
-
-  useEffect(() => {
-    return events.on(menuQuitRequestedChannel, () => {
-      showConfirmQuitModal({
-        title: 'Quit Emdash?',
-        description: 'Active terminal sessions and running agents will stop when the app quits.',
-        confirmLabel: 'Quit',
-        onSuccess: () => {
-          void rpc.app.quit();
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'menu-open-settings') {
+            if (currentView !== 'settings') {
+              const shouldOpen = onOpenSettings?.() ?? true;
+              if (shouldOpen === false) return;
+            }
+            toggleSettingsView(navigate, currentView, lastNonSettingsView);
+          } else if (event.type === 'menu-quit-requested') {
+            showConfirmQuitModal({
+              title: 'Quit Emdash?',
+              description:
+                'Active terminal sessions and running agents will stop when the app quits.',
+              confirmLabel: 'Quit',
+              onSuccess: () => {
+                void getDesktopWireClient().then((nextClient) => nextClient.host.quit());
+              },
+            });
+          } else if (event.type === 'menu-give-feedback') {
+            showFeedbackModal({});
+          }
         },
+        onGap: () => {},
       });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
-  }, [showConfirmQuitModal]);
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [
+    currentView,
+    lastNonSettingsView,
+    navigate,
+    onOpenSettings,
+    showConfirmQuitModal,
+    showFeedbackModal,
+  ]);
 
   useEffect(() => {
-    return events.on(menuGiveFeedbackChannel, () => {
-      showFeedbackModal({});
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.browser.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type !== 'link-copied') return;
+          const title =
+            event.kind === 'url'
+              ? 'Browser URL copied'
+              : event.kind === 'image'
+                ? 'Image URL copied'
+                : 'Link copied';
+          toast({ title });
+        },
+        onGap: () => {},
+      });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
-  }, [showFeedbackModal]);
-
-  useEffect(() => {
-    return events.on(browserLinkCopiedChannel, ({ kind }) => {
-      const title =
-        kind === 'url'
-          ? 'Browser URL copied'
-          : kind === 'image'
-            ? 'Image URL copied'
-            : 'Link copied';
-      toast({ title });
-    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, []);
 
   return null;

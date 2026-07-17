@@ -1,10 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import { IntegrationsProvider } from '@core/features/integrations/browser/integrations-provider';
+import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
-import { IntegrationsProvider } from './features/integrations/integrations-provider';
-import { Onboarding } from './features/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';

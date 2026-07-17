@@ -6,8 +6,8 @@
  * live in automation-scheduler.db.test.ts.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Automation } from '@core/primitives/automations/api';
 import { log } from '@main/lib/logger';
-import type { Automation } from '@shared/core/automations/automation';
 import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
 import {
   enabledAutomationsWithoutQueuedRun,

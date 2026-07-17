@@ -17,8 +17,8 @@
 import type { IObservableValue } from 'mobx';
 import { observable, reaction, runInAction } from 'mobx';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
-import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
+import type { PaneDimensionSink } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import {
   getFrontendPty,
   TERMINAL_LETTER_SPACING,

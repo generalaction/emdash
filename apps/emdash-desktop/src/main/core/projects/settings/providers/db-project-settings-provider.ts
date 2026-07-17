@@ -1,8 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
+import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
@@ -12,9 +9,12 @@ import {
   type BaseProjectSettings,
   type ProjectSettings,
   type ShareableProjectSettings,
-} from '@shared/core/project-settings/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { log } from '@main/lib/logger';
 import {
   migrateLegacyProjectSettingsIfNeeded,
   type ProjectSettingsGitInspector,

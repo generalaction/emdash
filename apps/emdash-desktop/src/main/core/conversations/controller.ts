@@ -1,4 +1,3 @@
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { createConversation } from './createConversation';
 import { dehydrateConversation } from './dehydrateConversation';
 import { deleteConversation } from './deleteConversation';
@@ -9,7 +8,7 @@ import { hydrateConversation } from './hydrateConversation';
 import { markConversationSeen } from './markConversationSeen';
 import { renameConversation } from './renameConversation';
 
-export const conversationController = createRPCController({
+export const conversationOperations = {
   getConversations,
   createConversation,
   deleteConversation,
@@ -19,4 +18,4 @@ export const conversationController = createRPCController({
   getConversationsForTask,
   getConversationsForProject,
   markConversationSeen,
-});
+};

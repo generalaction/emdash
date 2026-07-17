@@ -1,9 +1,9 @@
+import { makeAutoObservable, observable } from 'mobx';
 import {
   workbenchNavigationMemento,
   type WorkbenchNavigationState,
 } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
-import { makeAutoObservable, observable } from 'mobx';
 import { type GuardResult, type ViewId, type WrapParams } from '@renderer/app/view-registry';
 import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';

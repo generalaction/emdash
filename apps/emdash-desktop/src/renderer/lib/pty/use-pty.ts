@@ -1,12 +1,11 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
+import type { AppSettings } from '@core/primitives/app-settings/api';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
-import { events, rpc } from '@renderer/lib/ipc';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
-import type { AppSettings } from '@shared/core/app-settings';
-import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { TERMINAL_PADDING_PX } from './pty';
@@ -320,8 +319,14 @@ export function usePty(
 
       // ── Load settings ──────────────────────────────────────────────────────
       let customFontFamily = '';
-      void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
-        (terminalSettings) => {
+      void getDesktopWireClient()
+        .then(async (client) => {
+          const settings = (await client.appSettings.get({
+            key: 'terminal',
+          })) as AppSettings['terminal'];
+          return settings;
+        })
+        .then((terminalSettings) => {
           if (terminalSettings?.fontFamily) {
             customFontFamily = terminalSettings.fontFamily.trim();
             if (customFontFamily) {
@@ -333,8 +338,7 @@ export function usePty(
           measureAndResize();
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
           frontendPty.terminal.options.macOptionIsMeta = terminalSettings?.macOptionIsMeta ?? false;
-        }
-      );
+        });
 
       // ── DECRQM xterm.js 6.0 bug workaround ────────────────────────────────
       const terminal = frontendPty.terminal;
@@ -516,37 +520,43 @@ export function usePty(
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
-        void rpc.app.showTerminalContextMenu({
-          requestId,
-          selectionText,
-          linkText,
-          x: event.clientX,
-          y: event.clientY,
-        });
+        void getDesktopWireClient().then((client) =>
+          client.host.showTerminalContextMenu({
+            requestId,
+            selectionText,
+            linkText,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        );
       };
-      const offTerminalContextMenuAction = events.on(
-        terminalContextMenuActionChannel,
-        (payload) => {
-          if (payload.requestId !== contextMenuRequestIdRef.current) return;
-          contextMenuRequestIdRef.current = null;
+      let disposedContextMenu = false;
+      let offTerminalContextMenuAction: (() => void) | undefined;
+      void getDesktopWireClient().then(async (client) => {
+        const unsubscribe = await client.host.events.subscribe(undefined, {
+          onEvent: (event) => {
+            if (
+              event.type !== 'terminal-context-menu-action' ||
+              event.requestId !== contextMenuRequestIdRef.current
+            ) {
+              return;
+            }
+            contextMenuRequestIdRef.current = null;
 
-          if (payload.action === 'paste') {
-            pasteFromClipboard();
-            return;
-          }
-          if (payload.action === 'select-all') {
-            terminal.selectAll();
-            return;
-          }
-          if (payload.action === 'clear') {
-            frontendPty.clear();
-          }
-        }
-      );
+            if (event.action === 'paste') pasteFromClipboard();
+            else if (event.action === 'select-all') terminal.selectAll();
+            else if (event.action === 'clear') frontendPty.clear();
+          },
+          onGap: () => {},
+        });
+        if (disposedContextMenu) unsubscribe();
+        else offTerminalContextMenuAction = unsubscribe;
+      });
       frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
       frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
       cleanups.push(() => {
-        offTerminalContextMenuAction();
+        disposedContextMenu = true;
+        offTerminalContextMenuAction?.();
         contextMenuRequestIdRef.current = null;
         frontendPty.ownedContainer.removeEventListener(
           'mousedown',
@@ -555,12 +565,6 @@ export function usePty(
         );
         frontendPty.ownedContainer.removeEventListener('contextmenu', handleContextMenu);
       });
-
-      // ── Paste from app menu ────────────────────────────────────────────────
-      const offPaste = events.on(appPasteChannel, () => {
-        pasteFromClipboard();
-      });
-      cleanups.push(offPaste);
 
       // ── Font / setting change events ───────────────────────────────────────
       const handleFontChange = (e: Event) => {

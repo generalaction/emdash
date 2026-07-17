@@ -1,3 +1,9 @@
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
+import { waitFor } from '@emdash/shared/testing';
+import { createTestWire, type TestWire } from '@emdash/wire/testing';
+import { autorun, observable, reaction, runInAction } from 'mobx';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import {
   defineMemento,
   mementosWireContract,
@@ -10,12 +16,6 @@ import {
   mementosSqliteStore,
 } from '@core/services/mementos/node/persistence';
 import { createMementosWireController } from '@core/services/mementos/node/wire-controller';
-import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
-import { waitFor } from '@emdash/shared/testing';
-import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import { autorun, observable, reaction, runInAction } from 'mobx';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 import { MementoClient } from './memento-client';
 import { sanitizedMemento } from './sanitized';
 

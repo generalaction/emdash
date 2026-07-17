@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@core/features/tasks/browser/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { ContainedImage } from '@renderer/lib/ui/contained-image';

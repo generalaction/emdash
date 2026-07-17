@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Automation } from '@core/primitives/automations/api';
+import type { AutomationRun } from '@core/primitives/automations/api';
 import { createConversation } from '@main/core/conversations/createConversation';
-import { issueController } from '@main/core/issues/controller';
+import { issueOperations } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -11,8 +13,6 @@ import {
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
-import type { Automation } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { updateRun } from '../repo';
 import type { OnStepCompleted } from '../run-transitions';
 import {
@@ -69,7 +69,7 @@ vi.mock('@main/gateway/accessors', () => ({
   getAcpRuntimeClient: vi.fn(async () => ({ startSession: mockAcpStartSession })),
 }));
 vi.mock('@main/core/issues/controller', () => ({
-  issueController: { getIssueContext: vi.fn() },
+  issueOperations: { getIssueContext: vi.fn() },
 }));
 vi.mock('../repo', () => ({ updateRun: vi.fn() }));
 vi.mock('../run-transitions', () => ({
@@ -155,7 +155,7 @@ describe('executeTaskCreate', () => {
       success: true,
       data: { sessionId: 'acp-session' },
     });
-    vi.mocked(issueController.getIssueContext).mockResolvedValue({
+    vi.mocked(issueOperations.getIssueContext).mockResolvedValue({
       success: false,
       error: { type: 'generic', message: 'not found' },
     });

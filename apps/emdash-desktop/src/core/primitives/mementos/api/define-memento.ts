@@ -1,6 +1,6 @@
-import type { SubjectDef } from '@core/primitives/subjects/api';
 import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import type { z } from 'zod';
+import type { SubjectDef } from '@core/primitives/subjects/api';
 
 export const DEFAULT_PERSISTED_MAX_AGE = days(60);
 export const DEFAULT_PERSISTED_MAX_ENTRIES = 500;

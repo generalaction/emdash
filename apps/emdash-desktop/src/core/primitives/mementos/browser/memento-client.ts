@@ -1,14 +1,3 @@
-import {
-  DEFAULT_TRANSIENT_MAX_ENTRIES,
-  mementoKeyId,
-  mementosWireContract,
-  persistedMementosForSubjectKind,
-  type MementoCatalogEntry,
-  type MementoDef,
-  type MementoModelKey,
-  type MementoRow,
-} from '@core/primitives/mementos/api';
-import type { Subject, SubjectDef } from '@core/primitives/subjects/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { createLiveModelReplica } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
@@ -23,6 +12,17 @@ import {
   type IReactionDisposer,
 } from 'mobx';
 import type { z } from 'zod';
+import {
+  DEFAULT_TRANSIENT_MAX_ENTRIES,
+  mementoKeyId,
+  mementosWireContract,
+  persistedMementosForSubjectKind,
+  type MementoCatalogEntry,
+  type MementoDef,
+  type MementoModelKey,
+  type MementoRow,
+} from '@core/primitives/mementos/api';
+import type { Subject, SubjectDef } from '@core/primitives/subjects/api';
 
 type MementosClientContract = ContractClient<typeof mementosWireContract>;
 type PersistentModel = OptimisticLiveModel<typeof mementosWireContract.memento>;

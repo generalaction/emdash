@@ -8,8 +8,8 @@ import {
   hostPathFromNative,
   nativePathFromHost,
   resolveRelativePath,
-} from '@shared/core/runtime/paths';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+} from '@core/primitives/desktop-runtime/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import {
   deleteWorkspaceIfUnused,
   hasWorktreeGitMarker,

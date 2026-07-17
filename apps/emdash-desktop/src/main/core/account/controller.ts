@@ -1,9 +1,8 @@
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { emdashAccountService } from './services/emdash-account-service';
 
-export const accountController = createRPCController({
+export const accountOperations = {
   getSession: async () => {
     const result = await emdashAccountService.getSession();
     if (!result.success) {
@@ -70,4 +69,4 @@ export const accountController = createRPCController({
     if (!result.success) return false;
     return result.data !== 'invalid';
   },
-});
+};

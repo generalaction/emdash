@@ -1,0 +1,303 @@
+import type * as Wire from '@emdash/wire';
+import { runInAction } from 'mobx';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Task } from '@core/primitives/tasks/api';
+import { TaskManagerStore } from './task-manager';
+import { createUnprovisionedTask } from './task-store';
+
+type MockViewModel = {
+  initialize: ReturnType<typeof vi.fn>;
+  suspend: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+  space: { ready: Promise<void> };
+};
+
+type MockDraftComments = {
+  dispose: ReturnType<typeof vi.fn>;
+};
+
+let taskDeletedHandler:
+  | ((event: { type: 'deleted'; taskId: string; projectId: string }) => void)
+  | undefined;
+
+const mocks = vi.hoisted(() => ({
+  archiveTask: vi.fn(),
+  conversationAcquire: vi.fn(),
+  conversationRelease: vi.fn(),
+  createLiveJobReplica: vi.fn(),
+  createLiveModelReplica: vi.fn(),
+  deleteBySubject: vi.fn(),
+  draftComments: [] as MockDraftComments[],
+  getConversationsForProject: vi.fn(),
+  getProjectManagerStore: vi.fn(),
+  getPullRequestsForTask: vi.fn(),
+  getTaskGitCheckoutStore: vi.fn(),
+  getTasks: vi.fn(),
+  mountProject: vi.fn(),
+  provisionWorkspace: vi.fn(),
+  teardownTask: vi.fn(),
+  terminalAcquire: vi.fn(),
+  terminalRelease: vi.fn(),
+  viewModels: [] as MockViewModel[],
+  workspaceActivate: vi.fn(),
+  workspaceAcquire: vi.fn(),
+  workspaceRelease: vi.fn(),
+  workspaceSetBootstrapState: vi.fn(),
+}));
+
+vi.mock('@emdash/wire', async (importOriginal) => {
+  const actual = await importOriginal<typeof Wire>();
+  return {
+    ...actual,
+    createLiveJobReplica: mocks.createLiveJobReplica,
+    createLiveModelReplica: mocks.createLiveModelReplica,
+  };
+});
+
+vi.mock('@renderer/lib/runtime/workspaces-wire-client', () => ({
+  getWorkspacesWireClient: async () => ({
+    bootstrap: {},
+    provision: {},
+  }),
+}));
+
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
+  rpc: {
+    pullRequests: {
+      getPullRequestsForTask: mocks.getPullRequestsForTask,
+    },
+  },
+}));
+
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
+    conversations: {
+      getConversationsForProject: mocks.getConversationsForProject,
+    },
+    tasks: {
+      archiveTask: mocks.archiveTask,
+      getTasks: mocks.getTasks,
+      teardownTask: mocks.teardownTask,
+      events: {
+        subscribe: async (
+          _key: undefined,
+          observer: {
+            onEvent: (event: { type: 'deleted'; taskId: string; projectId: string }) => void;
+          }
+        ) => {
+          taskDeletedHandler = observer.onEvent;
+          return vi.fn();
+        },
+      },
+    },
+  }),
+}));
+
+vi.mock('@renderer/lib/mementos', () => ({
+  getMementoClient: () => ({
+    deleteBySubject: mocks.deleteBySubject,
+  }),
+}));
+
+vi.mock('@core/features/projects/browser/stores/project-selectors', () => ({
+  getProjectManagerStore: mocks.getProjectManagerStore,
+}));
+
+vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
+  getTaskGitCheckoutStore: mocks.getTaskGitCheckoutStore,
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
+
+vi.mock('@core/features/tasks/browser/diff-view/stores/draft-comments-store', () => ({
+  DraftCommentsStore: class {
+    dispose = vi.fn();
+
+    constructor() {
+      mocks.draftComments.push(this);
+    }
+  },
+}));
+
+vi.mock('./workspace-view-model', () => ({
+  WorkspaceViewModel: class {
+    initialize = vi.fn();
+    suspend = vi.fn();
+    dispose = vi.fn();
+    space = { ready: Promise.resolve() };
+
+    constructor() {
+      mocks.viewModels.push(this);
+    }
+  },
+}));
+
+vi.mock('./workspace-registry', () => ({
+  workspaceRegistry: {
+    activate: mocks.workspaceActivate,
+    acquire: mocks.workspaceAcquire,
+    release: mocks.workspaceRelease,
+    setBootstrapState: mocks.workspaceSetBootstrapState,
+  },
+}));
+
+vi.mock('@core/features/conversations/browser/stores/conversation-registry', () => ({
+  conversationRegistry: {
+    acquire: mocks.conversationAcquire,
+    get: vi.fn(),
+    release: mocks.conversationRelease,
+  },
+}));
+
+vi.mock('./terminal-registry', () => ({
+  terminalRegistry: {
+    acquire: mocks.terminalAcquire,
+    get: vi.fn(),
+    release: mocks.terminalRelease,
+  },
+}));
+
+function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 'task-1',
+    projectId: 'project-1',
+    name: 'Task 1',
+    status: 'todo',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    statusChangedAt: '2026-01-01T00:00:00.000Z',
+    isPinned: false,
+    prs: [],
+    conversations: {},
+    workspaceId: 'workspace-1',
+    type: 'task',
+    ...overrides,
+  };
+}
+
+function makeTaskManager(): TaskManagerStore {
+  return new TaskManagerStore(
+    'project-1',
+    { pullRequestRepositoryUrl: null } as never,
+    { pageData: { invalidate: vi.fn() } } as never
+  );
+}
+
+describe('TaskManagerStore archive lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    taskDeletedHandler = undefined;
+    mocks.deleteBySubject.mockResolvedValue(undefined);
+    mocks.draftComments.length = 0;
+    mocks.viewModels.length = 0;
+    mocks.archiveTask.mockResolvedValue(undefined);
+    mocks.getConversationsForProject.mockResolvedValue([]);
+    mocks.getProjectManagerStore.mockReturnValue({ mountProject: mocks.mountProject });
+    mocks.getPullRequestsForTask.mockResolvedValue({ success: true, data: { prs: [] } });
+    mocks.getTasks.mockResolvedValue([]);
+    mocks.mountProject.mockResolvedValue(undefined);
+    mocks.provisionWorkspace.mockResolvedValue({
+      success: true,
+      data: {
+        path: '/tmp/workspace-1',
+        workspaceId: 'workspace-1',
+      },
+    });
+    mocks.createLiveJobReplica.mockReturnValue({
+      start: async () => ({
+        ready: async () => ({
+          result: Promise.resolve({
+            path: '/tmp/workspace-1',
+            workspaceId: 'workspace-1',
+          }),
+          onProgress: () => vi.fn(),
+        }),
+        release: async () => {},
+      }),
+      dispose: async () => {},
+    });
+    mocks.createLiveModelReplica.mockReturnValue({
+      acquire: () => ({
+        ready: async () => ({
+          states: {
+            state: {
+              current: () => ({ status: 'unprovisioned' }),
+              onChange: () => vi.fn(),
+            },
+          },
+        }),
+        release: async () => {},
+      }),
+      dispose: async () => {},
+    });
+  });
+
+  it('archives by disposing frontend runtime instead of soft-tearing down the task', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
+    const viewModel = mocks.viewModels[0];
+    const draftComments = mocks.draftComments[0];
+    manager.tasks.set(task.id, store);
+
+    await manager.archiveTask(task.id);
+
+    expect(mocks.archiveTask).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      taskId: 'task-1',
+    });
+    expect(mocks.teardownTask).not.toHaveBeenCalled();
+    expect(mocks.conversationRelease).toHaveBeenCalledWith('task-1');
+    expect(mocks.terminalRelease).toHaveBeenCalledWith('task-1');
+    expect(viewModel.dispose).toHaveBeenCalledOnce();
+    expect(draftComments.dispose).toHaveBeenCalledOnce();
+    expect(store.state).toBe('unprovisioned');
+    expect(store.phase).toBe('idle');
+    expect(store.workspaceId).toBeNull();
+    expect(store.viewModel).toBeNull();
+    expect(store.draftComments).toBeNull();
+    expect((store.data as Task).archivedAt).toBeDefined();
+
+    manager.dispose();
+  });
+
+  it('reacquires frontend managers before provisioning a dry restored task', async () => {
+    const manager = makeTaskManager();
+    const task = makeTask({ archivedAt: undefined });
+    const store = createUnprovisionedTask(task);
+    store.transitionToDryUnprovisioned(task);
+    manager.tasks.set(task.id, store);
+    await manager.provisionTask(task.id);
+
+    expect(mocks.conversationAcquire).toHaveBeenCalledWith('task-1', 'project-1');
+    expect(mocks.terminalAcquire).toHaveBeenCalledWith('task-1', 'project-1');
+    expect(store.state).toBe('provisioned');
+    expect(store.viewModel).toBe(mocks.viewModels[1]);
+    expect(mocks.viewModels[1].initialize).toHaveBeenCalledOnce();
+
+    manager.dispose();
+  });
+
+  it('deletes task mementos after a backend deletion event', async () => {
+    const manager = makeTaskManager();
+    runInAction(() => {
+      manager.tasks.set('task-1', createUnprovisionedTask(makeTask()));
+    });
+
+    taskDeletedHandler?.({ type: 'deleted', taskId: 'task-1', projectId: 'project-1' });
+    await vi.waitFor(() => {
+      expect(mocks.deleteBySubject).toHaveBeenCalledWith({
+        kind: 'task',
+        key: 'task-1',
+      });
+    });
+
+    expect(manager.tasks.has('task-1')).toBe(false);
+    manager.dispose();
+  });
+});

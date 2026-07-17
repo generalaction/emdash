@@ -1,9 +1,8 @@
 import { eq } from 'drizzle-orm';
+import { sshEvents } from '@core/features/ssh/node';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
-import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
-import { sshConnectionEventChannel } from '@shared/core/ssh/sshEvents';
 import { resolveProductionSshConnectConfig } from '../connect/production-connect-config';
 import { SshConnectionManager } from './ssh-connection-manager';
 
@@ -14,6 +13,6 @@ export const sshConnectionManager = new SshConnectionManager({
   },
   resolveConnectConfig: async (row) =>
     await resolveProductionSshConnectConfig({ kind: 'persisted', row }),
-  publishEvent: (event) => events.emit(sshConnectionEventChannel, event),
+  publishEvent: (event) => sshEvents.emit(undefined, event),
   log,
 });

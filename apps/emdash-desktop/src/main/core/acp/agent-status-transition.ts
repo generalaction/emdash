@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@emdash/core/runtimes/acp/api';
-import type { AgentStatusSignal } from '@shared/core/agents/agentEvents';
+import type { AgentStatusSignal } from '@core/primitives/agents/api';
 
 export type AcpAgentStatusAction =
   | { kind: 'event'; event: AgentStatusSignal }

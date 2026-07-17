@@ -1,10 +1,10 @@
-import type { OperationsService } from '@main/core/operations/operations-service';
-import { taskService } from '@main/core/tasks/task-service';
 import type {
   ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
   ProjectWorkspaceRow,
-} from '@shared/core/workspaces/project-workspaces';
+} from '@core/primitives/workspaces/api';
+import type { OperationsService } from '@main/core/operations/operations-service';
+import { taskService } from '@main/core/tasks/task-service';
 import { getProjectWorkspaceProject, listProjectWorkspaces } from './list-project-workspaces';
 
 export async function deleteProjectWorkspaces(input: {

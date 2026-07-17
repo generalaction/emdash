@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineSubject } from '@core/primitives/subjects/api';
 import {
   defineDerivedSqliteStore,
   fingerprintDerivedSchema,
@@ -9,6 +8,7 @@ import {
 } from '@emdash/core/primitives/sqlite-store/node';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { defineSubject } from '@core/primitives/subjects/api';
 import {
   MementoPersistenceService,
   mementosSqliteStore,

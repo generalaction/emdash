@@ -1,10 +1,10 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import type { Task } from '@core/primitives/tasks/api';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import type { LinkedIssue } from '@shared/core/linked-issue';
-import type { Task } from '@shared/core/tasks/tasks';
 
 export async function updateLinkedIssue(
   taskId: string,

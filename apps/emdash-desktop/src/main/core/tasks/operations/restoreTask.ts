@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
+import type { Task } from '@core/primitives/tasks/api';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
-import type { Task } from '@shared/core/tasks/tasks';
 
 export async function restoreTask(id: string): Promise<Task | undefined> {
   const [updatedRow] = await db

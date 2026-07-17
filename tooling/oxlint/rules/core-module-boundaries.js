@@ -35,11 +35,12 @@ export function classifyCorePath(filePath, coreSrcRoot = DEFAULT_CORE_SRC_ROOT) 
   }
 
   const relative = normalizePath(path.relative(normalizedRoot, normalizedFile));
-  const [type, moduleName] = relative.split('/');
+  const [type, moduleName, surface] = relative.split('/');
   if (!MODULE_TYPES.has(type) || !moduleName) return undefined;
   return {
     type,
     moduleName,
+    ...(surface ? { surface } : {}),
   };
 }
 
@@ -49,16 +50,24 @@ export function classifyImportSpecifier(specifier, fromFile, coreSrcRoot = DEFAU
   for (const [prefix, type] of Object.entries(ALIAS_PREFIXES)) {
     if (!specifier.startsWith(prefix)) continue;
     const rest = specifier.slice(prefix.length);
-    const [moduleName] = rest.split('/');
+    const [moduleName, surface] = rest.split('/');
     if (!moduleName) return undefined;
-    return { type, moduleName };
+    return {
+      type,
+      moduleName,
+      ...(surface ? { surface } : {}),
+    };
   }
 
   if (specifier.startsWith(CORE_PACKAGE_PREFIX)) {
     const rest = specifier.slice(CORE_PACKAGE_PREFIX.length);
-    const [type, moduleName] = rest.split('/');
+    const [type, moduleName, surface] = rest.split('/');
     if (!MODULE_TYPES.has(type) || !moduleName) return undefined;
-    return { type, moduleName };
+    return {
+      type,
+      moduleName,
+      ...(surface ? { surface } : {}),
+    };
   }
 
   if (specifier.startsWith('.')) {
@@ -82,6 +91,18 @@ export function isAllowedCoreModuleDependency(source, target) {
   }
 
   if (source.type === 'features') {
+    if (source.surface === 'api' && target.surface === 'api') {
+      return true;
+    }
+    if (
+      source.surface === 'browser' &&
+      (target.type === 'primitives' ||
+        target.surface === 'api' ||
+        target.surface === 'browser' ||
+        target.surface === 'contributions')
+    ) {
+      return true;
+    }
     return target.type === 'primitives';
   }
 
@@ -95,7 +116,7 @@ export function isAllowedCoreModuleDependency(source, target) {
 export function dependencyMessage(source, target, specifier) {
   return `${source.type}/${source.moduleName} must not import ${target.type}/${
     target.moduleName
-  } via '${specifier}'. Allowed Core module dependencies are: runtimes -> services/primitives, services -> primitives, features -> primitives, primitives -> primitives.`;
+  } via '${specifier}'. Allowed Core module dependencies are: runtimes -> services/primitives, services -> primitives, feature APIs -> other APIs/primitives, feature browser surfaces -> other api/browser/contributions surfaces or primitives, other feature surfaces -> primitives, primitives -> primitives.`;
 }
 
 function getFilename(context) {

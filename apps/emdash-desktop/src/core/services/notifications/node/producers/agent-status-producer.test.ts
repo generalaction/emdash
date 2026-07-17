@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
+import type { AgentEvent } from '@core/primitives/agents/api';
 import { agentNotificationInputFromEvent, notificationMapping } from './agent-status-mapping';
 
 function event(overrides: Partial<AgentEvent> = {}): AgentEvent {

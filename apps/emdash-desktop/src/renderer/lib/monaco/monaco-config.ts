@@ -49,7 +49,8 @@ function configureTypeScriptDefaults(monacoInstance: typeof monaco): void {
     baseUrl: '.',
     paths: {
       '@/*': ['./src/renderer/*'],
-      '@shared/*': ['./src/shared/*'],
+      '@core/*': ['./src/core/*'],
+      '@renderer/*': ['./src/renderer/*'],
       '#types/*': ['./src/types/*'],
       '#types': ['./src/types/index.ts'],
     },

@@ -1,7 +1,6 @@
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { editorBufferService } from './editor-buffer-service';
 
-export const editorBufferController = createRPCController({
+export const editorBufferOperations = {
   saveBuffer: (projectId: string, workspaceId: string, filePath: string, content: string) =>
     editorBufferService.saveBuffer(projectId, workspaceId, filePath, content),
 
@@ -10,4 +9,4 @@ export const editorBufferController = createRPCController({
 
   listBuffers: (projectId: string, workspaceId: string) =>
     editorBufferService.listBuffers(projectId, workspaceId),
-});
+};

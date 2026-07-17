@@ -12,7 +12,7 @@ import {
   type LiveJobClientHandle,
   type LiveJobEndpointDef,
 } from '@emdash/wire';
-import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
+import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { getGitRuntimeClient } from './git-client';
 
 export function repositorySelector(nativePath: string): { repository: HostAbsolutePath } {

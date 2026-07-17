@@ -8,11 +8,10 @@ import {
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
+import { conversationWireEvents } from '@core/features/conversations/node';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { getTuiAgentsRuntimeClient, tuiAgentsWorker } from '@main/gateway/desktop-workers';
-import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
-import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { agentStatusService } from './agent-status-service';
 import {
   eventFromTuiAgentState,
@@ -182,7 +181,8 @@ class TuiAgentStatusBridge {
       return;
     }
 
-    events.emit(conversationChangedChannel, {
+    conversationWireEvents.emit(undefined, {
+      type: 'changed',
       conversationId: session.conversationId,
       taskId: result.data.taskId,
       projectId: result.data.projectId,

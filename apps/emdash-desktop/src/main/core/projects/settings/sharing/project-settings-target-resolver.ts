@@ -1,4 +1,10 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import type {
+  ProjectSettingsWriteTarget,
+  ProjectSettingsWriteTargetOption,
+  WriteProjectConfigRequest,
+} from '@core/primitives/project-settings/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -8,12 +14,6 @@ import {
   tasks as tasksTable,
   workspaces as workspacesTable,
 } from '@main/db/schema';
-import type {
-  ProjectSettingsWriteTarget,
-  ProjectSettingsWriteTargetOption,
-  WriteProjectConfigRequest,
-} from '@shared/core/project-settings/project-settings';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { ProjectProvider } from '../../project-provider';
 import { resolveWorkspace } from '../../utils';
 

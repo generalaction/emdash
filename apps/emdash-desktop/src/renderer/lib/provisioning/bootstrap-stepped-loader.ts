@@ -8,7 +8,7 @@ import { createElement, type ReactNode } from 'react';
 import type {
   WorkspaceBootstrapProgress,
   WorkspaceBootstrapStep,
-} from '@shared/core/workspaces/wire-contract';
+} from '@core/features/workspaces/api';
 
 export type BootstrapSteppedLoaderModel = Pick<
   SteppedLoaderProps,

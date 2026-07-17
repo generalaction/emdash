@@ -1,4 +1,4 @@
-import type { GitHubTokenSource, GitHubUser } from '@shared/github';
+import type { GitHubTokenSource, GitHubUser } from '@core/primitives/github/api';
 import {
   upsertGitHubAccount,
   type GitHubAccount,

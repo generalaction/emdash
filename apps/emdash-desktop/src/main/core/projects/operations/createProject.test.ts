@@ -8,7 +8,7 @@ import {
   hostPathFromNative,
   nativePathFromHost,
   resolveRelativePath,
-} from '@shared/core/runtime/paths';
+} from '@core/primitives/desktop-runtime/api';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 

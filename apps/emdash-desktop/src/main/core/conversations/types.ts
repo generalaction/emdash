@@ -1,4 +1,4 @@
-import { type Conversation } from '@shared/core/conversations/conversations';
+import { type Conversation } from '@core/primitives/conversations/api';
 
 export type EnsureConversationSessionMode = 'start' | 'resume';
 

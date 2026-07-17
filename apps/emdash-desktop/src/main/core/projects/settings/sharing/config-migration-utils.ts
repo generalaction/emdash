@@ -1,14 +1,14 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
   ProjectConfigMigration,
   ShareableProjectSettings,
   ShareableProjectSettingsWriteField,
-} from '@shared/core/project-settings/project-settings';
-import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { fileMutationKey, fsErrorMessage } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { CONFIG_FILE } from './workspace-config-file';
 

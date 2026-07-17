@@ -1,7 +1,7 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { rpc } from '@renderer/lib/ipc';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { FileLinkProvider, isPrimaryMouseButton } from './file-link-provider';

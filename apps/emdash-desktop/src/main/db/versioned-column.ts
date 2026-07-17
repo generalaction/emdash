@@ -77,7 +77,7 @@ export function serializeVersionedColumn<T>(
  *
  * @example
  * ```ts
- * import { workspaceConfig } from '@shared/workspace-config';
+ * import { workspaceConfig } from '@core/primitives/workspaces/api';
  *
  * export const workspaces = sqliteTable('workspaces', {
  *   config: versionedJsonColumn(workspaceConfig)('config'),

@@ -1,6 +1,6 @@
 import type path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 
 export type PathPlatform = 'posix' | 'win32';
 

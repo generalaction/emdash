@@ -1,11 +1,11 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import type { DeletePreflightResult, TaskDeletePreflightItem } from '@core/primitives/tasks/api';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 async function getTaskPreflight(
   projectId: string,

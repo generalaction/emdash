@@ -2,6 +2,14 @@ import type { TerminalKey } from '@emdash/core/runtimes/terminals/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Contract, ContractImpl } from '@emdash/wire';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type {
+  terminalTabsWireContract,
+  TerminalCreateResult,
+  TerminalHydrateResult,
+} from '@core/features/terminals/api';
+import { makePtySessionId } from '@core/primitives/pty/api';
+import type { TerminalShellId } from '@core/primitives/terminals/api';
+import type { Terminal } from '@core/primitives/terminals/api';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -19,14 +27,6 @@ import { tasks, terminals } from '@main/db/schema';
 import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
-import type { Terminal } from '@shared/core/terminals/terminals';
-import type {
-  terminalTabsWireContract,
-  TerminalCreateResult,
-  TerminalHydrateResult,
-} from '@shared/core/terminals/wire-contract';
 
 type TerminalTabsDefinitions =
   typeof terminalTabsWireContract extends Contract<infer Defs> ? Defs : never;

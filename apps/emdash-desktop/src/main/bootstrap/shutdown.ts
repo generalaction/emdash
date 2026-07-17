@@ -1,5 +1,5 @@
-import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { app } from 'electron';
+import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';

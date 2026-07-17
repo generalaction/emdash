@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
   getTaskView: mocks.getTaskView,
 }));
 
@@ -17,7 +17,7 @@ vi.mock('@renderer/lib/hooks/use-toast', () => ({
   toast: mocks.toast,
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     app: {
       clipboardWriteText: mocks.clipboardWriteText,

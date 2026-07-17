@@ -3,7 +3,7 @@ import {
   type IntegrationAuthDescriptor,
 } from '@emdash/plugins/integrations';
 import { issuesPluginRegistry } from '@emdash/plugins/issues';
-import type { IssueProviderCapabilities } from '@shared/issue-providers';
+import type { IssueProviderCapabilities } from '@core/primitives/issue-providers/api';
 
 function issueCapabilities(integrationId: string): IssueProviderCapabilities {
   const plugin = issuesPluginRegistry.get(integrationId);

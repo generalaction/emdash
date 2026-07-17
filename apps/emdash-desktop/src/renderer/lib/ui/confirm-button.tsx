@@ -2,7 +2,7 @@ import type { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import type { VariantProps } from 'class-variance-authority';
 import { useRef } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,

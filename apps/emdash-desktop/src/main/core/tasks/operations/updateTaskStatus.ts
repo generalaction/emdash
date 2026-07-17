@@ -1,8 +1,8 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { type TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import { type TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export async function updateTaskStatus(taskId: string, status: TaskLifecycleStatus): Promise<void> {
   const [row] = await db

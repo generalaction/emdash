@@ -1,7 +1,6 @@
-import { events } from '@main/host/events';
-import { previewServerEventChannel } from '@shared/core/preview-servers/events';
+import { previewServerEvents } from '@core/features/preview-servers/node';
 import { PreviewServerService } from './preview-server-service';
 
 export const previewServerService = new PreviewServerService({
-  emit: (event) => events.emit(previewServerEventChannel, event),
+  emit: (event) => previewServerEvents.emit(undefined, event),
 });

@@ -1,19 +1,15 @@
 import { and, asc, count, desc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { automationRuns, tasks } from '@main/db/schema';
-import { events } from '@main/host/events';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import { log } from '@main/lib/logger';
+import { automationEvents } from '@core/features/automations/node';
 import type {
   Automation,
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
-} from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
-import {
-  automationChangedChannel,
-  automationRunChangedChannel,
-} from '@shared/core/automations/automationEvents';
+} from '@core/primitives/automations/api';
+import type { AutomationRun } from '@core/primitives/automations/api';
+import { db } from '@main/db/client';
+import { automationRuns, tasks } from '@main/db/schema';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
 import { AutomationScheduler } from './automation-scheduler';
 import {
   createAutomation as repoCreateAutomation,
@@ -49,10 +45,14 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   private readonly scheduler = new AutomationScheduler({
     onRunStep: (run) => {
       this._hooks.callHookBackground('run:step-completed', run);
-      events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+      automationEvents.emit(undefined, {
+        type: 'run-changed',
+        automationId: run.automationId,
+        run,
+      });
     },
     onScheduledRunChanged: (automationId) => {
-      events.emit(automationChangedChannel, { automationId });
+      automationEvents.emit(undefined, { type: 'automation-changed', automationId });
     },
   });
 
@@ -79,7 +79,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   async createAutomation(params: CreateAutomationParams): Promise<Automation> {
     const automation = await repoCreateAutomation(params);
     this._hooks.callHookBackground('automation:created', automation);
-    events.emit(automationChangedChannel, { automationId: automation.id });
+    automationEvents.emit(undefined, {
+      type: 'automation-changed',
+      automationId: automation.id,
+    });
     void this.scheduler.reload();
     return automation;
   }
@@ -94,12 +97,12 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       await skipQueuedCronRuns(id, 'trigger_changed');
       if (automation.enabled) {
         await ensureNextCronRun(automation);
-        events.emit(automationChangedChannel, { automationId: id });
+        automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
       }
       void this.scheduler.reload();
     }
     this._hooks.callHookBackground('automation:updated', automation);
-    events.emit(automationChangedChannel, { automationId: id });
+    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
     return automation;
   }
 
@@ -107,7 +110,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const automation = await renameInRepo(id, name);
     if (!automation) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:updated', automation);
-    events.emit(automationChangedChannel, { automationId: id });
+    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
     return automation;
   }
 
@@ -124,7 +127,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       await skipQueuedCronRuns(id, 'disabled');
     }
     this._hooks.callHookBackground('automation:enabled', automation);
-    events.emit(automationChangedChannel, { automationId: id });
+    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
     void this.scheduler.reload();
   }
 
@@ -250,7 +253,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const deleted = await softDeleteAutomation(id);
     if (!deleted) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:deleted', id);
-    events.emit(automationChangedChannel, { automationId: id });
+    automationEvents.emit(undefined, { type: 'automation-changed', automationId: id });
   }
 }
 

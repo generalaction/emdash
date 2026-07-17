@@ -1,5 +1,5 @@
 import type { TuiAgentState } from '@emdash/core/runtimes/tui-agents/api';
-import type { AgentStatusSignal } from '@shared/core/agents/agentEvents';
+import type { AgentStatusSignal } from '@core/primitives/agents/api';
 
 export function shouldApplyAgentStateTransition(
   previous: TuiAgentState | undefined,

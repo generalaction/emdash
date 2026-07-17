@@ -1,4 +1,4 @@
-import type { AgentIconVariant } from '@shared/core/agents/agent-payload';
+import type { AgentIconVariant } from '@core/primitives/agents/api';
 
 /** Pick the variant with the largest minSize that fits the rendered size. */
 export function pickIconVariant(variants: AgentIconVariant[], size: number): AgentIconVariant {

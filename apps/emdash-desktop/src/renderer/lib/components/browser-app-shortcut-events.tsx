@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
+import {
+  getRegisteredTaskData,
+  getTaskView,
+} from '@core/features/tasks/browser/stores/task-selectors';
+import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 import type { ViewId } from '@renderer/app/view-registry';
-import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
-import { events } from '@renderer/lib/ipc';
 import {
   type WorkspaceLayoutContextValue,
   useWorkspaceLayoutContext,
@@ -16,8 +19,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
-import { browserAppShortcutChannel } from '@shared/events/appEvents';
-import type { ShortcutSettingsKey } from '@shared/shortcuts';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export function BrowserAppShortcutEvents() {
   const showCommandPalette = useShowModal('commandPaletteModal');
@@ -36,20 +38,33 @@ export function BrowserAppShortcutEvents() {
   const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
 
   useEffect(() => {
-    return events.on(browserAppShortcutChannel, ({ shortcutKey }) => {
-      if (commandRegistry.dispatch(shortcutKey)) return;
-
-      dispatchAppOnlyShortcut(shortcutKey, {
-        currentProjectId,
-        currentTaskId,
-        currentView,
-        lastNonSettingsView,
-        navigate,
-        showCommandPalette,
-        toggleLeft,
-        toggleZenMode,
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type !== 'browser-app-shortcut') return;
+          if (commandRegistry.dispatch(event.shortcutKey)) return;
+          dispatchAppOnlyShortcut(event.shortcutKey, {
+            currentProjectId,
+            currentTaskId,
+            currentView,
+            lastNonSettingsView,
+            navigate,
+            showCommandPalette,
+            toggleLeft,
+            toggleZenMode,
+          });
+        },
+        onGap: () => {},
       });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, [
     currentProjectId,
     currentTaskId,

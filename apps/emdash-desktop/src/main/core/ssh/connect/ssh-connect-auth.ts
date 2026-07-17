@@ -8,7 +8,7 @@ import ssh2, {
   type SignCallback,
   type SigningRequestOptions,
 } from 'ssh2';
-import type { SshConfig } from '@shared/core/ssh/ssh';
+import type { SshConfig } from '@core/primitives/ssh/api';
 import {
   resolveAgentSocketFromResolved,
   type ResolvedSshConfig,

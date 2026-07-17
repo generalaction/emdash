@@ -20,6 +20,7 @@ test('classifies core module source files', () => {
     {
       type: 'runtimes',
       moduleName: 'git',
+      surface: 'node',
     }
   );
   assert.deepEqual(
@@ -30,6 +31,7 @@ test('classifies core module source files', () => {
     {
       type: 'services',
       moduleName: 'fs-watch',
+      surface: 'api',
     }
   );
   assert.equal(classifyCorePath(path.join(repoRoot, 'packages/core/src/workspace-server/index.ts')), undefined);
@@ -41,6 +43,18 @@ test('classifies core module source files', () => {
     {
       type: 'features',
       moduleName: 'tasks',
+      surface: 'contributions',
+    }
+  );
+  assert.deepEqual(
+    classifyCorePath(
+      path.join(desktopCoreSrcRoot, 'features/tasks/browser/stores/task-store.ts'),
+      desktopCoreSrcRoot
+    ),
+    {
+      type: 'features',
+      moduleName: 'tasks',
+      surface: 'browser',
     }
   );
 });
@@ -51,17 +65,20 @@ test('classifies alias, package, and relative imports', () => {
   assert.deepEqual(classifyImportSpecifier('@runtimes/acp/api', fromFile, coreSrcRoot), {
     type: 'runtimes',
     moduleName: 'acp',
+    surface: 'api',
   });
   assert.deepEqual(
     classifyImportSpecifier('@emdash/core/primitives/path/api', fromFile, coreSrcRoot),
     {
       type: 'primitives',
       moduleName: 'path',
+      surface: 'api',
     }
   );
   assert.deepEqual(classifyImportSpecifier('../../../host-dependencies/api', fromFile, coreSrcRoot), {
     type: 'services',
     moduleName: 'host-dependencies',
+    surface: 'api',
   });
   assert.equal(classifyImportSpecifier('@emdash/shared', fromFile, coreSrcRoot), undefined);
   assert.deepEqual(
@@ -73,6 +90,7 @@ test('classifies alias, package, and relative imports', () => {
     {
       type: 'primitives',
       moduleName: 'mementos',
+      surface: 'api',
     }
   );
 });
@@ -86,6 +104,13 @@ test('allows only the core module dependency graph', () => {
   const primitiveHost = { type: 'primitives', moduleName: 'host' };
   const featureTasks = { type: 'features', moduleName: 'tasks' };
   const featureProjects = { type: 'features', moduleName: 'projects' };
+  const featureTasksBrowser = { ...featureTasks, surface: 'browser' };
+  const featureTasksApi = { ...featureTasks, surface: 'api' };
+  const featureProjectsBrowser = { ...featureProjects, surface: 'browser' };
+  const featureProjectsApi = { ...featureProjects, surface: 'api' };
+  const featureProjectsNode = { ...featureProjects, surface: 'node' };
+  const runtimeGitApi = { ...runtimeGit, surface: 'api' };
+  const runtimeGitNode = { ...runtimeGit, surface: 'node' };
 
   assert.equal(isAllowedCoreModuleDependency(runtimeGit, runtimeGit), true);
   assert.equal(isAllowedCoreModuleDependency(runtimeGit, runtimeFiles), false);
@@ -100,6 +125,12 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(featureTasks, primitivePath), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasks, featureTasks), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasks, featureProjects), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsBrowser), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsApi), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsNode), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, runtimeGitApi), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, runtimeGitNode), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksApi, runtimeGitApi), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasks, serviceExec), false);
 });
 

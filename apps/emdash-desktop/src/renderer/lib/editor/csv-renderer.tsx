@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@core/features/tasks/browser/task-view-context';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from '@renderer/lib/editor/csv-parser';
 import { ModelStatusOverlay } from '@renderer/lib/monaco/model-status-overlay';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';

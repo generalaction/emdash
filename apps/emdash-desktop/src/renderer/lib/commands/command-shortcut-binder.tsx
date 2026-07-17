@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,

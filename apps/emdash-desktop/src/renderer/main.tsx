@@ -1,12 +1,12 @@
+import ReactDOM from 'react-dom/client';
+import { prefetchAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   workbenchNavigationMemento,
   workbenchSidebarMemento,
 } from '@core/features/workbench/contributions/mementos';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { appSubject } from '@core/primitives/subjects/api';
-import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
-import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';

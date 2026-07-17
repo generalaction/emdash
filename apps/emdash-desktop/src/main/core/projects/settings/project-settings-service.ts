@@ -1,7 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { events } from '@main/host/events';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import { log } from '@main/lib/logger';
+import { projectEvents } from '@core/features/projects/node';
 import {
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
@@ -9,10 +7,11 @@ import {
   type ProjectSettings,
   type ProjectSettingsPage,
   type WriteProjectConfigRequest,
-} from '@shared/core/project-settings/project-settings';
-import { hasConfiguredShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import { hasConfiguredShareableProjectSettings } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';
 import {
@@ -46,7 +45,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks> {
   initialize(): void {
     this._disposeRendererBridge?.();
     this._disposeRendererBridge = this.on('project-settings:changed', ({ projectId }) => {
-      events.emit(projectSettingsChangedChannel, { projectId });
+      projectEvents.emit(undefined, { type: 'settings-changed', projectId });
     });
   }
 

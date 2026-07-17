@@ -1,14 +1,14 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ExternalLink } from 'lucide-react';
 import React from 'react';
-import { InstallSection } from '@renderer/features/settings/agents-page/InstallSection';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { InstallSection } from '@core/features/settings/browser/agents-page/InstallSection';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import type { AppSettings } from '@core/primitives/app-settings/api';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { useAgent } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
-import type { AppSettings } from '@shared/core/app-settings';
 
 type Props = {
   id: AgentProviderId;

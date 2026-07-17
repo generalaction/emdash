@@ -8,7 +8,7 @@ import {
 } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../realpath-containment';
 import type { FilesClientScope } from '../runtime-client';
 

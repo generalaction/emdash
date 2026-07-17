@@ -1,6 +1,9 @@
 import type { IssuesPluginProvider, IssueDetail } from '@emdash/plugins/issues';
-import type { LinkedIssue } from '@shared/core/linked-issue';
-import type { IssueProviderCapabilities, IssueProviderType } from '@shared/issue-providers';
+import type {
+  IssueProviderCapabilities,
+  IssueProviderType,
+} from '@core/primitives/issue-providers/api';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 export const DEFAULT_LIST_LIMIT = 50;
 export const DEFAULT_SEARCH_LIMIT = 20;

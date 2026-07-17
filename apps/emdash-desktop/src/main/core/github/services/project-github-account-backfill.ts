@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
-import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
-import { normalizeRepositoryHost, parseRepositoryRef } from '@shared/repository-ref';
+import type { ProjectSettings } from '@core/primitives/project-settings/api';
+import { normalizeRepositoryHost, parseRepositoryRef } from '@core/primitives/repository/api';
 import {
   GITHUB_PROVIDER_ID,
   toGitHubAccount,

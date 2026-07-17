@@ -2,10 +2,10 @@ import type { GitRemotesState, RepositorySelector } from '@emdash/core/runtimes/
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
+import { resolveConfiguredRemotes } from '@core/primitives/git/api';
+import type { ProjectRemoteState } from '@core/primitives/projects/api';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
-import { resolveConfiguredRemotes } from '@shared/core/git/utils';
-import type { ProjectRemoteState } from '@shared/projects';
 
 export class GitRepositoryService {
   constructor(

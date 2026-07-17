@@ -1,9 +1,9 @@
+import type { GitHubTokenSource } from '@core/primitives/github/api';
+import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type {
   ProviderAccount,
   ProviderAccountRegistry,
 } from '@main/core/provider-accounts/provider-account-registry';
-import type { GitHubTokenSource } from '@shared/github';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
 
 export const GITHUB_PROVIDER_ID = 'github';
 

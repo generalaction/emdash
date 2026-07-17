@@ -4,10 +4,10 @@ import path from 'node:path';
 import { isDeepEqual } from '@emdash/shared';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { AppSettings, AppSettingsKey } from '@core/primitives/app-settings/api';
+import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isPlainObject, mergeDeep } from '@main/core/settings/utils';
-import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portLegacySettings } from './importer';
 

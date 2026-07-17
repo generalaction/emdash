@@ -1,16 +1,16 @@
-import { type AutomationRow, type AutomationRunRow } from '@main/db/schema';
-import type { Automation } from '@shared/core/automations/automation';
+import type { Automation } from '@core/primitives/automations/api';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
   RunError,
-} from '@shared/core/automations/automation-run';
+} from '@core/primitives/automations/api';
 import {
   automationConversationConfig,
   automationTriggerConfig,
   storedAutomationTaskConfig,
-} from '@shared/core/automations/config';
+} from '@core/primitives/automations/api';
+import { type AutomationRow, type AutomationRunRow } from '@main/db/schema';
 
 function parseRunError(raw: string | null | undefined): RunError | null {
   if (!raw) return null;

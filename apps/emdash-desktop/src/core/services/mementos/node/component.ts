@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { mementosWireContract } from '@core/primitives/mementos/api';
 import { defineWireComponent } from '@emdash/wire/component';
 import { z } from 'zod';
+import { mementosWireContract } from '@core/primitives/mementos/api';
 import { MementoService } from './memento-service';
 import { MementoPersistenceService } from './persistence';
 import { createMementosWireController } from './wire-controller';

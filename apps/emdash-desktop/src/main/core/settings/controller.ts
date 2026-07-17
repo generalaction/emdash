@@ -1,6 +1,5 @@
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
@@ -13,7 +12,7 @@ async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void>
   }
 }
 
-export const appSettingsController = createRPCController({
+export const appSettingsOperations = {
   get: <T extends AppSettingsKey>(key: T): Promise<AppSettings[T]> => appSettingsService.get(key),
 
   getAll: (): Promise<AppSettings> => appSettingsService.getAll(),
@@ -40,4 +39,4 @@ export const appSettingsController = createRPCController({
     await appSettingsService.resetField(key, field as keyof AppSettings[T]);
     await reconcileSettingsRuntimeState(key);
   },
-});
+};

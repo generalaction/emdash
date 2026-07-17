@@ -1,14 +1,14 @@
 import type { RepositorySelector } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { gitErrorMessage, repositorySelector } from '@main/core/git/runtime-client';
-import type { GitRuntimeClient } from '@main/gateway/accessors';
-import { log } from '@main/lib/logger';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   remoteNameFromQualifiedRef,
   resolveBaseRefFromRemoteDefault,
-} from '@shared/core/git/utils';
-import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
-import type { CreateProjectError } from '@shared/projects';
+} from '@core/primitives/git/api';
+import type { CreateProjectError } from '@core/primitives/projects/api';
+import { gitErrorMessage, repositorySelector } from '@main/core/git/runtime-client';
+import type { GitRuntimeClient } from '@main/gateway/accessors';
+import { log } from '@main/lib/logger';
 
 export async function resolveProjectBaseRef(
   git: GitRuntimeClient,

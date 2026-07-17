@@ -1,7 +1,11 @@
 import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { filesContract, type FileContentModel } from '@emdash/core/runtimes/files/api';
 import { createLiveModelReplica } from '@emdash/wire';
-import { hostPathFromNative, portablePath, relativeRuntimePath } from '@shared/core/runtime/paths';
+import {
+  hostPathFromNative,
+  portablePath,
+  relativeRuntimePath,
+} from '@core/primitives/desktop-runtime/api';
 import { getFilesRuntimeClient } from './files-client';
 
 export function filesPath(workspacePath: string, filePath: string) {

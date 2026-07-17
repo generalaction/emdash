@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 type TelemetryState = {
   prefEnabled: boolean;
   envDisabled: boolean;
   hasKeyAndHost: boolean;
   loading: boolean;
+};
+
+type TelemetryStatusResponse = {
+  status: {
+    envDisabled: boolean;
+    userOptOut: boolean;
+    hasKeyAndHost: boolean;
+  };
 };
 
 const initialState: TelemetryState = {
@@ -18,27 +26,24 @@ const initialState: TelemetryState = {
 export function useTelemetryConsent() {
   const [state, setState] = useState<TelemetryState>(initialState);
 
-  const applyStatus = useCallback(
-    (res: Awaited<ReturnType<typeof rpc.telemetry.getStatus>> | null) => {
-      if (res?.status) {
-        const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
-        setState({
-          prefEnabled: !envOff && userOptOut !== true,
-          envDisabled: !!envOff,
-          hasKeyAndHost: !!hasKeyAndHost,
-          loading: false,
-        });
-      } else {
-        setState((prev) => ({ ...prev, loading: false }));
-      }
-    },
-    []
-  );
+  const applyStatus = useCallback((res: TelemetryStatusResponse | null) => {
+    if (res?.status) {
+      const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
+      setState({
+        prefEnabled: !envOff && userOptOut !== true,
+        envDisabled: !!envOff,
+        hasKeyAndHost: !!hasKeyAndHost,
+        loading: false,
+      });
+    } else {
+      setState((prev) => ({ ...prev, loading: false }));
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
-      applyStatus(await rpc.telemetry.getStatus());
+      applyStatus(await (await getDesktopWireClient()).telemetry.getStatus());
     } catch {
       setState((prev) => ({ ...prev, loading: false }));
     }
@@ -48,7 +53,7 @@ export function useTelemetryConsent() {
     async (enabled: boolean) => {
       setState((prev) => ({ ...prev, prefEnabled: enabled, loading: true }));
       try {
-        await rpc.telemetry.setEnabled(enabled);
+        await (await getDesktopWireClient()).telemetry.setEnabled({ enabled });
       } catch {
         // ignore, refresh will reconcile
       }
@@ -59,8 +64,8 @@ export function useTelemetryConsent() {
 
   useEffect(() => {
     let cancelled = false;
-    rpc.telemetry
-      .getStatus()
+    getDesktopWireClient()
+      .then((client) => client.telemetry.getStatus())
       .then((res) => {
         if (!cancelled) applyStatus(res);
       })

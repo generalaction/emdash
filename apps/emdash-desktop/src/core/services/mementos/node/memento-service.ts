@@ -1,12 +1,4 @@
 import {
-  mementoKeyId,
-  mementosWireContract,
-  type MementoModelKey,
-  type MementoMutationError,
-  type MementoRow,
-} from '@core/primitives/mementos/api';
-import type { Subject } from '@core/primitives/subjects/api';
-import {
   createResourceCache,
   createScope,
   type ResourceCache,
@@ -14,6 +6,14 @@ import {
 } from '@emdash/shared/concurrency';
 import { err, ok, type Result } from '@emdash/shared/result';
 import { createResourceLiveModelHost, LiveState, type ResourceLiveModelHost } from '@emdash/wire';
+import {
+  mementoKeyId,
+  mementosWireContract,
+  type MementoModelKey,
+  type MementoMutationError,
+  type MementoRow,
+} from '@core/primitives/mementos/api';
+import type { Subject } from '@core/primitives/subjects/api';
 import type { MementoPersistenceService, MementoSweepPolicy } from './persistence';
 
 type MementoState = LiveState<MementoRow | null>;

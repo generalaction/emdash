@@ -4,6 +4,14 @@ import { createResourceCache, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import type {
+  DeletionEntityKind,
+  DeletionList,
+  DeletionMutationError,
+  DeletionState,
+} from '@core/primitives/operations/api';
+import type { OperationPayload } from '@core/primitives/operations/api';
+import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { appScope } from '@main/bootstrap/app-scope';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -18,14 +26,6 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { notificationService } from '@root/src/core/services/notifications/node';
-import type {
-  DeletionEntityKind,
-  DeletionList,
-  DeletionMutationError,
-  DeletionState,
-} from '@shared/core/operations/deletion';
-import type { OperationPayload } from '@shared/core/operations/operation-payload';
-import { nonTerminalOperationStatuses } from '@shared/core/operations/operation-types';
 import { purgeProjectLocalState, purgeTaskLocalState } from './local-cleanup';
 import { resolveOperationContext, type OperationContext } from './operation-context';
 import { workspaceInUseError } from './operation-errors';

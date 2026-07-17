@@ -3,7 +3,7 @@ import { motion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
 import YTBanner from '@/assets/images/ytbanner.webp';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Button } from '@renderer/lib/ui/button';

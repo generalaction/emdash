@@ -1,4 +1,4 @@
-import { isGitHubDotComHost } from '@shared/repository-ref';
+import { isGitHubDotComHost } from '@core/primitives/repository/api';
 
 export type GitHubApiAuthError =
   | {

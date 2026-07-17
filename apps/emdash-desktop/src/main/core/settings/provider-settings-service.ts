@@ -1,4 +1,4 @@
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { OverrideSettings } from './override-settings';
 import {
   migrateProviderConfigOverrides,

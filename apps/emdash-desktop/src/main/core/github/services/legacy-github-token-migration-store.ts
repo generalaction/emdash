@@ -1,4 +1,4 @@
-import type { GitHubTokenSource } from '@shared/github';
+import type { GitHubTokenSource } from '@core/primitives/github/api';
 
 export const GITHUB_TOKEN_SECRET_KEY = 'emdash-github-token';
 

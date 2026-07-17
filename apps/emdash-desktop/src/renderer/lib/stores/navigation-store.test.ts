@@ -1,6 +1,6 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkbenchNavigationState } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@renderer/lib/modal/modal-store', () => ({
   modalStore: { closeModal: vi.fn() },

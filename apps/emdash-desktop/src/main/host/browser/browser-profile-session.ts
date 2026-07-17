@@ -1,6 +1,6 @@
 import { app, session, type Session } from 'electron';
+import type { AppSettings } from '@core/primitives/app-settings/api';
 import { log } from '@main/lib/logger';
-import type { AppSettings } from '@shared/core/app-settings';
 import {
   applyLocalDevelopmentCorsRelaxation,
   localDevelopmentCorsRelaxationRequest,

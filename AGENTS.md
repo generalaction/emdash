@@ -35,8 +35,8 @@ Inside `apps/emdash-desktop/`:
 - `scripts/` - Release, verification, and build support scripts.
 - `src/main/` - Electron main process, RPC controllers, services, DB, ACP, PTY, and SSH.
 - `src/preload/` - Typed Electron preload bridge exposed to the renderer.
-- `src/renderer/` - React app organized around `app/`, `features/`, `lib/`, and tests.
-- `src/shared/` - App IPC primitives, provider metadata, events, ACP, MCP, skills, and types.
+- `src/renderer/` - React composition shell, shared browser infrastructure, and tests.
+- `src/core/` - Vertical slices with portable APIs, Node implementations, browser UI, and manifests.
 - `src/types/` - Ambient and cross-cutting TypeScript declarations.
 - `tooling/` - App-level development and test infrastructure not bundled into production.
 
@@ -190,12 +190,13 @@ releases currently publish to R2 only.
 - Tests use `*.test.ts` or `*.test.tsx`.
 - Main-process RPC handlers live in `src/main/core/*/controller.ts` and delegate to
   imported operation or service functions.
-- Renderer RPC calls go through `rpc` from `src/renderer/lib/ipc.ts`.
-- Feature UI lives under `src/renderer/features/<feature>/`; shared renderer primitives,
+- Renderer-main calls go through Wire using `src/renderer/lib/runtime/desktop-wire-client.ts`.
+- Feature UI lives under `src/core/features/<feature>/browser/`; shared renderer primitives,
   stores, hooks, modals, PTY, Monaco, and UI live under `src/renderer/lib/`.
-- New modals must be registered in `src/renderer/app/modal-registry.ts`.
-- New views must be registered in `src/renderer/app/view-registry.ts`.
-- New task tabs should use `src/renderer/features/tasks/task-tab-registry.tsx`.
+- New feature modals and views must be exposed through the owning slice's `contributions/browser.ts`
+  and aggregated by `src/core/manifests/browser-contributions.ts`.
+- New task tabs contribute providers through `src/core/features/<feature>/contributions/tabs.ts`;
+  the workbench registry lives at `src/core/features/workbench/browser/task-tab-registry.tsx`.
 - New commands should use `src/renderer/lib/commands/registry.ts` and view-level
   `commandProvider` hooks where possible.
 - Commit messages should follow Conventional Commits:
@@ -244,8 +245,8 @@ Task execution has two runtime paths. Legacy/TUI conversations run through PTY
 services under `src/main/core/pty/` and `src/main/core/terminals/`. Structured chat
 conversations use ACP: provider plugins in `packages/plugins/` expose ACP behavior,
 `packages/core/src/acp/` owns protocol/session state and terminal management,
-`src/main/core/acp/` adapts that runtime to Electron RPC/events and local/SSH process
-hosts, and `src/renderer/features/conversations/acp/` maps updates into `@emdash/chat-ui`.
+`src/main/core/acp/` adapts that runtime to Electron Wire and local/SSH process
+hosts, and `src/core/features/conversations/browser/acp/` maps updates into `@emdash/chat-ui`.
 
 Major main-process domains live under `src/main/core/`: account, ACP, agents,
 agent hooks, app, automations, browser, conversations, dependencies, editor,
@@ -347,8 +348,8 @@ pnpm run test
 - State guards must check `kind !== 'ready'` rather than enumerating non-ready states.
 - Access task managers through `getTaskManagerStore(projectId)`, not `project.taskManager`.
 - Access mounted projects through `asMounted(getProjectStore(id))`, not inline guards.
-- Task selectors live in `src/renderer/features/tasks/stores/task-selectors.ts`.
-- Project selectors live in `src/renderer/features/projects/stores/project-selectors.ts`.
+- Task selectors live in `src/core/features/tasks/browser/stores/task-selectors.ts`.
+- Project selectors live in `src/core/features/projects/browser/stores/project-selectors.ts`.
 - For provider changes, update plugin metadata, shared provider metadata, ACP support
   flags, PTY env passthrough if needed, hook integrations, renderer assumptions, and
   tests for non-standard behavior.
@@ -379,8 +380,7 @@ pnpm run test
 - Agent provider metadata and capabilities live in `packages/plugins/src/agents/registry.ts`
   and `packages/plugins/src/agents/impl/`; renderer-facing DTOs are built by
   `src/main/core/agents/agent-payload-builder.ts`.
-- ACP support is exposed through plugin ACP capabilities and `src/shared/core/acp/`
-  event and turn types.
+- ACP support is exposed through plugin ACP capabilities and portable Core ACP APIs.
 - Provider detection lives in `src/main/core/dependencies/`.
 - Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
 - Provider event hooks and plugins are installed and hosted by
@@ -388,13 +388,14 @@ pnpm run test
  `src/main/core/agent-status/`.
 - ACP process hosts live under `src/main/core/acp/transport/` for local and SSH-backed
   execution.
-- Modal definitions are centralized in `src/renderer/app/modal-registry.ts`.
-- View definitions and navigation guards are centralized in `src/renderer/app/view-registry.ts`.
-- Task tab providers are centralized in `src/renderer/features/tasks/task-tab-registry.tsx`.
+- Feature modal and view definitions are contributed by slices and aggregated in
+  `src/core/manifests/browser-contributions.ts`; renderer app registries compose host entries.
+- Task tab providers are aggregated through `src/core/manifests/task-tab-contributions.ts`.
 - MCP server config handling lives in `src/main/core/mcp/services/McpService.ts`,
-  `src/main/core/mcp/utils/`, `src/shared/core/mcp/`, and `src/renderer/features/mcp/`.
-- Skills types and validation live under `src/shared/core/skills/`; skills UI and
-  service code live in `src/renderer/features/skills/` and `src/main/core/skills/`.
+  `src/main/core/mcp/utils/`, `src/core/primitives/mcp/api/`, and
+  `src/core/features/mcp/browser/`.
+- Skills types and validation live in Core primitives; skills UI and service code live in
+  `src/core/features/skills/browser/` and `src/main/core/skills/`.
 - Worktree runtime settings can be supplied through `.emdash.json`:
   `preservePatterns`, `scripts.setup`, `scripts.run`, `scripts.teardown`, and
   `shellSetup`.
@@ -406,7 +407,7 @@ pnpm run test
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
 - App path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:
-  `@/*`, `@renderer/*`, `@main/*`, `@shared/*`, `@root/*`, and `@tooling/*`.
+  `@/*`, `@core/*`, `@renderer/*`, `@main/*`, `@root/*`, and `@tooling/*`.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
   `@emdash/core/primitives/versioned-schema/api`
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle

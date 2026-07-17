@@ -1,10 +1,12 @@
 import { join } from 'node:path';
-import { initializeNotificationService } from '@core/services/notifications/node';
-import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { config as dotenvConfig } from 'dotenv';
 import { sql } from 'drizzle-orm';
-import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
+import { githubEvents } from '@core/features/github/node';
+import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
+import { initializeNotificationService } from '@core/services/notifications/node';
+import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
@@ -38,28 +40,18 @@ import {
 import { cleanupLegacyBrowserPartitions } from '@main/host/browser/browser-partition-cleanup';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
-import { events } from '@main/host/events';
-import {
-  initializeFileLogger,
-  registerProcessErrorLogging,
-  registerRendererLogHandler,
-} from '@main/host/file-logger';
+import { initializeFileLogger, registerProcessErrorLogging } from '@main/host/file-logger';
 import {
   LIBSECRET_PASSWORD_STORE,
   shouldForceLibsecretBackend,
 } from '@main/host/linux-secret-storage';
 import { setupApplicationMenu } from '@main/host/menu';
 import { registerAppScheme, setupAppProtocol } from '@main/host/protocol';
-import { withRpcLogging } from '@main/host/rpc-logging';
 import { updateService } from '@main/host/updates/update-service';
 import { createMainWindow } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveUserEnv } from '@main/lib/userEnv';
-import { rpcRouter } from '@main/rpc';
-import { PRODUCT_NAME } from '@shared/app-identity';
-import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
-import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { runInBackground } from './background';
 import { registerQuitHandler } from './shutdown';
 import {
@@ -101,7 +93,6 @@ function prepareElectron(): boolean {
   registerAppScheme();
   initializeFileLogger();
   registerProcessErrorLogging(log);
-  registerRendererLogHandler(ipcMain);
 
   app.on('second-instance', () => {
     const win = BrowserWindow.getAllWindows()[0];
@@ -228,8 +219,6 @@ function initializeGatewayPhase(): void {
       log.warn('Failed to load account session token:', result.error);
     }
   });
-
-  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 }
 
 function initializeWindowPhase(): void {
@@ -255,7 +244,10 @@ function scheduleBackgroundTasks(): void {
 
   runInBackground('github-account-reconciliation', async () => {
     await githubAccountReconciliationService.reconcileAtStartup();
-    events.emit(githubAccountsChangedChannel, { reason: 'startup-reconciliation' });
+    githubEvents.emit(undefined, {
+      type: 'accounts-changed',
+      reason: 'startup-reconciliation',
+    });
   });
 
   runInBackground('updates', () => updateService.initialize(), {

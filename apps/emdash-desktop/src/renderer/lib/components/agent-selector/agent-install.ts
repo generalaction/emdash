@@ -1,5 +1,5 @@
 import { match } from 'ts-pattern';
-import type { AgentInstallError, AgentUpdateError } from '@shared/core/agents/agent-payload';
+import type { AgentInstallError, AgentUpdateError } from '@core/primitives/agents/api';
 
 export type AgentInstallActionState = {
   render: boolean;

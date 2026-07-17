@@ -1,5 +1,5 @@
+import type { AutomationRun, RunError } from '@core/primitives/automations/api';
 import { log } from '@main/lib/logger';
-import type { AutomationRun, RunError } from '@shared/core/automations/automation-run';
 import { updateRun } from './repo';
 
 export type OnStepCompleted = (run: AutomationRun) => void;

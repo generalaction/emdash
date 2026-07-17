@@ -1,7 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ShareableProjectSettings } from '@core/primitives/project-settings/api';
 import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
-import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,

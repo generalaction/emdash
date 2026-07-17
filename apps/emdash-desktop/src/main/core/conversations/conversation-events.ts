@@ -1,6 +1,6 @@
+import type { Conversation } from '@core/primitives/conversations/api';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { Conversation } from '@shared/core/conversations/conversations';
 
 export type ConversationCrudHooks = {
   'conversation:created': (conversation: Conversation) => void | Promise<void>;

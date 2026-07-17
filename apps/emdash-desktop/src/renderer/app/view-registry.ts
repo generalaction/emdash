@@ -1,25 +1,13 @@
 import type { ComponentType, ReactNode } from 'react';
+import { featureViewContributions } from '@core/manifests/browser-contributions';
 import { homeView } from '@renderer/app/home-view';
-import { automationsView } from '@renderer/features/automations/automations-view';
-import { libraryView } from '@renderer/features/library/library-view';
-import { mcpView } from '@renderer/features/mcp/mcp-view';
-import { projectView } from '@renderer/features/projects/view';
-import { settingsView } from '@renderer/features/settings/settings-view';
-import { skillsView } from '@renderer/features/skills/skills-view';
-import { taskView } from '@renderer/features/tasks/view';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { appState } from '@renderer/lib/stores/app-state';
 
 // Define views here so we can use them in the navigate function
 export const views = {
   home: homeView,
-  automations: automationsView,
-  library: libraryView,
-  skills: skillsView,
-  mcp: mcpView,
-  project: projectView,
-  task: taskView,
-  settings: settingsView,
+  ...featureViewContributions,
   // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;
 

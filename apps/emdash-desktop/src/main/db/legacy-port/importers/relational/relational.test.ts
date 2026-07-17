@@ -4,7 +4,7 @@ import path from 'node:path';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { ensureImportedTaskWorkspaces } from '../../task-workspace-backfill';
 import { portConversations } from './conversations';

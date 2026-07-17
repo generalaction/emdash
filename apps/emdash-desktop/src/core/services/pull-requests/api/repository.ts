@@ -1,4 +1,4 @@
-import { parseRepositoryRef } from '@shared/repository-ref';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
 import type { PullRequest } from './schemas';
 
 export function normalizeRepositoryUrl(repositoryUrl: string): string | null {

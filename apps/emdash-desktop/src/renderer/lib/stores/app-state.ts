@@ -1,5 +1,5 @@
-import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
-import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
+import { ProjectManagerStore } from '@core/features/projects/browser/stores/project-manager';
+import { SidebarStore } from '@core/features/workbench/browser/sidebar/sidebar-store';
 import { NavigationHistoryStore } from './navigation-history-store';
 import { NavigationStore } from './navigation-store';
 import { SshConnectionStore } from './ssh-connection-store';

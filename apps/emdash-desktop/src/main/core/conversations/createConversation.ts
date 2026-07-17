@@ -1,17 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { withCompensation } from '@main/core/utils/compensation';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
-import { events } from '@main/host/events';
-import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
-import { type ConversationConfig } from '@shared/core/conversations/conversation-config';
-import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
+import { conversationWireEvents } from '@core/features/conversations/node';
+import { type ConversationConfig } from '@core/primitives/conversations/api';
 import {
   type Conversation,
   type CreateConversationParams,
-} from '@shared/core/conversations/conversations';
+} from '@core/primitives/conversations/api';
+import { withCompensation } from '@main/core/utils/compensation';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { conversationEvents } from './conversation-events';
 import { launchTuiConversation } from './launch-tui-conversation';
 import { mapConversationRowToConversation } from './utils';
@@ -97,7 +96,7 @@ export async function createConversation(
   }
 
   conversationEvents._emit('conversation:created', conversation);
-  events.emit(conversationCreatedChannel, { conversation });
+  conversationWireEvents.emit(undefined, { type: 'created', conversation });
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

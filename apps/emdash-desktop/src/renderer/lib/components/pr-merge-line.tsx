@@ -1,8 +1,8 @@
 import { ArrowRight, GitBranch } from 'lucide-react';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
-import { parseRepositoryRef } from '@shared/repository-ref';
 
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {
   const author = pr.author?.userName;

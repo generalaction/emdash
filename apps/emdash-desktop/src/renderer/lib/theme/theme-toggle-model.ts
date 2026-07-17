@@ -1,4 +1,4 @@
-import type { Theme } from '@shared/core/app-settings';
+import type { Theme } from '@core/primitives/app-settings/api';
 
 export function getNextTheme(
   current: Theme,

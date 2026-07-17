@@ -4,7 +4,7 @@ import { PrUrlCopyButton } from '@renderer/lib/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
-import { rpc } from '../ipc';
+import { rpc } from '../runtime/desktop-host-client';
 import { Button } from '../ui/button';
 import { RelativeTime } from '../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';

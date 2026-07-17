@@ -1,4 +1,4 @@
-import { parseRepositoryRef } from '@shared/repository-ref';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { normalizeLocalPath, normalizeRemotePath } from './normalize';
 
 export function localProjectIdentityKey(projectPath: string): string {

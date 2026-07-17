@@ -1,6 +1,9 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorkspaceKind, WorkspaceType } from '@core/primitives/workspaces/api';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import {
   fileKey,
@@ -17,9 +20,6 @@ import { tasks, workspaces } from '@main/db/schema';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { hostPathFromNative } from '@shared/core/runtime/paths';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
 import type { ProjectProvider } from '../../projects/project-provider';
 
 export type LocalWorkspaceCleanupTarget = {

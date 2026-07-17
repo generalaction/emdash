@@ -1,5 +1,5 @@
 import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
+import type { AgentEvent } from '@core/primitives/agents/api';
 import type { PublishNotification } from '../../api';
 
 export function agentNotificationInputFromEvent(

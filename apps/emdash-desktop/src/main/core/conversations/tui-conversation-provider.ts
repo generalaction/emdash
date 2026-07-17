@@ -2,6 +2,8 @@ import { homedir } from 'node:os';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
+import type { Conversation } from '@core/primitives/conversations/api';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import {
   spillLargePrompt,
@@ -18,8 +20,6 @@ import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { getTuiAgentsRuntimeClient } from '@main/gateway/accessors';
-import type { Conversation } from '@shared/core/conversations/conversations';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
+import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';

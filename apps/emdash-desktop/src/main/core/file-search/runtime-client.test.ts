@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
+import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import {
   registerFileSearchRoot,
   searchFileSearchRoot,

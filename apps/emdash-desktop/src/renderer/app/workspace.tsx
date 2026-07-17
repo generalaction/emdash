@@ -1,4 +1,4 @@
-import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
+import { LeftSidebar } from '@core/features/workbench/browser/sidebar/left-sidebar';
 import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
 import { BrowserAppShortcutEvents } from '@renderer/lib/components/browser-app-shortcut-events';

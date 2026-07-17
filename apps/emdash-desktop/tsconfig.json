@@ -11,7 +11,6 @@
       "@core/*": ["./src/core/*"],
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],
-      "@shared/*": ["./src/shared/*"],
       "@emdash/core/services/fs-watch/api": [
         "../../packages/core/src/services/fs-watch/api/index.ts"
       ],
@@ -63,7 +62,6 @@
     "src/entry/**/*",
     "src/main/**/*",
     "src/renderer/**/*",
-    "src/shared/**/*",
     "src/core/**/*",
     "src/types/**/*",
     "src/test/**/*",

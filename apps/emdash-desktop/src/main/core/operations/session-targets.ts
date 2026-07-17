@@ -1,13 +1,13 @@
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
 import type { LifecycleOperationRow } from '@main/db/schema';
 import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type { OperationContext } from './operation-context';
 
 export type SessionTargets = {

@@ -1,7 +1,6 @@
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { automationsService } from './automations-service';
 
-export const automationsController = createRPCController({
+export const automationOperations = {
   listAutomations: automationsService.listAutomations.bind(automationsService),
   createAutomation: automationsService.createAutomation.bind(automationsService),
   updateAutomationSettings: automationsService.updateAutomationSettings.bind(automationsService),
@@ -17,4 +16,4 @@ export const automationsController = createRPCController({
   stopRun: automationsService.stopRun.bind(automationsService),
   getRun: automationsService.getRun.bind(automationsService),
   deleteAutomation: automationsService.deleteAutomation.bind(automationsService),
-});
+};

@@ -7,23 +7,23 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import type { StoredBranch } from '@main/core/tasks/stored-branch';
-import { versionedJsonColumn } from '@main/db/versioned-column';
-import { notificationPayload } from '@root/src/core/services/notifications/api';
 import {
   automationConversationConfig,
   automationTriggerConfig,
   storedAutomationTaskConfig,
-} from '@shared/core/automations/config';
-import { conversationConfig } from '@shared/core/conversations/conversation-config';
-import { linkedIssue } from '@shared/core/linked-issue';
-import { operationPayload, type OperationPayload } from '@shared/core/operations/operation-payload';
-import type { OperationKind, OperationStatus } from '@shared/core/operations/operation-types';
-import { providerAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
-import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
-import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
-import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { workspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
+} from '@core/primitives/automations/api';
+import { conversationConfig } from '@core/primitives/conversations/api';
+import { linkedIssue } from '@core/primitives/linked-issues/api';
+import { operationPayload, type OperationPayload } from '@core/primitives/operations/api';
+import type { OperationKind, OperationStatus } from '@core/primitives/operations/api';
+import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
+import { sshConnectionMetadata } from '@core/primitives/ssh/api';
+import type { TerminalShellId } from '@core/primitives/terminals/api';
+import { workspaceConfig } from '@core/primitives/workspaces/api';
+import { workspaceProviderData } from '@core/primitives/workspaces/api';
+import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import { versionedJsonColumn } from '@main/db/versioned-column';
+import { notificationPayload } from '@root/src/core/services/notifications/api';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',

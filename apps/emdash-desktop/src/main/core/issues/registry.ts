@@ -1,7 +1,7 @@
 import { issuesPluginRegistry } from '@emdash/plugins/issues';
+import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import { createGitHubPluginIssueProvider } from '@main/core/github/github-plugin-issue-provider';
 import { createPluginIssueProvider } from '@main/core/integrations/plugin-issue-provider';
-import type { IssueProviderType } from '@shared/issue-providers';
 import type { IssueProvider } from './issue-provider';
 
 const providers = new Map<IssueProviderType, IssueProvider>();

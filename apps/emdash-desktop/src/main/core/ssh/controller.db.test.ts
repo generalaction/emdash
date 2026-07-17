@@ -31,7 +31,7 @@ vi.mock('./lifecycle/production-ssh-connection-manager', () => ({
   },
 }));
 
-const { sshController } = await import('./controller');
+const { sshOperations: sshController } = await import('./controller');
 
 async function insertSshConnection(db: AppDb): Promise<void> {
   await db.insert(sshConnections).values({

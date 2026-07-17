@@ -1,9 +1,12 @@
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { GitHubUser } from '@core/primitives/github/api';
+import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { events, rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -12,13 +15,6 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { log } from '@renderer/utils/logger';
-import {
-  githubAuthDeviceCodeChannel,
-  githubAuthErrorChannel,
-  githubAuthSuccessChannel,
-} from '@shared/events/githubEvents';
-import type { GitHubUser } from '@shared/github';
-import { EMDASH_ISSUES_URL } from '@shared/urls';
 
 export type GithubDeviceFlowModalArgs = {
   onError?: (error: string) => void;
@@ -136,70 +132,57 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
 
   // Subscribe to auth events from main process
   useEffect(() => {
-    // Device code received - display to user
-    const cleanupDeviceCode = events.on(githubAuthDeviceCodeChannel, (data) => {
-      setUserCode(data.userCode);
-      setVerificationUri(data.verificationUri);
-      setTimeRemaining(data.expiresIn);
-
-      // Auto-copy code
-      if (!hasAutocopied.current) {
-        hasAutocopied.current = true;
-        void copyToClipboard(data.userCode, true);
-
-        // Show countdown and open browser after 3 seconds
-        setBrowserOpening(true);
-        let countdown = 3;
-        const countdownTimer = setInterval(() => {
-          countdown--;
-          setBrowserOpenCountdown(countdown);
-          if (countdown <= 0) {
-            clearInterval(countdownTimer);
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.github.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'device-code') {
+            setUserCode(event.userCode);
+            setVerificationUri(event.verificationUri);
+            setTimeRemaining(event.expiresIn);
+            if (!hasAutocopied.current) {
+              hasAutocopied.current = true;
+              void copyToClipboard(event.userCode, true);
+              setBrowserOpening(true);
+              let countdown = 3;
+              const countdownTimer = setInterval(() => {
+                countdown--;
+                setBrowserOpenCountdown(countdown);
+                if (countdown <= 0) clearInterval(countdownTimer);
+              }, 1000);
+              setTimeout(() => {
+                setBrowserOpening(false);
+                if (!hasOpenedBrowser.current) {
+                  hasOpenedBrowser.current = true;
+                  void rpc.app.openExternal(event.verificationUri);
+                }
+              }, 3000);
+            }
+          } else if (event.type === 'auth-success') {
+            authSucceededRef.current = true;
+            setSuccess(true);
+            setUser(event.user);
+            setTimeout(() => onSuccess(), 1000);
+          } else if (event.type === 'auth-error') {
+            setError(event.message || event.error);
+            onError?.(event.error);
+            toast({
+              title: 'Authentication Failed',
+              description: event.message || 'An error occurred',
+              variant: 'destructive',
+            });
           }
-        }, 1000);
-
-        setTimeout(() => {
-          setBrowserOpening(false);
-          if (!hasOpenedBrowser.current) {
-            hasOpenedBrowser.current = true;
-            void rpc.app.openExternal(data.verificationUri);
-          }
-        }, 3000);
-      }
-    });
-
-    // Auth successful
-    const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
-      authSucceededRef.current = true;
-      setSuccess(true);
-      setUser(data.user);
-
-      // Auto-close after showing success animation
-      setTimeout(() => {
-        onSuccess();
-      }, 1000); // 1 second is enough to see success
-    });
-
-    // Auth error
-    const cleanupError = events.on(githubAuthErrorChannel, (data) => {
-      setError(data.message || data.error);
-
-      if (onError) {
-        onError(data.error);
-      }
-
-      toast({
-        title: 'Authentication Failed',
-        description: data.message || 'An error occurred',
-        variant: 'destructive',
+        },
+        onGap: () => {},
       });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
 
-    // Cleanup listeners on unmount
     return () => {
-      cleanupDeviceCode();
-      cleanupSuccess();
-      cleanupError();
+      disposed = true;
+      unsubscribe?.();
     };
   }, [copyToClipboard, onError, onSuccess, toast]);
 

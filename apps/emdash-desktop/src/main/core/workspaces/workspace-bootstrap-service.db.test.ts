@@ -4,10 +4,10 @@ import type * as WireModule from '@emdash/wire';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Task } from '@core/primitives/tasks/api';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
 import type * as WorkspaceRuntimeHostModule from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { projects, tasks, workspaces } from '@main/db/schema';
-import type { Task } from '@shared/core/tasks/tasks';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
 import { computeWorkspaceKey } from './workspace-key';
 

@@ -7,6 +7,8 @@ import {
   type RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
 import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { DEFAULT_REMOTE_NAME } from '@core/primitives/git/api';
 import {
   fileKey,
   fileMutationKey,
@@ -32,8 +34,6 @@ import {
 import type { FilesRuntimeClient } from '@main/gateway/accessors';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
-import { hostPathFromNative, nativePathFromHost } from '@shared/core/runtime/paths';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import {
   isSafePreservePattern,

@@ -1,10 +1,9 @@
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
+import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
+import { projectEvents } from '@core/features/projects/node';
 import type { OperationsService } from '@main/core/operations/operations-service';
-import {
-  projectsWireContract,
-  type ProjectCreationState,
-} from '@shared/core/projects/wire-contract';
+import { projectOperations } from './controller';
 import {
   createProjectFromRemote,
   unknownToWorkspaceError,
@@ -25,6 +24,26 @@ const creationStates = new Map<string, CreationState>();
 export function createProjectsWireController(): ProjectsWireController {
   return {
     impl: {
+      createProject: (input) => projectOperations.createProject(input),
+      inspectProjectPath: (input) => projectOperations.inspectProjectPath(input),
+      getProjects: () => projectOperations.getProjects(),
+      deleteProject: ({ projectId }) => projectOperations.deleteProject(projectId),
+      getProjectSettingsPage: ({ projectId }) =>
+        projectOperations.getProjectSettingsPage(projectId),
+      updateProjectSettings: ({ projectId, settings }) =>
+        projectOperations.updateProjectSettings(projectId, settings),
+      patchProjectSettings: ({ projectId, patch }) =>
+        projectOperations.patchProjectSettings(projectId, patch),
+      shareProjectSettingsToConfig: ({ projectId, request }) =>
+        projectOperations.shareProjectSettingsToConfig(projectId, request),
+      migrateProjectConfig: ({ projectId, request }) =>
+        projectOperations.migrateProjectConfig(projectId, request),
+      countProjectsUsingGithubAccount: ({ accountId }) =>
+        projectOperations.countProjectsUsingGithubAccount(accountId),
+      updateProjectConnection: ({ projectId, connectionId }) =>
+        projectOperations.updateProjectConnection(projectId, connectionId),
+      openProject: ({ projectId }) => projectOperations.openProject(projectId),
+      events: projectEvents,
       creation: createCreationProvider(),
       create: {
         run: (input, ctx) => createProjectFromRemote(input, ctx, publishCreationState),

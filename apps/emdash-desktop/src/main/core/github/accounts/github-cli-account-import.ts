@@ -1,6 +1,6 @@
+import type { GitHubUser } from '@core/primitives/github/api';
+import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { GitHubUser } from '@shared/github';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
 import {
   upsertGitHubAccount,
   type GitHubAccount,

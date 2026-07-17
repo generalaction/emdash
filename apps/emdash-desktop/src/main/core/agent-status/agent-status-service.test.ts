@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentStatusSignal } from '@shared/core/agents/agentEvents';
+import type { AgentStatusSignal } from '@core/primitives/agents/api';
 import { AgentStatusService } from './agent-status-service';
 
 type TestConversationRow = {

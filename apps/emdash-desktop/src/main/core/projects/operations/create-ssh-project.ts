@@ -1,5 +1,5 @@
 import { err } from '@emdash/shared';
-import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
+import type { CreateProjectResult, ProjectPathStatus } from '@core/primitives/projects/api';
 
 export type CreateSshProjectParams = {
   id?: string;

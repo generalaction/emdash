@@ -1,12 +1,12 @@
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, type Err, ok } from '@emdash/shared';
-import { log } from '@main/lib/logger';
 import type {
   IssueContextResult,
   IssueListError,
   IssueListResult,
   IssueProviderType,
-} from '@shared/issue-providers';
+} from '@core/primitives/issue-providers/api';
+import { log } from '@main/lib/logger';
 import type {
   IssueContextOpts,
   IssueProvider,

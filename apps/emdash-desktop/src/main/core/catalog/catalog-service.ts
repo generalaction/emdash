@@ -13,8 +13,8 @@ import {
   type CatalogSkill,
 } from '@emdash/core/primitives/skills/api';
 import { app } from 'electron';
+import { catalogData } from '@core/primitives/mcp/api';
 import { log } from '@main/lib/logger';
-import { catalogData } from '@shared/core/mcp/catalog';
 import bundledCatalog from '../skills/bundled-catalog.json';
 
 export type CatalogServiceError = {

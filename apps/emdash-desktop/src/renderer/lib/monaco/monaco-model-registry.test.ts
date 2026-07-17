@@ -5,8 +5,8 @@ import { waitFor } from '@emdash/shared/testing';
 import { createLiveModelHost, defineContract } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/core/git/types';
-import { hostPathFromNative, portablePath } from '@shared/core/runtime/paths';
+import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
+import { HEAD_REF, STAGED_REF, type GitRef } from '@core/primitives/git/api';
 import { MonacoModelRegistry } from './monaco-model-registry';
 
 const runtimeClients = vi.hoisted(() => ({
@@ -26,7 +26,7 @@ vi.mock('@renderer/lib/runtime/git-client', () => ({
   getGitRuntimeClient: async () => runtimeClients.git,
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     workspace: {
       editor: {

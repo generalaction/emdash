@@ -1,7 +1,7 @@
-import { defineSubject } from '@core/primitives/subjects/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { defineSubject } from '@core/primitives/subjects/api';
 import { MementoService } from './memento-service';
 import { MementoPersistenceService, mementosSqliteStore } from './persistence';
 

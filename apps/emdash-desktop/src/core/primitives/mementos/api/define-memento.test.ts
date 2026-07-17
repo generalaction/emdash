@@ -1,7 +1,7 @@
-import { defineSubject } from '@core/primitives/subjects/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
+import { defineSubject } from '@core/primitives/subjects/api';
 import {
   days,
   defineMemento,

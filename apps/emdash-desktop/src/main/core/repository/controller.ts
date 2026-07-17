@@ -1,6 +1,5 @@
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { providerRepositoryService } from './provider-repository-service';
 
-export const repositoryController = createRPCController({
+export const repositoryOperations = {
   resolveProvider: (projectId: string) => providerRepositoryService.resolveProject(projectId),
-});
+};

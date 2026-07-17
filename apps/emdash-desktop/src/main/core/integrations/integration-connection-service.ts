@@ -1,8 +1,8 @@
 import type { IntegrationCredentials } from '@emdash/plugins/integrations';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type { ConnectionStatus } from '@shared/issue-providers';
 import { DEFAULT_INTEGRATION_ACCOUNT_ID } from './integration-credential-store';
 import { integrationCredentialStore } from './integration-credential-store-instance';
 

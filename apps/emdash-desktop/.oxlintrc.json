@@ -110,7 +110,7 @@
                   "@emdash/core/services/host-dependencies/api",
                   "@emdash/core/services/host-dependencies/api/*"
                 ],
-                "message": "Import dependency types from @shared/core/agents/agent-payload instead of @emdash/core/services/host-dependencies/api*."
+                "message": "Import dependency types from @core/primitives/agents/api instead of @emdash/core/services/host-dependencies/api*."
               }
             ]
           }

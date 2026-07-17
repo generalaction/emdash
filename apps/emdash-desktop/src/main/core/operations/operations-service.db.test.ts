@@ -3,6 +3,8 @@ import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DeletionList } from '@core/primitives/operations/api';
+import { nonTerminalOperationStatuses, operationStatuses } from '@core/primitives/operations/api';
 import type { AppDb } from '@main/db/client';
 import {
   conversations,
@@ -14,11 +16,6 @@ import {
   workspaces,
   type LifecycleOperationRow,
 } from '@main/db/schema';
-import type { DeletionList } from '@shared/core/operations/deletion';
-import {
-  nonTerminalOperationStatuses,
-  operationStatuses,
-} from '@shared/core/operations/operation-types';
 
 const mocks = vi.hoisted(() => ({
   db: undefined as AppDb | undefined,

@@ -2,7 +2,7 @@ import {
   BROWSER_DEFAULT_URL,
   BROWSER_PARTITION_PREFIX,
   normalizeBrowserUrl,
-} from '@shared/browser';
+} from '@core/primitives/browser/api';
 
 const BROWSER_PARTITION_INSTANCE_PREFIX = `${BROWSER_PARTITION_PREFIX}-`;
 

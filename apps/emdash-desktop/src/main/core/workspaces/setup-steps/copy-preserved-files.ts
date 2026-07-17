@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { ok, type Result } from '@emdash/shared';
+import type * as Step from '@core/primitives/workspaces/api/workspace-setup-steps/copy-preserved-files';
 import {
   fileKey,
   fileMutationKey,
@@ -19,7 +20,6 @@ import {
 } from '@main/core/projects/settings/preserve-pattern-safety';
 import { isRealPathContained } from '@main/core/runtime/files-helpers';
 import { log } from '@main/lib/logger';
-import type * as Step from '@shared/core/workspaces/workspace-setup-steps/copy-preserved-files';
 import type { StepContext } from './step-context';
 
 export async function execute(

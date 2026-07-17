@@ -40,10 +40,11 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 
 ## IPC / RPC Structure
 
-- All domain controllers are assembled into a typed RPC router in `src/main/rpc.ts`.
-- RPC primitives live in `src/shared/ipc/rpc.ts` (`createRPCRouter`, `createRPCController`, `createRPCClient`).
-- Event primitives live in `src/shared/ipc/events.ts`.
-- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`, `eventOn`, and `getPathForFile`; there are no other manual IPC handlers.
+- Domain Wire contracts are assembled in `src/core/manifests/desktop-wire-contract.ts`.
+- Node controllers and event hosts live in owning slices under `src/core/features/*/node/`.
+- `src/main/gateway/desktop-wire.ts` serves the desktop contract over a transferred message port.
+- The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
+  `getPathForFile`.
 
 ## When Editing Here
 

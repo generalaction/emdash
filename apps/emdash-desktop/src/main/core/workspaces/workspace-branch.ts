@@ -1,5 +1,5 @@
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import type { WorkspaceKind } from '@shared/core/workspaces/workspaces';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 import { deriveBranchName } from '../tasks/resolve-workspace-intent';
 
 type WorkspaceBranchRow = {

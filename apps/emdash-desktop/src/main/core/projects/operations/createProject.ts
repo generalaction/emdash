@@ -3,7 +3,7 @@ import type {
   CreateProjectResult,
   InspectProjectPathParams,
   ProjectPathInspection,
-} from '@shared/projects';
+} from '@core/primitives/projects/api';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 import { getLocalProjectByPath, getSshProjectByPath } from './getProjects';

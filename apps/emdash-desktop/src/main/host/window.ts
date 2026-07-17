@@ -1,18 +1,17 @@
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
+import { desktopHostEvents } from '@core/features/workbench/node';
+import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import {
   hardenBrowserWebviewPreferences,
   stripBrowserWebviewParams,
   validateBrowserWebviewAttach,
 } from '@main/host/browser/webview-security';
-import { events } from '@main/host/events';
 import { registerExternalLinkHandlers } from '@main/host/externalLinks';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { PRODUCT_NAME } from '@shared/app-identity';
-import { windowMaximizeChangedChannel } from '@shared/events/appEvents';
 import { APP_ORIGIN } from './protocol';
 
 let mainWindow: BrowserWindow | null = null;
@@ -87,10 +86,10 @@ export function createMainWindow(): BrowserWindow {
   // Keep the renderer's custom window controls (Linux) in sync with the
   // actual maximize state so the maximize/restore icon stays correct.
   mainWindow.on('maximize', () => {
-    events.emit(windowMaximizeChangedChannel, { maximized: true });
+    desktopHostEvents.emit(undefined, { type: 'window-maximize-changed', maximized: true });
   });
   mainWindow.on('unmaximize', () => {
-    events.emit(windowMaximizeChangedChannel, { maximized: false });
+    desktopHostEvents.emit(undefined, { type: 'window-maximize-changed', maximized: false });
   });
 
   // Cleanup reference on close

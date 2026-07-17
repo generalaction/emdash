@@ -4,7 +4,6 @@ import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/
 import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
 import { app } from 'electron';
 import type pinoLib from 'pino';
-import { APP_SCHEME } from '@main/host/protocol';
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const DIAGNOSTIC_LOG_BYTES = 500 * 1024;
@@ -105,17 +104,12 @@ function flushAndExit() {
   void flush.finally(() => process.exit(1));
 }
 
-export function registerRendererLogHandler(ipcMain: Electron.IpcMain) {
-  ipcMain.on('emdash:renderer-log', (event, payload: unknown) => {
-    if (!isTrustedRendererSender(event.senderFrame)) return;
-    if (!isWithinPayloadLimit(payload)) return;
-    const parsed = parseRendererLog(payload);
-    if (!parsed) return;
-    writeRendererLogEntry(parsed);
-  });
-}
-
-function writeRendererLogEntry(entry: { level: LogLevel; source: string; input: unknown[] }) {
+export function writeRendererLogEntry(entry: {
+  level: LogLevel;
+  source: 'renderer';
+  input: unknown[];
+}) {
+  if (!isWithinPayloadLimit(entry)) return;
   const payload = JSON.stringify({
     timestamp: new Date().toISOString(),
     level: entry.level,
@@ -127,39 +121,12 @@ function writeRendererLogEntry(entry: { level: LogLevel; source: string; input: 
   sharedTransport.write(payload);
 }
 
-function isTrustedRendererSender(frame: Electron.WebFrameMain | null): boolean {
-  if (!frame) return false;
-  try {
-    const url = frame.url;
-    if (!url) return false;
-    if (url.startsWith(`${APP_SCHEME}://`)) return true;
-    if (process.env.NODE_ENV !== 'production' && url.startsWith('http://localhost:')) return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 function isWithinPayloadLimit(payload: unknown): boolean {
   try {
     return JSON.stringify(payload).length <= RENDERER_LOG_PAYLOAD_LIMIT;
   } catch {
     return false;
   }
-}
-
-function parseRendererLog(
-  payload: unknown
-): { level: LogLevel; source: string; input: unknown[] } | undefined {
-  if (!payload || typeof payload !== 'object') return undefined;
-  const record = payload as Record<string, unknown>;
-  if (!isLevel(record.level)) return undefined;
-  const input = Array.isArray(record.input) ? record.input : [record.input];
-  return { level: record.level, source: 'renderer', input };
-}
-
-function isLevel(value: unknown): value is LogLevel {
-  return value === 'debug' || value === 'info' || value === 'warn' || value === 'error';
 }
 
 /** Exported for diagnostic attachment (used in the diagnostics controller). */

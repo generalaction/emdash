@@ -7,10 +7,10 @@ import {
   PATH_SEARCH_MAX_LIMIT,
   type PathSearchError,
 } from '@emdash/core/runtimes/file-search/api';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
+import type { WorkspaceFileHit } from '@core/primitives/search/api';
 import { getFileSearchRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
-import type { WorkspaceFileHit } from '@shared/core/search';
 
 export async function registerFileSearchRoot(root: HostAbsolutePath): Promise<void> {
   try {

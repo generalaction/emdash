@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { Octokit } from '@octokit/rest';
+import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import { log } from '@main/lib/logger';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';
 import { githubApiAuthService } from './github-api-auth-service-instance';

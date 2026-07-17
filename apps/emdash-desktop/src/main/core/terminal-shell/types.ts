@@ -1,7 +1,4 @@
-import type {
-  RuntimeTerminalShellId,
-  TerminalShellFamily,
-} from '@shared/core/terminals/terminal-settings';
+import type { RuntimeTerminalShellId, TerminalShellFamily } from '@core/primitives/terminals/api';
 
 export type ResolvedShellProfile = {
   id: RuntimeTerminalShellId | 'target-default';

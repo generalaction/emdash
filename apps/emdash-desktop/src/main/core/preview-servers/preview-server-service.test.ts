@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PreviewServerEvent } from '@shared/core/preview-servers/types';
-import { previewServerUrl } from '@shared/core/preview-servers/types';
+import type { PreviewServerEvent } from '@core/primitives/preview-servers/api';
+import { previewServerUrl } from '@core/primitives/preview-servers/api';
 import { PreviewServerService } from './preview-server-service';
 
 function createService() {

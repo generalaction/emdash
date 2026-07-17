@@ -1,11 +1,11 @@
-import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
 import {
   defaultShareableProjectSettings,
   shareableProjectSettingsSchema,
   type ProjectSettings,
-} from '@shared/core/project-settings/project-settings';
-import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
+} from '@core/primitives/project-settings/api';
+import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import type { ProjectSettingsProvider } from './provider';
 
 export async function getEffectiveTaskSettings(args: {

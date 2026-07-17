@@ -1,12 +1,12 @@
-import { fileKey } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
 import {
   emptyProjectSettingsOverrideState,
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   shareableProjectSettingsSchema,
   type ProjectSettingsOverrideState,
-} from '@shared/core/project-settings/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
+} from '@core/primitives/project-settings/api';
+import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
+import { fileKey } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import type { ProjectSettingsResolvedTarget } from './project-settings-target-resolver';
 
 export async function computeProjectSettingsOverrideState(

@@ -1,12 +1,11 @@
 import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
 import { and, eq } from 'drizzle-orm';
+import { conversationWireEvents } from '@core/features/conversations/node';
+import type { Conversation } from '@core/primitives/conversations/api';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
-import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveTask } from '../projects/utils';
 import { setSessionIdIfUnset } from './set-session-id';
 import type { EnsureConversationSessionOutcome } from './types';
@@ -89,7 +88,8 @@ export async function launchTuiConversation({
     }
 
     if (persisted.data.updated) {
-      events.emit(conversationChangedChannel, {
+      conversationWireEvents.emit(undefined, {
+        type: 'changed',
         conversationId,
         taskId,
         projectId,

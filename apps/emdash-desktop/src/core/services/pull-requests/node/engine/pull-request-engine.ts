@@ -13,7 +13,7 @@ import { err, ok, type Result } from '@emdash/shared/result';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '@emdash/wire/api';
 import { Octokit } from '@octokit/rest';
-import { parseRepositoryRef } from '@shared/repository-ref';
+import { parseRepositoryRef } from '@core/primitives/repository/api';
 import type {
   GitHubAuthContract,
   PullRequest,

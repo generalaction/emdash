@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { OpenProjectError, OpenProjectSuccess } from '@core/primitives/projects/api';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
-import type { OpenProjectError, OpenProjectSuccess } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { getProjectById } from './getProjects';

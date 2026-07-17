@@ -17,6 +17,17 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type {
+  WorkspaceBootstrapProgress,
+  WorkspaceBootstrapStep,
+  WorkspaceCloneProvisionResult,
+} from '@core/features/workspaces/api';
+import type { Task, ProvisionWorkspaceError } from '@core/primitives/tasks/api';
+import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
+import { compileSetupSpec } from '@core/primitives/workspaces/api';
+import type { WorkspaceType } from '@core/primitives/workspaces/api';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
@@ -31,17 +42,6 @@ import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
-import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';
-import type {
-  WorkspaceBootstrapProgress,
-  WorkspaceBootstrapStep,
-  WorkspaceCloneProvisionResult,
-} from '@shared/core/workspaces/wire-contract';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
-import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
-import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import {

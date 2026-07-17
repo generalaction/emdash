@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
+import type { ProviderAccountMeta } from '@core/primitives/provider-accounts/api';
 import type { AppDb, DrizzleTx } from '@main/db/client';
 import { providerAccounts, type ProviderAccountRow } from '@main/db/schema';
-import type { ProviderAccountMeta } from '@shared/core/provider-accounts/provider-account-meta';
 
 /** Meta payload without the schema version field, which the registry supplies. */
 export type ProviderAccountMetaInput = Omit<ProviderAccountMeta, 'version'>;

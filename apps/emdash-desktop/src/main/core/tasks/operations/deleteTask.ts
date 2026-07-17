@@ -1,5 +1,5 @@
+import type { DeleteTaskOptions } from '@core/primitives/tasks/api';
 import type { OperationsService } from '@main/core/operations/operations-service';
-import type { DeleteTaskOptions } from '@shared/core/tasks/tasks';
 
 export async function deleteTask(
   projectId: string,

@@ -1,7 +1,7 @@
 import { ok, type Result } from '@emdash/shared';
+import type * as Step from '@core/primitives/workspaces/api/workspace-setup-steps/set-branch-base';
 import { mutationResult } from '@main/core/git/runtime-client';
 import { log } from '@main/lib/logger';
-import type * as Step from '@shared/core/workspaces/workspace-setup-steps/set-branch-base';
 import type { StepContext } from './step-context';
 
 export async function execute(

@@ -1,6 +1,6 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { NotificationTarget } from '../api';

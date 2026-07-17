@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import type { GitHubUser } from '@shared/github';
+import type { GitHubUser } from '@core/primitives/github/api';
 import { githubApiBaseUrlForHost } from './github-api-base-url';
 
 type OctokitUserClient = {

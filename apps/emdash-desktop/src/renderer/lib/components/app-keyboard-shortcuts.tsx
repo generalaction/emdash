@@ -1,8 +1,11 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import {
+  getRegisteredTaskData,
+  getTaskView,
+} from '@core/features/tasks/browser/stores/task-selectors';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,

@@ -1,5 +1,5 @@
 import type { Octokit } from '@octokit/rest';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
+import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import type { GitHubApiAuthContext } from './github-api-auth-service';
 
 const cachedOctokits = new Map<string, { octokit: Octokit; token: string }>();

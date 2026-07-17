@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 
 const createBranchConfig: WorkspaceConfig = {

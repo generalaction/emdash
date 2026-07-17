@@ -1,15 +1,15 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
-import { buildPullRequestConversationItems } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
+import { CommentsList } from '@core/features/tasks/browser/diff-view/changes-panel/components/pr-entry/comments-list';
+import { buildPullRequestConversationItems } from '@core/features/tasks/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
 import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
@@ -22,7 +22,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   events: {
     on: vi.fn(() => () => {}),
   },

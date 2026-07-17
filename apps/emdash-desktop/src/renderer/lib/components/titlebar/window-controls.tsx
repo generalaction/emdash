@@ -1,9 +1,8 @@
 import { detectPlatform } from '@tanstack/react-hotkeys';
 import { Copy, Minus, Square, X } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import { events, rpc } from '@renderer/lib/ipc';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { cn } from '@renderer/utils/utils';
-import { windowMaximizeChangedChannel } from '@shared/events/appEvents';
 
 const isLinux = detectPlatform() === 'linux';
 
@@ -31,22 +30,46 @@ export function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
-    void rpc.app.isWindowMaximized().then(setIsMaximized);
-    return events.on(windowMaximizeChangedChannel, ({ maximized }) => setIsMaximized(maximized));
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      setIsMaximized(await client.host.isWindowMaximized());
+      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'window-maximize-changed') setIsMaximized(event.maximized);
+        },
+        onGap: () => {},
+      });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }, []);
 
   return (
     <div className="flex h-full items-center [-webkit-app-region:no-drag]">
-      <ControlButton label="Minimize" onClick={() => void rpc.app.minimizeWindow()}>
+      <ControlButton
+        label="Minimize"
+        onClick={() => void getDesktopWireClient().then((client) => client.host.minimizeWindow())}
+      >
         <Minus className="h-4 w-4" />
       </ControlButton>
       <ControlButton
         label={isMaximized ? 'Restore' : 'Maximize'}
-        onClick={() => void rpc.app.toggleMaximizeWindow()}
+        onClick={() =>
+          void getDesktopWireClient().then((client) => client.host.toggleMaximizeWindow())
+        }
       >
         {isMaximized ? <Copy className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
       </ControlButton>
-      <ControlButton label="Close" danger onClick={() => void rpc.app.closeWindow()}>
+      <ControlButton
+        label="Close"
+        danger
+        onClick={() => void getDesktopWireClient().then((client) => client.host.closeWindow())}
+      >
         <X className="h-4 w-4" />
       </ControlButton>
     </div>

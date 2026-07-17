@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
 
 const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -30,10 +29,8 @@ vi.mock('@main/core/github/services/repo-service', () => ({
   repoService: {},
 }));
 
-vi.mock('@main/host/events', () => ({
-  events: {
-    emit: mocks.emit,
-  },
+vi.mock('@core/features/github/node', () => ({
+  githubEvents: { emit: mocks.emit },
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -79,7 +76,7 @@ describe('githubController auth', () => {
       },
     ]);
 
-    const { githubController } = await import('./controller');
+    const { githubOperations: githubController } = await import('./controller');
 
     await expect(githubController.auth()).resolves.toEqual({
       success: true,
@@ -92,7 +89,8 @@ describe('githubController auth', () => {
         isDefault: true,
       },
     });
-    expect(mocks.emit).toHaveBeenCalledWith(githubAuthSuccessChannel, {
+    expect(mocks.emit).toHaveBeenCalledWith(undefined, {
+      type: 'auth-success',
       user,
     });
     expect(mocks.telemetryCapture).toHaveBeenCalledWith('integration_connected', {
@@ -115,13 +113,14 @@ describe('githubController auth', () => {
     });
     mocks.listAccounts.mockResolvedValue([]);
 
-    const { githubController } = await import('./controller');
+    const { githubOperations: githubController } = await import('./controller');
 
     await expect(githubController.auth()).resolves.toEqual({
       success: false,
       error: 'Failed to register GitHub account',
     });
-    expect(mocks.emit).toHaveBeenCalledWith(githubAuthErrorChannel, {
+    expect(mocks.emit).toHaveBeenCalledWith(undefined, {
+      type: 'auth-error',
       error: 'account_registration_failed',
       message: 'Failed to register GitHub account',
     });
@@ -143,13 +142,14 @@ describe('githubController auth', () => {
     });
     mocks.listAccounts.mockRejectedValue(new Error('secure storage failed'));
 
-    const { githubController } = await import('./controller');
+    const { githubOperations: githubController } = await import('./controller');
 
     await expect(githubController.auth()).resolves.toEqual({
       success: false,
       error: 'Failed to register GitHub account',
     });
-    expect(mocks.emit).toHaveBeenCalledWith(githubAuthErrorChannel, {
+    expect(mocks.emit).toHaveBeenCalledWith(undefined, {
+      type: 'auth-error',
       error: 'account_registration_failed',
       message: 'Failed to register GitHub account',
     });

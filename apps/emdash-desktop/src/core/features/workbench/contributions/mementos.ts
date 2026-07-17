@@ -1,7 +1,7 @@
-import { defineMemento } from '@core/primitives/mementos/api';
-import { appSubject } from '@core/primitives/subjects/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { z } from 'zod';
+import { defineMemento } from '@core/primitives/mementos/api';
+import { appSubject } from '@core/primitives/subjects/api';
 
 const workbenchSidebarV1Schema = z.object({
   version: z.literal('1'),

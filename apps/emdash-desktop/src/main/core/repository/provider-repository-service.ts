@@ -1,8 +1,8 @@
 import { err, Result } from '@emdash/shared/result';
 import { match } from 'ts-pattern';
+import type { ProviderRepositoryResult } from '@core/primitives/repository/api';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
-import type { ProviderRepositoryResult } from '@shared/provider-repository';
 
 export class ProviderRepositoryService {
   async resolveProject(projectId: string): Promise<ProviderRepositoryResult> {

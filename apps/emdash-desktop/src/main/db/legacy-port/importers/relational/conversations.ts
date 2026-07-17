@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
 import { insertWithRegeneratedId } from './insert';
 import { createPortSummary, type PortContext, type PortSummary } from './types';

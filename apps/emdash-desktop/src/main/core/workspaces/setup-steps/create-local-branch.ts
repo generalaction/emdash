@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type * as Step from '@core/primitives/workspaces/api/workspace-setup-steps/create-local-branch';
 import { gitErrorMessage, mutationResult } from '@main/core/git/runtime-client';
-import type * as Step from '@shared/core/workspaces/workspace-setup-steps/create-local-branch';
 import type { StepContext } from './step-context';
 
 export async function execute(

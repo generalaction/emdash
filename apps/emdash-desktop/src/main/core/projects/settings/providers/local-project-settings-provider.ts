@@ -1,9 +1,9 @@
 import os from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,

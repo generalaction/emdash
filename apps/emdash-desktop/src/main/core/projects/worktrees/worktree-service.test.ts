@@ -2,9 +2,9 @@ import path from 'node:path';
 import type { GitRefsState } from '@emdash/core/runtimes/git/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import { checkoutSelector, repositorySelector } from '@main/core/git/runtime-client';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
-import { nativePathFromHost, resolveRelativePath } from '@shared/core/runtime/paths';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { WorktreeService } from './worktree-service';
 

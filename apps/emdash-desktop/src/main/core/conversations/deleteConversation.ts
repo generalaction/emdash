@@ -1,10 +1,10 @@
 import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 

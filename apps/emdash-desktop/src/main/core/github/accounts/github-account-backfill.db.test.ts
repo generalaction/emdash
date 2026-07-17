@@ -1,6 +1,6 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubTokenSource, GitHubUser } from '@shared/github';
+import type { GitHubTokenSource, GitHubUser } from '@core/primitives/github/api';
 import { GitHubAccountBackfillService } from './github-account-backfill';
 import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from './github-accounts';
 

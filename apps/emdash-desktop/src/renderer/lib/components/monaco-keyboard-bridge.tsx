@@ -1,6 +1,6 @@
 import { detectPlatform, normalizeHotkey } from '@tanstack/hotkeys';
 import { useEffect, useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,

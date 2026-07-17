@@ -1,19 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { projectManager } from '@main/core/projects/project-manager';
-import {
-  startWorkspacePostActivationScripts,
-  workspaceBootstrapService,
-  type WorkspaceBootstrapResult,
-} from '@main/core/workspaces/workspace-bootstrap-service';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
-import { events } from '@main/host/events';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import { log } from '@main/lib/logger';
-import type { LinkedIssue } from '@shared/core/linked-issue';
-import { taskCreatedChannel, taskDeletedChannel } from '@shared/core/tasks/taskEvents';
+import { taskEvents } from '@core/features/tasks/node';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -24,7 +12,18 @@ import type {
   RenameTaskError,
   RenameTaskSuccess,
   Task,
-} from '@shared/core/tasks/tasks';
+} from '@core/primitives/tasks/api';
+import { projectManager } from '@main/core/projects/project-manager';
+import {
+  startWorkspacePostActivationScripts,
+  workspaceBootstrapService,
+  type WorkspaceBootstrapResult,
+} from '@main/core/workspaces/workspace-bootstrap-service';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { db } from '@main/db/client';
+import { tasks, workspaces } from '@main/db/schema';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
@@ -70,7 +69,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    *  that was performed outside of `createTask` (e.g. inside an external transaction). */
   notifyTaskCreated(task: Task, params: CreateTaskParams): void {
     this._hooks.callHookBackground('task:created', task, params);
-    events.emit(taskCreatedChannel, { task });
+    taskEvents.emit(undefined, { type: 'created', task });
   }
 
   /**
@@ -182,7 +181,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   notifyTaskDeleted(taskId: string, projectId: string): void {
     this._hooks.callHookBackground('task:deleted', taskId, projectId);
-    events.emit(taskDeletedChannel, { taskId, projectId });
+    taskEvents.emit(undefined, { type: 'deleted', taskId, projectId });
   }
 
   async deleteTasks(

@@ -3,8 +3,7 @@ import type {
   HostDependencySnapshot,
 } from '@emdash/core/services/host-dependencies/node';
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import {
   ensureAgentDependenciesProbed,
   getDependencyManager,
@@ -18,7 +17,7 @@ import {
   toAgentInstallationStatus,
 } from './agent-payload-builder';
 
-export const agentsController = createRPCController({
+export const agentOperations = {
   // ── Metadata ────────────────────────────────────────────────────────────────
 
   list: async (connectionId?: string) => {
@@ -121,7 +120,7 @@ export const agentsController = createRPCController({
   listMetadata: async () => {
     return buildAgentMetadataList();
   },
-});
+};
 
 async function snapshotFor(manager: HostDependenciesClient): Promise<HostDependencySnapshot> {
   await ensureAgentDependenciesProbed(manager);

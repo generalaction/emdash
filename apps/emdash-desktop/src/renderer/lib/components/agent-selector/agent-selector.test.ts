@@ -1,6 +1,6 @@
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
-import type { AgentCapabilities } from '@shared/core/agents/agent-payload';
+import type { AgentCapabilities } from '@core/primitives/agents/api';
 import { getAgentInstallActionState, getAgentInstallErrorMessage } from './agent-install';
 import {
   buildAgentGroups,

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { refreshLinkedIssueContext } from '@core/features/tasks/browser/issue-context/refresh-linked-issue-context';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     issues: {
       getIssueContext: mocks.getIssueContext,

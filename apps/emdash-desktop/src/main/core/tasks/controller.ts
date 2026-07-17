@@ -1,15 +1,14 @@
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
   CreateTaskParams,
   DeleteTaskOptions,
   TaskLifecycleStatus,
-} from '@shared/core/tasks/tasks';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+} from '@core/primitives/tasks/api';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { getProjectWorkspaces } from './operations/getProjectWorkspaces';
 import { taskService } from './task-service';
 
-export const taskController = createRPCController({
+export const taskOperations = {
   async createTask(params: CreateTaskParams) {
     return taskService.createTask(params);
   },
@@ -53,4 +52,4 @@ export const taskController = createRPCController({
     return taskService.teardown(taskId, 'terminate');
   },
   generateTaskName,
-});
+};

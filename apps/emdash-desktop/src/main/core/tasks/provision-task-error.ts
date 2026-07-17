@@ -1,6 +1,6 @@
 import { TimeoutError } from '@emdash/shared/scheduling';
 import { match, P } from 'ts-pattern';
-import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
+import type { WorkspaceBootstrapStep } from '@core/features/workspaces/api';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 
 export const TASK_TIMEOUT_MS = 600_000;

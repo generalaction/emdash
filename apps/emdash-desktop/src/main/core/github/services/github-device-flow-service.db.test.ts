@@ -1,6 +1,6 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubUser } from '@shared/github';
+import type { GitHubEvent, GitHubUser } from '@core/primitives/github/api';
 import { GITHUB_PROVIDER_ID } from '../accounts/github-accounts';
 import { GitHubDeviceFlowService } from './github-device-flow-service';
 
@@ -15,7 +15,7 @@ const user: GitHubUser = {
 describe('GitHubDeviceFlowService', () => {
   let fixture: RegistryFixture;
   let getAuthenticatedUser: (token: string, host?: string) => Promise<GitHubUser | null>;
-  let emit: (channel: unknown, payload: unknown) => void;
+  let emit: (event: GitHubEvent) => void;
 
   beforeEach(async () => {
     fixture = await openRegistryFixture('empty');
@@ -31,7 +31,7 @@ describe('GitHubDeviceFlowService', () => {
     const service = new GitHubDeviceFlowService({
       accountStore: fixture.registry,
       identityClient: { getAuthenticatedUser },
-      events: { emit },
+      publishEvent: emit,
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),
       config: { clientId: 'client-id', scopes: ['repo'] },
     });
@@ -54,7 +54,7 @@ describe('GitHubDeviceFlowService', () => {
     const service = new GitHubDeviceFlowService({
       accountStore: fixture.registry,
       identityClient: { getAuthenticatedUser },
-      events: { emit },
+      publishEvent: emit,
       createDeviceAuth: () => async () => ({ token: 'gho_device' }),
       config: { clientId: 'client-id', scopes: ['repo'] },
     });

@@ -5,7 +5,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.ts';
+} from './src/core/primitives/app-identity/api/app-identity.ts';
 
 const config: Configuration = {
   appId: APP_ID,

@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Conversation } from '@shared/core/conversations/conversations';
+import type { Conversation } from '@core/primitives/conversations/api';
 import { TuiConversationProvider } from './tui-conversation-provider';
 
 const startSession = vi.hoisted(() => vi.fn());

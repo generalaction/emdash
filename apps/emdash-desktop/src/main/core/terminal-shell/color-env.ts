@@ -1,7 +1,7 @@
 import { nativeTheme } from 'electron';
+import type { Theme } from '@core/primitives/app-settings/api';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import type { Theme } from '@shared/core/app-settings';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 

@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { Contract, ContractImpl } from '@emdash/wire';
-import type { catalogWireContract } from '@shared/core/catalog/wire-contract';
+import type { catalogWireContract } from '@core/services/catalog/api';
 import { catalogService, toCatalogServiceError, type CatalogServiceError } from './catalog-service';
 
 type CatalogDefinitions = typeof catalogWireContract extends Contract<infer Defs> ? Defs : never;

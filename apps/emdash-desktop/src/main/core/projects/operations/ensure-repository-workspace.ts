@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
+import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import { db } from '@main/db/client';
 import { projects, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { LocalProject, SshProject } from '@shared/projects';
 
 /**
  * Ensures the project has a `project-root` workspace row and sets

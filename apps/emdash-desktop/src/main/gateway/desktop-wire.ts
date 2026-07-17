@@ -1,4 +1,3 @@
-import { mementosWireContract } from '@core/primitives/mementos/api';
 import { acpApiContract } from '@emdash/core/runtimes/acp/api';
 import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
@@ -14,6 +13,24 @@ import {
   type Controller,
 } from '@emdash/wire/api';
 import { ipcMain, MessageChannelMain } from 'electron';
+import { createAutomationsWireController } from '@core/features/automations/node/wire-controller';
+import { createBrowserWireController } from '@core/features/browser/node/wire-controller';
+import { createConversationsWireController } from '@core/features/conversations/node/wire-controller';
+import { createGithubWireController } from '@core/features/github/node/wire-controller';
+import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
+import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
+import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
+import { projectsWireContract } from '@core/features/projects/api';
+import { createSshWireController } from '@core/features/ssh/node/wire-controller';
+import { tasksWireContract } from '@core/features/tasks/api';
+import { terminalTabsWireContract } from '@core/features/terminals/api';
+import { createUpdatesWireController } from '@core/features/updates/node/wire-controller';
+import { createDesktopHostWireController } from '@core/features/workbench/node/wire-controller';
+import { workspacesWireContract } from '@core/features/workspaces/api';
+import { desktopWireContract } from '@core/manifests/desktop-wire-contract';
+import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/wire-channels';
+import { mementosWireContract } from '@core/primitives/mementos/api';
+import { catalogWireContract } from '@core/services/catalog/api';
 import { appScope } from '@main/bootstrap/app-scope';
 import { createCatalogWireController } from '@main/core/catalog/wire-controller';
 import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
@@ -37,13 +54,7 @@ import {
 import { notificationService } from '@root/src/core/services/notifications/node';
 import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
-import { catalogWireContract } from '@shared/core/catalog/wire-contract';
-import { projectsWireContract } from '@shared/core/projects/wire-contract';
-import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';
-import { DESKTOP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
-import { tasksWireContract } from '@shared/core/tasks/wire-contract';
-import { terminalTabsWireContract } from '@shared/core/terminals/wire-contract';
-import { workspacesWireContract } from '@shared/core/workspaces/wire-contract';
+import { createLegacyRpcWireControllers } from './legacy-rpc-wire-controllers';
 
 export type InstallDesktopWireOptions = CreateWorkspacesWireControllerOptions;
 
@@ -59,12 +70,34 @@ export function installDesktopWire(options: InstallDesktopWireOptions): void {
   const terminalTabsController = createTerminalTabsWireController();
   const tasksController = createTasksWireController();
   const catalogController = createCatalogWireController();
+  const previewServersController = createPreviewServersWireController();
+  const updatesController = createUpdatesWireController();
+  const sshController = createSshWireController();
+  const githubController = createGithubWireController();
+  const integrationsController = createIntegrationsWireController();
+  const issuesController = createIssuesWireController();
+  const automationsController = createAutomationsWireController();
+  const browserController = createBrowserWireController();
+  const conversationsController = createConversationsWireController();
+  const legacyRpcControllers = createLegacyRpcWireControllers();
+  const desktopHostController = createDesktopHostWireController();
   const controller = createLazyDesktopController({
     workspacesController,
     projectsController,
     terminalTabsController,
     tasksController,
     catalogController,
+    previewServersController,
+    updatesController,
+    sshController,
+    githubController,
+    integrationsController,
+    issuesController,
+    automationsController,
+    browserController,
+    conversationsController,
+    legacyRpcControllers,
+    desktopHostController,
   });
 
   scope.add(
@@ -88,12 +121,34 @@ function createLazyDesktopController({
   terminalTabsController,
   tasksController,
   catalogController,
+  previewServersController,
+  updatesController,
+  sshController,
+  githubController,
+  integrationsController,
+  issuesController,
+  automationsController,
+  browserController,
+  conversationsController,
+  legacyRpcControllers,
+  desktopHostController,
 }: {
   workspacesController: ReturnType<typeof createWorkspacesWireController>;
   projectsController: ReturnType<typeof createProjectsWireController>;
   terminalTabsController: ReturnType<typeof createTerminalTabsWireController>;
   tasksController: ReturnType<typeof createTasksWireController>;
   catalogController: ReturnType<typeof createCatalogWireController>;
+  previewServersController: Controller;
+  updatesController: Controller;
+  sshController: Controller;
+  githubController: Controller;
+  integrationsController: Controller;
+  issuesController: Controller;
+  automationsController: Controller;
+  browserController: Controller;
+  conversationsController: Controller;
+  legacyRpcControllers: Record<string, Controller>;
+  desktopHostController: Controller;
 }): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
   let devServerBridge: Awaited<ReturnType<typeof createDevServerBridge>> | undefined;
@@ -113,6 +168,8 @@ function createLazyDesktopController({
       ]);
     devServerBridge = await createDevServerBridge(terminals);
     controllers = {
+      ...legacyRpcControllers,
+      host: desktopHostController,
       git: forwardController(gitContract, git),
       mementos: forwardController(mementosWireContract, mementos),
       pullRequests: forwardController(pullRequestsContract, pullRequests),
@@ -127,6 +184,15 @@ function createLazyDesktopController({
       catalog: createController(catalogWireContract, catalogController.impl),
       workspaces: createController(workspacesWireContract, workspacesController.impl),
       projects: createController(projectsWireContract, projectsController.impl),
+      previewServers: previewServersController,
+      updates: updatesController,
+      ssh: sshController,
+      github: githubController,
+      integrations: integrationsController,
+      issues: issuesController,
+      automations: automationsController,
+      browser: browserController,
+      conversations: conversationsController,
     };
   }
 

@@ -9,6 +9,9 @@ import {
 } from '@emdash/shared/concurrency';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { createLiveJobReplica } from '@emdash/wire';
+import { makePtySessionId } from '@core/primitives/pty/api';
+import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
+import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getWorkspaceRuntimeClient } from '@main/core/workspaces/runtime/workspace-runtime-host';
@@ -16,9 +19,6 @@ import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-b
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import type { TaskBootstrapStatus } from '@shared/core/tasks/tasks';
-import type { WorkspaceType as SharedWorkspaceType } from '@shared/core/workspaces/workspaces';
 import type {
   ProvisionResult,
   TaskProvider,

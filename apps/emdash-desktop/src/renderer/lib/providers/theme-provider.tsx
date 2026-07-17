@@ -5,11 +5,11 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import type { Theme } from '@core/primitives/app-settings/api';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
-import type { Theme } from '@shared/core/app-settings';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 

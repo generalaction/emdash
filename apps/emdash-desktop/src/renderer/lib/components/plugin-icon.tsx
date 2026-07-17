@@ -1,5 +1,5 @@
+import type { AgentIconAsset } from '@core/primitives/agents/api';
 import { cn } from '@renderer/utils/utils';
-import type { AgentIconAsset } from '@shared/core/agents/agent-payload';
 import { useTheme } from '../hooks/useTheme';
 import { pickIconVariant } from './agent-icon-variant';
 

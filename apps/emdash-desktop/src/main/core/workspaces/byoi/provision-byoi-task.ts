@@ -1,8 +1,8 @@
+import type { ProjectSettings } from '@core/primitives/project-settings/api';
+import type { Task } from '@core/primitives/tasks/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
-import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
-import type { Task } from '@shared/core/tasks/tasks';
 
 export type ProvisionBYOITaskParams = {
   task: Task;

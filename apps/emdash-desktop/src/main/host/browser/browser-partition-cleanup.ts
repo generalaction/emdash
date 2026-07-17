@@ -1,8 +1,8 @@
 import { readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app } from 'electron';
+import { BROWSER_PARTITION_PREFIX } from '@core/primitives/browser/api';
 import { log } from '@main/lib/logger';
-import { BROWSER_PARTITION_PREFIX } from '@shared/browser';
 
 const PERSIST_PREFIX = 'persist:';
 const LEGACY_DIR_PREFIX = `${BROWSER_PARTITION_PREFIX.slice(PERSIST_PREFIX.length)}-`;

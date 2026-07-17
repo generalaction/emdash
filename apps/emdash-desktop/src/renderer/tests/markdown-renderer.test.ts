@@ -9,7 +9,7 @@ vi.mock('@renderer/lib/hooks/useTheme', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
@@ -22,7 +22,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   events: {
     on: vi.fn(() => () => {}),
   },

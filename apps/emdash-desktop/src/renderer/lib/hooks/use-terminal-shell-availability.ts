@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import type { TerminalShellAvailability } from '@core/primitives/terminals/api';
 import { getTerminalTabsWireClient } from '@renderer/lib/runtime/terminal-tabs-client';
-import type { TerminalShellAvailability } from '@shared/core/terminals/terminal-settings';
 
 export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
 

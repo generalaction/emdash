@@ -1,9 +1,9 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
+import type { WorkspaceBootstrapStep } from '@core/features/workspaces/api';
+import type { Task } from '@core/primitives/tasks/api';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import type { Task } from '@shared/core/tasks/tasks';
-import type { WorkspaceBootstrapStep } from '@shared/core/workspaces/wire-contract';
 import type { TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import {

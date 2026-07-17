@@ -1,9 +1,9 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { Automation } from '@core/primitives/automations/api';
+import type { AutomationRun, AutomationRunStatus } from '@core/primitives/automations/api';
 import { isValidProviderId } from '@main/core/agents/plugin-registry';
 import { automationsService } from '@main/core/automations/automations-service';
 import { telemetryService } from '@main/lib/telemetry';
-import type { Automation } from '@shared/core/automations/automation';
-import type { AutomationRun, AutomationRunStatus } from '@shared/core/automations/automation-run';
 
 const TERMINAL_RUN_STATUSES = new Set<AutomationRunStatus>(['done', 'failed', 'skipped']);
 const startedRunIds = new Set<string>();

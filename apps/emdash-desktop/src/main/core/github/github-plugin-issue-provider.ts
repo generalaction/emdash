@@ -1,6 +1,12 @@
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
+import {
+  type IssueListError,
+  type IssueListResult,
+  type IssueProviderCapabilities,
+} from '@core/primitives/issue-providers/api';
+import type { RepositoryRef } from '@core/primitives/repository/api';
 import { GITHUB_PROVIDER_ID, toGitHubAccount } from '@main/core/github/accounts/github-accounts';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { githubApiAuthService } from '@main/core/github/services/github-api-auth-service-instance';
@@ -16,12 +22,6 @@ import {
 } from '@main/core/issues/plugin-issue-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { log } from '@main/lib/logger';
-import {
-  type IssueListError,
-  type IssueListResult,
-  type IssueProviderCapabilities,
-} from '@shared/issue-providers';
-import type { RepositoryRef } from '@shared/repository-ref';
 import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from '../issues/issue-provider';
 
 async function resolveIssueAuthContext(

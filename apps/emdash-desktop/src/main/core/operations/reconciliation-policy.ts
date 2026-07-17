@@ -1,4 +1,4 @@
-import type { ProjectWorkspaceRow } from '@shared/core/workspaces/project-workspaces';
+import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
 
 export function shouldProposeWorkspaceCleanup(
   row: Pick<ProjectWorkspaceRow, 'kind' | 'path' | 'tasks'>,

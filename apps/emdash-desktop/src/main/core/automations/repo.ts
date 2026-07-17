@@ -1,6 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type {
+  Automation,
+  CreateAutomationParams,
+  UpdateAutomationSettingsPatch,
+} from '@core/primitives/automations/api';
+import type {
+  AutomationRun,
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+  RunError,
+} from '@core/primitives/automations/api';
+import type {
+  ConversationConfig,
+  StoredAutomationTaskConfig,
+  TriggerConfig,
+} from '@core/primitives/automations/api';
+import { storedAutomationTaskConfig } from '@core/primitives/automations/api';
+import { getLocalTimeZone } from '@core/primitives/automations/api';
+import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import { db } from '@main/db/client';
 import {
@@ -12,25 +31,6 @@ import {
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type {
-  Automation,
-  CreateAutomationParams,
-  UpdateAutomationSettingsPatch,
-} from '@shared/core/automations/automation';
-import type {
-  AutomationRun,
-  AutomationRunStatus,
-  AutomationRunTriggerKind,
-  RunError,
-} from '@shared/core/automations/automation-run';
-import type {
-  ConversationConfig,
-  StoredAutomationTaskConfig,
-  TriggerConfig,
-} from '@shared/core/automations/config';
-import { storedAutomationTaskConfig } from '@shared/core/automations/config';
-import { getLocalTimeZone } from '@shared/core/automations/timezone';
-import { assertValidCronTrigger } from '@shared/core/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
 

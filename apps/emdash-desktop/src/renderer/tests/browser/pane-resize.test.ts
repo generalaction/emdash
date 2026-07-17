@@ -14,7 +14,7 @@ import { action, makeObservable, observable, runInAction } from 'mobx';
  * overhead.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
+import type { PaneDimensionSink } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
 import { computeGridDimensions, measureTerminalCell } from '@renderer/lib/pty/pty-dimensions';
 import { createResizeScheduler } from '@renderer/lib/pty/resize-scheduler';
 

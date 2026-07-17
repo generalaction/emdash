@@ -2,20 +2,20 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
+import type {
+  ProjectWorkspaceRow,
+  ProjectWorkspaceTask,
+  ProjectWorkspacesResult,
+} from '@core/primitives/workspaces/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
-import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
-import type {
-  ProjectWorkspaceRow,
-  ProjectWorkspaceTask,
-  ProjectWorkspacesResult,
-} from '@shared/core/workspaces/project-workspaces';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 
 const MEASURE_CONCURRENCY = 4;
 

@@ -1,7 +1,5 @@
 import type { Result } from '@emdash/shared';
-import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
+import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
@@ -9,9 +7,11 @@ import {
   shareableProjectSettingsSchema,
   type BaseProjectSettings,
   type ShareableProjectSettings,
-} from '@shared/core/project-settings/project-settings';
-import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import {
   hasLegacyShareableConfigMigrated,
   serializeShareableProjectSettings,

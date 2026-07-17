@@ -1,14 +1,14 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import z from 'zod';
-import { BROWSER_ISOLATED_PROFILE_ID } from '@shared/browser';
+import { BROWSER_ISOLATED_PROFILE_ID } from '@core/primitives/browser/api';
+import { APP_SHORTCUTS } from '@core/primitives/commands/api/shortcuts';
+import { openInAppIdSchema } from '@core/primitives/open-in-apps/api/open-in-apps';
+import { normalizeBranchPrefix } from '@core/primitives/tasks/api';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
   TERMINAL_SHELL_IDS,
-} from '@shared/core/terminals/terminal-settings';
-import { openInAppIdSchema } from '@shared/openInApps';
-import { APP_SHORTCUTS } from '@shared/shortcuts';
-import { normalizeBranchPrefix } from '@shared/util/branch-prefix';
+} from '@core/primitives/terminals/api';
 import { isValidProviderId } from '../agents/plugin-registry';
 import { DEFAULT_AGENT_ID } from './settings-registry';
 

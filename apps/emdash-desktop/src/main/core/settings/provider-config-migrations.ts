@@ -2,7 +2,7 @@ import type {
   DependencyId,
   HostDependencySelection,
 } from '@emdash/core/services/host-dependencies/node';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { IHostDependencyStore } from '../dependencies/host-dependency-store';
 
 export function migrateProviderConfigOverrides(

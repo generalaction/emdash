@@ -1,19 +1,23 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import {
+  getAppById,
+  isValidOpenInAppId,
+  type OpenInAppId,
+} from '@core/primitives/open-in-apps/api/open-in-apps';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 interface OpenInMenuProps {
   path: string;

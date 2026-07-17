@@ -2,9 +2,9 @@ import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } 
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,
-} from '@renderer/features/tabs/pane-dimension-provider';
+} from '@core/features/workbench/browser/tabs/pane-dimension-provider';
 import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
 import { PaneSizingContextProvider, usePaneSizingContext } from './pane-sizing-context';

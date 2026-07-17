@@ -3,7 +3,7 @@ import {
   parseRepositoryRef,
   type RepositoryRef,
   type RepositoryRefParseError,
-} from '@shared/repository-ref';
+} from '@core/primitives/repository/api';
 import {
   githubHostService,
   type GitHubHostProbeError,

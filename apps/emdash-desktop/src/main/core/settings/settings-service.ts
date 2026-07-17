@@ -1,14 +1,18 @@
 import { isDeepEqual } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
+import {
+  AppSettingsKeys,
+  type AppSettings,
+  type AppSettingsKey,
+} from '@core/primitives/app-settings/api';
 import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
-import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/core/app-settings';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
 import { getDefaultForKey } from './settings-registry';
 import { computeDelta, computeTrueOverrides, isPlainObject, mergeDeep } from './utils';
 
-export type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
-export { AppSettingsKeys } from '@shared/core/app-settings';
+export type { AppSettings, AppSettingsKey } from '@core/primitives/app-settings/api';
+export { AppSettingsKeys } from '@core/primitives/app-settings/api';
 
 export class SettingsStore {
   private cache: Partial<AppSettings> = {};

@@ -1,6 +1,6 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
+import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from '../accounts/github-accounts';
 import { ProjectGitHubAccountBackfillService } from './project-github-account-backfill';
 

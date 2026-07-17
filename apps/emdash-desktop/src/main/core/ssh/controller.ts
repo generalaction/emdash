@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  SshConfig,
+  SshConfigHost,
+  SshConnectionUsage,
+  SshHealthState,
+} from '@core/primitives/ssh/api';
 import { db } from '@main/db/client';
 import {
   projects,
@@ -8,15 +16,6 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type {
-  ConnectionState,
-  ConnectionTestResult,
-  SshConfig,
-  SshConfigHost,
-  SshConnectionUsage,
-  SshHealthState,
-} from '@shared/core/ssh/ssh';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import {
   mergeSshConnectionMetadata,
   type SshConnectionMetadata,
@@ -28,7 +27,7 @@ import { testProductionSshConnection } from './connect/production-test-connectio
 import { sshCredentialService } from './credentials/ssh-credential-service';
 import { sshConnectionManager } from './lifecycle/production-ssh-connection-manager';
 
-export const sshController = createRPCController({
+export const sshOperations = {
   /** List all saved SSH connections (no secrets). */
   getConnections: async (): Promise<SshConfig[]> => {
     const rows = await db.select().from(sshConnectionsTable);
@@ -237,4 +236,4 @@ export const sshController = createRPCController({
       .set({ name, updatedAt: new Date().toISOString() })
       .where(eq(sshConnectionsTable.id, id));
   },
-});
+};

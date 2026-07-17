@@ -1,5 +1,8 @@
 import type { GitBranchRef, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import type { Disposable } from '@emdash/shared/concurrency';
+import type { ProjectRemoteState } from '@core/primitives/projects/api';
+import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
+import type { WorkspaceSetupSpec } from '@core/primitives/workspaces/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -8,9 +11,6 @@ import { previewServerService } from '@main/core/preview-servers/preview-server-
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { SetupResult } from '@main/core/workspaces/workspace-setup-executor';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
-import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
-import type { WorkspaceSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
-import type { ProjectRemoteState } from '@shared/projects';
 import type { ConversationProvider } from '../conversations/types';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import type { WorkspaceType } from '../workspaces/workspace-factory';

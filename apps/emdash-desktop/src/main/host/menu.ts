@@ -1,16 +1,11 @@
 import { app, clipboard, Menu, shell } from 'electron';
-import { events } from '@main/host/events';
-import { telemetryService } from '@main/lib/telemetry';
+import { desktopHostEvents } from '@core/features/workbench/node';
 import {
-  menuCheckForUpdatesChannel,
-  menuCloseTabChannel,
-  menuGiveFeedbackChannel,
-  menuOpenSettingsChannel,
-  menuQuitRequestedChannel,
-  menuRedoChannel,
-  menuUndoChannel,
-} from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+  EMDASH_DOCS_URL,
+  EMDASH_ISSUES_NEW_URL,
+  EMDASH_RELEASES_URL,
+} from '@core/primitives/urls/api/urls';
+import { telemetryService } from '@main/lib/telemetry';
 import { getMainWindow } from './window';
 
 function copyInstallationId(): void {
@@ -34,7 +29,7 @@ function requestQuit(): void {
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
-  events.emit(menuQuitRequestedChannel, undefined);
+  desktopHostEvents.emit(undefined, { type: 'menu-quit-requested' });
 }
 
 export function setupApplicationMenu(): void {
@@ -55,11 +50,11 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => desktopHostEvents.emit(undefined, { type: 'menu-open-settings' }),
               },
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: () => desktopHostEvents.emit(undefined, { type: 'menu-check-for-updates' }),
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -87,7 +82,7 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => desktopHostEvents.emit(undefined, { type: 'menu-open-settings' }),
               },
               { type: 'separator' as const },
             ]
@@ -96,7 +91,7 @@ export function setupApplicationMenu(): void {
           ? {
               label: 'Close Tab',
               accelerator: 'CmdOrCtrl+W',
-              click: () => events.emit(menuCloseTabChannel, undefined),
+              click: () => desktopHostEvents.emit(undefined, { type: 'menu-close-tab' }),
             }
           : {
               label: 'Quit',
@@ -112,12 +107,12 @@ export function setupApplicationMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => events.emit(menuUndoChannel, undefined),
+          click: () => desktopHostEvents.emit(undefined, { type: 'menu-undo' }),
         },
         {
           label: 'Redo',
           accelerator: isMac ? 'Shift+CmdOrCtrl+Z' : 'CmdOrCtrl+Y',
-          click: () => events.emit(menuRedoChannel, undefined),
+          click: () => desktopHostEvents.emit(undefined, { type: 'menu-redo' }),
         },
         { type: 'separator' as const },
         { role: 'cut' as const },
@@ -154,7 +149,7 @@ export function setupApplicationMenu(): void {
           ? [
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: () => desktopHostEvents.emit(undefined, { type: 'menu-check-for-updates' }),
               },
               { type: 'separator' as const },
             ]
@@ -189,7 +184,7 @@ export function setupApplicationMenu(): void {
         },
         {
           label: 'Give Feedback',
-          click: () => events.emit(menuGiveFeedbackChannel, undefined),
+          click: () => desktopHostEvents.emit(undefined, { type: 'menu-give-feedback' }),
         },
       ],
     },

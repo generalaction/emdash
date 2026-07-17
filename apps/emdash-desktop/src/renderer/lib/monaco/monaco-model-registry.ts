@@ -8,12 +8,12 @@ import {
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { rpc } from '@renderer/lib/ipc';
+import { hostPathFromNative, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
+import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
+import { gitRefToString } from '@core/primitives/git/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
 import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
-import { HEAD_REF, type GitRef } from '@shared/core/git/types';
-import { gitRefToString } from '@shared/core/git/utils';
-import { hostPathFromNative, relativeRuntimePath } from '@shared/core/runtime/paths';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -467,11 +467,13 @@ export class MonacoModelRegistry {
               if (!currentEntry || currentEntry.type !== 'buffer') return;
               if (!this.isDirty(uri)) return;
               const value = currentEntry.model.getValue();
-              void rpc.workspace.editor.saveBuffer(
-                currentEntry.projectId,
-                currentEntry.workspaceId,
-                currentEntry.filePath,
-                value
+              void getDesktopWireClient().then((client) =>
+                client.editor.saveBuffer({
+                  projectId: currentEntry.projectId,
+                  workspaceId: currentEntry.workspaceId,
+                  filePath: currentEntry.filePath,
+                  content: value,
+                })
               );
             }, BUFFER_DEBOUNCE_MS)
           );
@@ -528,11 +530,13 @@ export class MonacoModelRegistry {
             if (!currentEntry || currentEntry.type !== 'buffer') return;
             if (!this.isDirty(uri)) return;
             const value = currentEntry.model.getValue();
-            void rpc.workspace.editor.saveBuffer(
-              currentEntry.projectId,
-              currentEntry.workspaceId,
-              currentEntry.filePath,
-              value
+            void getDesktopWireClient().then((client) =>
+              client.editor.saveBuffer({
+                projectId: currentEntry.projectId,
+                workspaceId: currentEntry.workspaceId,
+                filePath: currentEntry.filePath,
+                content: value,
+              })
             );
           }, BUFFER_DEBOUNCE_MS)
         );
@@ -908,7 +912,13 @@ export class MonacoModelRegistry {
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
-    void rpc.workspace.editor.clearBuffer(buf.projectId, buf.workspaceId, buf.filePath);
+    void getDesktopWireClient().then((client) =>
+      client.editor.clearBuffer({
+        projectId: buf.projectId,
+        workspaceId: buf.workspaceId,
+        filePath: buf.filePath,
+      })
+    );
     return content;
   }
 

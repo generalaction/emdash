@@ -109,7 +109,7 @@ transparently handles version detection, upgrade chains, and serialization.
 
 ```ts
 import { versionedJsonColumn } from '@main/db/versioned-column';
-import { myConfig } from '@shared/my-config';
+import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 export const myTable = sqliteTable('my_table', {
   col: versionedJsonColumn(myConfig)('col'),
@@ -123,7 +123,7 @@ needed at call sites.
 
 ### Schema definitions
 
-Versioned schema definitions live in `src/shared/`. See
+Versioned schema definitions live in the owning `src/core/primitives/<domain>/api/` slice. See
 `agents/conventions/versioned-schemas.md` for the full guide including the
 `defineVersionedSchema()` builder API, upgrade function patterns, and testing
 guidance.
@@ -132,16 +132,16 @@ guidance.
 
 | Column | Schema file |
 |--------|-------------|
-| `workspaces.config` | `src/shared/workspace-config.ts` |
-| `workspaces.data` | `src/shared/workspace-provider-data.ts` |
-| `conversations.config` | `src/shared/conversation-config.ts` |
-| `tasks.workspace_intent` | `src/shared/workspace-config.ts` |
-| `tasks.task_config` | `src/shared/task-config.ts` |
-| `tasks.linked_issue` | `src/shared/linked-issue.ts` |
-| `automations.trigger_config` | `src/shared/automations/config.ts` |
-| `automations.conversation_config` | `src/shared/automations/config.ts` |
-| `automations.task_config` | `src/shared/automations/config.ts` |
-| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` |
+| `workspaces.config` | `src/core/primitives/workspaces/api/workspace-config.ts` |
+| `workspaces.data` | `src/core/primitives/workspaces/api/workspace-provider-data.ts` |
+| `conversations.config` | `src/core/primitives/conversations/api/conversation-config.ts` |
+| `tasks.workspace_intent` | `src/core/primitives/workspaces/api/workspace-config.ts` |
+| `tasks.task_config` | `src/core/primitives/tasks/api/task-config.ts` |
+| `tasks.linked_issue` | `src/core/primitives/linked-issues/api/linked-issue.ts` |
+| `automations.trigger_config` | `src/core/primitives/automations/api/config.ts` |
+| `automations.conversation_config` | `src/core/primitives/automations/api/config.ts` |
+| `automations.task_config` | `src/core/primitives/automations/api/config.ts` |
+| `ssh_connections.metadata` | `src/core/primitives/ssh/api/ssh-connection-metadata.ts` |
 
 ### Snapshot columns and raw SQL
 

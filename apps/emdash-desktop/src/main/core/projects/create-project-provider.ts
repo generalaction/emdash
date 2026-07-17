@@ -1,5 +1,8 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
+import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
+import { safePathSegment } from '@core/primitives/path-name/api';
+import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-client';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -12,9 +15,6 @@ import { applyRecovery } from '@main/core/workspaces/recovery-strategy';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { nativePathFromHost, relativeRuntimePath } from '@shared/core/runtime/paths';
-import { safePathSegment } from '@shared/path-name';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';

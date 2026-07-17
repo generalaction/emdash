@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   fileKey,
   fileRelativePath,
@@ -9,7 +10,6 @@ import {
   type FilesClientScope,
 } from '@main/core/files/runtime-client';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../files/realpath-containment';
 
 async function openFilesClientScope(rootPath: string): Promise<Result<FilesClientScope, FsError>> {

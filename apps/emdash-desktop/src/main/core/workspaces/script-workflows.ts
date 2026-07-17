@@ -9,9 +9,9 @@ import type {
 } from '@emdash/core/services/script-workflows/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import type { Task } from '@core/primitives/tasks/api';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
 import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
-import type { Task } from '@shared/core/tasks/tasks';
 import { getTaskEnvVars } from './workspace-env';
 
 export type ScriptWorkflowNodeInput = {

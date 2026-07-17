@@ -10,9 +10,17 @@ import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { desktopHostEvents } from '@core/features/workbench/node';
+import {
+  getAppById,
+  getResolvedLabel,
+  OPEN_IN_APPS,
+  type OpenInAppId,
+  type PlatformConfig,
+  type PlatformKey,
+} from '@core/primitives/open-in-apps/api/open-in-apps';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
-import { events } from '@main/host/events';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
@@ -21,22 +29,7 @@ import {
 import { getMainWindow } from '@main/host/window';
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
-import {
-  appPasteChannel,
-  appRedoChannel,
-  appUndoChannel,
-  terminalContextMenuActionChannel,
-  type TerminalContextMenuAction,
-} from '@shared/events/appEvents';
-import {
-  getAppById,
-  getResolvedLabel,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformConfig,
-  type PlatformKey,
-} from '@shared/openInApps';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   checkCommand,
   checkMacApp,
@@ -107,28 +100,12 @@ class AppService implements Disposable {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
-  private _unsubscribes: Array<() => void> = [];
 
   initialize(): void {
     void this.getCachedAppVersion();
-
-    this._unsubscribes = [
-      events.on(appUndoChannel, () => {
-        getMainWindow()?.webContents.undo();
-      }),
-      events.on(appRedoChannel, () => {
-        getMainWindow()?.webContents.redo();
-      }),
-      events.on(appPasteChannel, () => {
-        getMainWindow()?.webContents.paste();
-      }),
-    ];
   }
 
-  dispose(): void {
-    for (const unsub of this._unsubscribes) unsub();
-    this._unsubscribes = [];
-  }
+  dispose(): void {}
 
   getCachedAppVersion(): Promise<string> {
     if (this.cachedAppVersion) return Promise.resolve(this.cachedAppVersion);
@@ -319,8 +296,12 @@ class AppService implements Disposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: TerminalContextMenuAction) => {
-      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
+    const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
+      desktopHostEvents.emit(undefined, {
+        type: 'terminal-context-menu-action',
+        requestId: args.requestId,
+        action,
+      });
     };
     const template: Electron.MenuItemConstructorOptions[] = [
       {

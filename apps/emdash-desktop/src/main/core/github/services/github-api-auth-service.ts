@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
+import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {
   GITHUB_PROVIDER_ID,
   toGitHubAccount,

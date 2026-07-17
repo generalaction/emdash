@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Automation } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
+import type { Automation } from '@core/primitives/automations/api';
+import type { AutomationRun } from '@core/primitives/automations/api';
 import { executeTaskCreate } from './actions/taskCreate';
 import { updateRun } from './repo';
 import type { OnStepCompleted } from './run-transitions';

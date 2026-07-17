@@ -8,24 +8,23 @@ import {
   type MenuItemConstructorOptions,
   type WebContents,
 } from 'electron';
-import { events } from '@main/host/events';
-import { log } from '@main/lib/logger';
+import { browserEvents } from '@core/features/browser/node';
+import { desktopHostEvents } from '@core/features/workbench/node';
+import type { AppSettings } from '@core/primitives/app-settings/api';
 import {
   browserProfilePartition,
   isNamedBrowserProfileId,
   normalizeBrowserUrl,
   type BrowserDataClearKind,
   type BrowsingDataKind,
-} from '@shared/browser';
-import type { AppSettings } from '@shared/core/app-settings';
-import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
-import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
+} from '@core/primitives/browser/api';
 import {
   APP_SHORTCUTS,
   getElectronTabNavigationDirection,
   resolveDefaultHotkey,
   type ShortcutSettingsKey,
-} from '@shared/shortcuts';
+} from '@core/primitives/commands/api/shortcuts';
+import { log } from '@main/lib/logger';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
@@ -234,7 +233,11 @@ export class BrowserWebContentsRegistry {
       }
       const sourceBrowserId = this.browserIdByWebContentsId.get(webContents.id);
       if (sourceBrowserId && isExternalHttpUrl(details.url)) {
-        events.emit(browserOpenInNewTabChannel, { sourceBrowserId, url: details.url });
+        browserEvents.emit(undefined, {
+          type: 'open-in-new-tab',
+          sourceBrowserId,
+          url: details.url,
+        });
       }
       return { action: 'deny' };
     });
@@ -245,7 +248,8 @@ export class BrowserWebContentsRegistry {
         const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (browserId) {
           event.preventDefault();
-          events.emit(tabNavigationShortcutChannel, {
+          desktopHostEvents.emit(undefined, {
+            type: 'tab-navigation-shortcut',
             source: { kind: 'browser', browserId },
             direction: tabNavigationDirection,
           });
@@ -260,7 +264,8 @@ export class BrowserWebContentsRegistry {
         const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (!browserId) return;
         event.preventDefault();
-        events.emit(browserAppShortcutChannel, {
+        desktopHostEvents.emit(undefined, {
+          type: 'browser-app-shortcut',
           source: { kind: 'browser', browserId },
           shortcutKey,
         });
@@ -271,7 +276,7 @@ export class BrowserWebContentsRegistry {
       if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
       event.preventDefault();
       clipboard.writeText(normalized.url);
-      events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
+      browserEvents.emit(undefined, { type: 'link-copied', kind: 'url', url: normalized.url });
     });
 
     webContents.on('context-menu', (event, params) => {
@@ -298,7 +303,11 @@ export class BrowserWebContentsRegistry {
           click: () => {
             if (!target) return;
             clipboard.writeText(target.url);
-            events.emit(browserLinkCopiedChannel, { kind: target.kind, url: target.url });
+            browserEvents.emit(undefined, {
+              type: 'link-copied',
+              kind: target.kind,
+              url: target.url,
+            });
           },
         },
         {
@@ -314,7 +323,11 @@ export class BrowserWebContentsRegistry {
           click: () => {
             const sourceBrowserId = this.browserIdByWebContentsId.get(webContents.id);
             if (sourceBrowserId && target) {
-              events.emit(browserOpenInNewTabChannel, { sourceBrowserId, url: target.url });
+              browserEvents.emit(undefined, {
+                type: 'open-in-new-tab',
+                sourceBrowserId,
+                url: target.url,
+              });
             }
           },
         },

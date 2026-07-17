@@ -1,6 +1,6 @@
-import { buildPromptInjectionPayload } from '@shared/prompt-injection';
+import { buildPromptInjectionPayload } from '@core/primitives/prompt-injection/api/prompt-injection';
 
-export { buildPromptInjectionPayload } from '@shared/prompt-injection';
+export { buildPromptInjectionPayload } from '@core/primitives/prompt-injection/api/prompt-injection';
 
 type SendInput = (data: string) => Promise<unknown>;
 

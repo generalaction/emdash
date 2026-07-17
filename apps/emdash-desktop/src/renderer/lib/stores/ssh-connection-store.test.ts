@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SshConnectionEvent } from '@shared/core/ssh/sshEvents';
+import type { SshConnectionEvent } from '@core/primitives/ssh/api';
 import { SshConnectionStore } from './ssh-connection-store';
 
 const sshEventHandlers: Array<(event: SshConnectionEvent) => void> = [];
@@ -8,40 +8,40 @@ function emitSshEvent(event: SshConnectionEvent): void {
   for (const handler of sshEventHandlers) handler(event);
 }
 
-vi.mock('@renderer/lib/ipc', () => ({
-  events: {
-    on: vi.fn((_channel, handler: (event: SshConnectionEvent) => void) => {
-      sshEventHandlers.push(handler);
-      return () => {};
-    }),
-  },
-  rpc: {
-    ssh: {
-      connect: vi.fn(async () => {}),
-      deleteConnection: vi.fn(async () => {}),
-      getConnections: vi.fn(async () => []),
-      getConnectionState: vi.fn(async () => ({})),
-      getHealthStates: vi.fn(async () => ({})),
-      getSshConfigHost: vi.fn(async (alias) => ({ host: alias })),
-      getSshConfigHosts: vi.fn(async () => []),
-      renameConnection: vi.fn(async () => {}),
-      saveConnection: vi.fn(async (config) => ({ ...config, id: 'ssh-1' })),
-      testConnection: vi.fn(async () => ({ success: true })),
-    },
-  },
+const ssh = vi.hoisted(() => ({
+  connect: vi.fn(async () => {}),
+  deleteConnection: vi.fn(async () => {}),
+  getConnections: vi.fn(async () => []),
+  getConnectionState: vi.fn(async () => ({})),
+  getHealthStates: vi.fn(async () => ({})),
+  getSshConfigHost: vi.fn(async ({ alias }: { alias: string }) => ({ host: alias })),
+  getSshConfigHosts: vi.fn(async () => []),
+  renameConnection: vi.fn(async () => {}),
+  saveConnection: vi.fn(async (config) => ({ ...config, id: 'ssh-1' })),
+  testConnection: vi.fn(async () => ({ success: true })),
+  subscribe: vi.fn(async (_key, observer: { onEvent: (event: SshConnectionEvent) => void }) => {
+    sshEventHandlers.push(observer.onEvent);
+    return () => {};
+  }),
 }));
 
-const { rpc } = await import('@renderer/lib/ipc');
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
+    ssh: { ...ssh, events: { subscribe: ssh.subscribe } },
+  }),
+}));
 
 describe('SshConnectionStore', () => {
   beforeEach(() => {
     sshEventHandlers.length = 0;
+    vi.clearAllMocks();
   });
 
-  it('notifies when an SSH connection becomes ready', () => {
+  it('notifies when an SSH connection becomes ready', async () => {
     const onConnectionReady = vi.fn();
     const store = new SshConnectionStore({ onConnectionReady });
     store.start();
+    await vi.waitFor(() => expect(sshEventHandlers).toHaveLength(1));
 
     emitSshEvent({ type: 'connected', connectionId: 'ssh-1' });
     emitSshEvent({ type: 'reconnected', connectionId: 'ssh-1' });
@@ -53,7 +53,7 @@ describe('SshConnectionStore', () => {
   });
 
   it('notifies for initially connected SSH connections', async () => {
-    vi.mocked(rpc.ssh.getConnectionState).mockResolvedValueOnce({
+    ssh.getConnectionState.mockResolvedValueOnce({
       'ssh-1': 'connected',
       'ssh-2': 'disconnected',
     });
@@ -67,9 +67,10 @@ describe('SshConnectionStore', () => {
     expect(onConnectionReady).not.toHaveBeenCalledWith('ssh-2');
   });
 
-  it('tracks SSH health changes separately from connection state', () => {
+  it('tracks SSH health changes separately from connection state', async () => {
     const store = new SshConnectionStore();
     store.start();
+    await vi.waitFor(() => expect(sshEventHandlers).toHaveLength(1));
 
     emitSshEvent({
       type: 'health-changed',
@@ -97,6 +98,7 @@ describe('SshConnectionStore', () => {
   it('allows forced connect while reconnecting', async () => {
     const store = new SshConnectionStore();
     store.start();
+    await vi.waitFor(() => expect(sshEventHandlers).toHaveLength(1));
 
     emitSshEvent({
       type: 'reconnecting',
@@ -106,10 +108,10 @@ describe('SshConnectionStore', () => {
     });
 
     await store.connect('ssh-1');
-    expect(rpc.ssh.connect).not.toHaveBeenCalled();
+    expect(ssh.connect).not.toHaveBeenCalled();
 
     await store.connect('ssh-1', { force: true });
-    expect(rpc.ssh.connect).toHaveBeenCalledWith('ssh-1');
+    expect(ssh.connect).toHaveBeenCalledWith({ connectionId: 'ssh-1' });
   });
 
   it('passes SSH config alias and proxy metadata through saveConnection', async () => {
@@ -127,7 +129,7 @@ describe('SshConnectionStore', () => {
       proxyJump: 'bastion',
     });
 
-    expect(rpc.ssh.saveConnection).toHaveBeenCalledWith(
+    expect(ssh.saveConnection).toHaveBeenCalledWith(
       expect.objectContaining({
         sshConfigAlias: 'corp-dev',
         forwardAgent: true,

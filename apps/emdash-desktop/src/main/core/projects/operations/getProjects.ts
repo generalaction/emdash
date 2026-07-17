@@ -1,7 +1,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
+import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
-import type { LocalProject, SshProject } from '@shared/projects';
 
 export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
   const rows = await db

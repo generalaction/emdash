@@ -1,14 +1,14 @@
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
   type ProjectConfigMigration,
   type ShareableProjectSettings,
   type ShareableProjectSettingsWriteField,
-} from '@shared/core/project-settings/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { parseJsonObject } from '../project-settings-json';
 import type { ProjectConfigMigrator } from './config-migration';

@@ -1,4 +1,4 @@
-import { rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
 import { isHeicLikeFile, isUnstableDropPath } from './terminal-image-paths';
 

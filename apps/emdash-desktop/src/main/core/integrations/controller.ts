@@ -1,9 +1,8 @@
 import type { IntegrationCredentials } from '@emdash/plugins/integrations';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import { integrationConnectionService } from './integration-connection-service';
 import { buildIntegrationListPayload } from './integration-payload-builder';
 
-export const integrationsController = createRPCController({
+export const integrationOperations = {
   list: async () => buildIntegrationListPayload(),
 
   connect: async (integrationId: string, credentials: IntegrationCredentials) =>
@@ -11,4 +10,4 @@ export const integrationsController = createRPCController({
 
   disconnect: async (integrationId: string) =>
     integrationConnectionService.disconnect(integrationId),
-});
+};

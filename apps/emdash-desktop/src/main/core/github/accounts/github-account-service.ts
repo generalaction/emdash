@@ -1,4 +1,7 @@
-import type { GitHubAccountSummary, GitHubImportCliAccountsResponse } from '@shared/github';
+import type {
+  GitHubAccountSummary,
+  GitHubImportCliAccountsResponse,
+} from '@core/primitives/github/api';
 import {
   GITHUB_PROVIDER_ID,
   toGitHubAccount,

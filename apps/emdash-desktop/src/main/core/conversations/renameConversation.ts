@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { conversationEvents } from './conversation-events';
 
 export async function renameConversation(conversationId: string, name: string) {

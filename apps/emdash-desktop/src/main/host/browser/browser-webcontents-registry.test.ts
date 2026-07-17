@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { events } from '@main/host/events';
-import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { browserEvents } from '@core/features/browser/node';
+import { desktopHostEvents } from '@core/features/workbench/node';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -19,8 +19,13 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('@main/host/events', () => ({
-  events: {
+vi.mock('@core/features/browser/node', () => ({
+  browserEvents: {
+    emit: vi.fn(),
+  },
+}));
+vi.mock('@core/features/workbench/node', () => ({
+  desktopHostEvents: {
     emit: vi.fn(),
   },
 }));
@@ -80,7 +85,8 @@ function sessionFor(partition: string): object {
 describe('BrowserWebContentsRegistry', () => {
   beforeEach(() => {
     sessionsByPartition.clear();
-    vi.mocked(events.emit).mockClear();
+    vi.mocked(browserEvents.emit).mockClear();
+    vi.mocked(desktopHostEvents.emit).mockClear();
   });
 
   it('closes attached webviews whose session has no registered partition', () => {
@@ -165,7 +171,8 @@ describe('BrowserWebContentsRegistry', () => {
       disposition: 'foreground-tab',
     } as Parameters<typeof handler>[0]);
     expect(tab.action).toBe('deny');
-    expect(events.emit).toHaveBeenCalledWith(expect.anything(), {
+    expect(browserEvents.emit).toHaveBeenCalledWith(undefined, {
+      type: 'open-in-new-tab',
       sourceBrowserId: 'browser-1',
       url: 'https://example.com/docs',
     });
@@ -175,7 +182,8 @@ describe('BrowserWebContentsRegistry', () => {
       disposition: 'new-window',
     } as Parameters<typeof handler>[0]);
     expect(windowOpen.action).toBe('deny');
-    expect(events.emit).toHaveBeenCalledWith(expect.anything(), {
+    expect(browserEvents.emit).toHaveBeenCalledWith(undefined, {
+      type: 'open-in-new-tab',
       sourceBrowserId: 'browser-1',
       url: 'https://example.com/popup',
     });
@@ -242,7 +250,8 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
-    expect(events.emit).toHaveBeenCalledWith(tabNavigationShortcutChannel, {
+    expect(desktopHostEvents.emit).toHaveBeenCalledWith(undefined, {
+      type: 'tab-navigation-shortcut',
       source: { kind: 'browser', browserId: 'browser-1' },
       direction: 'previous',
     });
@@ -267,7 +276,8 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
-    expect(events.emit).toHaveBeenCalledWith(browserAppShortcutChannel, {
+    expect(desktopHostEvents.emit).toHaveBeenCalledWith(undefined, {
+      type: 'browser-app-shortcut',
       source: { kind: 'browser', browserId: 'browser-1' },
       shortcutKey: 'commandPalette',
     });
@@ -293,7 +303,10 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+    expect(desktopHostEvents.emit).not.toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ type: 'browser-app-shortcut' })
+    );
   });
 
   it('does not consume Escape in focused browser webContents', () => {
@@ -315,7 +328,10 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+    expect(desktopHostEvents.emit).not.toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ type: 'browser-app-shortcut' })
+    );
   });
 
   it('does not consume shortcuts ignored in focused browser webContents', () => {
@@ -337,7 +353,10 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+    expect(desktopHostEvents.emit).not.toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ type: 'browser-app-shortcut' })
+    );
   });
 
   it('clears storage for a named profile without requiring an open browser', async () => {

@@ -1,6 +1,6 @@
-import { defineMemento } from '@core/primitives/mementos/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { z } from 'zod';
+import { defineMemento } from '@core/primitives/mementos/api';
 import { projectSubject } from './subject';
 
 const projectViewV1Schema = z.object({

@@ -4,8 +4,9 @@ import _electronUpdater, {
   type UpdateInfo,
   type Logger as UpdaterLogger,
 } from 'electron-updater';
+import { updateEvents } from '@core/features/updates/node';
+import { IS_CANARY, UPDATE_CHANNEL } from '@core/primitives/app-identity/api/app-identity';
 import { resolveAppVersion } from '@main/core/app/utils';
-import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import {
   notificationService,
@@ -13,17 +14,6 @@ import {
   publishUpdateDownloadedNotification,
   publishUpdateErrorNotification,
 } from '@root/src/core/services/notifications/node';
-import { IS_CANARY, UPDATE_CHANNEL } from '@shared/app-identity';
-import {
-  updateAvailableEvent,
-  updateCheckingEvent,
-  updateDownloadedEvent,
-  updateDownloadingEvent,
-  updateErrorEvent,
-  updateInstallingEvent,
-  updateNotAvailableEvent,
-  updateProgressEvent,
-} from '@shared/events/updateEvents';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 const { autoUpdater } = _electronUpdater;
@@ -108,20 +98,20 @@ class UpdateService implements Disposable {
     autoUpdater.on('checking-for-update', () => {
       this.updateState.status = 'checking';
       this.updateState.lastCheck = new Date();
-      events.emit(updateCheckingEvent, undefined);
+      updateEvents.emit(undefined, { type: 'checking' });
     });
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
       this.updateState.status = 'available';
       this.updateState.availableVersion = info.version;
       this.updateState.updateInfo = info;
-      events.emit(updateAvailableEvent, { version: info.version, updateInfo: info });
+      updateEvents.emit(undefined, { type: 'available', version: info.version });
       publishUpdateAvailableNotification(notificationService, info.version);
     });
 
     autoUpdater.on('update-not-available', () => {
       this.updateState.status = 'idle';
-      events.emit(updateNotAvailableEvent, undefined);
+      updateEvents.emit(undefined, { type: 'not-available' });
     });
 
     autoUpdater.on('error', (err: Error) => {
@@ -144,7 +134,7 @@ class UpdateService implements Disposable {
         this.updateState.updateInfo = previousInfo;
       }
 
-      events.emit(updateErrorEvent, { message: errorMessage });
+      updateEvents.emit(undefined, { type: 'error', message: errorMessage });
       publishUpdateErrorNotification(notificationService, errorMessage);
     });
 
@@ -156,7 +146,8 @@ class UpdateService implements Disposable {
         transferred: progressObj.transferred,
         total: progressObj.total,
       };
-      events.emit(updateProgressEvent, {
+      updateEvents.emit(undefined, {
+        type: 'progress',
         bytesPerSecond: progressObj.bytesPerSecond,
         percent: progressObj.percent,
         transferred: progressObj.transferred,
@@ -167,7 +158,7 @@ class UpdateService implements Disposable {
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
       this.updateState.status = 'downloaded';
       this.updateState.rollbackVersion = this.updateState.currentVersion;
-      events.emit(updateDownloadedEvent, { version: info.version });
+      updateEvents.emit(undefined, { type: 'downloaded', version: info.version });
       publishUpdateDownloadedNotification(notificationService, info.version);
     });
   }
@@ -226,7 +217,10 @@ class UpdateService implements Disposable {
     }
 
     this.updateState.status = 'downloading';
-    events.emit(updateDownloadingEvent, { version: this.updateState.availableVersion });
+    updateEvents.emit(undefined, {
+      type: 'downloading',
+      version: this.updateState.availableVersion,
+    });
 
     try {
       await autoUpdater.downloadUpdate();
@@ -242,7 +236,7 @@ class UpdateService implements Disposable {
       this.updateState.availableVersion = version;
       this.updateState.updateInfo = info;
 
-      events.emit(updateErrorEvent, { message: errorMessage });
+      updateEvents.emit(undefined, { type: 'error', message: errorMessage });
       publishUpdateErrorNotification(notificationService, errorMessage);
       throw error;
     }
@@ -263,7 +257,7 @@ class UpdateService implements Disposable {
 
     this.installRequested = true;
     this.updateState.status = 'installing';
-    events.emit(updateInstallingEvent, undefined);
+    updateEvents.emit(undefined, { type: 'installing' });
 
     log.info('Installing update', {
       fromVersion: this.updateState.currentVersion,
@@ -282,7 +276,10 @@ class UpdateService implements Disposable {
       this.installRequested = false;
       this.updateState.status = 'downloaded';
       if (this.updateState.availableVersion) {
-        events.emit(updateDownloadedEvent, { version: this.updateState.availableVersion });
+        updateEvents.emit(undefined, {
+          type: 'downloaded',
+          version: this.updateState.availableVersion,
+        });
         publishUpdateDownloadedNotification(notificationService, this.updateState.availableVersion);
       }
       log.error(reason);

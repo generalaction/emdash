@@ -1,17 +1,17 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks, workspaces } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-import { ALL_COMMAND_DEFS } from '@shared/commands';
-import type { Conversation } from '@shared/core/conversations/conversations';
+import { ALL_COMMAND_DEFS } from '@core/primitives/commands/api/commands';
+import type { Conversation } from '@core/primitives/conversations/api';
+import type { Project } from '@core/primitives/projects/api';
 import type {
   CommandPaletteQuery,
   SearchItem,
   SearchItemKind,
   WorkspaceFileHit,
-} from '@shared/core/search';
-import type { Task } from '@shared/core/tasks/tasks';
-import type { Project } from '@shared/projects';
+} from '@core/primitives/search/api';
+import type { Task } from '@core/primitives/tasks/api';
+import { db, sqlite } from '@main/db/client';
+import { conversations, projects, tasks, workspaces } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { conversationEvents } from '../conversations/conversation-events';
 import { searchFileSearchRoot } from '../file-search/runtime-client';
 import { projectEvents } from '../projects/project-events';

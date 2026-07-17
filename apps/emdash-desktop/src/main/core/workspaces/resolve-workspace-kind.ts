@@ -1,4 +1,4 @@
-import type { WorkspaceKind, WorkspaceType } from '@shared/core/workspaces/workspaces';
+import type { WorkspaceKind, WorkspaceType } from '@core/primitives/workspaces/api';
 
 type WorkspaceRow = {
   kind: WorkspaceKind | null | undefined;

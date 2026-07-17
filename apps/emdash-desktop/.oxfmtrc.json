@@ -28,7 +28,7 @@
   ],
   "sortImports": {
     "newlinesBetween": false,
-    "internalPattern": ["@/", "@root/", "@shared/", "@main/", "@renderer/"]
+    "internalPattern": ["@/", "@root/", "@core/", "@main/", "@renderer/"]
   },
   "sortTailwindcss": {
     "stylesheet": "./src/renderer/index.css"

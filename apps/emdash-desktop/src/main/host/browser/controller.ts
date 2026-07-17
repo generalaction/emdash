@@ -1,18 +1,17 @@
 import { webContents } from 'electron';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import { configureBrowserProfileSession } from '@main/host/browser/browser-profile-session';
-import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
-import { isBrowserPartition } from '@main/host/browser/webview-security';
 import {
   browserProfilePartition,
   DEFAULT_BROWSER_PROFILE_ID,
   isBrowserDataClearKind,
   isBrowsingDataKind,
   type BrowserDataClearKind,
-} from '@shared/browser';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+} from '@core/primitives/browser/api';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { configureBrowserProfileSession } from '@main/host/browser/browser-profile-session';
+import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
+import { isBrowserPartition } from '@main/host/browser/webview-security';
 
-export const browserController = createRPCController({
+export const browserOperations = {
   registerSession: (args: { browserId: string; partition: string }) => {
     if (!args.browserId.trim() || !isBrowserPartition(args.partition)) {
       return { success: false as const, error: 'Invalid browser session' };
@@ -68,7 +67,7 @@ export const browserController = createRPCController({
     const partitions = await collectBrowserPartitions();
     return { success: await browserWebContentsRegistry.clearBrowsingData(kind, partitions) };
   },
-});
+};
 
 // Every persistent profile partition (default + named) plus any partitions with
 // live sessions, so clearing browsing data covers isolated-per-task tabs too.

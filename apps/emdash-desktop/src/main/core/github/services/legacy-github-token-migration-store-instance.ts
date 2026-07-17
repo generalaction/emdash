@@ -1,6 +1,6 @@
+import type { GitHubTokenSource } from '@core/primitives/github/api';
 import { KV } from '@main/db/kv';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
-import type { GitHubTokenSource } from '@shared/github';
 import { LegacyGitHubTokenMigrationStore } from './legacy-github-token-migration-store';
 
 type LegacyTokenSource = Exclude<GitHubTokenSource, null>;

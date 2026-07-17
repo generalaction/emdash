@@ -1,8 +1,6 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo } from 'react';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { events, rpc } from '@renderer/lib/ipc';
+import { useCallback, useMemo } from 'react';
 import type {
   AgentInstallationStatus,
   AgentPayload,
@@ -11,9 +9,10 @@ import type {
   Installation,
   InstallMethod,
   SelectedSource,
-} from '@shared/core/agents/agent-payload';
-import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
-import { AGENTS_METADATA_QUERY_KEY, useAgents } from './use-agents';
+} from '@core/primitives/agents/api';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { useAgents } from './use-agents';
 
 function statusQueryKey(connectionId?: string) {
   return ['agents', 'status', connectionId ?? 'local'] as const;
@@ -49,32 +48,12 @@ export function useAgentInstallationStatuses(connectionId?: string) {
 
   const query = useQuery<AgentInstallationStatus[]>({
     queryKey: key,
-    queryFn: () =>
+    queryFn: async () =>
       remoteUnavailable
         ? Promise.resolve([])
-        : (rpc.agents.listAgentInstallationStatus() as Promise<AgentInstallationStatus[]>),
+        : (await getDesktopWireClient()).agents.listAgentInstallationStatus({}),
     staleTime: 30_000,
   });
-
-  // Live-patch cache from background events — the event is already a full DTO
-  useEffect(() => {
-    const stop = events.on(
-      agentInstallationStatusUpdatedChannel,
-      (event: AgentInstallationStatus) => {
-        if ((event.connectionId ?? undefined) !== connectionId) return;
-        queryClient.setQueryData<AgentInstallationStatus[]>(key, (prev) => {
-          if (!prev) return [event];
-          const existingIndex = prev.findIndex((s) => s.id === event.id);
-          if (existingIndex === -1) return [...prev, event];
-          return prev.map((s, index) => (index === existingIndex ? event : s));
-        });
-        // Also invalidate the full agents list to keep the combined payload consistent
-        void queryClient.invalidateQueries({ queryKey: AGENTS_METADATA_QUERY_KEY });
-      }
-    );
-    return stop;
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionId]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: key });
@@ -86,10 +65,10 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: AgentProviderId; method?: InstallMethod }
   >({
     mutationKey: opKey('install', connectionId),
-    mutationFn: ({ id, method }) =>
+    mutationFn: async ({ id, method }) =>
       remoteUnavailable
         ? Promise.resolve(remoteDependencyUnavailableResult())
-        : (rpc.agents.install(id, undefined, method) as Promise<unknown>),
+        : (await getDesktopWireClient()).agents.install({ id, method }),
     onSuccess: (result, vars) => {
       invalidate();
       const name = nameOf(vars.id);
@@ -110,10 +89,10 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: AgentProviderId; method?: InstallMethod }
   >({
     mutationKey: opKey('update', connectionId),
-    mutationFn: ({ id, method }) =>
+    mutationFn: async ({ id, method }) =>
       remoteUnavailable
         ? Promise.resolve(remoteDependencyUnavailableResult())
-        : (rpc.agents.update(id, undefined, method) as Promise<unknown>),
+        : (await getDesktopWireClient()).agents.update({ id, method }),
     onSuccess: (result, vars) => {
       invalidate();
       const name = nameOf(vars.id);
@@ -134,10 +113,10 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: AgentProviderId; method?: InstallMethod }
   >({
     mutationKey: opKey('uninstall', connectionId),
-    mutationFn: ({ id, method }) =>
+    mutationFn: async ({ id, method }) =>
       remoteUnavailable
         ? Promise.resolve(remoteDependencyUnavailableResult())
-        : (rpc.agents.uninstall(id, undefined, method) as Promise<unknown>),
+        : (await getDesktopWireClient()).agents.uninstall({ id, method }),
     onSuccess: invalidate,
   });
 
@@ -146,24 +125,24 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     Error,
     { id: string; selection: HostDependencySelection }
   >({
-    mutationFn: ({ id, selection }) =>
+    mutationFn: async ({ id, selection }) =>
       remoteUnavailable
         ? Promise.resolve()
-        : (rpc.agents.setUsedInstallation(id, undefined, selection) as Promise<void>),
+        : (await getDesktopWireClient()).agents.setUsedInstallation({ id, selection }),
     onSuccess: invalidate,
   });
 
   const refreshLatestMutation = useMutation<void, Error, string>({
-    mutationFn: (id) =>
+    mutationFn: async (id) =>
       remoteUnavailable
         ? Promise.resolve()
-        : (rpc.agents.refreshLatestVersion(id) as Promise<void>),
+        : (await getDesktopWireClient()).agents.refreshLatestVersion({ id }),
     onSuccess: invalidate,
   });
 
   const probeAllMutation = useMutation<void, Error, void>({
-    mutationFn: () =>
-      remoteUnavailable ? Promise.resolve() : (rpc.agents.probeAll() as Promise<void>),
+    mutationFn: async () =>
+      remoteUnavailable ? Promise.resolve() : (await getDesktopWireClient()).agents.probeAll({}),
     onSuccess: invalidate,
   });
 
@@ -350,14 +329,13 @@ export function useAgentInstallationStatus(
   );
 
   const probeOverride = useCallback(
-    (selection: { path?: string; cli?: string }) =>
+    async (selection: { path?: string; cli?: string }) =>
       connectionId
         ? Promise.resolve(null)
-        : (rpc.agents.probeOverride(
-            id as AgentProviderId,
+        : ((await getDesktopWireClient()).agents.probeOverride({
+            id: id as AgentProviderId,
             selection,
-            undefined
-          ) as Promise<Installation | null>),
+          }) as Promise<Installation | null>),
     [id, connectionId]
   );
 

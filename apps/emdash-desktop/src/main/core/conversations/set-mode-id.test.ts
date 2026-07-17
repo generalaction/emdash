@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import type { ConversationConfig } from '@core/primitives/conversations/api';
 import { setConversationModeId } from './set-mode-id';
 
 vi.mock('@main/db/client', () => ({ db: {} }));

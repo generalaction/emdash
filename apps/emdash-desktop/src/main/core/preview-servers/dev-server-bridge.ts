@@ -1,11 +1,11 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import type { DirectPreviewServer } from '@core/primitives/preview-servers/api';
+import { parsePtySessionId } from '@core/primitives/pty/api';
 import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
-import type { DirectPreviewServer } from '@shared/core/preview-servers/types';
-import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import type { DetectedPreviewUrl, StopTerminalServerHandler } from './preview-server-service';
 import { previewServerService } from './preview-server-service-instance';

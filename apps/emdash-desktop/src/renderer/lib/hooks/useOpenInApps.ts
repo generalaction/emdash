@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
+import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -9,7 +8,8 @@ import {
   type OpenInAppConfig,
   type OpenInAppId,
   type PlatformKey,
-} from '@shared/openInApps';
+} from '@core/primitives/open-in-apps/api/open-in-apps';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const iconModules = import.meta.glob('../../../assets/images/*', {
   eager: true,

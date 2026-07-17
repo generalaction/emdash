@@ -6,6 +6,8 @@ import {
 import { decodeTmuxSessionName, listTmuxSessionActivity } from '@emdash/core/services/pty/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { eq, isNotNull, isNull } from 'drizzle-orm';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import { appScope } from '@main/bootstrap/app-scope';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -19,8 +21,6 @@ import {
   getTuiAgentsRuntimeClient,
 } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import { makePtySessionId, parsePtySessionId } from '@shared/core/pty/ptySessionId';
-import { nativePathFromHost } from '@shared/core/runtime/paths';
 import type { OperationsService, ReconcilerSessionCleanupInput } from './operations-service';
 import { shouldProposeWorkspaceCleanup } from './reconciliation-policy';
 

@@ -1,8 +1,7 @@
 import { shell, type BrowserWindow } from 'electron';
-import { events } from '@main/host/events';
+import { desktopHostEvents } from '@core/features/workbench/node';
 import { getMainWindow } from '@main/host/window';
 import { log } from '@main/lib/logger';
-import { externalLinkOpenRequestedChannel } from '@shared/events/appEvents';
 
 /**
  * Ensure any external HTTP(S) links open in the user's default browser
@@ -12,7 +11,7 @@ import { externalLinkOpenRequestedChannel } from '@shared/events/appEvents';
 function requestExternalLinkOpen(url: string) {
   const mainWindow = getMainWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    events.emit(externalLinkOpenRequestedChannel, { url });
+    desktopHostEvents.emit(undefined, { type: 'external-link-open-requested', url });
     return;
   }
 

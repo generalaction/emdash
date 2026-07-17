@@ -1,7 +1,7 @@
-import { subjectSchema } from '@core/primitives/subjects/api';
 import { ok } from '@emdash/shared/result';
 import { defineContract, fallible, liveModel, liveState, mutation } from '@emdash/wire/api';
 import { z } from 'zod';
+import { subjectSchema } from '@core/primitives/subjects/api';
 import {
   mementoMutationErrorSchema,
   mementoModelKeySchema,

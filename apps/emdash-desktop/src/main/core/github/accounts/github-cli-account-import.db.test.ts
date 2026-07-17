@@ -1,7 +1,7 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GitHubUser } from '@core/primitives/github/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { GitHubUser } from '@shared/github';
 import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from './github-accounts';
 import { GitHubCliAccountImportService } from './github-cli-account-import';
 

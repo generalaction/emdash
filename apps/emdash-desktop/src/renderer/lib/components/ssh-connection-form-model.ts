@@ -1,4 +1,4 @@
-import type { SshConfigHost } from '@shared/core/ssh/ssh';
+import type { SshConfigHost } from '@core/primitives/ssh/api';
 
 export type AuthType = 'password' | 'key' | 'agent';
 

@@ -1,9 +1,6 @@
 import type { Result } from '@emdash/shared';
-import type {
-  ProjectSettings,
-  ProjectSettingsPatch,
-} from '@shared/core/project-settings/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { ProjectSettings, ProjectSettingsPatch } from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 export type { ProjectSettingsPatch };
 
 export interface ProjectSettingsProvider {

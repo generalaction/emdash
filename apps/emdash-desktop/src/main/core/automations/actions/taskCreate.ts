@@ -1,9 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type Result } from '@emdash/shared';
+import type { Automation } from '@core/primitives/automations/api';
+import type { AutomationRun } from '@core/primitives/automations/api';
+import type { InitialQueuePrompt } from '@core/primitives/conversations/api';
+import {
+  buildIssueMentionContextBlock,
+  buildIssueMentionHiddenContext,
+  issueMentionToken,
+} from '@core/primitives/issues/api';
+import type { CreateTaskParams } from '@core/primitives/tasks/api';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import { getPlugin, isValidProviderId } from '@main/core/agents/plugin-registry';
 import { createConversation } from '@main/core/conversations/createConversation';
-import { issueController } from '@main/core/issues/controller';
+import { issueOperations } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
@@ -18,16 +28,6 @@ import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { getAcpRuntimeClient } from '@main/gateway/accessors';
-import type { Automation } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
-import type { InitialQueuePrompt } from '@shared/core/conversations/conversations';
-import {
-  buildIssueMentionContextBlock,
-  buildIssueMentionHiddenContext,
-  issueMentionToken,
-} from '@shared/core/issues/issue-context';
-import type { CreateTaskParams } from '@shared/core/tasks/tasks';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import {
   markRunCreatingConversation,
   markRunFailed,
@@ -84,7 +84,7 @@ async function buildAutomationInitialQueue(
   }
 
   const mentionContext = await buildIssueMentionHiddenContext(prompt, async (target) => {
-    const result = await issueController.getIssueContext(target.provider, {
+    const result = await issueOperations.getIssueContext(target.provider, {
       identifier: target.identifier,
       projectId,
     });

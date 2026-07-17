@@ -1,11 +1,11 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { type ConversationRow } from '@main/db/schema';
-import { type AgentStatus } from '@shared/core/agents/agentEvents';
+import { type AgentStatus } from '@core/primitives/agents/api';
 import {
   type Conversation,
   type ConversationType,
   type InitialQueuePrompt,
-} from '@shared/core/conversations/conversations';
+} from '@core/primitives/conversations/api';
+import { type ConversationRow } from '@main/db/schema';
 
 function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undefined {
   if (row.sessionId !== null) return undefined;

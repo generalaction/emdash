@@ -1,16 +1,15 @@
 import { execFile } from 'node:child_process';
 import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
+import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import {
   cleanupExpiredDroppedBlobs,
   persistClipboardImagePath,
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
-import { getDiagnosticLogAttachment } from '@main/host/file-logger';
+import { getDiagnosticLogAttachment, writeRendererLogEntry } from '@main/host/file-logger';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
-import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
 
 const execFileAsync = promisify(execFile);
@@ -44,7 +43,8 @@ async function getPlatformDisplayName(): Promise<string> {
   return `${process.platform} ${release()} (${architecture})`;
 }
 
-export const appController = createRPCController({
+export const appOperations = {
+  writeRendererLog: writeRendererLogEntry,
   openExternal: async (url: string) => {
     try {
       await appService.openExternal(url);
@@ -191,4 +191,4 @@ export const appController = createRPCController({
   getPlatform: () => process.platform,
   getPlatformDisplayName,
   getDiagnosticLogAttachment,
-});
+};

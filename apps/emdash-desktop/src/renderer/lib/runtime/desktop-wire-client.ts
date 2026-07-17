@@ -1,6 +1,6 @@
 import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
-import { desktopWireContract } from '@shared/core/runtime/desktop-wire-contract';
-import { DESKTOP_WIRE_CHANNEL } from '@shared/core/runtime/wire-channels';
+import { desktopWireContract } from '@core/manifests/desktop-wire-contract';
+import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/wire-channels';
 
 export type DesktopWireClient = ReturnType<typeof createDesktopWireClientForPort>;
 

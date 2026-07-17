@@ -1,6 +1,5 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
-import { githubAuthDeviceCodeChannel, githubAuthErrorChannel } from '@shared/events/githubEvents';
-import type { GitHubUser } from '@shared/github';
+import type { GitHubEvent, GitHubUser } from '@core/primitives/github/api';
 import {
   upsertGitHubAccount,
   type GitHubAccount,
@@ -26,10 +25,6 @@ type DeviceAuthFactory = (options: {
   }): void;
 }) => DeviceAuth;
 
-type DeviceFlowEvents = {
-  emit(channel: unknown, payload: unknown): void;
-};
-
 export type GitHubDeviceFlowResult =
   | { success: true; user: GitHubUser; account: GitHubAccount }
   | { success: false; error: string };
@@ -41,7 +36,7 @@ export class GitHubDeviceFlowService {
     private readonly deps: {
       accountStore: Pick<GitHubAccountStore, 'upsertAccount'>;
       identityClient: Pick<GitHubIdentityClient, 'getAuthenticatedUser'>;
-      events: DeviceFlowEvents;
+      publishEvent(event: GitHubEvent): void;
       createDeviceAuth: DeviceAuthFactory;
       config: GitHubDeviceFlowConfig;
     }
@@ -56,7 +51,8 @@ export class GitHubDeviceFlowService {
         clientId: this.deps.config.clientId,
         scopes: [...this.deps.config.scopes],
         onVerification: (verification) => {
-          this.deps.events.emit(githubAuthDeviceCodeChannel, {
+          this.deps.publishEvent({
+            type: 'device-code',
             userCode: verification.user_code,
             verificationUri: verification.verification_uri,
             expiresIn: verification.expires_in,
@@ -78,7 +74,7 @@ export class GitHubDeviceFlowService {
       const user = await this.deps.identityClient.getAuthenticatedUser(token, 'github.com');
       if (!user) {
         const message = 'Failed to read authenticated GitHub user';
-        this.deps.events.emit(githubAuthErrorChannel, { error: 'device_flow_error', message });
+        this.deps.publishEvent({ type: 'auth-error', error: 'device_flow_error', message });
         return { success: false, error: message };
       }
 
@@ -101,7 +97,7 @@ export class GitHubDeviceFlowService {
       }
 
       const message = error instanceof Error ? error.message : String(error);
-      this.deps.events.emit(githubAuthErrorChannel, { error: 'device_flow_error', message });
+      this.deps.publishEvent({ type: 'auth-error', error: 'device_flow_error', message });
       return { success: false, error: message };
     } finally {
       this.deviceFlowAbortController = null;

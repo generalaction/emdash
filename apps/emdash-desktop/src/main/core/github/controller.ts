@@ -1,11 +1,5 @@
 import { Result } from '@emdash/shared/result';
-import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
-import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
-import { repoService } from '@main/core/github/services/repo-service';
-import { events } from '@main/host/events';
-import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
-import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
+import { githubEvents } from '@core/features/github/node';
 import type {
   GitHubAccountState,
   GitHubAccountSummary,
@@ -13,10 +7,14 @@ import type {
   GitHubImportCliAccountsResponse,
   GitHubRemoveAccountResponse,
   GitHubSetDefaultAccountResponse,
-} from '@shared/github';
-import { createRPCController } from '@shared/lib/ipc/rpc';
+} from '@core/primitives/github/api';
+import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
+import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
+import { repoService } from '@main/core/github/services/repo-service';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 
-export const githubController = createRPCController({
+export const githubOperations = {
   getAccountState: async (): Promise<GitHubAccountState> =>
     Result.tryAsync(async () => {
       const accounts = await githubAccountService.listAccounts();
@@ -36,7 +34,8 @@ export const githubController = createRPCController({
       result = await githubDeviceFlowService.start();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
-      events.emit(githubAuthErrorChannel, {
+      githubEvents.emit(undefined, {
+        type: 'auth-error',
         error: 'device_flow_error',
         message: 'Authentication failed',
       });
@@ -51,17 +50,22 @@ export const githubController = createRPCController({
       );
       if (!accountSummary) {
         const message = 'Failed to register GitHub account';
-        events.emit(githubAuthErrorChannel, { error: 'account_registration_failed', message });
+        githubEvents.emit(undefined, {
+          type: 'auth-error',
+          error: 'account_registration_failed',
+          message,
+        });
         return { success: false, error: message };
       }
 
       telemetryService.capture('integration_connected', { provider: 'github' });
-      events.emit(githubAuthSuccessChannel, { user: result.user });
+      githubEvents.emit(undefined, { type: 'auth-success', user: result.user });
       return { success: true, account: accountSummary };
     } catch (error) {
       log.error('Failed to register GitHub account after device flow:', error);
       const message = 'Failed to register GitHub account';
-      events.emit(githubAuthErrorChannel, {
+      githubEvents.emit(undefined, {
+        type: 'auth-error',
         error: 'account_registration_failed',
         message,
       });
@@ -203,4 +207,4 @@ export const githubController = createRPCController({
       log.error('Failed to delete repository:', error);
       return { success: false, error: error.message ?? 'Failed to delete repository' };
     }),
-});
+};

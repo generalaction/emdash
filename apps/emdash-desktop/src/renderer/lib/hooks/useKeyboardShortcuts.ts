@@ -1,8 +1,12 @@
 import type { Hotkey } from '@tanstack/react-hotkeys';
-import { APP_SHORTCUTS, resolveDefaultHotkey, type ShortcutSettingsKey } from '@shared/shortcuts';
+import {
+  APP_SHORTCUTS,
+  resolveDefaultHotkey,
+  type ShortcutSettingsKey,
+} from '@core/primitives/commands/api/shortcuts';
 
-export type { AppShortcutDef, ShortcutSettingsKey } from '@shared/shortcuts';
-export { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
+export type { AppShortcutDef, ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
+export { APP_SHORTCUTS, resolveDefaultHotkey } from '@core/primitives/commands/api/shortcuts';
 
 type ShortcutOverrides = Partial<Record<ShortcutSettingsKey, string | null>>;
 

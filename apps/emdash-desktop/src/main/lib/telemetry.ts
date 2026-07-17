@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Disposable } from '@emdash/shared/concurrency';
+import type {
+  TelemetryEnvelope,
+  TelemetryEvent,
+  TelemetryProperties,
+} from '@core/primitives/telemetry/api/telemetry';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
-import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
   appVersion?: string;

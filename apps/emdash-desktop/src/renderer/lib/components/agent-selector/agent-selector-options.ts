@@ -1,5 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { agentSupportsAcp, type AgentPayload } from '@shared/core/agents/agent-payload';
+import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
 import { getAgentInstallActionState } from './agent-install';
 
 export type AgentDisableReason = (

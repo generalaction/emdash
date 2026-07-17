@@ -1,8 +1,8 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
-import type { ProjectWorkspace } from '@shared/core/workspaces/project-workspace';
 import { resolveWorkspaceKind } from '../../workspaces/resolve-workspace-kind';
 
 /**

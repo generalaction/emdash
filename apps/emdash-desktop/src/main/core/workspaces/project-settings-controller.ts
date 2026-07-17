@@ -1,8 +1,7 @@
 import { err, ok } from '@emdash/shared';
+import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import type { ProjectSettingsLoadResult } from '@shared/core/project-settings/project-settings';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 
 async function getSettings(workspaceId: string): Promise<ProjectSettingsLoadResult> {
   const workspace = workspaceRegistry.get(workspaceId);
@@ -19,6 +18,6 @@ async function getSettings(workspaceId: string): Promise<ProjectSettingsLoadResu
   );
 }
 
-export const projectSettingsController = createRPCController({
+export const projectSettingsOperations = {
   getSettings,
-});
+};

@@ -1,11 +1,11 @@
 import type { Result } from '@emdash/shared';
-import { fileKey, fsErrorMessage, type FilesClientScope } from '@main/core/files/runtime-client';
-import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
   ProjectConfigMigration,
-} from '@shared/core/project-settings/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+} from '@core/primitives/project-settings/api';
+import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { fileKey, fsErrorMessage, type FilesClientScope } from '@main/core/files/runtime-client';
+import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { codexConfigMigrator } from './codex-config-migration';
 import { conductorConfigMigrator } from './conductor-config-migration';

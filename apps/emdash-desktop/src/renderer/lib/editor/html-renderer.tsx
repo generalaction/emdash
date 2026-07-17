@@ -1,7 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
-import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import {
+  useWorkspace,
+  useWorkspaceViewModel,
+} from '@core/features/tasks/browser/task-view-context';
+import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
 import { HTML_EXTS } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';

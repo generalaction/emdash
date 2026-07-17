@@ -1,22 +1,21 @@
 import crypto from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { conversationWireEvents } from '@core/features/conversations/node';
+import type { ConversationConfig } from '@core/primitives/conversations/api';
+import type { Conversation } from '@core/primitives/conversations/api';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  CreateTaskSuccess,
+  TaskLifecycleStatus,
+} from '@core/primitives/tasks/api';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import type { OperationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { events } from '@main/host/events';
-import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
-import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
-import type { Conversation } from '@shared/core/conversations/conversations';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  CreateTaskSuccess,
-  TaskLifecycleStatus,
-} from '@shared/core/tasks/tasks';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -205,7 +204,10 @@ export function finalizeCreateTask(
   let initialConversation: Conversation | undefined;
   if (convRow) {
     initialConversation = mapConversationRowToConversation(convRow);
-    events.emit(conversationCreatedChannel, { conversation: initialConversation });
+    conversationWireEvents.emit(undefined, {
+      type: 'created',
+      conversation: initialConversation,
+    });
   }
 
   return { task: { ...task, workspaceId: prepared.workspaceId }, initialConversation };

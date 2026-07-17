@@ -1,13 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect } from 'react';
-import { events, rpc } from '@renderer/lib/ipc';
+import type {
+  GitHubAccountState,
+  GitHubAccountSummary,
+  GitHubUser,
+} from '@core/primitives/github/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
-import {
-  githubAccountsChangedChannel,
-  githubAuthErrorChannel,
-  githubAuthSuccessChannel,
-} from '@shared/events/githubEvents';
-import type { GitHubAccountState, GitHubAccountSummary, GitHubUser } from '@shared/github';
 import { useToast } from '../hooks/use-toast';
 import {
   GITHUB_ACCOUNTS_QUERY_KEY,
@@ -41,7 +40,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const { data: accountState } = useQuery<GitHubAccountState>({
     queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
-    queryFn: () => rpc.github.getAccountState(),
+    queryFn: async () => (await getDesktopWireClient()).github.getAccountState(undefined),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -61,7 +60,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     () =>
       queryClient.fetchQuery<GitHubAccountState>({
         queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
-        queryFn: () => rpc.github.getAccountState(),
+        queryFn: async () => (await getDesktopWireClient()).github.getAccountState(undefined),
         staleTime: 0,
       }),
     [queryClient]
@@ -93,32 +92,33 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   );
 
   useEffect(() => {
-    const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
-      log.info('[GithubContext] received githubAuthSuccessChannel event', {
-        user: data.user?.login,
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.github.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'auth-success') {
+            void handleDeviceFlowSuccess(event.user);
+          } else if (event.type === 'auth-error') {
+            handleDeviceFlowError(event.message || event.error);
+          } else if (event.type === 'accounts-changed') {
+            invalidateGitHubState();
+          }
+        },
+        onGap: invalidateGitHubState,
       });
-      void handleDeviceFlowSuccess(data.user);
-    });
-    const cleanupError = events.on(githubAuthErrorChannel, (data) => {
-      log.info('[GithubContext] received githubAuthErrorChannel event', {
-        message: data.message || data.error,
-      });
-      handleDeviceFlowError(data.message || data.error);
-    });
-    const cleanupAccountsChanged = events.on(githubAccountsChangedChannel, () => {
-      log.info('[GithubContext] received githubAccountsChangedChannel event');
-      invalidateGitHubState();
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
     });
 
     return () => {
-      cleanupSuccess();
-      cleanupError();
-      cleanupAccountsChanged();
+      disposed = true;
+      unsubscribe?.();
     };
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, invalidateGitHubState]);
 
   const cancelGithubConnect = useCallback(() => {
-    void rpc.github.authCancel();
+    void getDesktopWireClient().then((client) => client.github.authCancel(undefined));
     toast({
       title: 'GitHub connection unsuccessful',
       description: 'Device flow was canceled',

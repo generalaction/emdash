@@ -1,4 +1,4 @@
-import type { OperationKind } from '@shared/core/operations/operation-types';
+import type { OperationKind } from '@core/primitives/operations/api';
 
 export type OperationStepKind =
   | 'kill-acp-sessions'

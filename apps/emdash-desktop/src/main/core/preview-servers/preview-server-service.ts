@@ -1,4 +1,3 @@
-import { log } from '@main/lib/logger';
 import type {
   DirectPreviewServer,
   DirectPreviewServerHost,
@@ -6,7 +5,8 @@ import type {
   PreviewServerEvent,
   PreviewServerProtocol,
   PreviewServerSource,
-} from '@shared/core/preview-servers/types';
+} from '@core/primitives/preview-servers/api';
+import { log } from '@main/lib/logger';
 
 export type DetectedPreviewUrl = {
   protocol: PreviewServerProtocol;

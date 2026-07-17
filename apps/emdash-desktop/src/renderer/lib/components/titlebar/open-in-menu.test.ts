@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OPEN_IN_APPS } from '@shared/openInApps';
+import { OPEN_IN_APPS } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { OpenInMenu } from './open-in-menu';
 
 (
@@ -27,7 +27,7 @@ vi.mock('@tanstack/react-hotkeys', () => ({
   useHotkey: vi.fn(),
 }));
 
-vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
   useAppSettingsKey: (key: string) => {
     if (key === 'openIn') {
       return {
@@ -64,7 +64,7 @@ vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     app: {
       openIn: mocks.openIn,

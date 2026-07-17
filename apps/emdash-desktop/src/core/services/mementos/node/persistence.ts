@@ -1,3 +1,9 @@
+import type { SqliteConnection, StoreHandle } from '@emdash/core/primitives/sqlite-store/api';
+import {
+  defineDerivedSqliteStore,
+  fingerprintDerivedSchema,
+  nodeSqliteDriver,
+} from '@emdash/core/primitives/sqlite-store/node';
 import {
   DEFAULT_PERSISTED_MAX_AGE,
   DEFAULT_PERSISTED_MAX_ENTRIES,
@@ -5,12 +11,6 @@ import {
   type MementoRow,
 } from '@core/primitives/mementos/api';
 import type { Subject } from '@core/primitives/subjects/api';
-import type { SqliteConnection, StoreHandle } from '@emdash/core/primitives/sqlite-store/api';
-import {
-  defineDerivedSqliteStore,
-  fingerprintDerivedSchema,
-  nodeSqliteDriver,
-} from '@emdash/core/primitives/sqlite-store/node';
 
 const schemaSql = `
   CREATE TABLE mementos (

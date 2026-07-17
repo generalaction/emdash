@@ -1,4 +1,4 @@
-import { getDomTabNavigationDirection } from '@shared/shortcuts';
+import { getDomTabNavigationDirection } from '@core/primitives/commands/api/shortcuts';
 
 export type KeyEventLike = {
   type: string;

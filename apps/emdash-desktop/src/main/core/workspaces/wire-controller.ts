@@ -8,6 +8,14 @@ import type { Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider, LiveJobContext } from '@emdash/wire';
 import { and, eq, isNull } from 'drizzle-orm';
+import {
+  workspacesWireContract,
+  type WorkspaceBootstrapProgress,
+  type WorkspaceBootstrapState,
+  type WorkspaceCloneProvisionResult,
+  type WorkspaceProvisionResult,
+  type RunWorkspaceScriptWorkflowInput,
+} from '@core/features/workspaces/api';
 import type { OperationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
@@ -21,14 +29,6 @@ import {
 } from '@main/core/workspaces/workspace-bootstrap-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import {
-  workspacesWireContract,
-  type WorkspaceBootstrapProgress,
-  type WorkspaceBootstrapState,
-  type WorkspaceCloneProvisionResult,
-  type WorkspaceProvisionResult,
-  type RunWorkspaceScriptWorkflowInput,
-} from '@shared/core/workspaces/wire-contract';
 
 type BootstrapKey = { workspaceId: string };
 type BootstrapState = LiveState<WorkspaceBootstrapState>;

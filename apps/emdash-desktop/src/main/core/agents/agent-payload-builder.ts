@@ -13,7 +13,7 @@ import type {
   AgentPayload,
   Installation,
   SelectedSource,
-} from '@shared/core/agents/agent-payload';
+} from '@core/primitives/agents/api';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
 

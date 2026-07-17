@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';
 import { Button } from '@renderer/lib/ui/button';

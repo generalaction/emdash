@@ -1,8 +1,4 @@
 import { join } from 'node:path';
-import { mementoSweepPolicies } from '@core/manifests/memento-catalog';
-import type { MementosWireContract } from '@core/primitives/mementos/api';
-import { mementosComponent } from '@core/services/mementos/node';
-import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import { type AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
@@ -31,6 +27,11 @@ import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { eq } from 'drizzle-orm';
 import { app } from 'electron';
+import { conversationWireEvents } from '@core/features/conversations/node';
+import { mementoSweepPolicies } from '@core/manifests/memento-catalog';
+import type { MementosWireContract } from '@core/primitives/mementos/api';
+import { mementosComponent } from '@core/services/mementos/node';
+import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import { appScope } from '@main/bootstrap/app-scope';
 import { setConversationModeId } from '@main/core/conversations/set-mode-id';
 import { setSessionId } from '@main/core/conversations/set-session-id';
@@ -43,12 +44,10 @@ import { getGitExecutable } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { conversations } from '@main/db/schema';
-import { events } from '@main/host/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { pullRequestsComponent } from '@root/src/core/services/pull-requests/node';
-import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { desktopWorkerPath } from './worker-paths';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
@@ -396,7 +395,8 @@ async function persistSelectedModeId(conversationId: string, modeId: string): Pr
     });
     return;
   }
-  events.emit(conversationChangedChannel, {
+  conversationWireEvents.emit(undefined, {
+    type: 'changed',
     conversationId,
     taskId: result.data.taskId,
     projectId: result.data.projectId,
@@ -438,7 +438,8 @@ async function recordTuiInputSubmitted(conversationId: string): Promise<void> {
 
   const now = new Date().toISOString();
   await touchConversation(conversationId, now);
-  events.emit(conversationChangedChannel, {
+  conversationWireEvents.emit(undefined, {
+    type: 'changed',
     conversationId,
     taskId: row.taskId,
     projectId: row.projectId,

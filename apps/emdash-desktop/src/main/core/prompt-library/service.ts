@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { KV } from '@main/db/kv';
-import { appSettings } from '@main/db/schema';
 import {
   DEFAULT_PROMPT_LIBRARY,
   PROMPT_LIBRARY_SEED_VERSION,
   promptLibrarySchema,
   type PromptLibraryPrompt,
-} from '@shared/prompt-library';
+} from '@core/primitives/prompt-library/api';
+import { db } from '@main/db/client';
+import { KV } from '@main/db/kv';
+import { appSettings } from '@main/db/schema';
 
 type PromptLibraryKV = {
   prompts: PromptLibraryPrompt[];

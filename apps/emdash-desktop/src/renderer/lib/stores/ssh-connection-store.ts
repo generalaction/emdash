@@ -1,13 +1,13 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { events, rpc } from '@renderer/lib/ipc';
 import type {
   ConnectionState,
   ConnectionTestResult,
   SshConfig,
   SshConfigHost,
   SshHealthState,
-} from '@shared/core/ssh/ssh';
-import { sshConnectionEventChannel, type SshConnectionEvent } from '@shared/core/ssh/sshEvents';
+  SshConnectionEvent,
+} from '@core/primitives/ssh/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Resource } from './resource';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
@@ -43,55 +43,30 @@ export class SshConnectionStore {
 
   private pendingMutations = 0;
   private started = false;
+  private unsubscribeEvents: (() => void) | undefined;
   private readonly onConnectionReady?: (connectionId: string) => void;
 
   constructor({ onConnectionReady }: SshConnectionStoreOptions = {}) {
     this.onConnectionReady = onConnectionReady;
-    this.connectionsResource = new Resource<SshConfig[]>(() => rpc.ssh.getConnections(), []);
+    this.connectionsResource = new Resource<SshConfig[]>(
+      async () => (await getDesktopWireClient()).ssh.getConnections(undefined),
+      []
+    );
 
     this.connectionStatesResource = new Resource<
       Record<string, ConnectionState>,
       SshConnectionEvent
     >(async () => {
-      const states = await rpc.ssh.getConnectionState();
+      const states = await (await getDesktopWireClient()).ssh.getConnectionState(undefined);
       for (const [connectionId, state] of Object.entries(states)) {
         if (state === 'connected') this.onConnectionReady?.(connectionId);
       }
       return states;
-    }, [
-      {
-        kind: 'event',
-        subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
-        onEvent: (event, ctx) => {
-          if (event.type === 'health-changed') return;
-          const next = { ...(ctx.data ?? {}) };
-          next[event.connectionId] = toConnectionState(event);
-          ctx.set(next);
-          if (event.type === 'connected' || event.type === 'reconnected') {
-            this.onConnectionReady?.(event.connectionId);
-          }
-        },
-      },
-    ]);
+    }, []);
 
     this.healthStatesResource = new Resource<Record<string, SshHealthState>, SshConnectionEvent>(
-      () => rpc.ssh.getHealthStates(),
-      [
-        {
-          kind: 'event',
-          subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
-          onEvent: (event, ctx) => {
-            if (event.type !== 'health-changed') return;
-            const next = { ...(ctx.data ?? {}) };
-            if (event.health.status === 'ok') {
-              delete next[event.connectionId];
-            } else {
-              next[event.connectionId] = event.health;
-            }
-            ctx.set(next);
-          },
-        },
-      ]
+      async () => (await getDesktopWireClient()).ssh.getHealthStates(undefined),
+      []
     );
 
     makeObservable<SshConnectionStore, 'pendingMutations'>(this, {
@@ -132,12 +107,15 @@ export class SshConnectionStore {
     this.connectionStatesResource.start();
     this.healthStatesResource.start();
     void this.connectionsResource.load();
+    void this.subscribeEvents();
   }
 
   dispose(): void {
     this.connectionsResource.dispose();
     this.connectionStatesResource.dispose();
     this.healthStatesResource.dispose();
+    this.unsubscribeEvents?.();
+    this.unsubscribeEvents = undefined;
     this.started = false;
   }
 
@@ -158,28 +136,28 @@ export class SshConnectionStore {
     ) {
       return;
     }
-    await rpc.ssh.connect(connectionId);
+    await (await getDesktopWireClient()).ssh.connect({ connectionId });
   }
 
   async saveConnection(config: SaveConnectionInput): Promise<SshConfig> {
     return await this.withMutation(async () => {
-      const savedConnection = await rpc.ssh.saveConnection(config);
+      const savedConnection = await (await getDesktopWireClient()).ssh.saveConnection(config);
       this.connectionsResource.setValue(this.upsertConnection(savedConnection));
       return savedConnection;
     });
   }
 
   async getSshConfigHosts(): Promise<SshConfigHost[]> {
-    return await rpc.ssh.getSshConfigHosts();
+    return await (await getDesktopWireClient()).ssh.getSshConfigHosts(undefined);
   }
 
   async getSshConfigHost(alias: string): Promise<SshConfigHost> {
-    return await rpc.ssh.getSshConfigHost(alias);
+    return await (await getDesktopWireClient()).ssh.getSshConfigHost({ alias });
   }
 
   async renameConnection(id: string, name: string): Promise<void> {
     await this.withMutation(async () => {
-      await rpc.ssh.renameConnection(id, name);
+      await (await getDesktopWireClient()).ssh.renameConnection({ id, name });
       const current = this.connectionsResource.data ?? [];
       this.connectionsResource.setValue(
         current.map((connection) => (connection.id === id ? { ...connection, name } : connection))
@@ -189,7 +167,7 @@ export class SshConnectionStore {
 
   async deleteConnection(id: string): Promise<void> {
     await this.withMutation(async () => {
-      await rpc.ssh.deleteConnection(id);
+      await (await getDesktopWireClient()).ssh.deleteConnection({ id });
 
       const currentConnections = this.connectionsResource.data ?? [];
       this.connectionsResource.setValue(
@@ -213,7 +191,40 @@ export class SshConnectionStore {
   async testConnection(
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> {
-    return await rpc.ssh.testConnection(config);
+    return await (await getDesktopWireClient()).ssh.testConnection(config);
+  }
+
+  private async subscribeEvents(): Promise<void> {
+    const client = await getDesktopWireClient();
+    const unsubscribe = await client.ssh.events.subscribe(undefined, {
+      onEvent: (event) => this.applyEvent(event),
+      onGap: () => {
+        this.connectionStatesResource.invalidate();
+        this.healthStatesResource.invalidate();
+      },
+    });
+    if (!this.started) {
+      unsubscribe();
+      return;
+    }
+    this.unsubscribeEvents = unsubscribe;
+  }
+
+  private applyEvent(event: SshConnectionEvent): void {
+    if (event.type === 'health-changed') {
+      const next = { ...(this.healthStatesResource.data ?? {}) };
+      if (event.health.status === 'ok') delete next[event.connectionId];
+      else next[event.connectionId] = event.health;
+      this.healthStatesResource.setValue(next);
+      return;
+    }
+
+    const next = { ...(this.connectionStatesResource.data ?? {}) };
+    next[event.connectionId] = toConnectionState(event);
+    this.connectionStatesResource.setValue(next);
+    if (event.type === 'connected' || event.type === 'reconnected') {
+      this.onConnectionReady?.(event.connectionId);
+    }
   }
 
   private upsertConnection(savedConnection: SshConfig): SshConfig[] {

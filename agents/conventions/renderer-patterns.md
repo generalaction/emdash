@@ -61,7 +61,7 @@ Views use a registry + parameterized navigation pattern.
 **Rules:**
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
 - `sessionId` format: `makePtySessionId(projectId, scopeId, leafId)` from
-  `src/shared/core/pty/ptySessionId.ts` — deterministic
+  `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
 - Panel drag pauses resizing to avoid jank (`src/renderer/lib/layout/panel-drag-store.ts`)
 
 ## React Query Context Pattern
@@ -93,6 +93,6 @@ For state that must survive React unmounts or be shared across unrelated compone
 
 - **`useSyncExternalStore`-compatible stores** — e.g., `panelDragStore` in `src/renderer/lib/layout/`
 - **Cross-feature stores** — `src/renderer/lib/stores/` (navigation, dependencies, resource monitor, ...)
-- **MobX task and project stores** — `src/renderer/features/tasks/stores/` and
-  `src/renderer/features/projects/stores/`; access them through selectors
+- **MobX task and project stores** — `src/core/features/tasks/browser/stores/` and
+  `src/core/features/projects/browser/stores/`; access them through selectors
   (`task-selectors.ts`, `project-selectors.ts`) and task view hooks, never directly

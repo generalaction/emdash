@@ -77,7 +77,6 @@ export default defineConfig({
         '@': resolve('src'),
         '@core': resolve('src/core'),
         '@main': resolve('src/main'),
-        '@shared': resolve('src/shared'),
         '@root': resolve('.'),
         ...workspaceAliases,
       },
@@ -94,7 +93,6 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@shared': resolve('src/shared'),
         '@root': resolve('.'),
         ...workspaceAliases,
       },
@@ -108,7 +106,6 @@ export default defineConfig({
         '@': resolve('src'),
         '@core': resolve('src/core'),
         '@renderer': resolve('src/renderer'),
-        '@shared': resolve('src/shared'),
         '@root': resolve('.'),
         ...workspaceAliases,
         // cli-agent-plugins metadata/icons chunks transitively reference node:buffer

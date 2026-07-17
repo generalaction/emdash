@@ -1,0 +1,345 @@
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Download, Pencil, Plus, Square, Trash2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useCallback, useRef, useState } from 'react';
+import { conversationTabKind } from '@core/features/conversations/browser/conversation-tab-kind';
+import { formatConversationTitleForDisplay } from '@core/features/conversations/browser/conversation-title-utils';
+// TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@core/features/tasks/browser/task-view-context';
+// TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
+import { useTabSelection } from '@core/features/workbench/browser/task-tab-registry';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
+import { MicroLabel } from '@renderer/lib/ui/label';
+import { RelativeTime } from '@renderer/lib/ui/relative-time';
+import { cn } from '@renderer/utils/utils';
+import { getAcpChatResourceManager } from './acp/acp-chat-resource-manager';
+import { ConversationAgentIcon } from './conversation-agent-icon';
+
+const ROW_HEIGHT = 32;
+
+type SidebarRow =
+  | { kind: 'header'; id: string; label: string }
+  | { kind: 'conversation'; id: string; conversationId: string };
+
+const ConversationRow = observer(function ConversationRow({
+  conversationId,
+}: {
+  conversationId: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const committedRef = useRef(false);
+  const conversations = useConversations();
+  const { projectId, taskId } = useTaskViewContext();
+  const { paneLayout } = useWorkspaceViewModel();
+  const showConfirm = useShowModal('confirmActionModal');
+
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
+  }, []);
+
+  const handleRename = useCallback(() => {
+    committedRef.current = false;
+    window.setTimeout(() => setIsEditing(true), 0);
+  }, []);
+
+  const conversation = conversations.conversations.get(conversationId);
+  const isSessionActive = conversations.isSessionActive(conversationId);
+
+  const tabKind = conversationTabKind(conversation?.data.type);
+  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+
+  if (!conversation) return null;
+  const displayTitle = formatConversationTitleForDisplay(
+    conversation.data.providerId,
+    conversation.data.title
+  );
+  const rawTitle = conversation.data.title ?? '';
+  const commitRename = (value: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
+    if (trimmed && trimmed !== rawTitle) {
+      handleRenameSubmit(trimmed);
+    } else {
+      setIsEditing(false);
+    }
+  };
+
+  const handleRenameSubmit = (newTitle: string) => {
+    setIsEditing(false);
+    void conversations.renameConversation(conversationId, newTitle);
+  };
+
+  const closeConversationTab = () => {
+    for (const group of paneLayout.groups) {
+      const entry = group.pane.findSingleMountEntry(tabKind, conversationId);
+      if (entry) group.pane.closeTab(entry.tabId);
+    }
+  };
+
+  const handleDoubleClick = () => {
+    openConversation({ conversationId }, { preview: false });
+  };
+
+  const handleDelete = () => {
+    showConfirm({
+      title: 'Delete conversation',
+      description: `"${displayTitle}" will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onSuccess: () => {
+        void conversations.deleteConversation(conversationId);
+      },
+    });
+  };
+
+  const handleKillSession = () => {
+    showConfirm({
+      title: 'Kill session',
+      description: `"${displayTitle}" will be stopped. The conversation will remain available as inactive/resumable.`,
+      confirmLabel: 'Kill session',
+      variant: 'destructive',
+      onSuccess: () => {
+        void (async () => {
+          try {
+            await conversations.killSession(conversationId);
+            closeConversationTab();
+          } catch (error) {
+            toast({
+              title: 'Failed to kill session',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            });
+          }
+        })();
+      },
+    });
+  };
+
+  const handleExport = (kind: 'parsed' | 'raw') => {
+    const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
+    if (!store) {
+      toast({
+        title: 'Failed to export transcript',
+        description: 'Open the chat before exporting it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    store.exportTranscript(kind);
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => openConversation({ conversationId }, { preview: true })}
+          onDoubleClick={handleDoubleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openConversation({ conversationId }, { preview: true });
+            }
+          }}
+          className={cn(
+            'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
+            isActive && 'bg-background-2 text-foreground hover:bg-background-2'
+          )}
+        >
+          <ConversationAgentIcon
+            providerId={conversation.data.providerId}
+            isAcp={conversation.data.type === 'acp'}
+            size={16}
+            className="size-4"
+          />
+          {isEditing ? (
+            <input
+              ref={handleRenameInputRef}
+              className="min-w-0 flex-1 rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+              defaultValue={rawTitle}
+              maxLength={MAX_CONVERSATION_TITLE_LENGTH}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onBlur={(e) => commitRename(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commitRename(e.currentTarget.value);
+                else if (e.key === 'Escape') {
+                  committedRef.current = true;
+                  setIsEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+          )}
+          <span className="shrink-0">
+            {conversation.indicatorStatus ? (
+              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+            ) : (
+              <RelativeTime
+                value={conversation.data.lastInteractedAt ?? ''}
+                className="flex h-full items-center pr-1 font-sans text-xs text-foreground-passive"
+                compact
+              />
+            )}
+          </span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem onClick={handleRename}>
+          <Pencil className="size-4" />
+          Rename
+        </ContextMenuItem>
+        {conversation.data.type === 'acp' && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => handleExport('parsed')}>
+              <Download className="size-4" />
+              Export transcript
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => handleExport('raw')}>
+              <Download className="size-4" />
+              Export raw ACP log
+            </ContextMenuItem>
+          </>
+        )}
+        {isSessionActive && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" onClick={handleKillSession}>
+              <Square className="size-4" />
+              Kill session
+            </ContextMenuItem>
+          </>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={handleDelete}>
+          <Trash2 className="size-4" />
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+});
+
+export const SidebarConversationsList = observer(function SidebarConversationsList() {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { paneLayout } = taskView;
+  const showCreateConversationModal = useShowModal('createConversationModal');
+  const sortedConversations = Array.from(conversations.conversations.values()).sort((a, b) => {
+    const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
+    const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+  const activeConversationIds = sortedConversations
+    .filter((c) => conversations.isSessionActive(c.data.id))
+    .map((c) => c.data.id);
+  const inactiveConversationIds = sortedConversations
+    .filter((c) => !conversations.isSessionActive(c.data.id))
+    .map((c) => c.data.id);
+  const rows: SidebarRow[] = [];
+  if (activeConversationIds.length > 0) {
+    rows.push({ kind: 'header', id: 'active', label: 'Active' });
+    rows.push(
+      ...activeConversationIds.map((conversationId) => ({
+        kind: 'conversation' as const,
+        id: `conversation:${conversationId}`,
+        conversationId,
+      }))
+    );
+  }
+  if (inactiveConversationIds.length > 0) {
+    rows.push({ kind: 'header', id: 'inactive', label: 'Inactive' });
+    rows.push(
+      ...inactiveConversationIds.map((conversationId) => ({
+        kind: 'conversation' as const,
+        id: `conversation:${conversationId}`,
+        conversationId,
+      }))
+    );
+  }
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 5,
+  });
+
+  const handleCreate = () => {
+    showCreateConversationModal({
+      projectId,
+      taskId,
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          paneLayout.open('acp-chat', { conversationId }, { preview: false });
+        } else {
+          paneLayout.open('conversation', { conversationId }, { preview: false });
+        }
+      },
+    });
+  };
+
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
+        <MicroLabel className="font-medium">Conversations</MicroLabel>
+        <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
+
+      <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-2">
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const row = rows[virtualItem.index]!;
+            return (
+              <div
+                key={row.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: ROW_HEIGHT,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                {row.kind === 'header' ? (
+                  <div className="flex h-8 items-end px-2 pb-1">
+                    <MicroLabel className="text-foreground-passive">{row.label}</MicroLabel>
+                  </div>
+                ) : (
+                  <ConversationRow conversationId={row.conversationId} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+});

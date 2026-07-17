@@ -6,9 +6,9 @@ import {
   type LifecycleRegistryStateChange,
 } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
+import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { createProvider } from './create-project-provider';
 import type { ProjectProvider } from './project-provider';
 

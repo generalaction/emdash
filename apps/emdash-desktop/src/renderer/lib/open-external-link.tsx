@@ -1,7 +1,7 @@
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
 
