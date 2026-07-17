@@ -22,6 +22,10 @@ export function createWorkspaceController(
     contract,
     createController(contract, {
       workspace: runtime.host,
+      provisionFromIntent: {
+        run: (input, ctx) => runtime.provisionFromIntent(input, ctx),
+        toError: workspaceJobError,
+      },
       reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
       measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
       provision: {

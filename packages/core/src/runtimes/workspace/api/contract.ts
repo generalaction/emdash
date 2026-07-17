@@ -1,4 +1,5 @@
 import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
+import { workspaceProvisioningDefinitions } from '@services/workspace-provisioning/api';
 import {
   activateWorkspaceInputSchema,
   cleanWorkspaceArtifactsInputSchema,
@@ -18,6 +19,7 @@ import {
 } from './schemas';
 
 export const workspaceContract = defineContract({
+  ...workspaceProvisioningDefinitions,
   workspace: liveModel({
     key: workspaceKeySchema,
     states: {

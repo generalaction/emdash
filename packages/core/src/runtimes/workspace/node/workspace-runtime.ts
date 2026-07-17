@@ -35,6 +35,8 @@ import {
 } from '@runtimes/workspace/api';
 import {
   compileTeardownFromProbe,
+  compileBootstrapPlan,
+  type BootstrapGitIntent,
   type BootstrapProgress,
   type RunPhaseInput,
 } from '@runtimes/workspace/api/provisioning';
@@ -50,9 +52,15 @@ import {
   scriptWorkflowsContract,
   type ScriptWorkflowsContract,
 } from '@services/script-workflows/api';
+import type {
+  WorkspaceProvisioningError,
+  WorkspaceProvisioningInput,
+  WorkspaceProvisioningProgress,
+  WorkspaceProvisioningResult,
+} from '@services/workspace-provisioning/api';
 import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activity';
 import { createWorkspaceMachine, type WorkspaceMachine } from './machine/machine';
-import { nativePathFromWorkspace } from './provisioning/paths';
+import { nativePathFromWorkspace, workspaceFromNativePath } from './provisioning/paths';
 import { NodeWorkspaceProvisioner, type WorkspaceProvisioner } from './provisioning/provisioner';
 import { WorkspaceTopologyObserver } from './topology-observer';
 
@@ -68,6 +76,10 @@ export type WorkspaceRuntimeOptions = {
   terminals?: ContractClient<ScriptWorkflowsContract>;
   activityProviders?: WorkspaceActivityProvider[];
   watcher?: IWatchService;
+  provisioning?: {
+    worktreePoolPath?: string;
+    baseRemote?: string;
+  };
   scope?: Scope;
   now?: () => number;
   onError?: (context: string, error: unknown) => void;
@@ -79,6 +91,7 @@ export class WorkspaceRuntime {
   private readonly lifecycle: WorkspaceLifecycleManager;
   private readonly provisioner: WorkspaceProvisioner;
   private readonly terminals: ContractClient<ScriptWorkflowsContract> | undefined;
+  private readonly provisioning: NonNullable<WorkspaceRuntimeOptions['provisioning']>;
   private readonly scope: Scope;
   private readonly now: () => number;
   private readonly onError: (context: string, error: unknown) => void;
@@ -92,6 +105,10 @@ export class WorkspaceRuntime {
     this.lifecycle = options.lifecycle ?? new WorkspaceLifecycleManager();
     this.provisioner = options.provisioner ?? new NodeWorkspaceProvisioner();
     this.terminals = options.terminals;
+    this.provisioning = {
+      worktreePoolPath: options.provisioning?.worktreePoolPath,
+      baseRemote: options.provisioning?.baseRemote ?? 'origin',
+    };
     this.scope = options.scope ?? createScope({ label: 'workspace-runtime' });
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
@@ -106,6 +123,61 @@ export class WorkspaceRuntime {
       this.activity.addProvider(provider);
     }
     this.scope.add(() => this.dispose());
+  }
+
+  async provisionFromIntent(
+    input: WorkspaceProvisioningInput,
+    ctx: LiveJobContext<WorkspaceProvisioningProgress>
+  ): Promise<Result<WorkspaceProvisioningResult, WorkspaceProvisioningError>> {
+    if (input.workspace.kind === 'directory') {
+      const provisioned = await this.provision({ workspace: input.workspace.path }, ctx);
+      if (!provisioned.success) return provisioned;
+      return ok({ workspace: provisioned.data.workspace, branchName: null });
+    }
+
+    const worktreePoolPath = this.provisioning.worktreePoolPath;
+    if (!worktreePoolPath) {
+      return err({
+        type: 'configuration',
+        message: 'Workspace worktree provisioning is not configured on this host',
+      });
+    }
+
+    const repositoryPath = nativePathFromWorkspace(input.workspace.repository);
+    const intent = toBootstrapGitIntent(input.workspace, input.generatedName);
+    const compiled = compileBootstrapPlan(intent, {
+      worktreePoolPath,
+      baseRemote: this.provisioning.baseRemote ?? 'origin',
+    });
+    const branchName =
+      input.workspace.git.kind === 'create-branch'
+        ? input.generatedName
+        : input.workspace.git.branchName;
+    const workspace = workspaceFromNativePath(
+      compiled.workspacePath,
+      input.workspace.repository.host
+    );
+    const provisioned = await this.provision(
+      {
+        workspace,
+        lifecycle: {
+          ref: {
+            kind: 'worktree',
+            repoPath: repositoryPath,
+            path: compiled.workspacePath,
+            branchName,
+          },
+          context: {
+            repoPath: repositoryPath,
+            preservePatterns: input.workspace.preservePatterns,
+          },
+          setupPlan: compiled.plan,
+        },
+      },
+      ctx
+    );
+    if (!provisioned.success) return provisioned;
+    return ok({ workspace: provisioned.data.workspace, branchName });
   }
 
   async reconcile(
@@ -532,6 +604,22 @@ export class WorkspaceRuntime {
     if (!this.terminals) return;
     await this.terminals.detachScope({ workspace });
   }
+}
+
+function toBootstrapGitIntent(
+  workspace: Extract<WorkspaceProvisioningInput['workspace'], { kind: 'worktree' }>,
+  generatedName: string
+): BootstrapGitIntent {
+  const { git } = workspace;
+  if (git.kind === 'use-branch') {
+    return { kind: 'use-branch', branchName: git.branchName };
+  }
+  return {
+    kind: 'create-branch',
+    branchName: generatedName,
+    fromBranch: git.fromBranch,
+    ...(git.pushRemote ? { pushRemote: git.pushRemote } : {}),
+  };
 }
 
 class StageReporter {
