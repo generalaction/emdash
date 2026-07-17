@@ -328,6 +328,13 @@ export const barMeter = style({ display: 'flex', alignItems: 'center', gap: '0.1
 /** Send button override — fully rounded pill shape. */
 export const sendButtonRound = style({ borderRadius: '9999px' });
 
+export const stopIcon = style({
+  width: '0.5rem',
+  height: '0.5rem',
+  borderRadius: '0.0625rem',
+  backgroundColor: 'currentColor',
+});
+
 // ── Context usage indicator ────────────────────────────────────────────────────
 
 /** Donut SVG container — sized to match other toolbar icons. */

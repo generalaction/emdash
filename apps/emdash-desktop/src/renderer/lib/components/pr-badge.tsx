@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
+import { PrUrlCopyButton } from '@renderer/lib/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
@@ -71,6 +72,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                 </TooltipTrigger>
                 <TooltipContent>Open PR on GitHub</TooltipContent>
               </Tooltip>
+              <PrUrlCopyButton url={pr.url} />
             </div>
             <RelativeTime
               value={pr.createdAt}
