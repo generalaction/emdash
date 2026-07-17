@@ -4,11 +4,11 @@ import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AutomationRun } from '../api/run';
 import type { AutomationPortError, AutomationSessionPort, AutomationWorkspacePort } from './ports';
+import { createAutomationRunExecutor } from './run-executor';
 import { AutomationRunTransitions } from './run-transitions';
 import type { AutomationsDb } from './sqlite/store';
 import { automationsStore } from './sqlite/store';
 import { AutomationRunStore } from './storage/run-store';
-import { createAutomationRunExecutor } from './workflow';
 
 const worktree = {
   host: LOCAL_HOST_REF,
