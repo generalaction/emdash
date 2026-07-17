@@ -3,11 +3,11 @@ import { acpSessionStartContract, tuiSessionStartContract } from '@services/sess
 import { workspaceProvisioningContract } from '@services/workspace-provisioning/api';
 import { z } from 'zod';
 import { automationsContract } from '../api';
-import { createAutomationsController } from '../api/controller';
+import { createAutomationsController } from './api/controller';
+import { automationsStore } from './persistence/store';
+import { createSessionPortFromDependencies } from './ports/session-start';
+import { createWorkspacePortFromDependency } from './ports/workspace-provisioning';
 import { AutomationsRuntime } from './runtime';
-import { createSessionPortFromDependencies } from './session-port';
-import { automationsStore } from './sqlite/store';
-import { createWorkspacePortFromDependency } from './workspace-port';
 
 export const automationsComponentConfigSchema = z.object({
   dbFile: z.string().min(1),

@@ -5,13 +5,13 @@ import {
   automationRunConfigSnapshotSchema,
   type AutomationDeployment,
   type AutomationId,
-} from '../api/deployment';
-import type { AutomationRun, AutomationRunId } from '../api/run';
-import type { AutomationRunExecutor } from './run-executor';
-import type { AutomationRunTransitions, OnRunChanged } from './run-transitions';
-import type { AutomationDeploymentStore } from './storage/deployment-store';
-import type { AutomationRunStore } from './storage/run-store';
-import { nextRunTimes } from './utils/cron';
+} from '../../api/deployment';
+import type { AutomationRun, AutomationRunId } from '../../api/run';
+import type { AutomationDeploymentStore } from '../persistence/deployment-store';
+import type { AutomationRunStore } from '../persistence/run-store';
+import type { AutomationRunExecutor } from '../runs/executor';
+import type { AutomationRunTransitions, OnRunChanged } from '../runs/transitions';
+import { nextRunTimes } from './cron';
 
 const DEFAULT_TICK_INTERVAL_MS = 60_000;
 const DEFAULT_MAX_CONCURRENT_RUNS = 4;

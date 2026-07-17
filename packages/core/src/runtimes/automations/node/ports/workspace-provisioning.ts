@@ -1,17 +1,25 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import {
   workspaceProvisioningContract,
   type WorkspaceProvisioningContract,
+  type WorkspaceProvisioningInput,
+  type WorkspaceProvisioningResult,
 } from '@services/workspace-provisioning/api';
-import type { AutomationPortError, AutomationWorkspacePort } from './ports';
+import type { AutomationPortError } from './port-error';
 
 const CANCELLED_ERROR = {
   code: 'cancelled',
   message: 'Workspace provisioning was cancelled',
 } satisfies AutomationPortError;
+
+export interface AutomationWorkspacePort {
+  provision(
+    input: WorkspaceProvisioningInput & { signal: AbortSignal }
+  ): Promise<Result<WorkspaceProvisioningResult, AutomationPortError>>;
+}
 
 export function createWorkspacePortFromDependency(
   client: ContractClient<WorkspaceProvisioningContract>,

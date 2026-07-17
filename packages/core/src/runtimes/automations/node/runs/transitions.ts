@@ -4,8 +4,8 @@ import type {
   AutomationRunError,
   AutomationRunId,
   AutomationRunStatus,
-} from '../api/run';
-import type { AutomationRunStore } from './storage/run-store';
+} from '../../api/run';
+import type { AutomationRunStore } from '../persistence/run-store';
 
 export type OnRunChanged = (run: AutomationRun) => void;
 

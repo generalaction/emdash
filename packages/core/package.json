@@ -201,6 +201,10 @@
       "types": "./dist/runtimes-automations-api.d.mts",
       "default": "./dist/runtimes-automations-api.mjs"
     },
+    "./runtimes/automations/node": {
+      "types": "./dist/runtimes-automations-node.d.mts",
+      "default": "./dist/runtimes-automations-node.mjs"
+    },
     "./runtimes/tui-agents/api": {
       "types": "./dist/runtimes-tui-agents-api.d.mts",
       "default": "./dist/runtimes-tui-agents-api.mjs"
@@ -243,7 +247,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "db:generate:automations": "drizzle-kit generate --config drizzle-automations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/automations/node/sqlite/migrations"
+    "db:generate:automations": "drizzle-kit generate --config drizzle-automations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/automations/node/persistence/migrations"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",

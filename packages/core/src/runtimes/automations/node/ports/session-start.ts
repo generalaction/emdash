@@ -1,11 +1,21 @@
-import { err, ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/api';
-import { formatAbsolute } from '@primitives/path/api';
+import { formatAbsolute, type HostFileRef } from '@primitives/path/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
-import type { AutomationSessionPort } from './ports';
+import type { AutomationAgentConfig } from '../../api/deployment';
+import type { AutomationPortError } from './port-error';
 
 const HEADLESS_TERMINAL_COLS = 80;
 const HEADLESS_TERMINAL_ROWS = 24;
+
+export interface AutomationSessionPort {
+  start(input: {
+    conversationId: string;
+    cwd: HostFileRef;
+    agent: AutomationAgentConfig;
+    signal: AbortSignal;
+  }): Promise<Result<{ sessionId: string | null }, AutomationPortError>>;
+}
 
 export function createSessionPortFromDependencies(dependencies: {
   acp: ContractClient<AcpSessionStartContract>;

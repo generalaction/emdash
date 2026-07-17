@@ -2,13 +2,15 @@ import { ok, err } from '@emdash/shared';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AutomationRun } from '../api/run';
-import type { AutomationPortError, AutomationSessionPort, AutomationWorkspacePort } from './ports';
-import { createAutomationRunExecutor } from './run-executor';
-import { AutomationRunTransitions } from './run-transitions';
-import type { AutomationsDb } from './sqlite/store';
-import { automationsStore } from './sqlite/store';
-import { AutomationRunStore } from './storage/run-store';
+import type { AutomationRun } from '../../api/run';
+import { AutomationRunStore } from '../persistence/run-store';
+import type { AutomationsDb } from '../persistence/store';
+import { automationsStore } from '../persistence/store';
+import type { AutomationPortError } from '../ports/port-error';
+import type { AutomationSessionPort } from '../ports/session-start';
+import type { AutomationWorkspacePort } from '../ports/workspace-provisioning';
+import { createAutomationRunExecutor } from './executor';
+import { AutomationRunTransitions } from './transitions';
 
 const worktree = {
   host: LOCAL_HOST_REF,

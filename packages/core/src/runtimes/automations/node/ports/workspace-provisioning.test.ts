@@ -8,7 +8,7 @@ import {
   type WorkspaceProvisioningInput,
 } from '@services/workspace-provisioning/api';
 import { describe, expect, it } from 'vitest';
-import { createWorkspacePortFromDependency } from './workspace-port';
+import { createWorkspacePortFromDependency } from './workspace-provisioning';
 
 const repository = absolute('/tmp/repository');
 const workspace = absolute('/tmp/worktrees/automation-1');

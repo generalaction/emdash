@@ -8,9 +8,9 @@ import {
   type AutomationRunId,
   type AutomationRunStatus,
 } from '../../api/run';
-import { automationJournal, automationRuns } from '../sqlite/schema';
-import type { AutomationsDb } from '../sqlite/store';
 import { parseRunPayload, serializeRunPayload } from './payload-codecs';
+import { automationJournal, automationRuns } from './schema';
+import type { AutomationsDb } from './store';
 
 const IMMUTABLE_RUN_KEYS = ['id', 'automationId', 'seq'] as const;
 

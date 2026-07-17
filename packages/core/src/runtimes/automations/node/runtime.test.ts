@@ -4,11 +4,12 @@ import { LOCAL_HOST_REF } from '@primitives/host/api';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AutomationDeployment } from '../api/deployment';
-import type { AutomationSessionPort, AutomationWorkspacePort } from './ports';
+import { AutomationDeploymentStore } from './persistence/deployment-store';
+import type { AutomationsDb } from './persistence/store';
+import { automationsStore } from './persistence/store';
+import type { AutomationSessionPort } from './ports/session-start';
+import type { AutomationWorkspacePort } from './ports/workspace-provisioning';
 import { AutomationsRuntime } from './runtime';
-import type { AutomationsDb } from './sqlite/store';
-import { automationsStore } from './sqlite/store';
-import { AutomationDeploymentStore } from './storage/deployment-store';
 
 const MINUTE = 60_000;
 const START = Date.UTC(2026, 6, 16, 8, 59);

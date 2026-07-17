@@ -5,9 +5,9 @@ import {
   type AutomationDeployment,
   type AutomationId,
 } from '../../api/deployment';
-import { automationDeployments } from '../sqlite/schema';
-import type { AutomationsDb } from '../sqlite/store';
 import { parseDeploymentPayload, serializeDeploymentPayload } from './payload-codecs';
+import { automationDeployments } from './schema';
+import type { AutomationsDb } from './store';
 
 export type StoredAutomationDeployment = {
   deployment: AutomationDeployment;

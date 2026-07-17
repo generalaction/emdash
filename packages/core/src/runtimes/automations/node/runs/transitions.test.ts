@@ -1,11 +1,11 @@
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AutomationRun } from '../api/run';
-import { AutomationRunTransitions, INTERRUPTED_BY_RESTART } from './run-transitions';
-import type { AutomationsDb } from './sqlite/store';
-import { automationsStore } from './sqlite/store';
-import { AutomationRunStore } from './storage/run-store';
+import type { AutomationRun } from '../../api/run';
+import { AutomationRunStore } from '../persistence/run-store';
+import type { AutomationsDb } from '../persistence/store';
+import { automationsStore } from '../persistence/store';
+import { AutomationRunTransitions, INTERRUPTED_BY_RESTART } from './transitions';
 
 const worktree = {
   host: LOCAL_HOST_REF,

@@ -24,14 +24,15 @@ import type {
   StartRunResult,
 } from '../api/schemas';
 import { GET_RUNS_DEFAULT_LIMIT } from '../api/schemas';
-import type { AutomationSessionPort, AutomationWorkspacePort } from './ports';
-import { createAutomationRunExecutor } from './run-executor';
-import { AutomationRunTransitions, type OnRunChanged } from './run-transitions';
-import { AutomationScheduler } from './scheduler';
-import type { AutomationsDb } from './sqlite/store';
-import { AutomationDeploymentStore } from './storage/deployment-store';
-import { AutomationRunStore } from './storage/run-store';
-import { validateAutomationSchedule } from './utils/cron';
+import { AutomationDeploymentStore } from './persistence/deployment-store';
+import { AutomationRunStore } from './persistence/run-store';
+import type { AutomationsDb } from './persistence/store';
+import type { AutomationSessionPort } from './ports/session-start';
+import type { AutomationWorkspacePort } from './ports/workspace-provisioning';
+import { createAutomationRunExecutor } from './runs/executor';
+import { AutomationRunTransitions, type OnRunChanged } from './runs/transitions';
+import { validateAutomationSchedule } from './scheduling/cron';
+import { AutomationScheduler } from './scheduling/scheduler';
 
 export type AutomationsRuntimeOptions = {
   handle: StoreHandle<AutomationsDb>;

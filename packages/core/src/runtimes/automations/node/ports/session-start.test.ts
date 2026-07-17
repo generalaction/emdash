@@ -4,7 +4,7 @@ import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
 import { describe, expect, it, vi } from 'vitest';
-import { createSessionPortFromDependencies } from './session-port';
+import { createSessionPortFromDependencies } from './session-start';
 
 const cwd = absolute('/tmp/workspace');
 

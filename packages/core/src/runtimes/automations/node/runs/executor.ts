@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { AutomationRun } from '../api/run';
-import type { AutomationPortError, AutomationSessionPort, AutomationWorkspacePort } from './ports';
-import type { AutomationRunTransitions } from './run-transitions';
+import type { AutomationRun } from '../../api/run';
+import type { AutomationPortError } from '../ports/port-error';
+import type { AutomationSessionPort } from '../ports/session-start';
+import type { AutomationWorkspacePort } from '../ports/workspace-provisioning';
+import type { AutomationRunTransitions } from './transitions';
 
 export type AutomationRunExecutorOptions = {
   transitions: AutomationRunTransitions;

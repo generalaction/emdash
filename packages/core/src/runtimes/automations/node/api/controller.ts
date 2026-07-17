@@ -1,6 +1,6 @@
 import { createController, type Controller } from '@emdash/wire';
-import type { AutomationsRuntime } from '../node/runtime';
-import { automationsContract } from './contract';
+import { automationsContract } from '../../api/contract';
+import type { AutomationsRuntime } from '../runtime';
 
 export function createAutomationsController(runtime: AutomationsRuntime): Controller {
   return createController(automationsContract, {
