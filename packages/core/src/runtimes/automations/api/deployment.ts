@@ -1,4 +1,5 @@
 import { hostFileRefSchema } from '@primitives/path/api';
+import { Cron } from 'croner';
 import { z } from 'zod';
 
 /** Client-minted automation id; also the host deployment primary key. */
@@ -8,10 +9,37 @@ export const automationIdSchema = z.string().min(1);
  * Cron schedule evaluated on the host in the captured IANA timezone.
  * The desktop resolves the timezone at save time; there is no host-local fallback.
  */
-export const automationScheduleSchema = z.object({
-  expr: z.string().min(1),
-  tz: z.string().min(1),
-});
+export const automationScheduleSchema = z
+  .object({
+    expr: z.string().trim().min(1),
+    tz: z.string().trim().min(1),
+  })
+  .superRefine(({ expr, tz }, ctx) => {
+    if (expr.split(/\s+/).length !== 5) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cron expression must contain exactly five fields',
+        path: ['expr'],
+      });
+      return;
+    }
+
+    try {
+      if (!new Cron(expr, { timezone: tz }).nextRun(new Date())) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'cron expression has no future occurrence',
+          path: ['expr'],
+        });
+      }
+    } catch {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cron expression or timezone is invalid',
+        path: ['expr'],
+      });
+    }
+  });
 
 /**
  * Session configuration resolved at deploy time (concrete provider, no

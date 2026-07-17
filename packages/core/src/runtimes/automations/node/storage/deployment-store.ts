@@ -1,12 +1,12 @@
-import { eq } from 'drizzle-orm';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
+import { eq } from 'drizzle-orm';
 import {
   automationDeploymentSchema,
   type AutomationDeployment,
   type AutomationId,
 } from '../../api/deployment';
-import type { AutomationsDb } from '../sqlite/store';
 import { automationDeployments } from '../sqlite/schema';
+import type { AutomationsDb } from '../sqlite/store';
 
 export type StoredAutomationDeployment = {
   deployment: AutomationDeployment;
@@ -25,10 +25,7 @@ export class AutomationDeploymentStore {
    * a stale deploy (lower `updatedAt` than what's stored) is a no-op and the
    * existing stored state is returned.
    */
-  upsertDeployment(
-    deployment: AutomationDeployment,
-    now: number
-  ): StoredAutomationDeployment {
+  upsertDeployment(deployment: AutomationDeployment, now: number): StoredAutomationDeployment {
     if (!Number.isSafeInteger(now)) {
       throw new RangeError(`Deployment timestamp must be a safe integer: ${now}`);
     }

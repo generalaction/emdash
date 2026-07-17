@@ -1,5 +1,5 @@
 import { Cron } from 'croner';
-import type { AutomationSchedule } from '../api';
+import type { AutomationSchedule } from '../../api';
 
 export type AutomationRunTimes = {
   scheduledAt: number;

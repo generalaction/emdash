@@ -9,10 +9,10 @@ export const automationRunStatusSchema = z.enum([
   'queued',
   'provisioning_workspace',
   'starting_session',
-  'running',
   'done',
   'failed',
   'skipped',
+  'cancelled',
 ]);
 
 export const automationRunTriggerKindSchema = z.enum(['cron', 'manual']);

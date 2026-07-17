@@ -1,11 +1,11 @@
 import { LOCAL_HOST_REF } from '@primitives/host/api';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AutomationRun } from '../api/run';
+import { AutomationRunTransitions, INTERRUPTED_BY_RESTART } from './run-transitions';
 import type { AutomationsDb } from './sqlite/store';
 import { automationsStore } from './sqlite/store';
 import { AutomationRunStore } from './storage/run-store';
-import { AutomationRunTransitions, INTERRUPTED_BY_RESTART } from './run-transitions';
 
 const worktree = {
   host: LOCAL_HOST_REF,
@@ -81,23 +81,29 @@ describe('AutomationRunTransitions', () => {
 
     const queued = transitions.markQueued('run-1');
     const claimed = transitions.claimQueued('run-1', 2_000);
-    const starting = transitions.markStartingSession('run-1', { worktree, branchName: 'emdash-abc' });
-    const running = transitions.markRunning('run-1', {
-      conversationId: 'conv-1',
-      sessionId: 'sess-1',
+    const starting = transitions.markStartingSession('run-1', {
+      worktree,
+      branchName: 'emdash-abc',
     });
-    const done = transitions.markDone('run-1', 3_000);
+    const done = transitions.markDone(
+      'run-1',
+      {
+        conversationId: 'conv-1',
+        sessionId: 'sess-1',
+      },
+      3_000
+    );
 
     expect(queued?.status).toBe('queued');
     expect(claimed?.startedAt).toBe(2_000);
     expect(starting?.worktree).toEqual(worktree);
     expect(starting?.branchName).toBe('emdash-abc');
-    expect(running?.conversationId).toBe('conv-1');
-    expect(running?.sessionId).toBe('sess-1');
     expect(done?.status).toBe('done');
+    expect(done?.conversationId).toBe('conv-1');
+    expect(done?.sessionId).toBe('sess-1');
     expect(done?.finishedAt).toBe(3_000);
 
-    const seqs = [inserted, queued, claimed, starting, running, done].map((run) => run?.seq);
+    const seqs = [inserted, queued, claimed, starting, done].map((run) => run?.seq);
     expect(seqs).toEqual([...seqs].sort((a, b) => (a ?? 0) - (b ?? 0)));
     expect(new Set(seqs).size).toBe(seqs.length);
   });
@@ -117,8 +123,9 @@ describe('AutomationRunTransitions', () => {
   it('returns null when the source status does not match', () => {
     runStore.insertRun(newRun());
 
-    expect(transitions.markDone('run-1', 3_000)).toBeNull();
-    expect(transitions.markRunning('run-1', { conversationId: 'c', sessionId: 's' })).toBeNull();
+    expect(
+      transitions.markDone('run-1', { conversationId: 'c', sessionId: 's' }, 3_000)
+    ).toBeNull();
     expect(transitions.markQueued('missing-run')).toBeNull();
     expect(changed).toHaveLength(0);
   });
@@ -137,9 +144,7 @@ describe('AutomationRunTransitions', () => {
     expect(failed?.error).toEqual({ step: 'provision_workspace', code: 'worktree_create_failed' });
     expect(failed?.finishedAt).toBe(3_000);
 
-    expect(
-      transitions.markFailed('run-1', { step: 'run', code: 'cancelled' }, 4_000)
-    ).toBeNull();
+    expect(transitions.markFailed('run-1', { step: 'run', code: 'cancelled' }, 4_000)).toBeNull();
   });
 
   it('skips runs only before a worker has claimed them', () => {
@@ -157,6 +162,22 @@ describe('AutomationRunTransitions', () => {
     expect(
       transitions.markSkipped('run-2', { step: 'queue', code: 'automation_deleted' }, 2_500)
     ).toBeNull();
+  });
+
+  it('cancels queued and in-flight runs but never terminal runs', () => {
+    runStore.insertRun(newRun());
+    transitions.markQueued('run-1');
+
+    const cancelled = transitions.markCancelled('run-1', 2_000);
+    expect(cancelled?.status).toBe('cancelled');
+    expect(cancelled?.finishedAt).toBe(2_000);
+    expect(transitions.claimQueued('run-1', 2_500)).toBeNull();
+    expect(transitions.markCancelled('run-1', 3_000)).toBeNull();
+
+    runStore.insertRun(newRun({ id: 'run-2', scheduledAt: 1_500 }));
+    transitions.markQueued('run-2');
+    transitions.claimQueued('run-2', 2_000);
+    expect(transitions.markCancelled('run-2', 2_500)?.status).toBe('cancelled');
   });
 
   it('interrupts in-flight runs with the step matching their stuck status', () => {

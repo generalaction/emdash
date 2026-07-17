@@ -10,13 +10,17 @@ import type { AutomationRunStore } from './storage/run-store';
 
 export type OnRunChanged = (run: AutomationRun) => void;
 
+type RunTransition = {
+  from: AutomationRunStatus[];
+  to: AutomationRunStatus;
+};
+
 export const INTERRUPTED_BY_RESTART = 'interrupted_by_restart';
 
 /** Statuses owned by an executing run worker. */
 export const IN_FLIGHT_RUN_STATUSES = [
   'provisioning_workspace',
   'starting_session',
-  'running',
 ] as const satisfies readonly AutomationRunStatus[];
 
 const NON_TERMINAL_RUN_STATUSES = [
@@ -28,7 +32,6 @@ const NON_TERMINAL_RUN_STATUSES = [
 const IN_FLIGHT_ERROR_STEPS: Partial<Record<AutomationRunStatus, AutomationRunErrorStep>> = {
   provisioning_workspace: 'provision_workspace',
   starting_session: 'start_session',
-  running: 'run',
 };
 
 /**
@@ -53,12 +56,23 @@ export class AutomationRunTransitions {
 
   /** scheduled → queued, when the run's `scheduledAt` comes due. */
   markQueued(runId: AutomationRunId): AutomationRun | null {
-    return this.transition(runId, ['scheduled'], { status: 'queued' });
+    const transition: RunTransition = {
+      from: ['scheduled'],
+      to: 'queued',
+    };
+    return this.transition(runId, transition, { status: 'queued' });
   }
 
   /** queued → provisioning_workspace, stamping `startedAt`; claims the run for a worker. */
   claimQueued(runId: AutomationRunId, startedAt: number): AutomationRun | null {
-    return this.transition(runId, ['queued'], { status: 'provisioning_workspace', startedAt });
+    const transition: RunTransition = {
+      from: ['queued'],
+      to: 'provisioning_workspace',
+    };
+    return this.transition(runId, transition, {
+      status: 'provisioning_workspace',
+      startedAt,
+    });
   }
 
   /** provisioning_workspace → starting_session, recording the provisioned workspace. */
@@ -66,28 +80,33 @@ export class AutomationRunTransitions {
     runId: AutomationRunId,
     workspace: { worktree: HostFileRef; branchName: string | null }
   ): AutomationRun | null {
-    return this.transition(runId, ['provisioning_workspace'], {
+    const transition: RunTransition = {
+      from: ['provisioning_workspace'],
+      to: 'starting_session',
+    };
+    return this.transition(runId, transition, {
       status: 'starting_session',
       worktree: workspace.worktree,
       branchName: workspace.branchName,
     });
   }
 
-  /** starting_session → running, recording the minted conversation and provider session. */
-  markRunning(
+  /** starting_session → done, recording the started session and stamping `finishedAt`. */
+  markDone(
     runId: AutomationRunId,
-    session: { conversationId: string; sessionId: string }
+    session: { conversationId: string; sessionId: string },
+    finishedAt: number
   ): AutomationRun | null {
-    return this.transition(runId, ['starting_session'], {
-      status: 'running',
+    const transition: RunTransition = {
+      from: ['starting_session'],
+      to: 'done',
+    };
+    return this.transition(runId, transition, {
+      status: 'done',
       conversationId: session.conversationId,
       sessionId: session.sessionId,
+      finishedAt,
     });
-  }
-
-  /** running → done, stamping `finishedAt`. */
-  markDone(runId: AutomationRunId, finishedAt: number): AutomationRun | null {
-    return this.transition(runId, ['running'], { status: 'done', finishedAt });
   }
 
   /** Any non-terminal status → failed, recording the error and `finishedAt`. */
@@ -96,7 +115,11 @@ export class AutomationRunTransitions {
     error: AutomationRunError,
     finishedAt: number
   ): AutomationRun | null {
-    return this.transition(runId, [...NON_TERMINAL_RUN_STATUSES], {
+    const transition: RunTransition = {
+      from: [...NON_TERMINAL_RUN_STATUSES],
+      to: 'failed',
+    };
+    return this.transition(runId, transition, {
       status: 'failed',
       error,
       finishedAt,
@@ -109,11 +132,24 @@ export class AutomationRunTransitions {
     error: AutomationRunError,
     finishedAt: number
   ): AutomationRun | null {
-    return this.transition(runId, ['scheduled', 'queued'], {
+    const transition: RunTransition = {
+      from: ['scheduled', 'queued'],
+      to: 'skipped',
+    };
+    return this.transition(runId, transition, {
       status: 'skipped',
       error,
       finishedAt,
     });
+  }
+
+  /** queued/in-flight → cancelled, when the user manually stops the run. */
+  markCancelled(runId: AutomationRunId, finishedAt: number): AutomationRun | null {
+    const transition: RunTransition = {
+      from: ['queued', ...IN_FLIGHT_RUN_STATUSES],
+      to: 'cancelled',
+    };
+    return this.transition(runId, transition, { status: 'cancelled', finishedAt });
   }
 
   /**
@@ -124,9 +160,15 @@ export class AutomationRunTransitions {
   markInterrupted(run: AutomationRun, finishedAt: number): AutomationRun | null {
     const step = IN_FLIGHT_ERROR_STEPS[run.status];
     if (!step) {
-      throw new TypeError(`Run ${run.id} is not in-flight and cannot be interrupted: ${run.status}`);
+      throw new TypeError(
+        `Run ${run.id} is not in-flight and cannot be interrupted: ${run.status}`
+      );
     }
-    return this.transition(run.id, [run.status], {
+    const transition: RunTransition = {
+      from: [run.status],
+      to: 'failed',
+    };
+    return this.transition(run.id, transition, {
       status: 'failed',
       error: { step, code: INTERRUPTED_BY_RESTART },
       finishedAt,
@@ -135,10 +177,15 @@ export class AutomationRunTransitions {
 
   private transition(
     runId: AutomationRunId,
-    from: AutomationRunStatus[],
-    patch: Partial<AutomationRun>
+    transition: RunTransition,
+    patch: Partial<AutomationRun> & Pick<AutomationRun, 'status'>
   ): AutomationRun | null {
-    const run = this.runStore.transitionRun(runId, from, patch);
+    if (patch.status !== transition.to) {
+      throw new TypeError(
+        `Run transition target ${transition.to} does not match patch status ${patch.status}`
+      );
+    }
+    const run = this.runStore.transitionRun(runId, transition.from, patch);
     if (run) this.onRunChanged?.(run);
     return run;
   }

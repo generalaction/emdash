@@ -1,5 +1,5 @@
-import { and, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
+import { and, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { automationIdSchema, type AutomationId } from '../../api/deployment';
 import {
   automationRunSchema,
@@ -8,8 +8,8 @@ import {
   type AutomationRunId,
   type AutomationRunStatus,
 } from '../../api/run';
-import type { AutomationsDb } from '../sqlite/store';
 import { automationJournal, automationRuns } from '../sqlite/schema';
+import type { AutomationsDb } from '../sqlite/store';
 
 function parseRun(payload: string): AutomationRun {
   return automationRunSchema.parse(JSON.parse(payload));
@@ -218,7 +218,10 @@ export class AutomationRunStore {
       .select({ payload: automationRuns.payload })
       .from(automationRuns)
       .where(
-        and(gt(automationRuns.seq, input.sinceSeq), inArray(automationRuns.automationId, automationIds))
+        and(
+          gt(automationRuns.seq, input.sinceSeq),
+          inArray(automationRuns.automationId, automationIds)
+        )
       )
       .orderBy(automationRuns.seq)
       .limit(input.limit)

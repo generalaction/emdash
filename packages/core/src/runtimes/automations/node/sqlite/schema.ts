@@ -7,10 +7,10 @@ export const automationRunStatuses = [
   'queued',
   'provisioning_workspace',
   'starting_session',
-  'running',
   'done',
   'failed',
   'skipped',
+  'cancelled',
 ] as const;
 
 export const automationDeployments = sqliteTable('automation_deployments', {
