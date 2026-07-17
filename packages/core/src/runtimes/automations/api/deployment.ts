@@ -2,6 +2,9 @@ import { hostFileRefSchema } from '@primitives/path/api';
 import { Cron } from 'croner';
 import { z } from 'zod';
 
+const nonBlankStringSchema = z.string().trim().min(1);
+const nullableModelSchema = nonBlankStringSchema.nullable();
+
 /** Client-minted automation id; also the host deployment primary key. */
 export const automationIdSchema = z.string().min(1);
 
@@ -48,7 +51,7 @@ export const automationScheduleSchema = z
  * file paths do not survive storage in a deployment.
  */
 export const automationPromptInputSchema = z.object({
-  text: z.string().min(1),
+  text: nonBlankStringSchema,
   hiddenContext: z.string().optional(),
 });
 
@@ -57,18 +60,18 @@ export const automationPromptInputSchema = z.object({
  * default-agent indirection). Each variant's `start` is a template for the
  * matching runtime's start input; the executor and host adapter supply
  * run-generated and host-owned fields (`conversationId`, `cwd`, `sessionId`,
- * terminal geometry, shell setup, hook installation). `title` overrides the
- * conversation title shown after adoption; falls back to the deployment name.
+ * terminal geometry, and hook installation). `title` is presentation
+ * metadata; the headless session runtime does not consume it.
  */
 export const automationAcpAgentConfigSchema = z.object({
   type: z.literal('acp'),
   start: z.object({
-    providerId: z.string().min(1),
-    model: z.string().nullable(),
-    modeId: z.string().nullable().optional(),
+    providerId: nonBlankStringSchema,
+    model: nullableModelSchema,
+    modeId: nonBlankStringSchema.nullable().optional(),
     initialQueue: z.array(automationPromptInputSchema).min(1),
   }),
-  title: z.string().min(1).optional(),
+  title: nonBlankStringSchema.optional(),
 });
 
 /**
@@ -78,12 +81,12 @@ export const automationAcpAgentConfigSchema = z.object({
 export const automationTuiAgentConfigSchema = z.object({
   type: z.literal('tui'),
   start: z.object({
-    providerId: z.string().min(1),
-    model: z.string().nullable(),
-    initialPrompt: z.string().min(1),
+    providerId: nonBlankStringSchema,
+    model: nullableModelSchema,
+    initialPrompt: nonBlankStringSchema,
     autoApprove: z.boolean(),
   }),
-  title: z.string().min(1).optional(),
+  title: nonBlankStringSchema.optional(),
 });
 
 export const automationAgentConfigSchema = z.discriminatedUnion('type', [
@@ -92,8 +95,8 @@ export const automationAgentConfigSchema = z.discriminatedUnion('type', [
 ]);
 
 export const automationGitRemoteSchema = z.object({
-  name: z.string().min(1),
-  url: z.string().min(1),
+  name: nonBlankStringSchema,
+  url: nonBlankStringSchema,
 });
 
 /**
@@ -104,12 +107,12 @@ export const automationGitRemoteSchema = z.object({
 export const automationGitBranchRefSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('local'),
-    branch: z.string().min(1),
+    branch: nonBlankStringSchema,
     remote: automationGitRemoteSchema.optional(),
   }),
   z.object({
     type: z.literal('remote'),
-    branch: z.string().min(1),
+    branch: nonBlankStringSchema,
     remote: automationGitRemoteSchema,
   }),
 ]);
@@ -117,21 +120,24 @@ export const automationGitBranchRefSchema = z.discriminatedUnion('type', [
 /**
  * A fresh worktree provisioned for each run. The branch name for
  * `create-branch` is generated per run; only its base and optional publication
- * remote are captured at deploy time.
+ * remote are captured at deploy time. `preservePatterns` is required because
+ * preserved files are copied during provisioning, before the worktree exists.
+ * Pre-release payloads without this field are intentionally not migrated.
  */
 export const automationWorktreeConfigSchema = z.object({
   kind: z.literal('worktree'),
   repository: hostFileRefSchema,
+  preservePatterns: z.array(nonBlankStringSchema),
   git: z.discriminatedUnion('kind', [
     z.object({
       kind: z.literal('create-branch'),
       fromBranch: automationGitBranchRefSchema,
       /** Resolved push remote captured at deploy time; null means do not publish. */
-      pushRemote: z.string().min(1).nullable(),
+      pushRemote: nonBlankStringSchema.nullable(),
     }),
     z.object({
       kind: z.literal('use-branch'),
-      branchName: z.string().min(1),
+      branchName: nonBlankStringSchema,
     }),
   ]),
 });
@@ -145,7 +151,8 @@ export const automationDirectoryConfigSchema = z.object({
 /**
  * Where each run executes. The discriminated union makes repository and Git
  * provisioning data available only for worktrees, so every accepted shape is
- * executable without cross-field validation.
+ * executable without cross-field validation. Headless automations do not yet
+ * execute setup/run/teardown scripts or apply shell setup for either variant.
  */
 export const automationWorkspaceConfigSchema = z.discriminatedUnion('kind', [
   automationWorktreeConfigSchema,
@@ -155,11 +162,10 @@ export const automationWorkspaceConfigSchema = z.discriminatedUnion('kind', [
 export const automationDeploymentSchema = z.object({
   automationId: automationIdSchema,
   enabled: z.boolean(),
-  name: z.string().min(1),
+  name: nonBlankStringSchema,
   schedule: automationScheduleSchema,
   agent: automationAgentConfigSchema,
   workspace: automationWorkspaceConfigSchema,
-  /** Desktop updatedAt; monotonic revision for last-write-wins and drift checks. */
   updatedAt: z.number().int().nonnegative(),
 });
 

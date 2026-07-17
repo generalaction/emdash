@@ -29,6 +29,7 @@ const configSnapshot = {
       host: LOCAL_HOST_REF,
       path: { root: { kind: 'posix' as const }, segments: ['Users', 'jona', 'repo'] },
     },
+    preservePatterns: ['.env*'],
     git: {
       kind: 'create-branch' as const,
       fromBranch: { type: 'local' as const, branch: 'main' },

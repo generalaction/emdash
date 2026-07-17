@@ -26,6 +26,7 @@ const deployment = {
   workspace: {
     kind: 'worktree' as const,
     repository,
+    preservePatterns: ['.env*'],
     git: {
       kind: 'create-branch' as const,
       fromBranch: { type: 'local' as const, branch: 'main' },
@@ -90,8 +91,152 @@ describe('automation deployment schemas', () => {
     expect(() =>
       automationDeploymentSchema.parse({
         ...deployment,
-        workspace: { kind: 'worktree', repository },
+        workspace: { kind: 'worktree', repository, preservePatterns: [] },
       })
     ).toThrow();
+  });
+
+  it('requires explicit non-blank preserve patterns for worktrees', () => {
+    const { preservePatterns: _preservePatterns, ...withoutPreservePatterns } =
+      deployment.workspace;
+
+    expect(() =>
+      automationDeploymentSchema.parse({
+        ...deployment,
+        workspace: withoutPreservePatterns,
+      })
+    ).toThrow();
+    expect(() =>
+      automationDeploymentSchema.parse({
+        ...deployment,
+        workspace: { ...deployment.workspace, preservePatterns: ['   '] },
+      })
+    ).toThrow();
+
+    const parsed = automationDeploymentSchema.parse({
+      ...deployment,
+      workspace: { ...deployment.workspace, preservePatterns: [] },
+    });
+    expect(parsed.workspace).toMatchObject({ preservePatterns: [] });
+  });
+
+  it('trims user-entered deployment and runtime input strings', () => {
+    const parsed = automationDeploymentSchema.parse({
+      ...deployment,
+      name: '  Nightly review  ',
+      agent: {
+        type: 'acp',
+        title: '  Review result  ',
+        start: {
+          providerId: '  claude  ',
+          model: '  opus  ',
+          modeId: '  agent  ',
+          initialQueue: [{ text: '  Review open PRs  ', hiddenContext: '  keep spacing  ' }],
+        },
+      },
+      workspace: {
+        ...deployment.workspace,
+        preservePatterns: ['  .env*  '],
+        git: {
+          kind: 'create-branch',
+          fromBranch: {
+            type: 'remote',
+            branch: '  main  ',
+            remote: { name: '  origin  ', url: '  git@example.com:org/repo.git  ' },
+          },
+          pushRemote: '  fork  ',
+        },
+      },
+    });
+
+    expect(parsed).toMatchObject({
+      name: 'Nightly review',
+      agent: {
+        title: 'Review result',
+        start: {
+          providerId: 'claude',
+          model: 'opus',
+          modeId: 'agent',
+          initialQueue: [{ text: 'Review open PRs', hiddenContext: '  keep spacing  ' }],
+        },
+      },
+      workspace: {
+        preservePatterns: ['.env*'],
+        git: {
+          fromBranch: {
+            branch: 'main',
+            remote: { name: 'origin', url: 'git@example.com:org/repo.git' },
+          },
+          pushRemote: 'fork',
+        },
+      },
+    });
+  });
+
+  it('rejects blank prompts, providers, models, modes, titles, and names', () => {
+    const invalidDeployments = [
+      { ...deployment, name: '   ' },
+      {
+        ...deployment,
+        agent: {
+          ...deployment.agent,
+          start: { ...deployment.agent.start, providerId: '   ' },
+        },
+      },
+      {
+        ...deployment,
+        agent: {
+          ...deployment.agent,
+          start: { ...deployment.agent.start, model: '' },
+        },
+      },
+      {
+        ...deployment,
+        agent: {
+          ...deployment.agent,
+          start: { ...deployment.agent.start, modeId: '   ' },
+        },
+      },
+      { ...deployment, agent: { ...deployment.agent, title: '   ' } },
+      {
+        ...deployment,
+        agent: {
+          ...deployment.agent,
+          start: { ...deployment.agent.start, initialQueue: [{ text: '   ' }] },
+        },
+      },
+    ];
+
+    for (const invalid of invalidDeployments) {
+      expect(automationDeploymentSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  it('rejects blank TUI models and prompts while accepting null as provider default', () => {
+    const tuiAgent = {
+      type: 'tui' as const,
+      start: {
+        providerId: 'codex',
+        model: null,
+        initialPrompt: 'Review open PRs',
+        autoApprove: false,
+      },
+    };
+
+    expect(automationDeploymentSchema.safeParse({ ...deployment, agent: tuiAgent }).success).toBe(
+      true
+    );
+    expect(
+      automationDeploymentSchema.safeParse({
+        ...deployment,
+        agent: { ...tuiAgent, start: { ...tuiAgent.start, model: '   ' } },
+      }).success
+    ).toBe(false);
+    expect(
+      automationDeploymentSchema.safeParse({
+        ...deployment,
+        agent: { ...tuiAgent, start: { ...tuiAgent.start, initialPrompt: '   ' } },
+      }).success
+    ).toBe(false);
   });
 });

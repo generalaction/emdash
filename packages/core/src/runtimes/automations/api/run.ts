@@ -2,6 +2,9 @@ import { hostFileRefSchema } from '@primitives/path/api';
 import { z } from 'zod';
 import { automationIdSchema, automationRunConfigSnapshotSchema } from './deployment';
 
+const nonBlankStringSchema = z.string().trim().min(1);
+const nullableTimestampSchema = z.number().int().nonnegative().nullable();
+
 export const automationRunIdSchema = z.string().min(1);
 
 export const automationRunStatusSchema = z.enum([
@@ -26,7 +29,7 @@ export const automationRunErrorStepSchema = z.enum([
 
 export const automationRunErrorSchema = z.object({
   step: automationRunErrorStepSchema,
-  code: z.string().min(1),
+  code: nonBlankStringSchema,
   message: z.string().optional(),
 });
 
@@ -34,9 +37,8 @@ export const automationRunErrorSchema = z.object({
  * Host-owned run record. `seq` is the host-global journal cursor.
  * `configSnapshot` is captured at insert time and is what the run executes
  * with. `generatedName` is the per-run human-friendly name used for the
- * branch, the workspace, and the adopted task. `conversationId` is minted by
- * the automations runtime; `sessionId` is the provider session id returned by
- * session start.
+ * branch and workspace. `conversationId` is minted by the automations runtime;
+ * `sessionId` is the provider session id returned by session start.
  */
 export const automationRunSchema = z.object({
   id: automationRunIdSchema,
@@ -45,15 +47,15 @@ export const automationRunSchema = z.object({
   status: automationRunStatusSchema,
   triggerKind: automationRunTriggerKindSchema,
   configSnapshot: automationRunConfigSnapshotSchema,
-  generatedName: z.string().min(1),
-  scheduledAt: z.number().int().nullable(),
-  deadlineAt: z.number().int().nullable(),
-  startedAt: z.number().int().nullable(),
-  finishedAt: z.number().int().nullable(),
+  generatedName: nonBlankStringSchema,
+  scheduledAt: nullableTimestampSchema,
+  deadlineAt: nullableTimestampSchema,
+  startedAt: nullableTimestampSchema,
+  finishedAt: nullableTimestampSchema,
   workspace: hostFileRefSchema.nullable(),
-  branchName: z.string().nullable(),
-  conversationId: z.string().nullable(),
-  sessionId: z.string().nullable(),
+  branchName: nonBlankStringSchema.nullable(),
+  conversationId: nonBlankStringSchema.nullable(),
+  sessionId: nonBlankStringSchema.nullable(),
   error: automationRunErrorSchema.nullable(),
 });
 
