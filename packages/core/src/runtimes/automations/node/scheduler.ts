@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { ConcurrencyLimiter } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import {
@@ -8,11 +7,7 @@ import {
   type AutomationId,
 } from '../api/deployment';
 import type { AutomationRun, AutomationRunId, AutomationRunStatus } from '../api/run';
-import {
-  IN_FLIGHT_RUN_STATUSES,
-  type AutomationRunTransitions,
-  type OnRunChanged,
-} from './run-transitions';
+import type { AutomationRunTransitions, OnRunChanged } from './run-transitions';
 import { nextRunTimes } from './utils/cron';
 
 const DEFAULT_TICK_INTERVAL_MS = 60_000;
@@ -54,29 +49,12 @@ export type AutomationSchedulerOptions = {
   createRunIdentity?: (deployment: AutomationDeployment) => AutomationRunIdentity;
 };
 
-function positiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`${label} must be a positive safe integer: ${value}`);
-  }
-  return value;
-}
+type ActiveWorker = {
+  automationId: AutomationId;
+  abortController: AbortController;
+  done: Promise<void>;
+};
 
-function defaultRunIdentity(): AutomationRunIdentity {
-  const id = randomUUID();
-  return { id, generatedName: `emdash-${id.slice(0, 8)}` };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Owns cron materialization and the bounded run queue.
- *
- * The scheduler only advances a run through the queue boundary. Once claimed
- * (`queued → provisioning_workspace`), the injected executor owns the
- * workspace/session workflow and its remaining transitions.
- */
 export class AutomationScheduler {
   private readonly deploymentStore: AutomationSchedulerDeploymentStore;
   private readonly runStore: AutomationSchedulerRunStore;
@@ -89,17 +67,11 @@ export class AutomationScheduler {
   private readonly maxDuePerTick: number;
   private readonly onRunChanged: OnRunChanged | undefined;
   private readonly createRunIdentity: (deployment: AutomationDeployment) => AutomationRunIdentity;
-  private readonly limiter: ConcurrencyLimiter;
-  private readonly signalController = new AbortController();
-  private readonly workerRunIds = new Set<AutomationRunId>();
-  private readonly activeAutomationIds = new Set<AutomationId>();
-  private readonly workers = new Map<AutomationRunId, Promise<void>>();
+
+  private readonly workers = new Map<AutomationRunId, ActiveWorker>();
 
   private timer: TimerHandle | undefined;
   private started = false;
-  private startTask: Promise<void> | undefined;
-  private tickTail: Promise<void> = Promise.resolve();
-  private drainTail: Promise<void> = Promise.resolve();
 
   constructor(options: AutomationSchedulerOptions) {
     this.deploymentStore = options.deploymentStore;
@@ -122,45 +94,39 @@ export class AutomationScheduler {
     );
     this.onRunChanged = options.onRunChanged;
     this.createRunIdentity = options.createRunIdentity ?? defaultRunIdentity;
-    this.limiter = new ConcurrencyLimiter(this.maxConcurrentRuns);
   }
 
-  /**
-   * Recovers interrupted workers, reconciles cron state, drains queued work,
-   * and starts the recurring tick. Concurrent calls share one bootstrap.
-   */
-  start(): Promise<void> {
-    if (this.startTask) return this.startTask;
+  start(): void {
+    if (this.started) return;
     this.started = true;
-    this.startTask = (async () => {
-      await this.recoverInterruptedRuns();
-      await this.tick();
-      if (this.started) this.scheduleNextTick();
-    })().catch((error: unknown) => {
+    try {
+      this.recoverInterruptedRuns();
+      this.reconcile();
+    } catch (error) {
       this.started = false;
-      this.startTask = undefined;
       throw error;
-    });
-    return this.startTask;
+    }
+    this.scheduleNextTick();
   }
 
-  /** Stops future ticks. Already-running workflows are allowed to finish. */
-  stop(): void {
+  async stop(): Promise<void> {
     this.started = false;
     this.timer?.dispose();
     this.timer = undefined;
-    this.startTask = undefined;
+
+    const workers = [...this.workers.values()];
+    for (const worker of workers) worker.abortController.abort();
+    await Promise.allSettled(workers.map((worker) => worker.done));
   }
 
-  /** Reconciles cron state and drains the queue without changing timer state. */
-  reload(): Promise<void> {
-    return this.tick();
+  reconcile(): void {
+    const now = this.clock.now();
+    this.reconcilePendingRuns(now);
+    this.queueDueRuns(now);
+    this.ensureScheduledRuns(now);
+    this.drainQueue();
   }
 
-  /**
-   * Creates a manual queued run from an already-validated deployment snapshot
-   * and asks the queue to drain immediately.
-   */
   runNow(deployment: AutomationDeployment): AutomationRun {
     const run = this.insertRun(deployment, {
       status: 'queued',
@@ -171,26 +137,37 @@ export class AutomationScheduler {
     if (!run) {
       throw new Error(`Failed to insert manual automation run for ${deployment.automationId}`);
     }
-    this.drainInBackground();
-    return run;
+    this.drainQueue();
+    return this.runStore.getRun(run.id) ?? run;
   }
 
-  /**
-   * Test/lifecycle barrier: resolves once all currently queued scheduler work
-   * and run executors have settled, including drains triggered by completion.
-   */
+  cancelRun(runId: AutomationRunId): AutomationRun | null {
+    const run = this.runStore.getRun(runId);
+    if (!run) return null;
+
+    const cancelled =
+      run.status === 'scheduled'
+        ? this.transitions.markSkipped(runId, { step: 'queue', code: 'cancelled' }, this.clock.now())
+        : this.transitions.markCancelled(runId, this.clock.now());
+    if (!cancelled) return run;
+
+    this.workers.get(runId)?.abortController.abort();
+    return cancelled;
+  }
+
   async idle(): Promise<void> {
-    for (;;) {
-      await this.tickTail;
-      await this.drainTail;
-      const workers = [...this.workers.values()];
-      if (workers.length === 0) {
-        await this.drainTail;
-        if (this.workers.size === 0) return;
-        continue;
-      }
-      await Promise.allSettled(workers);
+    while (this.workers.size > 0) {
+      await Promise.allSettled([...this.workers.values()].map((worker) => worker.done));
     }
+  }
+
+  private recoverInterruptedRuns(): void {
+    const stuckRuns = this.runStore.listRunsInStatuses([
+      'provisioning_workspace',
+      'starting_session',
+    ]);
+    const now = this.clock.now();
+    for (const run of stuckRuns) this.transitions.markInterrupted(run, now);
   }
 
   private scheduleNextTick(): void {
@@ -199,47 +176,46 @@ export class AutomationScheduler {
       this.tickIntervalMs,
       () => {
         this.timer = undefined;
-        void this.tick()
-          .catch((error: unknown) => {
-            this.logger.error('Automation scheduler tick failed', {
-              error: errorMessage(error),
-            });
-          })
-          .finally(() => {
-            if (this.started) this.scheduleNextTick();
+        if (!this.started) return;
+        try {
+          this.reconcile();
+        } catch (error: unknown) {
+          this.logger.error('Automation scheduler tick failed', {
+            error: errorMessage(error),
           });
+        }
+        if (this.started) this.scheduleNextTick();
       },
       { unref: true }
     );
   }
 
-  private tick(): Promise<void> {
-    const task = this.tickTail.then(() => this.performTick());
-    this.tickTail = task.catch(() => {});
-    return task;
-  }
-
-  private async performTick(): Promise<void> {
-    const now = this.clock.now();
-    this.ensureScheduledRuns(now);
-
-    const dueRuns = this.runStore.listDueScheduledRuns(now, this.maxDuePerTick);
-    for (const due of dueRuns) {
-      const deployment = this.deploymentStore.getDeployment(due.automationId);
+  private reconcilePendingRuns(now: number): void {
+    for (const run of this.runStore.listRunsInStatuses(['scheduled', 'queued'])) {
+      const deployment = this.deploymentStore.getDeployment(run.automationId);
       if (!deployment) {
-        this.transitions.markSkipped(due.id, { step: 'queue', code: 'automation_deleted' }, now);
+        this.transitions.markSkipped(run.id, { step: 'queue', code: 'automation_deleted' }, now);
         continue;
       }
       if (!deployment.enabled) {
-        this.transitions.markSkipped(due.id, { step: 'queue', code: 'automation_disabled' }, now);
+        this.transitions.markSkipped(run.id, { step: 'queue', code: 'automation_disabled' }, now);
         continue;
       }
+      if (run.status !== 'scheduled') continue;
 
-      const queued = this.transitions.markQueued(due.id);
-      if (queued) this.ensureScheduledRun(deployment, now);
+      const scheduleChanged =
+        run.configSnapshot.schedule.expr !== deployment.schedule.expr ||
+        run.configSnapshot.schedule.tz !== deployment.schedule.tz;
+      if (scheduleChanged) {
+        this.transitions.markSkipped(run.id, { step: 'queue', code: 'redeployed' }, now);
+      }
     }
+  }
 
-    await this.drainQueue();
+  private queueDueRuns(now: number): void {
+    for (const due of this.runStore.listDueScheduledRuns(now, this.maxDuePerTick)) {
+      this.transitions.markQueued(due.id);
+    }
   }
 
   private ensureScheduledRuns(now: number): void {
@@ -274,7 +250,7 @@ export class AutomationScheduler {
       configSnapshot: automationRunConfigSnapshotSchema.parse(deployment),
       startedAt: null,
       finishedAt: null,
-      worktree: null,
+      workspace: null,
       branchName: null,
       conversationId: null,
       sessionId: null,
@@ -284,23 +260,9 @@ export class AutomationScheduler {
     return run;
   }
 
-  private drainQueue(): Promise<void> {
-    const task = this.drainTail.then(() => this.pumpQueue());
-    this.drainTail = task.catch(() => {});
-    return task;
-  }
-
-  private drainInBackground(): void {
-    void this.drainQueue().catch((error: unknown) => {
-      this.logger.error('Automation scheduler queue drain failed', {
-        error: errorMessage(error),
-      });
-    });
-  }
-
-  private async pumpQueue(): Promise<void> {
+  private drainQueue(): void {
     for (;;) {
-      const capacity = this.maxConcurrentRuns - this.workerRunIds.size;
+      const capacity = this.maxConcurrentRuns - this.workers.size;
       if (capacity <= 0) return;
 
       const queuedRuns = this.runStore.listQueuedRuns(capacity);
@@ -308,8 +270,7 @@ export class AutomationScheduler {
 
       let madeProgress = false;
       for (const run of queuedRuns) {
-        if (this.workerRunIds.size >= this.maxConcurrentRuns) return;
-        if (this.workerRunIds.has(run.id)) continue;
+        if (this.workers.size >= this.maxConcurrentRuns) return;
 
         const now = this.clock.now();
         if (run.deadlineAt !== null && run.deadlineAt <= now) {
@@ -329,7 +290,7 @@ export class AutomationScheduler {
           madeProgress = true;
           continue;
         }
-        if (this.activeAutomationIds.has(run.automationId)) {
+        if (this.isAutomationActive(run.automationId)) {
           this.transitions.markSkipped(run.id, { step: 'queue', code: 'previous_running' }, now);
           madeProgress = true;
           continue;
@@ -345,12 +306,18 @@ export class AutomationScheduler {
     }
   }
 
-  private startWorker(run: AutomationRun): void {
-    this.workerRunIds.add(run.id);
-    this.activeAutomationIds.add(run.automationId);
+  private isAutomationActive(automationId: AutomationId): boolean {
+    for (const worker of this.workers.values()) {
+      if (worker.automationId === automationId) return true;
+    }
+    return false;
+  }
 
-    const worker = this.limiter
-      .run(this.signalController.signal, () => this.execute(run, this.signalController.signal))
+  private startWorker(run: AutomationRun): void {
+    const abortController = new AbortController();
+
+    const done = Promise.resolve()
+      .then(() => this.execute(run, abortController.signal))
       .catch((error: unknown) => {
         this.logger.error('Automation run executor failed', {
           automationId: run.automationId,
@@ -364,17 +331,37 @@ export class AutomationScheduler {
         );
       })
       .finally(() => {
-        this.workerRunIds.delete(run.id);
-        this.activeAutomationIds.delete(run.automationId);
         this.workers.delete(run.id);
-        this.drainInBackground();
+        if (!this.started) return;
+        try {
+          this.drainQueue();
+        } catch (error: unknown) {
+          this.logger.error('Automation scheduler queue drain failed', {
+            error: errorMessage(error),
+          });
+        }
       });
-    this.workers.set(run.id, worker);
-  }
 
-  private async recoverInterruptedRuns(): Promise<void> {
-    const stuckRuns = this.runStore.listRunsInStatuses([...IN_FLIGHT_RUN_STATUSES]);
-    const now = this.clock.now();
-    for (const run of stuckRuns) this.transitions.markInterrupted(run, now);
+    this.workers.set(run.id, {
+      automationId: run.automationId,
+      abortController,
+      done,
+    });
   }
+}
+
+function positiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${label} must be a positive safe integer: ${value}`);
+  }
+  return value;
+}
+
+function defaultRunIdentity(): AutomationRunIdentity {
+  const id = randomUUID();
+  return { id, generatedName: `emdash-${id.slice(0, 8)}` };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

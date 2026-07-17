@@ -21,21 +21,24 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
     schedule: { expr: '0 9 * * *', tz: 'UTC' },
     agent: {
       type: 'acp',
-      providerId: 'claude',
-      prompt: 'Review open PRs',
-      model: null,
-      autoApprove: true,
+      start: {
+        providerId: 'claude',
+        model: null,
+        initialQueue: [{ text: 'Review open PRs' }],
+      },
     },
-    repository: {
-      host: LOCAL_HOST_REF,
-      path: { root: { kind: 'posix' }, segments: ['repo'] },
+    workspace: {
+      kind: 'worktree',
+      repository: {
+        host: LOCAL_HOST_REF,
+        path: { root: { kind: 'posix' }, segments: ['repo'] },
+      },
+      git: {
+        kind: 'create-branch',
+        fromBranch: { type: 'local', branch: 'main' },
+        pushRemote: null,
+      },
     },
-    git: {
-      kind: 'create-branch',
-      fromBranch: { type: 'local', branch: 'main' },
-      pushBranch: false,
-    },
-    workspace: { kind: 'worktree' },
     updatedAt: START,
     ...overrides,
   };
@@ -156,12 +159,12 @@ function createHarness(options: {
 
 const schedulers: AutomationScheduler[] = [];
 
-afterEach(() => {
-  for (const scheduler of schedulers.splice(0)) scheduler.stop();
+afterEach(async () => {
+  for (const scheduler of schedulers.splice(0)) await scheduler.stop();
 });
 
 describe('AutomationScheduler', () => {
-  it('self-heals one future scheduled run for every enabled deployment', async () => {
+  it('self-heals one future scheduled run for every enabled deployment', () => {
     const harness = createHarness({
       deployments: [
         deployment(),
@@ -171,8 +174,8 @@ describe('AutomationScheduler', () => {
     });
     schedulers.push(harness.scheduler);
 
-    await harness.scheduler.start();
-    await harness.scheduler.reload();
+    harness.scheduler.start();
+    harness.scheduler.reconcile();
 
     const scheduled = [...harness.runStore.runs.values()].filter(
       (run) => run.status === 'scheduled'
@@ -189,7 +192,7 @@ describe('AutomationScheduler', () => {
   it('queues and claims a due cron run, then schedules its next occurrence', async () => {
     const harness = createHarness({});
     schedulers.push(harness.scheduler);
-    await harness.scheduler.start();
+    harness.scheduler.start();
 
     await harness.clock.advanceBy(MINUTE);
     await harness.scheduler.idle();
@@ -219,7 +222,7 @@ describe('AutomationScheduler', () => {
       deadlineAt: null,
       startedAt: START - MINUTE,
       finishedAt: null,
-      worktree: null,
+      workspace: null,
       branchName: null,
       conversationId: null,
       sessionId: null,
@@ -227,7 +230,7 @@ describe('AutomationScheduler', () => {
     });
     schedulers.push(harness.scheduler);
 
-    await harness.scheduler.start();
+    harness.scheduler.start();
 
     expect(harness.runStore.getRun('stuck-run')).toMatchObject({
       status: 'failed',
@@ -243,12 +246,14 @@ describe('AutomationScheduler', () => {
     const run = harness.scheduler.runNow(deployment());
     await harness.scheduler.idle();
 
+    // Draining is synchronous, so the returned run is already claimed.
     expect(run).toMatchObject({
       automationId: 'auto-1',
-      status: 'queued',
+      status: 'provisioning_workspace',
       triggerKind: 'manual',
       scheduledAt: null,
       deadlineAt: null,
+      startedAt: START,
     });
     expect(harness.execute).toHaveBeenCalledTimes(1);
     expect(harness.execute.mock.calls[0]?.[0]).toMatchObject({
@@ -270,6 +275,7 @@ describe('AutomationScheduler', () => {
       execute: () => new Promise<void>((resolve) => releases.push(resolve)),
     });
     schedulers.push(harness.scheduler);
+    harness.scheduler.start();
 
     harness.scheduler.runNow(deployment());
     harness.scheduler.runNow(deployment({ automationId: 'auto-2' }));
@@ -313,5 +319,98 @@ describe('AutomationScheduler', () => {
     });
     release?.();
     await harness.scheduler.idle();
+  });
+
+  it('stop aborts in-flight workers and awaits them', async () => {
+    const aborts: string[] = [];
+    const harness = createHarness({
+      execute: (run, signal) =>
+        new Promise<void>((resolve) => {
+          signal.addEventListener('abort', () => {
+            aborts.push(run.id);
+            resolve();
+          });
+        }),
+    });
+    schedulers.push(harness.scheduler);
+    harness.scheduler.start();
+
+    const run = harness.scheduler.runNow(deployment());
+    await vi.waitFor(() => {
+      expect(harness.execute).toHaveBeenCalledTimes(1);
+    });
+
+    await harness.scheduler.stop();
+
+    expect(aborts).toEqual([run.id]);
+  });
+
+  it('does not start queued work after stop', async () => {
+    let release: (() => void) | undefined;
+    const harness = createHarness({
+      deployments: [deployment(), deployment({ automationId: 'auto-2' })],
+      maxConcurrentRuns: 1,
+      execute: (_run, signal) =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+          signal.addEventListener('abort', resolve);
+        }),
+    });
+    schedulers.push(harness.scheduler);
+    harness.scheduler.start();
+
+    harness.scheduler.runNow(deployment());
+    await vi.waitFor(() => {
+      expect(harness.execute).toHaveBeenCalledTimes(1);
+    });
+    const waiting = harness.scheduler.runNow(deployment({ automationId: 'auto-2' }));
+    expect(waiting.status).toBe('queued');
+
+    await harness.scheduler.stop();
+    release?.();
+    await harness.scheduler.idle();
+
+    expect(harness.execute).toHaveBeenCalledTimes(1);
+    expect(harness.runStore.getRun(waiting.id)?.status).toBe('queued');
+  });
+
+  it('replaces a scheduled run when the deployment schedule changes', () => {
+    const harness = createHarness({});
+    schedulers.push(harness.scheduler);
+    harness.scheduler.start();
+
+    const original = harness.runStore.getScheduledRun('auto-1');
+    expect(original).not.toBeNull();
+    if (!original) return;
+
+    harness.deploymentStore.deployments.set(
+      'auto-1',
+      deployment({ schedule: { expr: '30 9 * * *', tz: 'UTC' } })
+    );
+    harness.scheduler.reconcile();
+
+    expect(harness.runStore.getRun(original.id)).toMatchObject({
+      status: 'skipped',
+      error: { step: 'queue', code: 'redeployed' },
+    });
+    const replacement = harness.runStore.getScheduledRun('auto-1');
+    expect(replacement?.id).not.toBe(original.id);
+    expect(replacement?.scheduledAt).toBe(START + 31 * MINUTE);
+  });
+
+  it('cancelRun returns null only for unknown runs and is idempotent for terminal runs', async () => {
+    const harness = createHarness({});
+    schedulers.push(harness.scheduler);
+
+    expect(harness.scheduler.cancelRun('missing')).toBeNull();
+
+    const run = harness.scheduler.runNow(deployment());
+    await harness.scheduler.idle();
+
+    const cancelled = harness.scheduler.cancelRun(run.id);
+    expect(cancelled).toMatchObject({ id: run.id, status: 'cancelled' });
+
+    const repeat = harness.scheduler.cancelRun(run.id);
+    expect(repeat).toMatchObject({ id: run.id, status: 'cancelled' });
   });
 });
