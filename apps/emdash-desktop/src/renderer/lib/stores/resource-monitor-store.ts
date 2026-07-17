@@ -1,0 +1,134 @@
+import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
+import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
+import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monitor';
+
+export class ResourceMonitorStore {
+  snapshot: ResourceSnapshot | null = null;
+  isLoadingInitialSnapshot = false;
+  private started = false;
+  private offSnapshot: (() => void) | null = null;
+  private clientId = crypto.randomUUID();
+  private sequence = 0;
+  private requestId = 0;
+  private subscriptionId: string | null = null;
+
+  constructor() {
+    makeObservable(this, {
+      snapshot: observable,
+      isLoadingInitialSnapshot: observable,
+      totalCpuPercent: computed,
+      totalMemoryBytes: computed,
+      appMemoryBytes: computed,
+      agentMemoryBytes: computed,
+      entryCount: computed,
+    });
+  }
+
+  /**
+   * Total CPU usage as a fraction of the whole machine (0 - 100+%).
+   * pidusage reports each PID as % of one core; divide by core count to
+   * normalize against total CPU capacity.
+   */
+  get totalCpuPercent(): number {
+    const snap = this.snapshot;
+    if (!snap || snap.cpuCount === 0) return 0;
+    let sum = snap.app?.cpuPercent ?? 0;
+    for (const e of snap.entries) sum += e.cpu;
+    return sum / snap.cpuCount;
+  }
+
+  get totalMemoryBytes(): number {
+    return this.appMemoryBytes + this.agentMemoryBytes;
+  }
+
+  get appMemoryBytes(): number {
+    return this.snapshot?.app?.memoryBytes ?? 0;
+  }
+
+  get agentMemoryBytes(): number {
+    if (!this.snapshot) return 0;
+    let sum = 0;
+    for (const e of this.snapshot.entries) sum += e.memory;
+    return sum;
+  }
+
+  get entryCount(): number {
+    return this.snapshot?.entries.length ?? 0;
+  }
+
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    runInAction(() => {
+      this.snapshot = null;
+      this.isLoadingInitialSnapshot = true;
+    });
+    const requestId = ++this.requestId;
+    const subscriptionId = crypto.randomUUID();
+    this.subscriptionId = subscriptionId;
+    void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, true, ++this.sequence);
+    this.offSnapshot = events.on(resourceSnapshotChannel, (snap) => {
+      if (!this.isCurrentRequest(requestId)) return;
+      runInAction(() => {
+        this.snapshot = snap;
+        this.isLoadingInitialSnapshot = false;
+      });
+    });
+    rpc.resourceMonitor
+      .getSnapshot()
+      .then((res) => {
+        if (!this.isCurrentRequest(requestId)) return;
+        runInAction(() => {
+          if (res?.success && res.data) {
+            this.applyFetchedSnapshot(res.data);
+          }
+          this.isLoadingInitialSnapshot = false;
+        });
+      })
+      .catch(() => {
+        if (!this.isCurrentRequest(requestId)) return;
+        runInAction(() => {
+          this.isLoadingInitialSnapshot = false;
+        });
+      });
+  }
+
+  dispose(): void {
+    if (!this.started) return;
+    const subscriptionId = this.subscriptionId;
+    this.offSnapshot?.();
+    this.offSnapshot = null;
+    this.started = false;
+    runInAction(() => {
+      this.isLoadingInitialSnapshot = false;
+    });
+    this.subscriptionId = null;
+    if (subscriptionId) {
+      void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, false, ++this.sequence);
+    }
+  }
+
+  async refresh(): Promise<void> {
+    const res = await rpc.resourceMonitor.getSnapshot();
+    if (!res?.success || !res.data) return;
+    runInAction(() => {
+      this.applyFetchedSnapshot(res.data);
+    });
+  }
+
+  private applyFetchedSnapshot(snap: ResourceSnapshot): void {
+    if (this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
+    this.snapshot = snap;
+  }
+
+  private isCurrentRequest(requestId: number): boolean {
+    return this.started && this.requestId === requestId;
+  }
+
+  /** Normalized CPU% (relative to all cores) for a single entry. */
+  normalizedCpu(entry: ResourcePtyEntry): number {
+    if (!this.snapshot || this.snapshot.cpuCount === 0) return 0;
+    return entry.cpu / this.snapshot.cpuCount;
+  }
+}

@@ -19,6 +19,7 @@
     "**/build",
     "**/.turbo",
     "**/out",
+    "**/storybook-static",
     "**/.env*",
     "**/pnpm-lock.yaml",
     "**/yarn.lock",
@@ -31,7 +32,7 @@
     "internalPattern": ["@/", "@root/", "@shared/", "@main/", "@renderer/"]
   },
   "sortTailwindcss": {
-    "stylesheet": "./src/renderer/index.css"
+    "stylesheet": "./apps/emdash-desktop/src/renderer/index.css"
   },
   "sortPackageJson": true
 }

@@ -1,0 +1,150 @@
+{
+  "name": "@emdash/core",
+  "version": "1.0.0",
+  "description": "Transport-agnostic core runtime primitives for Emdash",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Emdash Contributors",
+    "email": "support@emdash.sh"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./acp": {
+      "types": "./dist/acp.d.mts",
+      "default": "./dist/acp.mjs"
+    },
+    "./acp/client": {
+      "types": "./dist/acp-client.d.mts",
+      "default": "./dist/acp-client.mjs"
+    },
+    "./acp/transcript-parser": {
+      "types": "./dist/acp-transcript-parser.d.mts",
+      "default": "./dist/acp-transcript-parser.mjs"
+    },
+    "./deps": {
+      "types": "./dist/deps.d.mts",
+      "default": "./dist/deps.mjs"
+    },
+    "./deps/runtime": {
+      "types": "./dist/deps-runtime.d.mts",
+      "default": "./dist/deps-runtime.mjs"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.mts",
+      "default": "./dist/mcp.mjs"
+    },
+    "./skills": {
+      "types": "./dist/skills.d.mts",
+      "default": "./dist/skills.mjs"
+    },
+    "./exec": {
+      "types": "./dist/exec.d.mts",
+      "default": "./dist/exec.mjs"
+    },
+    "./files": {
+      "types": "./dist/files.d.mts",
+      "default": "./dist/files.mjs"
+    },
+    "./services/fs-watch/api": {
+      "types": "./dist/services-fs-watch-api.d.mts",
+      "default": "./dist/services-fs-watch-api.mjs"
+    },
+    "./services/fs-watch/worker": {
+      "types": "./dist/services-fs-watch-worker.d.mts",
+      "default": "./dist/services-fs-watch-worker.mjs"
+    },
+    "./git": {
+      "types": "./dist/git.d.mts",
+      "default": "./dist/git.mjs"
+    },
+    "./lib": {
+      "types": "./dist/lib.d.mts",
+      "default": "./dist/lib.mjs"
+    },
+    "./pty": {
+      "types": "./dist/pty.d.mts",
+      "default": "./dist/pty.mjs"
+    },
+    "./pty/node": {
+      "types": "./dist/pty-node.d.mts",
+      "default": "./dist/pty-node.mjs"
+    },
+    "./agents/plugins": {
+      "types": "./dist/agents-plugins.d.mts",
+      "default": "./dist/agents-plugins.mjs"
+    },
+    "./agents/plugins/helpers": {
+      "types": "./dist/agents-plugins-helpers.d.mts",
+      "default": "./dist/agents-plugins-helpers.mjs"
+    },
+    "./agents/agent-env": {
+      "types": "./dist/agents-agent-env.d.mts",
+      "default": "./dist/agents-agent-env.mjs"
+    },
+    "./agents/spawn-context": {
+      "types": "./dist/agents-spawn-context.d.mts",
+      "default": "./dist/agents-spawn-context.mjs"
+    },
+    "./workspace-server": {
+      "types": "./dist/workspace-server.d.mts",
+      "default": "./dist/workspace-server.mjs"
+    },
+    "./workspace-server/agent-config": {
+      "types": "./dist/workspace-server-agent-config.d.mts",
+      "default": "./dist/workspace-server-agent-config.mjs"
+    },
+    "./workspace-lifecycle": {
+      "types": "./dist/workspace-lifecycle.d.mts",
+      "default": "./dist/workspace-lifecycle.mjs"
+    },
+    "./workspace-activity": {
+      "types": "./dist/workspace-activity.d.mts",
+      "default": "./dist/workspace-activity.mjs"
+    },
+    "./workspace-coordinator": {
+      "types": "./dist/workspace-coordinator.d.mts",
+      "default": "./dist/workspace-coordinator.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "tsdown --watch",
+    "build": "tsdown",
+    "test": "vitest run",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/core\"'",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsgo --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^1.1.0",
+    "@emdash/shared": "workspace:*",
+    "@emdash/wire": "workspace:*",
+    "@parcel/watcher": "^2.5.6",
+    "glob": "^13.0.6",
+    "immer": "^10.1.1",
+    "semver": "^7.8.4",
+    "smol-toml": "^1.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.42",
+    "@types/semver": "^7.7.1",
+    "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "node-pty": "1.1.0",
+    "tsdown": "^0.22.2",
+    "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "node-pty": "1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    }
+  }
+}

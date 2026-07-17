@@ -6,18 +6,13 @@
 - `src/main/core/mcp/utils/` — adapters, catalog, config IO, config paths, conversion
 - `src/main/core/mcp/controller.ts`
 - `src/shared/mcp/`
-- `src/renderer/components/mcp/`
-- `src/renderer/views/mcp-view.tsx`
+- `src/renderer/features/mcp/` (`mcp-view.tsx`, `components/`)
 
 ## Current Behavior
 
 - MCP server configs are read, adapted, merged, and written across supported agent ecosystems
 - provider-specific config formats are handled through adapters in `src/main/core/mcp/utils/`
 - the renderer MCP UI manages installed servers and catalog entries
-
-## Important Constraint
-
-- Codex currently supports stdio MCP servers only
 
 ## Rules
 

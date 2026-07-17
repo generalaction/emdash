@@ -65,6 +65,6 @@ runs:
         PH_HOST: ${{ inputs.posthog-host }}
         BUILD_VARIANT: ${{ inputs.build-variant }}
       run: |
-        echo "VITE_POSTHOG_KEY=$PH_KEY" >> .env.production
-        echo "VITE_POSTHOG_HOST=$PH_HOST" >> .env.production
-        echo "VITE_BUILD=$BUILD_VARIANT" >> .env.production
+        echo "VITE_POSTHOG_KEY=$PH_KEY" >> apps/emdash-desktop/.env.production
+        echo "VITE_POSTHOG_HOST=$PH_HOST" >> apps/emdash-desktop/.env.production
+        echo "VITE_BUILD=$BUILD_VARIANT" >> apps/emdash-desktop/.env.production

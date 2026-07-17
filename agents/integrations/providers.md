@@ -2,39 +2,47 @@
 
 ## Source Of Truth
 
-- `src/shared/agent-provider-registry.ts`
-- `src/main/core/dependencies/dependency-manager.ts`
+- `packages/plugins/src/agents/registry.ts`
+- `packages/plugins/src/agents/impl/`
+- `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (30)
+## Current Providers (34)
 
-codex, claude, grok, devin, qwen, droid, gemini, antigravity, cursor, copilot, amp, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, pi, autohand, letta
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, oh-my-pi, pi, autohand, letta, mimocode, zero
+
+## Current ACP-Capable Providers (21)
+
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi
 
 ## Provider Metadata Includes
 
-- CLI and detection commands
-- version args
-- install command and docs URL
-- auto-approve flags
-- initial prompt handling
-- keystroke injection behavior
-- resume and session flags
-- optional plan activation and auto-start commands
+- provider metadata and icon assets
+- host dependency detection, install, update, and uninstall descriptors
+- prompt delivery behavior
+- auto-approve, ACP, hooks, MCP, model, session, trust, and plugin capabilities
 
-## Agent Event Classifiers
+## Agent Hooks And Notifications
 
-Each provider has a terminal output classifier in `src/main/core/conversations/impl/agent-event-classifiers/`. These parse agent terminal output to detect events (task completion, errors, etc.) and forward them to the renderer via the agent hooks module (`src/main/core/agent-hooks/`).
+Agent activity, completion, and attention notifications come from explicit hooks or plugins
+installed by `src/main/core/agent-hooks/`. Emdash does not infer agent status from terminal
+output. If a provider has no hook/plugin integration for an event, the renderer should not show
+or notify an inferred status for that event.
 
 ## Provider Runtime Notes
 
 - Claude uses deterministic `--session-id` values for conversation isolation.
-- Agents with no CLI prompt flag (e.g., Amp, OpenCode) use keystroke injection — Emdash types the prompt into the TUI after startup.
-- `src/main/core/agent-hooks/service.ts` forwards hook events to renderer windows and can show OS notifications. Also writes hook config files (`.claude/settings.local.json`, `.codex/config.toml`) into worktrees.
+- Agents that cannot receive an interactive initial prompt via argv or stdin use keystroke
+  injection — Emdash types the prompt into the TUI after startup.
+- `src/main/core/agent-hooks/agent-hook-service.ts` forwards hook events to renderer windows and can show OS notifications. It also writes hook config files for hook-capable providers, including `.claude/settings.local.json`, `.qwen/settings.json`, and provider-specific global hook files.
+- Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 
 ## Adding Or Changing A Provider
 
-1. update `src/shared/agent-provider-registry.ts`
+1. add or update the plugin in `packages/plugins/src/agents/impl/` and register it in
+   `packages/plugins/src/agents/registry.ts`
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
-3. add an agent event classifier in `src/main/core/conversations/impl/agent-event-classifiers/`
+3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
+   supports explicit events
 4. validate detection behavior in `src/main/core/dependencies/`
 5. add or update tests for any non-standard behavior

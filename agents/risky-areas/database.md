@@ -23,15 +23,14 @@
 
 ### Tooling folder
 
-All dev and test infrastructure lives in `tooling/` at the repo root. Nothing
-in `tooling/` is part of the production Electron bundle — the `@tooling` alias
-only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
+All dev and test infrastructure lives in `tooling/` inside `apps/emdash-desktop/`.
+Nothing in `tooling/` is part of the production Electron bundle — the `@tooling`
+alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 
 ```
 tooling/
 ├── byoi/               SSH BYOI provisioning (Docker)
 ├── docker-ssh/         SSH test container (Docker)
-├── db/                 gitignored — per-developer dev database
 ├── fixtures/           committed SQLite snapshots (empty.db, baseline.db)
 ├── node-deps/          isolated better-sqlite3 compiled for system Node
 ├── seeds/              seed functions that populate fixtures
@@ -42,13 +41,13 @@ tooling/
 
 ### Isolated dev database
 
-Use `pnpm run db:dev` instead of `pnpm run dev` when working on migrations.
-This writes to `tooling/db/dev.db` (gitignored) instead of your personal
-emdash database, so schema experiments cannot corrupt your real app data.
+Point `EMDASH_DB_FILE` at a scratch path instead of using the default database
+when working on migrations, so schema experiments cannot corrupt your real app
+data. `pnpm run db:reset` wipes the default dev databases.
 
 ```bash
-pnpm run db:dev        # start app with isolated dev database
-pnpm run db:dev:reset  # wipe the dev database and start fresh
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev   # start app with isolated dev database
+pnpm run db:reset                                    # wipe the dev databases and start fresh
 ```
 
 ### Fixture databases
@@ -65,12 +64,13 @@ pnpm run db:fixtures   # writes .db files — no rebuild needed
 ```
 
 `db:fixtures` and `test:migrations` use an isolated copy of `better-sqlite3`
-installed under `tooling/node-deps/` (compiled for system Node). The root
+installed under `tooling/node-deps/` (compiled for system Node). The app's
 `node_modules/better-sqlite3` stays Electron-compiled at all times.
 
 ### Migration authoring checklist
 
-1. **Isolate your dev DB**: run `pnpm run db:dev` so you're working against `tooling/db/dev.db`
+1. **Isolate your dev DB**: run the app with `EMDASH_DB_FILE` pointing at a scratch path
+   so you're not working against your personal emdash database
 
 2. **Snapshot the pre-migration baseline**:
    ```bash
@@ -83,7 +83,7 @@ installed under `tooling/node-deps/` (compiled for system Node). The root
    pnpm run db:generate
    ```
 
-4. **Write a migration test** in `src/main/db/__tests__/migrations/` using `openFixture('pre-XXXX')`.
+4. **Write a migration test** in `src/main/db/tests/migrations/` using `openFixture('pre-XXXX')`.
    See `example.test.ts` in that directory for the pattern.
 
 5. **Regenerate fixtures** so `baseline.db` and `empty.db` include the new schema:
@@ -99,12 +99,74 @@ installed under `tooling/node-deps/` (compiled for system Node). The root
 7. **Commit everything together**: migration SQL (`drizzle/`), `drizzle/meta/`,
    `pre-XXXX.db`, updated `tooling/fixtures/*.db`, the migration test.
 
+## Versioned JSON columns
+
+### What they are
+
+Some `text()` columns store structured JSON that may evolve across app versions.
+These columns use `versionedJsonColumn()` — a Drizzle `customType` that
+transparently handles version detection, upgrade chains, and serialization.
+
+```ts
+import { versionedJsonColumn } from '@main/db/versioned-column';
+import { myConfig } from '@shared/my-config';
+
+export const myTable = sqliteTable('my_table', {
+  col: versionedJsonColumn(myConfig)('col'),
+  // inferred type: MyConfig | null
+});
+```
+
+Drizzle's `fromDriver` runs the full upgrade chain on read. `toDriver` always
+serializes the latest version on write. No `JSON.parse` or `JSON.stringify` is
+needed at call sites.
+
+### Schema definitions
+
+Versioned schema definitions live in `src/shared/`. See
+`agents/conventions/versioned-schemas.md` for the full guide including the
+`defineVersionedSchema()` builder API, upgrade function patterns, and testing
+guidance.
+
+### Column inventory
+
+| Column | Schema file |
+|--------|-------------|
+| `workspaces.config` | `src/shared/workspace-config.ts` |
+| `workspaces.data` | `src/shared/workspace-provider-data.ts` |
+| `conversations.config` | `src/shared/conversation-config.ts` |
+| `tasks.workspace_intent` | `src/shared/workspace-config.ts` |
+| `tasks.task_config` | `src/shared/task-config.ts` |
+| `tasks.linked_issue` | `src/shared/linked-issue.ts` |
+| `automations.trigger_config` | `src/shared/automations/config.ts` |
+| `automations.conversation_config` | `src/shared/automations/config.ts` |
+| `automations.task_config` | `src/shared/automations/config.ts` |
+| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` |
+
+### Snapshot columns and raw SQL
+
+`versionedJsonColumn` only hooks into ORM-level reads and writes. Columns written
+via raw SQL in automation run snapshots bypass `fromDriver`/`toDriver`. Those
+columns remain `text()` — call `schema.parseJson(row.col)` explicitly on read and
+`JSON.stringify` on write.
+
+### Risky operations
+
+- **Removing a field from a schema**: always keep the field as `.optional()` or
+  provide an upgrade function that drops it. Removing it silently breaks old rows
+  that still carry the field.
+- **Renaming a field**: requires a new version with an upgrade function.
+- **Changing a field type in place**: requires a new version. Never change a field
+  type within an existing version.
+- **Adding a required field without a default**: must either be `.optional()` or
+  require an upgrade function that supplies a default value.
+
 ### Testing utilities
 
 - `openFixture(name)` in `tooling/utils/db.ts` — copies a named fixture to a
   temp file, applies any pending migrations (via our own `initializeDatabase()`),
   returns a `DrizzleClient`. Each call is fully isolated; `close()` deletes the temp file.
   Import via `@tooling/utils/db` (alias available in all Vitest projects).
-- Migration tests live in `src/main/db/__tests__/migrations/` and run via
+- Migration tests live in `src/main/db/tests/migrations/` and run via
   `pnpm run test:migrations` (separate from the main test suite because they
   use `import.meta.glob`, which requires Vite's transform pipeline).

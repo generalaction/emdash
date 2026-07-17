@@ -1,0 +1,563 @@
+import type { Result, Unsubscribe } from '@emdash/shared';
+import { z } from 'zod';
+import { isEventStreamHost, type EventStreamHost } from '../live/event-stream';
+import { LiveJob, type LiveJobContext } from '../live/job';
+import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/mutations';
+import type { LiveSource } from '../live/protocol';
+import {
+  isLiveJobReplica,
+  isLiveLogReplica,
+  isLiveModelProvider,
+  type LiveJobReplica,
+  type LiveLogReplica,
+  type LiveModelProvider,
+} from '../live/replica';
+import type { BlobSource, WireFile } from './blob-channel';
+import {
+  isEventStreamClientHandle,
+  isLiveModelClientHandle,
+  isLiveJobClientHandle,
+  isLiveLogClientHandle,
+  type EventStreamClientHandle,
+  type LiveModelClientHandle,
+  type LiveJobClientHandle,
+  type LiveLogClientHandle,
+} from './client';
+import type {
+  Contract,
+  ContractDefinitions,
+  DownloadFileEndpointDef,
+  DownloadFileError,
+  DownloadFileInput,
+  DownloadFileMeta,
+  EndpointDef,
+  EventStreamEndpointDef,
+  EventStreamKey,
+  EndpointInput,
+  EndpointOutput,
+  LiveLogKey,
+  LiveJobEndpointDef,
+  JobInput,
+  JobProgress,
+  JobResult,
+  JobError,
+  LiveModelDef,
+  UploadFileEndpointDef,
+  UploadFileError,
+  UploadFileInput,
+  UploadFileResult,
+} from './define';
+import { isEndpointDef } from './define';
+import type { WireFileMeta } from './protocol';
+import { WireError } from './protocol';
+import { splitTopic } from './topics';
+
+export type CallMeta = {
+  signal?: AbortSignal;
+  uploadFile?: WireFile;
+};
+
+const downloadFileOpenSymbol: unique symbol = Symbol('wire.downloadFileOpen');
+
+export type DownloadFileOpen = {
+  readonly [downloadFileOpenSymbol]: true;
+  readonly meta: WireFileMeta;
+  readonly source: BlobSource;
+};
+
+export function markDownloadFileOpen(meta: WireFileMeta, source: BlobSource): DownloadFileOpen {
+  return { [downloadFileOpenSymbol]: true, meta, source };
+}
+
+export function isDownloadFileOpenResult(
+  value: unknown
+): value is { success: true; data: DownloadFileOpen } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { success?: unknown }).success === true &&
+    typeof (value as { data?: unknown }).data === 'object' &&
+    (value as { data?: { [downloadFileOpenSymbol]?: unknown } }).data?.[downloadFileOpenSymbol] ===
+      true
+  );
+}
+
+export type Controller = {
+  call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
+  resolveLive(topic: string): LiveSource | null;
+  dispose?(): void;
+};
+
+type ProcedureImpl<Def extends EndpointDef> = (
+  input: EndpointInput<Def>,
+  meta: CallMeta
+) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
+
+type DownloadFileImpl<Def extends DownloadFileEndpointDef> = (
+  input: DownloadFileInput<Def>,
+  meta: CallMeta
+) =>
+  | Promise<Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>>
+  | Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>;
+
+type UploadFileImpl<Def extends UploadFileEndpointDef> = (
+  input: UploadFileInput<Def>,
+  file: WireFile,
+  meta: CallMeta
+) =>
+  | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
+  | Result<UploadFileResult<Def>, UploadFileError<Def>>;
+
+type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
+
+type LiveLogEntryImpl<Def extends EndpointDef> =
+  | LiveLogImpl<Def>
+  | LiveLogClientHandle
+  | LiveLogReplica;
+
+type EventStreamImpl<Def extends EventStreamEndpointDef> = (
+  key: EventStreamKey<Def>
+) => LiveSource | null | undefined;
+
+type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
+  | EventStreamImpl<Def>
+  | EventStreamHost<Def>
+  | EventStreamClientHandle<Def>;
+
+type GroupImpl<Def extends LiveModelDef> =
+  | LiveModelHost<Def>
+  | LiveModelClientHandle<Def>
+  | LiveModelProvider<Def>;
+
+type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
+  ? ProcedureImpl<Def>
+  : Def extends { kind: 'liveLog' }
+    ? LiveLogEntryImpl<Def>
+    : Def extends EventStreamEndpointDef
+      ? EventStreamEntryImpl<Def>
+      : Def extends LiveModelDef
+        ? GroupImpl<Def>
+        : Def extends LiveJobEndpointDef
+          ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
+          : Def extends DownloadFileEndpointDef
+            ? DownloadFileImpl<Def>
+            : Def extends UploadFileEndpointDef
+              ? UploadFileImpl<Def>
+              : never;
+
+type JobImpl<Def extends LiveJobEndpointDef> = {
+  run(
+    input: JobInput<Def>,
+    ctx: LiveJobContext<JobProgress<Def>>
+  ): Promise<Result<JobResult<Def>, JobError<Def>>> | Result<JobResult<Def>, JobError<Def>>;
+  toError?(error: unknown): JobError<Def>;
+};
+
+export type ContractImpl<Defs extends ContractDefinitions> = {
+  [Name in keyof Defs]?: Defs[Name] extends EndpointDef
+    ? EndpointImpl<Defs[Name]>
+    : Defs[Name] extends Contract<infer Nested>
+      ? ContractImpl<Nested>
+      : never;
+};
+
+type LiveEntry = {
+  resolve(key: unknown): LiveSource | null | undefined;
+};
+
+const jobKeySchema = z.object({ jobId: z.string() });
+
+export function createController<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  impl: ContractImpl<Defs>
+): Controller {
+  const liveEntries = new Map<string, LiveEntry>();
+  const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
+  const jobServers: Array<{ dispose(): void }> = [];
+
+  collectContractEntries(contract, impl as Record<string, unknown>, []);
+
+  function collectContractEntries(
+    definitions: ContractDefinitions,
+    impl: Record<string, unknown> | undefined,
+    prefix: string[]
+  ): void {
+    for (const [name, def] of Object.entries(definitions)) {
+      const fullPath = [...prefix, name].join('.');
+      const entryImpl = impl?.[name];
+      if (!isEndpointDef(def)) {
+        collectContractEntries(
+          def,
+          isRecord(entryImpl) ? (entryImpl as Record<string, unknown>) : undefined,
+          [...prefix, name]
+        );
+        continue;
+      }
+
+      switch (def.kind) {
+        case 'procedure': {
+          const handler = entryImpl as ((input: unknown, meta: CallMeta) => unknown) | undefined;
+          if (!handler) break;
+          procedureEntries.set(fullPath, async (input, meta) => {
+            return await handler(input, meta);
+          });
+          break;
+        }
+        case 'downloadFile': {
+          const handler = entryImpl as DownloadFileImpl<DownloadFileEndpointDef> | undefined;
+          if (!handler) break;
+          procedureEntries.set(fullPath, async (input, meta) => {
+            const output = await handler(input, meta);
+            if (!output.success) {
+              return output;
+            }
+            return {
+              success: true,
+              data: markDownloadFileOpen(output.data.meta as WireFileMeta, output.data.source),
+            };
+          });
+          break;
+        }
+        case 'uploadFile': {
+          const handler = entryImpl as UploadFileImpl<UploadFileEndpointDef> | undefined;
+          if (!handler) break;
+          procedureEntries.set(fullPath, async (input, meta) => {
+            const uploadFile = meta.uploadFile;
+            if (!uploadFile) {
+              throw new WireError(
+                'HANDLER_ERROR',
+                `Upload file '${fullPath}' requires a file payload`
+              );
+            }
+            validateUploadFileEnvelope(def, uploadFile);
+            return await handler(input, limitUploadFile(uploadFile, def.maxSize), meta);
+          });
+          break;
+        }
+        case 'liveLog': {
+          const impl = entryImpl as LiveLogEntryImpl<EndpointDef> | undefined;
+          if (!impl) {
+            throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
+          }
+          if (isLiveLogReplica(impl) && impl.def.id !== def.id) {
+            throw new WireError(
+              'CONTRACT_MISMATCH',
+              `Live log replica for '${fullPath}' was created for '${impl.def.id}'`
+            );
+          }
+          liveEntries.set(def.id, {
+            resolve: createLiveLogResolver(impl),
+          });
+          break;
+        }
+        case 'eventStream': {
+          const impl = entryImpl as EventStreamEntryImpl<EventStreamEndpointDef> | undefined;
+          if (!impl) {
+            throw new WireError(
+              'MISSING_HANDLER',
+              `Event stream '${fullPath}' requires a resolver`
+            );
+          }
+          liveEntries.set(def.id, {
+            resolve: createEventStreamResolver(def, impl),
+          });
+          break;
+        }
+        case 'liveJob': {
+          const impl = entryImpl as
+            | JobImpl<LiveJobEndpointDef>
+            | LiveJobClientHandle
+            | LiveJobReplica
+            | undefined;
+          if (!impl) {
+            throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
+          }
+          if (isLiveJobClientHandle(impl)) {
+            procedureEntries.set(`${fullPath}.start`, (input) => impl.start(input as never));
+            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+              const parsed = jobKeySchema.parse(input);
+              await impl.cancel(parsed.jobId);
+              return undefined;
+            });
+            liveEntries.set(def.id, {
+              resolve: (key) => impl.handle((key as { jobId: string }).jobId).asLiveSource(),
+            });
+            break;
+          }
+          if (isLiveJobReplica(impl)) {
+            if (impl.def.id !== def.id) {
+              throw new WireError(
+                'CONTRACT_MISMATCH',
+                `Live job replica for '${fullPath}' was created for '${impl.def.id}'`
+              );
+            }
+            procedureEntries.set(`${fullPath}.start`, async (input) => {
+              const lease = await impl.start(input as never);
+              try {
+                const job = await lease.ready();
+                return { jobId: job.jobId };
+              } finally {
+                await lease.release();
+              }
+            });
+            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+              const parsed = jobKeySchema.parse(input);
+              await impl.cancel(parsed.jobId);
+              return undefined;
+            });
+            liveEntries.set(def.id, {
+              resolve: (key) => impl.resolve((key as { jobId: string }).jobId),
+            });
+            break;
+          }
+          const server = createLiveJob(impl);
+          jobServers.push(server);
+          procedureEntries.set(`${fullPath}.start`, async (input) => {
+            return server.start(input);
+          });
+          procedureEntries.set(`${fullPath}.cancel`, async (input) => {
+            const parsed = jobKeySchema.parse(input);
+            server.cancel(parsed.jobId);
+            return undefined;
+          });
+          liveEntries.set(def.id, {
+            resolve: (key) => server.source((key as { jobId: string }).jobId),
+          });
+          break;
+        }
+        case 'liveModel': {
+          const provider = createGroupProvider(def, entryImpl, fullPath);
+          for (const [stateName, state] of Object.entries(def.states)) {
+            liveEntries.set(state.id, {
+              resolve: (key) => provider.resolveState(key as never, stateName),
+            });
+          }
+          for (const mutationName of Object.keys(def.mutations)) {
+            procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
+              const envelope = parseGroupMutationInput(input);
+              return await provider.runMutation(mutationName, envelope as never);
+            });
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  function createGroupProvider(
+    def: LiveModelDef,
+    entryImpl: unknown,
+    fullPath: string
+  ): LiveModelProvider {
+    if (isLiveModelProvider(entryImpl)) {
+      if (entryImpl.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
+        );
+      }
+      return entryImpl;
+    }
+
+    if (isLiveModelClientHandle(entryImpl)) {
+      if (entryImpl.def.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Live model client handle for '${fullPath}' was created for '${entryImpl.def.id}'`
+        );
+      }
+      return {
+        kind: 'liveModelProvider',
+        contract: def,
+        resolveState: (key, name) => entryImpl.state(key, name).asLiveSource(),
+        runMutation: (name, envelope) => entryImpl.mutate(name, envelope),
+      };
+    }
+
+    if (isLiveModelHost(entryImpl)) {
+      const host = entryImpl as LiveModelHost<LiveModelDef>;
+      if (host.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Live model host for '${fullPath}' was created for '${host.contract.id}'`
+        );
+      }
+      for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+        if (mutationDef.handler ?? host.mutationHandler(mutationName)) continue;
+        throw new WireError(
+          'MISSING_HANDLER',
+          `Mutation '${fullPath}.${mutationName}' requires a handler`
+        );
+      }
+      return {
+        kind: 'liveModelProvider',
+        contract: def,
+        resolveState: (key, name) => host.get(key as never)?.states[name],
+        runMutation: (name, envelope) => host.runMutation(name as never, envelope as never),
+      };
+    }
+
+    throw new WireError(
+      'MISSING_HANDLER',
+      `Group '${fullPath}' requires a LiveModelHost or provider`
+    );
+  }
+
+  return {
+    async call(path, input, meta = {}) {
+      const handler = procedureEntries.get(path);
+      if (!handler) throw new WireError('UNKNOWN_PROCEDURE', `Unknown procedure '${path}'`);
+      return await handler(input, meta);
+    },
+    resolveLive(topic) {
+      const { refId, rawKey } = splitTopic(topic);
+      const entry = liveEntries.get(refId);
+      if (!entry) return null;
+      return entry.resolve(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+    },
+    dispose() {
+      for (const server of jobServers) server.dispose();
+    },
+  };
+}
+
+function limitUploadFile(file: WireFile, maxSize: number | undefined): WireFile {
+  if (maxSize === undefined) return file;
+  return {
+    ...file,
+    stream() {
+      return (async function* () {
+        const iterator = file.stream()[Symbol.asyncIterator]();
+        let total = 0;
+        try {
+          for (;;) {
+            const next = await iterator.next();
+            if (next.done) return;
+            const chunk = next.value;
+            total += chunk.byteLength;
+            if (total > maxSize) {
+              file.cancel();
+              throw new WireError(
+                'CONTRACT_MISMATCH',
+                `Upload file size exceeded maximum ${maxSize}`
+              );
+            }
+            yield chunk;
+          }
+        } finally {
+          await iterator.return?.();
+        }
+      })();
+    },
+    async bytes() {
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for await (const chunk of this.stream()) {
+        chunks.push(chunk);
+        total += chunk.byteLength;
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return out;
+    },
+  };
+}
+
+function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile): void {
+  if (def.accept && !def.accept.includes(file.mimeType)) {
+    throw new WireError(
+      'CONTRACT_MISMATCH',
+      `Upload file MIME type '${file.mimeType}' is not accepted`
+    );
+  }
+  if (def.maxSize !== undefined && file.size !== undefined && file.size > def.maxSize) {
+    throw new WireError(
+      'CONTRACT_MISMATCH',
+      `Upload file size ${file.size} exceeds maximum ${def.maxSize}`
+    );
+  }
+}
+
+export { encodeTopic, splitTopic } from './topics';
+
+function createLiveLogResolver(
+  impl: LiveLogEntryImpl<EndpointDef>
+): (key: unknown) => LiveSource | null | undefined {
+  if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
+  if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
+  return impl as (key: unknown) => LiveSource | null | undefined;
+}
+
+function createEventStreamResolver(
+  def: EventStreamEndpointDef,
+  impl: EventStreamEntryImpl<EventStreamEndpointDef>
+): (key: unknown) => LiveSource | null | undefined {
+  if (isEventStreamHost(impl)) {
+    if (impl.def.id !== def.id) {
+      throw new WireError(
+        'CONTRACT_MISMATCH',
+        `Event stream host for '${def.id}' was created for '${impl.def.id}'`
+      );
+    }
+    return (key) => impl.resolve(key as never);
+  }
+  if (isEventStreamClientHandle(impl)) {
+    if (impl.def.id !== def.id) {
+      throw new WireError(
+        'CONTRACT_MISMATCH',
+        `Event stream client handle for '${def.id}' was created for '${impl.def.id}'`
+      );
+    }
+    return (key) => impl.handle(key as never).asLiveSource();
+  }
+  return impl as (key: unknown) => LiveSource | null | undefined;
+}
+
+function createLiveJob(
+  impl: JobImpl<LiveJobEndpointDef>
+): LiveJob<unknown, unknown, unknown, unknown> {
+  return new LiveJob<unknown, unknown, unknown, unknown>(
+    async (input, ctx) => {
+      return await impl.run(input, {
+        jobId: ctx.jobId,
+        signal: ctx.signal,
+        progress: (progress) => ctx.progress(progress),
+      });
+    },
+    {
+      toError: impl.toError,
+    }
+  );
+}
+
+function parseGroupMutationInput(input: unknown): {
+  key: unknown;
+  input: Record<string, unknown>;
+  mutationId: string;
+} {
+  const envelope = input as { key?: unknown; input?: unknown; mutationId?: unknown };
+  return {
+    key: envelope.key,
+    input: (envelope.input ?? {}) as Record<string, unknown>,
+    mutationId: typeof envelope.mutationId === 'string' ? envelope.mutationId : createMutationId(),
+  };
+}
+
+function missingLiveSource(message: string): LiveSource {
+  return {
+    snapshot() {
+      throw new WireError('NOT_FOUND', message);
+    },
+    subscribe(): Unsubscribe {
+      throw new WireError('NOT_FOUND', message);
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

@@ -1,0 +1,14 @@
+import { createVariadicAdapter } from '@emdash/shared/logger';
+import { initProcessLogging } from '@emdash/shared/logger/node';
+import { getLogFileDestination } from './file-logger';
+
+const inner = initProcessLogging({
+  name: 'emdash-main',
+  env: process.env,
+  debugFlag: process.argv.includes('--debug-logs'),
+  destination: getLogFileDestination(),
+});
+
+export const log = createVariadicAdapter(inner);
+
+export type Logger = typeof log;
