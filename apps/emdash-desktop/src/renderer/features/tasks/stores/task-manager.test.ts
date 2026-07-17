@@ -1,5 +1,7 @@
 import type * as Wire from '@emdash/wire';
+import { runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { taskDeletedChannel } from '@shared/core/tasks/taskEvents';
 import type { Task } from '@shared/core/tasks/tasks';
 import { TaskManagerStore } from './task-manager';
 import { createUnprovisionedTask } from './task-store';
@@ -8,12 +10,14 @@ type MockViewModel = {
   initialize: ReturnType<typeof vi.fn>;
   suspend: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
-  restoreSnapshot: ReturnType<typeof vi.fn>;
+  space: { ready: Promise<void> };
 };
 
 type MockDraftComments = {
   dispose: ReturnType<typeof vi.fn>;
 };
+
+let taskDeletedHandler: ((event: { taskId: string; projectId: string }) => void) | undefined;
 
 const mocks = vi.hoisted(() => ({
   archiveTask: vi.fn(),
@@ -21,7 +25,9 @@ const mocks = vi.hoisted(() => ({
   conversationRelease: vi.fn(),
   createLiveJobReplica: vi.fn(),
   createLiveModelReplica: vi.fn(),
+  deleteBySubject: vi.fn(),
   draftComments: [] as MockDraftComments[],
+  eventOn: vi.fn(),
   getConversationsForProject: vi.fn(),
   getProjectManagerStore: vi.fn(),
   getPullRequestsForTask: vi.fn(),
@@ -33,7 +39,6 @@ const mocks = vi.hoisted(() => ({
   terminalAcquire: vi.fn(),
   terminalRelease: vi.fn(),
   viewModels: [] as MockViewModel[],
-  viewStateGet: vi.fn(),
   workspaceActivate: vi.fn(),
   workspaceAcquire: vi.fn(),
   workspaceRelease: vi.fn(),
@@ -58,7 +63,7 @@ vi.mock('@renderer/lib/runtime/workspaces-wire-client', () => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
-    on: vi.fn(() => () => {}),
+    on: mocks.eventOn,
   },
   rpc: {
     conversations: {
@@ -76,19 +81,18 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+vi.mock('@renderer/lib/mementos', () => ({
+  getMementoClient: () => ({
+    deleteBySubject: mocks.deleteBySubject,
+  }),
+}));
+
 vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
   getProjectManagerStore: mocks.getProjectManagerStore,
 }));
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getTaskGitCheckoutStore: mocks.getTaskGitCheckoutStore,
-}));
-
-vi.mock('@renderer/lib/stores/view-state-cache', () => ({
-  viewStateCache: {
-    get: mocks.viewStateGet,
-    set: vi.fn(),
-  },
 }));
 
 vi.mock('sonner', () => ({
@@ -112,7 +116,7 @@ vi.mock('./workspace-view-model', () => ({
     initialize = vi.fn();
     suspend = vi.fn();
     dispose = vi.fn();
-    restoreSnapshot = vi.fn();
+    space = { ready: Promise.resolve() };
 
     constructor() {
       mocks.viewModels.push(this);
@@ -174,6 +178,19 @@ function makeTaskManager(): TaskManagerStore {
 describe('TaskManagerStore archive lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    taskDeletedHandler = undefined;
+    mocks.eventOn.mockImplementation(
+      (
+        channel: typeof taskDeletedChannel,
+        handler: (event: { taskId: string; projectId: string }) => void
+      ) => {
+        if (channel === taskDeletedChannel) {
+          taskDeletedHandler = handler;
+        }
+        return vi.fn();
+      }
+    );
+    mocks.deleteBySubject.mockResolvedValue(undefined);
     mocks.draftComments.length = 0;
     mocks.viewModels.length = 0;
     mocks.archiveTask.mockResolvedValue(undefined);
@@ -216,7 +233,6 @@ describe('TaskManagerStore archive lifecycle', () => {
       }),
       dispose: async () => {},
     });
-    mocks.viewStateGet.mockResolvedValue(undefined);
   });
 
   it('archives by disposing frontend runtime instead of soft-tearing down the task', async () => {
@@ -252,18 +268,32 @@ describe('TaskManagerStore archive lifecycle', () => {
     const store = createUnprovisionedTask(task);
     store.transitionToDryUnprovisioned(task);
     manager.tasks.set(task.id, store);
-    const snapshot = { sidebarTab: 'conversations' };
-    mocks.viewStateGet.mockResolvedValue(snapshot);
-
     await manager.provisionTask(task.id);
 
     expect(mocks.conversationAcquire).toHaveBeenCalledWith('task-1', 'project-1');
     expect(mocks.terminalAcquire).toHaveBeenCalledWith('task-1', 'project-1');
     expect(store.state).toBe('provisioned');
     expect(store.viewModel).toBe(mocks.viewModels[1]);
-    expect(mocks.viewModels[1].restoreSnapshot).toHaveBeenCalledWith(snapshot);
     expect(mocks.viewModels[1].initialize).toHaveBeenCalledOnce();
 
+    manager.dispose();
+  });
+
+  it('deletes task mementos after a backend deletion event', async () => {
+    const manager = makeTaskManager();
+    runInAction(() => {
+      manager.tasks.set('task-1', createUnprovisionedTask(makeTask()));
+    });
+
+    taskDeletedHandler?.({ taskId: 'task-1', projectId: 'project-1' });
+    await vi.waitFor(() => {
+      expect(mocks.deleteBySubject).toHaveBeenCalledWith({
+        kind: 'task',
+        key: 'task-1',
+      });
+    });
+
+    expect(manager.tasks.has('task-1')).toBe(false);
     manager.dispose();
   });
 });

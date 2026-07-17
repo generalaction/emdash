@@ -12,6 +12,7 @@ import {
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const coreSrcRoot = path.join(repoRoot, 'packages/core/src');
+const desktopCoreSrcRoot = path.join(repoRoot, 'apps/emdash-desktop/src/core');
 
 test('classifies core module source files', () => {
   assert.deepEqual(
@@ -32,6 +33,16 @@ test('classifies core module source files', () => {
     }
   );
   assert.equal(classifyCorePath(path.join(repoRoot, 'packages/core/src/workspace-server/index.ts')), undefined);
+  assert.deepEqual(
+    classifyCorePath(
+      path.join(desktopCoreSrcRoot, 'features/tasks/contributions/mementos.ts'),
+      desktopCoreSrcRoot
+    ),
+    {
+      type: 'features',
+      moduleName: 'tasks',
+    }
+  );
 });
 
 test('classifies alias, package, and relative imports', () => {
@@ -53,6 +64,17 @@ test('classifies alias, package, and relative imports', () => {
     moduleName: 'host-dependencies',
   });
   assert.equal(classifyImportSpecifier('@emdash/shared', fromFile, coreSrcRoot), undefined);
+  assert.deepEqual(
+    classifyImportSpecifier(
+      '@core/primitives/mementos/api',
+      path.join(desktopCoreSrcRoot, 'features/tasks/contributions/mementos.ts'),
+      desktopCoreSrcRoot
+    ),
+    {
+      type: 'primitives',
+      moduleName: 'mementos',
+    }
+  );
 });
 
 test('allows only the core module dependency graph', () => {
@@ -62,6 +84,8 @@ test('allows only the core module dependency graph', () => {
   const servicePty = { type: 'services', moduleName: 'pty' };
   const primitivePath = { type: 'primitives', moduleName: 'path' };
   const primitiveHost = { type: 'primitives', moduleName: 'host' };
+  const featureTasks = { type: 'features', moduleName: 'tasks' };
+  const featureProjects = { type: 'features', moduleName: 'projects' };
 
   assert.equal(isAllowedCoreModuleDependency(runtimeGit, runtimeGit), true);
   assert.equal(isAllowedCoreModuleDependency(runtimeGit, runtimeFiles), false);
@@ -73,6 +97,10 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(primitivePath, primitiveHost), true);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, serviceExec), false);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, runtimeGit), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasks, primitivePath), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasks, featureTasks), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasks, featureProjects), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasks, serviceExec), false);
 });
 
 test('oxlint visitor reports imports, re-exports, and dynamic imports', async () => {

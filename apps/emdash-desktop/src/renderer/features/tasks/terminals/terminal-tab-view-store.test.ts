@@ -1,3 +1,5 @@
+import type { TaskTerminalSelectionState } from '@core/features/tasks/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
@@ -35,6 +37,33 @@ function makeLoadingManager(terminals: TerminalManagerStore['terminals']): Termi
   }) as unknown as TerminalManagerStore & { isLoaded: boolean };
 }
 
+function makeHandle(
+  initial: Partial<TaskTerminalSelectionState> = {}
+): MementoHandle<TaskTerminalSelectionState> {
+  let value: TaskTerminalSelectionState = {
+    version: '1',
+    tabOrder: [],
+    ...initial,
+  };
+  return {
+    get value() {
+      return value;
+    },
+    ready: Promise.resolve(),
+    isPending: false,
+    hasStoredValue: true,
+    read: () => value,
+    update: (next) => {
+      value = typeof next === 'function' ? next(value) : next;
+    },
+    reset: async () => {},
+    flush: async () => {},
+    autoPersist: () =>
+      (() => {}) as ReturnType<MementoHandle<TaskTerminalSelectionState>['autoPersist']>,
+    dispose: async () => {},
+  };
+}
+
 function registryEntries(): {
   set(taskId: string, manager: TerminalManagerStore): void;
   delete(taskId: string): boolean;
@@ -57,7 +86,10 @@ describe('TerminalTabViewStore', () => {
 
   it('syncs terminal ids when the terminal manager becomes available after construction', () => {
     const terminals = observable.map<string, TerminalStore>();
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    const view = new TerminalTabViewStore(
+      makeHandle(),
+      () => terminalRegistry.get('task-1') ?? null
+    );
 
     runInAction(() => {
       registryEntries().set('task-1', makeManager(terminals));
@@ -75,11 +107,13 @@ describe('TerminalTabViewStore', () => {
     terminals.set('terminal-2', makeTerminal('terminal-2', 'Terminal 2'));
     registryEntries().set('task-1', makeManager(terminals));
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
-    view.restoreSnapshot({
-      tabOrder: ['terminal-2'],
-      activeTabId: 'terminal-2',
-    });
+    const view = new TerminalTabViewStore(
+      makeHandle({
+        tabOrder: ['terminal-2'],
+        activeTabId: 'terminal-2',
+      }),
+      () => terminalRegistry.get('task-1') ?? null
+    );
 
     expect(view.tabOrder).toEqual(['terminal-2', 'terminal-1']);
     expect(view.activeTabId).toBe('terminal-2');
@@ -93,11 +127,13 @@ describe('TerminalTabViewStore', () => {
     terminals.set('terminal-2', makeTerminal('terminal-2', 'Terminal 2'));
     registryEntries().set('task-1', makeManager(terminals));
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
-    view.restoreSnapshot({
-      tabOrder: ['deleted-terminal'],
-      activeTabId: 'deleted-terminal',
-    });
+    const view = new TerminalTabViewStore(
+      makeHandle({
+        tabOrder: ['deleted-terminal'],
+        activeTabId: 'deleted-terminal',
+      }),
+      () => terminalRegistry.get('task-1') ?? null
+    );
 
     expect(view.tabOrder).toEqual(['terminal-1', 'terminal-2']);
     expect(view.activeTabId).toBe('terminal-1');
@@ -106,11 +142,13 @@ describe('TerminalTabViewStore', () => {
   });
 
   it('reconciles a restored snapshot after the terminal manager loads later', () => {
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
-    view.restoreSnapshot({
-      tabOrder: ['deleted-terminal'],
-      activeTabId: 'deleted-terminal',
-    });
+    const view = new TerminalTabViewStore(
+      makeHandle({
+        tabOrder: ['deleted-terminal'],
+        activeTabId: 'deleted-terminal',
+      }),
+      () => terminalRegistry.get('task-1') ?? null
+    );
 
     const terminals = observable.map<string, TerminalStore>();
     terminals.set('terminal-1', makeTerminal('terminal-1', 'Terminal 1'));
@@ -130,11 +168,13 @@ describe('TerminalTabViewStore', () => {
     const manager = makeLoadingManager(terminals);
     registryEntries().set('task-1', manager);
 
-    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
-    view.restoreSnapshot({
-      tabOrder: ['deleted-terminal'],
-      activeTabId: 'deleted-terminal',
-    });
+    const view = new TerminalTabViewStore(
+      makeHandle({
+        tabOrder: ['deleted-terminal'],
+        activeTabId: 'deleted-terminal',
+      }),
+      () => terminalRegistry.get('task-1') ?? null
+    );
 
     runInAction(() => {
       manager.isLoaded = true;

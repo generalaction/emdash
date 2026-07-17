@@ -1,5 +1,5 @@
 import React from 'react';
-import { rpc } from '../ipc';
+import { getMementoClient } from '../mementos';
 import { Button } from '../ui/button';
 
 type ErrorBoundaryState = {
@@ -36,11 +36,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   handleReload = () => {
-    void rpc.viewState.reset().finally(() => {
-      try {
-        window.location.reload();
-      } catch {}
-    });
+    void Promise.resolve()
+      .then(async () => await getMementoClient().deleteAll())
+      .catch(() => {})
+      .finally(() => {
+        try {
+          window.location.reload();
+        } catch {}
+      });
   };
 
   render() {

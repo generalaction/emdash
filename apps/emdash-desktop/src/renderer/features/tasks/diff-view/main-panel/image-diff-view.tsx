@@ -1,3 +1,4 @@
+import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
@@ -9,7 +10,6 @@ import { getGitRuntimeClient } from '@renderer/lib/runtime/git-client';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { HEAD_REF, type GitRef } from '@shared/core/git/types';
 import { gitRefToString } from '@shared/core/git/utils';
-import type { ActiveFile } from '@shared/view-state';
 
 interface ImageDiffViewProps {
   projectId: string;

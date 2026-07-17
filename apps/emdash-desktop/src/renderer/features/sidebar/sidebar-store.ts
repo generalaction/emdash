@@ -1,3 +1,8 @@
+import {
+  workbenchSidebarMemento,
+  type WorkbenchSidebarState,
+} from '@core/features/workbench/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { type ProjectStore } from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
@@ -6,12 +11,7 @@ import {
   unregisteredTaskData,
   type TaskStore,
 } from '@renderer/features/tasks/stores/task-store';
-import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
-
-function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
-  return value === 'created-at' || value === 'updated-at' ? value : undefined;
-}
+export type SidebarTaskSortBy = WorkbenchSidebarState['taskSortBy'];
 
 export type TaskSortKind = 'created' | 'updated';
 
@@ -37,15 +37,19 @@ export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
 
-export class SidebarStore implements Snapshottable<SidebarSnapshot> {
-  projectOrder: string[] = [];
-  taskOrderByProject: Record<string, string[]> = {};
-  expandedProjectIds = observable.set<string>();
-  taskSortBy: SidebarTaskSortBy = 'created-at';
+export class SidebarStore {
+  private _handle: MementoHandle<WorkbenchSidebarState> | undefined;
+  private _fallbackState: WorkbenchSidebarState = workbenchSidebarMemento.default;
 
   constructor(private readonly projectManager: ProjectManagerStore) {
-    makeAutoObservable(this, {
-      expandedProjectIds: false,
+    // `_handle` must stay observable: computeds reading `state` before the
+    // memento handle is attached would otherwise capture zero dependencies
+    // and freeze at the fallback value forever.
+    makeAutoObservable<SidebarStore, '_fallbackState' | '_handle' | 'projectManager'>(this, {
+      _fallbackState: false,
+      _handle: observable.ref,
+      projectManager: false,
+      expandedProjectIds: computed.struct,
       sidebarRows: computed,
       pinnedSidebarEntries: computed,
     });
@@ -74,6 +78,27 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         });
       }
     );
+  }
+
+  get projectOrder(): string[] {
+    return this.state.projectOrder;
+  }
+
+  get taskOrderByProject(): Record<string, string[]> {
+    return this.state.taskOrderByProject;
+  }
+
+  get expandedProjectIds(): ReadonlySet<string> {
+    return new Set(this.state.expandedProjectIds);
+  }
+
+  get taskSortBy(): SidebarTaskSortBy {
+    return this.state.taskSortBy;
+  }
+
+  attachMemento(handle: MementoHandle<WorkbenchSidebarState>): void {
+    if (this._handle) throw new Error('Sidebar memento is already attached');
+    this._handle = handle;
   }
 
   get orderedProjects(): ProjectStore[] {
@@ -162,62 +187,43 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     return this.projectManager.projects.size === 0;
   }
 
-  get snapshot(): SidebarSnapshot {
-    return {
-      expandedProjectIds: [...this.expandedProjectIds],
-      projectOrder: [...this.projectOrder],
-      taskOrderByProject: { ...this.taskOrderByProject },
-      taskSortBy: this.taskSortBy,
-    };
-  }
-
-  restoreSnapshot(snapshot: Partial<SidebarSnapshot>): void {
-    if (snapshot.expandedProjectIds !== undefined) {
-      this.expandedProjectIds.replace(snapshot.expandedProjectIds);
-    }
-    if (snapshot.projectOrder !== undefined) {
-      this.projectOrder = [...snapshot.projectOrder];
-    }
-    if (snapshot.taskOrderByProject !== undefined) {
-      this.taskOrderByProject = { ...snapshot.taskOrderByProject };
-    }
-    if (snapshot.taskSortBy !== undefined) {
-      const v = parseSidebarTaskSortBy(snapshot.taskSortBy);
-      if (v !== undefined) this.taskSortBy = v;
-    }
-  }
-
   /** Called on first load when no snapshot exists — expand all known projects. */
   expandAllProjects(): void {
-    for (const project of this.orderedProjects) {
-      this.expandedProjectIds.add(project.id);
-    }
+    this.updateState((current) => ({
+      ...current,
+      expandedProjectIds: this.orderedProjects.map((project) => project.id),
+    }));
   }
 
   toggleProjectExpanded(projectId: string): void {
     if (this.expandedProjectIds.has(projectId)) {
-      this.expandedProjectIds.delete(projectId);
+      this.updateExpandedProjects((ids) => ids.filter((id) => id !== projectId));
     } else {
-      this.expandedProjectIds.add(projectId);
+      this.updateExpandedProjects((ids) => [...ids, projectId]);
     }
   }
 
   ensureProjectExpanded(projectId: string): void {
-    this.expandedProjectIds.add(projectId);
+    if (!this.expandedProjectIds.has(projectId)) {
+      this.updateExpandedProjects((ids) => [...ids, projectId]);
+    }
   }
 
   setTaskSortBy(sortBy: SidebarTaskSortBy): void {
-    this.taskSortBy = sortBy;
+    this.updateState((current) => ({ ...current, taskSortBy: sortBy }));
   }
 
   /** Set the sort key and clear all manual task orders so the list fully re-sorts. */
   applySort(sortBy: SidebarTaskSortBy): void {
-    this.taskSortBy = sortBy;
-    this.taskOrderByProject = {};
+    this.updateState((current) => ({
+      ...current,
+      taskSortBy: sortBy,
+      taskOrderByProject: {},
+    }));
   }
 
   setProjectOrder(ids: string[]): void {
-    this.projectOrder = ids;
+    this.updateState((current) => ({ ...current, projectOrder: ids }));
   }
 
   mergeTaskOrder(projectId: string, tasks: TaskStore[]): TaskStore[] {
@@ -241,7 +247,29 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   setTaskOrder(projectId: string, orderedIds: string[]): void {
-    this.taskOrderByProject = { ...this.taskOrderByProject, [projectId]: orderedIds };
+    this.updateState((current) => ({
+      ...current,
+      taskOrderByProject: { ...current.taskOrderByProject, [projectId]: orderedIds },
+    }));
+  }
+
+  private get state(): WorkbenchSidebarState {
+    return this._handle?.value ?? this._fallbackState;
+  }
+
+  private updateState(update: (current: WorkbenchSidebarState) => WorkbenchSidebarState): void {
+    if (this._handle) {
+      this._handle.update(update);
+    } else {
+      this._fallbackState = update(this._fallbackState);
+    }
+  }
+
+  private updateExpandedProjects(update: (current: string[]) => string[]): void {
+    this.updateState((current) => ({
+      ...current,
+      expandedProjectIds: update(current.expandedProjectIds),
+    }));
   }
 
   private compareSidebarTasks(a: TaskStore, b: TaskStore): number {

@@ -1,4 +1,4 @@
-import type { TerminalDrawerActiveItem } from '@shared/view-state';
+import type { TerminalDrawerActiveItem } from '@core/features/tasks/contributions/mementos';
 
 export function resolveTerminalPanelActiveItem({
   requestedActiveItem,

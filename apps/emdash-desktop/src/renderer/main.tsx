@@ -1,3 +1,9 @@
+import {
+  workbenchNavigationMemento,
+  workbenchSidebarMemento,
+} from '@core/features/workbench/contributions/mementos';
+import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
+import { appSubject } from '@core/primitives/subjects/api';
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -9,13 +15,11 @@ import 'katex/dist/katex.min.css';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
-import { rpc } from '@renderer/lib/ipc';
+import { initMementos } from '@renderer/lib/mementos';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
-import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
@@ -27,37 +31,41 @@ async function bootstrap() {
   initSoundPlayer();
   initNotificationDeliveryListener();
 
+  // Stores may acquire memento spaces while project data loads, so initialize
+  // the singleton before starting any store construction.
+  const mementoClient = await initMementos();
+
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
-  const [, navResult, sidebarResult, allViewState] = await Promise.all([
+  await Promise.all([
     monacoBootstrap.init().catch((error: unknown) => {
       log.warn('[monaco-bootstrap] init failed:', error);
     }),
-    rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
-    rpc.viewState.get('sidebar'),
-    rpc.viewState.getAll(),
     appState.projects.load(),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
   ]);
 
-  viewStateCache.populate(allViewState as Record<string, unknown>);
-
   setupNavigationGuards();
-  if (navResult) appState.navigation.restoreSnapshot(navResult);
+  const appSpace = mementoClient.subject(appSubject({}));
+  const navigationHandle = appSpace.handle(workbenchNavigationMemento);
+  const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
+  await appSpace.ready;
+  appState.navigation.attachMemento(navigationHandle);
+  appState.sidebar.attachMemento(sidebarHandle);
+  if (!sidebarHandle.hasStoredValue) appState.sidebar.expandAllProjects();
   setupAppCommandProvider();
   setupViewCommandProvider();
-  if (sidebarResult) {
-    appState.sidebar.restoreSnapshot(sidebarResult as Partial<SidebarSnapshot>);
-  } else {
-    appState.sidebar.expandAllProjects();
-  }
 
   // Avoid double-mount in dev which can duplicate PTY sessions
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <ErrorBoundary>
-      <App />
+      <MementoClientProvider client={mementoClient}>
+        <SubjectProvider subject={appSubject({})}>
+          <App />
+        </SubjectProvider>
+      </MementoClientProvider>
     </ErrorBoundary>
   );
 }

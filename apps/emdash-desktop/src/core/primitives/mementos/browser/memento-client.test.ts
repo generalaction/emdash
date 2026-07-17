@@ -207,6 +207,27 @@ describe('MementoClient', () => {
     expect(second.value).toBe(drawerMemento.default);
   });
 
+  it('tracks whether persistent and transient handles have stored values', async () => {
+    const setup = await createSetup(cleanups);
+    const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
+    const persistent = space.handle(drawerMemento);
+    const transient = space.handle(transientMemento);
+    await space.ready;
+
+    expect(persistent.hasStoredValue).toBe(false);
+    expect(transient.hasStoredValue).toBe(false);
+
+    persistent.update({ version: '2', open: true, height: 10 });
+    transient.update({ version: '2', open: true, height: 10 });
+    expect(persistent.hasStoredValue).toBe(true);
+    expect(transient.hasStoredValue).toBe(true);
+
+    await persistent.reset();
+    await transient.reset();
+    expect(persistent.hasStoredValue).toBe(false);
+    expect(transient.hasStoredValue).toBe(false);
+  });
+
   it('keeps transient state in an LRU and never sends wire traffic', async () => {
     const setup = await createSetup(cleanups);
     const firstSpace = setup.client.subject(taskSubject({ taskId: 'task-1' }));
@@ -265,6 +286,24 @@ describe('MementoClient', () => {
 
     expect(setup.persistence.snapshot()).toEqual([]);
     expect(handle.value).toBe(drawerMemento.default);
+  });
+
+  it('does not resurrect a draft after reconciling an external subject deletion', async () => {
+    vi.useFakeTimers();
+    const setup = await createSetup(cleanups, { debounceMs: 50 });
+    const subject = taskSubject({ taskId: 'task-1' });
+    const space = setup.client.subject(subject);
+    const handle = space.handle(drawerMemento);
+    await handle.ready;
+    handle.update({ version: '2', open: true, height: 10 });
+
+    const externalDelete = await setup.wire.client.deleteBySubject(subject);
+    expect(externalDelete.success).toBe(true);
+    await setup.client.deleteBySubject(subject);
+    await space.release();
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(setup.persistence.snapshot()).toEqual([]);
   });
 
   it('deletes all persisted and transient mementos', async () => {

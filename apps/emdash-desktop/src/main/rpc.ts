@@ -20,7 +20,6 @@ import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
 import { updateController } from './core/updates/controller';
-import { viewStateController } from './core/view-state/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
 import { projectWorkspacesController } from './core/workspaces/project-workspaces-controller';
 import { legacyPortController } from './db/legacy-port/controller';
@@ -46,7 +45,6 @@ export const rpcRouter = createRPCRouter({
   tasks: taskController,
   conversations: conversationController,
   telemetry: telemetryController,
-  viewState: viewStateController,
   search: searchController,
   projectWorkspaces: projectWorkspacesController,
   projectSettings: projectSettingsController,

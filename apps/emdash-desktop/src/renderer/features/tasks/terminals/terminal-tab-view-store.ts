@@ -1,6 +1,7 @@
-import { action, comparer, computed, makeObservable, observable, reaction } from 'mobx';
-import { type TabViewProvider, type TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
-import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
+import type { TaskTerminalSelectionState } from '@core/features/tasks/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
+import { action, comparer, computed, makeObservable, reaction } from 'mobx';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import {
   reorderTabIds,
   setNextTabActive,
@@ -10,23 +11,20 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
 
-export class TerminalTabViewStore
-  implements TabViewProvider<TerminalStore, never>, Snapshottable<TabViewSnapshot>
-{
-  tabOrder: string[] = [];
-  activeTabId: string | undefined = undefined;
-
+export class TerminalTabViewStore implements TabViewProvider<TerminalStore, never> {
   private readonly _getResource: () => TerminalManagerStore | null;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(getResource: () => TerminalManagerStore | null) {
+  constructor(
+    private readonly handle: MementoHandle<TaskTerminalSelectionState>,
+    getResource: () => TerminalManagerStore | null
+  ) {
     this._getResource = getResource;
-    makeObservable<TerminalTabViewStore, 'syncTerminalIds'>(this, {
-      tabOrder: observable,
-      activeTabId: observable,
+    makeObservable<TerminalTabViewStore, 'handle' | 'syncTerminalIds'>(this, {
+      tabOrder: computed,
+      activeTabId: computed,
       tabs: computed,
       activeTab: computed,
-      snapshot: computed,
       addTab: action,
       removeTab: action,
       reorderTabs: action,
@@ -34,8 +32,8 @@ export class TerminalTabViewStore
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setActiveTab: action,
-      restoreSnapshot: action,
       syncTerminalIds: action,
+      handle: false,
     });
 
     this.disposers.push(
@@ -56,6 +54,14 @@ export class TerminalTabViewStore
     );
   }
 
+  get tabOrder(): string[] {
+    return this.handle.value.tabOrder;
+  }
+
+  get activeTabId(): string | undefined {
+    return this.handle.value.activeTabId;
+  }
+
   get tabs(): TerminalStore[] {
     const resource = this._getResource();
     if (!resource) return [];
@@ -66,36 +72,24 @@ export class TerminalTabViewStore
     return this.activeTabId ? this._getResource()?.terminals.get(this.activeTabId) : undefined;
   }
 
-  get snapshot(): TabViewSnapshot {
-    return { tabOrder: this.tabOrder.slice(), activeTabId: this.activeTabId };
-  }
-
-  restoreSnapshot(snapshot: Partial<TabViewSnapshot>): void {
-    if (snapshot.tabOrder) this.tabOrder = snapshot.tabOrder;
-    if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
-
-    const loadedIds = this.loadedTerminalIds();
-    if (loadedIds) this.syncTerminalIds(loadedIds);
-  }
-
   setActiveTab(id: string): void {
-    setTabActive(this, id);
+    this.updateSelection((selection) => setTabActive(selection, id));
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
-    reorderTabIds(this, fromIndex, toIndex);
+    this.updateSelection((selection) => reorderTabIds(selection, fromIndex, toIndex));
   }
 
   setNextTabActive(): void {
-    setNextTabActive(this);
+    this.updateSelection(setNextTabActive);
   }
 
   setPreviousTabActive(): void {
-    setPreviousTabActive(this);
+    this.updateSelection(setPreviousTabActive);
   }
 
   setTabActiveIndex(index: number): void {
-    setTabActiveIndex(this, index);
+    this.updateSelection((selection) => setTabActiveIndex(selection, index));
   }
 
   // addTab is required by TabViewProvider but terminals are created explicitly
@@ -113,33 +107,32 @@ export class TerminalTabViewStore
     for (const d of this.disposers) d();
   }
 
-  private loadedTerminalIds(): string[] | null {
-    const resource = this._getResource();
-    if (!resource?.isLoaded) return null;
-    return Array.from(resource.terminals.keys());
-  }
-
   private syncTerminalIds(ids: string[]): void {
     const idSet = new Set(ids);
-    // Remove deleted IDs
-    for (let i = this.tabOrder.length - 1; i >= 0; i--) {
-      if (!idSet.has(this.tabOrder[i])) {
-        this.tabOrder.splice(i, 1);
+    this.updateSelection((selection) => {
+      selection.tabOrder = selection.tabOrder.filter((id) => idSet.has(id));
+      for (const id of ids) {
+        if (!selection.tabOrder.includes(id)) selection.tabOrder.push(id);
       }
-    }
-    // Append new IDs
-    for (const id of ids) {
-      if (!this.tabOrder.includes(id)) {
-        this.tabOrder.push(id);
+      if (selection.activeTabId && !idSet.has(selection.activeTabId)) {
+        selection.activeTabId = selection.tabOrder[0];
       }
-    }
-    // Deselect removed active tab
-    if (this.activeTabId && !idSet.has(this.activeTabId)) {
-      this.activeTabId = this.tabOrder[0];
-    }
-    // Auto-select first if nothing is active
-    if (!this.activeTabId && this.tabOrder.length > 0) {
-      this.activeTabId = this.tabOrder[0];
-    }
+      if (!selection.activeTabId && selection.tabOrder.length > 0) {
+        selection.activeTabId = selection.tabOrder[0];
+      }
+    });
+  }
+
+  private updateSelection(
+    update: (selection: { tabOrder: string[]; activeTabId: string | undefined }) => void
+  ): void {
+    this.handle.update((current) => {
+      const selection = {
+        tabOrder: [...current.tabOrder],
+        activeTabId: current.activeTabId,
+      };
+      update(selection);
+      return { ...current, ...selection };
+    });
   }
 }

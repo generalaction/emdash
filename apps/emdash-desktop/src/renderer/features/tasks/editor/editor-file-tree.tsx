@@ -10,7 +10,6 @@ import {
   Link,
   Trash2,
 } from 'lucide-react';
-import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useRef, useState } from 'react';
 import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
@@ -224,17 +223,12 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const toggleExpand = () => {
     // Expansion drives registration; collapse only changes visibility and keeps loaded scopes warm.
-    runInAction(() => {
-      if (isChainExpanded(row.chain, editorView.expandedPaths)) {
-        for (const segment of row.chain) {
-          editorView.expandedPaths.delete(segment.path);
-        }
-      } else {
-        for (const segment of row.chain) {
-          editorView.expandedPaths.add(segment.path);
-        }
-      }
-    });
+    const paths = row.chain.map((segment) => segment.path);
+    if (isChainExpanded(row.chain, editorView.expandedPaths)) {
+      editorView.collapsePaths(paths);
+    } else {
+      editorView.expandPaths(paths);
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -434,11 +428,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (!files) return;
       // Expand and load the target directory so optimistic nodes can be inserted immediately.
       if (isExpandable) {
-        runInAction(() => {
-          for (const segment of row.chain) {
-            editorView.expandedPaths.add(segment.path);
-          }
-        });
+        editorView.expandPaths(row.chain.map((segment) => segment.path));
         if (!files.loadedPaths.has(node.path)) {
           await files.registerDir(node.path);
         }

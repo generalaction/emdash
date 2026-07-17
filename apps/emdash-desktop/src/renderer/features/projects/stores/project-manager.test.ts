@@ -3,7 +3,7 @@ import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import type { LocalProject, SshProject } from '@shared/projects';
-import { createUnmountedProject, isUnregisteredProject } from './project';
+import { createUnmountedProject, isUnregisteredProject, type ProjectStore } from './project';
 import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -16,8 +16,11 @@ const mocks = vi.hoisted(() => ({
   patchProjectSettings: vi.fn(),
   projectWireCreate: vi.fn(),
   projectWireCancel: vi.fn(),
+  projectWireDelete: vi.fn(),
   projectWireProgressCallbacks: [] as Array<(progress: WorkspaceBootstrapProgress) => void>,
   projectWireResult: undefined as Promise<LocalProject> | undefined,
+  deleteMementoSubject: vi.fn(),
+  mementoReportError: vi.fn(),
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
   sshConnect: vi.fn(),
@@ -53,7 +56,14 @@ vi.mock('@emdash/wire', async (importOriginal) => {
 });
 
 vi.mock('@renderer/lib/runtime/projects-wire-client', () => ({
-  getProjectsWireClient: async () => ({ create: {} }),
+  getProjectsWireClient: async () => ({ create: {}, delete: mocks.projectWireDelete }),
+}));
+
+vi.mock('@renderer/lib/mementos', () => ({
+  getMementoClient: () => ({
+    deleteBySubject: mocks.deleteMementoSubject,
+    reportError: mocks.mementoReportError,
+  }),
 }));
 
 vi.mock('@renderer/lib/stores/app-state', () => ({
@@ -67,12 +77,6 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       connect: mocks.sshConnect,
       stateFor: mocks.sshStateFor,
     },
-  },
-}));
-
-vi.mock('@renderer/lib/stores/view-state-cache', () => ({
-  viewStateCache: {
-    get: vi.fn(async () => undefined),
   },
 }));
 
@@ -138,6 +142,8 @@ describe('ProjectManagerStore project creation', () => {
     mocks.openProject.mockReturnValue(new Promise(() => {}));
     mocks.projectWireProgressCallbacks.length = 0;
     mocks.projectWireCancel.mockResolvedValue(undefined);
+    mocks.projectWireDelete.mockResolvedValue({ success: true, data: undefined });
+    mocks.deleteMementoSubject.mockResolvedValue(1);
     mocks.projectWireResult = undefined;
     mocks.createLiveJobReplica.mockReturnValue({
       start: async (input: {
@@ -186,6 +192,33 @@ describe('ProjectManagerStore project creation', () => {
     });
     mocks.sshConnect.mockResolvedValue(undefined);
     mocks.sshStateFor.mockReturnValue('disconnected');
+  });
+
+  it('discards project and child task mementos before disposing a deleted project', async () => {
+    const manager = new ProjectManagerStore();
+    const dispose = vi.fn();
+    manager.projects.set('project-id', {
+      id: 'project-id',
+      mountedProject: {
+        taskManager: {
+          tasks: new Map([
+            ['task-1', {}],
+            ['task-2', {}],
+          ]),
+        },
+        dispose,
+      },
+    } as unknown as ProjectStore);
+
+    await manager.deleteProject('project-id');
+
+    expect(mocks.deleteMementoSubject.mock.calls.map(([subject]) => subject)).toEqual([
+      { kind: 'project', key: 'project-id' },
+      { kind: 'task', key: 'task-1' },
+      { kind: 'task', key: 'task-2' },
+    ]);
+    expect(dispose).toHaveBeenCalledOnce();
+    manager.dispose();
   });
 
   it('returns an existing project without starting creation', async () => {

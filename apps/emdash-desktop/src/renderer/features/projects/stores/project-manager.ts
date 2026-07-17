@@ -1,10 +1,12 @@
+import { projectSubject } from '@core/features/projects/contributions/subject';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getMementoClient } from '@renderer/lib/mementos';
 import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { projectsWireContract } from '@shared/core/projects/wire-contract';
@@ -12,8 +14,8 @@ import { sshConnectionEventChannel } from '@shared/core/ssh/sshEvents';
 import type { WorkspaceBootstrapProgress } from '@shared/core/workspaces/wire-contract';
 import { type LocalProject, type SshProject } from '@shared/projects';
 import { splitNameWithOwner } from '@shared/repository-ref';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 import {
+  MountedProject,
   createUnmountedProject,
   createUnregisteredProject,
   isMountedProject,
@@ -285,11 +287,9 @@ export class ProjectManagerStore {
       project.errorCode = undefined;
     });
 
-    const promise = Promise.all([
-      rpc.projects.openProject(projectId),
-      viewStateCache.get(`project:${projectId}`),
-    ])
-      .then(async ([openResult, savedSnapshot]) => {
+    const promise = rpc.projects
+      .openProject(projectId)
+      .then(async (openResult) => {
         if (!openResult.success) {
           runInAction(() => {
             const current = this.projects.get(projectId);
@@ -309,19 +309,26 @@ export class ProjectManagerStore {
           });
           return;
         }
+        const current = this.projects.get(projectId);
+        if (!current || !isUnmountedProject(current)) return;
+        const projectData = current.data;
+        if (openResult.data.repositoryWorkspaceId) {
+          runInAction(() => {
+            projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
+          });
+        }
+        const mountedProject = new MountedProject(projectData);
+        try {
+          await mountedProject.space.ready;
+        } catch (error) {
+          mountedProject.dispose();
+          throw error;
+        }
         runInAction(() => {
-          const current = this.projects.get(projectId);
-          if (current && isUnmountedProject(current)) {
-            // Patch repositoryWorkspaceId from the main process response so the
-            // mounted project data is up-to-date (fixes stale null after creation).
-            const projectData = current.data;
-            if (openResult.data.repositoryWorkspaceId && projectData) {
-              projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
-            }
-            current.transitionToMounted(
-              projectData,
-              savedSnapshot as ProjectViewSnapshot | undefined
-            );
+          if (this.projects.get(projectId) === current && isUnmountedProject(current)) {
+            current.transitionToMounted(mountedProject);
+          } else {
+            mountedProject.dispose();
           }
         });
         // Load the task list before provisioning so the tasks map is populated.
@@ -369,6 +376,20 @@ export class ProjectManagerStore {
     try {
       const result = await (await getProjectsWireClient()).delete({ projectId });
       if (!result.success) throw new Error(result.error.message);
+      const mementos = getMementoClient();
+      const subjects = [
+        projectSubject({ projectId }),
+        ...[...(snapshot?.mountedProject?.taskManager.tasks.keys() ?? [])].map((taskId) =>
+          taskSubject({ taskId })
+        ),
+      ];
+      const cleanupResults = await Promise.allSettled(
+        subjects.map(async (subject) => await mementos.deleteBySubject(subject))
+      );
+      for (const cleanupResult of cleanupResults) {
+        if (cleanupResult.status === 'rejected') mementos.reportError(cleanupResult.reason);
+      }
+      snapshot?.mountedProject?.dispose();
     } catch (err) {
       runInAction(() => {
         if (snapshot) this.projects.set(projectId, snapshot);

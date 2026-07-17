@@ -1,3 +1,4 @@
+import { taskSubject } from '@core/features/tasks/contributions/subject';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
@@ -14,10 +15,10 @@ import {
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { getTaskGitCheckoutStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { getMementoClient } from '@renderer/lib/mementos';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { getTasksWireClient } from '@renderer/lib/runtime/tasks-wire-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import {
@@ -37,7 +38,6 @@ import {
   workspacesWireContract,
   type WorkspaceBootstrapState,
 } from '@shared/core/workspaces/wire-contract';
-import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import {
   createUnprovisionedTask,
@@ -174,7 +174,7 @@ export class TaskManagerStore {
       taskDeletedChannel,
       ({ taskId, projectId: evtProjectId }) => {
         if (evtProjectId !== this.projectId) return;
-        this._removeTaskLocally(taskId);
+        void this._removeTaskLocally(taskId);
       }
     );
 
@@ -293,16 +293,22 @@ export class TaskManagerStore {
     terminalRegistry.release(taskId);
   }
 
-  private _removeTaskLocally(taskId: string): void {
+  private async _removeTaskLocally(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) return;
-    this._releaseTaskRegistries(taskId);
-    this._bootstrapDisposers.get(taskId)?.();
-    this._bootstrapDisposers.delete(taskId);
-    task.dispose();
     runInAction(() => {
       this.tasks.delete(taskId);
     });
+    this._releaseTaskRegistries(taskId);
+    this._bootstrapDisposers.get(taskId)?.();
+    this._bootstrapDisposers.delete(taskId);
+    const mementos = getMementoClient();
+    try {
+      await mementos.deleteBySubject(taskSubject({ taskId }));
+    } catch (error) {
+      mementos.reportError(error);
+    }
+    task.dispose();
   }
 
   loadTasks(): Promise<void> {
@@ -523,9 +529,11 @@ export class TaskManagerStore {
 
     workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
 
-    const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
-      | TaskViewSnapshot
-      | undefined;
+    const taskBeforeTransition = this.tasks.get(taskId);
+    if (taskBeforeTransition && isUnprovisioned(taskBeforeTransition)) {
+      runInAction(() => taskBeforeTransition.ensureRegisteredStores());
+      await taskBeforeTransition.viewModel?.space.ready;
+    }
 
     runInAction(() => {
       const current = this.tasks.get(taskId);
@@ -537,8 +545,7 @@ export class TaskManagerStore {
           result.data.path,
           result.data.workspaceId,
           this._repository,
-          result.data.sshConnectionId ?? undefined,
-          savedSnapshot
+          result.data.sshConnectionId ?? undefined
         );
         current.activate();
       }
@@ -551,9 +558,11 @@ export class TaskManagerStore {
     workspaceId: string,
     sshConnectionId?: string
   ): Promise<void> {
-    const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
-      | TaskViewSnapshot
-      | undefined;
+    const taskBeforeTransition = this.tasks.get(taskId);
+    if (taskBeforeTransition && isUnprovisioned(taskBeforeTransition)) {
+      runInAction(() => taskBeforeTransition.ensureRegisteredStores());
+      await taskBeforeTransition.viewModel?.space.ready;
+    }
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
@@ -564,8 +573,7 @@ export class TaskManagerStore {
           path,
           workspaceId,
           this._repository,
-          sshConnectionId,
-          savedSnapshot
+          sshConnectionId
         );
         current.activate();
       }
@@ -819,6 +827,11 @@ export class TaskManagerStore {
   }
 
   dispose(): void {
+    for (const [taskId, task] of this.tasks) {
+      this._releaseTaskRegistries(taskId);
+      task.dispose();
+    }
+    this.tasks.clear();
     this._unsubTaskCreated?.();
     this._unsubTaskCreated = null;
     this._unsubTaskDeleted?.();

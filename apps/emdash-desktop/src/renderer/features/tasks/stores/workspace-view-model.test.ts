@@ -1,19 +1,40 @@
-import { makeObservable, observable, runInAction } from 'mobx';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  taskChromeMemento,
+  taskDiffPreferencesMemento,
+  taskDiffSelectionMemento,
+  taskEditorTreeMemento,
+  taskPaneLayoutMemento,
+  taskTerminalSelectionMemento,
+  type ActiveFile,
+  type TabGroupsSnapshot,
+  type TerminalDrawerActiveItem,
+} from '@core/features/tasks/contributions/mementos';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
+import type { MementoDef } from '@core/primitives/mementos/api';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
+import type { Subject, SubjectDef } from '@core/primitives/subjects/api';
+import { comparer, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { z } from 'zod';
 import { ConversationStore } from '@renderer/features/conversations/conversation-manager';
 import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import { releaseConversationSessionManager } from '@renderer/features/conversations/stores/conversation-session-manager';
-import { rpc } from '@renderer/lib/ipc';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
-import type { TaskViewSnapshot } from '@shared/view-state';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import type { TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
-import { WorkspaceViewModel } from './workspace-view-model';
+import { sanitizeDiffSelection, WorkspaceViewModel } from './workspace-view-model';
+
+const mementoMocks = vi.hoisted(() => ({
+  getClient: vi.fn(),
+}));
+
+vi.mock('@renderer/lib/mementos', () => ({
+  getMementoClient: mementoMocks.getClient,
+}));
 
 vi.mock('@renderer/features/browser/browser-tab-item', () => ({
   BrowserTabBarItem: () => null,
@@ -63,9 +84,6 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConnectionState: async () => ({}),
       getHealthStates: async () => ({}),
     },
-    viewState: {
-      save: vi.fn(),
-    },
     conversations: {
       markConversationSeen: vi.fn().mockResolvedValue(undefined),
     },
@@ -74,6 +92,97 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
   },
 }));
+
+class FakeMementoHandle<TValue> implements MementoHandle<TValue> {
+  readonly ready = Promise.resolve();
+  readonly isPending = false;
+  hasStoredValue = false;
+  private readonly cell;
+
+  constructor(private readonly defaultValue: TValue) {
+    this.cell = observable.box(defaultValue, { deep: false });
+  }
+
+  get value(): TValue {
+    return this.cell.get();
+  }
+
+  read(): TValue {
+    return this.value;
+  }
+
+  update(next: TValue | ((current: TValue) => TValue)): void {
+    this.hasStoredValue = true;
+    this.cell.set(
+      typeof next === 'function' ? (next as (value: TValue) => TValue)(this.value) : next
+    );
+  }
+
+  async reset(): Promise<void> {
+    this.hasStoredValue = false;
+    this.cell.set(this.defaultValue);
+  }
+
+  async flush(): Promise<void> {}
+
+  autoPersist(read: () => TValue) {
+    return reaction(read, (value) => this.update(value), { equals: comparer.structural });
+  }
+
+  async dispose(): Promise<void> {}
+}
+
+class FakeMementoClient {
+  private readonly handles = new Map<string, unknown>();
+
+  subject(subject: Subject) {
+    return {
+      subject,
+      ready: Promise.resolve(),
+      handle: <TValue>(definition: MementoDef<TValue, SubjectDef<string, z.ZodType>>) =>
+        this.handle(subject, definition),
+      release: async () => {},
+    };
+  }
+
+  handle<TValue>(
+    subject: Subject,
+    definition: MementoDef<TValue, SubjectDef<string, z.ZodType>>
+  ): FakeMementoHandle<TValue> {
+    const key = `${subject.kind}:${subject.key}:${definition.id}`;
+    let handle = this.handles.get(key) as FakeMementoHandle<TValue> | undefined;
+    if (!handle) {
+      handle = new FakeMementoHandle(definition.default);
+      this.handles.set(key, handle);
+    }
+    return handle;
+  }
+
+  clear(): void {
+    this.handles.clear();
+  }
+
+  reportError(): void {}
+}
+
+const fakeMementos = new FakeMementoClient();
+
+type LegacyTaskViewState = {
+  sidebarTab?: 'conversations' | 'changes' | 'files';
+  isSidebarCollapsed?: boolean;
+  focusedRegion?: 'main' | 'bottom';
+  isTerminalDrawerOpen?: boolean;
+  terminalDrawerActiveItem?: TerminalDrawerActiveItem;
+  terminals?: { tabOrder: string[]; activeTabId?: string };
+  editor?: { expandedPaths: string[] };
+  diffView?: {
+    diffStyle?: 'unified' | 'split';
+    commitAction?: 'commit' | 'commit-push' | 'commit-pr' | null;
+    prTab?: 'files' | 'commits' | 'checks';
+    activeFile?: ActiveFile;
+  };
+  tabGroups?: TabGroupsSnapshot;
+};
 
 type FakeTerminalManager = TerminalManagerStore & {
   isLoaded: boolean;
@@ -171,6 +280,50 @@ function makeProvisionedViewModel(): WorkspaceViewModel {
   } as unknown as TaskStore);
 }
 
+function applyViewState(viewModel: WorkspaceViewModel, state: LegacyTaskViewState): void {
+  const subject = taskSubject({ taskId: viewModel.taskId });
+  fakeMementos.handle(subject, taskChromeMemento).update((current) => ({
+    ...current,
+    sidebarTab: state.sidebarTab ?? current.sidebarTab,
+    sidebarCollapsed: state.isSidebarCollapsed ?? current.sidebarCollapsed,
+    terminalDrawerOpen: state.isTerminalDrawerOpen ?? current.terminalDrawerOpen,
+  }));
+  if (state.terminals || state.terminalDrawerActiveItem) {
+    fakeMementos.handle(subject, taskTerminalSelectionMemento).update((current) => ({
+      ...current,
+      activeItem: state.terminalDrawerActiveItem ?? current.activeItem,
+      tabOrder: state.terminals?.tabOrder ?? current.tabOrder,
+      activeTabId: state.terminals?.activeTabId ?? current.activeTabId,
+    }));
+  }
+  if (state.editor) {
+    fakeMementos.handle(subject, taskEditorTreeMemento).update((current) => ({
+      ...current,
+      expandedPaths: state.editor!.expandedPaths,
+    }));
+  }
+  if (state.diffView) {
+    fakeMementos.handle(subject, taskDiffPreferencesMemento).update((current) => ({
+      ...current,
+      diffStyle: state.diffView?.diffStyle ?? current.diffStyle,
+      commitAction: state.diffView?.commitAction ?? current.commitAction,
+      prTab: state.diffView?.prTab ?? current.prTab,
+    }));
+    fakeMementos.handle(subject, taskDiffSelectionMemento).update((current) => ({
+      ...current,
+      activeFile: state.diffView?.activeFile ?? current.activeFile,
+    }));
+  }
+  if (state.focusedRegion) viewModel.setFocusedRegion(state.focusedRegion);
+  if (state.tabGroups) {
+    fakeMementos.handle(subject, taskPaneLayoutMemento).update({
+      version: '1',
+      ...state.tabGroups,
+    });
+    viewModel.hydrate();
+  }
+}
+
 function makeTerminal(id: string, name = 'Terminal 1'): TerminalStore {
   return {
     data: {
@@ -207,6 +360,41 @@ function terminalRegistryEntries(): {
   ).entries;
 }
 
+beforeEach(() => {
+  fakeMementos.clear();
+  mementoMocks.getClient.mockReturnValue(fakeMementos);
+});
+
+describe('sanitizeDiffSelection', () => {
+  const selection = {
+    version: '1' as const,
+    activeFile: {
+      path: '/repo/src/index.ts',
+      type: 'disk' as const,
+      group: 'disk' as const,
+      originalRef: { kind: 'commit' as const, sha: 'HEAD' },
+    },
+  };
+
+  it('preserves and normalizes an absolute path when its relative change is live', () => {
+    expect(
+      sanitizeDiffSelection(selection, {
+        workspacePath: '/repo',
+        validPaths: new Set(['src/index.ts']),
+      }).activeFile?.path
+    ).toBe('/repo/src/index.ts');
+  });
+
+  it('drops a disk selection after its relative change disappears', () => {
+    expect(
+      sanitizeDiffSelection(selection, {
+        workspacePath: '/repo',
+        validPaths: new Set(),
+      }).activeFile
+    ).toBeUndefined();
+  });
+});
+
 afterEach(() => {
   // Release the session manager first so the reconciler disposes cleanly.
   releaseConversationSessionManager('task-1');
@@ -214,9 +402,6 @@ afterEach(() => {
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
   workspaceRegistry.release('project-1', 'workspace-1');
-  // Clear cache keys written by TaskTabViewPersistor so tests don't pollute each other.
-  viewStateCache.delete('task:task-1:tabs');
-  viewStateCache.delete('task:task-persistor:tabs');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -225,7 +410,6 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     source.setTerminalDrawerActiveItem({ kind: 'script', id: 'script-lifecycle-run' });
 
     const restored = makeViewModel();
-    restored.restoreSnapshot(source.snapshot);
 
     expect(restored.terminalDrawerActiveItem).toEqual({
       kind: 'script',
@@ -244,7 +428,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     } as never);
 
     const viewModel = makeProvisionedViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'bottom',
       isTerminalDrawerOpen: true,
       terminals: {
@@ -277,7 +461,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     );
 
     const viewModel = makeProvisionedViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'bottom',
       isTerminalDrawerOpen: true,
       terminals: {
@@ -309,7 +493,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     );
 
     const viewModel = makeProvisionedViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'bottom',
       isTerminalDrawerOpen: true,
       terminals: {
@@ -345,7 +529,7 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     );
 
     const viewModel = makeProvisionedViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'bottom',
       isTerminalDrawerOpen: true,
       terminals: {
@@ -424,7 +608,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
       makeConversation({ id: 'conversation-1', isInitialConversation: true }),
     ]);
     const viewModel = makeViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'main',
       tabGroups: {
         groups: [
@@ -572,7 +756,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
     // Restore two panes each with the same conversation (bypasses single-mount dedup).
     // initialize() is called for each pane's tab, but ConversationSessionManager ref-counts
     // so hydrateConversation is only called once.
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       tabGroups: {
         activeGroupId: 'group-1',
         paneSizes: [50, 50],
@@ -607,7 +791,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
           },
         ],
       },
-    } as TaskViewSnapshot);
+    });
 
     await Promise.resolve();
 
@@ -748,9 +932,9 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
     } as unknown as TaskStore);
   }
 
-  it('restores tabs from legacy aggregate tabGroups via the persistor', () => {
+  it('restores tabs from the pane-layout memento', () => {
     const viewModel = makePersistorViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'main',
       tabGroups: {
         groups: [
@@ -779,7 +963,7 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
     ]);
     const viewModel = makePersistorViewModel();
 
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'main',
       tabGroups: {
         groups: [
@@ -808,11 +992,9 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
     conversationRegistry.release(PERSISTOR_TASK_ID);
   });
 
-  it('eager-writes dedicated tabs key when migrating from legacy aggregate', () => {
-    vi.mocked(rpc.viewState.save).mockClear();
-
+  it('marks restored pane-layout state as stored', () => {
     const viewModel = makePersistorViewModel();
-    viewModel.restoreSnapshot({
+    applyViewState(viewModel, {
       focusedRegion: 'main',
       tabGroups: {
         groups: [{ groupId: 'g1', tabManager: { tabs: [], activeTabId: undefined } }],
@@ -821,10 +1003,12 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
       },
     });
 
-    expect(vi.mocked(rpc.viewState.save)).toHaveBeenCalledWith(
-      `task:${PERSISTOR_TASK_ID}:tabs`,
-      expect.objectContaining({ groups: expect.any(Array) })
+    const handle = fakeMementos.handle(
+      taskSubject({ taskId: PERSISTOR_TASK_ID }),
+      taskPaneLayoutMemento
     );
+    expect(handle.hasStoredValue).toBe(true);
+    expect(handle.value.groups).toHaveLength(1);
     viewModel.dispose();
   });
 });

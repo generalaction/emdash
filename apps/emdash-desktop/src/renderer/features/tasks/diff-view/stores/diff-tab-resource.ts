@@ -1,8 +1,8 @@
+import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
 import type { TabHandle, TabResource } from '@renderer/features/tabs/core/tab-provider';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
-import type { ActiveFile } from '@shared/view-state';
 import type { DiffTabManager } from './diff-tab-manager';
 
 export type DiffViewMode = 'diff' | 'preview';

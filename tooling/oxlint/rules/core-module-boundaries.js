@@ -1,16 +1,23 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MODULE_TYPES = new Set(['runtimes', 'services', 'primitives']);
+const MODULE_TYPES = new Set(['runtimes', 'services', 'primitives', 'features']);
 const ALIAS_PREFIXES = {
   '@runtimes/': 'runtimes',
   '@services/': 'services',
   '@primitives/': 'primitives',
+  '@core/services/': 'services',
+  '@core/primitives/': 'primitives',
+  '@core/features/': 'features',
 };
 const CORE_PACKAGE_PREFIX = '@emdash/core/';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CORE_SRC_ROOT = path.resolve(currentDir, '../../../packages/core/src');
+export const DEFAULT_DESKTOP_CORE_SRC_ROOT = path.resolve(
+  currentDir,
+  '../../../apps/emdash-desktop/src/core'
+);
 
 export function normalizePath(value) {
   return value.replaceAll('\\', '/');
@@ -74,6 +81,10 @@ export function isAllowedCoreModuleDependency(source, target) {
     return target.type === 'primitives';
   }
 
+  if (source.type === 'features') {
+    return target.type === 'primitives';
+  }
+
   if (source.type === 'primitives') {
     return target.type === 'primitives';
   }
@@ -84,7 +95,7 @@ export function isAllowedCoreModuleDependency(source, target) {
 export function dependencyMessage(source, target, specifier) {
   return `${source.type}/${source.moduleName} must not import ${target.type}/${
     target.moduleName
-  } via '${specifier}'. Allowed Core module dependencies are: runtimes -> services/primitives, services -> primitives, primitives -> primitives.`;
+  } via '${specifier}'. Allowed Core module dependencies are: runtimes -> services/primitives, services -> primitives, features -> primitives, primitives -> primitives.`;
 }
 
 function getFilename(context) {
@@ -141,12 +152,27 @@ export const coreModuleBoundariesRule = {
   },
   create(context) {
     const options = getOptions(context);
-    const coreSrcRoot = options.coreSrcRoot
-      ? path.resolve(options.coreSrcRoot)
-      : DEFAULT_CORE_SRC_ROOT;
     const filename = getFilename(context);
-    const sourceModule = filename ? classifyCorePath(filename, coreSrcRoot) : undefined;
-    if (!sourceModule) return {};
+    const roots = options.coreSrcRoot
+      ? [path.resolve(options.coreSrcRoot)]
+      : [DEFAULT_CORE_SRC_ROOT, DEFAULT_DESKTOP_CORE_SRC_ROOT];
+    const source = filename
+      ? roots
+          .map((coreSrcRoot) => ({
+            coreSrcRoot,
+            module: classifyCorePath(filename, coreSrcRoot),
+          }))
+          .find(({ module }) => module !== undefined)
+      : undefined;
+    if (!source?.module) return {};
+    const { coreSrcRoot, module: sourceModule } = source;
+    if (
+      !options.coreSrcRoot &&
+      normalizeAbsolute(coreSrcRoot) === normalizeAbsolute(DEFAULT_DESKTOP_CORE_SRC_ROOT) &&
+      sourceModule.type !== 'features'
+    ) {
+      return {};
+    }
 
     return {
       ImportDeclaration(node) {

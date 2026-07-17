@@ -1,3 +1,16 @@
+import { projectViewMemento } from '@core/features/projects/contributions/mementos';
+import {
+  taskChromeMemento,
+  taskDiffPreferencesMemento,
+  taskDiffSelectionMemento,
+  taskEditorTreeMemento,
+  taskPaneLayoutMemento,
+  taskTerminalSelectionMemento,
+} from '@core/features/tasks/contributions/mementos';
+import {
+  workbenchNavigationMemento,
+  workbenchSidebarMemento,
+} from '@core/features/workbench/contributions/mementos';
 import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
 
 /**
@@ -7,7 +20,17 @@ import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
  * The worker uses this catalog for retention policies; the renderer uses it for
  * subject-level prefetch.
  */
-export const mementoCatalog: readonly MementoCatalogEntry[] = [];
+export const mementoCatalog: readonly MementoCatalogEntry[] = [
+  projectViewMemento,
+  taskChromeMemento,
+  taskTerminalSelectionMemento,
+  taskEditorTreeMemento,
+  taskDiffPreferencesMemento,
+  taskDiffSelectionMemento,
+  taskPaneLayoutMemento,
+  workbenchSidebarMemento,
+  workbenchNavigationMemento,
+];
 
 export const mementoSweepPolicies = mementoCatalog.flatMap((definition) =>
   definition.retention.tier === 'persisted'

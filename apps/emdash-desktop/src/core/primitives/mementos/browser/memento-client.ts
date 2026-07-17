@@ -47,6 +47,7 @@ export interface MementoHandle<TValue> {
   readonly value: TValue;
   readonly ready: Promise<void>;
   readonly isPending: boolean;
+  readonly hasStoredValue: boolean;
   read(): TValue;
   update(next: MementoUpdater<TValue>): void;
   reset(): Promise<void>;
@@ -337,6 +338,7 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
       dirty: observable.ref,
       value: computed,
       isPending: computed,
+      hasStoredValue: computed,
     });
   }
 
@@ -346,6 +348,10 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
 
   get isPending(): boolean {
     return this.dirty !== undefined || this.lease.model.isPending;
+  }
+
+  get hasStoredValue(): boolean {
+    return this.dirty !== undefined || this.lease.model.values.value != null;
   }
 
   read(): TValue {
@@ -496,10 +502,11 @@ interface TransientEntry {
 
 class TransientCell {
   value: unknown;
+  hasStoredValue = false;
 
   constructor(initial: unknown) {
     this.value = initial;
-    makeObservable(this, { value: observable.ref });
+    makeObservable(this, { value: observable.ref, hasStoredValue: observable });
   }
 }
 
@@ -562,6 +569,7 @@ class TransientMementoStore {
       if (predicate(entry)) {
         runInAction(() => {
           entry.cell.value = entry.defaultValue;
+          entry.cell.hasStoredValue = false;
         });
         if (entry.pins === 0) this.entries.delete(key);
       }
@@ -597,6 +605,10 @@ class TransientMementoHandle<TValue> implements MementoHandle<TValue> {
     return this.entry.cell.value as TValue;
   }
 
+  get hasStoredValue(): boolean {
+    return this.entry.cell.hasStoredValue;
+  }
+
   read(): TValue {
     return this.value;
   }
@@ -607,12 +619,18 @@ class TransientMementoHandle<TValue> implements MementoHandle<TValue> {
       typeof next === 'function' ? (next as (current: TValue) => TValue)(this.value) : next;
     runInAction(() => {
       this.entry.cell.value = value;
+      this.entry.cell.hasStoredValue = true;
     });
     this.store.touch(this.entry);
   }
 
   async reset(): Promise<void> {
-    this.update(this.definition.default);
+    this.assertActive();
+    runInAction(() => {
+      this.entry.cell.value = this.definition.default;
+      this.entry.cell.hasStoredValue = false;
+    });
+    this.store.touch(this.entry);
   }
 
   async flush(): Promise<void> {}

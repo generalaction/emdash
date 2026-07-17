@@ -1,4 +1,4 @@
-import type { TabGroupsSnapshot } from '@shared/view-state';
+import type { TabGroupsSnapshot } from '@core/features/tasks/contributions/mementos';
 
 /**
  * Implemented by a domain-level class that knows how to load and persist the
@@ -11,12 +11,9 @@ export interface TabPersistenceAdapter {
   /**
    * Synchronously load a saved snapshot.
    *
-   * @param fallback - An optional blob already held by the caller (e.g. the
-   *   aggregate task view-state).  The adapter interprets this as needed for
-   *   backwards-compatible migration; `features/tabs` treats it as opaque.
    * @returns The snapshot to restore, or `null` when nothing is saved.
    */
-  load(fallback?: unknown): TabGroupsSnapshot | null;
+  load(): TabGroupsSnapshot | null;
 
   /**
    * Start watching `getSnapshot()` and persisting changes.

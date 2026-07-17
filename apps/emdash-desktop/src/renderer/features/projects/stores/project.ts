@@ -1,9 +1,11 @@
+import { projectViewMemento } from '@core/features/projects/contributions/mementos';
+import { projectSubject } from '@core/features/projects/contributions/subject';
+import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import { makeAutoObservable, observable } from 'mobx';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
-import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
+import { getMementoClient } from '@renderer/lib/mementos';
 import type { LocalProject, SshProject } from '@shared/projects';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 import { GitRepositoryStore } from './git-repository-store';
 import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';
@@ -28,19 +30,12 @@ export class MountedProject {
   readonly settings: ProjectSettingsStore;
   readonly gitRepository: GitRepositoryStore;
   readonly data: LocalProject | SshProject;
+  readonly space: SubjectSpace<'project'>;
 
-  private _snapshotDisposer: (() => void) | null = null;
-
-  get snapshot(): ProjectViewSnapshot {
-    return {
-      activeView: this.view.activeView,
-      taskViewTab: this.view.taskView.tab,
-    };
-  }
-
-  constructor(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot) {
+  constructor(data: LocalProject | SshProject) {
     this.data = data;
-    this.view = new ProjectViewStore();
+    this.space = getMementoClient().subject(projectSubject({ projectId: data.id }));
+    this.view = new ProjectViewStore(this.space.handle(projectViewMemento));
     this.settings = new ProjectSettingsStore(
       data.id,
       data.type === 'local' ? data.path : undefined
@@ -49,23 +44,20 @@ export class MountedProject {
     this.gitRepository.start();
     this.taskManager = new TaskManagerStore(data.id, this.gitRepository, this.settings);
 
-    if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
-
     makeAutoObservable(this, {
       taskManager: false,
       view: false,
       settings: false,
       gitRepository: false,
+      space: false,
     });
-
-    this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
   }
 
   dispose(): void {
+    this.taskManager.dispose();
     this.gitRepository.dispose();
     this.settings.dispose();
-    this._snapshotDisposer?.();
-    this._snapshotDisposer = null;
+    void this.space.release().catch((error: unknown) => getMementoClient().reportError(error));
   }
 }
 
@@ -106,12 +98,12 @@ export class ProjectStore {
     makeAutoObservable(this, { mountedProject: observable.ref });
   }
 
-  transitionToMounted(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot): void {
-    this.mountedProject = new MountedProject(data, savedSnapshot);
-    this.data = data;
-    this.id = data.id;
-    this.name = data.name;
-    this.createdAt = data.createdAt;
+  transitionToMounted(mountedProject: MountedProject): void {
+    this.mountedProject = mountedProject;
+    this.data = mountedProject.data;
+    this.id = mountedProject.data.id;
+    this.name = mountedProject.data.name;
+    this.createdAt = mountedProject.data.createdAt;
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;

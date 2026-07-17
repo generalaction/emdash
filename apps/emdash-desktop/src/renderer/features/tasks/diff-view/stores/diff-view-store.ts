@@ -1,10 +1,14 @@
+import type {
+  TaskDiffPreferencesState,
+  TaskDiffSelectionState,
+  ActiveFile,
+} from '@core/features/tasks/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
-import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import { action, computed, makeObservable, reaction } from 'mobx';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { commitRef } from '@shared/core/git/utils';
-import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { type GitCheckoutStore } from '../../stores/git-checkout-store';
 
 export const MAX_STACKED_FILES = 8;
@@ -21,12 +25,8 @@ function isValidGitObjectRef(raw: unknown): raw is GitObjectRef {
   );
 }
 
-export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
-  activeFileOverride: ActiveFile | null = null;
-  diffStyle: 'unified' | 'split' = 'unified';
+export class DiffViewStore {
   readonly viewMode = 'file' as const;
-  commitAction: CommitAction | null = null;
-  prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
 
@@ -42,20 +42,24 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   constructor(
     private readonly gitCheckout: GitCheckoutStore,
-    private readonly pr: PrStore
+    private readonly pr: PrStore,
+    private readonly preferencesHandle: MementoHandle<TaskDiffPreferencesState>,
+    private readonly selectionHandle: MementoHandle<TaskDiffSelectionState>
   ) {
     this.changesView = new ChangesViewStore(gitCheckout, pr);
 
-    makeObservable(this, {
-      activeFileOverride: observable,
+    makeObservable<DiffViewStore, 'preferencesHandle' | 'selectionHandle'>(this, {
+      activeFileOverride: computed,
       activeFile: computed,
       effectivePrTab: computed,
-      diffStyle: observable,
-      commitAction: observable,
-      prTab: observable,
+      diffStyle: computed,
+      commitAction: computed,
+      prTab: computed,
       setActiveFile: action,
       setDiffStyle: action,
       setPrTab: action,
+      preferencesHandle: false,
+      selectionHandle: false,
     });
 
     // Reset PR tab when the current PR changes (different PR URL).
@@ -63,7 +67,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.pr.currentPr?.url,
         () => {
-          this.prTab = this.pr.currentPr?.status === 'open' ? 'files' : 'commits';
+          this.setPrTab(this.pr.currentPr?.status === 'open' ? 'files' : 'commits');
         }
       )
     );
@@ -78,6 +82,22 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
         }
       )
     );
+  }
+
+  get activeFileOverride(): ActiveFile | null {
+    return (this.selectionHandle.value.activeFile as ActiveFile | undefined) ?? null;
+  }
+
+  get diffStyle(): 'unified' | 'split' {
+    return this.preferencesHandle.value.diffStyle;
+  }
+
+  get commitAction(): CommitAction | null {
+    return this.preferencesHandle.value.commitAction;
+  }
+
+  get prTab(): 'files' | 'commits' | 'checks' {
+    return this.preferencesHandle.value.prTab;
   }
 
   /**
@@ -140,42 +160,21 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     return this.prTab;
   }
 
-  get snapshot(): DiffViewSnapshot {
-    return {
-      diffStyle: this.diffStyle,
-      viewMode: 'file',
-      activeFile: this.activeFileOverride ?? undefined,
-      commitAction: this.commitAction,
-      prTab: this.prTab,
-    };
-  }
-
-  restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
-    if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
-    // viewMode is always 'file' — ignore any persisted value
-    if (snapshot.activeFile && isValidGitObjectRef(snapshot.activeFile.originalRef)) {
-      this.activeFileOverride = snapshot.activeFile;
-      // Index is unknown on restore; 0 means we pick the first file if the
-      // restored path is gone from the list.
-      this._activeFileOverrideIndex = 0;
-    }
-    // Snapshots with an unrecognised originalRef shape are discarded — the
-    // store falls back to _defaultActiveFile automatically.
-    if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
-    if (snapshot.prTab) this.prTab = snapshot.prTab;
-  }
-
   get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
     return this.gitCheckout.isBranchPublished ? 'commit-push' : 'commit';
   }
 
   setCommitAction(action: CommitAction | null): void {
-    this.commitAction = action;
+    this.preferencesHandle.update((current) => ({ ...current, commitAction: action }));
   }
 
   setActiveFile(file: ActiveFile | null): void {
-    this.activeFileOverride = file;
+    if (file && !isValidGitObjectRef(file.originalRef)) return;
+    this.selectionHandle.update((current) => ({
+      ...current,
+      activeFile: file ?? undefined,
+    }));
     if (file?.group === 'disk' || file?.group === 'staged') {
       const list =
         file.group === 'staged'
@@ -188,11 +187,11 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   }
 
   setDiffStyle(style: 'unified' | 'split'): void {
-    this.diffStyle = style;
+    this.preferencesHandle.update((current) => ({ ...current, diffStyle: style }));
   }
 
   setPrTab(tab: 'files' | 'commits' | 'checks'): void {
-    this.prTab = tab;
+    this.preferencesHandle.update((current) => ({ ...current, prTab: tab }));
   }
 
   dispose(): void {

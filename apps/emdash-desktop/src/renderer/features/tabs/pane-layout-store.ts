@@ -1,6 +1,6 @@
+import type { TabGroupsSnapshot } from '@core/features/tasks/contributions/mementos';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { PaneStore } from '@renderer/features/tabs/pane-store';
-import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { OpenTarget, TabViewContext } from './core/tab-provider';
 import type {
   AnyTabProvider,
@@ -328,8 +328,8 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
         : this._evenSizes(snapshot.groups.length);
   }
 
-  hydrate(fallback?: unknown): boolean {
-    const saved = this._persistor?.load(fallback);
+  hydrate(): boolean {
+    const saved = this._persistor?.load();
     if (saved) {
       this.restoreSnapshot(saved);
       return true;

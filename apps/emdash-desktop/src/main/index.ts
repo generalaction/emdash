@@ -2,6 +2,7 @@ import './app/configure-app-identity';
 import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
+import { sql } from 'drizzle-orm';
 import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { initializeNotificationService } from '@root/src/core/services/notifications/node';
@@ -37,7 +38,6 @@ import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { taskService } from './core/tasks/task-service';
 import { updateService } from './core/updates/update-service';
-import { viewStateService } from './core/view-state/view-state-service';
 import { installDesktopWire } from './core/wire-workers/desktop-wire';
 import {
   acpWorker,
@@ -47,10 +47,13 @@ import {
   ensureGitWorkerReady,
   ensureMementosWorkerReady,
   ensureTuiAgentsWorkerReady,
+  getMementosRuntimeClient,
 } from './core/wire-workers/desktop-workers';
 import { pullRequestsRegistration } from './core/wire-workers/pull-requests-registration';
 import { provisionWorkspaceErrorToWorkspaceError } from './core/workspaces/wire-controller';
+import { db } from './db/client';
 import { initializeDatabase } from './db/initialize';
+import { projects, tasks } from './db/schema';
 import { events } from './lib/events';
 import {
   initializeFileLogger,
@@ -126,9 +129,20 @@ void app.whenReady().then(async () => {
     void editorBufferService.pruneStale();
     void cleanupLegacyBrowserPartitions();
     try {
-      viewStateService.pruneOrphans();
+      const [taskRows, projectRows, mementos] = await Promise.all([
+        db.select({ id: tasks.id }).from(tasks),
+        db.select({ id: projects.id }).from(projects),
+        getMementosRuntimeClient(),
+      ]);
+      const [taskResult, projectResult] = await Promise.all([
+        mementos.deleteOrphans({ kind: 'task', validKeys: taskRows.map(({ id }) => id) }),
+        mementos.deleteOrphans({ kind: 'project', validKeys: projectRows.map(({ id }) => id) }),
+      ]);
+      if (!taskResult.success) throw new Error(taskResult.error.message);
+      if (!projectResult.success) throw new Error(projectResult.error.message);
+      db.run(sql`DELETE FROM kv WHERE key LIKE 'view-state:%'`);
     } catch (e: unknown) {
-      log.warn('view-state: failed to prune orphaned entries', { error: e });
+      log.warn('mementos: failed to prune orphaned entries', { error: e });
     }
   } catch (error) {
     log.error('Failed to initialize database:', error);

@@ -40,6 +40,10 @@ class SanitizedMementoHandle<TValue, TDependencies> implements MementoHandle<TVa
     return this.handle.isPending;
   }
 
+  get hasStoredValue(): boolean {
+    return this.handle.hasStoredValue;
+  }
+
   read(): TValue {
     return this.value;
   }

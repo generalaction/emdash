@@ -138,10 +138,14 @@ export const terminalDrawerMemento = defineMemento({
 IDs are global and contributor-namespaced. Every definition requires a subject;
 use `appSubject` explicitly for application-global state.
 
-Register persisted definitions in `src/core/manifests/memento-catalog.ts`:
+Concrete subjects and mementos belong to their owning vertical slice under
+`src/core/features/<owner>/contributions/`. Contribution modules are declarative:
+they may import primitive APIs and schemas, but not Node, browser, renderer, or
+main-process implementations. Register persisted definitions in
+`src/core/manifests/memento-catalog.ts`:
 
 ```ts
-import { terminalDrawerMemento } from './features/pty/api/mementos';
+import { terminalDrawerMemento } from '@core/features/pty/contributions/mementos';
 
 export const mementoCatalog = [
   terminalDrawerMemento,
@@ -149,9 +153,7 @@ export const mementoCatalog = [
 ```
 
 The worker derives sweep policies from this catalog. The renderer prefetches
-cataloged definitions before `SubjectProvider` renders its children. Definitions
-must therefore remain importable from API halves without pulling Node or browser
-code into the opposite process.
+cataloged definitions before `SubjectProvider` renders its children.
 
 ## Headless browser usage
 
@@ -191,6 +193,9 @@ handle, and the client also starts a flush on `beforeunload`.
 
 `reset()` deletes the persisted row rather than storing the default. Every open
 renderer converges to the definition's default through the live model.
+`hasStoredValue` distinguishes an absent row from a deliberately stored value
+whose contents happen to equal the default. It becomes false again after
+`reset()` or subject cleanup.
 
 ## React usage
 
@@ -359,8 +364,8 @@ is logged without preventing the mementos worker from starting.
 
 ## Invariants and anti-patterns
 
-- Keep definitions in API-visible modules and register persisted definitions in
-  the catalog.
+- Keep concrete definitions in feature `contributions/` modules and register
+  persisted definitions in the catalog.
 - Use stable, contributor-namespaced IDs such as `pty.terminal-drawer`.
 - Store bounded, JSON-shaped presentation state only.
 - A memento uses whole-value last-write-wins semantics. Split independent,

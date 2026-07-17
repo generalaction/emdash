@@ -6,7 +6,6 @@ type MockViewModel = {
   initialize: ReturnType<typeof vi.fn>;
   suspend: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
-  restoreSnapshot: ReturnType<typeof vi.fn>;
 };
 
 type MockDraftComments = {
@@ -35,7 +34,6 @@ vi.mock('./workspace-view-model', () => ({
     initialize = vi.fn();
     suspend = vi.fn();
     dispose = vi.fn();
-    restoreSnapshot = vi.fn();
 
     constructor() {
       mocks.viewModels.push(this);
@@ -118,28 +116,18 @@ describe('TaskStore frontend runtime lifecycle', () => {
     expect((store.data as Task).archivedAt).toBe('2026-01-02T00:00:00.000Z');
   });
 
-  it('registers the workspace before restoring the snapshot, and restores before initialize', () => {
+  it('registers the workspace before initializing the view model', () => {
     const task = makeTask();
     const store = createUnprovisionedTask(task);
-    const savedSnapshot = { sidebarTab: 'conversations' } as never;
 
     const order: string[] = [];
     mocks.workspaceAcquire.mockImplementation(() => order.push('acquire'));
     const viewModel = mocks.viewModels[0];
-    viewModel.restoreSnapshot.mockImplementation(() => order.push('restore'));
     viewModel.initialize.mockImplementation(() => order.push('initialize'));
 
-    store.transitionToProvisioned(
-      task,
-      '/tmp/workspace-1',
-      'workspace-1',
-      {} as never,
-      undefined,
-      savedSnapshot
-    );
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
 
-    expect(viewModel.restoreSnapshot).toHaveBeenCalledWith(savedSnapshot);
-    expect(order).toEqual(['acquire', 'restore', 'initialize']);
+    expect(order).toEqual(['acquire', 'initialize']);
   });
 
   it('recreates registered stores before reprovisioning a dry task', () => {

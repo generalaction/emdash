@@ -1,3 +1,7 @@
+import type {
+  TabDescriptor,
+  TabManagerSnapshot,
+} from '@core/features/tasks/contributions/mementos';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
@@ -8,7 +12,6 @@ import {
   setPreviousTabActive as tabUtilsSetPreviousTabActive,
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import type { TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 import type { TabHost } from './core/tab-host';
 import type {
   TabEntry,

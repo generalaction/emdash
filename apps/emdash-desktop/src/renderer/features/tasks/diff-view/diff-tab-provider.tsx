@@ -1,3 +1,4 @@
+import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import type {
@@ -9,7 +10,6 @@ import type {
 } from '@renderer/features/tabs/core/tab-provider';
 import { createTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
-import type { ActiveFile } from '@shared/view-state';
 import { resolveWorkspacePath } from '../stores/workspace-path';
 import { DiffTabBarItem, DiffTabBarItemDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';

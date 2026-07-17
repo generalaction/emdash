@@ -18,7 +18,8 @@ parent/child relationship. UI hierarchy changes must not change persisted keys.
 
 ## Defining a subject
 
-Define subjects in the API half of the domain that owns the identity:
+Define concrete subjects in the owning feature's declarative
+`contributions/subject.ts` module:
 
 ```ts
 import { defineSubject } from '@core/primitives/subjects/api';

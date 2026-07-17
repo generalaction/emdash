@@ -1,3 +1,22 @@
+import {
+  taskChromeMemento,
+  taskDiffPreferencesMemento,
+  taskDiffSelectionMemento,
+  taskEditorTreeMemento,
+  taskPaneLayoutMemento,
+  taskTerminalSelectionMemento,
+  type TaskChromeState,
+  type TaskDiffPreferencesState,
+  type TaskDiffSelectionState,
+  type TaskTerminalSelectionState,
+  type TerminalDrawerActiveItem,
+} from '@core/features/tasks/contributions/mementos';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
+import {
+  sanitizedMemento,
+  type MementoHandle,
+  type SubjectSpace,
+} from '@core/primitives/mementos/browser';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DefaultConversationSeeder } from '@renderer/features/conversations/default-conversation-seeder';
 import type { TaskTabContext } from '@renderer/features/tabs/core/task-tab-context';
@@ -8,22 +27,17 @@ import type { FileTabResource } from '@renderer/features/tasks/editor/stores/fil
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
+import { getMementoClient } from '@renderer/lib/mementos';
 import { appState } from '@renderer/lib/stores/app-state';
-import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
-import type {
-  DiffViewSnapshot,
-  TaskViewSnapshot,
-  TerminalDrawerActiveItem,
-} from '@shared/view-state';
 import { taskTabView } from '../task-tab-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
-import { resolveWorkspacePath } from './workspace-path';
+import { relativeToWorkspace, resolveWorkspacePath } from './workspace-path';
 import { workspaceRegistry } from './workspace-registry';
 
 export type RendererKind =
@@ -36,11 +50,8 @@ export type RendererKind =
   | 'other-file';
 
 export class WorkspaceViewModel {
-  sidebarTab: SidebarTab;
-  isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
-  isTerminalDrawerOpen: boolean;
-  terminalDrawerActiveItem: TerminalDrawerActiveItem | undefined;
+  readonly space: SubjectSpace<'task'>;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
   readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
@@ -69,12 +80,14 @@ export class WorkspaceViewModel {
   /** Session reactions (created in initialize, disposed in suspend). */
   private _sessionDisposers: (() => void)[] = [];
 
-  private _snapshotDisposer: (() => void) | null = null;
-  /** Saved whenever suspend() is called, restored in next initialize(). */
-  private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
+  private _paneHydrated = false;
 
   private readonly _seeder: DefaultConversationSeeder;
+  private readonly _chromeHandle: MementoHandle<TaskChromeState>;
+  private readonly _terminalSelectionHandle: MementoHandle<TaskTerminalSelectionState>;
+  private readonly _diffPreferencesHandle: MementoHandle<TaskDiffPreferencesState>;
+  private readonly _diffSelectionHandle: MementoHandle<TaskDiffSelectionState>;
 
   readonly taskId: string;
 
@@ -82,12 +95,21 @@ export class WorkspaceViewModel {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
 
-    // UI state defaults — overridden by restoreSnapshot when called
-    this.sidebarTab = 'conversations';
-    this.isSidebarCollapsed = true;
     this.focusedRegion = 'main';
-    this.isTerminalDrawerOpen = false;
-    this.terminalDrawerActiveItem = undefined;
+    this.space = getMementoClient().subject(taskSubject({ taskId: this.taskId }));
+    this._chromeHandle = this.space.handle(taskChromeMemento);
+    this._terminalSelectionHandle = sanitizedMemento(
+      this.space.handle(taskTerminalSelectionMemento),
+      {
+        deps: () => {
+          const terminals = terminalRegistry.get(this.taskId);
+          return terminals?.isLoaded ? new Set(terminals.terminals.keys()) : undefined;
+        },
+        sanitize: sanitizeTerminalSelection,
+      }
+    );
+    this._diffPreferencesHandle = this.space.handle(taskDiffPreferencesMemento);
+    this._diffSelectionHandle = this.space.handle(taskDiffSelectionMemento);
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
     const projectId = taskData.projectId;
@@ -102,6 +124,7 @@ export class WorkspaceViewModel {
       },
       modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
+      paneLayoutMemento: this.space.handle(taskPaneLayoutMemento),
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       onActiveTabChange: (tabId) => {
@@ -115,15 +138,34 @@ export class WorkspaceViewModel {
       },
     });
     this._seeder = new DefaultConversationSeeder(this.taskId, this.paneLayout);
-    this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
-    this.editorView = new EditorViewStore(this.paneLayout, taskData.projectId, workspaceId);
+    this.terminalTabs = new TerminalTabViewStore(
+      this._terminalSelectionHandle,
+      () => terminalRegistry.get(this.taskId) ?? null
+    );
+    this.editorView = new EditorViewStore(
+      this.paneLayout,
+      taskData.projectId,
+      workspaceId,
+      this.space.handle(taskEditorTreeMemento)
+    );
 
-    makeAutoObservable(this, {
+    makeAutoObservable<
+      WorkspaceViewModel,
+      | '_chromeHandle'
+      | '_diffPreferencesHandle'
+      | '_diffSelectionHandle'
+      | '_terminalSelectionHandle'
+    >(this, {
       paneLayout: false,
       terminalTabs: false,
       editorView: false,
       diffView: observable.ref,
       activeRenderer: computed,
+      space: false,
+      _chromeHandle: false,
+      _terminalSelectionHandle: false,
+      _diffPreferencesHandle: false,
+      _diffSelectionHandle: false,
     });
 
     // Tell the engine whether this task is the active route so panes can
@@ -151,6 +193,22 @@ export class WorkspaceViewModel {
   // Computed
   // -------------------------------------------------------------------------
 
+  get sidebarTab(): SidebarTab {
+    return this._chromeHandle.value.sidebarTab;
+  }
+
+  get isSidebarCollapsed(): boolean {
+    return this._chromeHandle.value.sidebarCollapsed;
+  }
+
+  get isTerminalDrawerOpen(): boolean {
+    return this._chromeHandle.value.terminalDrawerOpen;
+  }
+
+  get terminalDrawerActiveItem(): TerminalDrawerActiveItem | undefined {
+    return this._terminalSelectionHandle.value.activeItem;
+  }
+
   get activeRenderer(): RendererKind {
     const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
@@ -163,47 +221,14 @@ export class WorkspaceViewModel {
     return 'other-file';
   }
 
-  get snapshot(): TaskViewSnapshot {
-    return {
-      sidebarTab: this.sidebarTab,
-      isSidebarCollapsed: this.isSidebarCollapsed,
-      focusedRegion: this.focusedRegion,
-      isTerminalDrawerOpen: this.isTerminalDrawerOpen,
-      terminalDrawerActiveItem: this.terminalDrawerActiveItem,
-      terminals: this.terminalTabs.snapshot,
-      editor: this.editorView.snapshot,
-      diffView: this.diffView?.snapshot ?? this._savedDiffViewSnapshot,
-    };
-  }
-
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
 
-  /**
-   * Restore persisted UI state from a saved snapshot. Call this before
-   * initialize() so the reaction baseline is correct.
-   */
-  restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
-    this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
-    this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
-    this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
-    this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
-    this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
-
-    // Pass the aggregate blob as fallback so the persistor can migrate legacy
-    // tabGroups/tabManager/conversations fields when no dedicated key exists yet.
-    this._seeder.markConsumed(this.paneLayout.hydrate(savedSnapshot));
-
-    if (savedSnapshot.terminals) {
-      this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
-    }
-    if (savedSnapshot.editor) {
-      this.editorView.restoreSnapshot(savedSnapshot.editor);
-    }
-    if (savedSnapshot.diffView) {
-      this._savedDiffViewSnapshot = savedSnapshot.diffView;
-    }
+  hydrate(): void {
+    if (this._paneHydrated) return;
+    if (this.paneLayout.hydrate()) this._seeder.markConsumed(true);
+    this._paneHydrated = true;
   }
 
   /**
@@ -211,10 +236,12 @@ export class WorkspaceViewModel {
    * (DiffViewStore, DiffTabLifecycleStore) and starts session-dependent reactions.
    */
   initialize(): void {
-    if (this._snapshotDisposer) return; // already active
+    if (this.previewServers) return;
 
     const workspace = this._workspace;
     if (!workspace) return; // defensive — should always have workspace when provisioned
+
+    this.hydrate();
 
     const taskData = this._taskStore.data as Task;
     const workspaceId = this._taskStore.workspaceId!;
@@ -232,13 +259,25 @@ export class WorkspaceViewModel {
       this._taskStore
     );
 
-    // Create DiffViewStore with live git/pr references from the workspace.
-    this.diffView = new DiffViewStore(workspace.gitCheckout, this.prStore);
-    if (this._savedDiffViewSnapshot) {
-      this.diffView.restoreSnapshot(
-        normalizeDiffSnapshotPaths(this._savedDiffViewSnapshot, workspace.path)
-      );
-    }
+    const diffSelectionHandle = sanitizedMemento(this._diffSelectionHandle, {
+      deps: () =>
+        workspace.gitCheckout.hasData
+          ? {
+              workspacePath: workspace.path,
+              validPaths: new Set([
+                ...workspace.gitCheckout.unstagedFileChanges.map((file) => file.path),
+                ...workspace.gitCheckout.stagedFileChanges.map((file) => file.path),
+              ]),
+            }
+          : undefined,
+      sanitize: sanitizeDiffSelection,
+    });
+    this.diffView = new DiffViewStore(
+      workspace.gitCheckout,
+      this.prStore,
+      this._diffPreferencesHandle,
+      diffSelectionHandle
+    );
 
     getDiffTabManager(workspaceId).bindSession({
       gitCheckout: workspace.gitCheckout,
@@ -246,8 +285,6 @@ export class WorkspaceViewModel {
       diffView: this.diffView,
     });
 
-    // Register snapshot with the persistence layer.
-    this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
     this.paneLayout.startPersistence();
 
     // Open the default conversation tab only for fresh task views. If tab state was
@@ -276,7 +313,10 @@ export class WorkspaceViewModel {
         ) {
           runInAction(() => {
             this.setTerminalDrawerOpen(false);
-            this.terminalDrawerActiveItem = undefined;
+            this._terminalSelectionHandle.update((current) => ({
+              ...current,
+              activeItem: undefined,
+            }));
           });
         }
       },
@@ -313,9 +353,7 @@ export class WorkspaceViewModel {
    * is preserved so it survives re-provisioning.
    */
   suspend(): void {
-    // Persist DiffView state before disposing.
     if (this.diffView) {
-      this._savedDiffViewSnapshot = this.diffView.snapshot;
       this.diffView.dispose();
       this.diffView = null;
     }
@@ -325,9 +363,6 @@ export class WorkspaceViewModel {
     this.previewServers?.dispose();
     this.previewServers = null;
 
-    // Stop snapshot persistence.
-    this._snapshotDisposer?.();
-    this._snapshotDisposer = null;
     this.paneLayout.stopPersistence();
 
     // Dispose session-scoped reactions before tearing down the projection they drive.
@@ -350,6 +385,7 @@ export class WorkspaceViewModel {
     this.paneLayout.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
+    void this.space.release().catch((error: unknown) => getMementoClient().reportError(error));
   }
 
   // -------------------------------------------------------------------------
@@ -376,11 +412,11 @@ export class WorkspaceViewModel {
   }
 
   setSidebarTab(v: SidebarTab): void {
-    this.sidebarTab = v;
+    this._chromeHandle.update((current) => ({ ...current, sidebarTab: v }));
   }
 
   setSidebarCollapsed(collapsed: boolean): void {
-    this.isSidebarCollapsed = collapsed;
+    this._chromeHandle.update((current) => ({ ...current, sidebarCollapsed: collapsed }));
   }
 
   // Single source of truth for whether the changes panel is actually visible. TaskSidebar
@@ -398,24 +434,24 @@ export class WorkspaceViewModel {
   }
 
   setTerminalDrawerOpen(open: boolean): void {
-    this.isTerminalDrawerOpen = open;
+    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: open }));
     this.setFocusedRegion(open ? 'bottom' : 'main');
   }
 
   setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
-    this.terminalDrawerActiveItem = item;
+    this._terminalSelectionHandle.update((current) => ({ ...current, activeItem: item }));
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
-    this.isTerminalDrawerOpen = true;
+    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: true }));
     this.setFocusedRegion('bottom');
 
     const terminalId = await this._createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {
       this.terminalTabs.setActiveTab(terminalId);
-      this.terminalDrawerActiveItem = { kind: 'terminal', id: terminalId };
+      this.setTerminalDrawerActiveItem({ kind: 'terminal', id: terminalId });
     });
     return terminalId;
   }
@@ -439,17 +475,44 @@ export class WorkspaceViewModel {
   }
 }
 
-function normalizeDiffSnapshotPaths(
-  snapshot: DiffViewSnapshot,
-  workspacePath: string
-): DiffViewSnapshot {
-  const activeFile = snapshot.activeFile;
-  if (!activeFile || activeFile.group === 'pr') return snapshot;
+function sanitizeTerminalSelection(
+  value: TaskTerminalSelectionState,
+  terminalIds: ReadonlySet<string>
+): TaskTerminalSelectionState {
+  const tabOrder = value.tabOrder.filter((id) => terminalIds.has(id));
+  const activeTabId =
+    value.activeTabId && terminalIds.has(value.activeTabId) ? value.activeTabId : tabOrder[0];
+  const activeItem =
+    value.activeItem?.kind === 'terminal' && !terminalIds.has(value.activeItem.id)
+      ? undefined
+      : value.activeItem;
   return {
-    ...snapshot,
+    ...value,
+    tabOrder,
+    activeTabId,
+    activeItem,
+  };
+}
+
+export function sanitizeDiffSelection(
+  value: TaskDiffSelectionState,
+  dependencies: { workspacePath: string; validPaths: ReadonlySet<string> }
+): TaskDiffSelectionState {
+  const activeFile = value.activeFile;
+  if (!activeFile || activeFile.group === 'pr') return value;
+  const relativePath = relativeToWorkspace(dependencies.workspacePath, activeFile.path);
+  const path = resolveWorkspacePath(dependencies.workspacePath, activeFile.path);
+  if (
+    (activeFile.group === 'disk' || activeFile.group === 'staged') &&
+    !dependencies.validPaths.has(relativePath)
+  ) {
+    return { ...value, activeFile: undefined };
+  }
+  return {
+    ...value,
     activeFile: {
       ...activeFile,
-      path: resolveWorkspacePath(workspacePath, activeFile.path),
+      path,
     },
   };
 }

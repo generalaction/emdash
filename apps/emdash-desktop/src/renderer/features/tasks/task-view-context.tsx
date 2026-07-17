@@ -1,3 +1,5 @@
+import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { SubjectProvider } from '@core/primitives/mementos/react';
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
 import type { ConversationManagerStore } from '@renderer/features/conversations/conversation-manager';
@@ -36,9 +38,11 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   const workspaceId = getTaskStore(projectId, taskId)?.workspaceId ?? null;
   return (
     <ProjectViewWrapper projectId={projectId}>
-      <TaskViewContext.Provider value={{ projectId, taskId, workspaceId }}>
-        {children}
-      </TaskViewContext.Provider>
+      <SubjectProvider subject={taskSubject({ taskId })}>
+        <TaskViewContext.Provider value={{ projectId, taskId, workspaceId }}>
+          {children}
+        </TaskViewContext.Provider>
+      </SubjectProvider>
     </ProjectViewWrapper>
   );
 });

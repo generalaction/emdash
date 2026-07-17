@@ -48,7 +48,8 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   closeProject: vi.fn(async () => {}),
   deleteProjectData: vi.fn(async () => {}),
-  deleteViewState: vi.fn(async () => {}),
+  deleteViewState: vi.fn(async () => ({ success: true, data: { deleted: 1 } })),
+  deleteOrphanedMementos: vi.fn(async () => ({ success: true, data: { deleted: 1 } })),
   emitProjectEvent: vi.fn(),
   captureTelemetry: vi.fn(),
   publishNotification: vi.fn(),
@@ -77,8 +78,11 @@ vi.mock('@main/core/wire-workers/pull-requests-registration', () => ({
   pullRequestsRegistration: { deleteProjectData: mocks.deleteProjectData },
 }));
 
-vi.mock('@main/core/view-state/view-state-service', () => ({
-  viewStateService: { del: mocks.deleteViewState },
+vi.mock('@main/core/wire-workers/desktop-workers', () => ({
+  getMementosRuntimeClient: async () => ({
+    deleteBySubject: mocks.deleteViewState,
+    deleteOrphans: mocks.deleteOrphanedMementos,
+  }),
 }));
 
 vi.mock('@main/lib/telemetry', () => ({
@@ -101,7 +105,7 @@ vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
   },
 }));
 
-vi.mock('@services/notifications/node', () => ({
+vi.mock('@root/src/core/services/notifications/node', () => ({
   notificationService: { publish: mocks.publishNotification },
 }));
 
@@ -212,6 +216,7 @@ describe('OperationsService crash recovery', () => {
     mocks.closeProject.mockClear();
     mocks.deleteProjectData.mockClear();
     mocks.deleteViewState.mockClear();
+    mocks.deleteOrphanedMementos.mockClear();
     mocks.emitProjectEvent.mockClear();
     mocks.captureTelemetry.mockClear();
     mocks.publishNotification.mockClear();
@@ -603,7 +608,14 @@ describe('OperationsService crash recovery', () => {
     expect(result.success).toBe(true);
     expect(mocks.closeProject).toHaveBeenCalledWith('project-1');
     expect(mocks.deleteProjectData).toHaveBeenCalledWith('project-1');
-    expect(mocks.deleteViewState).toHaveBeenCalledWith('project:project-1');
+    expect(mocks.deleteViewState).toHaveBeenCalledWith({
+      kind: 'project',
+      key: 'project-1',
+    });
+    expect(mocks.deleteOrphanedMementos).toHaveBeenCalledWith({
+      kind: 'task',
+      validKeys: [],
+    });
     expect(mocks.emitProjectEvent).toHaveBeenCalledWith('project:deleted', 'project-1');
     expect(await fixture.db.select().from(projects)).toEqual([]);
 

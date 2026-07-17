@@ -1,3 +1,4 @@
+import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
@@ -27,7 +28,6 @@ import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { gitRefToString } from '@shared/core/git/utils';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
-import type { ActiveFile } from '@shared/view-state';
 
 interface DiffFileRendererProps {
   tab: DiffTabResource;

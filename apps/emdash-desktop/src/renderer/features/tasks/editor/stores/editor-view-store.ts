@@ -1,11 +1,11 @@
+import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { log } from '@renderer/utils/logger';
-import type { EditorViewSnapshot } from '@shared/view-state';
 import { allOpenFileResources } from '../pane-selectors';
 import type { FileTabResource } from './file-tab-resource';
 import { FilesStore } from './files-store';
@@ -17,7 +17,7 @@ import { FilesStore } from './files-store';
  * which is called by FileTabResource on construction and dispose.
  * This store focuses on save-all, conflict resolution, and buffer restore.
  */
-export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
+export class EditorViewStore {
   readonly modelRootPath: string;
 
   isSaving = false;
@@ -26,9 +26,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
    * EditorProvider watches this via a MobX reaction and shows the conflict modal.
    */
   pendingConflictUri: string | null = null;
-
-  /** Persisted navigation state for the file tree sidebar. */
-  expandedPaths = observable.set<string>();
 
   /**
    * Per-view file-tree projection store. Created when the task session starts (`startFiles`) and
@@ -41,18 +38,28 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   private readonly workspaceId: string;
   private readonly paneLayout: PaneLayoutStore;
 
-  constructor(paneLayout: PaneLayoutStore, projectId: string, workspaceId: string) {
+  constructor(
+    paneLayout: PaneLayoutStore,
+    projectId: string,
+    workspaceId: string,
+    private readonly treeHandle: MementoHandle<TaskEditorTreeState>
+  ) {
     this.paneLayout = paneLayout;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.modelRootPath = `workspace:${workspaceId}`;
 
-    makeObservable(this, {
+    makeObservable<EditorViewStore, 'treeHandle'>(this, {
       isSaving: observable,
       pendingConflictUri: observable,
       files: observable.ref,
-      snapshot: computed,
+      expandedPaths: computed.struct,
+      treeHandle: false,
     });
+  }
+
+  get expandedPaths(): Set<string> {
+    return new Set(this.treeHandle.value.expandedPaths);
   }
 
   /** Opens the per-view file-tree projection. Idempotent. */
@@ -88,16 +95,27 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     return [...seen];
   }
 
-  get snapshot(): EditorViewSnapshot {
-    return {
-      expandedPaths: [...this.expandedPaths],
-    };
+  expandPath(path: string): void {
+    this.expandPaths([path]);
   }
 
-  restoreSnapshot(snapshot: Partial<EditorViewSnapshot>): void {
-    if (snapshot.expandedPaths) {
-      this.expandedPaths.replace(snapshot.expandedPaths);
-    }
+  expandPaths(paths: readonly string[]): void {
+    this.treeHandle.update((current) => ({
+      ...current,
+      expandedPaths: [...new Set([...current.expandedPaths, ...paths])],
+    }));
+  }
+
+  collapsePath(path: string): void {
+    this.collapsePaths([path]);
+  }
+
+  collapsePaths(paths: readonly string[]): void {
+    const removed = new Set(paths);
+    this.treeHandle.update((current) => ({
+      ...current,
+      expandedPaths: current.expandedPaths.filter((candidate) => !removed.has(candidate)),
+    }));
   }
 
   async saveFile(filePath: string): Promise<void> {

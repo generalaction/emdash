@@ -1,55 +1,53 @@
+import type { ProjectViewState } from '@core/features/projects/contributions/mementos';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { makeAutoObservable } from 'mobx';
-import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import type { IssueProviderType } from '@shared/issue-providers';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 
 export type ProjectView = 'tasks' | 'pull-request' | 'workspaces' | 'settings';
 
-export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
-  activeView: ProjectView = 'tasks';
-  taskView: TaskViewStore = new TaskViewStore();
-  selectedIssueProvider: IssueProviderType | null = null;
+export class ProjectViewStore {
+  readonly taskView: TaskViewStore;
 
-  constructor() {
-    makeAutoObservable(this);
+  constructor(private readonly handle: MementoHandle<ProjectViewState>) {
+    this.taskView = new TaskViewStore(handle);
+    makeAutoObservable<ProjectViewStore, 'handle'>(this, { handle: false, taskView: false });
+  }
+
+  get activeView(): ProjectView {
+    return this.handle.value.activeView;
+  }
+
+  get selectedIssueProvider(): IssueProviderType | null {
+    return (this.handle.value.selectedIssueProvider as IssueProviderType | undefined) ?? null;
   }
 
   setProjectView(view: ProjectView) {
-    this.activeView = view;
+    this.handle.update((current) => ({ ...current, activeView: view }));
   }
 
   setSelectedIssueProvider(provider: IssueProviderType | null) {
-    this.selectedIssueProvider = provider;
-  }
-
-  get snapshot(): ProjectViewSnapshot {
-    return {
-      activeView: this.activeView,
-      taskViewTab: this.taskView.tab,
-      selectedIssueProvider: this.selectedIssueProvider ?? undefined,
-    };
-  }
-
-  restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
-    if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
-    if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
-    if (snapshot.selectedIssueProvider)
-      this.selectedIssueProvider = snapshot.selectedIssueProvider as IssueProviderType;
+    this.handle.update((current) => ({
+      ...current,
+      selectedIssueProvider: provider ?? undefined,
+    }));
   }
 }
 
 class TaskViewStore {
-  tab: 'active' | 'archived' = 'active';
   searchQuery: string = '';
   selectedIds: Set<string> = new Set();
   lastSelectedId: string | null = null;
 
-  constructor() {
-    makeAutoObservable(this);
+  constructor(private readonly handle: MementoHandle<ProjectViewState>) {
+    makeAutoObservable<TaskViewStore, 'handle'>(this, { handle: false });
+  }
+
+  get tab(): 'active' | 'archived' {
+    return this.handle.value.taskViewTab;
   }
 
   setTab(tab: 'active' | 'archived') {
-    this.tab = tab;
+    this.handle.update((current) => ({ ...current, taskViewTab: tab }));
   }
 
   setSearchQuery(query: string) {
