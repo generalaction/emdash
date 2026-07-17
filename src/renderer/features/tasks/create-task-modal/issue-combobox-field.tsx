@@ -21,23 +21,19 @@ interface IssueComboboxFieldProps {
 function ModalPlaceholder({ issueProvider, connectedProviderCount }: IssueSelectorTriggerContext) {
   return (
     <span className="flex h-14 w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
-      Select a
-      {connectedProviderCount > 1 ? (
-        <span className="flex items-center gap-1">
-          {issueProvider && (
-            <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />
-          )}
-          <span>{issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issue'}</span>
-        </span>
-      ) : (
-        issueProvider && (
-          <span className="flex items-center gap-1">
-            <ProviderLogo provider={issueProvider} className="size-3.5" />
-            {ISSUE_PROVIDER_META[issueProvider].displayName}
-          </span>
-        )
-      )}
-      issue
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <span>Select a</span>
+        {issueProvider && (
+          <>
+            <ProviderLogo
+              provider={issueProvider}
+              className={cn('size-3.5', connectedProviderCount > 1 && 'opacity-40')}
+            />
+            <span>{ISSUE_PROVIDER_META[issueProvider].displayName}</span>
+          </>
+        )}
+        <span>issue</span>
+      </span>
     </span>
   );
 }
