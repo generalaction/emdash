@@ -5,12 +5,14 @@ import { automationRunIdSchema, automationRunSchema } from './run';
 export const GET_RUNS_DEFAULT_LIMIT = 200;
 export const GET_RUNS_MAX_LIMIT = 1_000;
 
-export const automationDeploymentResultSchema = z.object({
+export const deployInputSchema = automationDeploymentSchema;
+
+export const deployResultSchema = z.object({
   deployment: automationDeploymentSchema,
-  deployedAt: z.number().int(),
+  deployedAt: z.number().int().nonnegative(),
 });
 
-export const automationRemoveInputSchema = z.object({
+export const removeInputSchema = z.object({
   automationId: automationIdSchema,
 });
 
@@ -22,7 +24,7 @@ export const startRunResultSchema = z.object({
   run: automationRunSchema,
 });
 
-export const stopRunInputSchema = z.object({
+export const cancelRunInputSchema = z.object({
   runId: automationRunIdSchema,
 });
 
@@ -38,16 +40,19 @@ export const getRunsResultSchema = z.object({
 });
 
 export const runEventsKeySchema = z.object({
-  automationIds: z.array(automationIdSchema).min(1),
+  automationId: automationIdSchema,
 });
 
 export const runEventsEventSchema = z.object({
   run: automationRunSchema,
 });
 
+export type DeployInput = z.infer<typeof deployInputSchema>;
+export type DeployResult = z.infer<typeof deployResultSchema>;
+export type RemoveInput = z.infer<typeof removeInputSchema>;
 export type StartRunInput = z.infer<typeof startRunInputSchema>;
 export type StartRunResult = z.infer<typeof startRunResultSchema>;
-export type StopRunInput = z.infer<typeof stopRunInputSchema>;
+export type CancelRunInput = z.infer<typeof cancelRunInputSchema>;
 export type GetRunsInput = z.infer<typeof getRunsInputSchema>;
 export type GetRunsResult = z.infer<typeof getRunsResultSchema>;
 export type RunEventsKey = z.infer<typeof runEventsKeySchema>;

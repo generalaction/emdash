@@ -28,16 +28,16 @@ export {
   type AutomationWorktreeConfig,
 } from './deployment';
 export {
+  cancelRunErrorSchema,
   deployErrorSchema,
   getRunsErrorSchema,
   removeErrorSchema,
   startRunErrorSchema,
-  stopRunErrorSchema,
+  type CancelRunError,
   type DeployError,
   type GetRunsError,
   type RemoveError,
   type StartRunError,
-  type StopRunError,
 } from './errors';
 export {
   automationRunErrorSchema,
@@ -56,6 +56,7 @@ export {
 export {
   GET_RUNS_DEFAULT_LIMIT,
   GET_RUNS_MAX_LIMIT,
+  cancelRunInputSchema,
   deployInputSchema,
   deployResultSchema,
   getRunsInputSchema,
@@ -65,7 +66,7 @@ export {
   runEventsKeySchema,
   startRunInputSchema,
   startRunResultSchema,
-  stopRunInputSchema,
+  type CancelRunInput,
   type DeployInput,
   type DeployResult,
   type GetRunsInput,
@@ -75,5 +76,4 @@ export {
   type RunEventsKey,
   type StartRunInput,
   type StartRunResult,
-  type StopRunInput,
 } from './schemas';

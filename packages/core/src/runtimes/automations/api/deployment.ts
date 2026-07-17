@@ -152,7 +152,7 @@ export const automationWorkspaceConfigSchema = z.discriminatedUnion('kind', [
   automationDirectoryConfigSchema,
 ]);
 
-const automationDeploymentBaseSchema = z.object({
+export const automationDeploymentSchema = z.object({
   automationId: automationIdSchema,
   enabled: z.boolean(),
   name: z.string().min(1),
@@ -163,14 +163,12 @@ const automationDeploymentBaseSchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 });
 
-export const automationDeploymentSchema = automationDeploymentBaseSchema;
-
 /**
  * Immutable per-run copy of everything execution and rendering read, captured
  * when the run is inserted. Deploy upserts between schedule and execution must
  * not change what an already-scheduled run does.
  */
-export const automationRunConfigSnapshotSchema = automationDeploymentBaseSchema.pick({
+export const automationRunConfigSnapshotSchema = automationDeploymentSchema.pick({
   name: true,
   schedule: true,
   agent: true,

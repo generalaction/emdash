@@ -1,45 +1,45 @@
 import { defineContract, eventStream, fallible } from '@emdash/wire';
 import { z } from 'zod';
 import {
-    automationDeploymentErrorSchema,
-  automationRemoveErrorSchema,
+  cancelRunErrorSchema,
+  deployErrorSchema,
   getRunsErrorSchema,
+  removeErrorSchema,
   startRunErrorSchema,
-  stopRunErrorSchema,
 } from './errors';
 import {
-    automationDeploymentResultSchema,
-  automationRemoveInputSchema,
+  cancelRunInputSchema,
+  deployInputSchema,
+  deployResultSchema,
   getRunsInputSchema,
   getRunsResultSchema,
+  removeInputSchema,
   runEventsEventSchema,
   runEventsKeySchema,
   startRunInputSchema,
   startRunResultSchema,
-  stopRunInputSchema,
 } from './schemas';
-import { automationDeploymentSchema } from './deployment';
 
 export const automationsContract = defineContract({
   deploy: fallible({
-    input: automationDeploymentSchema,
-    data: automationDeploymentResultSchema,
-    error: automationDeploymentErrorSchema,
+    input: deployInputSchema,
+    data: deployResultSchema,
+    error: deployErrorSchema,
   }),
   remove: fallible({
-    input: automationRemoveInputSchema,
+    input: removeInputSchema,
     data: z.void(),
-    error: automationRemoveErrorSchema,
+    error: removeErrorSchema,
   }),
   startRun: fallible({
     input: startRunInputSchema,
     data: startRunResultSchema,
     error: startRunErrorSchema,
   }),
-  stopRun: fallible({
-    input: stopRunInputSchema,
+  cancelRun: fallible({
+    input: cancelRunInputSchema,
     data: z.void(),
-    error: stopRunErrorSchema,
+    error: cancelRunErrorSchema,
   }),
   getRuns: fallible({
     input: getRunsInputSchema,

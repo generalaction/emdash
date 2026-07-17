@@ -20,51 +20,33 @@ const automationDisabledErrorSchema = z.object({
   message: z.string(),
 });
 
-const invalidScheduleErrorSchema = z.object({
-  type: z.literal('invalid-schedule'),
-  automationId: automationIdSchema,
+const runtimeUnavailableErrorSchema = z.object({
+  type: z.literal('runtime-unavailable'),
   message: z.string(),
 });
 
-const repositoryUnavailableErrorSchema = z.object({
-  type: z.literal('repository-unavailable'),
-  automationId: automationIdSchema,
-  message: z.string(),
-});
+export const deployErrorSchema = runtimeUnavailableErrorSchema;
 
-const ioErrorSchema = z.object({
-  type: z.literal('io'),
-  message: z.string(),
-});
-
-export const automationDeploymentErrorSchema = z.discriminatedUnion('type', [
-  invalidScheduleErrorSchema,
-  repositoryUnavailableErrorSchema,
-  ioErrorSchema,
-]);
-
-export const automationRemoveErrorSchema = z.discriminatedUnion('type', [
+export const removeErrorSchema = z.discriminatedUnion('type', [
   automationNotFoundErrorSchema,
-  ioErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
 export const startRunErrorSchema = z.discriminatedUnion('type', [
   automationNotFoundErrorSchema,
   automationDisabledErrorSchema,
-  invalidScheduleErrorSchema,
-  repositoryUnavailableErrorSchema,
-  ioErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
-export const stopRunErrorSchema = z.discriminatedUnion('type', [
+export const cancelRunErrorSchema = z.discriminatedUnion('type', [
   runNotFoundErrorSchema,
-  ioErrorSchema,
+  runtimeUnavailableErrorSchema,
 ]);
 
-export const getRunsErrorSchema = ioErrorSchema;
+export const getRunsErrorSchema = runtimeUnavailableErrorSchema;
 
-export type AutomationDeploymentError = z.infer<typeof automationDeploymentErrorSchema>;
-export type AutomationRemoveError = z.infer<typeof automationRemoveErrorSchema>;
+export type DeployError = z.infer<typeof deployErrorSchema>;
+export type RemoveError = z.infer<typeof removeErrorSchema>;
 export type StartRunError = z.infer<typeof startRunErrorSchema>;
-export type StopRunError = z.infer<typeof stopRunErrorSchema>;
+export type CancelRunError = z.infer<typeof cancelRunErrorSchema>;
 export type GetRunsError = z.infer<typeof getRunsErrorSchema>;
