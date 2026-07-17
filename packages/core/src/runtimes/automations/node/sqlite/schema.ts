@@ -1,17 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-
-/** Must stay in sync with `automationRunStatusSchema` in `api/run.ts`. */
-export const automationRunStatuses = [
-  'scheduled',
-  'queued',
-  'provisioning_workspace',
-  'starting_session',
-  'done',
-  'failed',
-  'skipped',
-  'cancelled',
-] as const;
+import { automationRunStatuses } from '../../api/run';
 
 export const automationDeployments = sqliteTable('automation_deployments', {
   automationId: text('automation_id').primaryKey(),

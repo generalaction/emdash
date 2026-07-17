@@ -7,7 +7,7 @@ const nullableTimestampSchema = z.number().int().nonnegative().nullable();
 
 export const automationRunIdSchema = z.string().min(1);
 
-export const automationRunStatusSchema = z.enum([
+export const automationRunStatuses = [
   'scheduled',
   'queued',
   'provisioning_workspace',
@@ -16,7 +16,9 @@ export const automationRunStatusSchema = z.enum([
   'failed',
   'skipped',
   'cancelled',
-]);
+] as const;
+
+export const automationRunStatusSchema = z.enum(automationRunStatuses);
 
 export const automationRunTriggerKindSchema = z.enum(['cron', 'manual']);
 
@@ -33,13 +35,6 @@ export const automationRunErrorSchema = z.object({
   message: z.string().optional(),
 });
 
-/**
- * Host-owned run record. `seq` is the host-global journal cursor.
- * `configSnapshot` is captured at insert time and is what the run executes
- * with. `generatedName` is the per-run human-friendly name used for the
- * branch and workspace. `conversationId` is minted by the automations runtime;
- * `sessionId` is the provider session id returned by session start.
- */
 export const automationRunSchema = z.object({
   id: automationRunIdSchema,
   seq: z.number().int().positive(),
