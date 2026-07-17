@@ -500,6 +500,7 @@ export class AcpChatStore {
       cwd: workspace.path,
       sessionId: conversation.sessionId ?? null,
       model: conversation.model ?? null,
+      modeId: conversation.modeId ?? null,
       ...(initialQueue && { initialQueue }),
     };
   }

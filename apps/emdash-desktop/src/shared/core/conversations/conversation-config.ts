@@ -35,6 +35,8 @@ const acpConfigV1 = z.object({
   initialQueue: z.array(initialQueuePromptSchema).optional(),
   /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
   model: z.string().optional(),
+  /** Last user-selected ACP session mode id (provider-specific), re-applied on session start. */
+  modeId: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()

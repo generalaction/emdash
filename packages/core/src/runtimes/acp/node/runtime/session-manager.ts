@@ -211,6 +211,7 @@ export class SessionManager implements InboundRouter {
               });
             }
           }
+          await this.applyInitialMode(record, input);
           const queueResult = this.queueInitialPrompts(record);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
@@ -258,6 +259,7 @@ export class SessionManager implements InboundRouter {
             });
           }
         }
+        await this.applyInitialMode(record, input);
         const queueResult = this.queueInitialPrompts(record);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
@@ -886,6 +888,30 @@ export class SessionManager implements InboundRouter {
         break;
       default:
         break;
+    }
+  }
+
+  private async applyInitialMode(record: SessionRecord, input: AcpStartInput): Promise<void> {
+    const modeId = input.modeId;
+    if (!modeId) return;
+    const modeOptions = record.cell.config.modeOptions;
+    if (!modeOptions?.available.some((mode) => mode.id === modeId)) {
+      this.deps.logger.debug('SessionManager: persisted mode not advertised, skipping', {
+        conversationId: input.conversationId,
+        providerId: input.providerId,
+        modeId,
+      });
+      return;
+    }
+    if (modeOptions.selected === modeId) return;
+    const result = await record.cell.setMode(modeId);
+    if (!result.success) {
+      this.deps.logger.warn('SessionManager: failed to apply initial mode', {
+        conversationId: input.conversationId,
+        providerId: input.providerId,
+        modeId,
+        error: result.error,
+      });
     }
   }
 

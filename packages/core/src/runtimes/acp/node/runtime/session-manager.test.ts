@@ -173,6 +173,96 @@ describe('AcpRuntime session manager', () => {
     ]);
   });
 
+  it('re-applies the persisted mode after a new session starts', async () => {
+    const h = makeAcpHarness();
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [modeConfigOption('agent')],
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode', modeId: 'agent-full-access' })
+    );
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'mode',
+      value: 'agent-full-access',
+    });
+  });
+
+  it('re-applies the persisted mode after a session is loaded', async () => {
+    const h = makeAcpHarness();
+    h.agent.loadSession.mockResolvedValueOnce({
+      configOptions: [modeConfigOption('agent')],
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-mode-load', modeId: 'agent-full-access' }),
+      sessionId: 'session-old',
+    });
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-old',
+      configId: 'mode',
+      value: 'agent-full-access',
+    });
+  });
+
+  it('skips the persisted mode when the agent does not advertise it', async () => {
+    const h = makeAcpHarness();
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [modeConfigOption('agent')],
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-unknown', modeId: 'bypass-everything' })
+    );
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
+    expect(h.agent.setSessionMode).not.toHaveBeenCalled();
+  });
+
+  it('skips the persisted mode when it is already selected', async () => {
+    const h = makeAcpHarness();
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [modeConfigOption('agent-full-access')],
+    });
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-selected', modeId: 'agent-full-access' })
+    );
+
+    expect(isOk(result)).toBe(true);
+    expect(h.agent.setSessionConfigOption).not.toHaveBeenCalled();
+    expect(h.agent.setSessionMode).not.toHaveBeenCalled();
+  });
+
+  it('does not fail the start when applying the persisted mode errors', async () => {
+    const h = makeAcpHarness();
+    h.agent.newSession.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      configOptions: [modeConfigOption('agent')],
+    });
+    h.agent.setSessionConfigOption.mockRejectedValueOnce(new Error('mode change rejected'));
+    const rt = new AcpRuntime(h.deps);
+
+    const result = await rt.startSession(
+      makeStartInput({ conversationId: 'conv-mode-error', modeId: 'agent-full-access' })
+    );
+
+    expect(isOk(result)).toBe(true);
+  });
+
   it('persists the current resume input without desktop identifiers', async () => {
     const intents = createMemorySessionIntentStore();
     const h = makeAcpHarness({ intents });
@@ -474,3 +564,17 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
   });
 });
+
+function modeConfigOption(currentValue: string) {
+  return {
+    id: 'mode',
+    name: 'Mode',
+    category: 'mode',
+    type: 'select',
+    currentValue,
+    options: [
+      { value: 'agent', name: 'Agent' },
+      { value: 'agent-full-access', name: 'Agent (full access)' },
+    ],
+  };
+}

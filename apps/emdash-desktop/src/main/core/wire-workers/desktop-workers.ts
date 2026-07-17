@@ -31,6 +31,7 @@ import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { eq } from 'drizzle-orm';
 import { app } from 'electron';
 import { appScope } from '@main/app/app-scope';
+import { setConversationModeId } from '@main/core/conversations/set-mode-id';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
@@ -179,7 +180,7 @@ export async function ensureTuiAgentsWorkerReady(): Promise<void> {
 }
 
 export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  acpClientPromise ??= acpWorker.ready().then(withSessionIdPersistence);
+  acpClientPromise ??= acpWorker.ready().then(withSessionIdPersistence).then(withModePersistence);
   return acpClientPromise;
 }
 
@@ -371,6 +372,36 @@ async function persistReturnedSessionId(conversationId: string, sessionId: strin
       error: result.error,
     });
   }
+}
+
+function withModePersistence(client: AcpRuntimeClient): AcpRuntimeClient {
+  return {
+    ...client,
+    setModeOption: async (input, meta) => {
+      const result = await client.setModeOption(input, meta);
+      if (result.success) {
+        await persistSelectedModeId(input.conversationId, input.value);
+      }
+      return result;
+    },
+  };
+}
+
+async function persistSelectedModeId(conversationId: string, modeId: string): Promise<void> {
+  const result = await setConversationModeId(conversationId, modeId);
+  if (!result.success) {
+    log.warn('ACP runtime failed to persist selected mode id', {
+      conversationId,
+      error: result.error,
+    });
+    return;
+  }
+  events.emit(conversationChangedChannel, {
+    conversationId,
+    taskId: result.data.taskId,
+    projectId: result.data.projectId,
+    changes: { modeId },
+  });
 }
 
 function withTuiConversationInputEvents(client: TuiAgentsRuntimeClient): TuiAgentsRuntimeClient {

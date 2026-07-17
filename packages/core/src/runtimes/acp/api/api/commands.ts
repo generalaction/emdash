@@ -13,6 +13,7 @@ export const acpStartInputSchema = z.object({
   cwd: z.string(),
   sessionId: z.string().nullable(),
   model: z.string().nullable(),
+  modeId: z.string().nullable().optional(),
   initialQueue: z.array(promptInputSchema).optional(),
 });
 export type AcpStartInputWire = z.infer<typeof acpStartInputSchema>;

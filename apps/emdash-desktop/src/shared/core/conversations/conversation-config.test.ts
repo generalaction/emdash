@@ -83,6 +83,20 @@ describe('conversation-config v1 schema', () => {
     }
   });
 
+  it('round-trips modeId on a v1 acp config', () => {
+    const config = conversationConfig.safeParse({
+      version: '1',
+      type: 'acp',
+      modeId: 'agent-full-access',
+    });
+    expect(config.status).toBe('ok');
+    if (config.status === 'ok') {
+      expect(config.data.type === 'acp' && config.data.modeId).toBe('agent-full-access');
+      const json = conversationConfig.serialize(config.data);
+      expect(conversationConfig.parseJson(json)).toEqual(config.data);
+    }
+  });
+
   it('returns invalid for non-object input', () => {
     expect(conversationConfig.safeParse('not-json')).toMatchObject({ status: 'invalid' });
     expect(conversationConfig.safeParse(null)).toMatchObject({ status: 'invalid' });

@@ -29,6 +29,8 @@ export type Conversation = {
   sessionId?: string;
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
   model?: string;
+  /** Last user-selected ACP session mode id (provider-specific), re-applied on session start. */
+  modeId?: string;
   /** Initial queued prompts to deliver on first ACP spawn. Only present before sessionId is set. */
   initialQueue?: InitialQueuePrompt[];
   isInitialConversation: boolean | null;

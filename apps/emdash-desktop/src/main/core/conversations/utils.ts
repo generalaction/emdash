@@ -27,6 +27,7 @@ export function mapConversationRowToConversation(row: ConversationRow): Conversa
     autoApprove: config?.autoApprove,
     sessionId: row.sessionId ?? undefined,
     model: config?.model,
+    modeId: config?.type === 'acp' ? config.modeId : undefined,
     initialQueue: initialQueueFromRow(row),
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
