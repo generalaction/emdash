@@ -34,6 +34,7 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
         host: LOCAL_HOST_REF,
         path: { root: { kind: 'posix' }, segments: ['repo'] },
       },
+      preservePatterns: ['.env*'],
       git: {
         kind: 'create-branch',
         fromBranch: { type: 'local', branch: 'main' },
@@ -154,8 +155,11 @@ describe('AutomationScheduler', () => {
       deadlineAt: null,
       startedAt: START - MINUTE,
       finishedAt: null,
-      workspace: null,
-      branchName: null,
+      workspace: {
+        host: LOCAL_HOST_REF,
+        path: { root: { kind: 'posix' }, segments: ['worktrees', 'stuck'] },
+      },
+      branchName: 'stuck',
       conversationId: null,
       sessionId: null,
       error: null,
