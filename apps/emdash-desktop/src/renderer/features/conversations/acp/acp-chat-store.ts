@@ -57,7 +57,6 @@ type PermissionQueueItem = {
 type ModelSelection = {
   requestId: number;
   model: string;
-  pending: boolean;
 };
 
 export type AcpLoadError =
@@ -138,7 +137,7 @@ export class AcpChatStore {
   }
 
   get isModelChanging(): boolean {
-    return this._modelSelection?.pending ?? false;
+    return this._modelSelection !== null;
   }
 
   get modelOptions(): Record<string, ComposerModelOption> | null {
@@ -361,7 +360,7 @@ export class AcpChatStore {
     if (!session || this.isModelChanging || model === this.model) return;
 
     const requestId = ++this._modelRequestId;
-    this._modelSelection = { requestId, model, pending: true };
+    this._modelSelection = { requestId, model };
     void session
       .setModelOption('model', model)
       .then((result) => {
@@ -375,8 +374,7 @@ export class AcpChatStore {
         }
         runInAction(() => {
           if (this._modelSelection?.requestId === requestId) {
-            this._modelSelection = { requestId, model, pending: false };
-            this._reconcileModelSelection(session);
+            this._modelSelection = null;
           }
         });
       })
@@ -637,20 +635,8 @@ export class AcpChatStore {
         runInAction(() => {
           this._applyDraftSnapshot(draft);
         })
-      ),
-      session.config.onChange(() =>
-        runInAction(() => {
-          this._reconcileModelSelection(session);
-        })
       )
     );
-  }
-
-  private _reconcileModelSelection(session: AcpLiveSession): void {
-    const selection = this._modelSelection;
-    if (!selection || selection.pending) return;
-    const confirmedModel = session.config.current().modelOptions?.selected;
-    if (confirmedModel === selection.model) this._modelSelection = null;
   }
 
   private _scheduleDraftWrite(text: string, rev: number): void {

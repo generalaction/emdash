@@ -155,15 +155,6 @@ function modelStore(initialModel = 'composer-2.5') {
   };
 }
 
-function reconcileModelSelection(store: AcpChatStore, session: AcpLiveSession): void {
-  const reconcile = (
-    store as unknown as {
-      _reconcileModelSelection: (currentSession: AcpLiveSession) => void;
-    }
-  )._reconcileModelSelection;
-  runInAction(() => reconcile.call(store, session));
-}
-
 describe('AcpChatStore model selection', () => {
   beforeEach(() => {
     mocks.toast.mockClear();
@@ -190,11 +181,10 @@ describe('AcpChatStore model selection', () => {
   });
 
   it('keeps the request pending when the matching config update arrives before the RPC result', async () => {
-    const { modelChange, session, setConfirmedModel, store } = modelStore();
+    const { modelChange, setConfirmedModel, store } = modelStore();
     store.setModel('grok-4.5');
 
     setConfirmedModel('grok-4.5');
-    reconcileModelSelection(store, session);
     expect(store.isModelChanging).toBe(true);
 
     modelChange.resolve({ success: true, data: undefined });
@@ -202,6 +192,29 @@ describe('AcpChatStore model selection', () => {
 
     expect(store.isModelChanging).toBe(false);
     expect(store.model).toBe('grok-4.5');
+  });
+
+  it('rolls back to session config when the RPC succeeds without a config update', async () => {
+    const { modelChange, store } = modelStore();
+    store.setModel('grok-4.5');
+
+    modelChange.resolve({ success: true, data: undefined });
+    await flushPromises();
+
+    expect(store.isModelChanging).toBe(false);
+    expect(store.model).toBe('composer-2.5');
+  });
+
+  it('shows a fallback model reported before the RPC succeeds', async () => {
+    const { modelChange, setConfirmedModel, store } = modelStore();
+    store.setModel('grok-4.5');
+    setConfirmedModel('grok-4.1-fast');
+
+    modelChange.resolve({ success: true, data: undefined });
+    await flushPromises();
+
+    expect(store.isModelChanging).toBe(false);
+    expect(store.model).toBe('grok-4.1-fast');
   });
 
   it('rolls back to the confirmed model when the RPC returns an error', async () => {
