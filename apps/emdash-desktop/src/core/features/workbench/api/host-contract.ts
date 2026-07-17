@@ -41,6 +41,9 @@ type NullablePathResult =
 type OptionalPathResult =
   | { success: true; path: string | undefined }
   | { success: false; error: string };
+type ShowWorkspaceItemInFolderResult =
+  | { success: true; data: void }
+  | { success: false; error: { type: string; message?: string } };
 
 export const desktopHostContract = defineContract({
   openExternal: procedure({
@@ -66,6 +69,10 @@ export const desktopHostContract = defineContract({
   clipboardWriteText: procedure({
     input: z.object({ text: z.string() }),
     output: z.custom<ActionResult>(),
+  }),
+  showWorkspaceItemInFolder: procedure({
+    input: z.object({ workspaceId: z.string(), relativePath: z.string() }),
+    output: z.custom<ShowWorkspaceItemInFolderResult>(),
   }),
   persistDroppedBlob: procedure({
     input: z.object({

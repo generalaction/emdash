@@ -1,6 +1,6 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostPathFromNative } from '@shared/core/runtime/paths';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),

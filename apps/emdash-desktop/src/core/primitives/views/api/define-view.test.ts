@@ -29,6 +29,25 @@ describe('defineView', () => {
     expect(view.telemetryEvent).toBe('project_viewed');
   });
 
+  it('deeply freezes ref params and the traits collection', () => {
+    const view = defineView({
+      id: 'library',
+      params: z.object({
+        selection: z.object({
+          tabs: z.array(z.string()),
+        }),
+      }),
+      layout,
+      traits: ['library'],
+    });
+
+    const ref = view({ selection: { tabs: ['skills'] } });
+
+    expect(Object.isFrozen(ref.params.selection)).toBe(true);
+    expect(Object.isFrozen(ref.params.selection.tabs)).toBe(true);
+    expect(Object.isFrozen(view.traits)).toBe(true);
+  });
+
   it('rejects invalid params', () => {
     const view = defineView({
       id: 'project',
@@ -118,9 +137,15 @@ describe('defineView', () => {
         key: ({ tabId }) => tabId,
       },
     });
+    const viewWithoutLocation = defineView({
+      id: 'home',
+      params: z.object({}),
+      layout,
+    });
 
     expectTypeOf<ViewParams<typeof view>>().toEqualTypeOf<{ taskId: string }>();
     expectTypeOf<ViewLocation<typeof view>>().toEqualTypeOf<{ tabId: string }>();
+    expectTypeOf<ViewLocation<typeof viewWithoutLocation>>().toEqualTypeOf<never>();
   });
 
   it('rejects an empty view id', () => {

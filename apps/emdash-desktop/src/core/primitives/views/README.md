@@ -10,8 +10,8 @@ Calling a definition is the only supported way to construct a `ViewRef`:
 export const taskViewDef = defineView({
   id: 'task',
   params: z.object({
-    projectId: z.string(),
-    taskId: z.string(),
+    projectId: z.string().min(1),
+    taskId: z.string().min(1),
   }),
   layout: workbenchLayout,
   historyKey: ({ taskId }) => taskId,
@@ -23,7 +23,9 @@ const ref = taskViewDef({ projectId, taskId });
 The schema validates params at construction. `safeRef()` is the boundary for
 untrusted values such as persisted navigation state: invalid params return
 `undefined`, while zod's normal object behavior strips unknown keys. Parse
-failures are intentionally dropped rather than migrated.
+failures are intentionally dropped rather than migrated. `safeRef(undefined)`
+treats the missing input as `{}`, so it succeeds only when the params schema
+accepts an empty object.
 
 Definitions whose params are all optional can be called without an argument
 (`homeViewDef()`). Definitions with any required param require an argument.

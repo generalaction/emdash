@@ -10,8 +10,8 @@ export const taskViewLocationSchema = z.object({
 export const taskViewDef = defineView({
   id: 'task',
   params: z.object({
-    projectId: z.string(),
-    taskId: z.string(),
+    projectId: z.string().min(1),
+    taskId: z.string().min(1),
   }),
   layout: workbenchLayout,
   historyKey: ({ taskId }) => taskId,

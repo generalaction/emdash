@@ -8,15 +8,23 @@ declare const viewRefBrand: unique symbol;
 export type ViewTrait = 'library';
 
 export type RefArgs<TSchema extends z.ZodType<JsonObject>> =
-  TSchema extends z.ZodObject<infer TShape>
-    ? keyof TShape extends never
-      ? [params?: z.input<TSchema>]
-      : Partial<z.input<TSchema>> extends z.input<TSchema>
-        ? [params?: z.input<TSchema>]
-        : [params: z.input<TSchema>]
-    : Partial<z.input<TSchema>> extends z.input<TSchema>
-      ? [params?: z.input<TSchema>]
-      : [params: z.input<TSchema>];
+  Record<string, never> extends z.input<TSchema>
+    ? [params?: z.input<TSchema>]
+    : [params: z.input<TSchema>];
+
+function deepFreeze<T extends JsonValue>(value: T): T {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
+    return value;
+  }
+
+  Object.freeze(value);
+  for (const nested of Object.values(value)) {
+    if (nested !== undefined) {
+      deepFreeze(nested);
+    }
+  }
+  return value;
+}
 
 export interface ViewRef<TId extends string = string, TParams extends JsonObject = JsonObject> {
   readonly viewId: TId;
@@ -34,7 +42,7 @@ export interface ViewDef<
   TId extends string,
   TParamsSchema extends z.ZodType<JsonObject>,
   TLayout extends LayoutDef,
-  TLocationSchema extends z.ZodType<JsonValue> = z.ZodType<JsonValue>,
+  TLocationSchema extends z.ZodType<JsonValue> = z.ZodNever,
 > {
   (...args: RefArgs<TParamsSchema>): ViewRef<TId, z.output<TParamsSchema>>;
   readonly id: TId;
@@ -68,7 +76,7 @@ export function defineView<
   const TId extends string,
   TParamsSchema extends z.ZodType<JsonObject>,
   TLayout extends LayoutDef,
-  TLocationSchema extends z.ZodType<JsonValue> = z.ZodType<JsonValue>,
+  TLocationSchema extends z.ZodType<JsonValue> = z.ZodNever,
 >(
   options: DefineViewOptions<TId, TParamsSchema, TLayout, TLocationSchema>
 ): ViewDef<TId, TParamsSchema, TLayout, TLocationSchema> {
@@ -80,7 +88,7 @@ export function defineView<
 
   const createRef = (parsed: z.output<TParamsSchema>): ViewRef<TId, z.output<TParamsSchema>> => {
     const suffix = historyKey(parsed);
-    const params = Object.freeze(parsed);
+    const params = deepFreeze(parsed);
     return Object.freeze({
       viewId: options.id,
       params,
@@ -96,7 +104,7 @@ export function defineView<
       id: options.id,
       params: options.params,
       layout: options.layout,
-      traits: new Set(options.traits ?? []),
+      traits: Object.freeze(new Set(options.traits ?? [])),
       telemetryEvent: options.telemetryEvent,
       historyKey,
       subject: options.subject,

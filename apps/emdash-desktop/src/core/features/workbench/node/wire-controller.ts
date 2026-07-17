@@ -10,6 +10,7 @@ export function createDesktopHostWireController(): Controller {
     readUserFile: ({ path }) => appOperations.readUserFile(path),
     writeRendererLog: (input) => appOperations.writeRendererLog(input),
     clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
+    showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
     persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
     persistClipboardImage: () => appOperations.persistClipboardImage(),
     showTerminalContextMenu: (input) => appOperations.showTerminalContextMenu(input),

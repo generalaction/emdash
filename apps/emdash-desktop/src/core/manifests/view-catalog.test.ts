@@ -25,11 +25,17 @@ describe('viewCatalog', () => {
 
   it('accepts missing params for empty and all-optional schemas', () => {
     expect(homeViewDef.safeRef(undefined)).toBeDefined();
+    expect(homeViewDef.safeRef({})).toBeDefined();
     expect(automationsViewDef.safeRef(undefined)).toBeDefined();
+    expect(automationsViewDef.safeRef({})).toBeDefined();
     expect(libraryViewDef.safeRef(undefined)).toBeDefined();
+    expect(libraryViewDef.safeRef({})).toBeDefined();
     expect(skillsViewDef.safeRef(undefined)).toBeDefined();
+    expect(skillsViewDef.safeRef({})).toBeDefined();
     expect(mcpViewDef.safeRef(undefined)).toBeDefined();
+    expect(mcpViewDef.safeRef({})).toBeDefined();
     expect(settingsViewDef.safeRef(undefined)).toBeDefined();
+    expect(settingsViewDef.safeRef({})).toBeDefined();
   });
 
   it('validates optional view params against their declared literals', () => {
@@ -43,10 +49,12 @@ describe('viewCatalog', () => {
 
   it('requires the params expected by project and task guards', () => {
     expect(projectViewDef.safeRef({ projectId: 'project-1' })).toBeDefined();
+    expect(projectViewDef.safeRef({ projectId: '' })).toBeUndefined();
     expect(projectViewDef.safeRef({ projectId: 1 })).toBeUndefined();
     expect(projectViewDef.safeRef(undefined)).toBeUndefined();
 
     expect(taskViewDef.safeRef({ projectId: 'project-1', taskId: 'task-1' })).toBeDefined();
+    expect(taskViewDef.safeRef({ projectId: 'project-1', taskId: '' })).toBeUndefined();
     expect(taskViewDef.safeRef({ projectId: 'project-1' })).toBeUndefined();
     expect(taskViewDef.safeRef({ projectId: 1, taskId: 'task-1' })).toBeUndefined();
   });

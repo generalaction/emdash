@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { workbenchLayout } from '@core/primitives/layouts/api';
 import { defineView } from '@core/primitives/views/api';
-import { workbenchLayout } from './layouts';
 
 export const homeViewDef = defineView({
   id: 'home',

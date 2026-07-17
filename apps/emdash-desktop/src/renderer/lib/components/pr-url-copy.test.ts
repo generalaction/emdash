@@ -10,7 +10,7 @@ vi.mock('@renderer/lib/hooks/use-toast', () => ({
   toast: mocks.toast,
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     app: {
       clipboardWriteText: mocks.clipboardWriteText,
