@@ -25,13 +25,13 @@ import type {
 } from '../api/schemas';
 import { GET_RUNS_DEFAULT_LIMIT } from '../api/schemas';
 import type { AutomationSessionPort, AutomationWorkspacePort } from './ports';
+import { createAutomationRunExecutor } from './run-executor';
 import { AutomationRunTransitions, type OnRunChanged } from './run-transitions';
 import { AutomationScheduler } from './scheduler';
 import type { AutomationsDb } from './sqlite/store';
 import { AutomationDeploymentStore } from './storage/deployment-store';
 import { AutomationRunStore } from './storage/run-store';
 import { validateAutomationSchedule } from './utils/cron';
-import { createAutomationRunExecutor } from './workflow';
 
 export type AutomationsRuntimeOptions = {
   handle: StoreHandle<AutomationsDb>;
