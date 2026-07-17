@@ -1,78 +1,45 @@
-import { defineContract, eventStream, procedure } from '@emdash/wire';
+import { automationsContract as runtimeAutomationsContract } from '@emdash/core/runtimes/automations/api';
+import { defineContract, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import type {
   Automation,
-  AutomationEvent,
-  AutomationRun,
+  AutomationRuntimeAvailability,
   CreateAutomationParams,
-  UpdateAutomationSettingsPatch,
+  UpdateAutomationPatch,
 } from '@core/primitives/automations/api';
 
-const automationIdInput = z.object({ automationId: z.string() });
-
 export const automationsContract = defineContract({
-  listAutomations: procedure({
+  list: procedure({
     input: z.object({ projectId: z.string().optional() }),
     output: z.array(z.custom<Automation>()),
   }),
-  createAutomation: procedure({
+  create: procedure({
     input: z.custom<CreateAutomationParams>(),
     output: z.custom<Automation>(),
   }),
-  updateAutomationSettings: procedure({
-    input: z.object({ id: z.string(), patch: z.custom<UpdateAutomationSettingsPatch>() }),
+  update: procedure({
+    input: z.object({ id: z.string(), patch: z.custom<UpdateAutomationPatch>() }),
     output: z.custom<Automation>(),
   }),
-  renameAutomation: procedure({
-    input: z.object({ id: z.string(), name: z.string() }),
-    output: z.custom<Automation>(),
-  }),
-  setAutomationEnabled: procedure({
-    input: z.object({ id: z.string(), enabled: z.boolean() }),
+  delete: procedure({
+    input: z.object({ automationId: z.string() }),
     output: z.void(),
   }),
-  toggleAutomationEnabled: procedure({
-    input: z.object({ id: z.string(), enabled: z.boolean() }),
-    output: z.void(),
+  adoptRun: procedure({
+    input: z.object({ automationId: z.string(), runId: z.string() }),
+    output: z.object({ taskId: z.string(), projectId: z.string() }),
   }),
-  listAutomationRuns: procedure({
-    input: z.object({
-      automationId: z.string(),
-      limit: z.number(),
-      offset: z.number(),
-      statusFilter: z.enum(['done', 'failed', 'skipped']).optional(),
-    }),
-    output: z.array(z.custom<AutomationRun>()),
+  getTargetAvailability: procedure({
+    input: z.object({ projectId: z.string().optional() }),
+    output: z.custom<AutomationRuntimeAvailability>(),
   }),
-  countAutomationRunsByStatus: procedure({
-    input: automationIdInput,
-    output: z.object({
-      all: z.number(),
-      done: z.number(),
-      failed: z.number(),
-      skipped: z.number(),
-    }),
-  }),
-  getLatestRun: procedure({
-    input: automationIdInput,
-    output: z.custom<AutomationRun>().nullable(),
-  }),
-  getNextScheduledRun: procedure({
-    input: automationIdInput,
-    output: z.custom<AutomationRun>().nullable(),
-  }),
-  runAutomation: procedure({
-    input: automationIdInput,
-    output: z.custom<AutomationRun>(),
-  }),
-  stopRun: procedure({
-    input: z.object({ runId: z.string() }),
-    output: z.custom<AutomationRun>(),
-  }),
-  getRun: procedure({
-    input: z.object({ runId: z.string() }),
-    output: z.custom<AutomationRun>().nullable(),
-  }),
-  deleteAutomation: procedure({ input: automationIdInput, output: z.void() }),
-  events: eventStream({ key: z.void(), event: z.custom<AutomationEvent>() }),
+  startRun: runtimeAutomationsContract.startRun,
+  cancelRun: runtimeAutomationsContract.cancelRun,
+  getRun: runtimeAutomationsContract.getRun,
+  listRuns: runtimeAutomationsContract.listRuns,
+  listChangedRuns: runtimeAutomationsContract.listChangedRuns,
+  getRunOverview: runtimeAutomationsContract.getRunOverview,
+  runEvents: runtimeAutomationsContract.runEvents,
 });
+
+export type AutomationsContract = typeof automationsContract;
