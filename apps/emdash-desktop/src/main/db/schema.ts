@@ -1,3 +1,4 @@
+import type { AutomationRunStatus } from '@emdash/core/runtimes/automations/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
@@ -11,7 +12,7 @@ import {
   automationConversationConfig,
   automationTriggerConfig,
   storedAutomationTaskConfig,
-} from '@core/primitives/automations/api';
+} from '@core/primitives/automations/api/config';
 import { conversationConfig } from '@core/primitives/conversations/api';
 import { linkedIssue } from '@core/primitives/linked-issues/api';
 import { operationPayload, type OperationPayload } from '@core/primitives/operations/api';
@@ -169,11 +170,14 @@ export const tasks = sqliteTable(
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
     type: text('type').notNull().default('task'), // 'task' | 'automation-run'
-    automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
+    automationRunId: text('automation_run_id'), // set when type = 'automation-run'; runtime-owned reference, intentionally no FK
     deletedAt: text('deleted_at'),
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
+    activeAutomationRunIdIdx: uniqueIndex('idx_tasks_active_automation_run_id')
+      .on(table.automationRunId)
+      .where(sql`${table.automationRunId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
   })
 );
 
@@ -362,6 +366,7 @@ export const automations = sqliteTable(
     conversationConfig: versionedJsonColumn(automationConversationConfig)('conversation_config'),
     taskConfig: versionedJsonColumn(storedAutomationTaskConfig)('task_config'),
     enabled: integer('enabled').notNull().default(1),
+    revision: integer('revision').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
     deletedAt: integer('deleted_at'),
@@ -375,41 +380,16 @@ export const automationRuns = sqliteTable(
   'automation_runs',
   {
     id: text('id').primaryKey(),
-    automationId: text('automation_id')
-      .notNull()
-      .references(() => automations.id, { onDelete: 'cascade' }),
+    automationId: text('automation_id').notNull(),
+    automationName: text('automation_name').notNull(),
+    status: text('status').$type<AutomationRunStatus>().notNull(),
     scheduledAt: integer('scheduled_at'),
-    deadlineAt: integer('deadline_at'),
     startedAt: integer('started_at'),
-    taskCreatedAt: integer('task_created_at'),
-    launchedAt: integer('launched_at'),
     finishedAt: integer('finished_at'),
-    status: text('status').notNull(),
-    error: text('error'),
-    triggerKind: text('trigger_kind').notNull(),
-    triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
-    conversationConfigSnapshot: text('conversation_config_snapshot').notNull().default('{}'),
-    taskConfigSnapshot: text('task_config_snapshot'),
-    generatedTaskName: text('generated_task_name'),
+    seq: integer('seq').notNull().default(0),
   },
   (table) => ({
-    automationStartedIdx: index('idx_automation_runs_automation_started').on(
-      table.automationId,
-      table.startedAt
-    ),
-    automationScheduledIdx: index('idx_automation_runs_automation_scheduled').on(
-      table.automationId,
-      table.scheduledAt
-    ),
-    automationStatusIdx: index('idx_automation_runs_automation_status').on(
-      table.automationId,
-      table.status
-    ),
-    statusIdx: index('idx_automation_runs_status').on(table.status),
-    statusScheduledIdx: index('idx_automation_runs_status_scheduled').on(
-      table.status,
-      table.scheduledAt
-    ),
+    automationIdIdx: index('idx_automation_runs_automation_id').on(table.automationId),
   })
 );
 
