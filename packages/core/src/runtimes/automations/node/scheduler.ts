@@ -6,38 +6,25 @@ import {
   type AutomationDeployment,
   type AutomationId,
 } from '../api/deployment';
-import type { AutomationRun, AutomationRunId, AutomationRunStatus } from '../api/run';
+import type { AutomationRun, AutomationRunId } from '../api/run';
 import type { AutomationRunTransitions, OnRunChanged } from './run-transitions';
+import type { AutomationDeploymentStore } from './storage/deployment-store';
+import type { AutomationRunStore } from './storage/run-store';
 import { nextRunTimes } from './utils/cron';
+import { AutomationRunExecutor } from './workflow';
 
 const DEFAULT_TICK_INTERVAL_MS = 60_000;
 const DEFAULT_MAX_CONCURRENT_RUNS = 4;
 const DEFAULT_MAX_DUE_PER_TICK = 100;
-
-export interface AutomationSchedulerDeploymentStore {
-  getDeployment(id: AutomationId): AutomationDeployment | null;
-  listEnabledDeployments(): AutomationDeployment[];
-}
-
-export interface AutomationSchedulerRunStore {
-  insertRun(run: Omit<AutomationRun, 'seq'>): AutomationRun | null;
-  getRun(id: AutomationRunId): AutomationRun | null;
-  getScheduledRun(automationId: AutomationId): AutomationRun | null;
-  listDueScheduledRuns(now: number, limit: number): AutomationRun[];
-  listQueuedRuns(limit: number): AutomationRun[];
-  listRunsInStatuses(statuses: AutomationRunStatus[]): AutomationRun[];
-}
 
 export type AutomationRunIdentity = {
   id: AutomationRunId;
   generatedName: string;
 };
 
-export type AutomationRunExecutor = (run: AutomationRun, signal: AbortSignal) => Promise<void>;
-
 export type AutomationSchedulerOptions = {
-  deploymentStore: AutomationSchedulerDeploymentStore;
-  runStore: AutomationSchedulerRunStore;
+  deploymentStore: AutomationDeploymentStore;
+  runStore: AutomationRunStore;
   transitions: AutomationRunTransitions;
   execute: AutomationRunExecutor;
   clock?: Clock;
@@ -56,8 +43,8 @@ type ActiveWorker = {
 };
 
 export class AutomationScheduler {
-  private readonly deploymentStore: AutomationSchedulerDeploymentStore;
-  private readonly runStore: AutomationSchedulerRunStore;
+  private readonly deploymentStore: AutomationDeploymentStore;
+  private readonly runStore: AutomationRunStore;
   private readonly transitions: AutomationRunTransitions;
   private readonly execute: AutomationRunExecutor;
   private readonly clock: Clock;
@@ -147,7 +134,11 @@ export class AutomationScheduler {
 
     const cancelled =
       run.status === 'scheduled'
-        ? this.transitions.markSkipped(runId, { step: 'queue', code: 'cancelled' }, this.clock.now())
+        ? this.transitions.markSkipped(
+            runId,
+            { step: 'queue', code: 'cancelled' },
+            this.clock.now()
+          )
         : this.transitions.markCancelled(runId, this.clock.now());
     if (!cancelled) return run;
 

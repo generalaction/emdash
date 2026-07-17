@@ -1,14 +1,15 @@
 import { ManualClock } from '@emdash/shared/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
+import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AutomationDeployment } from '../api/deployment';
-import type { AutomationRun, AutomationRunId, AutomationRunStatus } from '../api/run';
+import type { AutomationRun } from '../api/run';
 import { AutomationRunTransitions } from './run-transitions';
-import {
-  AutomationScheduler,
-  type AutomationSchedulerDeploymentStore,
-  type AutomationSchedulerRunStore,
-} from './scheduler';
+import { AutomationScheduler } from './scheduler';
+import type { AutomationsDb } from './sqlite/store';
+import { automationsStore } from './sqlite/store';
+import { AutomationDeploymentStore } from './storage/deployment-store';
+import { AutomationRunStore } from './storage/run-store';
 
 const MINUTE = 60_000;
 const START = Date.UTC(2026, 6, 16, 8, 59);
@@ -44,98 +45,21 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
   };
 }
 
-class MemoryDeploymentStore implements AutomationSchedulerDeploymentStore {
-  readonly deployments = new Map<string, AutomationDeployment>();
-
-  constructor(deployments: AutomationDeployment[]) {
-    for (const item of deployments) this.deployments.set(item.automationId, item);
-  }
-
-  getDeployment(id: string): AutomationDeployment | null {
-    return this.deployments.get(id) ?? null;
-  }
-
-  listEnabledDeployments(): AutomationDeployment[] {
-    return [...this.deployments.values()].filter((item) => item.enabled);
-  }
-}
-
-class MemoryRunStore implements AutomationSchedulerRunStore {
-  readonly runs = new Map<string, AutomationRun>();
-  private seq = 1;
-
-  insertRun(run: Omit<AutomationRun, 'seq'>): AutomationRun | null {
-    if (
-      run.status === 'scheduled' &&
-      [...this.runs.values()].some(
-        (existing) => existing.automationId === run.automationId && existing.status === 'scheduled'
-      )
-    ) {
-      return null;
-    }
-    if (this.runs.has(run.id)) throw new Error(`duplicate run id: ${run.id}`);
-    const stored = { ...run, seq: this.seq++ };
-    this.runs.set(stored.id, stored);
-    return stored;
-  }
-
-  getRun(id: AutomationRunId): AutomationRun | null {
-    return this.runs.get(id) ?? null;
-  }
-
-  getScheduledRun(automationId: string): AutomationRun | null {
-    return (
-      [...this.runs.values()].find(
-        (run) => run.automationId === automationId && run.status === 'scheduled'
-      ) ?? null
-    );
-  }
-
-  listDueScheduledRuns(now: number, limit: number): AutomationRun[] {
-    return [...this.runs.values()]
-      .filter(
-        (run) => run.status === 'scheduled' && run.scheduledAt !== null && run.scheduledAt <= now
-      )
-      .sort((left, right) => (left.scheduledAt ?? 0) - (right.scheduledAt ?? 0))
-      .slice(0, limit);
-  }
-
-  listQueuedRuns(limit: number): AutomationRun[] {
-    return [...this.runs.values()]
-      .filter((run) => run.status === 'queued')
-      .sort((left, right) => left.seq - right.seq)
-      .slice(0, limit);
-  }
-
-  listRunsInStatuses(statuses: AutomationRunStatus[]): AutomationRun[] {
-    return [...this.runs.values()].filter((run) => statuses.includes(run.status));
-  }
-
-  transitionRun(
-    id: AutomationRunId,
-    from: AutomationRunStatus | AutomationRunStatus[],
-    patch: Partial<AutomationRun>
-  ): AutomationRun | null {
-    const current = this.runs.get(id);
-    const expected = Array.isArray(from) ? from : [from];
-    if (!current || !expected.includes(current.status)) return null;
-    const transitioned = { ...current, ...patch, seq: this.seq++ };
-    this.runs.set(id, transitioned);
-    return transitioned;
-  }
-}
-
-function createHarness(options: {
+async function createHarness(options: {
   deployments?: AutomationDeployment[];
   execute?: (run: AutomationRun, signal: AbortSignal) => Promise<void>;
   maxConcurrentRuns?: number;
 }) {
+  const handle = await automationsStore.openTemp();
   const clock = new ManualClock(START);
-  const deploymentStore = new MemoryDeploymentStore(options.deployments ?? [deployment()]);
-  const runStore = new MemoryRunStore();
+  const deploymentStore = new AutomationDeploymentStore(handle);
+  for (const item of options.deployments ?? [deployment()]) {
+    deploymentStore.upsertDeployment(item, START);
+  }
+  const runStore = new AutomationRunStore(handle);
   const changed: AutomationRun[] = [];
   const transitions = new AutomationRunTransitions({
-    runStore: runStore as never,
+    runStore,
     onRunChanged: (run) => changed.push(run),
   });
   let identity = 0;
@@ -154,18 +78,20 @@ function createHarness(options: {
     },
   });
 
-  return { changed, clock, deploymentStore, execute, runStore, scheduler };
+  return { changed, clock, deploymentStore, execute, handle, runStore, scheduler };
 }
 
 const schedulers: AutomationScheduler[] = [];
+const handles: TempStoreHandle<AutomationsDb>[] = [];
 
 afterEach(async () => {
   for (const scheduler of schedulers.splice(0)) await scheduler.stop();
+  for (const handle of handles.splice(0)) handle.close();
 });
 
 describe('AutomationScheduler', () => {
-  it('self-heals one future scheduled run for every enabled deployment', () => {
-    const harness = createHarness({
+  it('self-heals one future scheduled run for every enabled deployment', async () => {
+    const harness = await createHarness({
       deployments: [
         deployment(),
         deployment({ automationId: 'auto-2', enabled: false }),
@@ -173,13 +99,18 @@ describe('AutomationScheduler', () => {
       ],
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
 
     harness.scheduler.start();
     harness.scheduler.reconcile();
 
-    const scheduled = [...harness.runStore.runs.values()].filter(
-      (run) => run.status === 'scheduled'
-    );
+    const scheduled = harness.runStore
+      .listRunsSince({
+        sinceSeq: 0,
+        automationIds: ['auto-1', 'auto-2', 'auto-3'],
+        limit: 100,
+      })
+      .filter((run) => run.status === 'scheduled');
     expect(scheduled).toHaveLength(2);
     expect(scheduled.map((run) => run.automationId).sort()).toEqual(['auto-1', 'auto-3']);
     expect(scheduled.every((run) => run.scheduledAt === START + MINUTE)).toBe(true);
@@ -190,8 +121,9 @@ describe('AutomationScheduler', () => {
   });
 
   it('queues and claims a due cron run, then schedules its next occurrence', async () => {
-    const harness = createHarness({});
+    const harness = await createHarness({});
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
     harness.scheduler.start();
 
     await harness.clock.advanceBy(MINUTE);
@@ -210,7 +142,7 @@ describe('AutomationScheduler', () => {
   });
 
   it('marks in-flight runs failed during startup recovery', async () => {
-    const harness = createHarness({});
+    const harness = await createHarness({});
     harness.runStore.insertRun({
       id: 'stuck-run',
       automationId: 'auto-1',
@@ -229,6 +161,7 @@ describe('AutomationScheduler', () => {
       error: null,
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
 
     harness.scheduler.start();
 
@@ -240,8 +173,9 @@ describe('AutomationScheduler', () => {
   });
 
   it('starts a manual run immediately from a deployment snapshot', async () => {
-    const harness = createHarness({});
+    const harness = await createHarness({});
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
 
     const run = harness.scheduler.runNow(deployment());
     await harness.scheduler.idle();
@@ -265,7 +199,7 @@ describe('AutomationScheduler', () => {
 
   it('bounds concurrent workers', async () => {
     const releases: Array<() => void> = [];
-    const harness = createHarness({
+    const harness = await createHarness({
       deployments: [
         deployment(),
         deployment({ automationId: 'auto-2' }),
@@ -275,6 +209,7 @@ describe('AutomationScheduler', () => {
       execute: () => new Promise<void>((resolve) => releases.push(resolve)),
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
     harness.scheduler.start();
 
     harness.scheduler.runNow(deployment());
@@ -298,11 +233,12 @@ describe('AutomationScheduler', () => {
 
   it('skips a queued run while the same automation is already executing', async () => {
     let release: (() => void) | undefined;
-    const harness = createHarness({
+    const harness = await createHarness({
       maxConcurrentRuns: 2,
       execute: () => new Promise<void>((resolve) => (release = resolve)),
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
 
     harness.scheduler.runNow(deployment());
     await vi.waitFor(() => {
@@ -323,7 +259,7 @@ describe('AutomationScheduler', () => {
 
   it('stop aborts in-flight workers and awaits them', async () => {
     const aborts: string[] = [];
-    const harness = createHarness({
+    const harness = await createHarness({
       execute: (run, signal) =>
         new Promise<void>((resolve) => {
           signal.addEventListener('abort', () => {
@@ -333,6 +269,7 @@ describe('AutomationScheduler', () => {
         }),
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
     harness.scheduler.start();
 
     const run = harness.scheduler.runNow(deployment());
@@ -347,16 +284,17 @@ describe('AutomationScheduler', () => {
 
   it('does not start queued work after stop', async () => {
     let release: (() => void) | undefined;
-    const harness = createHarness({
+    const harness = await createHarness({
       deployments: [deployment(), deployment({ automationId: 'auto-2' })],
       maxConcurrentRuns: 1,
       execute: (_run, signal) =>
         new Promise<void>((resolve) => {
           release = resolve;
-          signal.addEventListener('abort', resolve);
+          signal.addEventListener('abort', () => resolve());
         }),
     });
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
     harness.scheduler.start();
 
     harness.scheduler.runNow(deployment());
@@ -374,18 +312,19 @@ describe('AutomationScheduler', () => {
     expect(harness.runStore.getRun(waiting.id)?.status).toBe('queued');
   });
 
-  it('replaces a scheduled run when the deployment schedule changes', () => {
-    const harness = createHarness({});
+  it('replaces a scheduled run when the deployment schedule changes', async () => {
+    const harness = await createHarness({});
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
     harness.scheduler.start();
 
     const original = harness.runStore.getScheduledRun('auto-1');
     expect(original).not.toBeNull();
     if (!original) return;
 
-    harness.deploymentStore.deployments.set(
-      'auto-1',
-      deployment({ schedule: { expr: '30 9 * * *', tz: 'UTC' } })
+    harness.deploymentStore.upsertDeployment(
+      deployment({ schedule: { expr: '30 9 * * *', tz: 'UTC' } }),
+      START
     );
     harness.scheduler.reconcile();
 
@@ -399,8 +338,9 @@ describe('AutomationScheduler', () => {
   });
 
   it('cancelRun returns null only for unknown runs and is idempotent for terminal runs', async () => {
-    const harness = createHarness({});
+    const harness = await createHarness({});
     schedulers.push(harness.scheduler);
+    handles.push(harness.handle);
 
     expect(harness.scheduler.cancelRun('missing')).toBeNull();
 
