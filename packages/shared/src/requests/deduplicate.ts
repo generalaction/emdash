@@ -1,16 +1,11 @@
-import { abortReason } from '@emdash/shared/scheduling';
-import { stableStringify } from '@emdash/shared/util';
+import { abortReason } from '../scheduling';
+import { stableStringify } from '../util';
+import type { SignalContext, SignalHandler } from './handler';
 
 export type DeduplicateOptions<I> = {
   key?: (input: I) => string;
   cancelWhenUnused?: boolean;
 };
-
-type SignalContext = {
-  signal?: AbortSignal;
-};
-
-type SignalHandler<I, O, C extends SignalContext> = (input: I, context: C) => Promise<O>;
 
 type Entry<O> = {
   controller: AbortController;
@@ -39,7 +34,7 @@ export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
         entry = createEntry(key, input, context);
         inFlight.set(key, entry);
       }
-      return waitForEntry(entry, context.signal);
+      return waitForEntry(key, entry, context.signal);
     };
 
     function createEntry(key: string, input: I, context: C): Entry<O> {
@@ -64,7 +59,11 @@ export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
       return entry;
     }
 
-    function waitForEntry(entry: Entry<O>, signal: AbortSignal | undefined): Promise<O> {
+    function waitForEntry(
+      key: string,
+      entry: Entry<O>,
+      signal: AbortSignal | undefined
+    ): Promise<O> {
       if (signal?.aborted) return Promise.reject(abortReason(signal));
 
       entry.waiters += 1;
@@ -81,6 +80,7 @@ export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
             !entry.settled &&
             !entry.controller.signal.aborted
           ) {
+            if (inFlight.get(key) === entry) inFlight.delete(key);
             entry.controller.abort(new Error('Deduplicated request has no waiters'));
           }
           complete();

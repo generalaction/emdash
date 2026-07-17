@@ -1,5 +1,6 @@
 import type { Run, Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import { requestPriorities } from '@emdash/shared/requests';
 import { err, ok, type Result } from '@emdash/shared/result';
 import {
   createLiveModelHost,
@@ -60,6 +61,7 @@ export class PullRequestService {
       new PullRequestEngine({
         store: options.store,
         githubAuth: options.githubAuth,
+        scope: options.scope,
         logger: options.logger,
         maxSyncCount: options.maxSyncCount,
         archiveAgeMonths: options.archiveAgeMonths,
@@ -142,7 +144,7 @@ export class PullRequestService {
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
     this.options.store.registerRepository(normalized, accountId);
     this.ensureSyncState(normalized);
-    void this.sync(normalized);
+    void this.syncWithPriority(normalized, requestPriorities.background);
     return ok();
   }
 
@@ -157,6 +159,10 @@ export class PullRequestService {
   }
 
   sync(repositoryUrl: string): Promise<SyncResult> {
+    return this.syncWithPriority(repositoryUrl, requestPriorities.task);
+  }
+
+  private syncWithPriority(repositoryUrl: string, priority: number): Promise<SyncResult> {
     const normalized = normalizeRepositoryUrl(repositoryUrl);
     if (!normalized) {
       return Promise.resolve(err({ type: 'invalid_repository', input: repositoryUrl }));
@@ -166,7 +172,7 @@ export class PullRequestService {
     if (lastSuccessfulSync !== undefined && Date.now() - lastSuccessfulSync < minSyncIntervalMs) {
       return Promise.resolve(ok());
     }
-    return this.startSync(normalized, (signal) => this.engine.sync(normalized, signal));
+    return this.startSync(normalized, (signal) => this.engine.sync(normalized, signal, priority));
   }
 
   async forceFullSync(repositoryUrl: string): Promise<SyncResult> {
@@ -174,7 +180,7 @@ export class PullRequestService {
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
     await this.cancelAndWait(normalized);
     return await this.startSync(normalized, (signal) =>
-      this.engine.forceFullSync(normalized, signal)
+      this.engine.forceFullSync(normalized, signal, requestPriorities.task)
     );
   }
 
@@ -340,7 +346,10 @@ export class PullRequestService {
     await Promise.all(
       this.options.store
         .listRegisteredRepositories()
-        .map(async ({ repositoryUrl }) => await this.sync(repositoryUrl))
+        .map(
+          async ({ repositoryUrl }) =>
+            await this.syncWithPriority(repositoryUrl, requestPriorities.background)
+        )
     );
   }
 }

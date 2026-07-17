@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { requestPriorities } from '@emdash/shared/requests';
 import { err, ok } from '@emdash/shared/result';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/api';
@@ -162,11 +163,21 @@ describe('PullRequestService lifecycle', () => {
 
     expect(service.registerRepository(repositoryUrl)).toEqual(ok());
     await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+    expect(sync).toHaveBeenCalledWith(
+      repositoryUrl,
+      expect.any(AbortSignal),
+      requestPriorities.background
+    );
     await expect(service.sync(repositoryUrl)).resolves.toEqual(ok());
     expect(sync).toHaveBeenCalledTimes(1);
 
     await expect(service.forceFullSync(repositoryUrl)).resolves.toEqual(ok());
     expect(forceFullSync).toHaveBeenCalledTimes(1);
+    expect(forceFullSync).toHaveBeenCalledWith(
+      repositoryUrl,
+      expect.any(AbortSignal),
+      requestPriorities.task
+    );
     await scope.dispose();
   });
 

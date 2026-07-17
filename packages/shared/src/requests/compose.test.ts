@@ -1,5 +1,4 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { Controller } from '../api';
 import { compose, type Middleware } from './compose';
 
 describe('compose', () => {
@@ -30,7 +29,7 @@ describe('compose', () => {
 
     const composed = compose(handler, [outer, inner]);
 
-    expect(composed('wire')).toBe('WIRE');
+    expect(composed('request')).toBe('REQUEST');
     expect(events).toEqual([
       'outer:before',
       'inner:before',
@@ -52,7 +51,7 @@ describe('compose', () => {
 
   it('preserves function target types', () => {
     const handler = (input: { id: string }, _meta: { signal?: AbortSignal }) => input.id;
-    const middleware: Middleware<typeof handler> = (next) => (input, _meta) => next(input, _meta);
+    const middleware: Middleware<typeof handler> = (next) => (input, meta) => next(input, meta);
 
     const composed = compose(handler, [middleware]);
 
@@ -60,23 +59,22 @@ describe('compose', () => {
     expect(composed({ id: 'same' }, {})).toBe('same');
   });
 
-  it('works with controller object targets', async () => {
-    const controller: Controller = {
-      call: vi.fn(async (_path, input) => input),
-      resolveLive: () => null,
-      acquireLive: () => null,
-      dispose: vi.fn(async () => {}),
+  it('works with object targets', async () => {
+    type Target = {
+      call(path: string, input: unknown): Promise<unknown>;
     };
-    const middleware: Middleware<Controller> = (next) => ({
-      ...next,
-      async call(path, input, meta) {
-        return await next.call(path, { wrapped: input }, meta);
+    const target: Target = {
+      call: vi.fn(async (_path, input) => input),
+    };
+    const middleware: Middleware<Target> = (next) => ({
+      async call(path, input) {
+        return await next.call(path, { wrapped: input });
       },
     });
 
-    const composed = compose(controller, [middleware]);
+    const composed = compose(target, [middleware]);
 
     await expect(composed.call('echo', 'value')).resolves.toEqual({ wrapped: 'value' });
-    expect(controller.call).toHaveBeenCalledWith('echo', { wrapped: 'value' }, undefined);
+    expect(target.call).toHaveBeenCalledWith('echo', { wrapped: 'value' });
   });
 });

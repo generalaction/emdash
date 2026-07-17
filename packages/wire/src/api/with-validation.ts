@@ -1,7 +1,7 @@
 import { resultSchema } from '@emdash/shared';
+import type { Middleware } from '@emdash/shared/requests';
 import { z } from 'zod';
 import { liveCursorEntrySchema } from '../live/protocol';
-import type { Middleware } from '../util';
 import {
   isDownloadFileOpenResult,
   markDownloadFileOpen,

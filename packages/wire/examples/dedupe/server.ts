@@ -1,3 +1,4 @@
+import { compose, deduplicate } from '@emdash/shared/requests';
 import { z } from 'zod';
 import {
   createController,
@@ -8,7 +9,6 @@ import {
   procedure,
   serve,
 } from '../../src/index';
-import { compose, deduplicate } from '../../src/util';
 
 const api = defineContract({
   expensiveStats: procedure({

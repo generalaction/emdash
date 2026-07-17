@@ -136,8 +136,8 @@ Use narrower subpath exports at app boundaries:
   controller logging middleware.
 - `@emdash/wire/testing`: Wire test helpers such as `createTestWire()` and fake
   worker process support.
-- `@emdash/wire/util`: Wire API-boundary utilities: `compose()` and
-  `deduplicate()`.
+- `@emdash/wire/util`: Wire transport helpers for diagnosing structured-clone
+  failures.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
@@ -154,6 +154,8 @@ Use Shared subpaths directly for generic foundations:
 - `@emdash/shared/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
   `TimeoutError`, `runWithTimeout()`, `RetrySchedule`, retry schedule builders,
   and `retry()`.
+- `@emdash/shared/requests`: request handler composition, timeout, retry,
+  in-flight deduplication, and request scheduling.
 - `@emdash/shared/testing`: `ManualClock`, `createDeferred()`, `waitFor()`, and
   stub logger helpers.
 - `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.

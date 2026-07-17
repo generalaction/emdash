@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { compileDrizzleSchemaToSql } from '@emdash/core/primitives/sqlite-store/codegen';
 import { fingerprintDerivedSchema } from '@emdash/core/primitives/sqlite-store/node';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PullRequest } from '../../api';
+import type { PullRequest, PullRequestComment } from '../../api';
 import { PullRequestStore } from './pull-request-store';
 import * as schema from './schema';
 import { schemaFingerprint, schemaSqlStatements } from './schema-sql.generated';
@@ -157,6 +157,100 @@ describe('PullRequestStore', () => {
         ?.count
     ).toBe(0);
   });
+
+  it('persists and replaces comments and their ETag state', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const pullRequest = pullRequestFixture();
+    store.registerRepository(pullRequest.repositoryUrl);
+    store.savePullRequest(pullRequest);
+
+    store.replaceComments(pullRequest.url, [
+      pullRequestCommentFixture({ id: 'issue-comment:1', pullRequestUrl: pullRequest.url }),
+      pullRequestCommentFixture({
+        id: 'review-comment:2',
+        pullRequestUrl: pullRequest.url,
+        body: 'Inline feedback',
+        path: 'src/index.ts',
+        line: 42,
+        isOutdated: true,
+      }),
+    ]);
+    store.setCommentState(pullRequest.url, '"etag-1"');
+
+    expect(store.getComments(pullRequest.url)).toMatchObject([
+      { id: 'issue-comment:1', author: { userId: 'commenter' } },
+      {
+        id: 'review-comment:2',
+        body: 'Inline feedback',
+        path: 'src/index.ts',
+        line: 42,
+        isOutdated: true,
+      },
+    ]);
+    expect(store.getCommentState(pullRequest.url)).toMatchObject({ etag: '"etag-1"' });
+
+    store.replaceComments(pullRequest.url, [
+      pullRequestCommentFixture({
+        id: 'review:3',
+        pullRequestUrl: pullRequest.url,
+        body: 'Replacement',
+      }),
+    ]);
+    store.setCommentState(pullRequest.url, '"etag-2"');
+
+    expect(store.getComments(pullRequest.url).map((comment) => comment.id)).toEqual(['review:3']);
+    expect(store.getCommentState(pullRequest.url)).toMatchObject({ etag: '"etag-2"' });
+  });
+
+  it('cascades comment data and preserves referenced comment authors during pruning', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    cleanups.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const cachedPullRequest = pullRequestFixture({
+      url: `${repositoryUrl}/pull/1`,
+      author: null,
+    });
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(cachedPullRequest);
+    store.replaceComments(cachedPullRequest.url, [
+      pullRequestCommentFixture({ pullRequestUrl: cachedPullRequest.url }),
+    ]);
+    store.setCommentState(cachedPullRequest.url, '"etag"');
+    store.savePullRequest(
+      pullRequestFixture({
+        url: `${repositoryUrl}/pull/2`,
+        status: 'closed',
+        updatedAt: '2020-01-01T00:00:00.000Z',
+      })
+    );
+
+    store.archiveOldPullRequests(repositoryUrl, '2021-01-01T00:00:00.000Z');
+
+    expect(store.getComments(cachedPullRequest.url)).toHaveLength(1);
+    expect(
+      handle.connection.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM pull_request_users WHERE user_id = 'commenter'"
+      )?.count
+    ).toBe(1);
+
+    store.savePullRequest({
+      ...cachedPullRequest,
+      status: 'closed',
+      updatedAt: '2020-01-01T00:00:00.000Z',
+    });
+    store.archiveOldPullRequests(repositoryUrl, '2021-01-01T00:00:00.000Z');
+
+    expect(store.getComments(cachedPullRequest.url)).toEqual([]);
+    expect(store.getCommentState(cachedPullRequest.url)).toBeNull();
+    expect(
+      handle.connection.get<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM pull_request_users WHERE user_id = 'commenter'"
+      )?.count
+    ).toBe(0);
+  });
 });
 
 function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
@@ -196,6 +290,34 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
     labels: [],
     assignees: [],
     checks: [],
+    ...overrides,
+  };
+}
+
+function pullRequestCommentFixture(
+  overrides: Partial<PullRequestComment> = {}
+): PullRequestComment {
+  return {
+    id: 'issue-comment:1',
+    pullRequestUrl: 'https://github.com/emdash/emdash/pull/1',
+    kind: 'issue',
+    body: 'Looks good',
+    url: 'https://github.com/emdash/emdash/pull/1#issuecomment-1',
+    author: {
+      userId: 'commenter',
+      userName: 'reviewer',
+      displayName: 'Reviewer',
+      avatarUrl: null,
+      url: null,
+      userUpdatedAt: null,
+      userCreatedAt: null,
+    },
+    path: null,
+    line: null,
+    isResolved: false,
+    isOutdated: false,
+    createdAt: '2026-01-03T00:00:00.000Z',
+    updatedAt: '2026-01-03T00:00:00.000Z',
     ...overrides,
   };
 }

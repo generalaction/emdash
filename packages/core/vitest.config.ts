@@ -8,6 +8,7 @@ export default defineConfig({
       '@services': resolve(__dirname, 'src/services'),
       '@primitives': resolve(__dirname, 'src/primitives'),
       '@workspace-server': resolve(__dirname, 'src/workspace-server'),
+      '@emdash/shared/requests': resolve(__dirname, '../shared/src/requests/index.ts'),
       '@emdash/shared/scheduling': resolve(__dirname, '../shared/src/scheduling/index.ts'),
       '@emdash/shared/concurrency': resolve(__dirname, '../shared/src/concurrency/index.ts'),
       '@emdash/shared/util': resolve(__dirname, '../shared/src/util/index.ts'),

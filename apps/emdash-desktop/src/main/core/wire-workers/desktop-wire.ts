@@ -4,6 +4,7 @@ import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import { compose } from '@emdash/shared/requests';
 import {
   createController,
   exposeWireToWindows,
@@ -11,7 +12,6 @@ import {
   validation,
   type Controller,
 } from '@emdash/wire/api';
-import { compose } from '@emdash/wire/util';
 import { ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { createCatalogWireController } from '@main/core/catalog/wire-controller';

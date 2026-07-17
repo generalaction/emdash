@@ -41,6 +41,7 @@ export const PR_SUMMARY_FRAGMENT = `
 
 export const SYNC_PRS_QUERY = `
   query syncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+    rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
       pullRequests(first: 25, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
         totalCount
@@ -54,6 +55,7 @@ export const SYNC_PRS_QUERY = `
 
 export const INCREMENTAL_SYNC_PRS_QUERY = `
   query incrementalSyncPullRequests($owner: String!, $repo: String!, $cursor: String) {
+    rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
       pullRequests(first: 50, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
         pageInfo { hasNextPage endCursor }
@@ -66,6 +68,7 @@ export const INCREMENTAL_SYNC_PRS_QUERY = `
 
 export const GET_PR_BY_NUMBER_QUERY = `
   query getPullRequestByNumber($owner: String!, $repo: String!, $number: Int!) {
+    rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) { ...PrSummaryFields }
     }
@@ -75,6 +78,7 @@ export const GET_PR_BY_NUMBER_QUERY = `
 
 export const GET_PR_CHECK_RUNS_BY_URL_QUERY = `
   query getPrCheckRunsByUrl($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+    rateLimit { cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
         commits(last: 1) {

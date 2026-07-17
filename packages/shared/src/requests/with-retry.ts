@@ -1,10 +1,5 @@
-import { retry, type RetryOptions } from '@emdash/shared/scheduling';
-
-type SignalContext = {
-  signal?: AbortSignal;
-};
-
-type SignalHandler<I, O, C extends SignalContext> = (input: I, context: C) => Promise<O>;
+import { retry, type RetryOptions } from '../scheduling';
+import type { SignalContext, SignalHandler } from './handler';
 
 export type WithRetryOptions = RetryOptions;
 

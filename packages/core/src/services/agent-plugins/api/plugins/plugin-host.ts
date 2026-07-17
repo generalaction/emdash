@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { compose, deduplicate } from '@emdash/wire/util';
+import { compose, deduplicate } from '@emdash/shared/requests';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type { HostDependencyResolver, Platform } from '@primitives/host-dependencies/api';
 import type { PluginFs } from '@primitives/plugin-fs/api';

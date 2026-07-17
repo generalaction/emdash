@@ -46,6 +46,7 @@ client handles.
 
 ## Import Guidance
 
-Import generic foundations from the Shared subpaths directly. Wire-specific
-`compose()` and `deduplicate()` remain in `@emdash/wire/util`, and Wire
-worker/process APIs remain in `@emdash/wire/worker`.
+Import generic foundations from the Shared subpaths directly. Request handler
+composition, retry, timeout, and in-flight deduplication live in
+`@emdash/shared/requests`; Wire worker/process APIs remain in
+`@emdash/wire/worker`.

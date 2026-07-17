@@ -29,6 +29,10 @@
       "types": "./dist/concurrency.d.mts",
       "default": "./dist/concurrency.mjs"
     },
+    "./requests": {
+      "types": "./dist/requests.d.mts",
+      "default": "./dist/requests.mjs"
+    },
     "./util": {
       "types": "./dist/util.d.mts",
       "default": "./dist/util.mjs"

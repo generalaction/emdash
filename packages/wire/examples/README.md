@@ -57,8 +57,8 @@ Examples:
   creating a typed `ContractClient`, and acquiring a live model replica.
 - `group/` demonstrates `liveModel`, host instance lifecycle,
   typed group client binding, and mutation settling across multiple member models.
-- `dedupe/` demonstrates server-side `deduplicate()` middleware for in-flight
-  procedure calls.
+- `dedupe/` demonstrates server-side `deduplicate()` middleware from
+  `@emdash/shared/requests` for in-flight procedure calls.
 - `job-contract/` demonstrates the contract-level `liveJob()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
 - `mutation-idempotency/` demonstrates mutationId-based server dedupe for live

@@ -4,6 +4,7 @@ import type {
   ListPullRequestsInput,
   PullRequest,
   PullRequestCheck,
+  PullRequestComment,
   PullRequestFilterOptions,
   PullRequestLabel,
   PullRequestUser,
@@ -57,6 +58,26 @@ type PullRequestUserDbRow = {
   url: string | null;
   userUpdatedAt: string | null;
   userCreatedAt: string | null;
+};
+
+type PullRequestCommentDbRow = {
+  id: string;
+  pullRequestUrl: string;
+  kind: PullRequestComment['kind'];
+  body: string;
+  url: string;
+  authorUserId: string | null;
+  path: string | null;
+  line: number | null;
+  isResolved: number;
+  isOutdated: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PullRequestCommentState = {
+  etag: string | null;
+  lastFetchedAt: number;
 };
 
 const ACCOUNT_KEY_DEFAULT = 'default';
@@ -483,6 +504,99 @@ export class PullRequestStore {
     ]);
   }
 
+  replaceComments(pullRequestUrl: string, comments: PullRequestComment[]): void {
+    this.handle.transaction(() => {
+      for (const comment of comments) {
+        if (comment.author) this.upsertUser(comment.author);
+      }
+      this.handle.connection.run('DELETE FROM pull_request_comments WHERE pull_request_url = ?', [
+        pullRequestUrl,
+      ]);
+      for (const comment of comments) {
+        this.handle.connection.run(
+          `INSERT INTO pull_request_comments (
+            id, pull_request_url, kind, body, url, author_user_id, path, line,
+            is_resolved, is_outdated, comment_created_at, comment_updated_at
+          ) VALUES (${placeholders(12)})`,
+          [
+            comment.id,
+            pullRequestUrl,
+            comment.kind,
+            comment.body,
+            comment.url,
+            comment.author?.userId ?? null,
+            comment.path,
+            comment.line,
+            comment.isResolved ? 1 : 0,
+            comment.isOutdated ? 1 : 0,
+            comment.createdAt,
+            comment.updatedAt,
+          ]
+        );
+      }
+    });
+  }
+
+  getComments(pullRequestUrl: string): PullRequestComment[] {
+    const rows = this.handle.connection.all<PullRequestCommentDbRow>(
+      `SELECT
+        id,
+        pull_request_url AS pullRequestUrl,
+        kind,
+        body,
+        url,
+        author_user_id AS authorUserId,
+        path,
+        line,
+        is_resolved AS isResolved,
+        is_outdated AS isOutdated,
+        comment_created_at AS createdAt,
+        comment_updated_at AS updatedAt
+      FROM pull_request_comments
+      WHERE pull_request_url = ?
+      ORDER BY comment_created_at, id`,
+      [pullRequestUrl]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      pullRequestUrl: row.pullRequestUrl,
+      kind: row.kind,
+      body: row.body,
+      url: row.url,
+      author: row.authorUserId ? this.getUser(row.authorUserId) : null,
+      path: row.path,
+      line: row.line,
+      isResolved: Boolean(row.isResolved),
+      isOutdated: Boolean(row.isOutdated),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  getCommentState(pullRequestUrl: string): PullRequestCommentState | null {
+    return (
+      this.handle.connection.get<PullRequestCommentState>(
+        `SELECT
+          etag,
+          last_fetched_at AS lastFetchedAt
+        FROM pull_request_comment_state
+        WHERE pull_request_url = ?`,
+        [pullRequestUrl]
+      ) ?? null
+    );
+  }
+
+  setCommentState(pullRequestUrl: string, etag: string | null): void {
+    this.handle.connection.run(
+      `INSERT INTO pull_request_comment_state (pull_request_url, etag, last_fetched_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(pull_request_url) DO UPDATE SET
+        etag = excluded.etag,
+        last_fetched_at = excluded.last_fetched_at`,
+      [pullRequestUrl, etag, Date.now()]
+    );
+  }
+
   archiveOldPullRequests(repositoryUrl: string, cutoffIso: string): void {
     this.handle.transaction(() => {
       this.handle.connection.run(
@@ -508,7 +622,10 @@ export class PullRequestStore {
       WHERE user_id NOT IN (
         SELECT author_user_id FROM pull_requests WHERE author_user_id IS NOT NULL
       )
-      AND user_id NOT IN (SELECT user_id FROM pull_request_assignees)`
+      AND user_id NOT IN (SELECT user_id FROM pull_request_assignees)
+      AND user_id NOT IN (
+        SELECT author_user_id FROM pull_request_comments WHERE author_user_id IS NOT NULL
+      )`
     );
   }
 

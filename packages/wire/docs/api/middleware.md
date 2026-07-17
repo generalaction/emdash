@@ -4,9 +4,9 @@ Wire uses explicit composition for execution policy. Contracts describe protocol
 shape; middleware wraps handlers or controllers at the composition site.
 
 ```ts
-import { createController, withRetry, withTimeout } from '@emdash/wire/api';
+import { compose, deduplicate, withRetry } from '@emdash/shared/requests';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { compose } from '@emdash/wire/util';
+import { createController, withTimeout } from '@emdash/wire/api';
 
 const loadStats = compose(
   async (input: { repo: string }, meta: { signal?: AbortSignal }) => {
@@ -90,7 +90,7 @@ Controller middleware wraps a complete `Controller` after `createController()`:
 ```ts
 import { withValidation, validation } from '@emdash/wire/api';
 import { logging, withLogging } from '@emdash/wire/observability';
-import { compose } from '@emdash/wire/util';
+import { compose } from '@emdash/shared/requests';
 
 const base = createController(api, impl);
 
@@ -134,8 +134,9 @@ the wire call rejects with `CANCELLED`.
 
 ## Retry
 
-`withRetry()` is handler middleware backed by Shared `retry()` from
-`@emdash/shared/scheduling`. It requires an explicit `shouldRetry` classifier:
+`withRetry()` from `@emdash/shared/requests` is handler middleware backed by
+Shared `retry()` from `@emdash/shared/scheduling`. It requires an explicit
+`shouldRetry` classifier:
 
 ```ts
 const loadRemote = compose(rawLoadRemote, [
@@ -153,8 +154,8 @@ retry only `DISCONNECTED` by default.
 
 ## Deduplication
 
-`deduplicate(options?)` is handler middleware for sharing one in-flight execution
-for identical inputs:
+`deduplicate(options?)` from `@emdash/shared/requests` is handler middleware for
+sharing one in-flight execution for identical inputs:
 
 ```ts
 const expensiveStats = compose(rawExpensiveStats, [

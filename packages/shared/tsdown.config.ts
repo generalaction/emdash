@@ -6,6 +6,7 @@ export default defineConfig({
     result: 'src/result/index.ts',
     scheduling: 'src/scheduling/index.ts',
     concurrency: 'src/concurrency/index.ts',
+    requests: 'src/requests/index.ts',
     util: 'src/util/index.ts',
     testing: 'src/testing/index.ts',
     config: 'src/config/index.ts',

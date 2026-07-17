@@ -1,7 +1,7 @@
 import type { LogFields, Logger, LogLevel } from '@emdash/shared/logger';
+import type { Middleware } from '@emdash/shared/requests';
 import type { Controller } from '../api/controller';
 import { serializeWireError } from '../api/protocol';
-import type { Middleware } from '../util';
 import { summarizePayload, type PayloadSummaryOptions } from './payload';
 
 export type WithLoggingOptions = PayloadSummaryOptions & {

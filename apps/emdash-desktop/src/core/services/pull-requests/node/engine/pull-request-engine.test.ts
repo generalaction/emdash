@@ -1,15 +1,26 @@
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  requestPriorities,
+  type CreateRequestSchedulerOptions,
+  type RateGate,
+  type RequestScheduler,
+  type ScheduledRequest,
+} from '@emdash/shared/requests';
 import { ok } from '@emdash/shared/result';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/api';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract, PullRequest, SyncState } from '../../api';
+import type { GitHubAuthContract, PullRequest, PullRequestComment, SyncState } from '../../api';
 import { PullRequestStore, pullRequestSqliteStore } from '../store';
-import { PullRequestEngine } from './pull-request-engine';
+import { PullRequestEngine, type PullRequestEngineOptions } from './pull-request-engine';
 
 const closeHandles: Array<() => void> = [];
+const scopes: Scope[] = [];
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(scopes.splice(0).map(async (scope) => await scope.dispose()));
   while (closeHandles.length > 0) closeHandles.pop()?.();
 });
 
@@ -31,7 +42,7 @@ describe('PullRequestEngine', () => {
       },
     }));
     const { logger } = createStubLogger();
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -75,7 +86,7 @@ describe('PullRequestEngine', () => {
     );
     const { logger } = createStubLogger();
     const states: SyncState[] = [];
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -121,7 +132,7 @@ describe('PullRequestEngine', () => {
       })
       .mockRejectedValueOnce(Object.assign(new Error('Worker stopped'), { status: 400 }));
     const { logger } = createStubLogger();
-    const interruptedEngine = new PullRequestEngine({
+    const interruptedEngine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -151,7 +162,7 @@ describe('PullRequestEngine', () => {
         },
       },
     }));
-    const resumedEngine = new PullRequestEngine({
+    const resumedEngine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -185,7 +196,7 @@ describe('PullRequestEngine', () => {
     store.registerRepository('https://github.com/emdash/emdash');
     const states: SyncState[] = [];
     const { logger } = createStubLogger();
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -234,7 +245,7 @@ describe('PullRequestEngine', () => {
     store.registerRepository(repositoryUrl);
     const states: SyncState[] = [];
     const { logger } = createStubLogger();
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -289,7 +300,7 @@ describe('PullRequestEngine', () => {
         },
       });
     const { logger } = createStubLogger();
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -337,11 +348,15 @@ describe('PullRequestEngine', () => {
       paginate,
       rest: {
         issues: { listComments },
-        pulls: { listReviewComments, listReviews },
+        pulls: {
+          get: vi.fn(async () => ({ headers: { etag: '"etag"' }, data: {} })),
+          listReviewComments,
+          listReviews,
+        },
       },
     } as unknown as Octokit;
     const { logger } = createStubLogger();
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -358,6 +373,158 @@ describe('PullRequestEngine', () => {
       success: true,
       data: [{ author: { userId: 'github.com:1' } }],
     });
+  });
+
+  it('persists comments and the pull request ETag on first fetch', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequest = pullRequestFixture();
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequest);
+    const github = fakeCommentsOctokit({
+      etag: '"etag-1"',
+      issueComments: [restIssueComment({ body: 'First comment' })],
+    });
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => github.octokit,
+    });
+
+    const result = await engine.getPullRequestComments(
+      repositoryUrl,
+      42,
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ id: 'issue-comment:7', body: 'First comment' }],
+    });
+    expect(store.getComments(pullRequest.url)).toMatchObject([
+      { id: 'issue-comment:7', body: 'First comment' },
+    ]);
+    expect(store.getCommentState(pullRequest.url)).toMatchObject({ etag: '"etag-1"' });
+  });
+
+  it('serves cached comments when the ETag guard returns 304', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequest = pullRequestFixture();
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequest);
+    store.replaceComments(pullRequest.url, [
+      pullRequestCommentFixture({ pullRequestUrl: pullRequest.url, body: 'Cached comment' }),
+    ]);
+    store.setCommentState(pullRequest.url, '"etag-1"');
+    const github = fakeCommentsOctokit({
+      getError: Object.assign(new Error('Not modified'), { status: 304 }),
+    });
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => github.octokit,
+    });
+
+    const result = await engine.getPullRequestComments(
+      repositoryUrl,
+      42,
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ body: 'Cached comment' }],
+    });
+    expect(github.get).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: { 'if-none-match': '"etag-1"' } })
+    );
+    expect(github.paginate).not.toHaveBeenCalled();
+  });
+
+  it('replaces cached comments and the ETag when the guard returns 200', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequest = pullRequestFixture();
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequest);
+    store.replaceComments(pullRequest.url, [
+      pullRequestCommentFixture({ pullRequestUrl: pullRequest.url, body: 'Old comment' }),
+    ]);
+    store.setCommentState(pullRequest.url, '"etag-1"');
+    const github = fakeCommentsOctokit({
+      etag: '"etag-2"',
+      issueComments: [restIssueComment({ id: 8, body: 'Fresh comment' })],
+    });
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => github.octokit,
+    });
+
+    const result = await engine.getPullRequestComments(
+      repositoryUrl,
+      42,
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ id: 'issue-comment:8', body: 'Fresh comment' }],
+    });
+    expect(store.getComments(pullRequest.url).map((comment) => comment.body)).toEqual([
+      'Fresh comment',
+    ]);
+    expect(store.getCommentState(pullRequest.url)).toMatchObject({ etag: '"etag-2"' });
+  });
+
+  it('returns stale cached comments when conditional refresh fails', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const pullRequest = pullRequestFixture();
+    store.registerRepository(repositoryUrl);
+    store.savePullRequest(pullRequest);
+    store.replaceComments(pullRequest.url, [
+      pullRequestCommentFixture({ pullRequestUrl: pullRequest.url, body: 'Stale comment' }),
+    ]);
+    store.setCommentState(pullRequest.url, '"etag-1"');
+    const github = fakeCommentsOctokit({
+      getError: Object.assign(new Error('Unavailable'), { status: 503 }),
+    });
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => github.octokit,
+      retrySchedule: retrySchedules.fixed(0, 0),
+    });
+
+    const result = await engine.getPullRequestComments(
+      repositoryUrl,
+      42,
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: [{ body: 'Stale comment' }],
+    });
+    expect(github.paginate).not.toHaveBeenCalled();
   });
 
   it('keeps check IDs stable across refreshes', async () => {
@@ -401,7 +568,7 @@ describe('PullRequestEngine', () => {
     }));
     const { logger } = createStubLogger();
     const states: SyncState[] = [];
-    const engine = new PullRequestEngine({
+    const engine = createEngine({
       store,
       githubAuth: fakeGitHubAuth(),
       logger,
@@ -430,7 +597,196 @@ describe('PullRequestEngine', () => {
       lastSyncedAt: expect.any(Number),
     });
   });
+
+  it('schedules background sync pages with retry through one account lane', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    store.registerRepository(repositoryUrl, 'account-1');
+    const graphql = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('Unavailable'), { status: 503 }))
+      .mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            totalCount: 0,
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      });
+    const requests: ScheduledRequest<unknown>[] = [];
+    const scheduler = immediateScheduler(requests);
+    const createScheduler = vi.fn((_options: CreateRequestSchedulerOptions) => scheduler);
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => fakeOctokit(graphql),
+      createScheduler,
+      retrySchedule: retrySchedules.fixed(0, 1),
+    });
+
+    await expect(
+      engine.sync(repositoryUrl, new AbortController().signal, requestPriorities.background)
+    ).resolves.toEqual(ok());
+
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(createScheduler).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(2);
+    expect(requests.every((request) => request.priority === requestPriorities.background)).toBe(
+      true
+    );
+  });
+
+  it('feeds GraphQL and HTTP rate-limit observations into the lane gate', async () => {
+    const handle = await pullRequestSqliteStore.openTemp();
+    closeHandles.push(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    store.registerRepository(repositoryUrl);
+    const resetAt = '2026-01-03T00:00:00.000Z';
+    const graphql = vi.fn(async () => ({
+      repository: {
+        pullRequests: {
+          totalCount: 0,
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [],
+        },
+      },
+      rateLimit: { cost: 2, remaining: 98, resetAt },
+    }));
+    type HookOptions = {
+      url?: string;
+      request?: { signal?: AbortSignal };
+    };
+    let beforeHook: ((options: HookOptions) => Promise<void>) | undefined;
+    let afterHook:
+      | ((
+          response: { headers: Record<string, string | number | undefined> },
+          options: HookOptions
+        ) => void)
+      | undefined;
+    let errorHook: ((error: unknown, options: HookOptions) => never) | undefined;
+    const octokit = {
+      graphql,
+      rest: {},
+      paginate: vi.fn(),
+      hook: {
+        before: vi.fn((_name: string, callback: (options: HookOptions) => Promise<void>) => {
+          beforeHook = callback;
+        }),
+        after: vi.fn(
+          (
+            _name: string,
+            callback: (
+              response: { headers: Record<string, string | number | undefined> },
+              options: HookOptions
+            ) => void
+          ) => {
+            afterHook = callback;
+          }
+        ),
+        error: vi.fn((_name: string, callback: (error: unknown, options: HookOptions) => never) => {
+          errorHook = callback;
+        }),
+      },
+    } as unknown as Octokit;
+    const gates = {
+      graphql: fakeRateGate(),
+      rest: fakeRateGate(),
+    };
+    const { logger } = createStubLogger();
+    const engine = createEngine({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      logger,
+      createOctokit: () => octokit,
+      createScheduler: () => immediateScheduler([]),
+      createRateGate: (resource) => gates[resource],
+    });
+
+    await expect(engine.sync(repositoryUrl, new AbortController().signal)).resolves.toEqual(ok());
+    expect(gates.graphql.observe).toHaveBeenCalledWith({
+      cost: 2,
+      remaining: 98,
+      resetAtMs: Date.parse(resetAt),
+    });
+    expect(gates.rest.observe).not.toHaveBeenCalled();
+
+    const requestSignal = new AbortController().signal;
+    await beforeHook?.({
+      url: 'https://api.github.com/graphql',
+      request: { signal: requestSignal },
+    });
+    expect(gates.graphql.acquire).toHaveBeenLastCalledWith(0, requestSignal);
+    await beforeHook?.({
+      url: 'https://api.github.com/repos/emdash/emdash/pulls',
+      request: { signal: requestSignal },
+    });
+    expect(gates.rest.acquire).toHaveBeenLastCalledWith(1, requestSignal);
+
+    afterHook?.(
+      {
+        headers: {
+          'x-ratelimit-resource': 'core',
+          'x-ratelimit-remaining': '17',
+          'x-ratelimit-reset': '100',
+          'retry-after': '3',
+        },
+      },
+      { url: 'https://api.github.com/graphql' }
+    );
+    expect(gates.rest.observe).toHaveBeenLastCalledWith({
+      remaining: 17,
+      resetAtMs: 100_000,
+      retryAfterMs: 3_000,
+    });
+
+    const rateError = Object.assign(new Error('rate limited'), {
+      response: { headers: { 'retry-after': '2' } },
+    });
+    expect(() =>
+      errorHook?.(rateError, {
+        url: 'https://api.github.com/repos/emdash/emdash/pulls',
+      })
+    ).toThrow(rateError);
+    expect(gates.rest.observe).toHaveBeenLastCalledWith({
+      remaining: undefined,
+      resetAtMs: undefined,
+      retryAfterMs: 2_000,
+    });
+  });
 });
+
+function createEngine(options: Omit<PullRequestEngineOptions, 'scope'>): PullRequestEngine {
+  const scope = createScope({ label: 'pull-request-engine-test' });
+  scopes.push(scope);
+  return new PullRequestEngine({ ...options, scope });
+}
+
+function immediateScheduler(requests: ScheduledRequest<unknown>[]): RequestScheduler {
+  return {
+    stats: { pending: 0, inFlight: 0 },
+    async submit<T>(
+      request: ScheduledRequest<T>,
+      options: { signal?: AbortSignal } = {}
+    ): Promise<T> {
+      requests.push(request as ScheduledRequest<unknown>);
+      return await request.run(options.signal ?? new AbortController().signal);
+    },
+    async dispose(): Promise<void> {},
+  };
+}
+
+function fakeRateGate(): RateGate {
+  return {
+    acquire: vi.fn(async () => {}),
+    observe: vi.fn(),
+  };
+}
 
 function fakeGitHubAuth(): ContractClient<GitHubAuthContract> {
   return {
@@ -449,6 +805,49 @@ function fakeOctokit(graphql: (...args: never[]) => Promise<unknown>): Octokit {
     rest: {},
     paginate: vi.fn(),
   } as unknown as Octokit;
+}
+
+function fakeCommentsOctokit(options: {
+  etag?: string;
+  getError?: unknown;
+  issueComments?: Array<ReturnType<typeof restIssueComment>>;
+}) {
+  const get = options.getError
+    ? vi.fn(async () => {
+        throw options.getError;
+      })
+    : vi.fn(async () => ({ headers: { etag: options.etag ?? '"etag"' }, data: {} }));
+  const listComments = vi.fn();
+  const listReviewComments = vi.fn();
+  const listReviews = vi.fn();
+  const paginate = vi.fn(async (method: unknown) =>
+    method === listComments ? (options.issueComments ?? []) : []
+  );
+  const octokit = {
+    graphql: vi.fn(),
+    paginate,
+    rest: {
+      issues: { listComments },
+      pulls: { get, listReviewComments, listReviews },
+    },
+  } as unknown as Octokit;
+  return { octokit, get, paginate };
+}
+
+function restIssueComment(overrides: { id?: number; body?: string } = {}) {
+  return {
+    id: overrides.id ?? 7,
+    body: overrides.body ?? 'Comment',
+    html_url: `https://github.com/emdash/emdash/pull/42#issuecomment-${overrides.id ?? 7}`,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    user: {
+      id: 1,
+      login: 'octocat',
+      avatar_url: 'https://github.com/images/octocat.png',
+      html_url: 'https://github.com/octocat',
+    },
+  };
 }
 
 function gqlPullRequest(overrides: { number?: number; title?: string; updatedAt?: string } = {}) {
@@ -514,5 +913,34 @@ function pullRequestFixture(): PullRequest {
     labels: [],
     assignees: [],
     checks: [],
+  };
+}
+
+function pullRequestCommentFixture(
+  overrides: Partial<PullRequestComment> = {}
+): PullRequestComment {
+  const pullRequestUrl = 'https://github.com/emdash/emdash/pull/42';
+  return {
+    id: 'issue-comment:7',
+    pullRequestUrl,
+    kind: 'issue',
+    body: 'Comment',
+    url: `${pullRequestUrl}#issuecomment-7`,
+    author: {
+      userId: 'github.com:1',
+      userName: 'octocat',
+      displayName: 'octocat',
+      avatarUrl: null,
+      url: 'https://github.com/octocat',
+      userUpdatedAt: null,
+      userCreatedAt: null,
+    },
+    path: null,
+    line: null,
+    isResolved: false,
+    isOutdated: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
   };
 }

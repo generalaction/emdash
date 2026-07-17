@@ -142,9 +142,44 @@ export const pullRequestChecks = sqliteTable(
   })
 );
 
+export const pullRequestComments = sqliteTable(
+  'pull_request_comments',
+  {
+    id: text('id').primaryKey(),
+    pullRequestUrl: text('pull_request_url')
+      .notNull()
+      .references(() => pullRequests.url, { onDelete: 'cascade' }),
+    kind: text('kind').notNull().$type<'issue' | 'review'>(),
+    body: text('body').notNull(),
+    url: text('url').notNull(),
+    authorUserId: text('author_user_id').references(() => pullRequestUsers.userId, {
+      onDelete: 'set null',
+    }),
+    path: text('path'),
+    line: integer('line'),
+    isResolved: integer('is_resolved', { mode: 'boolean' }).notNull(),
+    isOutdated: integer('is_outdated', { mode: 'boolean' }).notNull(),
+    commentCreatedAt: text('comment_created_at').notNull(),
+    commentUpdatedAt: text('comment_updated_at').notNull(),
+  },
+  (table) => ({
+    pullRequestUrlIdx: index('idx_pull_request_comments_pr_url').on(table.pullRequestUrl),
+  })
+);
+
+export const pullRequestCommentState = sqliteTable('pull_request_comment_state', {
+  pullRequestUrl: text('pull_request_url')
+    .primaryKey()
+    .references(() => pullRequests.url, { onDelete: 'cascade' }),
+  etag: text('etag'),
+  lastFetchedAt: integer('last_fetched_at').notNull(),
+});
+
 export type RegisteredRepositoryRow = typeof registeredRepositories.$inferSelect;
 export type SyncCursorRow = typeof syncCursors.$inferSelect;
 export type PullRequestRow = typeof pullRequests.$inferSelect;
 export type PullRequestUserRow = typeof pullRequestUsers.$inferSelect;
 export type PullRequestLabelRow = typeof pullRequestLabels.$inferSelect;
 export type PullRequestCheckRow = typeof pullRequestChecks.$inferSelect;
+export type PullRequestCommentRow = typeof pullRequestComments.$inferSelect;
+export type PullRequestCommentStateRow = typeof pullRequestCommentState.$inferSelect;

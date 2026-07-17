@@ -1,8 +1,8 @@
+import { compose } from '@emdash/shared/requests';
 import { ManualClock, deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createTestWire } from '../testing';
-import { compose } from '../util';
 import { defineContract, procedure } from './define';
 import { WireError } from './protocol';
 import { withTimeout } from './with-timeout';

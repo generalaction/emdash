@@ -1,7 +1,7 @@
-import { retrySchedules } from '@emdash/shared/scheduling';
-import { ManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { compose } from '../util';
+import { retrySchedules, TimeoutError } from '../scheduling';
+import { ManualClock } from '../testing';
+import { compose } from './compose';
 import { withRetry } from './with-retry';
 import { withTimeout } from './with-timeout';
 
@@ -78,7 +78,7 @@ describe('withRetry', () => {
     await clock.advanceBy(1);
     await clock.advanceBy(5);
 
-    await expect(result).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await expect(result).rejects.toBeInstanceOf(TimeoutError);
     expect(spy).toHaveBeenCalledTimes(3);
   });
 });

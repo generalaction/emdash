@@ -1,5 +1,16 @@
+import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import {
+  createRequestScheduler,
+  requestPriorities,
+  tokenBucketGate,
+  type CreateRequestSchedulerOptions,
+  type RateFeedback,
+  type RateGate,
+  type RequestScheduler,
+} from '@emdash/shared/requests';
 import { err, ok, type Result } from '@emdash/shared/result';
+import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '@emdash/wire/api';
 import { Octokit } from '@octokit/rest';
 import { parseRepositoryRef } from '@shared/repository-ref';
@@ -17,6 +28,7 @@ import type {
 import type { PullRequestStore, SyncCursor } from '../store';
 import {
   isAbortError,
+  isNetworkError,
   mapApiError,
   mapAuthError,
   type PullRequestOperationErrorType,
@@ -27,19 +39,74 @@ import {
   INCREMENTAL_SYNC_PRS_QUERY,
   SYNC_PRS_QUERY,
 } from './queries';
-import { RateLimiter, throwIfAborted, withRetry } from './retry';
 
 const DEFAULT_MAX_SYNC_COUNT = 300;
 const DEFAULT_ARCHIVE_AGE_MONTHS = 6;
+const DEFAULT_REQUEST_CONCURRENCY = 3;
+const DEFAULT_REQUEST_CAPACITY = 20;
+const DEFAULT_REQUEST_REFILL_PER_SEC = 10;
+const DEFAULT_REQUEST_RESERVE = 50;
+
+const defaultRetrySchedule = retrySchedules.jitter(
+  retrySchedules.exponential({
+    initialMs: 1_000,
+    maxMs: 30_000,
+    maxRetries: 2,
+  })
+);
 
 export type PullRequestEngineOptions = {
   store: PullRequestStore;
   githubAuth: ContractClient<GitHubAuthContract>;
+  scope: Scope;
   logger: Logger;
   maxSyncCount?: number;
   archiveAgeMonths?: number;
   onSyncState?: (repositoryUrl: string, state: SyncState) => void;
   createOctokit?: (options: { token: string; baseUrl: string }) => Octokit;
+  createScheduler?: (options: CreateRequestSchedulerOptions) => RequestScheduler;
+  createRateGate?: (resource: GitHubRateResource) => RateGate;
+  retrySchedule?: RetrySchedule;
+};
+
+type RequestLane = {
+  scheduler: RequestScheduler;
+  gates: Record<GitHubRateResource, RateGate>;
+};
+
+type GitHubRateResource = 'graphql' | 'rest';
+
+type GitHubClient = {
+  octokit: Octokit;
+  lane: RequestLane;
+};
+
+type GraphQlRateLimit = {
+  cost: number;
+  remaining: number;
+  resetAt: string;
+};
+
+type RequestOptions = {
+  priority: number;
+  cost?: number;
+  key?: string;
+};
+
+type OctokitHeaders = Record<string, string | number | undefined>;
+
+type OctokitRequestOptions = {
+  url?: string;
+  request?: { signal?: AbortSignal };
+};
+
+type OctokitRequestHook = {
+  before?(name: 'request', callback: (options: OctokitRequestOptions) => Promise<void>): void;
+  after(
+    name: 'request',
+    callback: (response: { headers: OctokitHeaders }, options: OctokitRequestOptions) => void
+  ): void;
+  error(name: 'request', callback: (error: unknown, options: OctokitRequestOptions) => never): void;
 };
 
 type RepositoryRef = NonNullable<ReturnType<typeof parseRepositoryRef>>;
@@ -105,23 +172,28 @@ interface GqlStatusContextNode {
 type GqlCheckNode = GqlCheckRunNode | GqlStatusContextNode;
 
 export class PullRequestEngine {
-  private readonly rateLimiter = new RateLimiter();
+  private readonly requestLanes = new Map<string, RequestLane>();
 
   constructor(private readonly options: PullRequestEngineOptions) {}
 
-  async sync(repositoryUrl: string, signal: AbortSignal): Promise<Result<void, PullRequestError>> {
+  async sync(
+    repositoryUrl: string,
+    signal: AbortSignal,
+    priority: number = requestPriorities.task
+  ): Promise<Result<void, PullRequestError>> {
     const fullCursor = this.options.store.getCursor(repositoryUrl, 'full');
     return fullCursor?.done
-      ? await this.runIncrementalSync(repositoryUrl, signal)
-      : await this.runFullSync(repositoryUrl, signal);
+      ? await this.runIncrementalSync(repositoryUrl, signal, priority)
+      : await this.runFullSync(repositoryUrl, signal, priority);
   }
 
   async forceFullSync(
     repositoryUrl: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    priority: number = requestPriorities.task
   ): Promise<Result<void, PullRequestError>> {
     this.options.store.clearCursors(repositoryUrl);
-    return await this.runFullSync(repositoryUrl, signal);
+    return await this.runFullSync(repositoryUrl, signal, priority);
   }
 
   async syncSingle(
@@ -133,32 +205,41 @@ export class PullRequestEngine {
     const emitProgress = options.emit !== false;
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) {
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) {
       if (emitProgress) {
         this.emit(repositoryUrl, {
           phase: 'error',
           kind: 'single',
-          error: octokit.error,
+          error: github.error,
         });
       }
-      return octokit;
+      return github;
     }
+    const { lane, octokit } = github.data;
     if (emitProgress) {
       this.emit(repositoryUrl, { phase: 'running', kind: 'single', synced: 0 });
     }
     try {
-      const response = await this.request(signal, () =>
-        octokit.data.graphql<{ repository: { pullRequest: GqlPrNode | null } }>(
-          GET_PR_BY_NUMBER_QUERY,
-          {
+      const response = await this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `pr:${repository.data.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.graphql<{
+            repository: { pullRequest: GqlPrNode | null };
+            rateLimit?: GraphQlRateLimit;
+          }>(GET_PR_BY_NUMBER_QUERY, {
             owner: repository.data.owner,
             repo: repository.data.repo,
             number,
-            request: { signal },
-          }
-        )
+            request: { signal: requestSignal },
+          })
       );
+      lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
       const node = response.repository.pullRequest;
       if (!node) {
         const notFound: PullRequestError = {
@@ -223,38 +304,48 @@ export class PullRequestEngine {
     if (this.options.store.getChecksCommitSha(pullRequestUrl) !== headRefOid) {
       this.options.store.clearChecks(pullRequestUrl);
     }
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return github;
+    const { lane, octokit } = github.data;
     try {
       const nodes: GqlCheckNode[] = [];
       let cursor: string | undefined;
       for (;;) {
-        const response = await this.request(signal, () =>
-          octokit.data.graphql<{
-            repository: {
-              pullRequest: {
-                commits: {
-                  nodes: Array<{
-                    commit: {
-                      statusCheckRollup: {
-                        contexts: {
-                          pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                          nodes: GqlCheckNode[];
-                        };
-                      } | null;
-                    };
-                  }>;
-                };
-              } | null;
-            };
-          }>(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            number,
-            cursor: cursor ?? null,
-            request: { signal },
-          })
+        const response = await this.request(
+          lane,
+          signal,
+          {
+            priority: requestPriorities.interactive,
+            key: `checks:${repository.data.repositoryUrl}:${number}:${headRefOid}:${cursor ?? ''}`,
+          },
+          (requestSignal) =>
+            octokit.graphql<{
+              repository: {
+                pullRequest: {
+                  commits: {
+                    nodes: Array<{
+                      commit: {
+                        statusCheckRollup: {
+                          contexts: {
+                            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                            nodes: GqlCheckNode[];
+                          };
+                        } | null;
+                      };
+                    }>;
+                  };
+                } | null;
+              };
+              rateLimit?: GraphQlRateLimit;
+            }>(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
+              owner: repository.data.owner,
+              repo: repository.data.repo,
+              number,
+              cursor: cursor ?? null,
+              request: { signal: requestSignal },
+            })
         );
+        lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
         const contexts =
           response.repository.pullRequest?.commits.nodes[0]?.commit.statusCheckRollup?.contexts;
         if (!contexts) break;
@@ -309,20 +400,25 @@ export class PullRequestEngine {
         });
       }
     }
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return github;
+    const { lane, octokit } = github.data;
     try {
-      const response = await this.request(signal, () =>
-        octokit.data.rest.pulls.create({
-          owner: repository.data.owner,
-          repo: repository.data.repo,
-          head: input.head,
-          base: input.base,
-          title: input.title,
-          body: input.body,
-          draft: input.draft,
-          request: { signal },
-        })
+      const response = await this.request(
+        lane,
+        signal,
+        { priority: requestPriorities.interactive },
+        (requestSignal) =>
+          octokit.rest.pulls.create({
+            owner: repository.data.owner,
+            repo: repository.data.repo,
+            head: input.head,
+            base: input.base,
+            title: input.title,
+            body: input.body,
+            draft: input.draft,
+            request: { signal: requestSignal },
+          })
       );
       return ok({ url: response.data.html_url, number: response.data.number });
     } catch (error) {
@@ -343,18 +439,23 @@ export class PullRequestEngine {
   ): Promise<Result<{ sha: string | null; merged: boolean }, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return github;
+    const { lane, octokit } = github.data;
     try {
-      const response = await this.request(signal, () =>
-        octokit.data.rest.pulls.merge({
-          owner: repository.data.owner,
-          repo: repository.data.repo,
-          pull_number: number,
-          merge_method: options.strategy,
-          sha: options.commitHeadOid,
-          request: { signal },
-        })
+      const response = await this.request(
+        lane,
+        signal,
+        { priority: requestPriorities.interactive },
+        (requestSignal) =>
+          octokit.rest.pulls.merge({
+            owner: repository.data.owner,
+            repo: repository.data.repo,
+            pull_number: number,
+            merge_method: options.strategy,
+            sha: options.commitHeadOid,
+            request: { signal: requestSignal },
+          })
       );
       return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
     } catch (error) {
@@ -374,26 +475,38 @@ export class PullRequestEngine {
   ): Promise<Result<void, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return github;
+    const { lane, octokit } = github.data;
     try {
-      const response = await this.request(signal, () =>
-        octokit.data.rest.pulls.get({
-          owner: repository.data.owner,
-          repo: repository.data.repo,
-          pull_number: number,
-          request: { signal },
-        })
+      const response = await this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `pr-node-id:${repository.data.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.rest.pulls.get({
+            owner: repository.data.owner,
+            repo: repository.data.repo,
+            pull_number: number,
+            request: { signal: requestSignal },
+          })
       );
-      await this.request(signal, () =>
-        octokit.data.graphql(
-          `mutation MarkReadyForReview($id: ID!) {
+      await this.request(
+        lane,
+        signal,
+        { priority: requestPriorities.interactive },
+        (requestSignal) =>
+          octokit.graphql(
+            `mutation MarkReadyForReview($id: ID!) {
             markPullRequestReadyForReview(input: { pullRequestId: $id }) {
               pullRequest { isDraft }
             }
           }`,
-          { id: response.data.node_id, request: { signal } }
-        )
+            { id: response.data.node_id, request: { signal: requestSignal } }
+          )
       );
       return ok();
     } catch (error) {
@@ -413,95 +526,58 @@ export class PullRequestEngine {
   ): Promise<Result<PullRequestComment[], PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
     const pullRequestUrl = `${repository.data.repositoryUrl}/pull/${number}`;
+    const canPersist = this.options.store.getPullRequestByUrl(pullRequestUrl) !== null;
+    const state = canPersist ? this.options.store.getCommentState(pullRequestUrl) : null;
+    const cachedComments = state ? this.options.store.getComments(pullRequestUrl) : [];
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return state ? ok(cachedComments) : github;
+    const { lane, octokit } = github.data;
     try {
-      const [issueComments, reviewComments, reviews] = await Promise.all([
-        this.request(signal, () =>
-          octokit.data.paginate(octokit.data.rest.issues.listComments, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            issue_number: number,
-            per_page: 100,
-            request: { signal },
-          })
-        ),
-        this.request(signal, () =>
-          octokit.data.paginate(octokit.data.rest.pulls.listReviewComments, {
+      const pullRequestResponse = await this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `comments:etag:${repository.data.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.rest.pulls.get({
             owner: repository.data.owner,
             repo: repository.data.repo,
             pull_number: number,
-            per_page: 100,
-            request: { signal },
+            ...(state?.etag ? { headers: { 'if-none-match': state.etag } } : {}),
+            request: { signal: requestSignal },
           })
-        ),
-        this.request(signal, () =>
-          octokit.data.paginate(octokit.data.rest.pulls.listReviews, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            pull_number: number,
-            per_page: 100,
-            request: { signal },
-          })
-        ),
-      ]);
-      return ok([
-        ...issueComments.map((comment) => ({
-          id: `issue-comment:${comment.id}`,
+      );
+      const comments = await this.fetchPullRequestComments(
+        repository.data,
+        github.data,
+        pullRequestUrl,
+        number,
+        signal
+      );
+      if (canPersist) {
+        this.options.store.replaceComments(pullRequestUrl, comments);
+        this.options.store.setCommentState(
           pullRequestUrl,
-          kind: 'issue' as const,
-          body: comment.body ?? '',
-          url: comment.html_url,
-          author: comment.user
-            ? restUserToPullRequestUser(comment.user, repository.data.host)
-            : null,
-          path: null,
-          line: null,
-          isResolved: false,
-          isOutdated: false,
-          createdAt: comment.created_at,
-          updatedAt: comment.updated_at,
-        })),
-        ...reviews.flatMap((review): PullRequestComment[] => {
-          if (!review.body?.trim() || !review.submitted_at) return [];
-          return [
-            {
-              id: `review:${review.id}`,
-              pullRequestUrl,
-              kind: 'review',
-              body: review.body,
-              url: review.html_url,
-              author: review.user
-                ? restUserToPullRequestUser(review.user, repository.data.host)
-                : null,
-              path: null,
-              line: null,
-              isResolved: false,
-              isOutdated: false,
-              createdAt: review.submitted_at,
-              updatedAt: review.submitted_at,
-            },
-          ];
-        }),
-        ...reviewComments.map((comment) => ({
-          id: `review-comment:${comment.id}`,
-          pullRequestUrl,
-          kind: 'review' as const,
-          body: comment.body ?? '',
-          url: comment.html_url,
-          author: comment.user
-            ? restUserToPullRequestUser(comment.user, repository.data.host)
-            : null,
-          path: comment.path ?? null,
-          line: comment.line ?? comment.original_line ?? null,
-          isResolved: false,
-          isOutdated: comment.position == null,
-          createdAt: comment.created_at,
-          updatedAt: comment.updated_at,
-        })),
-      ]);
+          pullRequestResponse.headers.etag ?? null
+        );
+      }
+      return ok(comments);
     } catch (error) {
+      if (isNotModifiedError(error)) {
+        if (state) this.options.store.setCommentState(pullRequestUrl, state.etag);
+        return ok(cachedComments);
+      }
+      if (state) {
+        this.options.logger.warn('Unable to refresh cached pull request comments', {
+          repositoryUrl: repository.data.repositoryUrl,
+          number,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return ok(cachedComments);
+      }
       return this.handleError(
         error,
         repository.data,
@@ -511,6 +587,115 @@ export class PullRequestEngine {
     }
   }
 
+  private async fetchPullRequestComments(
+    repository: RepositoryRef,
+    github: GitHubClient,
+    pullRequestUrl: string,
+    number: number,
+    signal: AbortSignal
+  ): Promise<PullRequestComment[]> {
+    const { lane, octokit } = github;
+    const [issueComments, reviewComments, reviews] = await Promise.all([
+      this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `comments:issue:${repository.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.paginate(octokit.rest.issues.listComments, {
+            owner: repository.owner,
+            repo: repository.repo,
+            issue_number: number,
+            per_page: 100,
+            request: { signal: requestSignal },
+          })
+      ),
+      this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `comments:review-comments:${repository.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.paginate(octokit.rest.pulls.listReviewComments, {
+            owner: repository.owner,
+            repo: repository.repo,
+            pull_number: number,
+            per_page: 100,
+            request: { signal: requestSignal },
+          })
+      ),
+      this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `comments:reviews:${repository.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.paginate(octokit.rest.pulls.listReviews, {
+            owner: repository.owner,
+            repo: repository.repo,
+            pull_number: number,
+            per_page: 100,
+            request: { signal: requestSignal },
+          })
+      ),
+    ]);
+    return [
+      ...issueComments.map((comment) => ({
+        id: `issue-comment:${comment.id}`,
+        pullRequestUrl,
+        kind: 'issue' as const,
+        body: comment.body ?? '',
+        url: comment.html_url,
+        author: comment.user ? restUserToPullRequestUser(comment.user, repository.host) : null,
+        path: null,
+        line: null,
+        isResolved: false,
+        isOutdated: false,
+        createdAt: comment.created_at,
+        updatedAt: comment.updated_at,
+      })),
+      ...reviews.flatMap((review): PullRequestComment[] => {
+        if (!review.body?.trim() || !review.submitted_at) return [];
+        return [
+          {
+            id: `review:${review.id}`,
+            pullRequestUrl,
+            kind: 'review',
+            body: review.body,
+            url: review.html_url,
+            author: review.user ? restUserToPullRequestUser(review.user, repository.host) : null,
+            path: null,
+            line: null,
+            isResolved: false,
+            isOutdated: false,
+            createdAt: review.submitted_at,
+            updatedAt: review.submitted_at,
+          },
+        ];
+      }),
+      ...reviewComments.map((comment) => ({
+        id: `review-comment:${comment.id}`,
+        pullRequestUrl,
+        kind: 'review' as const,
+        body: comment.body ?? '',
+        url: comment.html_url,
+        author: comment.user ? restUserToPullRequestUser(comment.user, repository.host) : null,
+        path: comment.path ?? null,
+        line: comment.line ?? comment.original_line ?? null,
+        isResolved: false,
+        isOutdated: comment.position == null,
+        createdAt: comment.created_at,
+        updatedAt: comment.updated_at,
+      })),
+    ];
+  }
+
   async getPullRequestFiles(
     repositoryUrl: string,
     number: number,
@@ -518,17 +703,25 @@ export class PullRequestEngine {
   ): Promise<Result<PullRequestFile[], PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) return octokit;
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) return github;
+    const { lane, octokit } = github.data;
     try {
-      const files = await this.request(signal, () =>
-        octokit.data.paginate(octokit.data.rest.pulls.listFiles, {
-          owner: repository.data.owner,
-          repo: repository.data.repo,
-          pull_number: number,
-          per_page: 100,
-          request: { signal },
-        })
+      const files = await this.request(
+        lane,
+        signal,
+        {
+          priority: requestPriorities.interactive,
+          key: `files:${repository.data.repositoryUrl}:${number}`,
+        },
+        (requestSignal) =>
+          octokit.paginate(octokit.rest.pulls.listFiles, {
+            owner: repository.data.owner,
+            repo: repository.data.repo,
+            pull_number: number,
+            per_page: 100,
+            request: { signal: requestSignal },
+          })
       );
       return ok(
         files.map((file) => ({
@@ -551,41 +744,52 @@ export class PullRequestEngine {
 
   private async runFullSync(
     repositoryUrl: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    priority: number
   ): Promise<Result<void, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) {
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) {
       this.emit(repositoryUrl, {
         phase: 'error',
         kind: 'full',
-        error: octokit.error,
+        error: github.error,
       });
-      return octokit;
+      return github;
     }
+    const { lane, octokit } = github.data;
     const existing = this.options.store.getCursor(repositoryUrl, 'full');
     let pageCursor = existing?.done ? undefined : existing?.pageCursor;
     let synced = 0;
     this.emit(repositoryUrl, { phase: 'running', kind: 'full', synced: 0 });
     try {
       for (;;) {
-        const response = await this.request(signal, () =>
-          octokit.data.graphql<{
-            repository: {
-              pullRequests: {
-                totalCount: number;
-                pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                nodes: GqlPrNode[];
+        const response = await this.request(
+          lane,
+          signal,
+          {
+            priority,
+            key: `sync:full:${repositoryUrl}:${pageCursor ?? ''}`,
+          },
+          (requestSignal) =>
+            octokit.graphql<{
+              repository: {
+                pullRequests: {
+                  totalCount: number;
+                  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                  nodes: GqlPrNode[];
+                };
               };
-            };
-          }>(SYNC_PRS_QUERY, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            cursor: pageCursor ?? null,
-            request: { signal },
-          })
+              rateLimit?: GraphQlRateLimit;
+            }>(SYNC_PRS_QUERY, {
+              owner: repository.data.owner,
+              repo: repository.data.repo,
+              cursor: pageCursor ?? null,
+              request: { signal: requestSignal },
+            })
         );
+        lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
         const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
         for (const node of nodes) this.saveNode(repositoryUrl, node);
         synced += nodes.length;
@@ -624,19 +828,21 @@ export class PullRequestEngine {
 
   private async runIncrementalSync(
     repositoryUrl: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    priority: number
   ): Promise<Result<void, PullRequestError>> {
     const repository = this.parseRepository(repositoryUrl);
     if (!repository.success) return repository;
-    const octokit = await this.getOctokit(repository.data, signal);
-    if (!octokit.success) {
+    const github = await this.getOctokit(repository.data, signal);
+    if (!github.success) {
       this.emit(repositoryUrl, {
         phase: 'error',
         kind: 'incremental',
-        error: octokit.error,
+        error: github.error,
       });
-      return octokit;
+      return github;
     }
+    const { lane, octokit } = github.data;
     const fullCursor = this.options.store.getCursor(repositoryUrl, 'full');
     const existing = this.options.store.getCursor(repositoryUrl, 'incremental');
     const boundary =
@@ -646,21 +852,30 @@ export class PullRequestEngine {
     this.emit(repositoryUrl, { phase: 'running', kind: 'incremental', synced: 0 });
     try {
       for (;;) {
-        const response = await this.request(signal, () =>
-          octokit.data.graphql<{
-            repository: {
-              pullRequests: {
-                pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                nodes: GqlPrNode[];
+        const response = await this.request(
+          lane,
+          signal,
+          {
+            priority,
+            key: `sync:incremental:${repositoryUrl}:${pageCursor ?? ''}`,
+          },
+          (requestSignal) =>
+            octokit.graphql<{
+              repository: {
+                pullRequests: {
+                  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                  nodes: GqlPrNode[];
+                };
               };
-            };
-          }>(INCREMENTAL_SYNC_PRS_QUERY, {
-            owner: repository.data.owner,
-            repo: repository.data.repo,
-            cursor: pageCursor ?? null,
-            request: { signal },
-          })
+              rateLimit?: GraphQlRateLimit;
+            }>(INCREMENTAL_SYNC_PRS_QUERY, {
+              owner: repository.data.owner,
+              repo: repository.data.repo,
+              cursor: pageCursor ?? null,
+              request: { signal: requestSignal },
+            })
         );
+        lane.gates.graphql.observe(graphQlRateFeedback(response.rateLimit));
         const { nodes, pageInfo } = response.repository.pullRequests;
         const batch = nodes.filter((node) => node.updatedAt >= boundary);
         const reachedBoundary = batch.length !== nodes.length;
@@ -744,7 +959,7 @@ export class PullRequestEngine {
   private async getOctokit(
     repository: RepositoryRef,
     signal: AbortSignal
-  ): Promise<Result<Octokit, PullRequestError>> {
+  ): Promise<Result<GitHubClient, PullRequestError>> {
     const registered = this.options.store.getRegisteredRepository(repository.repositoryUrl);
     if (!registered) {
       return err({
@@ -757,6 +972,7 @@ export class PullRequestEngine {
       { signal }
     );
     if (!auth.success) return err(mapAuthError(auth.error));
+    const lane = this.getRequestLane(repository.host, registered.accountId);
     const octokit =
       this.options.createOctokit?.({
         token: auth.data.token,
@@ -772,7 +988,8 @@ export class PullRequestEngine {
           error: () => this.options.logger.warn('Octokit request failed'),
         },
       });
-    return ok(octokit);
+    this.observeOctokitRateLimits(octokit, lane);
+    return ok({ octokit, lane });
   }
 
   private parseRepository(repositoryUrl: string): Result<RepositoryRef, PullRequestError> {
@@ -780,15 +997,80 @@ export class PullRequestEngine {
     return repository ? ok(repository) : err({ type: 'invalid_repository', input: repositoryUrl });
   }
 
-  private async request<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T> {
-    return await withRetry(
-      async () => {
-        throwIfAborted(signal);
-        await this.rateLimiter.acquire(signal);
-        return await operation();
-      },
-      { signal }
+  private async request<T>(
+    lane: RequestLane,
+    signal: AbortSignal,
+    options: RequestOptions,
+    operation: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    return await retry(
+      async () =>
+        await lane.scheduler.submit(
+          {
+            priority: options.priority,
+            cost: options.cost ?? 0,
+            key: options.key,
+            run: operation,
+          },
+          { signal }
+        ),
+      {
+        signal,
+        schedule: this.options.retrySchedule ?? defaultRetrySchedule,
+        shouldRetry: isRetryableRequestError,
+      }
     );
+  }
+
+  private getRequestLane(host: string, accountId: string | undefined): RequestLane {
+    const key = `${host}\u0000${accountId ?? 'default'}`;
+    const existing = this.requestLanes.get(key);
+    if (existing) return existing;
+    const gates = {
+      graphql: this.createRateGate('graphql'),
+      rest: this.createRateGate('rest'),
+    };
+    const scheduler = (this.options.createScheduler ?? createRequestScheduler)({
+      scope: this.options.scope,
+      maxConcurrency: DEFAULT_REQUEST_CONCURRENCY,
+      label: `github:${host}:${accountId ?? 'default'}`,
+    });
+    const lane = { gates, scheduler };
+    this.requestLanes.set(key, lane);
+    return lane;
+  }
+
+  private createRateGate(resource: GitHubRateResource): RateGate {
+    return (
+      this.options.createRateGate?.(resource) ??
+      tokenBucketGate({
+        capacity: DEFAULT_REQUEST_CAPACITY,
+        refillPerSec: DEFAULT_REQUEST_REFILL_PER_SEC,
+        reserve: DEFAULT_REQUEST_RESERVE,
+      })
+    );
+  }
+
+  private observeOctokitRateLimits(octokit: Octokit, lane: RequestLane): void {
+    const hook = (octokit as unknown as { hook?: OctokitRequestHook }).hook;
+    if (!hook) return;
+    hook.before?.('request', async (options) => {
+      const resource = rateResourceForRequest(options);
+      await lane.gates[resource].acquire(
+        resource === 'graphql' ? 0 : 1,
+        options.request?.signal ?? this.options.scope.signal
+      );
+    });
+    hook.after('request', (response, options) => {
+      const resource = rateResourceForRequest(options, response.headers);
+      lane.gates[resource].observe(rateFeedbackFromHeaders(response.headers));
+    });
+    hook.error('request', (error, options) => {
+      const headers = responseHeadersFromError(error);
+      const resource = rateResourceForRequest(options, headers);
+      lane.gates[resource].observe(rateFeedbackFromHeaders(headers));
+      throw error;
+    });
   }
 
   private handleError<T>(
@@ -909,4 +1191,71 @@ function checkNodeToPullRequestCheck(
     appName: null,
     appLogoUrl: null,
   };
+}
+
+function isRetryableRequestError(error: unknown): boolean {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? Number((error as { status?: unknown }).status)
+      : undefined;
+  return status === 429 || (status !== undefined && status >= 500) || isNetworkError(error);
+}
+
+function isNotModifiedError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    Number((error as { status?: unknown }).status) === 304
+  );
+}
+
+function graphQlRateFeedback(rateLimit: GraphQlRateLimit | undefined): RateFeedback {
+  if (!rateLimit) return {};
+  const resetAtMs = Date.parse(rateLimit.resetAt);
+  return {
+    cost: rateLimit.cost,
+    remaining: rateLimit.remaining,
+    resetAtMs: Number.isFinite(resetAtMs) ? resetAtMs : undefined,
+  };
+}
+
+function responseHeadersFromError(error: unknown): OctokitHeaders | undefined {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return undefined;
+  return (error as { response?: { headers?: OctokitHeaders } }).response?.headers;
+}
+
+function rateResourceForRequest(
+  options: OctokitRequestOptions,
+  headers?: OctokitHeaders
+): GitHubRateResource {
+  const resource = String(headers?.['x-ratelimit-resource'] ?? '').toLowerCase();
+  if (resource === 'graphql') return 'graphql';
+  if (resource) return 'rest';
+  return options.url?.includes('/graphql') ? 'graphql' : 'rest';
+}
+
+function rateFeedbackFromHeaders(headers: OctokitHeaders | undefined): RateFeedback {
+  if (!headers) return {};
+  const remaining = parseFiniteHeader(headers, 'x-ratelimit-remaining');
+  const resetSeconds = parseFiniteHeader(headers, 'x-ratelimit-reset');
+  const retryAfter = headers['retry-after'];
+  return {
+    remaining,
+    resetAtMs: resetSeconds === undefined ? undefined : resetSeconds * 1_000,
+    retryAfterMs: retryAfterMs(retryAfter),
+  };
+}
+
+function parseFiniteHeader(headers: OctokitHeaders, name: string): number | undefined {
+  const value = Number(headers[name]);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function retryAfterMs(value: string | number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const date = Date.parse(String(value));
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
 }
