@@ -288,8 +288,9 @@ export class AcpChatStore {
     text: string,
     attachments: AcpPromptAttachment[] = [],
     hiddenContext?: string
-  ): void {
-    if (this.isModelChanging) return;
+  ): boolean {
+    const session = this.session;
+    if (!session || this.isModelChanging) return false;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     if (!this.affordances.isWorking) {
       const optimisticId = `optimistic:user:${Date.now()}`;
@@ -304,8 +305,8 @@ export class AcpChatStore {
       this.chatState.scroll.set(pinMode);
     }
 
-    void this.session
-      ?.sendPrompt({
+    void session
+      .sendPrompt({
         text,
         ...(hiddenContext ? { hiddenContext } : {}),
         ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
@@ -314,13 +315,19 @@ export class AcpChatStore {
         if (!result.success) this._toastError('Failed to send message', result.error);
       })
       .catch((error: unknown) => this._toastError('Failed to send message', error));
+    return true;
   }
 
-  queuePrompt(text: string, attachments: AcpPromptAttachment[] = [], hiddenContext?: string): void {
-    if (this.isModelChanging) return;
+  queuePrompt(
+    text: string,
+    attachments: AcpPromptAttachment[] = [],
+    hiddenContext?: string
+  ): boolean {
+    const session = this.session;
+    if (!session || this.isModelChanging) return false;
     const promptAttachments = attachments.map((attachment) => attachment.ref);
-    void this.session
-      ?.queuePrompt({
+    void session
+      .queuePrompt({
         text,
         ...(hiddenContext ? { hiddenContext } : {}),
         ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
@@ -329,6 +336,7 @@ export class AcpChatStore {
         if (!result.success) this._toastError('Failed to queue message', result.error);
       })
       .catch((error: unknown) => this._toastError('Failed to queue message', error));
+    return true;
   }
 
   setDraftText(text: string): void {

@@ -232,6 +232,7 @@ const ComposerForStore = observer(function ComposerForStore({
 }) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const promptPreparationRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
 
@@ -284,28 +285,45 @@ const ComposerForStore = observer(function ComposerForStore({
     [store.projectId]
   );
 
-  const handleSubmit = useCallback(
-    async (value: string) => {
+  const sendPreparedPrompt = useCallback(
+    async (value: string, queued: boolean) => {
+      if (promptPreparationRef.current) return;
       const promptAttachments = buildPromptAttachments();
       if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+
+      promptPreparationRef.current = true;
+      try {
+        const hiddenContext = await buildHiddenIssueContext(value);
+        const accepted = queued
+          ? store.queuePrompt(value, promptAttachments, hiddenContext)
+          : store.submitPrompt(value, promptAttachments, hiddenContext);
+        if (!accepted) return;
+
+        const submittedAttachmentIds = new Set(
+          promptAttachments.map((attachment) => attachment.ref.id)
+        );
+        if (submittedAttachmentIds.size > 0) {
+          setAttachments((current) =>
+            current.filter((attachment) => !submittedAttachmentIds.has(attachment.id))
+          );
+        }
+        const editor = editorApiRef.current;
+        if (editor?.getText() === value) editor.clear();
+      } finally {
+        promptPreparationRef.current = false;
+      }
     },
     [store, buildPromptAttachments, buildHiddenIssueContext]
   );
 
+  const handleSubmit = useCallback(
+    (value: string) => sendPreparedPrompt(value, false),
+    [sendPreparedPrompt]
+  );
+
   const handleSubmitWhileWorking = useCallback(
-    async (value: string) => {
-      const promptAttachments = buildPromptAttachments();
-      if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
-      store.queuePrompt(value, promptAttachments, hiddenContext);
-    },
-    [store, buildPromptAttachments, buildHiddenIssueContext]
+    (value: string) => sendPreparedPrompt(value, true),
+    [sendPreparedPrompt]
   );
 
   const handleStop = useCallback(() => {

@@ -179,8 +179,8 @@ describe('AcpChatStore model selection', () => {
     expect(store.affordances.canSubmit).toBe(false);
     expect(setModelOption).toHaveBeenCalledWith('model', 'grok-4.5');
 
-    store.submitPrompt('Do not race the model switch');
-    store.queuePrompt('Do not queue against the rebuilding harness');
+    expect(store.submitPrompt('Do not race the model switch')).toBe(false);
+    expect(store.queuePrompt('Do not queue against the rebuilding harness')).toBe(false);
     expect(sendPrompt).not.toHaveBeenCalled();
     expect(queuePrompt).not.toHaveBeenCalled();
 
