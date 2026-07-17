@@ -115,33 +115,41 @@ export const automationGitBranchRefSchema = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Git behavior per run. For `create-branch` the branch name is generated per
- * run from the run's generated name; only the base branch is fixed. `none` is
- * only valid together with the `directory` workspace target.
+ * A fresh worktree provisioned for each run. The branch name for
+ * `create-branch` is generated per run; only its base and optional publication
+ * remote are captured at deploy time.
  */
-export const automationGitIntentSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('create-branch'),
-    fromBranch: automationGitBranchRefSchema,
-    pushBranch: z.boolean(),
-  }),
-  z.object({
-    kind: z.literal('use-branch'),
-    branchName: z.string().min(1),
-  }),
-  z.object({ kind: z.literal('none') }),
-]);
+export const automationWorktreeConfigSchema = z.object({
+  kind: z.literal('worktree'),
+  repository: hostFileRefSchema,
+  git: z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('create-branch'),
+      fromBranch: automationGitBranchRefSchema,
+      /** Resolved push remote captured at deploy time; null means do not publish. */
+      pushRemote: z.string().min(1).nullable(),
+    }),
+    z.object({
+      kind: z.literal('use-branch'),
+      branchName: z.string().min(1),
+    }),
+  ]),
+});
+
+/** A fixed host directory resolved by the desktop at deploy time. */
+export const automationDirectoryConfigSchema = z.object({
+  kind: z.literal('directory'),
+  path: hostFileRefSchema,
+});
 
 /**
- * Where each run executes. `worktree` provisions a fresh worktree from
- * `repository` per run; `directory` runs in a fixed directory (the desktop
- * resolves its workspace id to a path at deploy time). BYOI/sandbox
- * automations are not deployable to a runtime host and are rejected
- * desktop-side at save.
+ * Where each run executes. The discriminated union makes repository and Git
+ * provisioning data available only for worktrees, so every accepted shape is
+ * executable without cross-field validation.
  */
-export const automationWorkspaceTargetSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('worktree') }),
-  z.object({ kind: z.literal('directory'), path: hostFileRefSchema }),
+export const automationWorkspaceConfigSchema = z.discriminatedUnion('kind', [
+  automationWorktreeConfigSchema,
+  automationDirectoryConfigSchema,
 ]);
 
 const automationDeploymentBaseSchema = z.object({
@@ -150,31 +158,12 @@ const automationDeploymentBaseSchema = z.object({
   name: z.string().min(1),
   schedule: automationScheduleSchema,
   agent: automationAgentConfigSchema,
-  repository: hostFileRefSchema,
-  git: automationGitIntentSchema,
-  workspace: automationWorkspaceTargetSchema,
+  workspace: automationWorkspaceConfigSchema,
   /** Desktop updatedAt; monotonic revision for last-write-wins and drift checks. */
   updatedAt: z.number().int().nonnegative(),
 });
 
-export const automationDeploymentSchema = automationDeploymentBaseSchema.superRefine(
-  (value, ctx) => {
-    if (value.workspace.kind === 'worktree' && value.git.kind === 'none') {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'worktree workspace target requires a create-branch or use-branch git intent',
-        path: ['git'],
-      });
-    }
-    if (value.workspace.kind === 'directory' && value.git.kind !== 'none') {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'directory workspace target must use git intent none',
-        path: ['git'],
-      });
-    }
-  }
-);
+export const automationDeploymentSchema = automationDeploymentBaseSchema;
 
 /**
  * Immutable per-run copy of everything execution and rendering read, captured
@@ -185,8 +174,6 @@ export const automationRunConfigSnapshotSchema = automationDeploymentBaseSchema.
   name: true,
   schedule: true,
   agent: true,
-  repository: true,
-  git: true,
   workspace: true,
 });
 
@@ -198,7 +185,8 @@ export type AutomationTuiAgentConfig = z.infer<typeof automationTuiAgentConfigSc
 export type AutomationAgentConfig = z.infer<typeof automationAgentConfigSchema>;
 export type AutomationGitRemote = z.infer<typeof automationGitRemoteSchema>;
 export type AutomationGitBranchRef = z.infer<typeof automationGitBranchRefSchema>;
-export type AutomationGitIntent = z.infer<typeof automationGitIntentSchema>;
-export type AutomationWorkspaceTarget = z.infer<typeof automationWorkspaceTargetSchema>;
+export type AutomationWorktreeConfig = z.infer<typeof automationWorktreeConfigSchema>;
+export type AutomationDirectoryConfig = z.infer<typeof automationDirectoryConfigSchema>;
+export type AutomationWorkspaceConfig = z.infer<typeof automationWorkspaceConfigSchema>;
 export type AutomationDeployment = z.infer<typeof automationDeploymentSchema>;
 export type AutomationRunConfigSnapshot = z.infer<typeof automationRunConfigSnapshotSchema>;

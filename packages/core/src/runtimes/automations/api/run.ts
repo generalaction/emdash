@@ -34,7 +34,7 @@ export const automationRunErrorSchema = z.object({
  * Host-owned run record. `seq` is the host-global journal cursor.
  * `configSnapshot` is captured at insert time and is what the run executes
  * with. `generatedName` is the per-run human-friendly name used for the
- * branch, the worktree, and the adopted task. `conversationId` is minted by
+ * branch, the workspace, and the adopted task. `conversationId` is minted by
  * the automations runtime; `sessionId` is the provider session id returned by
  * session start.
  */
@@ -50,7 +50,7 @@ export const automationRunSchema = z.object({
   deadlineAt: z.number().int().nullable(),
   startedAt: z.number().int().nullable(),
   finishedAt: z.number().int().nullable(),
-  worktree: hostFileRefSchema.nullable(),
+  workspace: hostFileRefSchema.nullable(),
   branchName: z.string().nullable(),
   conversationId: z.string().nullable(),
   sessionId: z.string().nullable(),

@@ -23,13 +23,15 @@ const deployment = {
       initialQueue: [{ text: 'Review open PRs' }],
     },
   },
-  repository,
-  git: {
-    kind: 'create-branch' as const,
-    fromBranch: { type: 'local' as const, branch: 'main' },
-    pushBranch: true,
+  workspace: {
+    kind: 'worktree' as const,
+    repository,
+    git: {
+      kind: 'create-branch' as const,
+      fromBranch: { type: 'local' as const, branch: 'main' },
+      pushRemote: 'fork',
+    },
   },
-  workspace: { kind: 'worktree' as const },
   updatedAt: 1_700_000_000_000,
 };
 
@@ -42,6 +44,7 @@ describe('automation deployment schemas', () => {
     expect(snapshot).not.toHaveProperty('automationId');
     expect(snapshot).not.toHaveProperty('enabled');
     expect(snapshot).not.toHaveProperty('updatedAt');
+    expect(snapshot.workspace).toEqual(deployment.workspace);
   });
 
   it('rejects invalid cron expressions', () => {
@@ -74,17 +77,20 @@ describe('automation deployment schemas', () => {
     ).toThrow();
   });
 
-  it('enforces compatible workspace and git intents', () => {
+  it('accepts fixed-directory deployments without repository or git fields', () => {
+    const parsed = automationDeploymentSchema.parse({
+      ...deployment,
+      workspace: { kind: 'directory', path: repository },
+    });
+
+    expect(parsed.workspace).toEqual({ kind: 'directory', path: repository });
+  });
+
+  it('requires repository and git configuration for a worktree', () => {
     expect(() =>
       automationDeploymentSchema.parse({
         ...deployment,
-        git: { kind: 'none' },
-      })
-    ).toThrow();
-    expect(() =>
-      automationDeploymentSchema.parse({
-        ...deployment,
-        workspace: { kind: 'directory', path: repository },
+        workspace: { kind: 'worktree', repository },
       })
     ).toThrow();
   });
