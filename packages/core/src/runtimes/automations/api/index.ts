@@ -31,11 +31,13 @@ export {
   cancelRunErrorSchema,
   deployErrorSchema,
   getRunsErrorSchema,
+  invalidScheduleErrorSchema,
   removeErrorSchema,
   startRunErrorSchema,
   type CancelRunError,
   type DeployError,
   type GetRunsError,
+  type InvalidScheduleError,
   type RemoveError,
   type StartRunError,
 } from './errors';

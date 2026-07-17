@@ -7,15 +7,12 @@ import {
 } from '../../api/deployment';
 import { automationDeployments } from '../sqlite/schema';
 import type { AutomationsDb } from '../sqlite/store';
+import { parseDeploymentPayload, serializeDeploymentPayload } from './payload-codecs';
 
 export type StoredAutomationDeployment = {
   deployment: AutomationDeployment;
   deployedAt: number;
 };
-
-function parseDeployment(payload: string): AutomationDeployment {
-  return automationDeploymentSchema.parse(JSON.parse(payload));
-}
 
 export class AutomationDeploymentStore {
   constructor(private readonly handle: StoreHandle<AutomationsDb>) {}
@@ -25,7 +22,7 @@ export class AutomationDeploymentStore {
       throw new RangeError(`Deployment timestamp must be a non-negative safe integer: ${now}`);
     }
     const parsed = automationDeploymentSchema.parse(deployment);
-    const payload = JSON.stringify(parsed);
+    const payload = serializeDeploymentPayload(parsed);
 
     return this.handle.transaction(() => {
       const existing = this.handle.db
@@ -37,7 +34,7 @@ export class AutomationDeploymentStore {
         .where(eq(automationDeployments.automationId, parsed.automationId))
         .get();
       if (existing) {
-        const current = parseDeployment(existing.payload);
+        const current = parseDeploymentPayload(existing.payload);
         if (parsed.updatedAt < current.updatedAt) {
           return { deployment: current, deployedAt: existing.deployedAt };
         }
@@ -66,7 +63,7 @@ export class AutomationDeploymentStore {
       .from(automationDeployments)
       .where(eq(automationDeployments.automationId, id))
       .get();
-    return row ? parseDeployment(row.payload) : null;
+    return row ? parseDeploymentPayload(row.payload) : null;
   }
 
   listEnabledDeployments(): AutomationDeployment[] {
@@ -76,7 +73,7 @@ export class AutomationDeploymentStore {
       .where(eq(automationDeployments.enabled, true))
       .orderBy(automationDeployments.automationId)
       .all()
-      .map(({ payload }) => parseDeployment(payload));
+      .map(({ payload }) => parseDeploymentPayload(payload));
   }
 
   removeDeployment(id: AutomationId): boolean {

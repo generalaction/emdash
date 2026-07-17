@@ -10,10 +10,7 @@ import {
 } from '../../api/run';
 import { automationJournal, automationRuns } from '../sqlite/schema';
 import type { AutomationsDb } from '../sqlite/store';
-
-function parseRun(payload: string): AutomationRun {
-  return automationRunSchema.parse(JSON.parse(payload));
-}
+import { parseRunPayload, serializeRunPayload } from './payload-codecs';
 
 const IMMUTABLE_RUN_KEYS = ['id', 'automationId', 'seq'] as const;
 
@@ -35,7 +32,7 @@ export class AutomationRunStore {
     return this.handle.transaction(() => {
       const seq = this.claimSeq();
       const stored = automationRunSchema.parse({ ...run, seq });
-      const payload = JSON.stringify(stored);
+      const payload = serializeRunPayload(stored);
 
       try {
         this.handle.db
@@ -66,7 +63,7 @@ export class AutomationRunStore {
       .from(automationRuns)
       .where(eq(automationRuns.id, id))
       .get();
-    return row ? parseRun(row.payload) : null;
+    return row ? parseRunPayload(row.payload) : null;
   }
 
   transitionRun(
@@ -98,7 +95,7 @@ export class AutomationRunStore {
 
       const seq = this.claimSeq();
       const transitioned = automationRunSchema.parse({
-        ...parseRun(row.payload),
+        ...parseRunPayload(row.payload),
         ...patch,
         seq,
       });
@@ -110,7 +107,7 @@ export class AutomationRunStore {
           status: transitioned.status,
           scheduledAt: transitioned.scheduledAt,
           deadlineAt: transitioned.deadlineAt,
-          payload: JSON.stringify(transitioned),
+          payload: serializeRunPayload(transitioned),
         })
         .where(and(eq(automationRuns.id, id), statusCondition))
         .run();
@@ -130,7 +127,7 @@ export class AutomationRunStore {
         and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
       )
       .get();
-    return row ? parseRun(row.payload) : null;
+    return row ? parseRunPayload(row.payload) : null;
   }
 
   listDueScheduledRuns(now: number, limit: number): AutomationRun[] {
@@ -151,7 +148,7 @@ export class AutomationRunStore {
       .orderBy(automationRuns.scheduledAt, automationRuns.seq)
       .limit(limit)
       .all()
-      .map(({ payload }) => parseRun(payload));
+      .map(({ payload }) => parseRunPayload(payload));
   }
 
   listQueuedRuns(limit: number): AutomationRun[] {
@@ -163,7 +160,7 @@ export class AutomationRunStore {
       .orderBy(automationRuns.seq)
       .limit(limit)
       .all()
-      .map(({ payload }) => parseRun(payload));
+      .map(({ payload }) => parseRunPayload(payload));
   }
 
   listRunsInStatuses(statuses: AutomationRunStatus[]): AutomationRun[] {
@@ -175,7 +172,7 @@ export class AutomationRunStore {
       .where(inArray(automationRuns.status, parsedStatuses))
       .orderBy(automationRuns.seq)
       .all()
-      .map(({ payload }) => parseRun(payload));
+      .map(({ payload }) => parseRunPayload(payload));
   }
 
   listRunsSince(input: {
@@ -206,7 +203,7 @@ export class AutomationRunStore {
       .orderBy(automationRuns.seq)
       .limit(input.limit)
       .all()
-      .map(({ payload }) => parseRun(payload));
+      .map(({ payload }) => parseRunPayload(payload));
   }
 
   deleteRunsForAutomation(automationId: AutomationId): number {

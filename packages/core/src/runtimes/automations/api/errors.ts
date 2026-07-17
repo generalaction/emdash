@@ -25,7 +25,20 @@ const runtimeUnavailableErrorSchema = z.object({
   message: z.string(),
 });
 
-export const deployErrorSchema = runtimeUnavailableErrorSchema;
+export const invalidScheduleErrorSchema = z.object({
+  type: z.literal('invalid-schedule'),
+  reason: z.enum([
+    'malformed_expression',
+    'no_future_occurrence',
+    'invalid_expression_or_timezone',
+  ]),
+  message: z.string(),
+});
+
+export const deployErrorSchema = z.discriminatedUnion('type', [
+  invalidScheduleErrorSchema,
+  runtimeUnavailableErrorSchema,
+]);
 
 export const removeErrorSchema = z.discriminatedUnion('type', [
   automationNotFoundErrorSchema,
@@ -45,6 +58,7 @@ export const cancelRunErrorSchema = z.discriminatedUnion('type', [
 
 export const getRunsErrorSchema = runtimeUnavailableErrorSchema;
 
+export type InvalidScheduleError = z.infer<typeof invalidScheduleErrorSchema>;
 export type DeployError = z.infer<typeof deployErrorSchema>;
 export type RemoveError = z.infer<typeof removeErrorSchema>;
 export type StartRunError = z.infer<typeof startRunErrorSchema>;

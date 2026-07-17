@@ -48,26 +48,26 @@ describe('automation deployment schemas', () => {
     expect(snapshot.workspace).toEqual(deployment.workspace);
   });
 
-  it('rejects invalid cron expressions', () => {
-    expect(() =>
-      automationDeploymentSchema.parse({
+  it('accepts structurally valid schedules without evaluating cron semantics', () => {
+    expect(
+      automationDeploymentSchema.safeParse({
         ...deployment,
-        schedule: { ...deployment.schedule, expr: '0 9 * *' },
-      })
-    ).toThrow();
-    expect(() =>
-      automationDeploymentSchema.parse({
+        schedule: { expr: '0 9 * *', tz: deployment.schedule.tz },
+      }).success
+    ).toBe(true);
+    expect(
+      automationDeploymentSchema.safeParse({
         ...deployment,
-        schedule: { ...deployment.schedule, expr: 'not a cron expression' },
-      })
-    ).toThrow();
+        schedule: { expr: deployment.schedule.expr, tz: 'Not/A_Timezone' },
+      }).success
+    ).toBe(true);
   });
 
-  it('rejects invalid and missing schedule timezones without a local fallback', () => {
+  it('rejects blank schedule fields without a local fallback', () => {
     expect(() =>
       automationDeploymentSchema.parse({
         ...deployment,
-        schedule: { ...deployment.schedule, tz: 'Not/A_Timezone' },
+        schedule: { ...deployment.schedule, expr: '   ' },
       })
     ).toThrow();
     expect(() =>
