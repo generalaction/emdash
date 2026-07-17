@@ -1,10 +1,8 @@
 import { CreateSkillModal } from '../browser/components/CreateSkillModal';
-import { skillsView } from '../browser/skills-view';
+import { skillsViewRuntime } from '../browser/skills-view';
 
 export const skillsBrowserContributions = {
-  views: {
-    skills: skillsView,
-  },
+  views: [skillsViewRuntime],
   modals: {
     createSkillModal: {
       component: CreateSkillModal,

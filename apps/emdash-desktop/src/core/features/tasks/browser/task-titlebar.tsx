@@ -16,6 +16,7 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   getRegisteredTaskData,
   getTaskStore,
@@ -82,7 +83,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
             <button
               type="button"
               className="text-sm text-foreground-passive hover:text-foreground"
-              onClick={() => navigate('project', { projectId })}
+              onClick={() => navigate(projectViewDef({ projectId }))}
             >
               {projectName}
             </button>
@@ -140,7 +141,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           <button
             type="button"
             className="text-sm text-foreground-passive hover:text-foreground"
-            onClick={() => navigate('project', { projectId })}
+            onClick={() => navigate(projectViewDef({ projectId }))}
           >
             {projectName}
           </button>

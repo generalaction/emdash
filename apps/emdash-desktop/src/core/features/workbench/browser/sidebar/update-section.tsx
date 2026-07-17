@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -14,9 +15,7 @@ export const UpdateSection = observer(function UpdateSection() {
         variant="outline"
         size="xs"
         onClick={() => {
-          navigate('settings', {
-            tab: 'general',
-          });
+          navigate(settingsViewDef({ tab: 'general' }));
           if (update.state.status === 'available') {
             void update.download();
           }

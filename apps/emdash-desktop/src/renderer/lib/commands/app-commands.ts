@@ -1,3 +1,5 @@
+import { libraryViewDef } from '@core/features/library/contributions/views';
+import { viewCatalog } from '@core/manifests/view-catalog';
 import {
   APP_COMMAND_DEFS,
   type AppCommandId,
@@ -16,10 +18,6 @@ function appDef(id: AppCommandId): CommandDef {
   return APP_COMMAND_DEFS.find((d) => d.id === id)!;
 }
 
-function isLibraryView(viewId: string): boolean {
-  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
-}
-
 function createAppCommandProvider(): CommandProvider {
   return {
     scopeId: 'app',
@@ -27,10 +25,7 @@ function createAppCommandProvider(): CommandProvider {
     getCommands(): AppCommand[] {
       // Reads MobX observables — reactions automatically invalidate activeCommands
       // when navigation changes.
-      const viewId = appState.navigation.currentViewId;
-      const params = appState.navigation.viewParamsStore[viewId] as
-        | { projectId?: string }
-        | undefined;
+      const params = appState.navigation.currentRef.params as { projectId?: string };
       const projectId = params?.projectId;
 
       const settingsDef = appDef('app.settings');
@@ -49,11 +44,7 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: settingsDef.shortcutKey,
           group: settingsDef.group,
           execute() {
-            toggleSettingsView(
-              appState.navigation.navigate.bind(appState.navigation),
-              appState.navigation.currentViewId,
-              appState.navigation.lastNonSettingsView
-            );
+            toggleSettingsView();
           },
         },
         {
@@ -63,12 +54,12 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: libraryDef.shortcutKey,
           group: libraryDef.group,
           execute() {
-            if (isLibraryView(appState.navigation.currentViewId)) {
-              appState.navigation.navigate(appState.navigation.lastNonLibraryView);
+            if (viewCatalog.byId(appState.navigation.currentViewId)?.traits.has('library')) {
+              appState.navigation.exitLibrary();
               return;
             }
 
-            appState.navigation.navigate('library');
+            appState.navigation.navigate(libraryViewDef());
           },
         },
         {

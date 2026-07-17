@@ -9,7 +9,8 @@ import {
   type StatusFilter,
 } from '@core/features/projects/browser/components/pr-view/usePrViewState';
 import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
   ContextMenu,
@@ -209,7 +210,7 @@ function FilterPill({
 export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const repositoryStore = getGitRepositoryStore(projectId);
   const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
 

@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { TaskContextMenu } from '@core/features/tasks/browser/components/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
@@ -9,11 +10,12 @@ import {
   getWorkspaceForTask,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
 import { PrBadge } from '@renderer/lib/components/pr-badge';
 import {
   useNavigate,
-  useParams,
+  useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -38,10 +40,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const showDeleteTask = useShowModal('deleteTaskModal');
 
   const { currentView } = useWorkspaceSlots();
-  const { params } = useParams('task');
+  const params = useViewParams(taskViewDef);
   const { value: interfaceSettings } = useAppSettingsKey('interface');
   const isActive =
-    currentView === 'task' && params.taskId === taskId && params.projectId === projectId;
+    currentView === 'task' && params?.taskId === taskId && params.projectId === projectId;
 
   const task = getTaskStore(projectId, taskId)!;
   const taskManager = getTaskManagerStore(projectId);
@@ -55,11 +57,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const openTask = () => {
     handleProvision();
-    navigate('task', { projectId, taskId });
+    navigate(taskViewDef({ projectId, taskId }));
   };
 
   const handleArchive = () => {
-    if (isActive) navigate('project', { projectId });
+    if (isActive) navigate(projectViewDef({ projectId }));
     void taskManager?.archiveTask(taskId);
   };
 
@@ -71,7 +73,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       tasks: [{ taskId, taskName }],
       onSuccess: ({ deleteWorktree, deleteBranch }) => {
         void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
-        if (isActive) navigate('project', { projectId });
+        if (isActive) navigate(projectViewDef({ projectId }));
       },
     });
 

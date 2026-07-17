@@ -22,11 +22,13 @@ import {
   getGitRepositoryStore,
   projectViewKind,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import {
   useNavigate,
-  useParams,
+  useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -62,8 +64,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 }) {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
-  const { params: projectParams } = useParams('project');
-  const { params: taskParams } = useParams('task');
+  const projectParams = useViewParams(projectViewDef);
+  const taskParams = useViewParams(taskViewDef);
   const showCreateTaskModal = useShowModal('taskModal');
   const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
   const confirmDeleteProject = useConfirmDeleteProject();
@@ -78,11 +80,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const currentProjectId =
     currentView === 'task'
-      ? taskParams.projectId
+      ? taskParams?.projectId
       : currentView === 'project'
-        ? projectParams.projectId
+        ? projectParams?.projectId
         : null;
-  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
+  const currentTaskId = currentView === 'task' ? taskParams?.taskId : null;
 
   const isProjectActive = currentProjectId === projectId && !currentTaskId;
 
@@ -108,7 +110,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
   const projectLabel = project.name ?? 'project';
-  const openProject = () => navigate('project', { projectId });
+  const openProject = () => navigate(projectViewDef({ projectId }));
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -245,9 +247,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             void confirmDeleteProject({
               projectId,
               projectLabel: project.name ?? 'this project',
-              onDeleted: () => {
-                if (isProjectActive) navigate('home');
-              },
             });
           }}
         >

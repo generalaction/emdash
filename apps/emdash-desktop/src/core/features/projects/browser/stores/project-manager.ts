@@ -3,7 +3,9 @@ import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from 
 import { makeObservable, observable, runInAction } from 'mobx';
 import { projectsWireContract } from '@core/features/projects/api';
 import { projectSubject } from '@core/features/projects/contributions/subject';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
@@ -352,9 +354,10 @@ export class ProjectManagerStore {
         if (taskManager) {
           await taskManager.loadTasks();
           const nav = appState.navigation;
-          const navParams = nav.viewParamsStore['task'] as
-            | { projectId?: string; taskId?: string }
-            | undefined;
+          const navParams = nav.currentRef.params as {
+            projectId?: string;
+            taskId?: string;
+          };
           const navTaskId =
             nav.currentViewId === 'task' && navParams?.projectId === projectId
               ? navParams.taskId
@@ -385,19 +388,42 @@ export class ProjectManagerStore {
 
   async deleteProject(projectId: string): Promise<void> {
     const snapshot = this.projects.get(projectId);
+    const taskIds = [...(snapshot?.mountedProject?.taskManager.tasks.keys() ?? [])];
+    const projectIds = [...this.projects.keys()];
+    const deletedIndex = projectIds.indexOf(projectId);
+    const adjacentProjectId =
+      projectIds[deletedIndex + 1] ?? projectIds[deletedIndex - 1] ?? undefined;
+    const current = appState.navigation.currentRef;
+    const currentProjectId =
+      current.viewId === 'project' || current.viewId === 'task'
+        ? (current.params as { projectId?: string }).projectId
+        : undefined;
+    if (currentProjectId === projectId) {
+      appState.navigation.navigate(
+        adjacentProjectId ? projectViewDef({ projectId: adjacentProjectId }) : homeViewDef()
+      );
+    }
+
     runInAction(() => {
       this.projects.delete(projectId);
     });
-    appState.navigation.revalidate();
     try {
       const result = await (await getProjectsWireClient()).delete({ projectId });
       if (!result.success) throw new Error(result.error.message);
+      for (const taskId of taskIds) {
+        appState.navigation.invalidateSubject(taskSubject({ taskId }));
+      }
+      appState.navigation.invalidateSubject(projectSubject({ projectId }));
+      // Unmounted projects do not expose their task IDs, so prune any remaining task refs by
+      // project parameter even when they could not be invalidated by subject above.
+      appState.history.prune((entry) => {
+        const params = entry.ref.params as { projectId?: string };
+        return params.projectId === projectId;
+      });
       const mementos = getMementoClient();
       const subjects = [
         projectSubject({ projectId }),
-        ...[...(snapshot?.mountedProject?.taskManager.tasks.keys() ?? [])].map((taskId) =>
-          taskSubject({ taskId })
-        ),
+        ...taskIds.map((taskId) => taskSubject({ taskId })),
       ];
       const cleanupResults = await Promise.allSettled(
         subjects.map(async (subject) => await mementos.deleteBySubject(subject))

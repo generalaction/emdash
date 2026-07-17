@@ -1,7 +1,9 @@
 import { Search } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/browser/stores/task-selectors';
-import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { SidebarMenuButton } from './sidebar-primitives';
@@ -9,16 +11,16 @@ import { SidebarMenuButton } from './sidebar-primitives';
 export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { currentView } = useWorkspaceSlots();
-  const { params: taskParams } = useParams('task');
-  const { params: projectParams } = useParams('project');
+  const taskParams = useViewParams(taskViewDef);
+  const projectParams = useViewParams(projectViewDef);
 
   const currentProjectId =
     currentView === 'task'
-      ? taskParams.projectId
+      ? taskParams?.projectId
       : currentView === 'project'
-        ? projectParams.projectId
+        ? projectParams?.projectId
         : undefined;
-  const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
+  const currentTaskId = currentView === 'task' ? taskParams?.taskId : undefined;
 
   const currentWorkspaceId =
     currentProjectId && currentTaskId

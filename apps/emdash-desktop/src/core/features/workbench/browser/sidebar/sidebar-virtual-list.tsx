@@ -25,9 +25,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type SidebarRow } from '@core/features/workbench/browser/sidebar/sidebar-store';
-import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
@@ -37,8 +39,11 @@ const ROW_HEIGHT = 32;
 export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const rows = sidebarStore.sidebarRows;
   const { currentView } = useWorkspaceSlots();
-  const { params: taskParams } = useParams('task');
-  const { params: projectParams } = useParams('project');
+  const taskParams = useViewParams(taskViewDef) ?? {
+    projectId: undefined,
+    taskId: undefined,
+  };
+  const projectParams = useViewParams(projectViewDef) ?? { projectId: undefined };
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialPointerYRef = useRef<number | null>(null);
@@ -85,10 +90,10 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     let targetTaskId: string | null = null;
 
     if (currentView === 'task') {
-      targetProjectId = taskParams.projectId;
-      targetTaskId = taskParams.taskId;
+      targetProjectId = taskParams.projectId ?? null;
+      targetTaskId = taskParams.taskId ?? null;
     } else if (currentView === 'project') {
-      targetProjectId = projectParams.projectId;
+      targetProjectId = projectParams.projectId ?? null;
     }
 
     if (!targetProjectId) return;

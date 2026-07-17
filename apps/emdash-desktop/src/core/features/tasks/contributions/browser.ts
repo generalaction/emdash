@@ -4,12 +4,10 @@ import { DeleteTaskModal } from '../browser/delete-task-modal';
 import { CreatePrModal } from '../browser/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { ConflictDialog } from '../browser/editor/conflict-dialog';
 import { RenameTaskModal } from '../browser/rename-task-modal';
-import { taskView } from '../browser/view';
+import { taskViewRuntime } from '../browser/view';
 
 export const tasksBrowserContributions = {
-  views: {
-    task: taskView,
-  },
+  views: [taskViewRuntime],
   modals: {
     taskModal: {
       component: CreateTaskModal,

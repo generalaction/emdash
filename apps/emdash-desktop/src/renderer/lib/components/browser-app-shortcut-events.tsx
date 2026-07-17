@@ -1,41 +1,37 @@
 import { useEffect } from 'react';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   getRegisteredTaskData,
   getTaskView,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
+import type { ViewId } from '@core/manifests/view-catalog';
 import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
-import type { ViewId } from '@renderer/app/view-registry';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import {
   type WorkspaceLayoutContextValue,
   useWorkspaceLayoutContext,
 } from '@renderer/lib/layout/layout-provider';
-import {
-  type NavigateFnTyped,
-  type NonSettingsViewId,
-  useNavigate,
-  useParams,
-  useWorkspaceSlots,
-} from '@renderer/lib/layout/navigation-provider';
+import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { appState } from '@renderer/lib/stores/app-state';
 
 export function BrowserAppShortcutEvents() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
-  const { navigate } = useNavigate();
-  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
-  const { params: taskParams } = useParams('task');
-  const { params: projectParams } = useParams('project');
+  const { currentView } = useWorkspaceSlots();
+  const taskParams = useViewParams(taskViewDef);
+  const projectParams = useViewParams(projectViewDef);
 
   const currentProjectId =
     currentView === 'task'
-      ? taskParams.projectId
+      ? taskParams?.projectId
       : currentView === 'project'
-        ? projectParams.projectId
+        ? projectParams?.projectId
         : undefined;
-  const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
+  const currentTaskId = currentView === 'task' ? taskParams?.taskId : undefined;
 
   useEffect(() => {
     let disposed = false;
@@ -49,8 +45,7 @@ export function BrowserAppShortcutEvents() {
             currentProjectId,
             currentTaskId,
             currentView,
-            lastNonSettingsView,
-            navigate,
+            exitSettings: () => appState.navigation.toggleSettings(),
             showCommandPalette,
             toggleLeft,
             toggleZenMode,
@@ -65,16 +60,7 @@ export function BrowserAppShortcutEvents() {
       disposed = true;
       unsubscribe?.();
     };
-  }, [
-    currentProjectId,
-    currentTaskId,
-    currentView,
-    lastNonSettingsView,
-    navigate,
-    showCommandPalette,
-    toggleLeft,
-    toggleZenMode,
-  ]);
+  }, [currentProjectId, currentTaskId, currentView, showCommandPalette, toggleLeft, toggleZenMode]);
 
   return null;
 }
@@ -85,8 +71,7 @@ function dispatchAppOnlyShortcut(
     currentProjectId: string | undefined;
     currentTaskId: string | undefined;
     currentView: ViewId;
-    lastNonSettingsView: NonSettingsViewId;
-    navigate: NavigateFnTyped;
+    exitSettings: () => void;
     showCommandPalette: (input: {
       projectId?: string;
       taskId?: string;
@@ -132,7 +117,7 @@ function dispatchAppOnlyShortcut(
       break;
     case 'closeModal':
       if (context.currentView === 'settings' && !modalStore.isOpen) {
-        (context.navigate as (viewId: ViewId) => void)(context.lastNonSettingsView);
+        context.exitSettings();
       }
       break;
   }

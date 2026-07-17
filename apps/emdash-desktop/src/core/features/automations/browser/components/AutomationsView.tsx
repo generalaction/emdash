@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { automationsViewDef } from '@core/features/automations/contributions/views';
 import type { Automation } from '@core/primitives/automations/api';
-import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import type { BuiltinAutomationTemplate } from '../automation-template';
@@ -20,7 +21,7 @@ export function AutomationsView() {
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null);
   const showConfirm = useShowModal('confirmActionModal');
   const { navigate } = useNavigate();
-  const { params, setParams } = useParams('automations');
+  const { params, setParams } = useCurrentViewParams(automationsViewDef);
 
   const automationData = automations.data;
   const effectiveAutomations = useMemo(
@@ -95,7 +96,9 @@ export function AutomationsView() {
             ) : hasSearchResults ? (
               <AutomationsList
                 automations={effectiveAutomations}
-                onEdit={(automation) => navigate('automations', { automationId: automation.id })}
+                onEdit={(automation) =>
+                  navigate(automationsViewDef({ automationId: automation.id }))
+                }
                 onToggleEnabled={handleToggleEnabled}
               />
             ) : hasLoadedAutomations ? (

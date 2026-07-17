@@ -1,22 +1,13 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
-export function applyHistoryEntry(entry: HistoryEntry): void {
-  if (entry.kind === 'view') {
-    appState.navigation._applyNavigation(entry.viewId, entry.params);
-  } else {
-    appState.navigation._applyNavigation('task', {
-      projectId: entry.projectId,
-      taskId: entry.taskId,
-    });
-    getTaskView(entry.projectId, entry.taskId)?.activePane.setActiveTab(entry.tabId);
-  }
+export function applyHistoryEntry(entry: HistoryEntry): boolean {
+  return appState.navigation.applyEntry(entry);
 }
 
 export const NavButtons = observer(function NavButtons() {

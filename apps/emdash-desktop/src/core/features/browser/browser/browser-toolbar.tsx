@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import {
   BROWSER_DEFAULT_URL,
   BROWSER_DEFAULT_ZOOM_FACTOR,
@@ -285,7 +286,7 @@ export function BrowserToolbar({
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigateToView('settings', { tab: 'browser' })}>
+              <DropdownMenuItem onClick={() => navigateToView(settingsViewDef({ tab: 'browser' }))}>
                 Manage profiles…
               </DropdownMenuItem>
             </DropdownMenuSubContent>

@@ -1,70 +1,68 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NavigationHistoryStore, type HistoryEntry } from './navigation-history-store';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import type { HistoryEntry } from '@core/primitives/navigation/api';
+import type { JsonValue, ViewRef } from '@core/primitives/views/api';
+import { NavigationHistoryStore } from './navigation-history-store';
 
-function view(
-  viewId: Extract<HistoryEntry, { kind: 'view' }>['viewId'],
-  params: Record<string, string> = {}
-): HistoryEntry {
-  return { kind: 'view', viewId, params };
-}
-
-function tab(taskId: string, tabId: string, projectId = 'project-1'): HistoryEntry {
-  return { kind: 'tab', projectId, taskId, tabId };
+function entry(ref: ViewRef, location?: JsonValue, key = ref.key): HistoryEntry {
+  return { ref, ...(location === undefined ? {} : { location }), key };
 }
 
 describe('NavigationHistoryStore', () => {
-  it('deduplicates singleton views regardless of params', () => {
+  it('annotates the current entry when its navigation key is unchanged', () => {
     const history = new NavigationHistoryStore();
+    const first = entry(projectViewDef({ projectId: 'project-1' }));
+    const second = entry(projectViewDef({ projectId: 'project-2' }));
 
-    history.push(view('project', { projectId: 'project-1' }));
-    history.push(view('project', { projectId: 'project-2' }));
+    history.record(first);
+    history.record(second);
 
-    expect(history.entries).toEqual([view('project', { projectId: 'project-1' })]);
+    expect(history.entries).toEqual([second]);
     expect(history.index).toBe(0);
   });
 
-  it('distinguishes task views by task id', () => {
+  it('distinguishes task refs by their history key', () => {
     const history = new NavigationHistoryStore();
+    const first = entry(taskViewDef({ projectId: 'project-1', taskId: 'task-1' }));
+    const second = entry(taskViewDef({ projectId: 'project-1', taskId: 'task-2' }));
 
-    history.push(view('task', { projectId: 'project-1', taskId: 'task-1' }));
-    history.push(view('task', { projectId: 'project-1', taskId: 'task-1' }));
-    history.push(view('task', { projectId: 'project-1', taskId: 'task-2' }));
+    history.record(first);
+    history.record(first);
+    history.record(second);
 
-    expect(history.entries).toEqual([
-      view('task', { projectId: 'project-1', taskId: 'task-1' }),
-      view('task', { projectId: 'project-1', taskId: 'task-2' }),
-    ]);
+    expect(history.entries).toEqual([first, second]);
   });
 
-  it('distinguishes tab entries by task id and tab id', () => {
+  it('distinguishes locations by their folded key', () => {
     const history = new NavigationHistoryStore();
+    const ref = taskViewDef({ projectId: 'project-1', taskId: 'task-1' });
+    const first = entry(ref, { tabId: 'tab-1' }, `${ref.key}:tab-1`);
+    const second = entry(ref, { tabId: 'tab-2' }, `${ref.key}:tab-2`);
 
-    history.push(tab('task-1', 'tab-1'));
-    history.push(tab('task-1', 'tab-1', 'project-2'));
-    history.push(tab('task-1', 'tab-2'));
-    history.push(tab('task-2', 'tab-2'));
+    history.record(first);
+    history.record(first);
+    history.record(second);
 
-    expect(history.entries).toEqual([
-      tab('task-1', 'tab-1'),
-      tab('task-1', 'tab-2'),
-      tab('task-2', 'tab-2'),
-    ]);
+    expect(history.entries).toEqual([first, second]);
   });
 
-  it('truncates the forward stack when a new entry is pushed', () => {
+  it('truncates the forward stack when a traversal is recorded', () => {
     const history = new NavigationHistoryStore();
-    history.push(view('home'));
-    history.push(view('project', { projectId: 'project-1' }));
-    history.push(view('settings'));
-    history.back(() => {});
+    const home = entry(homeViewDef());
+    const project = entry(projectViewDef({ projectId: 'project-1' }));
+    const settings = entry(settingsViewDef());
+    history.record(home);
+    history.record(project);
+    history.record(settings);
+    history.back(() => true);
 
-    history.push(view('library'));
+    const next = entry(taskViewDef({ projectId: 'project-1', taskId: 'task-1' }));
+    history.record(next);
 
-    expect(history.entries).toEqual([
-      view('home'),
-      view('project', { projectId: 'project-1' }),
-      view('library'),
-    ]);
+    expect(history.entries).toEqual([home, project, next]);
     expect(history.index).toBe(2);
     expect(history.canGoForward).toBe(false);
   });
@@ -73,74 +71,89 @@ describe('NavigationHistoryStore', () => {
     const history = new NavigationHistoryStore();
 
     for (let index = 0; index < 51; index++) {
-      history.push(tab('task-1', `tab-${index}`));
+      const ref = taskViewDef({ projectId: 'project-1', taskId: `task-${index}` });
+      history.record(entry(ref));
     }
 
     expect(history.entries).toHaveLength(50);
-    expect(history.entries[0]).toEqual(tab('task-1', 'tab-1'));
-    expect(history.entries.at(-1)).toEqual(tab('task-1', 'tab-50'));
+    expect(history.entries[0]?.ref.params).toMatchObject({ taskId: 'task-1' });
+    expect(history.entries.at(-1)?.ref.params).toMatchObject({ taskId: 'task-50' });
     expect(history.index).toBe(49);
-    expect(history.canGoForward).toBe(false);
   });
 
-  it('suppresses pushes while applying back and forward entries', () => {
+  it('suppresses records while applying back and forward entries', () => {
     const history = new NavigationHistoryStore();
-    const apply = vi.fn(() => history.push(view('library')));
-    history.push(view('home'));
-    history.push(view('project', { projectId: 'project-1' }));
-    history.push(view('settings'));
+    const home = entry(homeViewDef());
+    const project = entry(projectViewDef({ projectId: 'project-1' }));
+    const settings = entry(settingsViewDef());
+    const apply = vi.fn(() => {
+      history.record(entry(taskViewDef({ projectId: 'project-1', taskId: 'task-1' })));
+      return true;
+    });
+    history.record(home);
+    history.record(project);
+    history.record(settings);
 
     history.back(apply);
     history.forward(apply);
 
-    expect(apply).toHaveBeenNthCalledWith(1, view('project', { projectId: 'project-1' }));
-    expect(apply).toHaveBeenNthCalledWith(2, view('settings'));
-    expect(history.entries).toEqual([
-      view('home'),
-      view('project', { projectId: 'project-1' }),
-      view('settings'),
-    ]);
-    expect(history.index).toBe(2);
+    expect(apply).toHaveBeenNthCalledWith(1, project);
+    expect(apply).toHaveBeenNthCalledWith(2, settings);
+    expect(history.entries).toEqual([home, project, settings]);
   });
 
-  it('flattens adjacent duplicate entries created by pruning', () => {
+  it('splices rejected entries while traversing', () => {
     const history = new NavigationHistoryStore();
-    history.push(view('home'));
-    history.push(view('settings'));
-    history.push(view('home'));
+    const home = entry(homeViewDef());
+    const project = entry(projectViewDef({ projectId: 'project-1' }));
+    const settings = entry(settingsViewDef());
+    history.record(home);
+    history.record(project);
+    history.record(settings);
 
-    history.prune((entry) => entry.kind === 'view' && entry.viewId === 'settings');
+    history.back((candidate) => candidate.key !== project.key);
 
-    expect(history.entries).toEqual([view('home')]);
+    expect(history.entries).toEqual([home, settings]);
+    expect(history.current).toBe(home);
+  });
+
+  it('flattens adjacent equal keys created by pruning', () => {
+    const history = new NavigationHistoryStore();
+    const older = entry(settingsViewDef({ tab: 'general' }));
+    const newer = entry(settingsViewDef({ tab: 'browser' }));
+    history.record(older);
+    history.record(entry(projectViewDef({ projectId: 'project-1' })));
+    history.record(newer);
+
+    history.prune((candidate) => candidate.ref.viewId === 'project');
+
+    expect(history.entries).toEqual([newer]);
+    expect(history.current).toBe(newer);
     expect(history.index).toBe(0);
   });
 
-  it('keeps the current entry selected when it survives pruning', () => {
+  it('keeps the current survivor selected and clamps when it is pruned', () => {
     const history = new NavigationHistoryStore();
-    history.push(view('home'));
-    history.push(view('project', { projectId: 'project-1' }));
-    history.push(view('settings'));
-    history.back(() => {});
+    history.record(entry(homeViewDef()));
+    history.record(entry(projectViewDef({ projectId: 'project-1' })));
+    history.record(entry(settingsViewDef()));
+    history.back(() => true);
 
-    history.prune((entry) => entry.kind === 'view' && entry.viewId === 'home');
+    history.prune((candidate) => candidate.ref.viewId === 'home');
+    expect(history.current?.ref.viewId).toBe('project');
 
-    expect(history.entries).toEqual([
-      view('project', { projectId: 'project-1' }),
-      view('settings'),
-    ]);
-    expect(history.index).toBe(0);
+    history.prune((candidate) => candidate.ref.viewId === 'project');
+    expect(history.current?.ref.viewId).toBe('settings');
   });
 
-  it('clamps the cursor to the final survivor when the current entry is pruned', () => {
+  it('finds the nearest matching entry before the cursor', () => {
     const history = new NavigationHistoryStore();
-    history.push(view('home'));
-    history.push(view('project', { projectId: 'project-1' }));
-    history.push(view('settings'));
-    history.back(() => {});
+    const home = entry(homeViewDef());
+    const project = entry(projectViewDef({ projectId: 'project-1' }));
+    history.record(home);
+    history.record(project);
+    history.record(entry(settingsViewDef()));
 
-    history.prune((entry) => entry.kind === 'view' && entry.viewId === 'project');
-
-    expect(history.entries).toEqual([view('home'), view('settings')]);
-    expect(history.index).toBe(1);
+    expect(history.nearestBefore((candidate) => candidate.ref.viewId !== 'settings')).toBe(project);
   });
 });

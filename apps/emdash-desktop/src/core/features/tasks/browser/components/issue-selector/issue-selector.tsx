@@ -7,6 +7,7 @@ import {
 } from '@core/features/integrations/browser/integration-display';
 import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
 import { useIntegrationsContext } from '@core/features/integrations/browser/integrations-provider';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { InlineMarkdown } from '@renderer/lib/components/inline-markdown';
 import {
@@ -384,7 +385,7 @@ export function ConnectIssueIntegrationPlaceholder() {
         variant="link"
         size="xs"
         className="w-fit"
-        onClick={() => navigate('settings', { tab: 'integrations' })}
+        onClick={() => navigate(settingsViewDef({ tab: 'integrations' }))}
       >
         Configure integrations
       </Button>

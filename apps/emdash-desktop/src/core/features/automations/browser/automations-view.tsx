@@ -1,4 +1,6 @@
 import { type ReactNode } from 'react';
+import { automationsViewDef } from '@core/features/automations/contributions/views';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { AutomationsBreadcrumb } from './components/AutomationsBreadcrumb';
 import { AutomationsView } from './components/AutomationsView';
@@ -21,8 +23,10 @@ export function AutomationsMainPanel() {
   return <AutomationsView />;
 }
 
-export const automationsView = {
-  WrapView: AutomationsViewWrapper,
-  TitlebarSlot: AutomationsTitlebar,
-  MainPanel: AutomationsMainPanel,
-};
+export const automationsViewRuntime = defineViewRuntime(automationsViewDef, {
+  slots: {
+    wrap: AutomationsViewWrapper,
+    titlebar: AutomationsTitlebar,
+    main: AutomationsMainPanel,
+  },
+});

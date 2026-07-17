@@ -9,7 +9,7 @@ export interface HistoryEntry {
 
 export interface NavigationParticipant<TLocation extends JsonValue = JsonValue> {
   captureLocation(): TLocation | undefined;
-  restoreLocation(location: TLocation): void;
+  restoreLocation(location: TLocation): boolean | void;
 }
 
 export interface NavigationParticipantHost {
@@ -17,6 +17,7 @@ export interface NavigationParticipantHost {
     ref: ViewRef,
     participant: NavigationParticipant<TLocation>
   ): Unsubscribe;
+  reportLocation<TLocation extends JsonValue>(ref: ViewRef, location: TLocation): void;
 }
 
 export type Resolution =

@@ -1,7 +1,5 @@
-import { mcpView } from '../browser/mcp-view';
+import { mcpViewRuntime } from '../browser/mcp-view';
 
 export const mcpBrowserContributions = {
-  views: {
-    mcp: mcpView,
-  },
+  views: [mcpViewRuntime],
 } as const;

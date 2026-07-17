@@ -8,10 +8,11 @@ import {
   projectDisplayName,
   projectViewKind,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -27,7 +28,6 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
 }: {
   projectId: string;
 }) {
-  const { navigate } = useNavigate();
   const store = getProjectStore(projectId);
   const displayName = projectDisplayName(store) ?? 'this project';
   const confirmDeleteProject = useConfirmDeleteProject();
@@ -61,7 +61,6 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
               void confirmDeleteProject({
                 projectId,
                 projectLabel: displayName,
-                onDeleted: () => navigate('home'),
               });
             }}
           >
@@ -114,7 +113,7 @@ const ProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
 export const ProjectTitlebar = observer(function ProjectTitlebar() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
 

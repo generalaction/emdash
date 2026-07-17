@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { libraryViewDef } from '@core/features/library/contributions/views';
 import { McpView } from '@core/features/mcp/browser/components/McpView';
 import { SkillsView } from '@core/features/skills/browser/components/SkillsView';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { PromptLibraryView } from './prompts/prompt-library-view';
 
 export type LibraryTab = 'prompts' | 'skills' | 'mcp';
@@ -25,7 +27,7 @@ export function LibraryViewWrapper({
   children: ReactNode;
   tab?: LibraryTab;
 }) {
-  const { setParams } = useParams('library');
+  const { setParams } = useCurrentViewParams(libraryViewDef);
   const handleTabChange = useCallback(
     (nextTab: LibraryTab) => {
       setParams({ tab: nextTab });
@@ -66,7 +68,9 @@ export function LibraryMainPanel() {
   );
 }
 
-export const libraryView = {
-  WrapView: LibraryViewWrapper,
-  MainPanel: LibraryMainPanel,
-};
+export const libraryViewRuntime = defineViewRuntime(libraryViewDef, {
+  slots: {
+    wrap: LibraryViewWrapper,
+    main: LibraryMainPanel,
+  },
+});

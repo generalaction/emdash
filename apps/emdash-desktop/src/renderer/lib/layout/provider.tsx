@@ -1,22 +1,20 @@
-import { reaction, runInAction } from 'mobx';
+import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { type ViewId, type WrapParams } from '@renderer/app/view-registry';
+import { viewCatalog } from '@core/manifests/view-catalog';
+import type { ViewRef } from '@core/primitives/views/api';
 import { appState } from '@renderer/lib/stores/app-state';
-import { viewEvents } from '@renderer/lib/stores/navigation-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
-type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
-
-function syncTelemetryScope(currentViewId: ViewId, viewParamsStore: ViewParamsStore): void {
-  if (currentViewId !== 'task') {
+function syncTelemetryScope(ref: ViewRef): void {
+  if (ref.viewId !== 'task') {
     clearTelemetryTaskScope();
     return;
   }
 
-  const taskParams = viewParamsStore.task;
+  const taskParams = ref.params as { projectId?: unknown; taskId?: unknown };
   if (
     taskParams &&
     typeof taskParams.projectId === 'string' &&
@@ -34,32 +32,20 @@ export const WorkspaceViewProvider = observer(function WorkspaceViewProvider({
 }: {
   children: ReactNode;
 }) {
-  const currentViewId = appState.navigation.currentViewId;
-
   useEffect(() => {
     const initialViewId = appState.navigation.currentViewId;
     focusTracker.initialize({ view: initialViewId });
-    syncTelemetryScope(initialViewId, appState.navigation.viewParamsStore as ViewParamsStore);
-    captureTelemetry(viewEvents[initialViewId], { from_view: null });
+    syncTelemetryScope(appState.navigation.currentRef);
+    const event = viewCatalog.byId(initialViewId)?.telemetryEvent;
+    if (event) captureTelemetry(event, { from_view: null });
   }, []);
 
   useEffect(() => {
     return reaction(
-      () => ({
-        viewId: appState.navigation.currentViewId,
-        params: appState.navigation.viewParamsStore,
-      }),
-      ({ viewId, params }) => {
-        syncTelemetryScope(viewId as ViewId, params as ViewParamsStore);
-      }
+      () => appState.navigation.currentRef,
+      (ref) => syncTelemetryScope(ref)
     );
   }, []);
-
-  useEffect(() => {
-    runInAction(() => {
-      appState.navigation.isNavigating = false;
-    });
-  }, [currentViewId]);
 
   return <>{children}</>;
 });

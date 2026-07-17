@@ -1,6 +1,7 @@
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
+import { libraryViewDef } from '@core/features/library/contributions/views';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
@@ -69,7 +70,7 @@ export function AgentMcpSection({ agentId }: { agentId: string }) {
           variant="ghost"
           size="sm"
           className="h-6 gap-1 px-2 text-xs"
-          onClick={() => navigate('library', { tab: 'mcp' })}
+          onClick={() => navigate(libraryViewDef({ tab: 'mcp' }))}
         >
           <ExternalLink className="size-3" aria-hidden="true" />
           Manage in Library

@@ -1,46 +1,44 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   getRegisteredTaskData,
   getTaskView,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import {
-  useNavigate,
-  useParams,
-  useWorkspaceSlots,
-} from '@renderer/lib/layout/navigation-provider';
+import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
+import { appState } from '@renderer/lib/stores/app-state';
 
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { exitZenMode, toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
-  const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
   const zenModeHotkey = getEffectiveHotkey('zenMode', keyboard);
 
-  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
-  const { params: taskParams } = useParams('task');
-  const { params: projectParams } = useParams('project');
+  const { currentView } = useWorkspaceSlots();
+  const taskParams = useViewParams(taskViewDef);
+  const projectParams = useViewParams(projectViewDef);
 
   const currentProjectId =
     currentView === 'task'
-      ? taskParams.projectId
+      ? taskParams?.projectId
       : currentView === 'project'
-        ? projectParams.projectId
+        ? projectParams?.projectId
         : undefined;
-  const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
+  const currentTaskId = currentView === 'task' ? taskParams?.taskId : undefined;
 
   const currentWorkspaceId = useObserver(() => {
     if (!currentProjectId || !currentTaskId) return undefined;
@@ -64,7 +62,7 @@ export function AppKeyboardShortcuts() {
     getHotkeyRegistration('closeModal', keyboard),
     () => {
       if (currentView === 'settings' && !modalStore.isOpen) {
-        (navigate as (viewId: typeof lastNonSettingsView) => void)(lastNonSettingsView);
+        appState.navigation.toggleSettings();
       }
     },
     { enabled: currentView === 'settings' && closeModalHotkey !== null }

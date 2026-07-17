@@ -1,14 +1,13 @@
 import { useEffect } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
-  const { navigate } = useNavigate();
-  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
+  const { currentView } = useWorkspaceSlots();
   const showConfirmQuitModal = useShowModal('confirmActionModal');
   const showFeedbackModal = useShowModal('feedbackModal');
   useRegisterNotificationOpenHandlers();
@@ -24,7 +23,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
               const shouldOpen = onOpenSettings?.() ?? true;
               if (shouldOpen === false) return;
             }
-            toggleSettingsView(navigate, currentView, lastNonSettingsView);
+            toggleSettingsView();
           } else if (event.type === 'menu-quit-requested') {
             showConfirmQuitModal({
               title: 'Quit Emdash?',
@@ -48,14 +47,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       disposed = true;
       unsubscribe?.();
     };
-  }, [
-    currentView,
-    lastNonSettingsView,
-    navigate,
-    onOpenSettings,
-    showConfirmQuitModal,
-    showFeedbackModal,
-  ]);
+  }, [currentView, onOpenSettings, showConfirmQuitModal, showFeedbackModal]);
 
   useEffect(() => {
     let disposed = false;

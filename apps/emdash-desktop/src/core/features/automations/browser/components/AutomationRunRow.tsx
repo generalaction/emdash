@@ -5,6 +5,7 @@ import {
   getTaskStore,
   taskAgentStatus,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { AutomationRun } from '@core/primitives/automations/api';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
@@ -43,7 +44,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
-    navigate('task', { projectId, taskId });
+    navigate(taskViewDef({ projectId, taskId }));
   }
 
   if (!run) return null;

@@ -1,6 +1,7 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
 import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { NotificationTarget } from '../api';
@@ -35,7 +36,7 @@ export function useRegisterNotificationOpenHandlers(): void {
   useEffect(() => {
     const disposers = new Set<() => void>();
     const unregisterTask = registerNotificationOpenHandler('task', (target) => {
-      navigate('task', { projectId: target.projectId, taskId: target.taskId });
+      navigate(taskViewDef({ projectId: target.projectId, taskId: target.taskId }));
       const { conversationId } = target;
       if (!conversationId) return;
 

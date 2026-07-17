@@ -9,7 +9,8 @@ import { skillsBrowserContributions } from '@core/features/skills/contributions/
 import { tasksBrowserContributions } from '@core/features/tasks/contributions/browser';
 import { workbenchBrowserContributions } from '@core/features/workbench/contributions/browser';
 
-export const featureViewContributions = {
+export const featureViewRuntimes = [
+  ...workbenchBrowserContributions.views,
   ...automationsBrowserContributions.views,
   ...libraryBrowserContributions.views,
   ...mcpBrowserContributions.views,
@@ -17,7 +18,7 @@ export const featureViewContributions = {
   ...settingsBrowserContributions.views,
   ...skillsBrowserContributions.views,
   ...tasksBrowserContributions.views,
-} as const;
+] as const;
 
 export const featureModalContributions = {
   ...conversationsBrowserContributions.modals,

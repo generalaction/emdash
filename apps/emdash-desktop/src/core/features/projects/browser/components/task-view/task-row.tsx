@@ -8,6 +8,7 @@ import {
   taskAgentStatus,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type Task } from '@core/primitives/tasks/api';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { PrBadge } from '@renderer/lib/components/pr-badge';
@@ -77,7 +78,7 @@ export const TaskRow = observer(function TaskRow({
         onClick={() => {
           if (isArchived) return;
           handleProvision();
-          navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
+          navigate(taskViewDef({ projectId: task.data.projectId, taskId: task.data.id }));
         }}
         className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
       >

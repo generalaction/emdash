@@ -1,15 +1,15 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { SettingsPage } from '@core/features/settings/browser/components/SettingsPage';
-import type { SettingsPageTab } from '@core/features/settings/contributions/views';
+import { settingsViewDef, type SettingsPageTab } from '@core/features/settings/contributions/views';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 
 const SettingsTabContext = createContext<{
   tab: SettingsPageTab;
   onTabChange: (tab: SettingsPageTab) => void;
 }>({ tab: 'general', onTabChange: () => {} });
 
-/** Minimal passthrough — exists so the registry can infer WrapParams<'settings'>. */
 export function SettingsViewWrapper({
   children,
   tab = 'general',
@@ -17,7 +17,7 @@ export function SettingsViewWrapper({
   children: ReactNode;
   tab?: SettingsPageTab;
 }) {
-  const { setParams } = useParams('settings');
+  const { setParams } = useCurrentViewParams(settingsViewDef);
   const handleTabChange = useCallback(
     (tab: SettingsPageTab) => {
       setParams({ tab });
@@ -59,7 +59,9 @@ export function SettingsMainPanel() {
   );
 }
 
-export const settingsView = {
-  WrapView: SettingsViewWrapper,
-  MainPanel: SettingsMainPanel,
-};
+export const settingsViewRuntime = defineViewRuntime(settingsViewDef, {
+  slots: {
+    wrap: SettingsViewWrapper,
+    main: SettingsMainPanel,
+  },
+});

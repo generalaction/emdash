@@ -5,13 +5,14 @@ import {
   getProjectSettingsStore,
   getProjectStore,
 } from '@core/features/projects/browser/stores/project-selectors';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { Spinner } from '@renderer/lib/ui/spinner';
 
 export const SettingsPanel = observer(function SettingsPanel() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const mounted = asMounted(getProjectStore(projectId));
   const store = getProjectSettingsStore(projectId);
   const settings = store?.settings;

@@ -1,56 +1,31 @@
-import { makeAutoObservable } from 'mobx';
-import type { ViewId, WrapParams } from '@renderer/app/view-registry';
+import { Emitter } from '@emdash/shared';
+import { makeAutoObservable, observable } from 'mobx';
+import type { HistoryEntry } from '@core/primitives/navigation/api';
 
 const MAX_STACK_SIZE = 50;
 
-export type HistoryEntry =
-  | { kind: 'view'; viewId: ViewId; params: WrapParams<ViewId> }
-  | { kind: 'tab'; projectId: string; taskId: string; tabId: string };
-
-function entriesEqual(a: HistoryEntry, b: HistoryEntry): boolean {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'view' && b.kind === 'view') {
-    if (a.viewId !== b.viewId) return false;
-    // Task view is parameterized by taskId — different tasks are distinct entries.
-    if (a.viewId === 'task') {
-      const ap = a.params as { taskId?: string };
-      const bp = b.params as { taskId?: string };
-      return ap.taskId === bp.taskId;
-    }
-    return true;
-  }
-  if (a.kind === 'tab' && b.kind === 'tab') {
-    return a.tabId === b.tabId && a.taskId === b.taskId;
-  }
-  return false;
-}
-
 /** Collapses adjacent identical entries that appear after a prune. */
 function flatten(entries: HistoryEntry[]): HistoryEntry[] {
-  return entries.filter((e, i) => i === 0 || !entriesEqual(e, entries[i - 1]!));
+  return entries.filter(
+    (entry, index) => index === entries.length - 1 || entry.key !== entries[index + 1]!.key
+  );
 }
 
 /**
- * Tracks a chronological back/forward navigation stack spanning both
- * view-level and tab-level navigations.
- *
- * - `push()` is a no-op while `back()`/`forward()` are applying an entry,
- *   which prevents reactive observers (e.g. TaskViewStore's tab reaction)
- *   from recording the restoration as a new entry.
- * - `prune()` removes entries for deleted entities and is a hook point for
- *   future entity-cleanup; it is not called in the initial iteration.
+ * Tracks chronological view refs and participant locations. Traversals push,
+ * refinements annotate, and restorations suppress recording.
  */
 export class NavigationHistoryStore {
-  /** Append-only log; not observable — only `index` drives reactivity. */
   entries: HistoryEntry[] = [];
   index = -1;
+  readonly onDidChange = new Emitter<void>();
 
-  /** Set to true while back/forward is being applied. Suppresses push(). */
-  private navigating = false;
+  private applying = false;
 
   constructor() {
     makeAutoObservable(this, {
-      entries: false,
+      entries: observable.shallow,
+      onDidChange: false,
       canGoBack: true,
       canGoForward: true,
     });
@@ -64,45 +39,54 @@ export class NavigationHistoryStore {
     return this.index < this.entries.length - 1;
   }
 
-  push(entry: HistoryEntry): void {
-    if (this.navigating) return;
+  get current(): HistoryEntry | undefined {
+    return this.entries[this.index];
+  }
 
-    // Skip if identical to current entry (e.g. rapid re-activation of same tab)
-    const current = this.entries[this.index];
-    if (current && entriesEqual(current, entry)) return;
+  get isApplying(): boolean {
+    return this.applying;
+  }
 
-    // Truncate forward stack
+  record(entry: HistoryEntry): void {
+    if (this.applying) return;
+
+    if (this.current?.key === entry.key) {
+      this.entries[this.index] = entry;
+      this.onDidChange.emit(undefined);
+      return;
+    }
+
     this.entries.splice(this.index + 1);
     this.entries.push(entry);
 
-    // Bound to max size: drop oldest entry when over limit
     if (this.entries.length > MAX_STACK_SIZE) {
       this.entries.shift();
     } else {
       this.index++;
     }
+    this.onDidChange.emit(undefined);
   }
 
-  back(apply: (entry: HistoryEntry) => void): void {
-    if (!this.canGoBack) return;
-    this.index--;
-    this.navigating = true;
-    try {
-      apply(this.entries[this.index]!);
-    } finally {
-      this.navigating = false;
-    }
+  annotate(entry: HistoryEntry): void {
+    if (this.applying || !this.current) return;
+    this.entries[this.index] = entry;
+    this.onDidChange.emit(undefined);
   }
 
-  forward(apply: (entry: HistoryEntry) => void): void {
-    if (!this.canGoForward) return;
-    this.index++;
-    this.navigating = true;
-    try {
-      apply(this.entries[this.index]!);
-    } finally {
-      this.navigating = false;
+  nearestBefore(predicate: (entry: HistoryEntry) => boolean): HistoryEntry | undefined {
+    for (let index = this.index - 1; index >= 0; index--) {
+      const entry = this.entries[index]!;
+      if (predicate(entry)) return entry;
     }
+    return undefined;
+  }
+
+  back(apply: (entry: HistoryEntry) => boolean): void {
+    this.traverse(-1, apply);
+  }
+
+  forward(apply: (entry: HistoryEntry) => boolean): void {
+    this.traverse(1, apply);
   }
 
   /**
@@ -110,12 +94,54 @@ export class NavigationHistoryStore {
    * identical entries so no-op back steps are not created.
    * The cursor is clamped to the surviving entry nearest the removed position.
    *
-   * Hook point for future entity-cleanup (deleted conversations, closed tabs, etc.).
    */
   prune(predicate: (entry: HistoryEntry) => boolean): void {
-    const currentEntry = this.entries[this.index];
-    this.entries = flatten(this.entries.filter((e) => !predicate(e)));
+    const currentEntry = this.current;
+    const oldIndex = this.index;
+    this.entries = flatten(this.entries.filter((entry) => !predicate(entry)));
     const newIndex = currentEntry ? this.entries.indexOf(currentEntry) : -1;
-    this.index = newIndex !== -1 ? newIndex : Math.max(0, this.entries.length - 1);
+    this.index =
+      newIndex !== -1
+        ? newIndex
+        : this.entries.length === 0
+          ? -1
+          : Math.min(oldIndex, this.entries.length - 1);
+    this.onDidChange.emit(undefined);
+  }
+
+  replace(entries: readonly HistoryEntry[], index: number): void {
+    this.entries = entries.slice(-MAX_STACK_SIZE);
+    const removed = Math.max(0, entries.length - this.entries.length);
+    this.index =
+      this.entries.length === 0
+        ? -1
+        : Math.min(Math.max(index - removed, 0), this.entries.length - 1);
+    this.onDidChange.emit(undefined);
+  }
+
+  private traverse(direction: -1 | 1, apply: (entry: HistoryEntry) => boolean): void {
+    while (direction === -1 ? this.index > 0 : this.index < this.entries.length - 1) {
+      const targetIndex = this.index + direction;
+      const target = this.entries[targetIndex]!;
+      this.applying = true;
+      let accepted: boolean;
+      try {
+        accepted = apply(target);
+      } finally {
+        this.applying = false;
+      }
+
+      if (accepted) {
+        this.index = targetIndex;
+        this.onDidChange.emit(undefined);
+        return;
+      }
+
+      this.entries.splice(targetIndex, 1);
+      if (direction === -1) this.index--;
+      this.onDidChange.emit(undefined);
+    }
   }
 }
+
+export type { HistoryEntry };

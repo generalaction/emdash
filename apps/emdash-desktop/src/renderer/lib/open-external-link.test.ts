@@ -34,7 +34,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
       currentViewId: 'home',
-      viewParamsStore: { task: undefined },
+      currentRef: { viewId: 'home', params: {}, key: 'home' },
     },
   },
 }));

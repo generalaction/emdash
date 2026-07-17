@@ -8,7 +8,7 @@ import {
   taskTerminalSelectionMemento,
 } from '@core/features/tasks/contributions/mementos';
 import {
-  workbenchNavigationMemento,
+  workbenchHistoryMemento,
   workbenchSidebarMemento,
 } from '@core/features/workbench/contributions/mementos';
 import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
@@ -29,7 +29,7 @@ export const mementoCatalog: readonly MementoCatalogEntry[] = [
   taskDiffSelectionMemento,
   taskPaneLayoutMemento,
   workbenchSidebarMemento,
-  workbenchNavigationMemento,
+  workbenchHistoryMemento,
 ];
 
 export const mementoSweepPolicies = mementoCatalog.flatMap((definition) =>

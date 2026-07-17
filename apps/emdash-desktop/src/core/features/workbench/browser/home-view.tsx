@@ -1,5 +1,8 @@
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Fragment } from 'react';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -104,6 +107,9 @@ function HomeProjectAction({
   );
 }
 
-export const homeView = {
-  MainPanel: HomeMainPanel,
-};
+export const homeViewRuntime = defineViewRuntime(homeViewDef, {
+  slots: {
+    wrap: Fragment,
+    main: HomeMainPanel,
+  },
+});

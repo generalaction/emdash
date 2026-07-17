@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { toast } from 'sonner';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
 import { createUpdateToastActionLabel } from '@renderer/lib/components/update-toast-action-label';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -255,7 +256,7 @@ export class UpdateStore {
       action: {
         label: createUpdateToastActionLabel(),
         onClick: () => {
-          appState.navigation.navigate('settings', { tab: 'general' });
+          appState.navigation.navigate(settingsViewDef({ tab: 'general' }));
           if (this.state.status === 'available') {
             void this.download();
           }

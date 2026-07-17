@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { APP_SHORTCUTS } from '@core/primitives/commands/api/shortcuts';
 import { createTaskCommandProvider } from './commands';
 
@@ -327,7 +328,7 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
   });
 
-  it('archives the current task and returns to the project view', async () => {
+  it('delegates archive navigation to the task manager', async () => {
     const archiveTask = vi.fn(() => Promise.resolve());
     mocks.getTaskManagerStore.mockReturnValue({ archiveTask });
     const provider = createTaskCommandProvider('project-1', 'task-1');
@@ -339,8 +340,8 @@ describe('createTaskCommandProvider', () => {
     command?.execute();
     await Promise.resolve();
 
-    expect(mocks.navigate).toHaveBeenCalledWith('project', { projectId: 'project-1' });
     expect(archiveTask).toHaveBeenCalledWith('task-1');
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it('keeps archived tasks from running the archive command', () => {
@@ -387,10 +388,12 @@ describe('createTaskCommandProvider', () => {
     expect(command?.enabled).toBe(true);
     command?.execute();
 
-    expect(mocks.navigate).toHaveBeenCalledWith('task', {
-      projectId: 'project-2',
-      taskId: 'task-2',
-    });
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      taskViewDef({
+        projectId: 'project-2',
+        taskId: 'task-2',
+      })
+    );
   });
 
   it('navigates to the previous visible task across project boundaries', () => {
@@ -405,9 +408,11 @@ describe('createTaskCommandProvider', () => {
     expect(command?.enabled).toBe(true);
     command?.execute();
 
-    expect(mocks.navigate).toHaveBeenCalledWith('task', {
-      projectId: 'project-1',
-      taskId: 'task-1',
-    });
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      taskViewDef({
+        projectId: 'project-1',
+        taskId: 'task-1',
+      })
+    );
   });
 });

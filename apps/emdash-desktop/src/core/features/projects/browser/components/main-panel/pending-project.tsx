@@ -7,6 +7,7 @@ import {
 import { observer } from 'mobx-react-lite';
 import { type UnregisteredProject } from '@core/features/projects/browser/stores/project';
 import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
@@ -38,7 +39,7 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
 
   const handleDismiss = () => {
     manager.removeUnregisteredProject(project.id);
-    navigate('home');
+    navigate(homeViewDef());
   };
 
   const handleCancel = () => {

@@ -16,7 +16,9 @@ import {
   getProjectManagerStore,
   getProjectSettingsStore,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
@@ -323,7 +325,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       if (result.kind === 'existing') {
         setSubmitState('idle');
         onClose();
-        navigate('project', { projectId: result.projectId });
+        navigate(projectViewDef({ projectId: result.projectId }));
         return;
       }
 
@@ -340,7 +342,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         });
       setSubmitState('idle');
       onClose();
-      navigate('project', { projectId: result.projectId });
+      navigate(projectViewDef({ projectId: result.projectId }));
     } catch (error) {
       log.error(error);
       setCloseGuard(false);
@@ -450,7 +452,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             connectionId={selectedConnectionId}
             state={newState}
             showGithubAuthDisclaimer={showGithubAuthDisclaimer}
-            onOpenAccountSettings={() => navigate('settings', { tab: 'integrations' })}
+            onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
           />
         )}
         {mode === 'clone' && (

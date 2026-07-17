@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { useToast } from '@renderer/lib/hooks/use-toast';
@@ -108,7 +109,7 @@ export function useSidebarDrop() {
         const firstProjectId = projectIds[0];
 
         if (firstProjectId) {
-          navigate('project', { projectId: firstProjectId });
+          navigate(projectViewDef({ projectId: firstProjectId }));
         }
 
         if (projectIds.length > 1) {

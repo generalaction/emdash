@@ -8,7 +8,8 @@ import {
   getProjectStore,
 } from '@core/features/projects/browser/stores/project-selectors';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 
 const projectViewItems: Array<{ id: ProjectView; label: string }> = [
@@ -55,7 +56,7 @@ function ProjectViewNav({
 export const ActiveProject = observer(function ActiveProject() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const store = asMounted(getProjectStore(projectId));
 
   if (!store) return null;

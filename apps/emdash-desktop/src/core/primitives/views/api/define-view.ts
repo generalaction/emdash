@@ -43,13 +43,14 @@ export interface ViewDef<
   TParamsSchema extends z.ZodType<JsonObject>,
   TLayout extends LayoutDef,
   TLocationSchema extends z.ZodType<JsonValue> = z.ZodNever,
+  TTelemetryEvent extends string = string,
 > {
   (...args: RefArgs<TParamsSchema>): ViewRef<TId, z.output<TParamsSchema>>;
   readonly id: TId;
   readonly params: TParamsSchema;
   readonly layout: TLayout;
   readonly traits: ReadonlySet<ViewTrait>;
-  readonly telemetryEvent: string | undefined;
+  readonly telemetryEvent: TTelemetryEvent | undefined;
   readonly historyKey: (params: z.output<TParamsSchema>) => string;
   readonly subject: ((params: z.output<TParamsSchema>) => Subject) | undefined;
   readonly location: LocationContract<TLocationSchema> | undefined;
@@ -61,12 +62,13 @@ export interface DefineViewOptions<
   TParamsSchema extends z.ZodType<JsonObject>,
   TLayout extends LayoutDef,
   TLocationSchema extends z.ZodType<JsonValue>,
+  TTelemetryEvent extends string,
 > {
   readonly id: TId;
   readonly params: TParamsSchema;
   readonly layout: TLayout;
   readonly traits?: readonly ViewTrait[];
-  readonly telemetryEvent?: string;
+  readonly telemetryEvent?: TTelemetryEvent;
   readonly historyKey?: (params: z.output<TParamsSchema>) => string;
   readonly subject?: (params: z.output<TParamsSchema>) => Subject;
   readonly location?: LocationContract<TLocationSchema>;
@@ -77,9 +79,10 @@ export function defineView<
   TParamsSchema extends z.ZodType<JsonObject>,
   TLayout extends LayoutDef,
   TLocationSchema extends z.ZodType<JsonValue> = z.ZodNever,
+  const TTelemetryEvent extends string = string,
 >(
-  options: DefineViewOptions<TId, TParamsSchema, TLayout, TLocationSchema>
-): ViewDef<TId, TParamsSchema, TLayout, TLocationSchema> {
+  options: DefineViewOptions<TId, TParamsSchema, TLayout, TLocationSchema, TTelemetryEvent>
+): ViewDef<TId, TParamsSchema, TLayout, TLocationSchema, TTelemetryEvent> {
   if (options.id.trim().length === 0) {
     throw new Error('A view id must not be empty');
   }

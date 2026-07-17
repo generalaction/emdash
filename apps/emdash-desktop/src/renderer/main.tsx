@@ -1,12 +1,15 @@
 import ReactDOM from 'react-dom/client';
 import { prefetchAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
+  workbenchHistoryMemento,
   workbenchNavigationMemento,
   workbenchSidebarMemento,
 } from '@core/features/workbench/contributions/mementos';
+import { featureViewRuntimes } from '@core/manifests/browser-contributions';
+import { viewCatalog } from '@core/manifests/view-catalog';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { appSubject } from '@core/primitives/subjects/api';
-import { setupNavigationGuards } from '@renderer/app/view-registry';
+import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
@@ -23,6 +26,7 @@ import { initNotificationDeliveryListener } from '@root/src/core/services/notifi
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
+import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
 async function bootstrap() {
   wireExternalLinkRequests();
@@ -47,14 +51,17 @@ async function bootstrap() {
     prefetchAppSettingsKey('browser'),
   ]);
 
-  setupNavigationGuards();
+  for (const contribution of featureViewRuntimes) registerViewRuntime(contribution);
+  assertViewRuntimesComplete(viewCatalog);
   const appSpace = mementoClient.subject(appSubject({}));
-  const navigationHandle = appSpace.handle(workbenchNavigationMemento);
+  const historyHandle = appSpace.handle(workbenchHistoryMemento);
+  const legacyNavigationHandle = appSpace.handle(workbenchNavigationMemento);
   const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
   await appSpace.ready;
-  appState.navigation.attachMemento(navigationHandle);
+  appState.navigation.attachMemento(historyHandle, legacyNavigationHandle);
   appState.sidebar.attachMemento(sidebarHandle);
   if (!sidebarHandle.hasStoredValue) appState.sidebar.expandAllProjects();
+  wireNavigationTelemetry(appState.navigation);
   setupAppCommandProvider();
   setupViewCommandProvider();
 

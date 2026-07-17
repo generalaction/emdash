@@ -1,12 +1,15 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   getTaskManagerStore,
   getTaskStore,
   taskViewKind,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { TaskViewWrapper } from '@core/features/tasks/browser/task-view-context';
-import { type GuardResult, type ViewDefinition } from '@renderer/app/view-registry';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { createTaskCommandProvider } from './commands';
 import { TaskMainPanel } from './main-panel';
@@ -51,34 +54,25 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
   );
 });
 
-export const taskView = {
-  WrapView: TaskViewWrapperWithProviders,
-  TitlebarSlot: TaskTitlebar,
-  MainPanel: TaskMainPanel,
+export const taskViewRuntime = defineViewRuntime(taskViewDef, {
+  slots: {
+    wrap: TaskViewWrapperWithProviders,
+    titlebar: TaskTitlebar,
+    main: TaskMainPanel,
+  },
   commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
     createTaskCommandProvider(projectId, taskId),
-  canActivate: (params: unknown): GuardResult => {
-    const projectId =
-      typeof params === 'object' && params !== null
-        ? (params as { projectId?: unknown }).projectId
-        : undefined;
-    const taskId =
-      typeof params === 'object' && params !== null
-        ? (params as { taskId?: unknown }).taskId
-        : undefined;
-    if (typeof projectId !== 'string' || typeof taskId !== 'string') {
-      return { ok: false, redirect: 'home' };
-    }
+  resolve: ({ projectId, taskId }) => {
     if (
       !appState.projects.projects.has(projectId) &&
       !appState.projects.pendingCreationIds.has(projectId)
     ) {
-      return { ok: false, redirect: 'home' };
+      return { kind: 'redirect', ref: homeViewDef() };
     }
     const taskManager = getTaskManagerStore(projectId);
     if (taskManager && !taskManager.tasks.has(taskId)) {
-      return { ok: false, redirect: 'project', params: { projectId } };
+      return { kind: 'redirect', ref: projectViewDef({ projectId }) };
     }
-    return { ok: true };
+    return { kind: 'ok' };
   },
-} satisfies ViewDefinition<{ projectId: string; taskId: string }>;
+});

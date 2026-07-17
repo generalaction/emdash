@@ -34,12 +34,11 @@ function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {
     if (propProjectId) return propProjectId;
     const nav = appState.navigation;
+    const params = nav.currentRef.params as { projectId?: string };
     const navProjectId =
-      nav.currentViewId === 'task'
-        ? (nav.viewParamsStore['task'] as { projectId?: string } | undefined)?.projectId
-        : nav.currentViewId === 'project'
-          ? (nav.viewParamsStore['project'] as { projectId?: string } | undefined)?.projectId
-          : undefined;
+      nav.currentViewId === 'task' || nav.currentViewId === 'project'
+        ? params.projectId
+        : undefined;
     return (
       navProjectId ??
       Array.from(getProjectManagerStore().projects.values())

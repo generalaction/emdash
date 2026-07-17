@@ -70,9 +70,11 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
       currentViewId: 'home',
-      revalidate: vi.fn(),
-      viewParamsStore: {},
+      currentRef: { viewId: 'home', params: {}, key: 'home' },
+      navigate: vi.fn(),
+      invalidateSubject: vi.fn(),
     },
+    history: { prune: vi.fn() },
     sshConnections: {
       connect: mocks.sshConnect,
       stateFor: mocks.sshStateFor,

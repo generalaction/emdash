@@ -4,9 +4,11 @@ import { FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-re
 import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { getTaskStore, getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@core/primitives/commands/api/commands';
 import type { SearchItem } from '@core/primitives/search/api';
 import { commandRegistry } from '@renderer/lib/commands/registry';
@@ -208,12 +210,12 @@ export function CommandPaletteModal({
   const handleNavigateToTask = (item: SearchItem) => {
     if (!item.projectId) return;
     handleClose();
-    navigate('task', { projectId: item.projectId, taskId: item.id });
+    navigate(taskViewDef({ projectId: item.projectId, taskId: item.id }));
   };
 
   const handleNavigateToProject = (item: SearchItem) => {
     handleClose();
-    navigate('project', { projectId: item.id });
+    navigate(projectViewDef({ projectId: item.id }));
   };
 
   const handleNavigateToConversation = (item: SearchItem) => {
@@ -224,7 +226,7 @@ export function CommandPaletteModal({
       { preview: false }
     );
     handleClose();
-    navigate('task', { projectId: item.projectId, taskId: item.taskId });
+    navigate(taskViewDef({ projectId: item.projectId, taskId: item.taskId }));
   };
 
   const handleOpenFile = (item: SearchItem) => {
@@ -235,7 +237,7 @@ export function CommandPaletteModal({
       { preview: false }
     );
     handleClose();
-    navigate('task', { projectId: item.projectId, taskId: item.taskId });
+    navigate(taskViewDef({ projectId: item.projectId, taskId: item.taskId }));
   };
 
   const handleSelect = (item: SearchItem) => {

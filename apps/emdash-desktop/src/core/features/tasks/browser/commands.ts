@@ -8,6 +8,7 @@ import {
   getTaskStore,
   getTaskView,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { ResolvedTab } from '@core/features/workbench/browser/tabs/core/tab-provider';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
 import {
@@ -451,7 +452,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             void (async () => {
               try {
                 await taskManager?.archiveTask(taskId);
-                appState.navigation.navigate('project', { projectId });
               } catch {
                 toast({ title: 'Could not archive task', variant: 'destructive' });
               }
@@ -469,7 +469,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           hideFromPalette: true,
           execute() {
             const next = visibleTaskEntries[currentIdx + 1];
-            if (next) appState.navigation.navigate('task', next);
+            if (next) appState.navigation.navigate(taskViewDef(next));
           },
         },
         {
@@ -482,7 +482,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           hideFromPalette: true,
           execute() {
             const previous = visibleTaskEntries[currentIdx - 1];
-            if (previous) appState.navigation.navigate('task', previous);
+            if (previous) appState.navigation.navigate(taskViewDef(previous));
           },
         },
       ];

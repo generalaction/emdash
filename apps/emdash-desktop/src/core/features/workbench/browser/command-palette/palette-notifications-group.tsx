@@ -8,6 +8,7 @@ import {
 } from '@core/features/projects/browser/stores/project-selectors';
 import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { isRegistered, type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -87,7 +88,7 @@ export function PaletteNotificationsGroup({
                   { preview: false }
                 );
                 if (item.projectId !== currentProjectId || item.taskId !== currentTaskId) {
-                  navigate('task', { projectId: item.projectId, taskId: item.taskId });
+                  navigate(taskViewDef({ projectId: item.projectId, taskId: item.taskId }));
                 }
                 onClose();
               }}
@@ -100,10 +101,12 @@ export function PaletteNotificationsGroup({
             taskStore={item.taskStore}
             value={`notif:task:${item.taskStore.data.id}`}
             onSelect={() => {
-              navigate('task', {
-                projectId: item.projectId,
-                taskId: item.taskStore.data.id,
-              });
+              navigate(
+                taskViewDef({
+                  projectId: item.projectId,
+                  taskId: item.taskStore.data.id,
+                })
+              );
               onClose();
             }}
           />

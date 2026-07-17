@@ -1,6 +1,8 @@
 import type * as Wire from '@emdash/wire';
 import { runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { taskSubject } from '@core/features/tasks/contributions/subject';
 import type { Task } from '@core/primitives/tasks/api';
 import { TaskManagerStore } from './task-manager';
 import { createUnprovisionedTask } from './task-store';
@@ -27,13 +29,16 @@ const mocks = vi.hoisted(() => ({
   createLiveJobReplica: vi.fn(),
   createLiveModelReplica: vi.fn(),
   deleteBySubject: vi.fn(),
+  deleteTasks: vi.fn(),
   draftComments: [] as MockDraftComments[],
   getConversationsForProject: vi.fn(),
   getProjectManagerStore: vi.fn(),
   getPullRequestsForTask: vi.fn(),
   getTaskGitCheckoutStore: vi.fn(),
   getTasks: vi.fn(),
+  invalidateSubject: vi.fn(),
   mountProject: vi.fn(),
+  navigate: vi.fn(),
   provisionWorkspace: vi.fn(),
   teardownTask: vi.fn(),
   terminalAcquire: vi.fn(),
@@ -76,6 +81,7 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
     },
     tasks: {
       archiveTask: mocks.archiveTask,
+      deleteTasks: mocks.deleteTasks,
       getTasks: mocks.getTasks,
       teardownTask: mocks.teardownTask,
       events: {
@@ -97,6 +103,20 @@ vi.mock('@renderer/lib/mementos', () => ({
   getMementoClient: () => ({
     deleteBySubject: mocks.deleteBySubject,
   }),
+}));
+
+vi.mock('@renderer/lib/stores/app-state', () => ({
+  appState: {
+    navigation: {
+      currentRef: {
+        viewId: 'task',
+        params: { projectId: 'project-1', taskId: 'task-1' },
+        key: 'task:task-1',
+      },
+      invalidateSubject: mocks.invalidateSubject,
+      navigate: mocks.navigate,
+    },
+  },
 }));
 
 vi.mock('@core/features/projects/browser/stores/project-selectors', () => ({
@@ -195,6 +215,7 @@ describe('TaskManagerStore archive lifecycle', () => {
     mocks.draftComments.length = 0;
     mocks.viewModels.length = 0;
     mocks.archiveTask.mockResolvedValue(undefined);
+    mocks.deleteTasks.mockResolvedValue(undefined);
     mocks.getConversationsForProject.mockResolvedValue([]);
     mocks.getProjectManagerStore.mockReturnValue({ mountProject: mocks.mountProject });
     mocks.getPullRequestsForTask.mockResolvedValue({ success: true, data: { prs: [] } });
@@ -262,6 +283,11 @@ describe('TaskManagerStore archive lifecycle', () => {
     expect(store.viewModel).toBeNull();
     expect(store.draftComments).toBeNull();
     expect((store.data as Task).archivedAt).toBeDefined();
+    expect(mocks.navigate).toHaveBeenCalledWith(projectViewDef({ projectId: 'project-1' }));
+    expect(mocks.invalidateSubject).toHaveBeenCalledWith(taskSubject({ taskId: 'task-1' }));
+    expect(mocks.navigate.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.invalidateSubject.mock.invocationCallOrder[0]!
+    );
 
     manager.dispose();
   });
@@ -289,6 +315,7 @@ describe('TaskManagerStore archive lifecycle', () => {
       manager.tasks.set('task-1', createUnprovisionedTask(makeTask()));
     });
 
+    await vi.waitFor(() => expect(taskDeletedHandler).toBeTypeOf('function'));
     taskDeletedHandler?.({ type: 'deleted', taskId: 'task-1', projectId: 'project-1' });
     await vi.waitFor(() => {
       expect(mocks.deleteBySubject).toHaveBeenCalledWith({
@@ -298,6 +325,24 @@ describe('TaskManagerStore archive lifecycle', () => {
     });
 
     expect(manager.tasks.has('task-1')).toBe(false);
+    expect(mocks.invalidateSubject).toHaveBeenCalledWith(taskSubject({ taskId: 'task-1' }));
+    manager.dispose();
+  });
+
+  it('invalidates task navigation after a requested deletion succeeds', async () => {
+    const manager = makeTaskManager();
+    runInAction(() => {
+      manager.tasks.set('task-1', createUnprovisionedTask(makeTask()));
+    });
+
+    await manager.deleteTask('task-1');
+
+    expect(mocks.deleteTasks).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      taskIds: ['task-1'],
+      options: undefined,
+    });
+    expect(mocks.invalidateSubject).toHaveBeenCalledWith(taskSubject({ taskId: 'task-1' }));
     manager.dispose();
   });
 });

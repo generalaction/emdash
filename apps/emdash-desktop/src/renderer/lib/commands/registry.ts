@@ -1,5 +1,5 @@
 import { comparer, makeAutoObservable, reaction } from 'mobx';
-import { views } from '@renderer/app/view-registry';
+import { getViewRuntime } from '@core/primitives/views/react';
 import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { appState } from '@renderer/lib/stores/app-state';
 import { SCOPE_LEVELS, type AppCommand, type CommandProvider, type ScopeId } from './types';
@@ -74,15 +74,15 @@ export const commandRegistry = new CommandRegistry();
 export function setupViewCommandProvider(): void {
   reaction(
     () => {
-      const viewId = appState.navigation.currentViewId;
-      return { viewId, params: appState.navigation.viewParamsStore[viewId] ?? {} };
+      const ref = appState.navigation.currentRef;
+      return { viewId: ref.viewId, params: ref.params };
     },
     ({ viewId, params }) => {
       commandRegistry.unregister('task');
-      const def = (
-        views as unknown as Record<string, { commandProvider?: (p: unknown) => CommandProvider }>
-      )[viewId];
-      if (def?.commandProvider) commandRegistry.register(def.commandProvider(params));
+      const commandProvider = getViewRuntime(viewId)?.runtime.commandProvider as
+        | ((input: typeof params) => CommandProvider)
+        | undefined;
+      if (commandProvider) commandRegistry.register(commandProvider(params));
     },
     { fireImmediately: true, equals: comparer.structural }
   );

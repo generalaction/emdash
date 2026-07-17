@@ -2,6 +2,7 @@ import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-re
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
 import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -52,7 +53,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       onActivate: () =>
         hasAnyIntegration
           ? showTaskModal({ projectId, strategy: 'from-issue' })
-          : navigate('settings', { tab: 'integrations' }),
+          : navigate(settingsViewDef({ tab: 'integrations' })),
     },
     {
       label: 'Create from Pull Request',

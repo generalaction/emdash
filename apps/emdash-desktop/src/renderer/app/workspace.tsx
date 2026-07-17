@@ -6,7 +6,7 @@ import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-b
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
   useWorkspaceSlots,
-  useWorkspaceWrapParams,
+  useWorkspaceViewParams,
 } from '@renderer/lib/layout/navigation-provider';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
 import { Toaster } from '@renderer/lib/ui/toaster';
@@ -14,7 +14,7 @@ import { Toaster } from '@renderer/lib/ui/toaster';
 export function Workspace() {
   useTheme();
   const { WrapView } = useWorkspaceSlots();
-  const { wrapParams } = useWorkspaceWrapParams();
+  const { params } = useWorkspaceViewParams();
 
   return (
     <>
@@ -25,7 +25,7 @@ export function Workspace() {
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={
-          <WrapView {...wrapParams}>
+          <WrapView {...params}>
             <WorkspaceViewContent />
           </WrapView>
         }

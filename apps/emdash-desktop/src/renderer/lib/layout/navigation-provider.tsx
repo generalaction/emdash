@@ -1,102 +1,104 @@
 import { useObserver } from 'mobx-react-lite';
 import { Fragment, useCallback, type ComponentType, type ReactNode } from 'react';
-import {
-  views,
-  type ViewDefinition,
-  type ViewId,
-  type WrapParams,
-} from '@renderer/app/view-registry';
+import type { viewCatalog, ViewId } from '@core/manifests/view-catalog';
+import type { ViewParams, ViewRef } from '@core/primitives/views/api';
+import { getViewRuntime } from '@core/primitives/views/react';
 import { appState } from '@renderer/lib/stores/app-state';
 
-export type NonSettingsViewId = Exclude<ViewId, 'settings'>;
-
-/**
- * NavArgs makes the params argument optional when all fields are optional,
- * and omits it entirely for views with no params (home, skills).
- */
-export type NavArgs<TId extends ViewId> = keyof WrapParams<TId> extends never
-  ? [viewId: TId]
-  : Partial<WrapParams<TId>> extends WrapParams<TId>
-    ? [viewId: TId, params?: WrapParams<TId>]
-    : [viewId: TId, params: WrapParams<TId>];
-
-/** Higher-rank navigate function — generic at the call site, not at the hook call site. */
-export type NavigateFnTyped = <TId extends ViewId>(...args: NavArgs<TId>) => void;
-
-export type UpdateViewParamsFn = <TId extends ViewId>(
-  viewId: TId,
-  update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)
-) => void;
+export type NavigateFnTyped = (ref: ViewRef) => void;
 
 export type SlotsContextValue = {
   WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
   currentView: ViewId;
-  lastNonSettingsView: NonSettingsViewId;
 };
 
-export type WrapParamsContextValue = {
-  wrapParams: Record<string, unknown>;
+export type WorkspaceViewParamsValue = {
+  params: Record<string, unknown>;
 };
 
-export type ViewParamsStoreContextValue = {
-  viewParamsStore: Partial<{ [K in ViewId]: WrapParams<K> }>;
-};
+type ViewDefinition = (typeof viewCatalog.defs)[number];
+
+const EmptyTitlebar = () => null;
 
 export function useNavigate(): { navigate: NavigateFnTyped } {
-  const navigate = useCallback((...args: unknown[]) => {
-    const [viewId, params] = args as [ViewId, WrapParams<ViewId> | undefined];
-    appState.navigation.navigate(viewId, params);
-  }, []) as NavigateFnTyped;
+  const navigate = useCallback((ref: ViewRef) => {
+    appState.navigation.navigate(ref);
+  }, []);
   return { navigate };
 }
 
 export function useWorkspaceSlots(): SlotsContextValue {
   return useObserver(() => {
     const viewId = appState.navigation.currentViewId;
-    const registry = views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>;
-    const viewDef = registry[viewId];
-    const def = viewDef ?? registry.home;
-    const resolvedViewId = viewDef ? viewId : 'home';
+    const contribution = getViewRuntime(viewId) ?? getViewRuntime('home');
+    if (!contribution) throw new Error('Home view runtime is not registered');
+    const slots = contribution.runtime.slots as unknown as {
+      wrap?: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
+      titlebar?: ComponentType;
+      main: ComponentType;
+    };
     return {
-      WrapView: (def.WrapView ?? Fragment) as ComponentType<
-        { children: ReactNode } & Record<string, unknown>
-      >,
-      TitlebarSlot: def.TitlebarSlot ?? (() => null),
-      MainPanel: def.MainPanel,
-      currentView: resolvedViewId,
-      lastNonSettingsView: appState.navigation.lastNonSettingsView,
+      WrapView: slots.wrap ?? Fragment,
+      TitlebarSlot: slots.titlebar ?? EmptyTitlebar,
+      MainPanel: slots.main,
+      currentView: contribution.def.id as ViewId,
     };
   });
 }
 
-export function useWorkspaceWrapParams(): WrapParamsContextValue {
+export function useWorkspaceViewParams(): WorkspaceViewParamsValue {
   return useObserver(() => ({
-    wrapParams: (appState.navigation.viewParamsStore[appState.navigation.currentViewId] ??
-      {}) as Record<string, unknown>,
+    params: appState.navigation.currentRef.params,
   }));
 }
 
-export function useParams<TId extends ViewId>(
-  viewId: TId
+export function useViewParams<TDef extends ViewDefinition>(
+  definition: TDef
+): ViewParams<TDef> | undefined {
+  return useObserver(() => {
+    const current = appState.navigation.currentRef;
+    const ref =
+      current.viewId === definition.id ? current : appState.navigation.lastRefFor(definition);
+    return ref?.params as ViewParams<TDef> | undefined;
+  });
+}
+
+/**
+ * Returns current params while the view is active and its last recorded params
+ * during an unmount transition. `setParams` is a no-op when the view is not current.
+ */
+export function useCurrentViewParams<TDef extends ViewDefinition>(
+  definition: TDef
 ): {
-  params: WrapParams<TId>;
+  params: ViewParams<TDef>;
   setParams: (
-    update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)
+    update: Partial<ViewParams<TDef>> | ((previous: ViewParams<TDef>) => ViewParams<TDef>)
   ) => void;
 } {
   const setParams = useCallback(
-    (update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)) => {
-      appState.navigation.updateViewParams(viewId, update);
+    (update: Partial<ViewParams<TDef>> | ((previous: ViewParams<TDef>) => ViewParams<TDef>)) => {
+      const current = appState.navigation.currentRef;
+      if (current.viewId !== definition.id) return;
+      const previous = current.params as ViewParams<TDef>;
+      const next = typeof update === 'function' ? update(previous) : { ...previous, ...update };
+      const ref = definition.safeRef(next);
+      if (ref) appState.navigation.navigate(ref);
     },
-    // viewId is a stable string literal
-    [viewId]
+    [definition]
   );
-  return useObserver(() => ({
-    params: (appState.navigation.viewParamsStore[viewId] ?? {}) as WrapParams<TId>,
-    setParams,
-  }));
+
+  return useObserver(() => {
+    const current = appState.navigation.currentRef;
+    const ref =
+      current.viewId === definition.id ? current : appState.navigation.lastRefFor(definition);
+    if (!ref) throw new Error(`No params have been recorded for view '${definition.id}'`);
+    return {
+      params: ref.params as ViewParams<TDef>,
+      setParams,
+    };
+  });
 }
 
 export function isCurrentView(currentView: string | null | undefined, target: string): boolean {

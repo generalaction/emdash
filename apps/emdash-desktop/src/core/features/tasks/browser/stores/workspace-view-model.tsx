@@ -5,6 +5,7 @@ import { DiffViewStore } from '@core/features/tasks/browser/diff-view/stores/dif
 import { EditorViewStore } from '@core/features/tasks/browser/editor/stores/editor-view-store';
 import type { FileTabResource } from '@core/features/tasks/browser/editor/stores/file-tab-resource';
 import { PreviewServerStore } from '@core/features/tasks/browser/stores/preview-server-store';
+import { TaskNavigationParticipant } from '@core/features/tasks/browser/stores/task-navigation-participant';
 import { TerminalTabViewStore } from '@core/features/tasks/browser/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@core/features/tasks/browser/types';
 import {
@@ -21,6 +22,7 @@ import {
   type TerminalDrawerActiveItem,
 } from '@core/features/tasks/contributions/mementos';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
 import { taskTabView } from '@core/features/workbench/browser/task-tab-registry';
 import {
@@ -113,6 +115,7 @@ export class WorkspaceViewModel {
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
     const projectId = taskData.projectId;
+    const taskRef = taskViewDef({ projectId, taskId: this.taskId });
 
     const taskCtx: TaskTabContext = {
       viewId: this.taskId,
@@ -129,14 +132,13 @@ export class WorkspaceViewModel {
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       onActiveTabChange: (tabId) => {
         if (!tabId) return;
-        appState.history.push({
-          kind: 'tab',
-          projectId: taskData.projectId,
-          taskId: this.taskId,
-          tabId,
-        });
+        appState.navigation.reportLocation(taskRef, { tabId });
       },
     });
+    // Closed-tab locations are pruned lazily when restoration rejects them during traversal.
+    this._disposers.push(
+      appState.navigation.attachParticipant(taskRef, new TaskNavigationParticipant(this.paneLayout))
+    );
     this._seeder = new DefaultConversationSeeder(this.taskId, this.paneLayout);
     this.terminalTabs = new TerminalTabViewStore(
       this._terminalSelectionHandle,
@@ -173,9 +175,8 @@ export class WorkspaceViewModel {
     this._disposers.push(
       reaction(
         () =>
-          appState.navigation.currentViewId === 'task' &&
-          (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
-            ?.taskId === this.taskId,
+          appState.navigation.currentRef.viewId === 'task' &&
+          (appState.navigation.currentRef.params as { taskId?: string }).taskId === this.taskId,
         (isActive) => this.paneLayout.setViewActive(isActive),
         { fireImmediately: true }
       )
@@ -379,7 +380,6 @@ export class WorkspaceViewModel {
    */
   dispose(): void {
     this.suspend();
-    appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     for (const d of this._disposers) d();
     this._seeder.dispose();
     this.paneLayout.dispose();

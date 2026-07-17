@@ -3,7 +3,7 @@
 @import '@xterm/xterm/css/xterm.css';
 @import 'allotment/dist/style.css';
 
-@source "../core";
+@source '../core';
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant dark-black (&:is(.dark-black *));

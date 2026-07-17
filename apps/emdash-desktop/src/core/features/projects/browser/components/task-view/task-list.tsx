@@ -7,6 +7,7 @@ import {
   asMounted,
   getProjectStore,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
@@ -14,7 +15,7 @@ import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { Button } from '@renderer/lib/ui/button';
@@ -135,7 +136,7 @@ function SelectionBar({
 export const TaskList = observer(function TaskList() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
   const showDeleteTask = useShowModal('deleteTaskModal');

@@ -9,8 +9,8 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { desktopHostEvents } from '@core/features/workbench/node';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
   getResolvedLabel,
@@ -19,6 +19,7 @@ import {
   type PlatformConfig,
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import {
@@ -29,7 +30,6 @@ import {
 import { getMainWindow } from '@main/host/window';
 import { buildExternalToolEnv } from '@main/lib/childProcessEnv';
 import { log } from '@main/lib/logger';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   checkCommand,
   checkMacApp,

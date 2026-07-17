@@ -1,6 +1,10 @@
 import { Clock, FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { automationsViewDef } from '@core/features/automations/contributions/views';
+import { libraryViewDef } from '@core/features/library/contributions/views';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { viewCatalog } from '@core/manifests/view-catalog';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   isCurrentView,
@@ -71,7 +75,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             <SidebarSearchTrigger />
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'automations')}
-              onClick={() => navigate('automations')}
+              onClick={() => navigate(automationsViewDef())}
               aria-label="Automations"
               className="w-full justify-between"
             >
@@ -81,12 +85,8 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               </span>
             </SidebarMenuButton>
             <SidebarMenuButton
-              isActive={
-                isCurrentView(currentView, 'library') ||
-                isCurrentView(currentView, 'skills') ||
-                isCurrentView(currentView, 'mcp')
-              }
-              onClick={() => navigate('library')}
+              isActive={viewCatalog.byId(currentView)?.traits.has('library') ?? false}
+              onClick={() => navigate(libraryViewDef())}
               aria-label="Library"
               className="w-full justify-between"
             >
@@ -98,7 +98,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}
-              onClick={() => navigate('settings')}
+              onClick={() => navigate(settingsViewDef())}
               aria-label="Settings"
               className="w-full justify-between"
             >

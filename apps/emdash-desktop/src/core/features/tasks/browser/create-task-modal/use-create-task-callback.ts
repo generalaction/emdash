@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
 import type { InitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
 import { buildInitialConversation, deriveInitialStatus } from './build-create-task-params';
@@ -44,7 +45,7 @@ export function useCreateTaskCallback({
       })
       .catch((e) => log.error('create task failed', e));
 
-    navigate('task', { projectId: selectedProjectId, taskId: id });
+    navigate(taskViewDef({ projectId: selectedProjectId, taskId: id }));
     onClose();
   }, [selectedProjectId, state, initialConversation, navigate, onClose]);
 

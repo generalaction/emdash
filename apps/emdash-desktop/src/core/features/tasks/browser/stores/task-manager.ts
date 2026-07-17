@@ -12,6 +12,7 @@ import {
   getProjectSshConnectionId,
 } from '@core/features/projects/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/browser/stores/project-settings-store';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskGitCheckoutStore } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import {
@@ -30,6 +31,7 @@ import { getMementoClient } from '@renderer/lib/mementos';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
+import { appState } from '@renderer/lib/stores/app-state';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import {
@@ -287,6 +289,7 @@ export class TaskManagerStore {
     runInAction(() => {
       this.tasks.delete(taskId);
     });
+    appState.navigation.invalidateSubject(taskSubject({ taskId }));
     this._releaseTaskRegistries(taskId);
     this._bootstrapDisposers.get(taskId)?.();
     this._bootstrapDisposers.delete(taskId);
@@ -742,6 +745,11 @@ export class TaskManagerStore {
         task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
       }
     });
+    const current = appState.navigation.currentRef;
+    if (current.viewId === 'task' && (current.params as { taskId?: string }).taskId === taskId) {
+      appState.navigation.navigate(projectViewDef({ projectId: this.projectId }));
+    }
+    appState.navigation.invalidateSubject(taskSubject({ taskId }));
   }
 
   async restoreTask(taskId: string): Promise<void> {
@@ -809,6 +817,9 @@ export class TaskManagerStore {
         taskIds,
         options: opts,
       });
+      for (const id of removed.keys()) {
+        appState.navigation.invalidateSubject(taskSubject({ taskId: id }));
+      }
     } catch (e) {
       runInAction(() => {
         removed.forEach((t, id) => {

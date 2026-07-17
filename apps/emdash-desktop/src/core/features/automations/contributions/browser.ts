@@ -1,7 +1,5 @@
-import { automationsView } from '../browser/automations-view';
+import { automationsViewRuntime } from '../browser/automations-view';
 
 export const automationsBrowserContributions = {
-  views: {
-    automations: automationsView,
-  },
+  views: [automationsViewRuntime],
 } as const;

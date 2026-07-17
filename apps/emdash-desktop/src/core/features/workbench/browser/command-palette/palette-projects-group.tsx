@@ -5,6 +5,7 @@ import {
   asMounted,
   getProjectManagerStore,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
@@ -51,7 +52,7 @@ export function PaletteProjectsGroup({
           key={p.id}
           value={`project:${p.id}`}
           onSelect={() => {
-            navigate('project', { projectId: p.id });
+            navigate(projectViewDef({ projectId: p.id }));
             onClose();
           }}
           className={PALETTE_ITEM_CLASS}

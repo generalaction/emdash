@@ -1,7 +1,8 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConfirmDeleteProject } from '@core/features/projects/browser/hooks/use-confirm-delete-project';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { isUnregisteredProject } from '../../stores/project';
 import {
@@ -17,7 +18,7 @@ import { PendingProjectStatus } from './pending-project';
 export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const {
     params: { projectId },
-  } = useParams('project');
+  } = useCurrentViewParams(projectViewDef);
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
   const displayName = projectDisplayName(store) ?? 'this project';

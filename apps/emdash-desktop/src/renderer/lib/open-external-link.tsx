@@ -57,10 +57,12 @@ function showCopyFailure(): void {
 }
 
 function getActiveTaskView() {
-  if (appState.navigation.currentViewId !== 'task') return undefined;
-  const params = appState.navigation.viewParamsStore.task;
-  const projectId = typeof params?.projectId === 'string' ? params.projectId : undefined;
-  const taskId = typeof params?.taskId === 'string' ? params.taskId : undefined;
+  const ref = appState.navigation.currentRef;
+  if (ref.viewId !== 'task') return undefined;
+  const { projectId, taskId } = ref.params as {
+    projectId?: string;
+    taskId?: string;
+  };
   if (!projectId || !taskId) return undefined;
   return getTaskView(projectId, taskId);
 }

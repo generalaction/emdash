@@ -1,22 +1,21 @@
 import { ProjectViewWrapper } from '@core/features/projects/browser/components/project-view-wrapper';
-import type { GuardResult } from '@renderer/app/view-registry';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { defineViewRuntime } from '@core/primitives/views/react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ProjectMainPanel } from './components/main-panel/main-panel';
 import { ProjectTitlebar } from './components/project-titlebar';
 
-export const projectView = {
-  WrapView: ProjectViewWrapper,
-  TitlebarSlot: ProjectTitlebar,
-  MainPanel: ProjectMainPanel,
-  canActivate: (params: unknown): GuardResult => {
-    const projectId =
-      typeof params === 'object' && params !== null
-        ? (params as { projectId?: unknown }).projectId
-        : undefined;
-    if (typeof projectId !== 'string') return { ok: false, redirect: 'home' };
+export const projectViewRuntime = defineViewRuntime(projectViewDef, {
+  slots: {
+    wrap: ProjectViewWrapper,
+    titlebar: ProjectTitlebar,
+    main: ProjectMainPanel,
+  },
+  resolve: ({ projectId }) => {
     return appState.projects.projects.has(projectId) ||
       appState.projects.pendingCreationIds.has(projectId)
-      ? { ok: true }
-      : { ok: false, redirect: 'home' };
+      ? { kind: 'ok' }
+      : { kind: 'redirect', ref: homeViewDef() };
   },
-};
+});
