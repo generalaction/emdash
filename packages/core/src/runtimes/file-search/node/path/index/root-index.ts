@@ -170,6 +170,14 @@ export class RootIndex {
 
   private enqueueEvents(events: WatchEvent[]): void {
     if (this.scope.state !== 'open' || events.length === 0) return;
+    if (events.every((event) => event.kind === 'update')) {
+      if (this.currentStatus.kind === 'ready') return;
+      if (this.currentStatus.kind === 'failed') {
+        this.requestReconcile();
+        return;
+      }
+    }
+
     const previous = this.eventQueue;
     const run = this.scope.run('watch-patch', async (signal) => {
       await waitWithSignal(previous, signal, 'Root index cancelled');

@@ -65,6 +65,75 @@ describe('RootIndex', () => {
     );
   });
 
+  it('does not scan or write update-only batches once the index is healthy', async () => {
+    const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'changed.ts'), 'before');
+    const delegate = createStore();
+    const root = delegate.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const store = new RecordingPatchStore(delegate);
+    const watcher = new FakeWatchService();
+    const scanner = new RecordingScanner();
+    const scope = createScope({ label: 'root-index-update-only-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+    await index.reconcile();
+
+    await writeFile(path.join(rootPath, 'changed.ts'), 'after');
+    await writeFile(path.join(rootPath, 'created.ts'), 'new');
+    watcher.emit([{ kind: 'update', path: path.join(rootPath, 'changed.ts') }]);
+    watcher.emit([{ kind: 'create', path: path.join(rootPath, 'created.ts') }]);
+    await eventually(() =>
+      expect(hits(delegate)).toEqual([
+        { path: 'changed.ts', kind: 'file' },
+        { path: 'created.ts', kind: 'file' },
+      ])
+    );
+
+    expect(scanner.scans).toEqual(['', 'created.ts']);
+    expect(store.appliedPatches).toEqual([
+      [{ kind: 'upsert', entry: { path: 'created.ts', kind: 'file' } }],
+    ]);
+  });
+
+  it('uses an update-only batch to recover a failed index without patching it first', async () => {
+    const rootPath = await createRoot();
+    await writeFile(path.join(rootPath, 'changed.ts'), 'contents');
+    const delegate = createStore();
+    const root = delegate.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const store = new RecordingPatchStore(delegate);
+    const watcher = new FakeWatchService();
+    const failure = Object.assign(new Error('scan unavailable'), { code: 'EIO' });
+    const scanner = new ControllableFullScanner(failure);
+    const scope = createScope({ label: 'root-index-update-recovery-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner,
+      exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+    await index.reconcile();
+
+    scanner.failNextFullScan();
+    await expect(index.reconcile()).rejects.toBe(failure);
+    watcher.emit([{ kind: 'update', path: path.join(rootPath, 'changed.ts') }]);
+    await eventually(() => expect(index.status).toEqual({ kind: 'ready' }));
+
+    expect(scanner.scans).toEqual(['', '', '']);
+    expect(store.appliedPatches).toEqual([]);
+  });
+
   it('fully reconciles after the watcher reports a possible event gap', async () => {
     const rootPath = await createRoot();
     const store = createStore();
@@ -372,6 +441,64 @@ class RecoveryPausingScanner implements PathScanner {
       }
     }
     yield* this.delegate.scan(rootPath, relativeRoot, options);
+  }
+}
+
+class RecordingScanner implements PathScanner {
+  readonly scans: PortableRelativePath[] = [];
+  private readonly delegate = new NodePathScanner();
+
+  async *scan(
+    rootPath: string,
+    relativeRoot: PortableRelativePath,
+    options: PathScanOptions
+  ): AsyncIterable<PathIndexEntry> {
+    this.scans.push(relativeRoot);
+    yield* this.delegate.scan(rootPath, relativeRoot, options);
+  }
+}
+
+class ControllableFullScanner extends RecordingScanner {
+  private failNext = false;
+
+  constructor(private readonly failure: unknown) {
+    super();
+  }
+
+  failNextFullScan(): void {
+    this.failNext = true;
+  }
+
+  override async *scan(
+    rootPath: string,
+    relativeRoot: PortableRelativePath,
+    options: PathScanOptions
+  ): AsyncIterable<PathIndexEntry> {
+    if (relativeRoot === '' && this.failNext) {
+      this.failNext = false;
+      this.scans.push(relativeRoot);
+      throw this.failure;
+    }
+    yield* super.scan(rootPath, relativeRoot, options);
+  }
+}
+
+class RecordingPatchStore implements PathIndexStore {
+  readonly appliedPatches: PathIndexPatch[][] = [];
+
+  constructor(private readonly delegate: PathIndexStore) {}
+
+  beginBuild(rootId: number): PathIndexBuild {
+    return this.delegate.beginBuild(rootId);
+  }
+
+  applyPublishedPatches(rootId: number, patches: readonly PathIndexPatch[]): void {
+    this.appliedPatches.push([...patches]);
+    this.delegate.applyPublishedPatches(rootId, patches);
+  }
+
+  searchPaths(...args: Parameters<PathIndexStore['searchPaths']>) {
+    return this.delegate.searchPaths(...args);
   }
 }
 
