@@ -27,15 +27,15 @@ function ModalPlaceholder({ issueProvider }: IssueSelectorTriggerContext) {
 
   return (
     <span className="flex h-14 w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
-      <span className="inline-flex items-center gap-1 whitespace-nowrap">
-        <span>Select a</span>
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1 whitespace-nowrap">
+        <span className="shrink-0">Select a</span>
         {issueProvider && (
           <>
-            <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />
-            <span>{issueProviderName}</span>
+            <ProviderLogo provider={issueProvider} className="size-3.5 shrink-0 opacity-40" />
+            <span className="truncate">{issueProviderName}</span>
           </>
         )}
-        <span>issue</span>
+        <span className="shrink-0">issue</span>
       </span>
     </span>
   );
