@@ -1,6 +1,10 @@
 import type { Result } from '@emdash/shared';
 import type { HostFileRef } from '@primitives/path/api';
-import type { AutomationAgentConfig, AutomationWorkspaceConfig } from '../api/deployment';
+import type {
+  WorkspaceProvisioningInput,
+  WorkspaceProvisioningResult,
+} from '@services/workspace-provisioning/api';
+import type { AutomationAgentConfig } from '../api/deployment';
 
 export type AutomationPortError = {
   code: string;
@@ -9,11 +13,9 @@ export type AutomationPortError = {
 };
 
 export interface AutomationWorkspacePort {
-  provision(input: {
-    workspace: AutomationWorkspaceConfig;
-    generatedName: string;
-    signal: AbortSignal;
-  }): Promise<Result<{ workspace: HostFileRef; branchName: string | null }, AutomationPortError>>;
+  provision(
+    input: WorkspaceProvisioningInput & { signal: AbortSignal }
+  ): Promise<Result<WorkspaceProvisioningResult, AutomationPortError>>;
 }
 
 export interface AutomationSessionPort {

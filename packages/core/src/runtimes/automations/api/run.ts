@@ -1,4 +1,7 @@
-import { hostFileRefSchema } from '@primitives/path/api';
+import {
+  workspaceProvisioningInputSchema,
+  workspaceProvisioningResultSchema,
+} from '@services/workspace-provisioning/api';
 import { z } from 'zod';
 import { automationIdSchema, automationRunConfigSnapshotSchema } from './deployment';
 
@@ -42,13 +45,13 @@ export const automationRunSchema = z.object({
   status: automationRunStatusSchema,
   triggerKind: automationRunTriggerKindSchema,
   configSnapshot: automationRunConfigSnapshotSchema,
-  generatedName: nonBlankStringSchema,
+  generatedName: workspaceProvisioningInputSchema.shape.generatedName,
   scheduledAt: nullableTimestampSchema,
   deadlineAt: nullableTimestampSchema,
   startedAt: nullableTimestampSchema,
   finishedAt: nullableTimestampSchema,
-  workspace: hostFileRefSchema.nullable(),
-  branchName: nonBlankStringSchema.nullable(),
+  workspace: workspaceProvisioningResultSchema.shape.workspace.nullable(),
+  branchName: workspaceProvisioningResultSchema.shape.branchName,
   conversationId: nonBlankStringSchema.nullable(),
   sessionId: nonBlankStringSchema.nullable(),
   error: automationRunErrorSchema.nullable(),
