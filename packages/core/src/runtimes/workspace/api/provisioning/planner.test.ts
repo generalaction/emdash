@@ -77,6 +77,30 @@ describe('compileBootstrapPlan', () => {
     ]);
   });
 
+  it('publishes a created branch to the explicitly captured push remote', () => {
+    const compiled = compileBootstrapPlan(
+      {
+        kind: 'create-branch',
+        branchName: 'task-branch',
+        fromBranch: { type: 'local', branch: 'main' },
+        pushRemote: 'fork',
+      },
+      { ...options, baseRemote: 'upstream' }
+    );
+
+    expect(compiled.plan.steps.map((entry) => entry.step.kind)).toEqual([
+      'create-local-branch',
+      'set-branch-base',
+      'add-worktree',
+      'copy-preserved-files',
+      'push-branch',
+    ]);
+    expect(compiled.plan.steps.at(-1)?.step).toEqual({
+      kind: 'push-branch',
+      args: { branchName: 'task-branch', remote: 'fork', setUpstream: true },
+    });
+  });
+
   it('plans a fork pull request with a task branch', () => {
     const compiled = compileBootstrapPlan(
       {

@@ -55,6 +55,15 @@ export function compileBootstrapPlan(
 
     steps.push(step('add-worktree', { branchName, path: workspacePath }));
     steps.push(step('copy-preserved-files', {}));
+    if (intent.pushRemote) {
+      steps.push(
+        step('push-branch', {
+          branchName,
+          remote: intent.pushRemote,
+          setUpstream: true,
+        })
+      );
+    }
 
     return { plan: { steps: createPlannedSteps(steps) }, workspacePath };
   }

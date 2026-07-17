@@ -32,6 +32,7 @@ export const bootstrapGitIntentSchema = z.discriminatedUnion('kind', [
     kind: z.literal('create-branch'),
     branchName: z.string().min(1),
     fromBranch: bootstrapGitBranchRefSchema,
+    pushRemote: z.string().min(1).optional(),
   }),
   z.object({
     kind: z.literal('pr-branch'),
