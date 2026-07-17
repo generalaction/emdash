@@ -106,6 +106,7 @@ const TerminalSettingsCard: React.FC = () => {
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
   const chatFontSize = interfaceSettings?.chatFontSize ?? CHAT_FONT_SIZE_DEFAULT;
   const pendingChatFontSizeRef = useRef<number | null>(null);
+  const chatFontSizeUpdateVersionRef = useRef(0);
   const chatFontSizeUpdateQueueRef = useRef(Promise.resolve());
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
   const macOptionIsMeta = terminal?.macOptionIsMeta ?? false;
@@ -190,9 +191,15 @@ const TerminalSettingsCard: React.FC = () => {
   const applyChatFontSize = useCallback(
     (next: number) => {
       const normalized = clampChatFontSize(next);
+      const updateVersion = ++chatFontSizeUpdateVersionRef.current;
       pendingChatFontSizeRef.current = normalized;
       chatFontSizeUpdateQueueRef.current = chatFontSizeUpdateQueueRef.current
         .then(() => updateInterfaceAsync({ chatFontSize: normalized }))
+        .finally(() => {
+          if (updateVersion === chatFontSizeUpdateVersionRef.current) {
+            pendingChatFontSizeRef.current = null;
+          }
+        })
         .catch(() => undefined);
     },
     [updateInterfaceAsync]
