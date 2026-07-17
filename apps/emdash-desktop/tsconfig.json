@@ -8,6 +8,7 @@
     "jsx": "react-jsx",
     "types": ["react", "react-dom", "electron-vite/node", "node"],
     "paths": {
+      "@core/*": ["./src/core/*"],
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
@@ -63,7 +64,7 @@
     "src/renderer/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "src/core/services/**/*",
+    "src/core/**/*",
     "src/types/**/*",
     "src/test/**/*",
     "tooling/**/*"

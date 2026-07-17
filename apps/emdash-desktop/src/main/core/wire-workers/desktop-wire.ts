@@ -1,3 +1,4 @@
+import { mementosWireContract } from '@core/primitives/mementos/api';
 import { acpApiContract } from '@emdash/core/runtimes/acp/api';
 import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
@@ -24,6 +25,7 @@ import {
   getAgentConfigRuntimeClient,
   getFilesRuntimeClient,
   getGitRuntimeClient,
+  getMementosRuntimeClient,
   getPullRequestsRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
@@ -98,18 +100,21 @@ function createLazyDesktopController({
 
   async function ready(): Promise<void> {
     if (controllers) return;
-    const [acp, agentConfig, files, git, pullRequests, terminals, tuiAgents] = await Promise.all([
-      getAcpRuntimeClient(),
-      getAgentConfigRuntimeClient(),
-      getFilesRuntimeClient(),
-      getGitRuntimeClient(),
-      getPullRequestsRuntimeClient(),
-      getTerminalsRuntimeClient(),
-      getTuiAgentsRuntimeClient(),
-    ]);
+    const [acp, agentConfig, files, git, mementos, pullRequests, terminals, tuiAgents] =
+      await Promise.all([
+        getAcpRuntimeClient(),
+        getAgentConfigRuntimeClient(),
+        getFilesRuntimeClient(),
+        getGitRuntimeClient(),
+        getMementosRuntimeClient(),
+        getPullRequestsRuntimeClient(),
+        getTerminalsRuntimeClient(),
+        getTuiAgentsRuntimeClient(),
+      ]);
     devServerBridge = await createDevServerBridge(terminals);
     controllers = {
       git: forwardController(gitContract, git),
+      mementos: forwardController(mementosWireContract, mementos),
       pullRequests: forwardController(pullRequestsContract, pullRequests),
       files: forwardController(filesContract, files),
       acp: forwardController(acpApiContract, acp),

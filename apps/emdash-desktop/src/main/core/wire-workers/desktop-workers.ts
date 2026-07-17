@@ -1,4 +1,7 @@
 import { join } from 'node:path';
+import { mementoSweepPolicies } from '@core/manifests/memento-catalog';
+import type { MementosWireContract } from '@core/primitives/mementos/api';
+import { mementosComponent } from '@core/services/mementos/node';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import { type AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
@@ -53,6 +56,7 @@ export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
@@ -142,6 +146,9 @@ let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
 let gitWorker: WireWorker<GitContract> | undefined;
 let gitClientPromise: Promise<GitRuntimeClient> | undefined;
 
+let mementosWorker: WireWorker<MementosWireContract> | undefined;
+let mementosClientPromise: Promise<MementosRuntimeClient> | undefined;
+
 let pullRequestsWorker: WireWorker<PullRequestsContract> | undefined;
 let pullRequestsClientPromise: Promise<PullRequestsRuntimeClient> | undefined;
 
@@ -161,6 +168,10 @@ export async function ensureFileSearchWorkerReady(): Promise<void> {
 
 export async function ensureGitWorkerReady(): Promise<void> {
   await getGitRuntimeClient();
+}
+
+export async function ensureMementosWorkerReady(): Promise<void> {
+  await getMementosRuntimeClient();
 }
 
 export async function ensureTuiAgentsWorkerReady(): Promise<void> {
@@ -190,6 +201,11 @@ export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
 export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
   gitClientPromise ??= createGitRuntimeClient();
   return gitClientPromise;
+}
+
+export function getMementosRuntimeClient(): Promise<MementosRuntimeClient> {
+  mementosClientPromise ??= createMementosRuntimeClient();
+  return mementosClientPromise;
 }
 
 export function getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {
@@ -257,6 +273,20 @@ async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
     },
   });
   return await gitWorker.ready();
+}
+
+async function createMementosRuntimeClient(): Promise<MementosRuntimeClient> {
+  mementosWorker ??= host.create(mementosComponent, {
+    name: 'mementos',
+    executable: desktopWorkerPath('mementos'),
+    env: process.env,
+    dependencies: {},
+    config: {
+      databasePath: join(app.getPath('userData'), 'mementos.db'),
+      sweepPolicies: mementoSweepPolicies,
+    },
+  });
+  return await mementosWorker.ready();
 }
 
 async function createPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {

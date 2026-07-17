@@ -66,6 +66,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src'),
+        '@core': resolve('src/core'),
         '@main': resolve('src/main'),
         '@shared': resolve('src/shared'),
         '@root': resolve('.'),
@@ -89,6 +90,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src'),
+        '@core': resolve('src/core'),
         '@renderer': resolve('src/renderer'),
         '@shared': resolve('src/shared'),
         '@root': resolve('.'),

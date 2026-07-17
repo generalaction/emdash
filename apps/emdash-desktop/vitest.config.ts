@@ -13,6 +13,7 @@ const alias = {
   '@primitives': resolve(__dirname, '../../packages/core/src/primitives'),
   '@workspace-server': resolve(__dirname, '../../packages/core/src/workspace-server'),
   '@': resolve(__dirname, 'src'),
+  '@core': resolve(__dirname, 'src/core'),
   '@root': resolve(__dirname, '.'),
   '@shared': resolve(__dirname, 'src/shared'),
   '@renderer': resolve(__dirname, 'src/renderer'),

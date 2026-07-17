@@ -26,6 +26,10 @@ export const desktopWorkers = {
     entry: 'src/main/core/wire-workers/entries/git.ts',
     file: 'git-runtime.js',
   },
+  mementos: {
+    entry: 'src/main/core/wire-workers/entries/mementos.ts',
+    file: 'mementos-runtime.js',
+  },
   'pull-requests': {
     entry: 'src/core/services/pull-requests/node/entries/pull-requests.ts',
     file: 'pull-requests-runtime.js',

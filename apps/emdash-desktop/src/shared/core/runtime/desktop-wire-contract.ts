@@ -1,3 +1,4 @@
+import { mementosWireContract } from '@core/primitives/mementos/api';
 import { acpApiContract } from '@emdash/core/runtimes/acp/api/client';
 import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
@@ -21,6 +22,7 @@ export const desktopWireContract = defineContract({
   terminals: terminalsContract,
   terminalTabs: terminalTabsWireContract,
   tuiAgents: tuiAgentsContract,
+  mementos: mementosWireContract,
   notifications: notificationsContract,
   pullRequests: pullRequestsContract,
   catalog: catalogWireContract,

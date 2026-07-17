@@ -45,6 +45,7 @@ import {
   ensureFileSearchWorkerReady,
   ensureFilesWorkerReady,
   ensureGitWorkerReady,
+  ensureMementosWorkerReady,
   ensureTuiAgentsWorkerReady,
 } from './core/wire-workers/desktop-workers';
 import { pullRequestsRegistration } from './core/wire-workers/pull-requests-registration';
@@ -188,6 +189,9 @@ void app.whenReady().then(async () => {
   });
   ensureGitWorkerReady().catch((e) => {
     log.error('Failed to start Git runtime process:', e);
+  });
+  ensureMementosWorkerReady().catch((e) => {
+    log.error('Failed to start mementos runtime process:', e);
   });
   ensureTuiAgentsWorkerReady().catch((e) => {
     log.error('Failed to start TUI agents runtime process:', e);
