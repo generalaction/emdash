@@ -42,20 +42,54 @@ export const automationScheduleSchema = z
   });
 
 /**
- * Session configuration resolved at deploy time (concrete provider, no
- * default-agent indirection). `autoApprove` is consumed by the host's
- * permission handling since headless runs have no renderer to resolve
- * permission requests. `title` overrides the conversation title shown after
- * adoption; falls back to the deployment name.
+ * Structurally mirrors the ACP runtime's promptInputSchema minus attachments
+ * (core module boundaries forbid cross-runtime imports). Attachments are
+ * deliberately unsupported: runtime-owned attachment ids and desktop-local
+ * file paths do not survive storage in a deployment.
  */
-export const automationAgentConfigSchema = z.object({
-  type: z.enum(['pty', 'acp']),
-  providerId: z.string().min(1),
-  model: z.string().nullable(),
-  prompt: z.string().min(1),
-  autoApprove: z.boolean(),
+export const automationPromptInputSchema = z.object({
+  text: z.string().min(1),
+  hiddenContext: z.string().optional(),
+});
+
+/**
+ * Session configuration resolved at deploy time (concrete provider, no
+ * default-agent indirection). Each variant's `start` is a template for the
+ * matching runtime's start input; the executor and host adapter supply
+ * run-generated and host-owned fields (`conversationId`, `cwd`, `sessionId`,
+ * terminal geometry, shell setup, hook installation). `title` overrides the
+ * conversation title shown after adoption; falls back to the deployment name.
+ */
+export const automationAcpAgentConfigSchema = z.object({
+  type: z.literal('acp'),
+  start: z.object({
+    providerId: z.string().min(1),
+    model: z.string().nullable(),
+    modeId: z.string().nullable().optional(),
+    initialQueue: z.array(automationPromptInputSchema).min(1),
+  }),
   title: z.string().min(1).optional(),
 });
+
+/**
+ * `autoApprove` is a TUI start-input field consumed by the provider's spawn
+ * command; headless runs have no renderer to answer permission prompts.
+ */
+export const automationTuiAgentConfigSchema = z.object({
+  type: z.literal('tui'),
+  start: z.object({
+    providerId: z.string().min(1),
+    model: z.string().nullable(),
+    initialPrompt: z.string().min(1),
+    autoApprove: z.boolean(),
+  }),
+  title: z.string().min(1).optional(),
+});
+
+export const automationAgentConfigSchema = z.discriminatedUnion('type', [
+  automationAcpAgentConfigSchema,
+  automationTuiAgentConfigSchema,
+]);
 
 export const automationGitRemoteSchema = z.object({
   name: z.string().min(1),
@@ -158,6 +192,9 @@ export const automationRunConfigSnapshotSchema = automationDeploymentBaseSchema.
 
 export type AutomationId = z.infer<typeof automationIdSchema>;
 export type AutomationSchedule = z.infer<typeof automationScheduleSchema>;
+export type AutomationPromptInput = z.infer<typeof automationPromptInputSchema>;
+export type AutomationAcpAgentConfig = z.infer<typeof automationAcpAgentConfigSchema>;
+export type AutomationTuiAgentConfig = z.infer<typeof automationTuiAgentConfigSchema>;
 export type AutomationAgentConfig = z.infer<typeof automationAgentConfigSchema>;
 export type AutomationGitRemote = z.infer<typeof automationGitRemoteSchema>;
 export type AutomationGitBranchRef = z.infer<typeof automationGitBranchRefSchema>;

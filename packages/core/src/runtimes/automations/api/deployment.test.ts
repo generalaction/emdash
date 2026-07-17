@@ -17,10 +17,11 @@ const deployment = {
   schedule: { expr: '0 9 * * *', tz: 'America/Los_Angeles' },
   agent: {
     type: 'acp' as const,
-    providerId: 'claude',
-    prompt: 'Review open PRs',
-    model: null,
-    autoApprove: true,
+    start: {
+      providerId: 'claude',
+      model: null,
+      initialQueue: [{ text: 'Review open PRs' }],
+    },
   },
   repository,
   git: {
