@@ -15,16 +15,6 @@ function parseRun(payload: string): AutomationRun {
   return automationRunSchema.parse(JSON.parse(payload));
 }
 
-function validateLimit(limit: number, label: string): void {
-  if (!Number.isSafeInteger(limit) || limit <= 0) {
-    throw new RangeError(`${label} must be a positive safe integer: ${limit}`);
-  }
-}
-
-function changesAsNumber(changes: number | bigint): number {
-  return typeof changes === 'bigint' ? Number(changes) : changes;
-}
-
 const IMMUTABLE_RUN_KEYS = ['id', 'automationId', 'seq'] as const;
 
 export class AutomationRunStore {
@@ -41,11 +31,6 @@ export class AutomationRunStore {
     return claimed.seq;
   }
 
-  /**
-   * Inserts a new run, claiming the next journal sequence number. Returns
-   * `null` when the partial unique index rejects the insert (at most one
-   * scheduled run per automation), instead of throwing.
-   */
   insertRun(run: Omit<AutomationRun, 'seq'>): AutomationRun | null {
     return this.handle.transaction(() => {
       const seq = this.claimSeq();
@@ -84,11 +69,6 @@ export class AutomationRunStore {
     return row ? parseRun(row.payload) : null;
   }
 
-  /**
-   * Compare-and-set transition. `from` may be a single status or an array.
-   * Returns the transitioned run, or `null` if the run is no longer in any
-   * of the expected statuses.
-   */
   transitionRun(
     id: AutomationRunId,
     from: AutomationRunStatus | AutomationRunStatus[],
@@ -229,11 +209,6 @@ export class AutomationRunStore {
       .map(({ payload }) => parseRun(payload));
   }
 
-  /**
-   * Deletes all runs for an automation. Not journaled — callers must only
-   * invoke this alongside deployment removal so consumers scoped to removed
-   * automation ids never miss the deletion.
-   */
   deleteRunsForAutomation(automationId: AutomationId): number {
     return this.handle.transaction(() => {
       const result = this.handle.db
@@ -243,4 +218,14 @@ export class AutomationRunStore {
       return changesAsNumber(result.changes);
     });
   }
+}
+
+function validateLimit(limit: number, label: string): void {
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new RangeError(`${label} must be a positive safe integer: ${limit}`);
+  }
+}
+
+function changesAsNumber(changes: number | bigint): number {
+  return typeof changes === 'bigint' ? Number(changes) : changes;
 }

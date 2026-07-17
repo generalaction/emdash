@@ -20,19 +20,29 @@ function parseDeployment(payload: string): AutomationDeployment {
 export class AutomationDeploymentStore {
   constructor(private readonly handle: StoreHandle<AutomationsDb>) {}
 
-  /**
-   * Inserts or updates a deployment. Respects `updatedAt` for last-write-wins:
-   * a stale deploy (lower `updatedAt` than what's stored) is a no-op and the
-   * existing stored state is returned.
-   */
   upsertDeployment(deployment: AutomationDeployment, now: number): StoredAutomationDeployment {
-    if (!Number.isSafeInteger(now)) {
-      throw new RangeError(`Deployment timestamp must be a safe integer: ${now}`);
+    if (!Number.isSafeInteger(now) || now < 0) {
+      throw new RangeError(`Deployment timestamp must be a non-negative safe integer: ${now}`);
     }
     const parsed = automationDeploymentSchema.parse(deployment);
     const payload = JSON.stringify(parsed);
 
-    this.handle.transaction(() => {
+    return this.handle.transaction(() => {
+      const existing = this.handle.db
+        .select({
+          payload: automationDeployments.payload,
+          deployedAt: automationDeployments.deployedAt,
+        })
+        .from(automationDeployments)
+        .where(eq(automationDeployments.automationId, parsed.automationId))
+        .get();
+      if (existing) {
+        const current = parseDeployment(existing.payload);
+        if (parsed.updatedAt < current.updatedAt) {
+          return { deployment: current, deployedAt: existing.deployedAt };
+        }
+      }
+
       this.handle.db
         .insert(automationDeployments)
         .values({
@@ -46,9 +56,8 @@ export class AutomationDeploymentStore {
           set: { enabled: parsed.enabled, payload, deployedAt: now },
         })
         .run();
+      return { deployment: parsed, deployedAt: now };
     });
-
-    return { deployment: parsed, deployedAt: now };
   }
 
   getDeployment(id: AutomationId): AutomationDeployment | null {
