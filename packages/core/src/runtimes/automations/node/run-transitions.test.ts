@@ -17,21 +17,24 @@ const configSnapshot = {
   schedule: { expr: '0 9 * * *', tz: 'America/Los_Angeles' },
   agent: {
     type: 'acp' as const,
-    providerId: 'claude',
-    prompt: 'Review open PRs',
-    model: null,
-    autoApprove: true,
+    start: {
+      providerId: 'claude',
+      model: null,
+      initialQueue: [{ text: 'Review open PRs' }],
+    },
   },
-  repository: {
-    host: LOCAL_HOST_REF,
-    path: { root: { kind: 'posix' as const }, segments: ['Users', 'jona', 'repo'] },
+  workspace: {
+    kind: 'worktree' as const,
+    repository: {
+      host: LOCAL_HOST_REF,
+      path: { root: { kind: 'posix' as const }, segments: ['Users', 'jona', 'repo'] },
+    },
+    git: {
+      kind: 'create-branch' as const,
+      fromBranch: { type: 'local' as const, branch: 'main' },
+      pushRemote: 'fork',
+    },
   },
-  git: {
-    kind: 'create-branch' as const,
-    fromBranch: { type: 'local' as const, branch: 'main' },
-    pushBranch: true,
-  },
-  workspace: { kind: 'worktree' as const },
 };
 
 function newRun(overrides: Partial<Omit<AutomationRun, 'seq'>> = {}): Omit<AutomationRun, 'seq'> {
@@ -46,7 +49,7 @@ function newRun(overrides: Partial<Omit<AutomationRun, 'seq'>> = {}): Omit<Autom
     deadlineAt: null,
     startedAt: null,
     finishedAt: null,
-    worktree: null,
+    workspace: null,
     branchName: null,
     conversationId: null,
     sessionId: null,
@@ -82,7 +85,7 @@ describe('AutomationRunTransitions', () => {
     const queued = transitions.markQueued('run-1');
     const claimed = transitions.claimQueued('run-1', 2_000);
     const starting = transitions.markStartingSession('run-1', {
-      worktree,
+      workspace: worktree,
       branchName: 'emdash-abc',
     });
     const done = transitions.markDone(
@@ -96,7 +99,7 @@ describe('AutomationRunTransitions', () => {
 
     expect(queued?.status).toBe('queued');
     expect(claimed?.startedAt).toBe(2_000);
-    expect(starting?.worktree).toEqual(worktree);
+    expect(starting?.workspace).toEqual(worktree);
     expect(starting?.branchName).toBe('emdash-abc');
     expect(done?.status).toBe('done');
     expect(done?.conversationId).toBe('conv-1');
