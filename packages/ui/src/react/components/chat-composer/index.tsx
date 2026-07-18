@@ -1,6 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
+import { ArrowUp, Check, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
@@ -569,7 +569,45 @@ export function ChatComposer({
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
+  const editingQueuedPromptIdRef = useRef<string | null>(null);
+  const stashedDraftRef = useRef('');
+  const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const restoreStashedDraft = () => {
+    editingQueuedPromptIdRef.current = null;
+    setEditingQueuedPromptId(null);
+    editorRef.current?.setText(stashedDraftRef.current);
+    editorRef.current?.focus();
+  };
+
+  const beginQueuedPromptEdit = (id: string) => {
+    const prompt = queuedPrompts.find((item) => item.id === id);
+    if (!prompt) return;
+    if (!editingQueuedPromptIdRef.current) {
+      stashedDraftRef.current = editorRef.current?.getText() ?? '';
+    }
+    editingQueuedPromptIdRef.current = id;
+    setEditingQueuedPromptId(id);
+    editorRef.current?.setText(prompt.text);
+    editorRef.current?.focus();
+  };
+
+  const saveQueuedPromptEdit = (text: string) => {
+    const id = editingQueuedPromptIdRef.current;
+    if (!id || !text.trim() || !onEditQueuedPrompt) return;
+    onEditQueuedPrompt(id, text);
+    restoreStashedDraft();
+  };
+
+  useEffect(() => {
+    if (!editingQueuedPromptId) return;
+    if (queuedPrompts.some((prompt) => prompt.id === editingQueuedPromptId)) return;
+    editingQueuedPromptIdRef.current = null;
+    setEditingQueuedPromptId(null);
+    editorRef.current?.setText(stashedDraftRef.current);
+    editorRef.current?.focus();
+  }, [editingQueuedPromptId, queuedPrompts]);
 
   // Retain the last notice so its content stays rendered while the band
   // collapses out, letting the exit transition play before unmount.
@@ -594,6 +632,10 @@ export function ChatComposer({
   }, []);
 
   const handleSubmit = (text: string) => {
+    if (editingQueuedPromptIdRef.current) {
+      saveQueuedPromptEdit(text);
+      return;
+    }
     // Allow image-only sends: a message with attachments but no text is valid.
     const hasImages = attachments.some((a) => a.kind === 'image');
     if (!text.trim() && !hasImages) return;
@@ -725,7 +767,9 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
-  const shouldHandleSubmitAttempt = !disabled && (isWorking ? !!onSubmitWhileWorking : canSubmit);
+  const shouldHandleSubmitAttempt =
+    !disabled &&
+    (editingQueuedPromptId ? !!onEditQueuedPrompt : isWorking ? !!onSubmitWhileWorking : canSubmit);
   const resolvedPlaceholder = disabled
     ? 'Session closed'
     : isWorking
@@ -737,7 +781,8 @@ export function ChatComposer({
       {canShowQueuedPrompts && (
         <QueuedPromptsBand
           prompts={queuedPrompts}
-          onEdit={onEditQueuedPrompt}
+          editingPromptId={editingQueuedPromptId}
+          onEdit={beginQueuedPromptEdit}
           onDelete={onDeleteQueuedPrompt}
           onReorder={onReorderQueuedPrompts}
           onSendNow={onSendQueuedPromptNow}
@@ -819,7 +864,9 @@ export function ChatComposer({
             }}
             placeholder={resolvedPlaceholder}
             disabled={disabled}
-            onChange={onInputChange}
+            onChange={(text) => {
+              if (!editingQueuedPromptIdRef.current) onInputChange?.(text);
+            }}
             onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
             onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
@@ -1007,7 +1054,20 @@ export function ChatComposer({
             )}
 
             {showSubmitButton ? (
-              isWorking ? (
+              editingQueuedPromptId ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon
+                  className={styles.sendButtonRound}
+                  onClick={() => saveQueuedPromptEdit(editorRef.current?.getText() ?? '')}
+                  disabled={disabled}
+                  aria-label="Save queued prompt"
+                  title="Save queued prompt"
+                >
+                  <Check />
+                </Button>
+              ) : isWorking ? (
                 <Button
                   variant="primary"
                   tone="destructive"

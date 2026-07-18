@@ -77,6 +77,7 @@ export const row = style({
   selectors: {
     '&:hover': { backgroundColor: vars.surfaceHover },
     '&:focus-within': { backgroundColor: vars.surfaceHover },
+    '&[data-editing]': { backgroundColor: vars.surfaceSelected },
     '&:focus-visible': {
       boxShadow: `0 0 0 1px ${vars.border1}`,
     },
@@ -190,36 +191,5 @@ export const actions = style({
   selectors: {
     [`${row}:hover &`]: { opacity: 1, pointerEvents: 'auto' },
     [`${row}:focus-within &`]: { opacity: 1, pointerEvents: 'auto' },
-  },
-});
-
-export const editArea = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
-  minWidth: 0,
-});
-
-export const editInput = style({
-  flex: 1,
-  minWidth: 0,
-  resize: 'vertical',
-  maxHeight: '7rem',
-  border: `1px solid ${vars.border}`,
-  borderRadius: tokenVars.radiusMd,
-  paddingLeft: '0.5rem',
-  paddingRight: '0.5rem',
-  paddingTop: '0.375rem',
-  paddingBottom: '0.375rem',
-  backgroundColor: vars.surfaceBaseEmphasis,
-  color: vars.foreground,
-  font: 'inherit',
-  lineHeight: 1.375,
-  outline: 'none',
-  selectors: {
-    '&:focus': {
-      borderColor: vars.border1,
-      boxShadow: `0 0 0 1px ${vars.border1}`,
-    },
   },
 });
