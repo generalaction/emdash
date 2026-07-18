@@ -113,6 +113,9 @@ importers:
       ssh2:
         specifier: ^1.17.0
         version: 1.17.0
+      tinykeys:
+        specifier: ^4.0.0
+        version: 4.0.0
       ts-pattern:
         specifier: ^5.9.0
         version: 5.9.0
@@ -8538,6 +8541,10 @@ packages:
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
+
+  tinykeys@4.0.0:
+    resolution: {integrity: sha512-z5bQRQHL1PSx3lGOZEAMM2oKp0EBtn5T5f7HJnaKPOzk6vEH0wUPvdHLeQ7F4tmkek8AgoTQISUFmn/5SNF2xA==}
+    engines: {node: '>=22'}
 
   tinypool@1.1.1:
     resolution: {integrity: sha512-Zba82s87IFq9A9XmjiX5uZA/ARWDrB03OHlq+Vw1fSdt0I+4/Kutwy8BP4Y/y/aORMo61FQ0vIb5j44vSo5Pkg==}
@@ -17630,6 +17637,8 @@ snapshots:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
+
+  tinykeys@4.0.0: {}
 
   tinypool@1.1.1: {}
 
