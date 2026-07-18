@@ -1,8 +1,11 @@
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import { type AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
+import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
+import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
 import { type FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
@@ -13,6 +16,8 @@ import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
+import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
+import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -33,6 +38,7 @@ import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import { appScope } from '@main/bootstrap/app-scope';
+import { automationRuntimePaths } from '@main/core/automations/runtime-paths';
 import { setConversationModeId } from '@main/core/conversations/set-mode-id';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
@@ -41,6 +47,7 @@ import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-p
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getGitExecutable } from '@main/core/utils/exec';
+import { workspaceRuntimePaths } from '@main/core/workspaces/runtime/workspace-runtime-paths';
 import { db } from '@main/db/client';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { conversations } from '@main/db/schema';
@@ -52,6 +59,7 @@ import { desktopWorkerPath } from './worker-paths';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
+export type AutomationsRuntimeClient = ContractClient<AutomationsContract>;
 export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
@@ -60,6 +68,7 @@ export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
+export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
 
 const workerScope = appScope.child('wire-workers');
 const host = createWireWorkerHost({
@@ -70,6 +79,7 @@ const host = createWireWorkerHost({
 
 const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
 const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
+const automationsComponent = createAutomationsComponent();
 const tuiAgentsComponent = createTuiAgentsComponent({ pluginRegistry, logger: log });
 const hostDependenciesComponent = createHostDependenciesComponent({
   store: desktopKeyValueStore,
@@ -137,6 +147,9 @@ export const agentConfigWorker = host.create(agentConfigComponent, {
 
 let agentConfigClientPromise: Promise<AgentConfigRuntimeClient> | undefined;
 
+let automationsWorker: WireWorker<AutomationsContract> | undefined;
+let automationsClientPromise: Promise<AutomationsRuntimeClient> | undefined;
+
 let fileSearchWorker: WireWorker<FileSearchContract> | undefined;
 let fileSearchClientPromise: Promise<FileSearchRuntimeClient> | undefined;
 
@@ -157,6 +170,9 @@ let terminalsClientPromise: Promise<TerminalsRuntimeClient> | undefined;
 
 export let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
 let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
+
+let workspaceWorker: WireWorker<WorkspaceContract> | undefined;
+let workspaceClientPromise: Promise<WorkspaceRuntimeClient> | undefined;
 
 export async function ensureFilesWorkerReady(): Promise<void> {
   await getFilesRuntimeClient();
@@ -186,6 +202,11 @@ export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
 export function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeClient> {
   agentConfigClientPromise ??= agentConfigWorker.ready();
   return agentConfigClientPromise;
+}
+
+export function getAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient> {
+  automationsClientPromise ??= createAutomationsRuntimeClient();
+  return automationsClientPromise;
 }
 
 export function getFileSearchRuntimeClient(): Promise<FileSearchRuntimeClient> {
@@ -223,8 +244,37 @@ export function getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
   return terminalsClientPromise;
 }
 
-export function disposeDesktopWireWorkers(): Promise<void> {
-  return host.dispose();
+export function getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
+  workspaceClientPromise ??= createWorkspaceRuntimeClient();
+  return workspaceClientPromise;
+}
+
+export async function disposeDesktopWireWorkers(): Promise<void> {
+  await automationsWorker?.stop();
+  await host.dispose();
+}
+
+async function createAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient> {
+  const paths = automationRuntimePaths();
+  mkdirSync(paths.stateDirectory, { recursive: true });
+  const [workspace, acpSessions, tuiSessions] = await Promise.all([
+    getWorkspaceRuntimeClient(),
+    getAcpRuntimeClient(),
+    getTuiAgentsRuntimeClient(),
+  ]);
+  automationsWorker ??= host.create(automationsComponent, {
+    name: 'automations',
+    executable: desktopWorkerPath('automations'),
+    env: process.env,
+    dependencies: {
+      workspace,
+      acpSessions,
+      tuiSessions,
+    },
+    config: { dbFile: paths.dbFile },
+    shutdownGraceMs: 3_000,
+  });
+  return await automationsWorker.ready();
 }
 
 async function createFilesRuntimeClient(): Promise<FilesRuntimeClient> {
@@ -341,6 +391,33 @@ async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
     },
   });
   return await terminalsWorker.ready();
+}
+
+async function createWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
+  const { worktreePoolPath } = workspaceRuntimePaths();
+  mkdirSync(worktreePoolPath, { recursive: true });
+  const [terminals, watcher] = await Promise.all([
+    getTerminalsRuntimeClient(),
+    fsWatchWorker.ready(),
+  ]);
+  workspaceWorker ??= host.create(workspaceComponent, {
+    name: 'workspace',
+    executable: desktopWorkerPath('workspace'),
+    env: process.env,
+    dependencies: {
+      terminals,
+      watcher,
+    },
+    config: {
+      provisioning: {
+        worktreePoolPath,
+        baseRemote: 'origin',
+      },
+    },
+    // Consumer leases and active operation ownership are currently process-local.
+    supervision: { restart: 'never' },
+  });
+  return await workspaceWorker.ready();
 }
 
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {

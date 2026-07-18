@@ -7,6 +7,11 @@ export const desktopWorkers = {
     entry: 'src/main/gateway/entries/acp.ts',
     file: 'acp-runtime.js',
   },
+  automations: {
+    id: 'automations',
+    entry: 'src/main/gateway/entries/automations.ts',
+    file: 'automations-runtime.js',
+  },
   'agent-config': {
     id: 'agent-config',
     entry: 'src/main/gateway/entries/agent-config.ts',
@@ -43,6 +48,11 @@ export const desktopWorkers = {
     id: 'tui-agents',
     entry: 'src/main/gateway/entries/tui-agents.ts',
     file: 'tui-agents-runtime.js',
+  },
+  workspace: {
+    id: 'workspace',
+    entry: 'src/main/gateway/entries/workspace.ts',
+    file: 'workspace-runtime.js',
   },
 } as const;
 

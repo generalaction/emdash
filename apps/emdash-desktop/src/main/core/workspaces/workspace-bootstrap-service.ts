@@ -22,6 +22,7 @@ import type {
   WorkspaceBootstrapStep,
   WorkspaceCloneProvisionResult,
 } from '@core/features/workspaces/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { Task, ProvisionWorkspaceError } from '@core/primitives/tasks/api';
 import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
@@ -40,14 +41,10 @@ import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/ta
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { getFilesRuntimeClient } from '@main/gateway/accessors';
+import { getFilesRuntimeClient, getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
-import {
-  getWorkspaceRuntimeClient,
-  hostFileRefFromNativePath,
-} from './runtime/workspace-runtime-host';
 import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';

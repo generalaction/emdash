@@ -13,7 +13,7 @@ vi.mock('@main/core/projects/operations/getProjects', () => ({
   getProjectById: mocks.getProjectById,
 }));
 
-vi.mock('./automations-runtime-host', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getAutomationsRuntimeClient: mocks.getRuntimeClient,
 }));
 

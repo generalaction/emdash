@@ -7,6 +7,7 @@ import type {
   TerminalCreateResult,
   TerminalHydrateResult,
 } from '@core/features/terminals/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TerminalShellId } from '@core/primitives/terminals/api';
 import type { Terminal } from '@core/primitives/terminals/api';
@@ -19,7 +20,6 @@ import {
   getLocalTerminalShellAvailability,
   resolveTerminalShellWithSystemFallback,
 } from '@main/core/terminal-shell/resolver';
-import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';

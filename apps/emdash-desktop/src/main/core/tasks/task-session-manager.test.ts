@@ -26,7 +26,7 @@ vi.mock('@main/core/workspaces/workspace-registry', () => ({
   },
 }));
 
-vi.mock('@main/core/workspaces/runtime/workspace-runtime-host', () => ({
+vi.mock('@main/gateway/accessors', () => ({
   getWorkspaceRuntimeClient: vi.fn(async () => ({ deactivate: {} })),
 }));
 

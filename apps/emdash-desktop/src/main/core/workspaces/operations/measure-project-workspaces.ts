@@ -1,13 +1,11 @@
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type {
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import {
-  getWorkspaceRuntimeClient,
-  hostFileRefFromNativePath,
-} from '@main/core/workspaces/runtime/workspace-runtime-host';
+import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,

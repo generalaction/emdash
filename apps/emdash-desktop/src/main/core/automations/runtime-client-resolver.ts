@@ -3,7 +3,7 @@ import { getProjectById } from '@main/core/projects/operations/getProjects';
 import {
   getAutomationsRuntimeClient,
   type AutomationsRuntimeClient,
-} from './automations-runtime-host';
+} from '@main/gateway/accessors';
 
 export type AutomationRuntimeTarget = {
   key: string;

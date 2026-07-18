@@ -14,9 +14,9 @@ import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
 import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
-import { getWorkspaceRuntimeClient } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
+import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type {

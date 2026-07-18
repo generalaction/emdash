@@ -6,7 +6,6 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Task } from '@core/primitives/tasks/api';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
-import type * as WorkspaceRuntimeHostModule from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
 import { computeWorkspaceKey } from './workspace-key';
@@ -38,10 +37,9 @@ vi.mock('@emdash/wire', async (importOriginal) => {
   };
 });
 
-vi.mock('@main/core/workspaces/runtime/workspace-runtime-host', async (importOriginal) => {
-  const actual = await importOriginal<typeof WorkspaceRuntimeHostModule>();
+vi.mock('@main/gateway/accessors', () => {
   return {
-    ...actual,
+    getFilesRuntimeClient: vi.fn(async () => ({})),
     getWorkspaceRuntimeClient: vi.fn(async () => ({ activate: {}, deactivate: {} })),
   };
 });

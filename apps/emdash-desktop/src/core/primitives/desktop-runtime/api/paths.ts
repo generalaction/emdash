@@ -1,10 +1,13 @@
+import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import {
   formatAbsolute,
+  hostFileRef,
   joinAbsolute,
   parseAbsolute,
   parsePortableRelativePath,
   relativeSegmentsFromAbsolute,
   type HostAbsolutePath,
+  type HostFileRef,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
 
@@ -19,6 +22,11 @@ export function hostPathFromNative(input: string): HostAbsolutePath {
 
 export function nativePathFromHost(path: HostAbsolutePath): string {
   return formatAbsolute(path, { separator: path.root.kind === 'posix' ? '/' : '\\' });
+}
+
+export function hostFileRefFromNativePath(path: string, connectionId?: string): HostFileRef {
+  const host = connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF;
+  return hostFileRef(host, hostPathFromNative(path));
 }
 
 export function portablePath(input: string): PortableRelativePath {

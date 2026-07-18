@@ -16,12 +16,12 @@ import {
   type WorkspaceProvisionResult,
   type RunWorkspaceScriptWorkflowInput,
 } from '@core/features/workspaces/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { OperationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { resolveLifecycleScript } from '@main/core/terminals/lifecycle-script-settings';
-import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { triggerTaskScriptWorkflow } from '@main/core/workspaces/script-workflows';
 import {
   runCloneRepositoryProvision,

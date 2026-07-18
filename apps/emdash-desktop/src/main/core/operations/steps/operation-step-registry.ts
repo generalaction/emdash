@@ -2,20 +2,20 @@ import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { killTmuxSession } from '@emdash/core/services/pty/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  hostPathFromNative,
+} from '@core/primitives/desktop-runtime/api';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import {
-  getWorkspaceRuntimeClient,
-  hostFileRefFromNativePath,
-} from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces, type LifecycleOperationRow } from '@main/db/schema';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
+  getWorkspaceRuntimeClient,
 } from '@main/gateway/accessors';
 import { purgeProjectLocalState, purgeTaskLocalState } from '../local-cleanup';
 import { resolveOperationContext } from '../operation-context';

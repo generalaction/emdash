@@ -3,10 +3,8 @@ import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
-import { disposeAutomationsRuntimeHost } from '@main/core/automations/automations-runtime-host';
 import { automationsService } from '@main/core/automations/automations-service';
 import { operationsService } from '@main/core/operations/operations-service';
-import { disposeWorkspaceRuntimeHost } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
 import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
@@ -55,8 +53,6 @@ export async function runQuitCleanup(): Promise<void> {
     ['agentStatusService.dispose', async () => agentStatusService.dispose()],
     ['operationsService.dispose', () => operationsService.dispose()],
     ['projectManager.release', () => projectManager.release()],
-    ['disposeAutomationsRuntimeHost', () => disposeAutomationsRuntimeHost()],
-    ['disposeWorkspaceRuntimeHost', () => disposeWorkspaceRuntimeHost()],
     ['disposeDesktopWireWorkers', () => disposeDesktopWireWorkers()],
     ['appScope.dispose', () => appScope.dispose()],
     ['telemetryService.dispose', () => telemetryService.dispose()],

@@ -7,17 +7,12 @@ import { buildAutomationDeployment } from './deployment-builder';
 
 const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
-  hostFileRefFromNativePath: vi.fn(),
   select: vi.fn(),
   rows: [] as unknown[][],
 }));
 
 vi.mock('@main/core/projects/operations/getProjects', () => ({
   getProjectById: mocks.getProjectById,
-}));
-
-vi.mock('@main/core/workspaces/runtime/workspace-runtime-host', () => ({
-  hostFileRefFromNativePath: mocks.hostFileRefFromNativePath,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -76,7 +71,6 @@ beforeEach(() => {
     path: '/repo',
     repositoryWorkspaceId: 'repository-workspace',
   });
-  mocks.hostFileRefFromNativePath.mockReturnValue(repositoryRef);
 });
 
 describe('buildAutomationDeployment', () => {

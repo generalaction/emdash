@@ -2,6 +2,7 @@ import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Automation } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
@@ -9,7 +10,6 @@ import {
   shareableProjectSettingsSchema,
 } from '@core/primitives/project-settings/api';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
-import { hostFileRefFromNativePath } from '@main/core/workspaces/runtime/workspace-runtime-host';
 import { db } from '@main/db/client';
 import { projectSettings, workspaces } from '@main/db/schema';
 
