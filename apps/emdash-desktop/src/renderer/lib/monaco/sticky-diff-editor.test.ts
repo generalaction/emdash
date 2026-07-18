@@ -12,11 +12,12 @@ vi.mock('@renderer/lib/monaco/monaco-model-registry', () => ({
   modelRegistry: {},
 }));
 
-import { revealFirstDiffChange, revealFirstDiffChangeWhenReady } from './sticky-diff-editor';
+import { revealFirstDiffChangeWhenReady } from './sticky-diff-editor';
 
-describe('revealFirstDiffChange', () => {
-  it('reveals the first changed line near the top of the modified editor', () => {
+describe('revealFirstDiffChangeWhenReady', () => {
+  it('reveals immediately when cached line changes are already available', () => {
     const revealLineNearTop = vi.fn();
+    const onDidUpdateDiff = vi.fn();
     const editor = {
       getLineChanges: () => [
         {
@@ -27,15 +28,18 @@ describe('revealFirstDiffChange', () => {
         },
       ],
       getModifiedEditor: () => ({ revealLineNearTop }),
+      onDidUpdateDiff,
     };
 
-    expect(revealFirstDiffChange(editor as never)).toBe(true);
+    expect(revealFirstDiffChangeWhenReady(editor as never)).toBeNull();
     expect(revealLineNearTop).toHaveBeenCalledOnce();
     expect(revealLineNearTop).toHaveBeenCalledWith(47);
+    expect(onDidUpdateDiff).not.toHaveBeenCalled();
   });
 
   it('reveals the first valid modified line for a deletion-only hunk', () => {
     const revealLineNearTop = vi.fn();
+    const onDidUpdateDiff = vi.fn();
     const editor = {
       getLineChanges: () => [
         {
@@ -46,34 +50,11 @@ describe('revealFirstDiffChange', () => {
         },
       ],
       getModifiedEditor: () => ({ revealLineNearTop }),
-    };
-
-    expect(revealFirstDiffChange(editor as never)).toBe(true);
-    expect(revealLineNearTop).toHaveBeenCalledWith(1);
-  });
-
-  it('waits when Monaco has not calculated line changes yet', () => {
-    const revealLineNearTop = vi.fn();
-    const editor = {
-      getLineChanges: () => null,
-      getModifiedEditor: () => ({ revealLineNearTop }),
-    };
-
-    expect(revealFirstDiffChange(editor as never)).toBe(false);
-    expect(revealLineNearTop).not.toHaveBeenCalled();
-  });
-
-  it('reveals immediately when cached line changes are already available', () => {
-    const revealLineNearTop = vi.fn();
-    const onDidUpdateDiff = vi.fn();
-    const editor = {
-      getLineChanges: () => [{ modifiedStartLineNumber: 32 }],
-      getModifiedEditor: () => ({ revealLineNearTop }),
       onDidUpdateDiff,
     };
 
     expect(revealFirstDiffChangeWhenReady(editor as never)).toBeNull();
-    expect(revealLineNearTop).toHaveBeenCalledWith(32);
+    expect(revealLineNearTop).toHaveBeenCalledWith(1);
     expect(onDidUpdateDiff).not.toHaveBeenCalled();
   });
 

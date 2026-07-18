@@ -6,21 +6,21 @@ import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 
-export function revealFirstDiffChange(editor: monaco.editor.IStandaloneDiffEditor): boolean {
-  const firstChange = editor.getLineChanges()?.[0];
-  if (!firstChange) return false;
-
-  editor.getModifiedEditor().revealLineNearTop(Math.max(1, firstChange.modifiedStartLineNumber));
-  return true;
-}
-
 export function revealFirstDiffChangeWhenReady(
   editor: monaco.editor.IStandaloneDiffEditor
 ): monaco.IDisposable | null {
-  if (revealFirstDiffChange(editor)) return null;
+  const reveal = () => {
+    const firstChange = editor.getLineChanges()?.[0];
+    if (!firstChange) return false;
+
+    editor.getModifiedEditor().revealLineNearTop(Math.max(1, firstChange.modifiedStartLineNumber));
+    return true;
+  };
+
+  if (reveal()) return null;
 
   const disposable = editor.onDidUpdateDiff(() => {
-    if (!revealFirstDiffChange(editor)) return;
+    if (!reveal()) return;
     disposable.dispose();
   });
   return disposable;
