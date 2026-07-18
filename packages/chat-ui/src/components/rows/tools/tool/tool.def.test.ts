@@ -20,10 +20,10 @@ const ctx = {
 } as SegmentCtx;
 
 describe('toolFromItem', () => {
-  it('removes a redundant Search prefix from search summaries', () => {
-    expect(toolFromItem(searchItem("Search for 'toAgentUpdate'"), ctx)).toMatchObject({
+  it('preserves raw search queries that begin with search', () => {
+    expect(toolFromItem(searchItem('search engine optimization'), ctx)).toMatchObject({
       name: 'Search',
-      inputSummary: "for 'toAgentUpdate'",
+      inputSummary: 'search engine optimization',
     });
   });
 

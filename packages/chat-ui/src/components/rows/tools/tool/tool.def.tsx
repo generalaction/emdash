@@ -25,9 +25,7 @@ export function toolFromItem(item: ToolNode, ctx: SegmentCtx): ChatToolCall {
                 : 'Tool';
   const inputSummary =
     item.kind === 'search-tool-call'
-      ? `${item.query.replace(/^search\s+/i, '')}${
-          item.matchCount !== undefined ? ` (${item.matchCount} matches)` : ''
-        }`
+      ? `${item.query}${item.matchCount !== undefined ? ` (${item.matchCount} matches)` : ''}`
       : item.kind === 'mcp-tool-call'
         ? [item.server, item.tool].filter(Boolean).join('.')
         : item.kind === 'web-fetch-tool-call'
