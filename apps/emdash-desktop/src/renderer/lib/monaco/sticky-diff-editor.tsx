@@ -6,6 +6,26 @@ import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 
+export function revealFirstDiffChange(editor: monaco.editor.IStandaloneDiffEditor): boolean {
+  const firstChange = editor.getLineChanges()?.[0];
+  if (!firstChange) return false;
+
+  editor.getModifiedEditor().revealLineNearTop(Math.max(1, firstChange.modifiedStartLineNumber));
+  return true;
+}
+
+export function revealFirstDiffChangeWhenReady(
+  editor: monaco.editor.IStandaloneDiffEditor
+): monaco.IDisposable | null {
+  if (revealFirstDiffChange(editor)) return null;
+
+  const disposable = editor.onDidUpdateDiff(() => {
+    if (!revealFirstDiffChange(editor)) return;
+    disposable.dispose();
+  });
+  return disposable;
+}
+
 export interface StickyDiffEditorProps {
   /** URI for the left (original/before) side — typically git:// */
   originalUri: string;
@@ -99,6 +119,8 @@ export function StickyDiffEditor({
   // The autorun waits for both models to be 'ready' in the registry, then calls
   // setModel in-place without remounting the editor component.
   useEffect(() => {
+    let diffUpdateDisposable: monaco.IDisposable | null = null;
+
     // Clear the previously-attached models synchronously on URI change so the
     // editor doesn't keep showing the previous file's content while the new
     // models are still loading.
@@ -136,8 +158,12 @@ export function StickyDiffEditor({
 
       editor.setModel({ original: origModel, modified: modModel });
       editor.layout();
-      // Restore scroll/cursor for the incoming URI pair.
       modelRegistry.restoreDiffViewState(originalUri, modifiedUri, editor);
+
+      // Cached models can already have line changes before onDidUpdateDiff is
+      // subscribed. Try synchronously first, then wait for async diff calculation.
+      diffUpdateDisposable?.dispose();
+      diffUpdateDisposable = revealFirstDiffChangeWhenReady(editor);
       onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
     });
 
@@ -145,6 +171,7 @@ export function StickyDiffEditor({
       // On unmount or URI change: save the current viewport so it can be restored later.
       const ed = editorBox.get();
       if (ed?.getModel()) modelRegistry.saveDiffViewState(originalUri, modifiedUri, ed);
+      diffUpdateDisposable?.dispose();
       disposer();
     };
     // editorBox is a stable ref created once; only URI changes recreate the autorun.
