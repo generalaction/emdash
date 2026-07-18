@@ -1,12 +1,14 @@
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
+import { agentSupportsAcp, type AgentPayload } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
 
 export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {
   const isInstalled = agent.status === 'available';
   const isClickable = !!onClick;
   const Tag = isClickable ? 'button' : 'div';
+  const showUiBadge = agentSupportsAcp(agent.capabilities);
 
   const updates = agent.capabilities.hostDependency.updates;
   const updateStrategyKind = updates.kind === 'supported' ? updates.update.kind : 'none';
@@ -31,6 +33,7 @@ export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: ()
           <span className="text-sm text-foreground">{agent.name}</span>
           <div className="flex items-center gap-1.5">
             <>
+              {showUiBadge && <AgentUiBadge />}
               {updateState.render && <UpdateAvailableBadge />}
               {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
             </>

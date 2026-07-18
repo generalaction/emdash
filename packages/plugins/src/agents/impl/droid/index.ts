@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, droidMcpAdapter } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildDroidHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -15,6 +16,12 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
+    autoApprove: {
+      kind: 'supported',
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
@@ -64,9 +71,20 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['exec', '--output-format', 'acp-daemon'],
+    env: {
+      DROID_DISABLE_AUTO_UPDATE: 'true',
+      FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false',
+    },
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        // Interactive `droid` only exposes `--auto <level>`; `--skip-permissions-unsafe`
+        // is exclusive to `droid exec`. `high` grants the broadest autonomy the
+        // interactive TUI supports (edits, installs, git push, deploys).
+        autoApproveFlag: '--auto high',
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',

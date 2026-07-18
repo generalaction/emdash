@@ -50,8 +50,14 @@ type McpConfigShape = {
   configPath: string;
   /** Extra paths read for migration only — never written. */
   legacyReadPaths?: string[];
+  /** Optional server key used only by legacyReadPaths. */
+  legacyServersKey?: string;
+  /** Treat legacyServersKey as a literal key instead of a dot-delimited object path. */
+  legacyServersKeyIsLiteral?: boolean;
   format: 'json' | 'toml';
   serversKey: string;
+  /** Treat serversKey as a literal key instead of a dot-delimited object path. */
+  serversKeyIsLiteral?: boolean;
   toNative(server: McpServerRegistration): Record<string, unknown>;
   fromNative(name: string, raw: Record<string, unknown>): McpServerRegistration;
 };
@@ -63,15 +69,42 @@ function parseMcpFile(content: string, format: 'json' | 'toml'): Record<string, 
 }
 
 export function createMcpAdapter(shape: McpConfigShape) {
+  const getServers = (
+    parsed: Record<string, unknown>,
+    serversKey = shape.serversKey,
+    serversKeyIsLiteral = shape.serversKeyIsLiteral
+  ): unknown => (serversKeyIsLiteral ? parsed[serversKey] : getNestedValue(parsed, serversKey));
+
+  const setServers = (
+    parsed: Record<string, unknown>,
+    servers: unknown,
+    serversKey = shape.serversKey,
+    serversKeyIsLiteral = shape.serversKeyIsLiteral
+  ): void => {
+    if (serversKeyIsLiteral) {
+      parsed[serversKey] = servers;
+      return;
+    }
+    setNestedValue(parsed, serversKey, servers);
+  };
+
+  const legacyServersKey = shape.legacyServersKey ?? shape.serversKey;
+  const legacyServersKeyIsLiteral =
+    shape.legacyServersKey === undefined
+      ? shape.serversKeyIsLiteral
+      : shape.legacyServersKeyIsLiteral;
+
   async function readFromPath(
     fs: PluginFs,
-    filePath: string
+    filePath: string,
+    serversKey = shape.serversKey,
+    serversKeyIsLiteral = shape.serversKeyIsLiteral
   ): Promise<Map<string, McpServerRegistration>> {
     const content = await fs.read(filePath);
     if (!content) return new Map();
     try {
       const parsed = parseMcpFile(content, shape.format);
-      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
+      const servers = getServers(parsed, serversKey, serversKeyIsLiteral) ?? {};
       return new Map(
         Object.entries(servers as Record<string, unknown>).map(([name, raw]) => [
           name,
@@ -83,17 +116,23 @@ export function createMcpAdapter(shape: McpConfigShape) {
     }
   }
 
-  async function removeFromPath(fs: PluginFs, filePath: string, name: string): Promise<void> {
+  async function removeFromPath(
+    fs: PluginFs,
+    filePath: string,
+    name: string,
+    serversKey = shape.serversKey,
+    serversKeyIsLiteral = shape.serversKeyIsLiteral
+  ): Promise<void> {
     const content = await fs.read(filePath);
     if (!content) return;
     try {
       const parsed = parseMcpFile(content, shape.format);
-      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
+      const servers = getServers(parsed, serversKey, serversKeyIsLiteral) ?? {};
       if (!(name in (servers as Record<string, unknown>))) return;
       const filtered = Object.fromEntries(
         Object.entries(servers as Record<string, unknown>).filter(([k]) => k !== name)
       );
-      setNestedValue(parsed, shape.serversKey, filtered);
+      setServers(parsed, filtered, serversKey, serversKeyIsLiteral);
       const output =
         shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
       await fs.write(filePath, output);
@@ -107,7 +146,12 @@ export function createMcpAdapter(shape: McpConfigShape) {
       const serverMap = new Map<string, McpServerRegistration>();
       // Legacy paths first (lower priority — canonical wins on name conflict)
       for (const legacyPath of shape.legacyReadPaths ?? []) {
-        for (const [name, reg] of await readFromPath(fs, legacyPath)) {
+        for (const [name, reg] of await readFromPath(
+          fs,
+          legacyPath,
+          legacyServersKey,
+          legacyServersKeyIsLiteral
+        )) {
           if (!serverMap.has(name)) serverMap.set(name, reg);
         }
       }
@@ -122,7 +166,7 @@ export function createMcpAdapter(shape: McpConfigShape) {
       const content = await fs.read(shape.configPath);
       const parsed: Record<string, unknown> = content ? parseMcpFile(content, shape.format) : {};
       const native = Object.fromEntries(servers.map((s) => [s.name, shape.toNative(s)]));
-      setNestedValue(parsed, shape.serversKey, native);
+      setServers(parsed, native);
       const output =
         shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
       await fs.write(shape.configPath, output);
@@ -132,7 +176,7 @@ export function createMcpAdapter(shape: McpConfigShape) {
       await removeFromPath(fs, shape.configPath, name);
       // Remove from all legacy paths so a stale copy cannot resurface on next read
       for (const legacyPath of shape.legacyReadPaths ?? []) {
-        await removeFromPath(fs, legacyPath, name);
+        await removeFromPath(fs, legacyPath, name, legacyServersKey, legacyServersKeyIsLiteral);
       }
     },
   };
@@ -372,6 +416,19 @@ export function opencodeMcpAdapter(
 }
 
 /**
+ * MiMo Code adapter — OpenCode fork sharing the same MCP config schema
+ * (type:'remote'/url for HTTP; type:'local'/command[] for stdio).
+ * Write: ~/.config/mimocode/mimocode.json; read lower-priority config.json and
+ * project-local .mimocode/mimocode.json for existing installs.
+ */
+export function mimocodeMcpAdapter(
+  configPath = '.config/mimocode/mimocode.json',
+  legacyReadPaths = ['.config/mimocode/config.json', '.mimocode/mimocode.json']
+) {
+  return opencodeMcpAdapter(configPath, legacyReadPaths);
+}
+
+/**
  * Copilot adapter — injects `tools: ['*']` on write; strips it on read.
  * Write: ~/.copilot/mcp-config.json; legacy read: ~/.config/github-copilot/mcp.json.
  */
@@ -412,14 +469,28 @@ export function droidMcpAdapter(
 }
 
 /**
- * Amp adapter — passthrough, uses mcpServers JSON key.
+ * Amp adapter — passthrough, uses the literal `amp.mcpServers` JSON key.
  * Write: ~/.config/amp/settings.json; legacy read: ~/.amp/config.json.
  */
 export function ampMcpAdapter(
   configPath = '.config/amp/settings.json',
   legacyReadPaths = ['.amp/config.json']
 ) {
-  return passthroughMcpAdapter(configPath, legacyReadPaths);
+  return createMcpAdapter({
+    configPath,
+    legacyReadPaths,
+    legacyServersKey: 'mcpServers',
+    format: 'json',
+    serversKey: 'amp.mcpServers',
+    serversKeyIsLiteral: true,
+    toNative(s) {
+      const { name: _n, ...rest } = s;
+      return rest as Record<string, unknown>;
+    },
+    fromNative(name, raw) {
+      return { name, ...raw } as McpServerRegistration;
+    },
+  });
 }
 
 /**

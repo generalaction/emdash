@@ -163,9 +163,14 @@ describe('serializeMentionLabel', () => {
     );
   });
 
-  it('emits bare @label for a non-file kind even if the label has spaces', () => {
-    // issues, symbols, custom kinds keep the bare form
-    expect(serializeMentionLabel('my issue label', 'issue')).toBe('@my issue label');
+  it('emits bracket form for issue mentions with targets', () => {
+    expect(serializeMentionLabel('my issue label', 'issue')).toBe(
+      '@[my issue label](<my issue label>)'
+    );
+  });
+
+  it('emits bare @label for other non-file kinds even if the label has spaces', () => {
+    // symbols and custom kinds keep the bare form
     expect(serializeMentionLabel('my issue label', null)).toBe('@my issue label');
   });
 

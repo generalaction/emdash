@@ -7,7 +7,6 @@ export function isProviderUsable(
   context: ProviderContext
 ): boolean {
   if (!status?.connected) return false;
-  if (status.capabilities.requiresProjectPath && !context.projectPath) return false;
   if (status.capabilities.requiresRepositoryUrl && !context.repositoryUrl) return false;
   return true;
 }

@@ -118,6 +118,43 @@ describe('resolveAgentSessionCommandArgs', () => {
     );
   });
 
+  it('uses stored Pi session file when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'pi',
+          sessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+        }),
+        true
+      )
+    ).toEqual({
+      sessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+      isResuming: true,
+    });
+  });
+
+  it('starts fresh when resuming Pi without a stored session file', () => {
+    expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'pi' }), true)).toEqual({
+      sessionId: 'conv-1',
+      isResuming: false,
+    });
+  });
+
+  it('uses stored Oh My Pi session file when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'oh-my-pi',
+          sessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+        }),
+        true
+      )
+    ).toEqual({
+      sessionId: '/Users/test/.omp/agent/sessions/project/session.jsonl',
+      isResuming: true,
+    });
+  });
+
   it('keeps resume enabled when provider session ids are unavailable', () => {
     expect(
       resolveAgentSessionCommandArgs(makeConversation(), true, { requireProviderSessionId: false })
@@ -196,5 +233,28 @@ describe('resolveAgentSessionCommandArgs', () => {
 
     expect(result.command).toBe('amp');
     expect(result.args).toEqual(['threads', 'continue', 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95']);
+  });
+
+  it('builds a Pi replacement resume command from the stored session file', () => {
+    const conversation = makeConversation({
+      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
+      providerId: 'pi',
+      sessionId: '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    });
+    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
+    const result = pluginRegistry.get('pi')!.behavior.prompt!.buildCommand({
+      cli: 'pi',
+      autoApprove: false,
+      model: '',
+      sessionId: spawnPlan.sessionId,
+      providerSessionId: conversation.sessionId ?? undefined,
+      isResuming: spawnPlan.isResuming,
+    });
+
+    expect(result.command).toBe('pi');
+    expect(result.args).toEqual([
+      '--session',
+      '/Users/test/.pi/agent/sessions/project/session.jsonl',
+    ]);
   });
 });

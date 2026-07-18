@@ -31,6 +31,18 @@ vi.mock('@renderer/features/tasks/stores/task-store', () => ({
   ),
 }));
 
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 function localProject(id: string, name: string, createdAt: string): LocalProject {
   return {
     type: 'local',

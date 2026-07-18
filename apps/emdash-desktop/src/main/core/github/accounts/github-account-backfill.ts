@@ -1,5 +1,9 @@
 import type { GitHubTokenSource, GitHubUser } from '@shared/github';
-import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';
+import {
+  upsertGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from './github-accounts';
 
 type LegacyGitHubTokenMigrationStore = {
   getStoredTokenRecord(): Promise<{
@@ -29,7 +33,7 @@ function providerAccountFromUser(user: GitHubUser) {
 
 export class GitHubAccountBackfillService {
   constructor(
-    private readonly accountRegistry: GitHubAccountRegistry,
+    private readonly accountStore: Pick<GitHubAccountStore, 'upsertAccount'>,
     private readonly legacyTokenStore: LegacyGitHubTokenMigrationStore,
     private readonly identityClient: GitHubIdentityClient
   ) {}
@@ -41,7 +45,7 @@ export class GitHubAccountBackfillService {
     const user = await this.identityClient.getAuthenticatedUser(tokenRecord.token, 'github.com');
     if (!user) return null;
 
-    const { account } = await this.accountRegistry.upsertAccount({
+    const { account } = await upsertGitHubAccount(this.accountStore, {
       accessToken: tokenRecord.token,
       credentialSource: credentialSource(tokenRecord.source),
       providerAccount: providerAccountFromUser(user),

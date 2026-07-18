@@ -1,6 +1,8 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
@@ -10,13 +12,13 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
+  taskDeletedChannel,
   taskProvisionProgressChannel,
   taskProvisionedChannel,
   taskStatusUpdatedChannel,
@@ -32,7 +34,6 @@ import type {
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
-import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -90,7 +91,7 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
   return match(error)
     .with(
       { type: 'no-intent' },
-      () => 'Workspace has no intent and no resolved path — cannot provision.'
+      () => 'Workspace is missing recoverable setup intent and cannot be provisioned.'
     )
     .with(
       { type: 'missing-workspace' },
@@ -113,6 +114,10 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
     .exhaustive();
 }
 
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: GitRepositoryStore;
@@ -122,6 +127,7 @@ export class TaskManagerStore {
   private _provisionPromises = new Map<string, Promise<void>>();
 
   private _unsubTaskCreated: (() => void) | null = null;
+  private _unsubTaskDeleted: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubGitWorktreeUpdate: (() => void) | null = null;
@@ -154,6 +160,14 @@ export class TaskManagerStore {
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
+
+    this._unsubTaskDeleted = events.on(
+      taskDeletedChannel,
+      ({ taskId, projectId: evtProjectId }) => {
+        if (evtProjectId !== this.projectId) return;
+        this._removeTaskLocally(taskId);
+      }
+    );
 
     this._unsubStatusUpdated = events.on(
       taskStatusUpdatedChannel,
@@ -279,6 +293,16 @@ export class TaskManagerStore {
     terminalRegistry.release(taskId);
   }
 
+  private _removeTaskLocally(taskId: string): void {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    this._releaseTaskRegistries(taskId);
+    task.dispose();
+    runInAction(() => {
+      this.tasks.delete(taskId);
+    });
+  }
+
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
       this._loadPromise = Promise.all([
@@ -318,15 +342,6 @@ export class TaskManagerStore {
   }
 
   async createTask(params: CreateTaskParams) {
-    const clearOptimisticInitialConversationWorking = () => {
-      const { initialConversation } = params.taskConfig;
-      if (!initialConversation?.initialPrompt?.trim()) return;
-      conversationRegistry
-        .acquire(params.id, this.projectId)
-        .conversations.get(initialConversation.id)
-        ?.clearWorking();
-    };
-
     runInAction(() => {
       const { taskConfig } = params;
       this.tasks.set(
@@ -354,15 +369,11 @@ export class TaskManagerStore {
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           model: ic.model,
+          initialQueue: ic.initialQueue,
           isInitialConversation: true,
           type: ic.type ?? 'pty',
         };
-        const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
-          optimistic,
-        ]);
-        if (ic.initialPrompt?.trim()) {
-          void conversationManager.markConversationWorking(ic.id);
-        }
+        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
       } else {
         conversationRegistry.acquire(params.id, this.projectId, []);
       }
@@ -373,7 +384,6 @@ export class TaskManagerStore {
       .createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e);
-        clearOptimisticInitialConversationWorking();
         runInAction(() => {
           const current = this.tasks.get(params.id);
           if (current && isUnregistered(current)) {
@@ -388,7 +398,6 @@ export class TaskManagerStore {
       const message = formatCreateTaskError(result.error, {
         isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
       });
-      clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
         if (current && isUnregistered(current)) {
@@ -633,6 +642,13 @@ export class TaskManagerStore {
   async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
     const removed = new Map<string, TaskStore>();
 
+    // Optimistic removal empties this.tasks before taskDeleted events arrive,
+    // so record confirmations here and skip them during rollback.
+    const confirmed = new Set<string>();
+    const unsubConfirmations = events.on(taskDeletedChannel, ({ taskId, projectId }) => {
+      if (projectId === this.projectId) confirmed.add(taskId);
+    });
+
     runInAction(() => {
       for (const id of taskIds) {
         const t = this.tasks.get(id);
@@ -652,15 +668,24 @@ export class TaskManagerStore {
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
     } catch (e) {
       runInAction(() => {
-        removed.forEach((t, id) => this.tasks.set(id, t));
+        removed.forEach((t, id) => {
+          if (!confirmed.has(id)) this.tasks.set(id, t);
+        });
+      });
+      toast.error(`Could not delete ${taskIds.length === 1 ? 'task' : 'tasks'}`, {
+        description: formatErrorMessage(e),
       });
       throw e;
+    } finally {
+      unsubConfirmations();
     }
   }
 
   dispose(): void {
     this._unsubTaskCreated?.();
     this._unsubTaskCreated = null;
+    this._unsubTaskDeleted?.();
+    this._unsubTaskDeleted = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();

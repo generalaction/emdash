@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ExternalLink } from 'lucide-react';
 import React from 'react';
 import { InstallSection } from '@renderer/features/settings/agents-page/InstallSection';
@@ -7,12 +8,6 @@ import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-insta
 import { useAgent } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
-import {
-  getDescriptionForProvider,
-  getDocUrlForProvider,
-  getProvider,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
 import type { AppSettings } from '@shared/core/app-settings';
 
 type Props = {
@@ -21,11 +16,6 @@ type Props = {
 };
 
 export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
-  const provider = getProvider(id);
-  const description = getDescriptionForProvider(id);
-  const docUrl = getDocUrlForProvider(id);
-  const title = provider?.name ?? id;
-
   const { data: payload } = useAgent(id, connectionId);
   const { data: statusData } = useAgentInstallationStatus(id, connectionId);
   const {
@@ -37,6 +27,9 @@ export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
 
   const isInstalled = (statusData?.status ?? payload?.status) === 'available';
   const isDefaultAgent = defaultAgent === id;
+  const title = payload?.name ?? id;
+  const description = payload?.description ?? null;
+  const docUrl = payload?.websiteUrl ?? null;
 
   function handleSetDefaultAgent(checked: boolean) {
     if (!checked || isDefaultAgent) return;

@@ -1,14 +1,5 @@
 import type { CLIAgentPluginMetadata, CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
-import { pluginRegistry } from '@emdash/plugins/agents';
-import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
-
-// Assert plugin ids match the canonical AGENT_PROVIDER_IDS list at startup.
-const pluginIds = new Set(pluginRegistry.ids());
-for (const id of AGENT_PROVIDER_IDS) {
-  if (!pluginIds.has(id)) {
-    throw new Error(`Plugin registry parity violation: missing plugin for provider '${id}'`);
-  }
-}
+import { asAgentProviderId, pluginRegistry, type AgentProviderId } from '@emdash/plugins/agents';
 
 export function getPlugin(id: string): CLIAgentPluginProvider {
   const plugin = pluginRegistry.get(id);
@@ -24,4 +15,13 @@ export function getPluginMetadata(id: string): CLIAgentPluginMetadata {
 
 export function listPlugins(): CLIAgentPluginProvider[] {
   return pluginRegistry.getAll();
+}
+
+export function isValidProviderId(value: unknown): value is AgentProviderId {
+  return typeof value === 'string' && pluginRegistry.get(value) !== undefined;
+}
+
+export function toAgentProviderId(value: string): AgentProviderId {
+  if (!isValidProviderId(value)) throw new Error(`Unknown agent provider: ${value}`);
+  return asAgentProviderId(value);
 }

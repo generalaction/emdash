@@ -245,7 +245,7 @@ services under `src/main/core/pty/` and `src/main/core/terminals/`. Structured c
 conversations use ACP: provider plugins in `packages/plugins/` expose ACP behavior,
 `packages/core/src/acp/` owns protocol/session state and terminal management,
 `src/main/core/acp/` adapts that runtime to Electron RPC/events and local/SSH process
-hosts, and `src/renderer/features/tasks/acp/` maps updates into `@emdash/chat-ui`.
+hosts, and `src/renderer/features/conversations/acp/` maps updates into `@emdash/chat-ui`.
 
 Major main-process domains live under `src/main/core/`: account, ACP, agents,
 agent hooks, app, automations, browser, conversations, dependencies, editor,
@@ -376,9 +376,11 @@ pnpm run test
 - Agent provider plugins live in `packages/plugins/src/agents/impl/` and are registered
   in `packages/plugins/src/agents/registry.ts`.
 - Provider capabilities and helpers live in `packages/core/src/agents/plugins/`.
-- Shared app provider metadata lives in `src/shared/core/agents/agent-provider-registry.ts`.
-- ACP support is exposed through plugin ACP capabilities, `providerSupportsAcp()`, and
-  `src/shared/core/acp/` event and turn types.
+- Agent provider metadata and capabilities live in `packages/plugins/src/agents/registry.ts`
+  and `packages/plugins/src/agents/impl/`; renderer-facing DTOs are built by
+  `src/main/core/agents/agent-payload-builder.ts`.
+- ACP support is exposed through plugin ACP capabilities and `src/shared/core/acp/`
+  event and turn types.
 - Provider detection lives in `src/main/core/dependencies/`.
 - Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
 - Provider event hooks and plugins live under `src/main/core/agent-hooks/`.
@@ -419,6 +421,7 @@ pnpm run test
 - [Testing workflow](agents/workflows/testing.md)
 - [Worktrees workflow](agents/workflows/worktrees.md)
 - [Remote development workflow](agents/workflows/remote-development.md)
+- [Workspace server architecture](agents/architecture/workspace-server.md)
 - [Provider integration](agents/integrations/providers.md)
 - [MCP integration](agents/integrations/mcp.md)
 - [IPC conventions](agents/conventions/ipc.md)

@@ -1,11 +1,11 @@
 import { Command } from 'cmdk';
 import { useObserver } from 'mobx-react-lite';
+import type { ConversationStore } from '@renderer/features/conversations/conversation-manager';
+import { conversationRegistry } from '@renderer/features/conversations/stores/conversation-registry';
 import {
   asMounted,
   getProjectManagerStore,
 } from '@renderer/features/projects/stores/project-selectors';
-import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { isRegistered, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';

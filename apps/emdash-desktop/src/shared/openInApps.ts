@@ -44,11 +44,12 @@ const ICON_PATHS = {
   terminal: 'terminal.png',
   kaku: 'kaku.png',
   alacritty: 'alacritty.svg',
+  hyper: 'hyper.svg',
   warp: 'warp.png',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
-  termy: 'termy.png',
+  termy: 'termy.svg',
   zed: 'zed.png',
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
@@ -58,6 +59,7 @@ const ICON_PATHS = {
   pycharm: 'pycharm.svg',
   rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
+  rider: 'rider.svg',
   athas: 'athas.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
@@ -268,6 +270,30 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['alacritty --working-directory {{path}}'],
         checkCommands: ['alacritty'],
+      },
+    },
+  },
+  hyper: {
+    id: 'hyper',
+    label: 'Hyper',
+    iconPath: ICON_PATHS.hyper,
+    supportsRemote: true,
+    // Hyper has no cwd flag (vercel/hyper#1213); a path arg is ignored. Best-effort
+    // via exec cwd on linux/win32; macOS opens in Hyper's default dir.
+    platforms: {
+      darwin: {
+        openCommands: ['open -na "Hyper"'],
+        checkCommands: ['hyper'],
+        bundleIds: ['co.zeit.hyper'],
+        appNames: ['Hyper'],
+      },
+      win32: {
+        openCommands: ['hyper'],
+        checkCommands: ['hyper'],
+      },
+      linux: {
+        openCommands: ['hyper'],
+        checkCommands: ['hyper'],
       },
     },
   },
@@ -528,6 +554,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  rider: {
+    id: 'rider',
+    label: 'Rider',
+    iconPath: ICON_PATHS.rider,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Rider" {{path}}', 'open -a "JetBrains Rider" {{path}}'],
+        bundleIds: ['com.jetbrains.rider'],
+        appNames: ['Rider', 'JetBrains Rider'],
+      },
+      win32: {
+        openCommands: ['rider64 {{path}}', 'rider {{path}}'],
+        checkCommands: ['rider64', 'rider'],
+      },
+      linux: {
+        openCommands: ['rider {{path}}', 'rider.sh {{path}}'],
+        checkCommands: ['rider', 'rider.sh'],
       },
     },
   },

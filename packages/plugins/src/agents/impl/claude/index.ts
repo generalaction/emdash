@@ -1,15 +1,16 @@
 import { createRequire } from 'node:module';
-import { Readable, Writable } from 'node:stream';
-import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
 import { enrichClaudeUpdate } from './acp-transform';
+import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
+import { buildClaudeTrustBehavior } from './trust';
 
 const _require = createRequire(import.meta.url);
 
@@ -32,15 +33,38 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'claude-login',
+          name: 'Sign in with Claude Code',
+          args: ['auth', 'login'],
+          description: 'Open the Claude Code CLI sign-in flow in a terminal.',
+        },
+        {
+          kind: 'api-key',
+          id: 'anthropic-api-key',
+          name: 'Use an Anthropic API key',
+          envVars: [{ name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' }],
+          helpUrl: 'https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key',
+        },
+      ],
+    },
     models: {
       kind: 'selectable',
       modelOptions: {
-        'claude-opus-4-5': {
-          name: 'Claude Opus 4.5',
+        'claude-fable-5': {
+          name: 'Claude Fable 5',
+          modelFeatures: { intelligence: 4, speed: 3 },
+        },
+        'claude-opus-4-8': {
+          name: 'Claude Opus 4.8',
           modelFeatures: { intelligence: 5, speed: 2 },
         },
-        'claude-sonnet-4-5': {
-          name: 'Claude Sonnet 4.5',
+        'claude-sonnet-5': {
+          name: 'Claude Sonnet 5',
           modelFeatures: { intelligence: 4, speed: 4 },
         },
         'claude-haiku-4-5': {
@@ -110,6 +134,9 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
@@ -128,13 +155,12 @@ export const provider = registerPluginBehavior(plugin, {
       },
     }),
     connect: (io, toClient) => {
-      const stream = ndJsonStream(
-        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
-        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
-      );
-      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+      return connectStdioAcp(io, toClient);
     },
     enrich: enrichClaudeUpdate,
+  },
+  auth: {
+    checkStatus: claudeAuthStatus,
   },
   prompt: {
     buildCommand: (ctx) =>
@@ -148,4 +174,5 @@ export const provider = registerPluginBehavior(plugin, {
   },
   hooks: buildClaudeHookConfig(),
   mcp: passthroughMcpAdapter('.claude.json'),
+  trust: buildClaudeTrustBehavior(),
 });

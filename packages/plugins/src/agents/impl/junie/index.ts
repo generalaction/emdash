@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -11,6 +12,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     hostDependency: {
       id: 'junie',
       binaryNames: ['junie'],
@@ -50,6 +54,9 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['--acp=true'],
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

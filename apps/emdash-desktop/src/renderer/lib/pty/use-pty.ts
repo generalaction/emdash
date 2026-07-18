@@ -8,7 +8,6 @@ import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
-import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { TERMINAL_PADDING_PX } from './pty';
@@ -18,6 +17,7 @@ import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldDispatchAppHotkeyFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
@@ -32,8 +32,8 @@ const IS_MAC_PLATFORM =
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
-function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
-  if (!getDomTabNavigationDirection(event)) return false;
+function dispatchTerminalAppHotkey(event: KeyboardEvent): boolean {
+  if (!shouldDispatchAppHotkeyFromTerminal(event, IS_MAC_PLATFORM)) return false;
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
@@ -220,9 +220,12 @@ export function usePty(
   );
 
   const focus = useCallback(() => {
-    if (document.activeElement?.closest('[role="dialog"]')) return;
+    // Don't steal focus from an open modal — unless this terminal is rendered
+    // inside it (e.g. the agent sign-in terminal).
+    const dialog = document.activeElement?.closest('[role="dialog"]');
+    if (dialog && !dialog.contains(containerRef.current)) return;
     termRef.current?.focus();
-  }, []);
+  }, [containerRef]);
 
   const copySelectionToClipboard = useCallback(() => {
     const selection =
@@ -377,9 +380,14 @@ export function usePty(
 
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (document.querySelector('[role="dialog"]')) return false;
+        // Ignore keys while a modal is open — unless this terminal is the one
+        // rendered inside it (e.g. the agent sign-in terminal).
+        const dialog = document.querySelector('[role="dialog"]');
+        if (dialog && !dialog.contains(container)) return false;
 
-        if (dispatchTerminalTabNavigationHotkey(event)) {
+        // xterm handles key events before TanStack's document-level hotkey listeners.
+        // Preserve terminal Ctrl sequences on non-macOS except for tab navigation.
+        if (dispatchTerminalAppHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -657,8 +665,13 @@ export function usePty(
           fn();
         } catch {}
       }
-      // Return terminal's ownedContainer to the off-screen host.
-      pty.unmount();
+      // Return terminal's ownedContainer to the off-screen host only if this
+      // React host still owns it. A terminal session can be reparented into a
+      // different surface before this cleanup runs; in that case, unmounting
+      // here would steal the xterm DOM back from the new owner.
+      if (container.contains(pty.ownedContainer)) {
+        pty.unmount();
+      }
       termRef.current = null;
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;

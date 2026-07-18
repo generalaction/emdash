@@ -2,10 +2,10 @@ import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
 import { defaultHookEventParser } from '@emdash/core/agents/plugins/helpers';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { parsePtyId } from '@main/core/pty/ptyId';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
-import { parsePtyId } from '@shared/core/pty/ptyId';
 import type { RawHookRequest } from './hook-server';
 
 export type ConversationContext = {

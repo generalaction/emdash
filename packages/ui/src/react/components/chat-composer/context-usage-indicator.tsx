@@ -1,5 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { Popover } from '@react/primitives/popover';
+import { cx } from '@styles/utilities/cx';
 import * as styles from './chat-composer.css';
 
 // ── Data type ─────────────────────────────────────────────────────────────────
@@ -68,27 +69,40 @@ export function ContextUsageIndicator({
 
   return (
     <Popover.Root>
-      <Popover.Trigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon
-          disabled={disabled}
-          aria-label={`Context window: ${pct}% used`}
-        >
-          <ContextDonut fraction={fraction} />
-        </Button>
-      </Popover.Trigger>
+      <Popover.Trigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            disabled={disabled}
+            aria-label={`Context window: ${pct}% used`}
+          >
+            <ContextDonut fraction={fraction} />
+          </Button>
+        }
+      />
       <Popover.Content align="end" side="top">
         <Popover.Header>
-          <Popover.Title>Context window</Popover.Title>
+          <Popover.Title>Context usage</Popover.Title>
         </Popover.Header>
-        <Popover.Description>
-          {pct}% used &middot; {formatTokens(usage.used)} / {formatTokens(usage.size)} tokens
-        </Popover.Description>
-        {usage.cost ? (
-          <div className={styles.usageCostRow}>Session cost: {formatCost(usage.cost)}</div>
-        ) : null}
+        <div className={styles.usagePopoverBody}>
+          <div className={styles.usageStatsRow}>
+            <span className={styles.usagePercent}>{pct}%</span>
+            <span className={styles.usageTokenCount}>
+              {formatTokens(usage.used)} / {formatTokens(usage.size)} Tokens
+            </span>
+          </div>
+          <div className={styles.usageBarTrack} aria-hidden="true">
+            <div
+              className={cx(styles.usageBarFill, fraction >= 0.9 && styles.usageBarFillWarn)}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          {usage.cost ? (
+            <div className={styles.usageCostRow}>Cost: {formatCost(usage.cost)}</div>
+          ) : null}
+        </div>
       </Popover.Content>
     </Popover.Root>
   );

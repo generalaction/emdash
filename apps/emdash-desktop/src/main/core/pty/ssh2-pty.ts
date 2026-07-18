@@ -1,8 +1,8 @@
+import { normalizeSignal } from '@emdash/core/pty';
 import { err, ok, type Result } from '@emdash/shared';
 import type { ClientChannel } from 'ssh2';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
-import { normalizeSignal } from './exit-signals';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export type Ssh2OpenError = {

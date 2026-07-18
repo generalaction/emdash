@@ -31,10 +31,12 @@ import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { ChatContext } from './chat-context';
 import { ChatRoot } from './ChatRoot';
-import type { EngineControls } from './ChatRoot';
+import type { ComposerPlacement, ComposerPlacementOptions, EngineControls } from './ChatRoot';
 import type { ChatCommands, ScrollToItemOptions } from './commands';
-import type { ChatItem } from './model';
+import type { TranscriptTurn } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
+
+export type { ComposerPlacement, ComposerPlacementOptions } from './ChatRoot';
 
 export type ChatViewOptions = {
   /** Global services (theme, shared caches, measureEpoch). */
@@ -49,6 +51,8 @@ export type ChatViewOptions = {
    * - `'none'` (default): no slot; use `setContentPadding` externally.
    */
   composer?: 'slot' | 'none';
+  /** Initial placement for the internal composer slot. Defaults to `'bottom'`. */
+  composerPlacement?: ComposerPlacement;
   /**
    * When true, render an absolutely-positioned overlay slot above the
    * transcript/scroll but below the composer. Use `view.contentOverlay` to
@@ -89,12 +93,19 @@ export type ChatView = {
    */
   readonly composerSlot: HTMLElement | null;
   /**
+   * The hero slot element rendered above the composer in centered placement.
+   * Host should portal empty-state copy into this element.
+   */
+  readonly heroSlot: HTMLElement | null;
+  /**
    * The content overlay slot element (non-null only when `contentOverlay` is
    * true and after mount). Portal loading/empty/disabled overlay UI here.
    */
   readonly contentOverlay: HTMLElement | null;
   /** Replace command callbacks without remounting. */
   setCommands(commands: ChatCommands): void;
+  /** Scroll to the top of the transcript. */
+  scrollToTop(opts?: { behavior?: ScrollBehavior }): void;
   /** Scroll to the bottom of the transcript. */
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   /**
@@ -106,7 +117,7 @@ export type ChatView = {
    * Prepend older history items without losing scroll position.
    * Pair with `onReachStart` for infinite-scroll pagination.
    */
-  loadOlder(items: ChatItem[]): void;
+  loadOlder(turns: TranscriptTurn[]): void;
   /**
    * Toggle the collapsed state of an item by id.
    * Primarily for perf benchmarks; prefer user-driven collapse in production.
@@ -130,6 +141,8 @@ export type ChatView = {
    * rather than constructing objects inline.
    */
   setScrollMode(mode: ScrollMode): void;
+  /** Move the internal composer slot without remounting portal contents. */
+  setComposerPlacement(placement: ComposerPlacement, opts?: ComposerPlacementOptions): void;
   /**
    * Replace the ChatState this view renders without tearing down the Solid root
    * (Monaco/CodeMirror model-swap pattern). Snapshots the outgoing model's
@@ -156,6 +169,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
   const [currentModel, setCurrentModel] = createSignal<ChatState>(opts.state);
 
   const controls: EngineControls = {
+    scrollToTop: () => {},
     scrollToBottom: () => {},
     scrollToItem: () => {},
     loadOlder: () => {},
@@ -179,11 +193,17 @@ export function createChatView(opts: ChatViewOptions): ChatView {
     get composerSlot() {
       return controls.composerSlot ?? null;
     },
+    get heroSlot() {
+      return controls.heroSlot ?? null;
+    },
     get contentOverlay() {
       return controls.contentOverlay ?? null;
     },
     setCommands(c) {
       setCommandsSignal(c);
+    },
+    scrollToTop(o) {
+      controls.scrollToTop(o);
     },
     scrollToBottom(o) {
       controls.scrollToBottom(o);
@@ -205,6 +225,9 @@ export function createChatView(opts: ChatViewOptions): ChatView {
     },
     setScrollMode(m) {
       controls.setScrollMode?.(m);
+    },
+    setComposerPlacement(placement, opts) {
+      controls.setComposerPlacement?.(placement, opts);
     },
     setModel(newState) {
       if (newState !== currentModel()) {
@@ -234,6 +257,7 @@ export function createChatView(opts: ChatViewOptions): ChatView {
         controls={controls}
         pinUserMessages={opts.pinUserMessages}
         composer={opts.composer}
+        composerPlacement={opts.composerPlacement}
         contentOverlay={opts.contentOverlay}
       />
     ),

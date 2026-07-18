@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
-import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { buildInitialConversation, deriveInitialStatus } from './build-create-task-params';
 import type { CreateTaskState } from './use-create-task-state';
 

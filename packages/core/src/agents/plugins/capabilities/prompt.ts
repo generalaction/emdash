@@ -1,5 +1,5 @@
+import { definePluginCapability } from '@emdash/shared/plugins';
 import z from 'zod';
-import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type CommandContext = {
   cli: string; // absolute path to the cli binary

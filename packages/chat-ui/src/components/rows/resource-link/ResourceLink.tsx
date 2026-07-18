@@ -105,6 +105,7 @@ export function ResourceLink(props: ResourceLinkProps) {
       <Show when={props.item.status === 'error'}>
         <span
           style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          title={props.item.error ?? 'Failed'}
           aria-label="error"
         >
           <IconError />

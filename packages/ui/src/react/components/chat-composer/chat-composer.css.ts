@@ -99,7 +99,6 @@ export const composerShell = recipe({
       '&:hover': { borderColor: vars.border1 },
       '&:focus-within': {
         borderColor: vars.border1,
-        boxShadow: `0 0 0 1px ${vars.border1}`,
       },
     },
   },
@@ -183,7 +182,7 @@ export const editorArea = style({
   paddingLeft: '0.75rem',
   paddingRight: '0.75rem',
   paddingTop: '0.75rem',
-  paddingBottom: '0.25rem',
+  paddingBottom: '0.5rem',
 });
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
@@ -201,6 +200,11 @@ export const toolbar = style({
 export const toolbarLeft = style({ display: 'flex', alignItems: 'center', gap: '0.375rem' });
 export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: '0.25rem' });
 
+export const permissionModeTrigger = style({
+  paddingLeft: '0.1875rem',
+  paddingRight: '0.1875rem',
+});
+
 // ── Agent trigger ─────────────────────────────────────────────────────────────
 
 export const agentTrigger = style({
@@ -214,8 +218,8 @@ export const agentTrigger = style({
   color: vars.foreground,
   outline: 'none',
   selectors: {
-    '&:hover': { backgroundColor: vars.surfaceHover },
-    '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+    '&:hover': { backgroundColor: vars.surfaceBaseSelected },
+    '&[data-popup-open]': { backgroundColor: vars.surfaceBaseSelected },
   },
 });
 
@@ -269,6 +273,13 @@ export const barMeter = style({ display: 'flex', alignItems: 'center', gap: '0.1
 /** Send button override — fully rounded pill shape. */
 export const sendButtonRound = style({ borderRadius: '9999px' });
 
+export const stopIcon = style({
+  width: '0.5rem',
+  height: '0.5rem',
+  borderRadius: '0.0625rem',
+  backgroundColor: 'currentColor',
+});
+
 // ── Context usage indicator ────────────────────────────────────────────────────
 
 /** Donut SVG container — sized to match other toolbar icons. */
@@ -290,9 +301,49 @@ export const donutProgressWarn = style({ stroke: vars.surfaceWarningForeground }
 
 /** Cost row shown below the description in the popover when cost is available. */
 export const usageCostRow = style({
-  marginTop: '0.375rem',
+  marginTop: '0.625rem',
   fontSize: tokenVars.textXs,
   color: vars.foregroundMuted,
+});
+
+export const usagePopoverBody = style({
+  width: '16rem',
+});
+
+export const usageStatsRow = style({
+  display: 'flex',
+  alignItems: 'baseline',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  fontSize: tokenVars.textXs,
+});
+
+export const usagePercent = style({
+  fontWeight: 500,
+  color: vars.foreground,
+});
+
+export const usageTokenCount = style({
+  color: vars.foregroundMuted,
+  whiteSpace: 'nowrap',
+});
+
+export const usageBarTrack = style({
+  marginTop: '0.5rem',
+  height: '0.375rem',
+  overflow: 'hidden',
+  borderRadius: '9999px',
+  backgroundColor: vars.border,
+});
+
+export const usageBarFill = style({
+  height: '100%',
+  borderRadius: '9999px',
+  backgroundColor: vars.foreground,
+});
+
+export const usageBarFillWarn = style({
+  backgroundColor: vars.surfaceWarningForeground,
 });
 
 export const barDotFilled = style({

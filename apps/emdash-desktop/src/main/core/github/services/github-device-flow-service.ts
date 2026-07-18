@@ -1,13 +1,17 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { githubAuthDeviceCodeChannel, githubAuthErrorChannel } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/github';
-import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
+import {
+  upsertGitHubAccount,
+  type GitHubAccount,
+  type GitHubAccountStore,
+} from '../accounts/github-accounts';
 import type { GitHubIdentityClient } from './github-identity-client';
 
-const GITHUB_CONFIG = {
-  clientId: 'Ov23ligC35uHWopzCeWf',
-  scopes: ['repo', 'read:user', 'read:org'],
-} as const;
+export type GitHubDeviceFlowConfig = {
+  clientId: string;
+  scopes: string[];
+};
 
 type DeviceAuth = (options: { type: 'oauth' }) => Promise<{ token: string }>;
 
@@ -35,10 +39,11 @@ export class GitHubDeviceFlowService {
 
   constructor(
     private readonly deps: {
-      accountRegistry: GitHubAccountRegistry;
+      accountStore: Pick<GitHubAccountStore, 'upsertAccount'>;
       identityClient: Pick<GitHubIdentityClient, 'getAuthenticatedUser'>;
       events: DeviceFlowEvents;
       createDeviceAuth: DeviceAuthFactory;
+      config: GitHubDeviceFlowConfig;
     }
   ) {}
 
@@ -48,8 +53,8 @@ export class GitHubDeviceFlowService {
 
     try {
       const auth = this.deps.createDeviceAuth({
-        clientId: GITHUB_CONFIG.clientId,
-        scopes: [...GITHUB_CONFIG.scopes],
+        clientId: this.deps.config.clientId,
+        scopes: [...this.deps.config.scopes],
         onVerification: (verification) => {
           this.deps.events.emit(githubAuthDeviceCodeChannel, {
             userCode: verification.user_code,
@@ -77,7 +82,7 @@ export class GitHubDeviceFlowService {
         return { success: false, error: message };
       }
 
-      const { account } = await this.deps.accountRegistry.upsertAccount({
+      const { account } = await upsertGitHubAccount(this.deps.accountStore, {
         accessToken: token,
         credentialSource: 'device_flow',
         providerAccount: {

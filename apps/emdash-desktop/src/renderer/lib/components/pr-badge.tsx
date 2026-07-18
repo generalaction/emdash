@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
+import { PrUrlCopyButton } from '@renderer/lib/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
@@ -24,18 +25,20 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
         return (
           <div
             className={cn(
-              'flex items-center gap-2 px-1.5 py-0.5 rounded-md bg-background-2 max-w-52',
+              'flex h-5 max-w-52 items-center gap-1.5 rounded-md bg-background-2 px-1.5 leading-none',
               className
             )}
           >
             <StatusIcon className="size-3" pr={pr} disableTooltip />
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} className="text-[10px]" />
-            <span className="truncate text-xs text-foreground-muted">{pr.title}</span>
+            <span className="shrink-0 font-sans text-xs leading-none text-foreground-muted">
+              #{getPrNumber(pr) ?? 0}
+            </span>
+            <span className="truncate text-xs leading-none text-foreground-muted">{pr.title}</span>
           </div>
         );
       case 'compact':
         return (
-          <div className={cn('px-1 flex items-center justify-center', className)}>
+          <div className={cn('flex h-5 items-center justify-center px-1 leading-none', className)}>
             <StatusIcon className="size-3" pr={pr} disableTooltip />
           </div>
         );
@@ -44,7 +47,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
 
   return (
     <Popover>
-      <PopoverTrigger openOnHover delay={hoverDelay}>
+      <PopoverTrigger className="flex items-center leading-none" openOnHover delay={hoverDelay}>
         {renderBadge()}
       </PopoverTrigger>
       <PopoverContent className="w-auto max-w-sm min-w-72">
@@ -69,6 +72,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                 </TooltipTrigger>
                 <TooltipContent>Open PR on GitHub</TooltipContent>
               </Tooltip>
+              <PrUrlCopyButton url={pr.url} />
             </div>
             <RelativeTime
               value={pr.createdAt}

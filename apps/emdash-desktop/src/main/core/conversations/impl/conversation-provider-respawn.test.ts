@@ -36,10 +36,9 @@ vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   },
 }));
 
-vi.mock('@main/core/agent-hooks/workspace-trust-service', () => ({
+vi.mock('@main/core/agents/workspace-trust', () => ({
   workspaceTrustService: {
-    maybeAutoTrustLocal: vi.fn(),
-    maybeAutoTrustSsh: vi.fn(),
+    maybeAutoTrust: vi.fn(),
   },
 }));
 

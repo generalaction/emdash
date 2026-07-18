@@ -1,6 +1,6 @@
+import { collectDescendantPids, parsePidPpidPairs } from '@emdash/core/pty';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
-import { collectDescendantPids, parsePidPpidPairs } from './process-tree';
 import { killTmuxSession, TMUX_SESSION_PREFIX } from './tmux-session-name';
 
 // NOTE: this module must stay free of DB imports. It is loaded by the SSH

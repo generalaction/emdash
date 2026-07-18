@@ -27,8 +27,6 @@ const THINKING_VARS: ThinkingVars = {
   windowH: 72,
 };
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
-
 function thinkingHeaderH(ctx: MeasureCtx): number {
   return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 }
@@ -36,8 +34,6 @@ function thinkingHeaderH(ctx: MeasureCtx): number {
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx, padY: number) {
   return layoutBlockStack(blocks, ctx, { padY });
 }
-
-// ── ThinkingHeader ────────────────────────────────────────────────────────────
 
 function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH: number }) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
@@ -58,9 +54,14 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   onCleanup(() => clearInterval(timer));
 
   const label = () => {
-    if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
-    if (props.item.durationMs !== undefined)
+    if (props.item.status === 'thinking') {
+      if (elapsed() < 1) return 'Thinking';
+      return `Thinking ${elapsed()}s`;
+    }
+    if (props.item.durationMs !== undefined) {
+      if (props.item.durationMs < 1000) return 'Thought briefly';
       return `Thought for ${Math.floor(props.item.durationMs / 1000)}s`;
+    }
     return 'Thought';
   };
 
@@ -81,8 +82,6 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   );
 }
 
-// ── Measure ───────────────────────────────────────────────────────────────────
-
 function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars): number {
   const headerH = thinkingHeaderH(ctx);
   const isExpanded = ctx.expanded(item.id);
@@ -95,8 +94,6 @@ function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars
   if (!isExpanded) return headerH + vars.windowH;
   return headerH + body.height;
 }
-
-// ── Render ────────────────────────────────────────────────────────────────────
 
 function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: ThinkingVars }) {
   const theme = useTheme();
@@ -153,8 +150,6 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
     </div>
   );
 }
-
-// ── UnitDef ───────────────────────────────────────────────────────────────────
 
 export const thinkingUnitDef = defineUnit<ChatThinking, ThinkingVars>({
   kind: 'thinking',

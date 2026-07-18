@@ -1,5 +1,5 @@
 import { exec } from 'node:child_process';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { IDisposable, IInitializable } from '@emdash/shared';
@@ -221,6 +221,11 @@ class AppService implements IInitializable, IDisposable {
     const realPath = await resolveHomeJailedPath(rawPath);
     const errorMessage = await shell.openPath(realPath);
     if (errorMessage) throw new Error(errorMessage);
+  }
+
+  async showItemInFolder(rawPath: string): Promise<void> {
+    const realPath = await resolveHomeJailedPath(rawPath);
+    shell.showItemInFolder(realPath);
   }
 
   /**
@@ -604,6 +609,24 @@ class AppService implements IInitializable, IDisposable {
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
+  }
+
+  async saveTextFile(args: {
+    title: string;
+    defaultPath: string;
+    content: string;
+  }): Promise<string | undefined> {
+    const result = await dialog.showSaveDialog(getMainWindow()!, {
+      title: args.title,
+      defaultPath: args.defaultPath,
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePath) return undefined;
+    await writeFile(result.filePath, args.content, 'utf8');
+    return result.filePath;
   }
 
   async readAudioFileDataUrl(filePath: string): Promise<string> {

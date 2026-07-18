@@ -12,9 +12,8 @@ describe('claude acp capability', () => {
   });
 
   it('all non-ACP plugins default acp to { kind: none }', () => {
-    const acpProviders = new Set(['claude', 'codex']);
     for (const p of pluginRegistry.getAll()) {
-      if (acpProviders.has(p.metadata.id)) continue;
+      if (p.behavior.acp) continue;
       expect(p.capabilities.acp.kind).toBe('none');
     }
   });

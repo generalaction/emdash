@@ -14,6 +14,7 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
   ignoreWhenMonacoFocused?: boolean;
+  ignoreWhenBrowserFocused?: boolean;
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -126,6 +127,14 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Show or hide the right sidebar',
     category: 'View',
   },
+  zenMode: {
+    defaultHotkey: 'Control+Z',
+    label: 'Zen Mode',
+    description: 'Hide both sidebars',
+    category: 'View',
+    ignoreWhenMonacoFocused: true,
+    ignoreWhenBrowserFocused: true,
+  },
   closeModal: {
     defaultHotkey: 'Escape',
     label: 'Close Modal',
@@ -144,6 +153,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Delete Selected Tasks',
     description: 'Delete the selected tasks',
     category: 'Navigation',
+  },
+  archiveTask: {
+    defaultHotkey: 'Mod+Shift+E',
+    label: 'Archive Task',
+    description: 'Archive the current task',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
   },
   newProject: {
     defaultHotkey: 'Mod+Shift+N',

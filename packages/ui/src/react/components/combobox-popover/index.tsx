@@ -28,6 +28,8 @@ export interface ComboboxPopoverProps<T> {
    * Receives the currently selected item (or `null` when nothing is selected).
    */
   renderTrigger: (selected: T | null) => React.ReactNode;
+  /** Optional title/label for the trigger button. */
+  triggerTitle?: (selected: T | null) => string | undefined;
   /**
    * Render the content of each list row.
    * Receives the item; the row wrapper (hover/selected states) is provided by
@@ -73,6 +75,7 @@ export function ComboboxPopover<T>({
   itemToLabel,
   filter,
   renderTrigger,
+  triggerTitle,
   renderItem,
   renderItemDetail,
   renderFooter,
@@ -90,6 +93,7 @@ export function ComboboxPopover<T>({
   const hoverCard = useHoverCard();
 
   const selectedItem = value != null ? (items.find((i) => itemToKey(i) === value) ?? null) : null;
+  const triggerTitleValue = triggerTitle?.(selectedItem);
 
   const activeDetailItem =
     renderItemDetail && hoverCard.activeKey != null
@@ -136,6 +140,8 @@ export function ComboboxPopover<T>({
     >
       <Combobox.Trigger
         disabled={disabled}
+        title={triggerTitleValue}
+        aria-label={triggerTitleValue}
         className={
           appearance === 'input'
             ? cx(...styles.triggerInput, className)

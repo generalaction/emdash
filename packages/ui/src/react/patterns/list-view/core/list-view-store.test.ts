@@ -1,0 +1,177 @@
+import { describe, expect, it, vi } from 'vitest';
+import { byField } from '../comparators';
+import { createTextMatcher } from '../matching';
+import { ListViewStore } from './list-view-store';
+import type { ListViewSpec } from './types';
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────
+
+interface Agent {
+  id: string;
+  name: string;
+  status: 'installed' | 'not-installed';
+}
+
+const AGENTS: Agent[] = [
+  { id: '1', name: 'Claude Sonnet', status: 'installed' },
+  { id: '2', name: 'OpenAI Codex', status: 'installed' },
+  { id: '3', name: 'Gemini', status: 'not-installed' },
+  { id: '4', name: 'Aider', status: 'not-installed' },
+];
+
+const baseSpec: ListViewSpec<Agent> = {
+  getItemId: (a) => a.id,
+  source: { kind: 'sync', items: AGENTS },
+};
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('ListViewStore — sync pipeline', () => {
+  it('exposes raw items as visibleItems when no capabilities are configured', () => {
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(baseSpec);
+    expect(store.visibleItems).toEqual(AGENTS);
+    expect(store.orderedIds).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('filters by search activeQuery (sync)', () => {
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      search: {
+        kind: 'sync',
+        predicate: createTextMatcher((a: Agent) => a.name),
+        debounceMs: 0,
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.search!.setQuery('claude');
+    expect(store.visibleItems).toEqual([AGENTS[0]]);
+  });
+
+  it('filters by filter model (sync)', () => {
+    type F = { status: 'all' | 'installed' | 'not-installed' };
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      filter: {
+        kind: 'sync',
+        initial: { status: 'all' as F['status'] },
+        apply: (a: Agent, f: F) => f.status === 'all' || a.status === f.status,
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    expect(store.visibleItems).toHaveLength(4);
+    store.filter!.set({ status: 'installed' });
+    expect(store.visibleItems.map((a: Agent) => a.id)).toEqual(['1', '2']);
+    store.filter!.reset();
+    expect(store.visibleItems).toHaveLength(4);
+  });
+
+  it('sorts with a comparator (sync)', () => {
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      sort: {
+        keys: { name: { label: 'Name', compare: byField<Agent>((a) => a.name) } },
+        initial: { key: 'name', dir: 'asc' },
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    expect(store.visibleItems.map((a: Agent) => a.name)).toEqual([
+      'Aider',
+      'Claude Sonnet',
+      'Gemini',
+      'OpenAI Codex',
+    ]);
+    store.sort!.toggleDir();
+    expect((store.visibleItems[0] as Agent).name).toBe('OpenAI Codex');
+  });
+
+  it('groups into sections', () => {
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      sections: { by: (a: Agent) => a.status },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    const sections = store.sections!;
+    expect(sections).toHaveLength(2);
+    expect(sections[0]!.key).toBe('installed');
+    expect(sections[0]!.items).toHaveLength(2);
+  });
+
+  it('groups sections in declared order', () => {
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      sections: {
+        by: (a: Agent) => a.status,
+        order: ['not-installed', 'installed'],
+      },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    expect(store.sections![0]!.key).toBe('not-installed');
+  });
+});
+
+describe('ListViewStore — selection', () => {
+  it('single selection — toggle replaces', () => {
+    const spec: ListViewSpec<Agent> = { ...baseSpec, selection: { kind: 'single' } };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.selectionSlice!.toggle('1');
+    expect(store.selectionSlice!.selectedIds.has('1')).toBe(true);
+    store.selectionSlice!.toggle('2');
+    expect(store.selectionSlice!.selectedIds.has('1')).toBe(false);
+    expect(store.selectionSlice!.selectedIds.has('2')).toBe(true);
+  });
+
+  it('multi selection — shift-range', () => {
+    const spec: ListViewSpec<Agent> = { ...baseSpec, selection: { kind: 'multi' } };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.selectionSlice!.toggle('1');
+    store.selectionSlice!.selectRange('1', '3', store.orderedIds);
+    expect([...store.selectionSlice!.selectedIds].sort()).toEqual(['1', '2', '3']);
+  });
+
+  it('selectAll / clear', () => {
+    const spec: ListViewSpec<Agent> = { ...baseSpec, selection: { kind: 'multi' } };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.selectionSlice!.selectAll(store.orderedIds);
+    expect(store.selectionSlice!.selectedIds.size).toBe(4);
+    store.selectionSlice!.clear();
+    expect(store.selectionSlice!.selectedIds.size).toBe(0);
+  });
+});
+
+describe('ListViewStore — async pipeline', () => {
+  it('runs async search and populates items', async () => {
+    const search = vi.fn(async (query: string) =>
+      AGENTS.filter((a) => a.name.toLowerCase().includes(query.toLowerCase()))
+    );
+    const spec: ListViewSpec<Agent> = {
+      ...baseSpec,
+      search: { kind: 'async', search, debounceMs: 0 },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.initialize();
+
+    // Initial async reaction fires (empty query).
+    await new Promise((r) => setTimeout(r, 0));
+
+    store.search!.setQuery('claude');
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(store.visibleItems).toEqual([AGENTS[0]]);
+    expect(store.status).toBe('idle');
+  });
+});
+
+describe('ListViewStore — reactive sync source', () => {
+  it('updates visibleItems when the getter result changes', () => {
+    const items: Agent[] = [AGENTS[0]!, AGENTS[1]!];
+    const spec: ListViewSpec<Agent> = {
+      getItemId: (a) => a.id,
+      source: { kind: 'sync', items: () => items },
+    };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    expect(store.visibleItems).toHaveLength(2);
+    items.push(AGENTS[2]!);
+    // The getter is re-called on each computed access.
+    expect(store.visibleItems).toHaveLength(3);
+  });
+});

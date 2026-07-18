@@ -1,11 +1,9 @@
 import { dirname } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
+import type { TerminalExit } from './models/terminals';
 
 /** Exit status of a terminal command — mirrors the ACP WaitForTerminalExitResponse shape. */
-export interface AcpTerminalExit {
-  exitCode: number | null;
-  signal: string | null;
-}
+export type AcpTerminalExit = TerminalExit;
 
 /**
  * A running command spawned by the client on behalf of an ACP agent.

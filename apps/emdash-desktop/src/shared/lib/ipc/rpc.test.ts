@@ -5,6 +5,7 @@ import {
   createRPCNamespace,
   createRPCRouter,
   registerRPCRouter,
+  withSender,
 } from './rpc';
 
 // ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ function makeIpcMainStub() {
     invoke(channel: string, ...args: unknown[]) {
       const handler = registered.get(channel);
       if (!handler) throw new Error(`No handler registered for channel: ${channel}`);
-      return handler({} /* _event */, ...args);
+      return handler({ sender: { id: 42 } } /* _event */, ...args);
     },
     registeredChannels() {
       return [...registered.keys()];
@@ -154,6 +155,22 @@ describe('registerRPCRouter', () => {
 
     const result = await ipc.invoke('workspace.gitWorktree.clone', 'https://example.com');
     expect(result).toBe('cloned https://example.com');
+  });
+
+  it('passes sender id to sender-aware handlers without exposing it to callers', async () => {
+    const senderController = createRPCController({
+      currentWindow: withSender((senderId: number, label: string) => `${senderId}:${label}`),
+    });
+    const senderRouter = createRPCRouter({ sender: senderController });
+    const ipc = makeIpcMainStub();
+    registerRPCRouter(senderRouter, ipc as never);
+
+    const result = await ipc.invoke('sender.currentWindow', 'active');
+
+    expect(result).toBe('42:active');
+    expectTypeOf(createRPCClient<typeof senderRouter>(vi.fn()).sender.currentWindow).toEqualTypeOf<
+      (label: string) => Promise<string>
+    >();
   });
 
   it('does not register any channel for non-function, non-object values', () => {

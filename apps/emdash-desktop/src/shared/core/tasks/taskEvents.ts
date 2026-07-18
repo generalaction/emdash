@@ -4,6 +4,11 @@ import { defineEvent } from '@shared/lib/ipc/events';
 
 export const taskCreatedChannel = defineEvent<{ task: Task }>('task:created');
 
+export const taskDeletedChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+}>('task:deleted');
+
 export const taskStatusUpdatedChannel = defineEvent<{
   taskId: string;
   projectId: string;

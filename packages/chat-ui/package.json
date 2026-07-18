@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",
+    "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",

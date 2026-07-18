@@ -1,13 +1,9 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import {
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AppSettings } from '@shared/core/app-settings';
-
-const DEFAULT_AGENT: AgentProviderId = 'claude';
 
 export const DefaultAgentSelector: React.FC = () => {
   const {
@@ -16,10 +12,12 @@ export const DefaultAgentSelector: React.FC = () => {
     isLoading,
     isSaving,
   } = useAppSettingsKey('defaultAgent');
+  const { data: agents } = useAgents();
 
-  const defaultAgent: AgentProviderId = isValidProviderId(defaultAgentValue)
-    ? (defaultAgentValue as AgentProviderId)
-    : DEFAULT_AGENT;
+  const defaultAgent =
+    defaultAgentValue && agents?.some((agent) => agent.id === defaultAgentValue)
+      ? defaultAgentValue
+      : null;
 
   const handleChange = (agent: AgentProviderId) => {
     update(agent as AppSettings['defaultAgent']);

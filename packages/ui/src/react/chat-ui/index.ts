@@ -24,7 +24,7 @@ import type {
   ChatState,
   ChatView,
   ChatViewOptions,
-  ChatItem,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
 import { createChatView } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
@@ -121,6 +121,8 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 export type {
   ChatView,
   ChatCommands,
+  ChatViewCommand,
+  ChatViewCommandId,
   ScrollToItemOptions,
   ChatHighlighter,
   HighlightResult,
@@ -128,9 +130,12 @@ export type {
   MentionProvider,
   ChatContext,
   ChatState,
+  TranscriptTurn,
 } from '@emdash/chat-ui';
-export type LoadOlderFn = (items: ChatItem[]) => void;
+export type LoadOlderFn = (turns: TranscriptTurn[]) => void;
 export {
+  CHAT_VIEW_COMMANDS,
+  connectSession,
   createChatContext,
   createChatState,
   createChatView,

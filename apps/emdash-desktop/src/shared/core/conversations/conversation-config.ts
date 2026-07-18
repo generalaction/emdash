@@ -6,8 +6,13 @@ const conversationConfigV0Schema = z.object({
   /** @deprecated Moved to conversations.session_id column; stripped on upgrade to v1. */
   providerSessionId: z.string().optional(),
   initialPrompt: z.string().optional(),
-  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-4-5', 'o4-mini'). Empty string or absent = CLI default. */
+  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-5', 'o4-mini'). Empty string or absent = CLI default. */
   model: z.string().optional(),
+});
+
+const initialQueuePromptSchema = z.object({
+  text: z.string(),
+  hiddenContext: z.string().optional(),
 });
 
 const ptyConfigV1 = z.object({
@@ -24,8 +29,10 @@ const acpConfigV1 = z.object({
   version: z.literal('1'),
   type: z.literal('acp'),
   autoApprove: z.boolean().optional(),
-  /** Initial prompt to deliver on first spawn (delivered once, gated on sessionId === null). */
+  /** @deprecated Use initialQueue; kept so older in-progress ACP configs remain readable. */
   initialPrompt: z.string().optional(),
+  /** Initial queued prompts to deliver on first spawn (delivered once, gated on sessionId === null). */
+  initialQueue: z.array(initialQueuePromptSchema).optional(),
   /** Model to pass to the agent CLI. Empty string or absent = CLI default. */
   model: z.string().optional(),
 });

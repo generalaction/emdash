@@ -140,6 +140,32 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
   );
 };
 
+export const DeleteBranchByDefaultRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Delete branch by default"
+      description="Preselect the delete branch option when deleting tasks with a deletable task branch."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('deleteBranchByDefault')}
+            defaultLabel="off"
+            onReset={taskSettings.resetDeleteBranchByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.deleteBranchByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateDeleteBranchByDefault}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const PreserveTaskNameCapitalizationRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 

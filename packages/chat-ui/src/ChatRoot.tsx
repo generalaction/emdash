@@ -49,7 +49,7 @@ import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
 import { createFrameScheduler } from './components/engine/frame-scheduler';
 import { createTweenRegistry } from './components/engine/tween-registry';
-import { NODE_SEGMENTERS, SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
+import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import type { ChatCaches } from './core/caches';
@@ -59,21 +59,28 @@ import { genericEstimate } from './core/layout/generic-estimate';
 import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
-import type { ChatItem, ChatMessage } from './model';
+import type { ChatItem, ChatMessage, TranscriptTurn } from './model';
 import type { ChatState, ScrollMode } from './state/chat-state';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
 import type { UnitsView } from './state/flatten';
 import type { LayoutSnapshot, PinSnapshot } from './state/geometry';
 import { samePin, sameRange } from './state/geometry';
-import { getItem } from './state/transcript';
 import {
   canvas,
+  composerSlotAnimatingClass,
+  composerSlotCenteredClass,
   composerSlotClass,
+  composerSlotInnerBottomClass,
+  composerSlotInnerCenteredClass,
   composerSlotInnerClass,
   contentOverlaySlotClass,
   defaultContentClass,
+  heroSlotClass,
+  heroSlotHiddenClass,
+  heroSlotVisibleClass,
   outerClip,
   pinnedOverlay,
+  pinnedOverlayColumn,
   scrollContainer,
   unitRowWrapper,
   widthProbeClass,
@@ -121,6 +128,29 @@ const USER_SCROLL_EPSILON = 0.5;
 // and let projectAnchor jump the thumb forward. Tunable.
 const SCROLL_SETTLE_MS = 120;
 
+export type ComposerPlacement = 'bottom' | 'center';
+
+export type ComposerPlacementOptions = {
+  animate?: boolean;
+};
+
+function resolveComposerPlacement(
+  value: ComposerPlacement | (() => ComposerPlacement) | undefined
+): ComposerPlacement {
+  return value === undefined ? 'bottom' : typeof value === 'function' ? value() : value;
+}
+
+function findLastUserMessageId(turns: readonly TranscriptTurn[]): string | null {
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex];
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex--) {
+      const item = turn.items[itemIndex];
+      if (item.kind === 'message' && item.role === 'user') return item.id;
+    }
+  }
+  return null;
+}
+
 // ── EngineControls ────────────────────────────────────────────────────────────
 
 /**
@@ -129,9 +159,10 @@ const SCROLL_SETTLE_MS = 120;
  * it so callers never hold stale closures.
  */
 export type EngineControls = {
+  scrollToTop(opts?: { behavior?: ScrollBehavior }): void;
   scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
   scrollToItem(id: string, opts?: ScrollToItemOptions): void;
-  loadOlder(items: ChatItem[]): void;
+  loadOlder(turns: TranscriptTurn[]): void;
   /** Toggle collapse for an item by id (for view.toggleCollapsed). */
   toggleCollapsed?(id: string): void;
   /**
@@ -139,6 +170,11 @@ export type EngineControls = {
    * `composer === 'slot'`. The host portals its React composer into this element.
    */
   composerSlot?: HTMLElement | null;
+  /**
+   * Reference to the hero slot element rendered above the composer in centered
+   * placement. Hosts can portal empty-state copy into this element.
+   */
+  heroSlot?: HTMLElement | null;
   /**
    * Reference to the content overlay slot element. Set after mount when
    * `contentOverlay` is true. The host portals overlay content into it.
@@ -149,6 +185,8 @@ export type EngineControls = {
    * Wired by onMount; safe to call from outside the Solid reactive context.
    */
   setScrollMode?(mode: ScrollMode): void;
+  /** Move the library-owned composer slot between supported placements. */
+  setComposerPlacement?(placement: ComposerPlacement, opts?: ComposerPlacementOptions): void;
   /**
    * Called once at the end of ChatRoot's onMount, after all controls and
    * composerSlot are wired. Used by createChatView to fire onViewMounted.
@@ -227,6 +265,11 @@ export type ChatRootProps = {
    */
   composer?: 'slot' | 'none';
   /**
+   * Initial or reactive composer placement when `composer === 'slot'`.
+   * Defaults to `'bottom'`.
+   */
+  composerPlacement?: ComposerPlacement | (() => ComposerPlacement);
+  /**
    * When true, render an absolutely-positioned overlay slot above the
    * transcript/scroll but below the composer (z-index 15). Hosts portal
    * loading/empty/disabled states into `controls.contentOverlay`.
@@ -266,6 +309,12 @@ export function ChatRoot(props: ChatRootProps) {
   const theme = () => resolved;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
+  const [composerPlacement, setComposerPlacementSignal] = createSignal<ComposerPlacement>(
+    resolveComposerPlacement(props.composerPlacement)
+  );
+  const [composerAnimating, setComposerAnimating] = createSignal(false);
+  const effectiveComposerPlacement = () =>
+    props.composer === 'slot' ? composerPlacement() : 'bottom';
 
   const padTop = () => {
     const v = props.padTop;
@@ -298,6 +347,8 @@ export function ChatRoot(props: ChatRootProps) {
   // Zero-height probe that carries contentClass; the width ResizeObserver
   // targets this so it only fires on genuine layout-width changes.
   let widthProbeEl: HTMLDivElement | undefined;
+  let composerSlotLayerEl: HTMLDivElement | undefined;
+  let heroSlotEl: HTMLElement | undefined;
   let composerSlotEl: HTMLElement | undefined;
   let contentOverlaySlotEl: HTMLElement | undefined;
   const virt = new Virtualizer();
@@ -308,10 +359,94 @@ export function ChatRoot(props: ChatRootProps) {
   const [scrollVelocity, setScrollVelocity] = createSignal(0);
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
+  const [contentColumnLeft, setContentColumnLeft] = createSignal(0);
+
+  const updateContentColumnGeometry = () => {
+    if (!widthProbeEl || !outerEl) return;
+    const probeRect = widthProbeEl.getBoundingClientRect();
+    const outerRect = outerEl.getBoundingClientRect();
+    if (probeRect.width <= 0) return;
+    setContainerWidth(probeRect.width);
+    setContentColumnLeft(probeRect.left - outerRect.left);
+  };
+
+  const updateSlotPadBottom = () => {
+    if (props.composer !== 'slot' || effectiveComposerPlacement() === 'center') {
+      setSlotPadBottom(0);
+      return;
+    }
+    setSlotPadBottom(composerSlotEl?.getBoundingClientRect().height ?? 0);
+  };
+
+  const setComposerPlacement = (
+    placement: ComposerPlacement,
+    opts: ComposerPlacementOptions = {}
+  ) => {
+    if (props.composer !== 'slot') {
+      setComposerPlacementSignal(placement);
+      setSlotPadBottom(0);
+      return;
+    }
+
+    const current = untrack(composerPlacement);
+    if (current === placement) {
+      updateSlotPadBottom();
+      return;
+    }
+
+    const first = composerSlotEl?.getBoundingClientRect();
+    setComposerPlacementSignal(placement);
+    updateSlotPadBottom();
+
+    if (!opts.animate || !composerSlotLayerEl || !composerSlotEl || !first) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const last = composerSlotEl.getBoundingClientRect();
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+
+    const layer = composerSlotLayerEl;
+    setComposerAnimating(false);
+    layer.style.transition = 'none';
+    layer.style.transform = `translate(${dx}px, ${dy}px)`;
+    // Force layout so the inverted transform is committed before animating home.
+    void layer.offsetHeight;
+    layer.style.transition = '';
+    setComposerAnimating(true);
+
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      layer.removeEventListener('transitionend', cleanup);
+      layer.style.transform = '';
+      setComposerAnimating(false);
+    };
+
+    layer.addEventListener('transitionend', cleanup);
+    window.setTimeout(cleanup, 560);
+    requestAnimationFrame(() => {
+      layer.style.transform = '';
+    });
+  };
 
   // measureEpoch comes from ChatContext so all views share one epoch signal.
   // When fonts load, ChatContext bumps it and all views re-measure.
   const measureEpoch = props.context.measureEpoch;
+
+  createEffect(() => {
+    if (typeof props.composerPlacement !== 'function') return;
+    const next = props.composerPlacement();
+    if (next !== composerPlacement()) {
+      setComposerPlacement(next, { animate: false });
+    }
+  });
+
+  createEffect(() => {
+    effectiveComposerPlacement();
+    updateSlotPadBottom();
+  });
 
   const refreshTotal = () => {
     setTotalHeight(virt.total());
@@ -348,10 +483,15 @@ export function ChatRoot(props: ChatRootProps) {
   const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
 
   // ── Flat unit view (two-tier, incremental) ────────────────────────────────
-  const segmentCtx = createMemo(() => ({
+  const segmentCtx = (active = false) => ({
     caches: caches(),
     expanded: (_id: string) => false,
-  }));
+    active,
+    plan: () => state().session.state.plan,
+    pendingToolCallIds: () => state().session.state.pendingToolCallIds,
+    terminalOutputText: (terminalId: string) =>
+      state().session.state.terminalOutputText(terminalId),
+  });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
   // O(1) lookup: itemId -> index of the FIRST unit for that item in the
@@ -359,7 +499,7 @@ export function ChatRoot(props: ChatRootProps) {
   // items are handled by a small scan in firstUnitIndexOf since activeTurn is
   // always short (≤ a handful of items per streaming turn).
   const committedIndexById = new Map<string, number>();
-  let lastCommitted: readonly ChatItem[] = [];
+  let lastCommitted: readonly TranscriptTurn[] = [];
   // Identity of the model this effect last built from. A change signals a
   // view.setModel swap and drives the snapshot + incremental-cache reset.
   let lastState: ChatState | undefined;
@@ -381,7 +521,7 @@ export function ChatRoot(props: ChatRootProps) {
   // rebuild from the incoming model — all within the same synchronous run.
   createEffect(() => {
     const s = state();
-    const next = s.transcript.state.committed;
+    const next = s.transcript.state.committedTurns;
 
     if (s !== lastState) {
       // Model swap: snapshot the outgoing model's heights while committedUnitsArr
@@ -395,7 +535,7 @@ export function ChatRoot(props: ChatRootProps) {
     }
 
     const prev = lastCommitted;
-    const ctx = segmentCtx();
+    const ctx = segmentCtx(false);
 
     if (
       next.length > prev.length &&
@@ -407,7 +547,7 @@ export function ChatRoot(props: ChatRootProps) {
         committedUnitsArr.length > 0
           ? committedUnitsArr[committedUnitsArr.length - 1].kind
           : undefined;
-      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
       const base = committedUnitsArr.length;
       for (let j = 0; j < newUnits.length; j++) {
         const u = newUnits[j];
@@ -418,14 +558,7 @@ export function ChatRoot(props: ChatRootProps) {
       committedUnitsArr = [...committedUnitsArr, ...newUnits];
     } else {
       // Full rebuild (seed, prepend, or non-append structural change).
-      committedUnitsArr = flattenTier(
-        next,
-        ctx,
-        SEGMENTERS,
-        UNIT_REGISTRY,
-        undefined,
-        NODE_SEGMENTERS
-      );
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
       committedIndexById.clear();
       for (let i = 0; i < committedUnitsArr.length; i++) {
         const u = committedUnitsArr[i];
@@ -441,13 +574,44 @@ export function ChatRoot(props: ChatRootProps) {
 
   const activeUnits = createMemo(() => {
     committedUnitsVersion();
-    const at = state().transcript.state.activeTurn;
-    if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const at = state().transcript.state.activeTurnSnapshot;
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if ((!at || at.items.length === 0) && !pendingPrompt)
+      return [] as ReturnType<typeof flattenTier>;
     const prevKind =
       committedUnitsArr.length > 0
         ? committedUnitsArr[committedUnitsArr.length - 1].kind
         : undefined;
-    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind, NODE_SEGMENTERS);
+    const activeTurn =
+      at ??
+      ({
+        id: `pending:${pendingPrompt!.id}:turn`,
+        seq: 0,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: pendingPrompt!.id,
+            seq: 0,
+            role: 'user',
+            text: pendingPrompt!.text,
+            attachments: pendingPrompt!.attachments,
+          } as TranscriptTurn['items'][number],
+        ],
+      } satisfies TranscriptTurn);
+    return flattenTier([activeTurn], segmentCtx(true), SEGMENTERS, UNIT_REGISTRY, prevKind);
+  });
+
+  let pendingPromptCommittedTurns = state().transcript.state.committedTurns;
+  createEffect(() => {
+    const s = state();
+    const pendingPrompt = s.session.state.pendingPrompt;
+    const committedTurns = s.transcript.state.committedTurns;
+    const hasActiveTurn = s.transcript.state.activeTurnSnapshot !== null;
+    if (pendingPrompt && (hasActiveTurn || committedTurns !== pendingPromptCommittedTurns)) {
+      s.session.setPendingPrompt(null);
+    }
+    pendingPromptCommittedTurns = committedTurns;
   });
 
   const units = createMemo<UnitsView>(() => {
@@ -543,7 +707,7 @@ export function ChatRoot(props: ChatRootProps) {
   const userTurns = createMemo(() => {
     committedUnitsVersion();
     return collectUserTurnUnits(
-      state().transcript.state.committed,
+      state().transcript.state.committedTurns,
       makeUnitsView(committedUnitsArr, NO_ACTIVE_UNITS)
     );
   });
@@ -562,10 +726,10 @@ export function ChatRoot(props: ChatRootProps) {
     let targetId: string | null = null;
 
     // 1. Scan activeTurn backward for the latest user message.
-    const active = transcript.activeTurn;
+    const active = transcript.activeTurnSnapshot;
     if (active) {
-      for (let i = active.length - 1; i >= 0; i--) {
-        const item = active[i];
+      for (let i = active.items.length - 1; i >= 0; i--) {
+        const item = active.items[i];
         if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
           targetId = item.id;
           break;
@@ -575,14 +739,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // 2. Fall back to the last committed user message.
     if (targetId === null) {
-      const committed = transcript.committed;
-      for (let i = committed.length - 1; i >= 0; i--) {
-        const item = committed[i];
-        if (item && item.kind === 'message' && (item as ChatMessage).role === 'user') {
-          targetId = item.id;
-          break;
-        }
-      }
+      targetId = findLastUserMessageId(transcript.committedTurns);
     }
 
     if (targetId === null) return -1;
@@ -845,6 +1002,7 @@ export function ChatRoot(props: ChatRootProps) {
   // `undefined` means "not yet emitted" — forces an emit on the first writePhase
   // and after every model swap.
   let lastActiveUserVisible: boolean | undefined;
+  let lastAtBottom: boolean | undefined;
 
   // Smooth-scroll suppression: when a smooth-scroll animation is in flight,
   // intermediate scrollTop updates are browser-driven and must not be treated
@@ -858,6 +1016,12 @@ export function ChatRoot(props: ChatRootProps) {
   // after this timestamp — covering the whole gesture, not just one frame.
   // Initialised to 0 so the first write-phase call (no prior scroll) is settled.
   let lastUserScrollAt = 0;
+
+  const emitAtBottom = (value: boolean): void => {
+    if (value === lastAtBottom) return;
+    lastAtBottom = value;
+    props.onAtBottomChange?.(value);
+  };
 
   const readPhase = () => {
     const el = scrollEl;
@@ -898,7 +1062,6 @@ export function ChatRoot(props: ChatRootProps) {
       if (nowAtBottom) {
         if (!prevAtBottom) {
           setAnchor({ kind: 'tail' });
-          props.onAtBottomChange?.(true);
         }
       } else {
         const pt = padTop();
@@ -912,10 +1075,8 @@ export function ChatRoot(props: ChatRootProps) {
             offset: st - (virt.top(anchorUnitIdx) + pt),
           });
         }
-        if (prevAtBottom) {
-          props.onAtBottomChange?.(false);
-        }
       }
+      emitAtBottom(nowAtBottom);
     }
 
     if (st <= REACH_START_THRESHOLD_PX) {
@@ -1007,6 +1168,8 @@ export function ChatRoot(props: ChatRootProps) {
       pin: nextPin,
     };
     commit(next, nextVisible);
+
+    emitAtBottom(maxScrollTop() - shadowScrollTop <= STICK_THRESHOLD_PX);
 
     // Emit active-user-message visibility change when the state flips.
     if (props.onActiveUserMessageVisibilityChange) {
@@ -1137,6 +1300,22 @@ export function ChatRoot(props: ChatRootProps) {
   };
 
   // ── Scroll helpers ────────────────────────────────────────────────────────
+  const doScrollToTop = (opts?: { behavior?: ScrollBehavior }) => {
+    const el = scrollEl;
+    if (!el) return;
+    const firstUnit = units().at(0);
+    if (firstUnit) {
+      setAnchor({ kind: 'anchor', itemId: firstUnit.itemId, edge: 'top', offset: -padTop() });
+    }
+    if (opts?.behavior === 'smooth') {
+      smoothScrolling = true;
+      smoothScrollTarget = 0;
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      writeScrollTop(0);
+    }
+  };
+
   const doScrollToBottom = (opts?: { behavior?: ScrollBehavior }) => {
     const el = scrollEl;
     if (!el) return;
@@ -1220,11 +1399,12 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
-  const doLoadOlder = (items: ChatItem[]) => {
+  const doLoadOlder = (turns: TranscriptTurn[]) => {
     const el = scrollEl;
-    if (!el || items.length === 0) return;
+    if (!el || turns.length === 0) return;
 
     const t = theme();
+    const prependedUnits = flattenTier(turns, segmentCtx(false), SEGMENTERS, UNIT_REGISTRY);
 
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
     const anchorId = units().at(anchorUnitIdx)?.itemId;
@@ -1237,18 +1417,18 @@ export function ChatRoot(props: ChatRootProps) {
       expanded: () => false,
       caches: caches(),
     };
-    const count = items.length;
+    const count = prependedUnits.length;
     virt.prepend(count, (i) => {
-      const item = items[i];
-      if (!item) return userTopGap + 60;
-      const unitDef = UNIT_REGISTRY[item.kind];
+      const unit = prependedUnits[i];
+      if (!unit) return userTopGap + 60;
+      const unitDef = UNIT_REGISTRY[unit.kind];
       const contentH =
-        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ??
-        genericEstimate(item, loadEstimateCtx);
-      return userTopGap + contentH;
+        unitDef?.estimate?.(unit.data, loadEstimateCtx, unitDef.vars ?? {}) ??
+        genericEstimate(unit.data as unknown as ChatItem, loadEstimateCtx);
+      return unitReservedHeight(unit, contentH);
     });
 
-    state().transcript.history.prepend(items);
+    state().transcript.history.prepend(turns);
     refreshTotal();
 
     if (anchorId !== undefined) {
@@ -1308,12 +1488,15 @@ export function ChatRoot(props: ChatRootProps) {
 
     // Populate the controls holder so handle delegates resolve immediately.
     if (props.controls) {
+      props.controls.scrollToTop = doScrollToTop;
       props.controls.scrollToBottom = doScrollToBottom;
       props.controls.scrollToItem = doScrollToItem;
       props.controls.loadOlder = doLoadOlder;
       props.controls.toggleCollapsed = (id) => viewState().toggleCollapsed(id);
       props.controls.composerSlot = composerSlotEl ?? null;
+      props.controls.heroSlot = heroSlotEl ?? null;
       props.controls.contentOverlay = contentOverlaySlotEl ?? null;
+      props.controls.setComposerPlacement = setComposerPlacement;
       // Declarative scroll intent: host sets intent; ChatRoot projects it.
       props.controls.setScrollMode = (m: ScrollMode) => {
         setAnchor(m);
@@ -1345,15 +1528,16 @@ export function ChatRoot(props: ChatRootProps) {
     roHeight.observe(el);
     onCleanup(() => roHeight.disconnect());
 
-    // Target the zero-height width probe (carries contentClass / max-width cap)
-    // instead of canvasEl so this observer only fires on genuine layout-width
-    // changes and not on the canvas height mutations from streaming/tween updates.
+    // Target geometry ancestors instead of canvasEl so this observer only fires
+    // on genuine column geometry changes and not on canvas height mutations from
+    // streaming/tween updates. Observing outer/scroll catches a centered max-width
+    // column moving horizontally even when the probe's own width is unchanged.
     if (widthProbeEl) {
-      const roWidth = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect.width;
-        if (w && w > 0) setContainerWidth(w);
-      });
+      const roWidth = new ResizeObserver(() => updateContentColumnGeometry());
       roWidth.observe(widthProbeEl);
+      roWidth.observe(el);
+      if (outerEl) roWidth.observe(outerEl);
+      updateContentColumnGeometry();
       onCleanup(() => roWidth.disconnect());
     }
 
@@ -1361,7 +1545,7 @@ export function ChatRoot(props: ChatRootProps) {
     if (props.composer === 'slot' && composerSlotEl) {
       const roSlot = new ResizeObserver((entries) => {
         const h = entries[0]?.contentRect.height ?? 0;
-        setSlotPadBottom(h);
+        setSlotPadBottom(effectiveComposerPlacement() === 'center' ? 0 : h);
       });
       roSlot.observe(composerSlotEl);
       onCleanup(() => roSlot.disconnect());
@@ -1434,6 +1618,7 @@ export function ChatRoot(props: ChatRootProps) {
           // Reset visibility cache so the next writePhase re-emits for the new
           // conversation, even if the boolean value happens to be the same.
           lastActiveUserVisible = undefined;
+          lastAtBottom = undefined;
           // Load the incoming model's scroll intent and project it onto the DOM.
           attach(next);
           needsProject = true;
@@ -1453,18 +1638,15 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Active-turn id set ────────────────────────────────────────────────────
   const activeTurnItemIds = createMemo(() => {
-    const active = state().transcript.state.activeTurn;
-    if (!active) return new Set<string>();
-    return new Set(active.map((i) => i.id));
+    const active = state().transcript.state.activeTurnSnapshot;
+    const ids = new Set(active?.items.map((i) => i.id) ?? []);
+    const pendingPrompt = state().session.state.pendingPrompt;
+    if (pendingPrompt) ids.add(pendingPrompt.id);
+    return ids;
   });
 
   const currentMessageId = createMemo<string | null>(() => {
-    const committed = state().transcript.state.committed;
-    for (let i = committed.length - 1; i >= 0; i--) {
-      const item = committed[i];
-      if (item.kind === 'message' && item.role === 'user') return item.id;
-    }
-    return null;
+    return findLastUserMessageId(state().transcript.state.committedTurns);
   });
 
   const turnStatus = () => state().transcript.state.turnStatus;
@@ -1497,6 +1679,7 @@ export function ChatRoot(props: ChatRootProps) {
                     ref={(el) => {
                       widthProbeEl = el;
                     }}
+                    data-chat-width-probe
                     aria-hidden="true"
                     class={`${widthProbeClass} ${contentClass()}`}
                   />
@@ -1556,14 +1739,13 @@ export function ChatRoot(props: ChatRootProps) {
                   {(ps) => {
                     // Resolve the ChatMessage reactively via itemId (stable) so
                     // a stale unit-index lookup can never hand a wrong item to
-                    // PinnedUserMessage. getItem searches committed-then-active
-                    // so optimistic / live active-turn user messages resolve too.
+                    // PinnedUserMessage. findItemById searches committed-then-active
+                    // so live active-turn user messages resolve too.
                     const pinnedItem = (): ChatMessage | undefined => {
                       const itemId = ps().itemId;
                       if (!itemId) return undefined;
                       const transcript = state().transcript;
-                      const idx = transcript.findIndexById(itemId);
-                      const item = idx >= 0 ? getItem(transcript.state, idx) : undefined;
+                      const item = transcript.findItemById(itemId);
                       return item && item.kind === 'message' && item.role === 'user'
                         ? (item as ChatMessage)
                         : undefined;
@@ -1576,11 +1758,18 @@ export function ChatRoot(props: ChatRootProps) {
                             aria-hidden="true"
                             style={{ transform: `translateY(${ps().overlayTop}px)` }}
                           >
-                            {/* Inner centered column carries the max-width cap so
-                                the pinned card matches the inline rows' width. The
-                                gutter padding lives on the outer overlay (above),
-                                mirroring the composer slot's two-level structure. */}
-                            <div class={contentClass()}>
+                            {/* Position from the scroll-container width probe so
+                                classic scrollbar gutters cannot offset the pinned
+                                copy from the inline transcript row underneath. */}
+                            <div
+                              class={`${pinnedOverlayColumn} ${contentClass()}`}
+                              style={{
+                                'margin-left': `${contentColumnLeft()}px`,
+                                'margin-right': '0px',
+                                width: `${containerWidth()}px`,
+                                'max-width': 'none',
+                              }}
+                            >
                               <PinnedUserMessage
                                 item={item()}
                                 rowWidth={containerWidth()}
@@ -1610,12 +1799,23 @@ export function ChatRoot(props: ChatRootProps) {
                     centered div is what the host portals its React composer
                     into, and what the ResizeObserver measures for padBottom. */}
                 <Show when={props.composer === 'slot'}>
-                  <div class={composerSlotClass}>
+                  <div
+                    ref={(el) => {
+                      composerSlotLayerEl = el;
+                    }}
+                    class={`${effectiveComposerPlacement() === 'center' ? composerSlotCenteredClass : composerSlotClass}${composerAnimating() ? ` ${composerSlotAnimatingClass}` : ''}`}
+                  >
+                    <div
+                      ref={(el) => {
+                        heroSlotEl = el;
+                      }}
+                      class={`${heroSlotClass} ${effectiveComposerPlacement() === 'center' ? heroSlotVisibleClass : heroSlotHiddenClass}`}
+                    />
                     <div
                       ref={(el) => {
                         composerSlotEl = el;
                       }}
-                      class={composerSlotInnerClass}
+                      class={`${composerSlotInnerClass} ${effectiveComposerPlacement() === 'center' ? composerSlotInnerCenteredClass : composerSlotInnerBottomClass}`}
                     />
                   </div>
                 </Show>

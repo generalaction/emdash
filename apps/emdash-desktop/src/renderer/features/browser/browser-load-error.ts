@@ -3,7 +3,6 @@ import type { BrowserLoadError } from '@shared/browser';
 export interface BrowserLoadErrorPresentation {
   heading: string;
   detail: string;
-  suggestions: string[];
 }
 
 const ERROR_CONSTANT_PATTERN = /^(?:net::)?(err_[a-z0-9_]+)$/i;
@@ -31,8 +30,6 @@ const ERROR_CODE_CONSTANTS: Record<number, string> = {
   [-501]: 'ERR_INSECURE_RESPONSE',
 };
 
-const CHECK_CONNECTION = 'Checking the connection';
-const CHECK_PROXY = 'Checking the proxy, firewall, and DNS configuration';
 const UNREACHABLE = "This site can't be reached";
 
 export function browserLoadErrorConstant(error: BrowserLoadError): string | null {
@@ -64,20 +61,17 @@ export function describeBrowserLoadError(
       return {
         heading: UNREACHABLE,
         detail: `${host}'s server IP address could not be found.`,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     case 'ERR_CONNECTION_REFUSED':
       return {
         heading: UNREACHABLE,
         detail: `${host} refused to connect.`,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     case 'ERR_TIMED_OUT':
     case 'ERR_CONNECTION_TIMED_OUT':
       return {
         heading: UNREACHABLE,
         detail: `${host} took too long to respond.`,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     case 'ERR_CONNECTION_RESET':
     case 'ERR_CONNECTION_CLOSED':
@@ -85,32 +79,27 @@ export function describeBrowserLoadError(
       return {
         heading: UNREACHABLE,
         detail: `The connection to ${host} was interrupted.`,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     case 'ERR_ADDRESS_UNREACHABLE':
       return {
         heading: UNREACHABLE,
         detail: `${host} is unreachable.`,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     case 'ERR_INTERNET_DISCONNECTED':
       return {
         heading: 'No internet',
         detail: 'You appear to be offline.',
-        suggestions: ['Checking the network cables, modem, and router', 'Reconnecting to Wi-Fi'],
       };
     case 'ERR_NETWORK_CHANGED':
       return {
         heading: UNREACHABLE,
         detail: 'Your network connection changed.',
-        suggestions: [CHECK_CONNECTION],
       };
     case 'ERR_SSL_PROTOCOL_ERROR':
     case 'ERR_INSECURE_RESPONSE':
       return {
         heading: "This site can't provide a secure connection",
         detail: `${host} sent an invalid response.`,
-        suggestions: [CHECK_PROXY],
       };
     case 'ERR_CERT_COMMON_NAME_INVALID':
     case 'ERR_CERT_DATE_INVALID':
@@ -118,13 +107,11 @@ export function describeBrowserLoadError(
       return {
         heading: 'Your connection is not private',
         detail: `${host}'s security certificate is not trusted.`,
-        suggestions: [],
       };
     case 'ERR_INVALID_URL':
       return {
         heading: UNREACHABLE,
         detail: "The web address isn't valid.",
-        suggestions: [],
       };
     default: {
       const description = error.description.trim();
@@ -136,7 +123,6 @@ export function describeBrowserLoadError(
       return {
         heading: UNREACHABLE,
         detail,
-        suggestions: [CHECK_CONNECTION, CHECK_PROXY],
       };
     }
   }

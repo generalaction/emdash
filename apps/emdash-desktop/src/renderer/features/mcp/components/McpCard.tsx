@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
@@ -6,7 +7,6 @@ import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/core/mcp/types';
 
 interface McpCardProps {

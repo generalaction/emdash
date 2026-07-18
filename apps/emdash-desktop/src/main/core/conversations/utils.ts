@@ -1,7 +1,20 @@
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { type ConversationRow } from '@main/db/schema';
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { type AgentStatus } from '@shared/core/agents/agentEvents';
-import { type Conversation, type ConversationType } from '@shared/core/conversations/conversations';
+import {
+  type Conversation,
+  type ConversationType,
+  type InitialQueuePrompt,
+} from '@shared/core/conversations/conversations';
+
+function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undefined {
+  if (row.sessionId !== null) return undefined;
+  const config = row.config;
+  if (config?.type !== 'acp') return undefined;
+  if (config.initialQueue?.length) return config.initialQueue;
+  const legacyPrompt = config.initialPrompt?.trim();
+  return legacyPrompt ? [{ text: legacyPrompt }] : undefined;
+}
 
 export function mapConversationRowToConversation(
   row: ConversationRow,
@@ -17,6 +30,7 @@ export function mapConversationRowToConversation(
     autoApprove: config?.autoApprove,
     sessionId: row.sessionId ?? undefined,
     model: config?.model,
+    initialQueue: initialQueueFromRow(row),
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,

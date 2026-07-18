@@ -1,7 +1,10 @@
+import { err } from '@emdash/shared';
 import { projectManager } from '@main/core/projects/project-manager';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
+  IssueContextResult,
+  IssueListResult,
   IssueProviderType,
 } from '@shared/issue-providers';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -130,32 +133,41 @@ export const issueController = createRPCController({
     return Object.fromEntries(settled) as Record<IssueProviderType, boolean>;
   },
 
-  listIssues: async (provider: IssueProviderType, opts: IssueQueryOpts) => {
+  listIssues: async (
+    provider: IssueProviderType,
+    opts: IssueQueryOpts
+  ): Promise<IssueListResult> => {
     const issueProvider = getIssueProvider(provider);
     if (!issueProvider) {
-      return { success: false, error: `Unknown provider: ${provider}` } as const;
+      return err({ type: 'generic', message: `Unknown provider: ${provider}` });
     }
 
     return issueProvider.listIssues(await withResolvedRemote(opts));
   },
 
-  searchIssues: async (provider: IssueProviderType, opts: IssueSearchOpts) => {
+  searchIssues: async (
+    provider: IssueProviderType,
+    opts: IssueSearchOpts
+  ): Promise<IssueListResult> => {
     const issueProvider = getIssueProvider(provider);
     if (!issueProvider) {
-      return { success: false, error: `Unknown provider: ${provider}` } as const;
+      return err({ type: 'generic', message: `Unknown provider: ${provider}` });
     }
 
     return issueProvider.searchIssues(await withResolvedRemote(opts));
   },
 
-  getIssueContext: async (provider: IssueProviderType, opts: IssueContextOpts) => {
+  getIssueContext: async (
+    provider: IssueProviderType,
+    opts: IssueContextOpts
+  ): Promise<IssueContextResult> => {
     const issueProvider = getIssueProvider(provider);
     if (!issueProvider) {
-      return { success: false, error: `Unknown provider: ${provider}` } as const;
+      return err({ type: 'generic', message: `Unknown provider: ${provider}` });
     }
 
     if (!issueProvider.getIssueContext) {
-      return { success: false, error: `${provider} does not support issue context.` } as const;
+      return err({ type: 'generic', message: `${provider} does not support issue context.` });
     }
 
     return issueProvider.getIssueContext(await withResolvedRemote(opts));

@@ -42,7 +42,7 @@ import { createChatContext } from '@/chat-context';
 import type { ChatView } from '@/chat-view';
 import { createChatView } from '@/chat-view';
 import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
-import type { ChatItem } from '@/model';
+import type { ChatMessage, TranscriptTurn } from '@/model';
 import { createChatState } from '@/state/chat-state';
 import { tailMode } from '@/state/scroll-mode';
 import { storyViewport } from '@/stories/_harness/chat-host.css';
@@ -57,15 +57,14 @@ type Story = StoryObj;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-function makeTranscript(label: string, count = 12): ChatItem[] {
-  const items = generateMockTranscript(count);
+function makeTranscript(label: string, count = 12): TranscriptTurn[] {
+  const turns = generateMockTranscript(count);
   // Prefix the first user message text so testers can confirm which tab is shown.
-  const first = items[0];
+  const first = turns[0]?.items[0];
   if (first && first.kind === 'message' && first.role === 'user') {
-    (first as typeof first & { text: string }).text =
-      `[${label}] ${(first as typeof first & { text: string }).text}`;
+    (first as ChatMessage).text = `[${label}] ${(first as ChatMessage).text}`;
   }
-  return items;
+  return turns;
 }
 
 // ── Story component ───────────────────────────────────────────────────────────

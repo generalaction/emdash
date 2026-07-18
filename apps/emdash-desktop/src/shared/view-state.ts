@@ -17,6 +17,7 @@ export type TabDescriptor =
       session: BrowserSessionSnapshot;
       isPreview: boolean;
     }
+  | { kind: 'terminal'; tabId: string; terminalId: string; isPreview: boolean }
   | {
       kind: 'diff';
       tabId: string;
@@ -112,9 +113,12 @@ export type TaskViewSnapshot = {
   diffView?: DiffViewSnapshot;
 };
 
+export type ProjectTaskSortBy = 'created-at' | 'updated-at' | 'pr-status' | 'unread';
+
 export type ProjectViewSnapshot = {
   activeView: string;
   taskViewTab: 'active' | 'archived';
+  taskSortBy?: ProjectTaskSortBy;
   selectedIssueProvider?: string;
 };
 

@@ -1,6 +1,6 @@
-import { Check, Copy, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useState } from 'react';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
@@ -8,18 +8,19 @@ import {
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
+import { PrUrlCopyButton } from '@renderer/lib/components/pr-url-copy-button';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
-import { PrCommitsList } from './commits-list';
+import { CommitRangeCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState } from './merge-ui-state';
+import { commitRangeForPullRequest } from './use-commits';
 
 export type MergeMode = 'merge' | 'squash' | 'rebase';
 
@@ -55,28 +56,6 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [isMerging, setIsMerging] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [bypassRequirements, setBypassRequirements] = useState(false);
-  const [justCopied, setJustCopied] = useState(false);
-
-  useEffect(() => {
-    if (!justCopied) return;
-    const timer = window.setTimeout(() => setJustCopied(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [justCopied]);
-
-  const handleCopyPrUrl = async (e: MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(pr.url);
-      setJustCopied(true);
-      toast({ title: 'PR URL copied' });
-    } catch {
-      toast({
-        title: 'Copy failed',
-        description: 'The PR URL could not be copied to the clipboard.',
-        variant: 'destructive',
-      });
-    }
-  };
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -135,29 +114,17 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           >
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
-            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="transition-opacity duration-200 group-hover:opacity-0">
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+            </div>
+            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label={justCopied ? 'PR URL copied' : 'Copy PR URL'}
-                  onClick={handleCopyPrUrl}
-                  className={cn(
-                    'flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted outline-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover/header:opacity-100',
-                    justCopied ? 'opacity-100' : 'opacity-0'
-                  )}
-                >
-                  {justCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </button>
-              }
-            />
-            <TooltipContent>{justCopied ? 'Copied!' : 'Copy PR URL'}</TooltipContent>
-          </Tooltip>
+          <PrUrlCopyButton
+            url={pr.url}
+            className="opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100"
+          />
         </div>
         <PrMergeLine pr={pr} />
       </div>
@@ -184,7 +151,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         </ToggleGroup>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
-          {tab === 'commits' && <PrCommitsList />}
+          {tab === 'commits' && <CommitRangeCommitsList range={commitRangeForPullRequest(pr)} />}
           {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} />}
         </div>
       </div>

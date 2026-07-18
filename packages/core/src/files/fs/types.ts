@@ -31,6 +31,25 @@ export type WriteFileResult = {
   bytesWritten: number;
 };
 
+/** A non-fatal error encountered while scanning a subtree during `measureUsage`. */
+export type FileUsageError = {
+  path: string;
+  message: string;
+};
+
+export type FileUsage = {
+  path: string;
+  type: 'file' | 'directory';
+  /** Sum of file sizes as reported by stat (logical size). */
+  apparentBytes: number;
+  /** On-disk usage with each hardlinked inode counted once (`du` semantics). */
+  diskBytes: number;
+  /** On-disk bytes that would be freed by deleting the path: excludes inodes
+   *  that remain referenced by hardlinks outside the measured tree. */
+  exclusiveDiskBytes: number;
+  errors: FileUsageError[];
+};
+
 export type FileGlobOptions = {
   cwd: string;
   dot?: boolean;
@@ -51,6 +70,7 @@ export interface IFileSystem {
   writeText(path: string, content: string): Promise<Result<WriteFileResult, FileError>>;
   writeBytes(path: string, bytes: Uint8Array): Promise<Result<WriteFileResult, FileError>>;
   stat(path: string): Promise<Result<FileStat, FileError>>;
+  measureUsage(path: string): Promise<Result<FileUsage, FileError>>;
   exists(path: string): Promise<Result<boolean, FileError>>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<Result<void, FileError>>;
   remove(path: string, options?: { recursive?: boolean }): Promise<Result<void, FileError>>;

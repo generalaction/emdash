@@ -5,6 +5,7 @@ import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   getRegisteredTaskData,
   getTaskGitWorktreeStore,
+  getTaskManagerStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
@@ -46,6 +47,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         (entry) => entry.projectId === projectId && entry.taskId === taskId
       );
 
+      const taskManager = getTaskManagerStore(projectId);
       const git = getTaskGitWorktreeStore(projectId, taskId);
       const repository = git ? getGitRepositoryStore(projectId) : undefined;
       const taskData = getRegisteredTaskData(projectId, taskId);
@@ -75,6 +77,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const gitPullDef = taskDef('task.gitPull');
       const gitPushDef = taskDef('task.gitPush');
       const pinDef = taskDef('task.pin');
+      const archiveDef = taskDef('task.archive');
       const nextTaskDef = taskDef('task.nextTask');
       const prevTaskDef = taskDef('task.prevTask');
 
@@ -431,6 +434,24 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           enabled: taskData != null,
           execute() {
             if (taskData) void taskStore?.setPinned(!taskData.isPinned);
+          },
+        },
+        {
+          id: archiveDef.id,
+          label: archiveDef.label,
+          description: archiveDef.description,
+          shortcutKey: archiveDef.shortcutKey,
+          group: archiveDef.group,
+          enabled: taskData != null && !taskData.archivedAt,
+          execute() {
+            void (async () => {
+              try {
+                await taskManager?.archiveTask(taskId);
+                appState.navigation.navigate('project', { projectId });
+              } catch {
+                toast({ title: 'Could not archive task', variant: 'destructive' });
+              }
+            })();
           },
         },
         // ── Navigation ─────────────────────────────────────────────────────

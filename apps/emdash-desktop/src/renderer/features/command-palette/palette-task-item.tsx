@@ -1,9 +1,9 @@
 import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
+import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 
 export const PaletteTaskItem = observer(function PaletteTaskItem({

@@ -164,11 +164,9 @@ function ImageSidePanel({ label, state, side }: { label: string; state: SideStat
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 items-baseline gap-2 border-b border-border px-3 py-2">
-        <span className="font-mono text-xs tracking-wide text-foreground-muted uppercase">
-          {label}
-        </span>
+        <span className="font-sans text-xs text-foreground-muted">{label}</span>
         {state.status === 'ready' && (
-          <span className="font-mono text-[10px] text-foreground-passive">
+          <span className="font-sans text-[10px] text-foreground-passive">
             {formatBytes(state.size)}
           </span>
         )}

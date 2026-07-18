@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -5,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(() => '1.1.27'),
   openExternal: vi.fn(),
   openPath: vi.fn(),
+  showItemInFolder: vi.fn(),
   menuPopup: vi.fn(),
   menuBuildFromTemplate: vi.fn((template: Electron.MenuItemConstructorOptions[]) => ({
     popup: mocks.menuPopup,
@@ -33,6 +36,7 @@ vi.mock('electron', () => ({
   shell: {
     openExternal: mocks.openExternal,
     openPath: mocks.openPath,
+    showItemInFolder: mocks.showItemInFolder,
   },
   Menu: {
     buildFromTemplate: mocks.menuBuildFromTemplate,
@@ -113,6 +117,25 @@ describe('AppService.openIn', () => {
     );
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppService.showItemInFolder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reveals the resolved path with Electron shell.showItemInFolder', async () => {
+    await appService.showItemInFolder(homedir());
+
+    expect(mocks.showItemInFolder).toHaveBeenCalledWith(await realpath(homedir()));
+  });
+
+  it('rejects paths outside the user home directory', async () => {
+    await expect(appService.showItemInFolder(tmpdir())).rejects.toThrow(
+      'Path must be inside the user home directory'
+    );
+    expect(mocks.showItemInFolder).not.toHaveBeenCalled();
   });
 });
 

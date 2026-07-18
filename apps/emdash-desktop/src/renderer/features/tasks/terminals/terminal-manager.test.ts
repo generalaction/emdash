@@ -59,6 +59,18 @@ vi.mock('@renderer/lib/pty/pty', () => ({
   },
 }));
 
+vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
+  AcpChatStore: class {
+    conversationId = '';
+    dispose() {}
+    bootstrap() {}
+  },
+}));
+
+vi.mock('@renderer/features/conversations/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 describe('TerminalManagerStore session hydration', () => {
   beforeEach(() => {
     createTerminal.mockReset();

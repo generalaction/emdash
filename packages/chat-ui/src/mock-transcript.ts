@@ -7,6 +7,7 @@ import type {
   FileOpKind,
   ResourceTarget,
   ToolStatus,
+  TranscriptTurn,
 } from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
@@ -374,7 +375,7 @@ function thinkingText(rng: () => number): string {
 const FILE_PATHS = [
   'packages/chat-ui/src/components/execute/Execute.tsx',
   'packages/chat-ui/src/components/file-op/FileOperation.tsx',
-  'apps/emdash-desktop/src/renderer/features/tasks/conversations/chat/chat-store.ts',
+  'apps/emdash-desktop/src/renderer/features/conversations/chat/chat-store.ts',
   'packages/ui/src/theme/theme.css',
   'packages/chat-ui/src/state/transcript.ts',
   'apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts',
@@ -446,7 +447,7 @@ function pick<T>(rng: () => number, arr: T[]): T {
 
 /** Varied resource-link targets for the mock cycle. */
 const RESOURCE_LINK_TARGETS: ResourceTarget[] = [
-  { kind: 'workspace-file', path: 'src/renderer/features/tasks/conversations/chat/chat-store.ts' },
+  { kind: 'workspace-file', path: 'src/renderer/features/conversations/chat/chat-store.ts' },
   { kind: 'workspace-file', path: 'packages/chat-ui/src/model.ts' },
   { kind: 'external', url: 'https://github.com/anthropics/anthropic-sdk-python' },
   { kind: 'opaque' },
@@ -491,7 +492,7 @@ export function generateMockTranscript(
   count = 6000,
   seed = 1,
   opts: { richProse?: boolean; bodyPoolSize?: number } = {}
-): ChatItem[] {
+): TranscriptTurn[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
@@ -685,5 +686,11 @@ export function generateMockTranscript(
     }
   }
 
-  return items;
+  return items.map((item, index) => ({
+    id: `mock-turn-${index}`,
+    seq: index,
+    initiator: item.kind === 'message' && item.role === 'user' ? 'user' : 'agent',
+    items: [{ ...item, seq: 0 } as TranscriptTurn['items'][number]],
+    outcome: { kind: 'done' },
+  }));
 }

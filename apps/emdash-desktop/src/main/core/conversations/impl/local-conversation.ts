@@ -1,8 +1,8 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
-import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import {
@@ -18,6 +18,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
+import { makePtyId } from '@main/core/pty/ptyId';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
@@ -27,7 +28,6 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { makePtyId } from '@shared/core/pty/ptyId';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveAgentExecutable } from './resolve-agent-executable';
@@ -117,10 +117,10 @@ export class LocalConversationProvider implements ConversationProvider {
 
     let spill: SpillLargePromptResult | undefined;
     try {
-      await workspaceTrustService.maybeAutoTrustLocal({
+      await workspaceTrustService.maybeAutoTrust({
         providerId: conversation.providerId,
         workspacePath: this.taskPath,
-        homedir: homedir(),
+        host: { kind: 'local', homedir: homedir() },
         force: conversation.autoApprove === true,
       });
       await ensureHooksInstalled({

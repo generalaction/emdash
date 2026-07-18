@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.1.36",
+  "version": "1.1.40",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -53,8 +53,10 @@
     "@emdash/chat-ui": "workspace:*",
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
+    "@emdash/runtime": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
+    "@emdash/wire": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@gitbeaker/rest": "^43.8.0",

@@ -5,6 +5,8 @@ import {
   npmDependency,
   opencodeMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { opencodeAuthStatus } from './auth';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -20,8 +22,33 @@ export const plugin = definePlugin(
     websiteUrl: 'https://opencode.ai/docs/cli/',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
+    },
+    auth: {
+      kind: 'supported',
+      methods: [
+        {
+          kind: 'cli-login',
+          id: 'opencode-login',
+          name: 'Sign in with OpenCode',
+          args: ['auth', 'login'],
+          description: 'Open the OpenCode CLI sign-in flow in a terminal.',
+        },
+        {
+          kind: 'api-key',
+          id: 'provider-api-key',
+          name: 'Use provider API keys',
+          envVars: [
+            { name: 'ANTHROPIC_API_KEY', label: 'Anthropic API key' },
+            { name: 'OPENAI_API_KEY', label: 'OpenAI API key' },
+            { name: 'GEMINI_API_KEY', label: 'Gemini API key' },
+          ],
+        },
+      ],
     },
     hooks: {
       kind: 'plugin',
@@ -50,11 +77,24 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  auth: {
+    checkStatus: opencodeAuthStatus,
+  },
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: ctx.cli,
+      args: ['acp'],
+    }),
+    connect: (io, toClient) => {
+      return connectStdioAcp(io, toClient);
+    },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         extraEnv: ctx.autoApprove ? { OPENCODE_PERMISSION: '{"*":"allow"}' } : {},
         initialPromptFlag: '--prompt',
+        modelFlag: '--model',
         resumeFlag: '--session',
         sessionIdFlag: '--session',
         sessionIdOnResumeOnly: true,

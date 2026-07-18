@@ -95,6 +95,9 @@ apps/*/tooling/node-deps/node_modules/
 .vitest-attachments/
 **/__screenshots__/
 
+# ACP fixture transcripts (generated locally via pnpm generate:acp-fixture)
+packages/plugins/src/agents/impl/*/fixtures/acp-transcript.json
+
 # Nx local cache and workspace data
 .nx/cache
 .nx/workspace-data

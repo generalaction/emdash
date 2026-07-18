@@ -1,4 +1,5 @@
 export { CORE_DEPENDENCIES, GIT_DEPENDENCY_DESCRIPTOR } from '../core-dependencies';
+export type { Platform } from '../capability';
 export { INSTALL_METHOD_LOCATION_HINTS, inferMethod } from './location-hints';
 export { createInstallMethodDetector, type InstallMethodDetector } from './method-detection';
 export { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
@@ -35,6 +36,7 @@ export {
 } from './types';
 export {
   HostDependencyManager,
+  type HostDependencyRunOptions,
   type HostDependencyManagerOptions,
   type InstallCommandRunner,
 } from './host-dependency-manager';
@@ -44,3 +46,4 @@ export {
   resolveRealpath,
   runVersionProbe,
 } from './probe';
+export { buildDescriptorFromProvider } from '../descriptor-from-provider';

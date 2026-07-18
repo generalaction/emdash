@@ -152,30 +152,35 @@ export const mentionChip = style({
   borderRadius: vars.radiusSm,
   background: vars.mentionChipBg,
   color: vars.mentionChipFg,
+  boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.fg} 10%, transparent)`,
 });
 
 export const mentionChipFile = style({
   borderRadius: vars.radiusSm,
-  background: vars.mentionFileBg,
-  color: vars.mentionFileFg,
+  background: vars.mentionChipBg,
+  color: vars.mentionChipFg,
+  boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.fg} 10%, transparent)`,
 });
 
 export const mentionChipIssue = style({
   borderRadius: vars.radiusSm,
-  background: vars.mentionIssueBg,
-  color: vars.mentionIssueFg,
+  background: vars.mentionChipBg,
+  color: vars.mentionChipFg,
+  boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.fg} 10%, transparent)`,
 });
 
 export const mentionChipSymbol = style({
   borderRadius: vars.radiusSm,
-  background: vars.mentionSymbolBg,
-  color: vars.mentionSymbolFg,
+  background: vars.mentionChipBg,
+  color: vars.mentionChipFg,
+  boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.fg} 10%, transparent)`,
 });
 
 export const mentionChipCustom = style({
   borderRadius: vars.radiusSm,
   background: vars.mentionCustomBg,
   color: vars.mentionCustomFg,
+  boxShadow: `0 0 0 1px color-mix(in srgb, ${vars.fg} 10%, transparent)`,
 });
 
 /** Lookup from mentionKind to its visual class. Falls back to mentionChip. */

@@ -49,15 +49,45 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const DisplayComponent = lastComponentRef.current;
   const displayArgs = lastArgsRef.current;
   const displayEntry = lastEntryRef.current;
+  const activeModalId = modalStore.activeModalId;
+  const activeEntryRef = useRef<ModalRegistryEntry | null>(null);
+  const ignoreNextOutsidePressRef = useRef(false);
+
+  activeEntryRef.current = entry;
+
+  useEffect(() => {
+    ignoreNextOutsidePressRef.current = false;
+  }, [activeModalId]);
+
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      if (modalStore.isOpen && activeEntryRef.current?.ignoreOutsidePressAfterWindowBlur) {
+        ignoreNextOutsidePressRef.current = true;
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    return () => window.removeEventListener('blur', handleWindowBlur);
+  }, []);
 
   const handleOpenChange = (
     open: boolean,
     eventDetails: DialogPrimitive.Root.ChangeEventDetails
   ) => {
     if (!open && modalStore.isOpen) {
-      const isPassiveDismiss =
-        eventDetails.reason === 'outside-press' || eventDetails.reason === 'escape-key';
+      const isOutsidePress = eventDetails.reason === 'outside-press';
+      if (
+        isOutsidePress &&
+        displayEntry?.ignoreOutsidePressAfterWindowBlur &&
+        ignoreNextOutsidePressRef.current
+      ) {
+        ignoreNextOutsidePressRef.current = false;
+        return;
+      }
+
+      const isPassiveDismiss = isOutsidePress || eventDetails.reason === 'escape-key';
       if (modalStore.closeGuardActive && isPassiveDismiss) return;
+      ignoreNextOutsidePressRef.current = false;
       modalStore.closeModal();
     }
   };
@@ -103,6 +133,11 @@ export const ModalRenderer = observer(function ModalRenderer() {
           onKeyDownCapture={(e) => {
             if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
               e.preventDefault();
+            }
+          }}
+          onPointerDownCapture={() => {
+            if (displayEntry?.ignoreOutsidePressAfterWindowBlur) {
+              ignoreNextOutsidePressRef.current = false;
             }
           }}
           className={cn(

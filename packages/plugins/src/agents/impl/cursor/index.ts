@@ -1,6 +1,8 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, cursorMcpAdapter } from '@emdash/core/agents/plugins/helpers';
+import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
+import { buildCursorTrustBehavior } from './trust';
 
 export const plugin = definePlugin(
   {
@@ -11,6 +13,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://cursor.com/docs/cli/overview',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -53,11 +58,17 @@ export const plugin = definePlugin(
     sessions: {
       kind: 'resumable',
     },
+    trust: {
+      kind: 'supported',
+    },
   },
   { icon }
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: createNativeAcpBehavior(() => ({
+    args: ['acp'],
+  })),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
@@ -67,4 +78,5 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   mcp: cursorMcpAdapter(),
+  trust: buildCursorTrustBehavior(),
 });

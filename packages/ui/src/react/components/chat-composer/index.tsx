@@ -1,14 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import {
-  ArrowUp,
-  ChevronRight,
-  CircleAlert,
-  Paperclip,
-  ShieldCheck,
-  Square,
-  X,
-} from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
@@ -19,11 +11,14 @@ import type {
   ContextMentionProvider,
   MentionItem,
   PromptEditorRef,
+  RenderMentionIcon,
 } from '../prompt-editor/types';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
+import { QueuedPromptsBand } from './queued-prompts-band';
+import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
 import './composer-contract.css';
 
@@ -33,8 +28,10 @@ export type {
   CommandBehavior,
   ContextMentionProvider,
   PromptEditorRef,
+  RenderMentionIcon,
 } from '../prompt-editor/types';
 export type { ContextUsage } from './context-usage-indicator';
+export type { ComposerQueuedPrompt } from './queued-prompts-band';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 
@@ -79,6 +76,8 @@ export function stopReasonNotice(reason: string): ComposerNotice | null {
 }
 
 // ── Attachment types ──────────────────────────────────────────────────────────
+
+const imageFileExtension = /\.(?:avif|bmp|gif|heic|heif|jpe?g|png|svg|tiff?|webp)$/i;
 
 export interface ComposerAttachment {
   id: string;
@@ -172,6 +171,10 @@ export interface ChatComposerProps {
   isWorking?: boolean;
   /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
+  /** Hide the submit/stop control for draft-only composer surfaces. */
+  showSubmitButton?: boolean;
+  /** Override the idle editor placeholder. Disabled/working placeholders still take precedence. */
+  placeholder?: string;
 
   agentOptions?: ComposerAgentOption[] | null;
   selectedAgent?: string;
@@ -195,10 +198,14 @@ export interface ChatComposerProps {
   onPermissionModeChange?: (modeId: string) => void;
 
   onSubmit: (text: string) => void;
+  /** Called whenever the editor serialized plain text changes. */
+  onInputChange?: (text: string) => void;
+  /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
+  onMentionInsert?: (item: MentionItem) => void;
   /**
    * Called instead of onSubmit when the user attempts to send while the
-   * session is actively working (isWorking === true). Lets the host show a
-   * confirmation dialog before cancelling the active turn and sending.
+   * session is actively working (isWorking === true). Lets the host queue,
+   * confirm interruption, or otherwise resolve the conflict.
    * When absent, submit attempts while working are silently ignored.
    */
   onSubmitWhileWorking?: (text: string) => void;
@@ -208,12 +215,17 @@ export interface ChatComposerProps {
   contextUsage?: ContextUsage | null;
 
   /**
-   * Host-controlled attachment list. The composer creates image attachments
-   * itself (from drag-drop) and forwards them via `onAttachmentsChange`.
-   * The host is responsible for removing object URLs when clearing attachments.
+   * Host-controlled attachment list. By default the composer creates image
+   * attachments itself from drag-drop and forwards them via `onAttachmentsChange`.
+   * Hosts can override image handling with `onImageFilesDropped`.
    */
   attachments?: ComposerAttachment[];
   onAttachmentsChange?: (next: ComposerAttachment[]) => void;
+  /**
+   * Called with pasted or dropped image files before the default data-url attachment path.
+   * When supplied, the host owns uploading and adding preview attachments.
+   */
+  onImageFilesDropped?: (files: File[]) => void;
   /**
    * Called whenever files are dropped onto the composer.
    * The host should resolve real filesystem paths and insert non-image files
@@ -239,6 +251,8 @@ export interface ChatComposerProps {
    * `mentionProvider` takes precedence.
    */
   mentionProvider?: ContextMentionProvider;
+  /** Optional host renderer for inline mention pill icons. */
+  renderMentionIcon?: RenderMentionIcon;
   /** Legacy: async callback returning @ mention suggestions for the given query. */
   queryMentions?: (query: string) => Promise<MentionItem[]>;
   /** Async callback returning / command suggestions for the given query. */
@@ -256,7 +270,14 @@ export interface ChatComposerProps {
   /** Total number of queued permission requests. Drives the "1 of N" counter. */
   permissionQueueCount?: number;
   /** Called with the chosen optionId when the user resolves a permission request. */
-  onResolvePermission?: (optionId: string | null) => void;
+  onResolvePermission?: (optionId: string) => void;
+
+  /** Prompts accepted while the agent is busy and waiting to be sent. */
+  queuedPrompts?: ComposerQueuedPrompt[];
+  onEditQueuedPrompt?: (id: string, text: string) => void;
+  onDeleteQueuedPrompt?: (id: string) => void;
+  onReorderQueuedPrompts?: (ids: string[]) => void;
+  onSendQueuedPromptNow?: (id: string) => void;
   className?: string;
 }
 
@@ -420,7 +441,7 @@ function ComposerAgentSelector({
         aria-label={triggerLabel}
         title={triggerLabel}
       >
-        {selected?.icon ?? <span style={{ width: '1rem', height: '1rem' }} />}
+        {selected?.icon ?? <span style={{ width: '0.875rem', height: '0.875rem' }} />}
       </Button>
     );
   }
@@ -503,6 +524,8 @@ export function ChatComposer({
   disabled = false,
   isWorking = false,
   canSubmit = true,
+  showSubmitButton = true,
+  placeholder,
   agentOptions,
   selectedAgent,
   onAgentChange,
@@ -517,15 +540,19 @@ export function ChatComposer({
   selectedPermissionMode,
   onPermissionModeChange,
   onSubmit,
+  onInputChange,
+  onMentionInsert,
   onSubmitWhileWorking,
   onStop,
   onAttach,
   contextUsage,
   attachments = [],
   onAttachmentsChange,
+  onImageFilesDropped,
   onFilesDropped,
   editorApiRef,
   mentionProvider,
+  renderMentionIcon,
   queryMentions,
   queryCommands,
   onCommand,
@@ -534,6 +561,11 @@ export function ChatComposer({
   permissionRequest,
   permissionQueueCount = 1,
   onResolvePermission,
+  queuedPrompts = [],
+  onEditQueuedPrompt,
+  onDeleteQueuedPrompt,
+  onReorderQueuedPrompts,
+  onSendQueuedPromptNow,
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
@@ -566,13 +598,35 @@ export function ChatComposer({
     const hasImages = attachments.some((a) => a.kind === 'image');
     if (!text.trim() && !hasImages) return;
     // While the agent is actively working, route to the host's conflict handler
-    // (e.g. a "cancel turn and send" confirmation modal) instead of submitting.
-    if (isWorking && onSubmitWhileWorking) {
-      onSubmitWhileWorking(text);
+    // (e.g. queueing or a cancel-and-send confirmation) instead of submitting.
+    if (isWorking) {
+      onSubmitWhileWorking?.(text);
       return;
     }
     if (disabled || !canSubmit) return;
     onSubmit(text);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const imageFiles = Array.from(e.clipboardData.items).flatMap((item) => {
+      if (item.kind !== 'file') return [];
+      const file = item.getAsFile();
+      if (!file) return [];
+      const mimeType = (item.type || file.type).toLowerCase();
+      return mimeType.startsWith('image/') || imageFileExtension.test(file.name) ? [file] : [];
+    });
+    if (imageFiles.length === 0) return;
+
+    if (!e.clipboardData.types.some((type) => type.startsWith('text/'))) e.preventDefault();
+    if (onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (onAttachmentsChange) {
+      const base = attachments;
+      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
+        onAttachmentsChange([...base, ...newAttachments]);
+      });
+    }
   };
 
   // ── Drag-and-drop ───────────────────────────────────────────────────────────
@@ -595,7 +649,9 @@ export function ChatComposer({
     if (files.length === 0) return;
 
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length > 0 && onAttachmentsChange) {
+    if (imageFiles.length > 0 && onImageFilesDropped) {
+      onImageFilesDropped(imageFiles);
+    } else if (imageFiles.length > 0 && onAttachmentsChange) {
       const base = attachments;
       void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
         onAttachmentsChange([...base, ...newAttachments]);
@@ -622,6 +678,15 @@ export function ChatComposer({
   const modelItems: ModelItem[] = modelOptions
     ? Object.entries(modelOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+  const selectedAgentItem =
+    selectedAgent && agentOptions
+      ? (agentOptions.find((a) => a.id === selectedAgent) ?? null)
+      : null;
+  const selectedAgentTitle = selectedAgentItem
+    ? agentLocked
+      ? `${selectedAgentItem.name} — agents can't be switched after a conversation starts`
+      : selectedAgentItem.name
+    : undefined;
 
   // ── Effort items ─────────────────────────────────────────────────────────────
 
@@ -650,12 +715,36 @@ export function ChatComposer({
   const permissionModeItems: PermissionModeItem[] = permissionModeOptions
     ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+  const permissionModeIsFirst = modelItems.length === 0 && !agentOptions?.length;
 
+  const canShowQueuedPrompts =
+    queuedPrompts.length > 0 &&
+    !!onEditQueuedPrompt &&
+    !!onDeleteQueuedPrompt &&
+    !!onReorderQueuedPrompts &&
+    !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
-  const hasBand = !!(permissionRequest ?? notice);
+  const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
+  const shouldHandleSubmitAttempt = !disabled && (isWorking ? !!onSubmitWhileWorking : canSubmit);
+  const resolvedPlaceholder = disabled
+    ? 'Session closed'
+    : isWorking
+      ? 'Add a follow-up'
+      : (placeholder ?? 'Send a message, tag @files or use /commands');
 
   return (
     <div className={cx(styles.composerRoot, className)}>
+      {canShowQueuedPrompts && (
+        <QueuedPromptsBand
+          prompts={queuedPrompts}
+          onEdit={onEditQueuedPrompt}
+          onDelete={onDeleteQueuedPrompt}
+          onReorder={onReorderQueuedPrompts}
+          onSendNow={onSendQueuedPromptNow}
+          connectToBandBelow={!!(permissionRequest && onResolvePermission)}
+        />
+      )}
+
       {/* Permission band — shown when the agent is awaiting user approval. */}
       {permissionRequest && onResolvePermission && (
         <PermissionBand
@@ -684,6 +773,7 @@ export function ChatComposer({
 
       <div
         className={styles.composerShell({ hasBand: !!hasBand, dragActive })}
+        onPaste={handlePaste}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -727,12 +817,13 @@ export function ChatComposer({
                 }
               }
             }}
-            placeholder={
-              disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
-            }
+            placeholder={resolvedPlaceholder}
             disabled={disabled}
-            onSubmit={handleSubmit}
+            onChange={onInputChange}
+            onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
+            onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
+            renderMentionIcon={renderMentionIcon}
             queryMentions={queryMentions}
             queryCommands={queryCommands}
             onCommand={onCommand}
@@ -743,7 +834,7 @@ export function ChatComposer({
         <div className={styles.toolbar}>
           {/* Left: agent + model selector */}
           <div className={styles.toolbarLeft}>
-            {agentOptions && agentOptions.length > 0 && (
+            {agentOptions && agentOptions.length > 0 && modelItems.length === 0 && (
               <ComposerAgentSelector
                 options={agentOptions}
                 selectedId={selectedAgent}
@@ -752,7 +843,7 @@ export function ChatComposer({
                 disabled={disabled}
               />
             )}
-            {modelItems.length > 0 ? (
+            {modelItems.length > 0 && (
               <ComboboxPopover<ModelItem>
                 items={modelItems}
                 value={selectedModel ?? null}
@@ -762,14 +853,35 @@ export function ChatComposer({
                 disabled={disabled}
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
+                triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
                   <span
                     style={{
+                      display: 'inline-flex',
+                      minWidth: 0,
+                      alignItems: 'center',
+                      gap: '0.375rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
+                      lineHeight: 1,
                     }}
                   >
-                    {selected?.name ?? 'Model…'}
+                    {selectedAgentItem?.icon && (
+                      <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                        {selectedAgentItem.icon}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {selected?.name ?? 'Model…'}
+                    </span>
                   </span>
                 )}
                 renderItem={(item) => (
@@ -818,8 +930,6 @@ export function ChatComposer({
                     : undefined
                 }
               />
-            ) : (
-              <span />
             )}
             {permissionModeItems.length > 0 && (
               <ComboboxPopover<PermissionModeItem>
@@ -830,7 +940,8 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search"
-                contentStyle={{ minWidth: '12.5rem' }}
+                className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
+                contentStyle={{ minWidth: '18rem' }}
                 renderTrigger={(selected) => (
                   <span
                     style={{
@@ -839,6 +950,7 @@ export function ChatComposer({
                       gap: '0.25rem',
                       color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
+                      lineHeight: 1.25,
                     }}
                   >
                     <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
@@ -894,30 +1006,33 @@ export function ChatComposer({
               </Button>
             )}
 
-            {isWorking ? (
-              <Button
-                variant="primary"
-                tone="destructive"
-                size="sm"
-                onClick={onStop}
-                aria-label="Stop generation"
-              >
-                <Square style={{ width: '0.75rem', height: '0.75rem', fill: 'currentColor' }} />
-                Stop
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                icon
-                className={styles.sendButtonRound}
-                onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                disabled={disabled || !canSubmit}
-                aria-label="Send message"
-              >
-                <ArrowUp />
-              </Button>
-            )}
+            {showSubmitButton ? (
+              isWorking ? (
+                <Button
+                  variant="primary"
+                  tone="destructive"
+                  size="sm"
+                  icon
+                  className={styles.sendButtonRound}
+                  onClick={onStop}
+                  aria-label="Stop generation"
+                >
+                  <span className={styles.stopIcon} aria-hidden="true" />
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon
+                  className={styles.sendButtonRound}
+                  onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
+                  disabled={disabled || !canSubmit}
+                  aria-label="Send message"
+                >
+                  <ArrowUp />
+                </Button>
+              )
+            ) : null}
           </div>
         </div>
       </div>

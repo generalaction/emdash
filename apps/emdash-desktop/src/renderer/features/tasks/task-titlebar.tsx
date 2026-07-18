@@ -43,7 +43,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
-import type { LinkedIssue } from '@shared/core/linked-issue';
+import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
@@ -416,6 +416,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 });
 
 function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
+  const displayIdentifier = linkedIssueDisplayIdentifier(issue);
+
   return (
     <Tooltip>
       <TooltipTrigger
@@ -429,10 +431,10 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
             className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
           >
             <ProviderLogo provider={issue.provider} className="h-3 w-3" />
-            {issue.provider === 'asana' ? (
-              <span className="max-w-[180px] truncate">{issue.title || 'Asana task'}</span>
+            {displayIdentifier ? (
+              <span className="font-sans">{displayIdentifier}</span>
             ) : (
-              <span className="font-mono">{issue.identifier}</span>
+              <span className="max-w-[180px] truncate">{issue.title || 'Linked issue'}</span>
             )}
           </button>
         }

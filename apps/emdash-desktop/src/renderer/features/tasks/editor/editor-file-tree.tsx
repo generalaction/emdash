@@ -1,3 +1,4 @@
+import { detectPlatform } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -51,6 +52,14 @@ import { basenameFromAnyPath } from '@shared/path-name';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
+
+const PLATFORM = detectPlatform();
+const REVEAL_LABEL =
+  PLATFORM === 'mac'
+    ? 'Show in Finder'
+    : PLATFORM === 'windows'
+      ? 'Show in File Explorer'
+      : 'Show in File Manager';
 
 type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
 
@@ -294,6 +303,21 @@ const FileTreeRow = observer(function FileTreeRow({
     }
   };
 
+  const revealInFileManager = async () => {
+    try {
+      const result = await rpc.workspace.files.getAbsolutePath(projectId, workspaceId, node.path);
+      if (!result.success) throw new Error(resultErrorMessage(result.error));
+      const revealed = await rpc.app.showItemInFolder(result.data.path);
+      if (!revealed.success) throw new Error(revealed.error);
+    } catch (error) {
+      toast({
+        title: 'Show failed',
+        description: error instanceof Error ? error.message : 'The item could not be shown.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const closeDeletedFileTabs = () => {
     for (const { pane } of taskView.paneLayout.groups) {
       for (const tab of pane.resolvedTabs) {
@@ -486,6 +510,12 @@ const FileTreeRow = observer(function FileTreeRow({
           <Copy className="size-4" />
           Copy relative path
         </ContextMenuItem>
+        {!workspace.sshConnectionId && (
+          <ContextMenuItem onClick={() => void revealInFileManager()}>
+            <FolderOpen className="size-4" />
+            {REVEAL_LABEL}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={confirmDelete}>
           <Trash2 className="size-4" />

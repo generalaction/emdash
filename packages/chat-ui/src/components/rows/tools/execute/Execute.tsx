@@ -19,14 +19,19 @@ import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-tokens';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { executeBody, executeLine } from './execute.css';
+import { executeBody, executeLine, executeOutputLine, executeSpacerLine } from './execute.css';
 import { fadeOverlayBottom } from '@styles/effects.css';
 
 // ── ExecuteBody ───────────────────────────────────────────────────────────────
 
+export type ExecuteDisplayLine = {
+  kind: 'command' | 'spacer' | 'output';
+  text: string;
+};
+
 export type ExecuteBodyProps = {
   item: ChatExecute;
-  lines: string[];
+  lines: ExecuteDisplayLine[];
   bodyH: number;
   contentH: number;
   codeLineH: number;
@@ -38,12 +43,15 @@ export function ExecuteBody(props: ExecuteBodyProps) {
   const lineEls = new Map<number, HTMLElement>();
 
   createEffect(() => {
-    const command = props.item.command;
+    const commandLines = props.lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => line.kind === 'command');
+    const command = commandLines.map(({ line }) => line.text).join('\n');
     if (!command || !lineEls.size) return;
 
     function paint(tokenLines: CodeToken[][]): void {
-      for (let i = 0; i < props.lines.length; i++) {
-        const el = lineEls.get(i);
+      for (let i = 0; i < commandLines.length; i++) {
+        const el = lineEls.get(commandLines[i].index);
         const tokens = tokenLines[i];
         if (el && tokens) applyTokensToElement(el, tokens);
       }
@@ -102,12 +110,16 @@ export function ExecuteBody(props: ExecuteBodyProps) {
               onCleanup(() => lineEls.delete(i()));
             }}
             class={executeLine}
+            classList={{
+              [executeOutputLine]: line.kind === 'output',
+              [executeSpacerLine]: line.kind === 'spacer',
+            }}
             style={{
               height: `${props.codeLineH}px`,
               'line-height': `${props.codeLineH}px`,
             }}
           >
-            {line}
+            {line.text}
           </div>
         )}
       </For>

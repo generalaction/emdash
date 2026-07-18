@@ -179,22 +179,35 @@ function ProseFragment(props: {
           }}
         >
           <Show
-            when={mention.iconClass}
+            when={mention.iconUrl}
             fallback={
-              <Switch fallback={<MentionAtIcon />}>
-                <Match when={mention.mentionKind === 'file'}>
-                  <MentionFileIcon />
-                </Match>
-                <Match when={mention.mentionKind === 'issue'}>
-                  <MentionIssueIcon />
-                </Match>
-                <Match when={mention.mentionKind === 'symbol'}>
-                  <MentionSymbolIcon />
-                </Match>
-              </Switch>
+              <Show
+                when={mention.iconClass}
+                fallback={
+                  <Switch fallback={<MentionAtIcon />}>
+                    <Match when={mention.mentionKind === 'file'}>
+                      <MentionFileIcon />
+                    </Match>
+                    <Match when={mention.mentionKind === 'issue'}>
+                      <MentionIssueIcon />
+                    </Match>
+                    <Match when={mention.mentionKind === 'symbol'}>
+                      <MentionSymbolIcon />
+                    </Match>
+                  </Switch>
+                }
+              >
+                {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
+              </Show>
             }
           >
-            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
+            {(url) => (
+              <img
+                src={url()}
+                alt=""
+                style={{ width: '100%', height: '100%', 'object-fit': 'contain' }}
+              />
+            )}
           </Show>
         </span>
         <span>{mentionDisplayText(mention)}</span>

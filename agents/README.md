@@ -12,6 +12,8 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
 
 - `architecture/`
   - system structure and major code ownership boundaries
+  - [`workspace-server.md`](architecture/workspace-server.md) — protocol versioning, negotiation handshake, and behavior-change rules for the remote workspace daemon
+  - [`acp-runtime.md`](architecture/acp-runtime.md) — ACP runtime, session manager, connection pool, cells, live models, and API contract ownership
 - `workflows/`
   - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`
