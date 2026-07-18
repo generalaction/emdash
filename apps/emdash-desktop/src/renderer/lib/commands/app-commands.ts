@@ -8,7 +8,7 @@ import {
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
 import { commandRegistry } from './registry';
@@ -69,7 +69,7 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: newProjectDef.shortcutKey,
           group: newProjectDef.group,
           execute() {
-            showModal('addProjectModal', { strategy: 'local', mode: 'pick' });
+            void openModal('addProjectModal', { strategy: 'local', mode: 'pick' });
           },
         },
       ];
@@ -81,7 +81,7 @@ function createAppCommandProvider(): CommandProvider {
         shortcutKey: giveFeedbackDef.shortcutKey,
         group: giveFeedbackDef.group,
         execute() {
-          showModal('feedbackModal', {});
+          void openModal('feedbackModal', {});
         },
       });
 
@@ -112,7 +112,7 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: newTaskDef.shortcutKey,
           group: newTaskDef.group,
           execute() {
-            showModal('taskModal', { projectId });
+            void openModal('taskModal', { projectId });
           },
         });
       }

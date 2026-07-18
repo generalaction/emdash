@@ -11,7 +11,7 @@ import {
 } from '@core/features/tasks/browser/task-view-context';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { formatErrorType } from '../../utils';
@@ -43,7 +43,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
 
-  const showConfirmActionModal = useShowModal('confirmActionModal');
+  const openConfirmActionModal = useOpenModal('confirmActionModal');
 
   if (!diffView || !changesView) return null;
 
@@ -81,36 +81,38 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const handleDiscardSelection = () => {
     const paths = [...changesView.unstagedSelection];
-    showConfirmActionModal({
-      title: 'Discard Files Changes',
-      variant: 'destructive',
-      description:
-        'Are you sure you want to discard the changes to the selected files? This can not be undone.',
-      onSuccess: () => {
-        void (async () => {
-          const result = await git.discardFiles(paths);
-          if (!result.success) {
-            toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
-            return;
-          }
-          changesView.removeUnstagedSelection(paths);
-        })();
-      },
-    });
+    void (async () => {
+      const outcome = await openConfirmActionModal({
+        title: 'Discard Files Changes',
+        variant: 'destructive',
+        description:
+          'Are you sure you want to discard the changes to the selected files? This can not be undone.',
+      });
+      if (!outcome.success) return;
+
+      const result = await git.discardFiles(paths);
+      if (!result.success) {
+        toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
+        return;
+      }
+      changesView.removeUnstagedSelection(paths);
+    })();
   };
 
   const handleDiscardAll = () => {
-    showConfirmActionModal({
-      title: 'Discard All Changes',
-      variant: 'destructive',
-      description: 'Are you sure you want to discard all changes? This can not be undone.',
-      onSuccess: () =>
-        void git.discardAllFiles().then((result) => {
-          if (!result.success) {
-            toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
-          }
-        }),
-    });
+    void (async () => {
+      const outcome = await openConfirmActionModal({
+        title: 'Discard All Changes',
+        variant: 'destructive',
+        description: 'Are you sure you want to discard all changes? This can not be undone.',
+      });
+      if (!outcome.success) return;
+
+      const result = await git.discardAllFiles();
+      if (!result.success) {
+        toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
+      }
+    })();
   };
 
   const handleStageSelection = () => {

@@ -24,7 +24,7 @@ import type {
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { Button } from '@renderer/lib/ui/button';
@@ -515,7 +515,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
   view: ProjectWorkspacesListView;
   projectId: string;
 }) {
-  const showConfirm = useShowModal('confirmActionModal');
+  const openConfirm = useOpenModal('confirmActionModal');
   const list = view.useListView();
   const selection = view.useSelection();
   const [pendingAction, setPendingAction] = useState<'archive' | 'delete' | null>(null);
@@ -563,32 +563,30 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
 
   const confirmArchive = useCallback(() => {
     if (archivableRows.length === 0) return;
-    showConfirm({
+    void openConfirm({
       title: `Archive ${workspaceCount(archivableRows.length)}?`,
       description: activeSelected
         ? 'This stops active sessions, runs teardown scripts, and removes gitignored artifacts. Tasks remain restorable, but dependencies may need to be restored.'
         : 'This runs teardown scripts and removes gitignored dependencies, build output, and caches. Worktrees and tasks stay intact.',
       confirmLabel: 'Archive',
-      onSuccess: () => {
-        void runAction('archive', archivableRows);
-      },
+    }).then((outcome) => {
+      if (outcome.success) void runAction('archive', archivableRows);
     });
-  }, [activeSelected, archivableRows, runAction, showConfirm]);
+  }, [activeSelected, archivableRows, openConfirm, runAction]);
 
   const confirmDelete = useCallback(() => {
     if (deletableRows.length === 0) return;
-    showConfirm({
+    void openConfirm({
       title: `Delete ${workspaceCount(deletableRows.length)}?`,
       description: activeSelected
         ? 'This removes selected workspaces and linked tasks. Some selected workspaces have active sessions, which will be stopped.'
         : 'This removes selected workspaces. Linked tasks are deleted with their owned worktrees.',
       confirmLabel: 'Delete',
       variant: 'destructive',
-      onSuccess: () => {
-        void runAction('delete', deletableRows);
-      },
+    }).then((outcome) => {
+      if (outcome.success) void runAction('delete', deletableRows);
     });
-  }, [activeSelected, deletableRows, runAction, showConfirm]);
+  }, [activeSelected, deletableRows, openConfirm, runAction]);
 
   if (selection.count === 0) return null;
 

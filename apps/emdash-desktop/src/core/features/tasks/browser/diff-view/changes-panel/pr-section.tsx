@@ -2,7 +2,7 @@ import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -58,7 +58,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
       : undefined;
   const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);
   const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount;
-  const showCreatePrModal = useShowModal('createPrModal');
+  const openCreatePrModal = useOpenModal('createPrModal');
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -67,30 +67,30 @@ export const PullRequestsSection = observer(function PullRequestsSection({
 
   const onCreatePr =
     taskBranch && repositoryUrl
-      ? () =>
-          showCreatePrModal({
+      ? () => {
+          void openCreatePrModal({
             projectId,
             taskId,
             repositoryUrl: repositoryUrl ?? '',
             branchName: taskBranch,
             draft: false,
             workspaceId,
-            onSuccess: () => {},
-          })
+          });
+        }
       : undefined;
 
   const onCreateDraftPr =
     taskBranch && repositoryUrl
-      ? () =>
-          showCreatePrModal({
+      ? () => {
+          void openCreatePrModal({
             projectId,
             taskId,
             repositoryUrl: repositoryUrl ?? '',
             branchName: taskBranch,
             draft: true,
             workspaceId,
-            onSuccess: () => {},
-          })
+          });
+        }
       : undefined;
 
   const prActions: SplitButtonAction[] = [

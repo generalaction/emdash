@@ -5,8 +5,9 @@ import {
   getProjectSettingsStore,
   getGitRepositoryStore,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { defineModal } from '@core/primitives/modals/react';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
@@ -31,7 +32,6 @@ export type AddRemoteModalArgs = {
   workspaceId: string;
 };
 
-type Props = BaseModalProps<void> & AddRemoteModalArgs;
 type Tab = 'create' | 'link';
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -45,8 +45,8 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   projectName,
   workspaceId,
   branchName,
-  onSuccess,
-}: Props) {
+}: AddRemoteModalArgs) {
+  const { complete } = useModalController('addRemoteModal');
   const [tab, setTab] = useState<Tab>('create');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +160,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
 
       repositoryStore?.refreshLocal();
       repositoryStore?.refreshRemote();
-      onSuccess();
+      complete();
     } catch (e) {
       setError(toErrorMessage(e, 'An error occurred'));
     } finally {
@@ -274,4 +274,9 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       </DialogContentArea>
     </ModalLayout>
   );
+});
+
+export const addRemoteModal = defineModal<void>()({
+  id: 'addRemoteModal',
+  component: AddRemoteModal,
 });

@@ -1,6 +1,6 @@
 import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
 import type { Automation } from '@core/primitives/automations/api';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 async function listProjectAutomations(projectId: string): Promise<Automation[]> {
@@ -37,7 +37,7 @@ function deleteProjectDescription(projectLabel: string, automations: Automation[
 }
 
 export function useConfirmDeleteProject() {
-  const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const openConfirmDeleteProject = useOpenModal('confirmActionModal');
 
   return async ({
     projectId,
@@ -50,14 +50,13 @@ export function useConfirmDeleteProject() {
   }) => {
     const automations = await listProjectAutomations(projectId);
 
-    showConfirmDeleteProject({
+    const outcome = await openConfirmDeleteProject({
       title: 'Delete project',
       description: deleteProjectDescription(projectLabel, automations),
       confirmLabel: 'Delete',
-      onSuccess: () => {
-        void getProjectManagerStore().deleteProject(projectId);
-        onDeleted?.();
-      },
     });
+    if (!outcome.success) return;
+    void getProjectManagerStore().deleteProject(projectId);
+    onDeleted?.();
   };
 }

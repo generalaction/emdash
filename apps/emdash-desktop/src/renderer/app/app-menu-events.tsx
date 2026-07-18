@@ -2,14 +2,14 @@ import { useEffect } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { currentView } = useWorkspaceSlots();
-  const showConfirmQuitModal = useShowModal('confirmActionModal');
-  const showFeedbackModal = useShowModal('feedbackModal');
+  const openConfirmQuitModal = useOpenModal('confirmActionModal');
+  const openFeedbackModal = useOpenModal('feedbackModal');
   useRegisterNotificationOpenHandlers();
 
   useEffect(() => {
@@ -25,17 +25,18 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
             }
             toggleSettingsView();
           } else if (event.type === 'menu-quit-requested') {
-            showConfirmQuitModal({
+            void openConfirmQuitModal({
               title: 'Quit Emdash?',
               description:
                 'Active terminal sessions and running agents will stop when the app quits.',
               confirmLabel: 'Quit',
-              onSuccess: () => {
+            }).then((outcome) => {
+              if (outcome.success) {
                 void getDesktopWireClient().then((nextClient) => nextClient.host.quit());
-              },
+              }
             });
           } else if (event.type === 'menu-give-feedback') {
-            showFeedbackModal({});
+            void openFeedbackModal({});
           }
         },
         onGap: () => {},
@@ -47,7 +48,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       disposed = true;
       unsubscribe?.();
     };
-  }, [currentView, onOpenSettings, showConfirmQuitModal, showFeedbackModal]);
+  }, [currentView, onOpenSettings, openConfirmQuitModal, openFeedbackModal]);
 
   useEffect(() => {
     let disposed = false;

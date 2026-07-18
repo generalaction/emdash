@@ -20,14 +20,11 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
+import { defineModal } from '@core/primitives/modals/react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import {
-  useModalContext,
-  useShowModal,
-  type BaseModalProps,
-} from '@renderer/lib/modal/modal-provider';
+import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -50,7 +47,7 @@ export type Strategy = 'local' | 'ssh';
 
 export type Mode = 'pick' | 'new' | 'clone';
 
-export interface AddProjectModalProps extends BaseModalProps<void> {
+export interface AddProjectModalProps {
   strategy?: Strategy;
   mode?: Mode;
   connectionId?: string;
@@ -59,9 +56,9 @@ export interface AddProjectModalProps extends BaseModalProps<void> {
 export const AddProjectModal = observer(function AddProjectModal({
   strategy: strategyProp,
   mode: modeProp,
-  onClose,
   connectionId: connectionIdProp,
 }: AddProjectModalProps) {
+  const modal = useModalController('addProjectModal');
   const [strategy, setStrategy] = useState<Strategy>(strategyProp ?? 'local');
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
@@ -76,12 +73,11 @@ export const AddProjectModal = observer(function AddProjectModal({
     strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
-  const { setCloseGuard } = useModalContext();
 
-  const showSshConnModal = useShowModal('addSshConnModal');
-  const showAddProjectModal = useShowModal('addProjectModal');
-  const showConfirm = useShowModal('confirmActionModal');
-  const showProjectConfigImportModal = useShowModal('projectConfigImportModal');
+  const openSshConnModal = useOpenModal('addSshConnModal');
+  const openAddProjectModal = useOpenModal('addProjectModal');
+  const openConfirm = useOpenModal('confirmActionModal');
+  const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
     const projectManager = getProjectManagerStore();
@@ -98,65 +94,54 @@ export const AddProjectModal = observer(function AddProjectModal({
     const migrations = settingsStore.configMigrations ?? [];
     if (migrations.length === 0) return;
 
-    showProjectConfigImportModal({
+    const outcome = await openProjectConfigImportModal({
       migrations,
       migrateProjectConfig: (request) => settingsStore.migrateProjectConfig(request),
-      onSuccess: ({ migration }) => {
-        toast({
-          title: `${migration.label} config imported`,
-          description: `${migration.files.join(', ')} was imported successfully.`,
-        });
-      },
+    });
+    if (outcome.success) {
+      toast({
+        title: `${outcome.data.migration.label} config imported`,
+        description: `${outcome.data.migration.files.join(', ')} was imported successfully.`,
+      });
+    }
+  };
+
+  const reopenAddProjectModal = (nextConnectionId?: string) => {
+    void openAddProjectModal({
+      strategy: 'ssh',
+      mode,
+      connectionId: nextConnectionId,
     });
   };
 
-  const handleAddConnection = () => {
-    showSshConnModal({
-      onSuccess: ({ connectionId: newId }) =>
-        showAddProjectModal({
-          strategy: 'ssh',
-          mode,
-          connectionId: newId,
-        }),
-      onClose: () =>
-        showAddProjectModal({
-          strategy: 'ssh',
-          mode,
-        }),
-    });
+  const handleAddConnection = async () => {
+    const priorConnectionId = selectedConnectionId;
+    const outcome = await openSshConnModal({});
+    if (outcome.success) {
+      reopenAddProjectModal(outcome.data.connectionId);
+    } else if (outcome.error.reason === 'explicit') {
+      reopenAddProjectModal(priorConnectionId);
+    }
   };
 
-  const handleEditConnection = (id: string) => {
+  const handleEditConnection = async (id: string) => {
     const conn = appState.sshConnections.connections.find((c) => c.id === id);
     if (!conn) return;
-    showSshConnModal({
+    const priorConnectionId = selectedConnectionId;
+    const outcome = await openSshConnModal({
       initialConfig: conn,
-      onSuccess: () =>
-        showAddProjectModal({
-          strategy: 'ssh',
-          mode,
-          connectionId: id,
-        }),
-      onClose: () =>
-        showAddProjectModal({
-          strategy: 'ssh',
-          mode,
-          connectionId: id,
-        }),
     });
+    if (outcome.success) {
+      reopenAddProjectModal(outcome.data.connectionId);
+    } else if (outcome.error.reason === 'explicit') {
+      reopenAddProjectModal(priorConnectionId);
+    }
   };
 
   const handleDeleteConnection = async (id: string) => {
     const conn = appState.sshConnections.connections.find((c) => c.id === id);
     if (!conn) return;
-
-    const reopenAddProjectModal = (nextConnectionId?: string) => {
-      showAddProjectModal({
-        strategy: 'ssh',
-        mode,
-        connectionId: nextConnectionId,
-      });
-    };
+    const priorConnectionId = selectedConnectionId ?? id;
 
     let usage;
     try {
@@ -173,41 +158,43 @@ export const AddProjectModal = observer(function AddProjectModal({
     const projects = usage[id] ?? [];
     if (projects.length > 0) {
       const projectNames = projects.map((project) => project.name).join(', ');
-      showConfirm({
+      const outcome = await openConfirm({
         title: 'Cannot delete SSH connection',
         description: `This SSH connection is used by: ${projectNames}. Change those projects to another connection before deleting it.`,
         confirmLabel: 'Close',
-        onClose: () => reopenAddProjectModal(id),
-        onSuccess: () => reopenAddProjectModal(id),
       });
+      if (outcome.success || outcome.error.reason === 'explicit') {
+        reopenAddProjectModal(priorConnectionId);
+      }
       return;
     }
 
-    showConfirm({
+    const outcome = await openConfirm({
       title: 'Delete SSH connection',
       description: `This will remove "${conn.name}" and its saved credentials from this device.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
-      onClose: () => reopenAddProjectModal(id),
-      onSuccess: () => {
-        void appState.sshConnections
-          .deleteConnection(id)
-          .then(() => {
-            const nextConnectionId = appState.sshConnections.connections.find(
-              (connection) => connection.id !== id
-            )?.id;
-            reopenAddProjectModal(nextConnectionId);
-          })
-          .catch((error) => {
-            toast({
-              title: 'Failed to delete SSH connection',
-              description: String(error),
-              variant: 'destructive',
-            });
-            reopenAddProjectModal(id);
-          });
-      },
     });
+    if (!outcome.success) {
+      if (outcome.error.reason !== 'explicit') return;
+      reopenAddProjectModal(priorConnectionId);
+      return;
+    }
+
+    try {
+      await appState.sshConnections.deleteConnection(id);
+      const nextConnectionId = appState.sshConnections.connections.find(
+        (connection) => connection.id !== id
+      )?.id;
+      reopenAddProjectModal(nextConnectionId);
+    } catch (error) {
+      toast({
+        title: 'Failed to delete SSH connection',
+        description: String(error),
+        variant: 'destructive',
+      });
+      reopenAddProjectModal(priorConnectionId);
+    }
   };
 
   const { value: localProjectSettings } = useAppSettingsKey('localProject');
@@ -276,7 +263,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitState('creating');
-    setCloseGuard(true);
+    modal.setCloseGuard(true);
 
     const id = crypto.randomUUID();
     const projectType: ProjectType =
@@ -320,11 +307,11 @@ export const AddProjectModal = observer(function AddProjectModal({
 
     try {
       const result = await getProjectManagerStore().startProjectCreation(projectType, data, { id });
-      setCloseGuard(false);
+      modal.setCloseGuard(false);
 
       if (result.kind === 'existing') {
         setSubmitState('idle');
-        onClose();
+        modal.dismiss();
         navigate(projectViewDef({ projectId: result.projectId }));
         return;
       }
@@ -341,11 +328,11 @@ export const AddProjectModal = observer(function AddProjectModal({
           log.error(error);
         });
       setSubmitState('idle');
-      onClose();
+      modal.dismiss();
       navigate(projectViewDef({ projectId: result.projectId }));
     } catch (error) {
       log.error(error);
-      setCloseGuard(false);
+      modal.setCloseGuard(false);
       setSubmitState('idle');
       toast({
         title: 'Failed to check project',
@@ -423,8 +410,8 @@ export const AddProjectModal = observer(function AddProjectModal({
             <SshConnectionSelector
               connectionId={selectedConnectionId}
               onConnectionIdChange={setConnectionId}
-              onAddConnection={handleAddConnection}
-              onEditConnection={handleEditConnection}
+              onAddConnection={() => void handleAddConnection()}
+              onEditConnection={(id) => void handleEditConnection(id)}
               onDeleteConnection={(id) => void handleDeleteConnection(id)}
             />
           </Field>
@@ -461,6 +448,11 @@ export const AddProjectModal = observer(function AddProjectModal({
       </DialogContentArea>
     </ModalLayout>
   );
+});
+
+export const addProjectModal = defineModal<void>()({
+  id: 'addProjectModal',
+  component: AddProjectModal,
 });
 
 function GitHubAccountCreationSelector({

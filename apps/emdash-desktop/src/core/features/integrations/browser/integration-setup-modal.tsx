@@ -1,6 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
 import { Input } from '@renderer/lib/ui/input';
@@ -12,9 +13,10 @@ type IntegrationSetupModalArgs = {
   integration: SetupIntegrationType;
 };
 
-type Props = BaseModalProps<void> & IntegrationSetupModalArgs;
+type Props = IntegrationSetupModalArgs;
 
-export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
+export function IntegrationSetupModal({ integration }: Props) {
+  const { complete, dismiss } = useModalController('integrationSetupModal');
   const { integrationById } = useIntegrationsContext();
   const metadata = integrationById[integration];
 
@@ -27,13 +29,19 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         <IntegrationSetupForm
           integration={integration}
           metadata={metadata}
-          onSuccess={onSuccess}
-          onClose={onClose}
+          onSuccess={complete}
+          onClose={dismiss}
         />
       ) : null}
     </>
   );
 }
+
+export const integrationSetupModal = defineModal<void>()({
+  id: 'integrationSetupModal',
+  component: IntegrationSetupModal,
+  size: 'md',
+});
 
 function formMethod(metadata: IntegrationMetadata | undefined) {
   return metadata?.auth.methods.find((method) => method.kind === 'form');

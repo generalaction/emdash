@@ -1,6 +1,7 @@
 import { err, type Result } from '@emdash/shared';
 import { Check, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,
@@ -9,7 +10,7 @@ import type {
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -32,8 +33,6 @@ export type ProjectConfigImportModalArgs = {
   ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
 };
 
-type Props = BaseModalProps<MigrateProjectConfigResult> & ProjectConfigImportModalArgs;
-
 function unknownErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -49,9 +48,8 @@ function filesLabel(files: string[]): string {
 export function ProjectConfigImportModal({
   migrations,
   migrateProjectConfig,
-  onSuccess,
-  onClose,
-}: Props) {
+}: ProjectConfigImportModalArgs) {
+  const modal = useModalController('projectConfigImportModal');
   const [selectedProvider, setSelectedProvider] = useState<ProjectConfigMigrationProvider>(
     migrations[0]?.provider ?? 'conductor'
   );
@@ -87,7 +85,7 @@ export function ProjectConfigImportModal({
 
     if (result.success) {
       setStatus('imported');
-      onSuccess(result.data);
+      modal.complete(result.data);
       return;
     }
 
@@ -171,7 +169,7 @@ export function ProjectConfigImportModal({
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={status === 'importing'}>
+        <Button variant="outline" onClick={modal.dismiss} disabled={status === 'importing'}>
           {status === 'imported' ? 'Close' : 'Cancel'}
         </Button>
         <ConfirmButton onClick={() => void handleImport()} disabled={disabled}>
@@ -189,3 +187,9 @@ export function ProjectConfigImportModal({
     </>
   );
 }
+
+export const projectConfigImportModal = defineModal<MigrateProjectConfigResult>()({
+  id: 'projectConfigImportModal',
+  component: ProjectConfigImportModal,
+  size: 'md',
+});

@@ -4,11 +4,12 @@ import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
 import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
+import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -40,8 +41,6 @@ export type CreatePrModalArgs = {
   workspaceId: string;
 };
 
-type Props = BaseModalProps<void> & CreatePrModalArgs;
-
 export const CreatePrModal = observer(function CreatePrModal({
   projectId,
   taskId: _taskId,
@@ -49,8 +48,8 @@ export const CreatePrModal = observer(function CreatePrModal({
   branchName,
   draft,
   workspaceId,
-  onSuccess,
-}: Props) {
+}: CreatePrModalArgs) {
+  const { complete } = useModalController('createPrModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
@@ -141,7 +140,7 @@ export const CreatePrModal = observer(function CreatePrModal({
           repositoryUrl: targetRepositoryUrl,
           number: result.data.number,
         });
-        onSuccess();
+        complete();
       } else {
         setError(pullRequestErrorMessage(result.error));
       }
@@ -277,4 +276,10 @@ export const CreatePrModal = observer(function CreatePrModal({
       </DialogFooter>
     </div>
   );
+});
+
+export const createPrModal = defineModal<void>()({
+  id: 'createPrModal',
+  component: CreatePrModal,
+  size: 'md',
 });

@@ -6,9 +6,10 @@ import { getProjectSshConnectionId } from '@core/features/projects/browser/store
 import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
+import { defineModal } from '@core/primitives/modals/react';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -31,13 +32,13 @@ import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
-  onSuccess,
   projectId,
   taskId,
-}: BaseModalProps<{ conversationId: string; type: ConversationType }> & {
+}: {
   projectId: string;
   taskId: string;
 }) {
+  const { complete } = useModalController('createConversationModal');
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = conversationRegistry.get(taskId);
@@ -100,7 +101,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         type: conversationType,
       });
       setIsSubmitting(false);
-      onSuccess({ conversationId: id, type: conversationType });
+      complete({ conversationId: id, type: conversationType });
     } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
@@ -111,7 +112,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     isSubmitting,
     providerId,
     title,
-    onSuccess,
+    complete,
     projectId,
     taskId,
     skipPermissions,
@@ -193,4 +194,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
       </DialogFooter>
     </>
   );
+});
+
+export const createConversationModal = defineModal<{
+  conversationId: string;
+  type: ConversationType;
+}>()({
+  id: 'createConversationModal',
+  component: CreateConversationModal,
 });

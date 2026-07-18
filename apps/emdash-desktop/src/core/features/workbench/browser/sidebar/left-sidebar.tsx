@@ -11,7 +11,7 @@ import {
   useNavigate,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
@@ -36,7 +36,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { currentView } = useWorkspaceSlots();
   const { isLeftOpen } = useWorkspaceLayoutContext();
 
-  const showFeedbackModal = useShowModal('feedbackModal');
+  const openFeedbackModal = useOpenModal('feedbackModal');
   const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
 
   return (
@@ -114,7 +114,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
           <button
             type="button"
             className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
-            onClick={() => showFeedbackModal({})}
+            onClick={() => void openFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />
             <span className="truncate">Give feedback</span>

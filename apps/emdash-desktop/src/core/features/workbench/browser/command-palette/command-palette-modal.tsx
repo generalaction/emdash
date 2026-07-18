@@ -10,13 +10,14 @@ import { getTaskStore, getTaskView } from '@core/features/tasks/browser/stores/t
 import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@core/primitives/commands/api/commands';
+import { defineModal } from '@core/primitives/modals/react';
 import type { SearchItem } from '@core/primitives/search/api';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
@@ -123,19 +124,13 @@ function PaletteFileItem({
   );
 }
 
-export function CommandPaletteModal({
-  projectId,
-  taskId,
-  workspaceId,
-  onClose,
-}: CommandPaletteProps & BaseModalProps) {
+export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 100);
   const { navigate } = useNavigate();
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
-
-  const handleClose = onClose;
+  const { dismiss: handleClose } = useModalController('commandPaletteModal');
 
   // Prefetch recents immediately on mount so the empty-query view is instant.
   useEffect(() => {
@@ -436,3 +431,9 @@ export function CommandPaletteModal({
     </Command>
   );
 }
+
+export const commandPaletteModal = defineModal<void>()({
+  id: 'commandPaletteModal',
+  component: CommandPaletteModal,
+  size: 'md',
+});

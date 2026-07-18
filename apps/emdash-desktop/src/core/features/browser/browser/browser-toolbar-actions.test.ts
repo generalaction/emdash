@@ -11,9 +11,9 @@ const mocks = vi.hoisted(() => ({
   captureScreenshot: vi.fn(),
   clearData: vi.fn(),
   openExternal: vi.fn(),
+  openModal: vi.fn(),
   reload: vi.fn(),
   reloadIgnoringCache: vi.fn(),
-  showModal: vi.fn(),
   toast: vi.fn(),
 }));
 
@@ -22,15 +22,20 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
     app: {
       openExternal: mocks.openExternal,
     },
+  },
+}));
+
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: vi.fn(async () => ({
     browser: {
       captureScreenshot: mocks.captureScreenshot,
       clearData: mocks.clearData,
     },
-  },
+  })),
 }));
 
-vi.mock('@renderer/lib/modal/modal-provider', () => ({
-  showModal: mocks.showModal,
+vi.mock('@renderer/lib/modal/api', () => ({
+  openModal: mocks.openModal,
 }));
 
 vi.mock('@renderer/lib/hooks/use-toast', () => ({
@@ -61,6 +66,10 @@ describe('browser toolbar actions', () => {
     vi.clearAllMocks();
     mocks.captureScreenshot.mockResolvedValue({ success: true });
     mocks.clearData.mockResolvedValue({ success: true });
+    mocks.openModal.mockResolvedValue({
+      success: false,
+      error: { type: 'modal_dismissed', reason: 'explicit' },
+    });
   });
 
   it('opens only http and https URLs externally', () => {
@@ -82,7 +91,7 @@ describe('browser toolbar actions', () => {
   it('captures screenshots and shows feedback on success', async () => {
     await captureBrowserScreenshot(session());
 
-    expect(mocks.captureScreenshot).toHaveBeenCalledWith('browser-1');
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith({ browserId: 'browser-1' });
     expect(mocks.toast).toHaveBeenCalledWith({ title: 'Screenshot copied to clipboard' });
   });
 
@@ -90,7 +99,7 @@ describe('browser toolbar actions', () => {
     mocks.captureScreenshot.mockResolvedValue({ success: false });
     await captureBrowserScreenshot(session());
 
-    expect(mocks.captureScreenshot).toHaveBeenCalledWith('browser-1');
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith({ browserId: 'browser-1' });
     expect(mocks.toast).toHaveBeenCalledWith({
       title: 'Could not capture screenshot',
       variant: 'destructive',
@@ -98,33 +107,45 @@ describe('browser toolbar actions', () => {
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {
+    mocks.openModal.mockResolvedValueOnce({ success: true, data: undefined });
     confirmClearBrowserStorage(session(), { reload: mocks.reload } as never);
 
-    expect(mocks.showModal).toHaveBeenCalledWith(
+    expect(mocks.openModal).toHaveBeenCalledWith(
       'confirmActionModal',
       expect.objectContaining({
         title: 'Clear browser storage?',
         variant: 'destructive',
-        onSuccess: expect.any(Function),
       })
     );
-    await mocks.showModal.mock.calls[0][1].onSuccess();
 
-    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'storage');
-    expect(mocks.reload).toHaveBeenCalledWith();
+    await vi.waitFor(() => {
+      expect(mocks.clearData).toHaveBeenCalledWith({
+        browserId: 'browser-1',
+        kind: 'storage',
+      });
+      expect(mocks.reload).toHaveBeenCalledWith();
+    });
+  });
+
+  it('does not clear storage when the confirmation modal is dismissed', async () => {
+    confirmClearBrowserStorage(session(), { reload: mocks.reload } as never);
+
+    await vi.waitFor(() => expect(mocks.openModal).toHaveBeenCalled());
+    expect(mocks.clearData).not.toHaveBeenCalled();
+    expect(mocks.reload).not.toHaveBeenCalled();
   });
 
   it('clears cookies and reloads on success', async () => {
     await clearBrowserData(session(), 'cookies', mocks.reload);
 
-    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies');
+    expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cookies' });
     expect(mocks.reload).toHaveBeenCalledWith();
   });
 
   it('clears the cache and force-reloads on success', async () => {
     await clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
 
-    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cache');
+    expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cache' });
     expect(mocks.reloadIgnoringCache).toHaveBeenCalledWith();
   });
 
@@ -132,7 +153,7 @@ describe('browser toolbar actions', () => {
     mocks.clearData.mockResolvedValue({ success: false });
     await clearBrowserData(session(), 'cookies', mocks.reload);
 
-    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies');
+    expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cookies' });
     expect(mocks.reload).not.toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith({
       title: 'Could not clear browser data',
@@ -146,7 +167,7 @@ describe('browser toolbar actions', () => {
     mocks.clearData.mockRejectedValue(error);
     await clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
 
-    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cache');
+    expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cache' });
     expect(mocks.reloadIgnoringCache).not.toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith({
       title: 'Could not clear browser data',

@@ -2,7 +2,7 @@ import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 import { CardGridSection } from '@renderer/lib/components/card-grid';
 import { PageHeader } from '@renderer/lib/components/page-header';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { McpCard } from './McpCard';
@@ -21,17 +21,18 @@ export const McpView: React.FC = () => {
     refresh,
   } = useMcps();
 
-  const showConfirm = useShowModal('confirmActionModal');
+  const openConfirm = useOpenModal('confirmActionModal');
   const [search, setSearch] = useState('');
   const [drawerMode, setDrawerMode] = useState<McpDrawerMode | null>(null);
 
   const handleRemoveRequest = (serverName: string) => {
     setDrawerMode(null);
-    showConfirm({
+    void openConfirm({
       title: 'Remove MCP server?',
       description: `This will remove "${serverName}" from all agents. This action cannot be undone.`,
       confirmLabel: 'Remove',
-      onSuccess: () => void removeServer(serverName),
+    }).then((outcome) => {
+      if (outcome.success) void removeServer(serverName);
     });
   };
 

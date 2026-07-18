@@ -47,9 +47,14 @@ const mocks = vi.hoisted(() => ({
   goBack: vi.fn(),
   goForward: vi.fn(),
   navigate: vi.fn(),
+  openModal: vi.fn<() => Promise<unknown>>(() =>
+    Promise.resolve({
+      success: false as const,
+      error: { type: 'modal_dismissed' as const, reason: 'explicit' as const },
+    })
+  ),
   openExternal: vi.fn(),
   reload: vi.fn(),
-  showModal: vi.fn(),
   toast: vi.fn(),
   visibleTaskEntries: [
     { projectId: 'project-1', taskId: 'task-1' },
@@ -81,8 +86,8 @@ vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
   getTaskView: mocks.getTaskView,
 }));
 
-vi.mock('@renderer/lib/modal/modal-provider', () => ({
-  showModal: mocks.showModal,
+vi.mock('@renderer/lib/modal/api', () => ({
+  openModal: mocks.openModal,
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
@@ -202,7 +207,11 @@ describe('createTaskCommandProvider', () => {
     }
   });
 
-  it('opens a new conversation in a right split from the split command', () => {
+  it('opens a new conversation in a right split from the split command', async () => {
+    mocks.openModal.mockResolvedValueOnce({
+      success: true,
+      data: { conversationId: 'conversation-1', type: 'pty' },
+    });
     const provider = createTaskCommandProvider('project-1', 'task-1');
 
     const command = provider
@@ -214,14 +223,11 @@ describe('createTaskCommandProvider', () => {
     command?.execute();
 
     expect(command?.shortcutKey).toBe('newConversationSplitRight');
-    expect(mocks.showModal).toHaveBeenCalledWith('createConversationModal', {
+    expect(mocks.openModal).toHaveBeenCalledWith('createConversationModal', {
       projectId: 'project-1',
       taskId: 'task-1',
-      onSuccess: expect.any(Function),
     });
-
-    const modalOptions = mocks.showModal.mock.calls[0][1];
-    modalOptions.onSuccess({ conversationId: 'conversation-1' });
+    await vi.waitFor(() => expect(taskView.paneLayout.open).toHaveBeenCalled());
 
     expect(taskView.paneLayout.open).toHaveBeenCalledWith(
       'conversation',

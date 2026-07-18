@@ -1,6 +1,7 @@
 import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -18,15 +19,12 @@ export type ExternalLinkChoiceDialogArgs = {
   onCopy: () => boolean | Promise<boolean>;
 };
 
-type Props = BaseModalProps<ExternalLinkChoice> & ExternalLinkChoiceDialogArgs;
-
 export function ExternalLinkChoiceDialog({
   url,
   canOpenInEmdashBrowser,
   onCopy,
-  onSuccess,
-  onClose,
-}: Props) {
+}: ExternalLinkChoiceDialogArgs) {
+  const controller = useModalController('confirmExternalLinkModal');
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
 
@@ -84,19 +82,23 @@ export function ExternalLinkChoiceDialog({
         </div>
       </DialogContentArea>
       <DialogFooter className="flex-col-reverse sm:flex-col-reverse">
-        <Button className="w-full" variant="outline" onClick={onClose}>
+        <Button className="w-full" variant="outline" onClick={controller.dismiss}>
           Cancel
         </Button>
         <Button
           className="w-full"
           variant="outline"
           disabled={!canOpenInEmdashBrowser}
-          onClick={() => onSuccess('emdash-browser')}
+          onClick={() => controller.complete('emdash-browser')}
         >
           <Globe className="size-4" />
           Open in Emdash
         </Button>
-        <Button className="w-full" variant="default" onClick={() => onSuccess('external-browser')}>
+        <Button
+          className="w-full"
+          variant="default"
+          onClick={() => controller.complete('external-browser')}
+        >
           <ExternalLink className="size-4" />
           Open in Browser
         </Button>
@@ -104,3 +106,9 @@ export function ExternalLinkChoiceDialog({
     </>
   );
 }
+
+export const confirmExternalLinkModal = defineModal<ExternalLinkChoice>()({
+  id: 'confirmExternalLinkModal',
+  component: ExternalLinkChoiceDialog,
+  size: 'sm',
+});

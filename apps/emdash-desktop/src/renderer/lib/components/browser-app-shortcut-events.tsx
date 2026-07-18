@@ -13,13 +13,13 @@ import {
   useWorkspaceLayoutContext,
 } from '@renderer/lib/layout/layout-provider';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export function BrowserAppShortcutEvents() {
-  const showCommandPalette = useShowModal('commandPaletteModal');
+  const openCommandPalette = useOpenModal('commandPaletteModal');
   const { toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { currentView } = useWorkspaceSlots();
   const taskParams = useViewParams(taskViewDef);
@@ -46,7 +46,7 @@ export function BrowserAppShortcutEvents() {
             currentTaskId,
             currentView,
             exitSettings: () => appState.navigation.toggleSettings(),
-            showCommandPalette,
+            openCommandPalette,
             toggleLeft,
             toggleZenMode,
           });
@@ -60,7 +60,7 @@ export function BrowserAppShortcutEvents() {
       disposed = true;
       unsubscribe?.();
     };
-  }, [currentProjectId, currentTaskId, currentView, showCommandPalette, toggleLeft, toggleZenMode]);
+  }, [currentProjectId, currentTaskId, currentView, openCommandPalette, toggleLeft, toggleZenMode]);
 
   return null;
 }
@@ -72,11 +72,11 @@ function dispatchAppOnlyShortcut(
     currentTaskId: string | undefined;
     currentView: ViewId;
     exitSettings: () => void;
-    showCommandPalette: (input: {
+    openCommandPalette: (input: {
       projectId?: string;
       taskId?: string;
       workspaceId?: string;
-    }) => void;
+    }) => Promise<unknown>;
     toggleLeft: () => void;
     toggleZenMode: WorkspaceLayoutContextValue['toggleZenMode'];
   }
@@ -89,7 +89,7 @@ function dispatchAppOnlyShortcut(
             undefined)
           : undefined;
 
-      context.showCommandPalette({
+      void context.openCommandPalette({
         projectId: context.currentProjectId,
         taskId: context.currentTaskId,
         workspaceId,

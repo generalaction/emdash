@@ -4,12 +4,12 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { SidebarMenuButton } from './sidebar-primitives';
 
 export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
-  const showCommandPalette = useShowModal('commandPaletteModal');
+  const openCommandPalette = useOpenModal('commandPaletteModal');
   const { currentView } = useWorkspaceSlots();
   const taskParams = useViewParams(taskViewDef);
   const projectParams = useViewParams(projectViewDef);
@@ -30,13 +30,13 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
   return (
     <SidebarMenuButton
       isActive={false}
-      onClick={() =>
-        showCommandPalette({
+      onClick={() => {
+        void openCommandPalette({
           projectId: currentProjectId,
           taskId: currentTaskId,
           workspaceId: currentWorkspaceId,
-        })
-      }
+        });
+      }}
       aria-label="Search"
       className="w-full justify-between"
     >

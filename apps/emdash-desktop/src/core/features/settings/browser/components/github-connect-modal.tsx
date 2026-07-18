@@ -8,6 +8,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   useAccountLinkProvider,
@@ -18,8 +19,7 @@ import {
   useGitHubDeviceFlowAuth,
   useImportGitHubCliAccounts,
 } from '@renderer/lib/hooks/useGithubAccounts';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -34,14 +34,15 @@ type MethodError = {
   message: string;
 } | null;
 
-export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>) {
+export function GithubConnectModal() {
+  const modal = useModalController('githubConnectModal');
   const { toast } = useToast();
   const { data: session } = useAccountSession();
   const signInMutation = useAccountSignIn();
   const linkProviderMutation = useAccountLinkProvider();
   const deviceFlowMutation = useGitHubDeviceFlowAuth();
   const importCliAccountsMutation = useImportGitHubCliAccounts();
-  const showDeviceFlow = useShowModal('githubDeviceFlowModal');
+  const openDeviceFlow = useOpenModal('githubDeviceFlowModal');
   const [oauthLoading, setOauthLoading] = useState(false);
   const [cliLoading, setCliLoading] = useState(false);
   const [error, setError] = useState<MethodError>(null);
@@ -85,7 +86,7 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
               ? `Linked @${providerAccount.login}.`
               : 'GitHub is connected.',
       });
-      onSuccess();
+      modal.complete();
     } finally {
       setOauthLoading(false);
     }
@@ -119,7 +120,7 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
             ? '1 account is available in Emdash.'
             : `${result.importedAccountIds.length} accounts are available in Emdash.`,
       });
-      onSuccess();
+      modal.complete();
     } finally {
       setCliLoading(false);
     }
@@ -127,7 +128,7 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
 
   const connectDeviceFlow = () => {
     setError(null);
-    showDeviceFlow({});
+    void openDeviceFlow({});
     void deviceFlowMutation.mutateAsync();
   };
 
@@ -176,13 +177,19 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         )}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={anyLoading}>
+        <Button variant="outline" onClick={modal.dismiss} disabled={anyLoading}>
           Cancel
         </Button>
       </DialogFooter>
     </>
   );
 }
+
+export const githubConnectModal = defineModal<void>()({
+  id: 'githubConnectModal',
+  component: GithubConnectModal,
+  size: 'md',
+});
 
 function ConnectMethodCard({
   icon: Icon,

@@ -1,10 +1,5 @@
-import { IntegrationSetupModal } from '../browser/integration-setup-modal';
+import { integrationSetupModal } from '../browser/integration-setup-modal';
 
 export const integrationsBrowserContributions = {
-  modals: {
-    integrationSetupModal: {
-      component: IntegrationSetupModal,
-      size: 'md',
-    },
-  },
+  modalDefs: [integrationSetupModal],
 } as const;

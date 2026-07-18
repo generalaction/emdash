@@ -1,4 +1,5 @@
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -13,9 +14,9 @@ export type UnsavedChangesDialogArgs = {
   fileName: string;
 };
 
-type Props = BaseModalProps<UnsavedChangesDialogResult> & UnsavedChangesDialogArgs;
+export function UnsavedChangesDialog({ fileName }: UnsavedChangesDialogArgs) {
+  const controller = useModalController('unsavedChangesModal');
 
-export function UnsavedChangesDialog({ fileName, onSuccess }: Props) {
   return (
     <>
       <DialogHeader showCloseButton={false}>
@@ -27,11 +28,17 @@ export function UnsavedChangesDialog({ fileName, onSuccess }: Props) {
         </p>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={() => onSuccess('discard')}>
+        <Button variant="outline" onClick={() => controller.complete('discard')}>
           Discard
         </Button>
-        <Button onClick={() => onSuccess('save')}>Save</Button>
+        <Button onClick={() => controller.complete('save')}>Save</Button>
       </DialogFooter>
     </>
   );
 }
+
+export const unsavedChangesModal = defineModal<UnsavedChangesDialogResult>()({
+  id: 'unsavedChangesModal',
+  component: UnsavedChangesDialog,
+  size: 'xs',
+});

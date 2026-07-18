@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
@@ -18,7 +18,7 @@ export const PrRow = memo(function PrRow({
   pr: PullRequest;
   projectId: string;
 }) {
-  const showCreateTaskModal = useShowModal('taskModal');
+  const openCreateTaskModal = useOpenModal('taskModal');
 
   return (
     <div className="relative flex w-full items-start gap-3">
@@ -58,7 +58,7 @@ export const PrRow = memo(function PrRow({
           variant="outline"
           size="sm"
           onClick={() =>
-            showCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })
+            void openCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })
           }
         >
           <ScanSearch className="size-3.5" />

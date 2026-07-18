@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -16,16 +17,14 @@ export type ConfirmActionDialogArgs = {
   variant?: 'destructive' | 'default';
 };
 
-type Props = BaseModalProps<void> & ConfirmActionDialogArgs;
-
 export function ConfirmActionDialog({
   title,
   description,
   confirmLabel = 'Confirm',
   variant = 'destructive',
-  onSuccess,
-  onClose,
-}: Props) {
+}: ConfirmActionDialogArgs) {
+  const controller = useModalController('confirmActionModal');
+
   return (
     <>
       <DialogHeader showCloseButton={false}>
@@ -35,13 +34,19 @@ export function ConfirmActionDialog({
         {typeof description === 'string' ? <p>{description}</p> : description}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={controller.dismiss}>
           Cancel
         </Button>
-        <ConfirmButton variant={variant} onClick={() => onSuccess()}>
+        <ConfirmButton variant={variant} onClick={() => controller.complete()}>
           {confirmLabel}
         </ConfirmButton>
       </DialogFooter>
     </>
   );
 }
+
+export const confirmActionModal = defineModal<void>()({
+  id: 'confirmActionModal',
+  component: ConfirmActionDialog,
+  size: 'xs',
+});

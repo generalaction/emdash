@@ -11,7 +11,7 @@ import {
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import { useGitActions } from '@core/features/tasks/browser/use-git-actions';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
@@ -25,7 +25,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const isDetached = headKind === 'detached';
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
   const repositoryStore = getGitRepositoryStore(projectId);
-  const showAddRemoteModal = useShowModal('addRemoteModal');
+  const openAddRemoteModal = useOpenModal('addRemoteModal');
 
   const {
     hasUpstream,
@@ -45,7 +45,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const handlePublishClick = () => {
     if (!headDisplay || isDetached || !workspaceId) return;
     if (shouldOfferAddRemote) {
-      showAddRemoteModal({
+      void openAddRemoteModal({
         projectId,
         projectName,
         branchName: headDisplay,

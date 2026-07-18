@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import type { Automation } from '@core/primitives/automations/api';
 import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
@@ -21,7 +21,7 @@ export function AutomationsView() {
   const [creating, setCreating] = useState(false);
   const [initialTemplate, setInitialTemplate] = useState<BuiltinAutomationTemplate | undefined>();
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null);
-  const showConfirm = useShowModal('confirmActionModal');
+  const openConfirm = useOpenModal('confirmActionModal');
   const { navigate } = useNavigate();
   const { params, setParams } = useCurrentViewParams(automationsViewDef);
 
@@ -65,16 +65,18 @@ export function AutomationsView() {
     // opening the global confirmation dialog so that the dialog remains interactive.
     const automation = pendingDelete;
     setPendingDelete(null);
-    showConfirm({
+    void openConfirm({
       title: 'Delete automation',
       description: `"${automation.name}" and its run history will be permanently deleted.`,
       confirmLabel: 'Delete',
-      onSuccess: () => {
+    }).then((outcome) => {
+      if (outcome.success) {
         void destroy
           .mutateAsync(automation.id)
           .catch(() => setParams({ automationId: automation.id }));
-      },
-      onClose: () => setParams({ automationId: automation.id }),
+      } else if (outcome.error.reason === 'explicit') {
+        setParams({ automationId: automation.id });
+      }
     });
   }
 

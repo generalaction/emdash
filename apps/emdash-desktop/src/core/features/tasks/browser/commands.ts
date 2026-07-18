@@ -18,7 +18,7 @@ import {
 } from '@core/primitives/commands/api/commands';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
@@ -95,18 +95,17 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newConversationDef.shortcutKey,
           group: newConversationDef.group,
           execute() {
-            showModal('createConversationModal', {
-              projectId,
-              taskId,
-              onSuccess: ({ conversationId, type }) => {
-                if (type === 'acp') {
-                  taskView?.paneLayout.open('acp-chat', { conversationId }, { preview: false });
-                } else {
-                  taskView?.paneLayout.open('conversation', { conversationId }, { preview: false });
-                }
-                taskView?.setFocusedRegion('main');
-              },
-            });
+            void (async () => {
+              const outcome = await openModal('createConversationModal', { projectId, taskId });
+              if (!outcome.success) return;
+              const { conversationId, type } = outcome.data;
+              if (type === 'acp') {
+                taskView?.paneLayout.open('acp-chat', { conversationId }, { preview: false });
+              } else {
+                taskView?.paneLayout.open('conversation', { conversationId }, { preview: false });
+              }
+              taskView?.setFocusedRegion('main');
+            })();
           },
         },
         {
@@ -116,26 +115,25 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newConversationSplitRightDef.shortcutKey,
           group: newConversationSplitRightDef.group,
           execute() {
-            showModal('createConversationModal', {
-              projectId,
-              taskId,
-              onSuccess: ({ conversationId, type }) => {
-                if (type === 'acp') {
-                  taskView?.paneLayout.open(
-                    'acp-chat',
-                    { conversationId },
-                    { preview: false, target: 'right' }
-                  );
-                } else {
-                  taskView?.paneLayout.open(
-                    'conversation',
-                    { conversationId },
-                    { preview: false, target: 'right' }
-                  );
-                }
-                taskView?.setFocusedRegion('main');
-              },
-            });
+            void (async () => {
+              const outcome = await openModal('createConversationModal', { projectId, taskId });
+              if (!outcome.success) return;
+              const { conversationId, type } = outcome.data;
+              if (type === 'acp') {
+                taskView?.paneLayout.open(
+                  'acp-chat',
+                  { conversationId },
+                  { preview: false, target: 'right' }
+                );
+              } else {
+                taskView?.paneLayout.open(
+                  'conversation',
+                  { conversationId },
+                  { preview: false, target: 'right' }
+                );
+              }
+              taskView?.setFocusedRegion('main');
+            })();
           },
         },
 

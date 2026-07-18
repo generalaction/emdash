@@ -1,8 +1,9 @@
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -17,9 +18,8 @@ import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
-type Props = BaseModalProps<void>;
-
-export function CreateSkillModal({ onSuccess, onClose }: Props) {
+export function CreateSkillModal() {
+  const { complete, dismiss } = useModalController('createSkillModal');
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -57,7 +57,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
       }
 
       captureTelemetry('skill_created');
-      onSuccess();
+      complete();
       void queryClient.invalidateQueries({ queryKey: ['skills', 'catalog'] });
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Failed to create skill');
@@ -135,7 +135,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
       </DialogContentArea>
 
       <DialogFooter className="gap-2 sm:gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isCreating}>
+        <Button type="button" variant="outline" size="sm" onClick={dismiss} disabled={isCreating}>
           Cancel
         </Button>
         <ConfirmButton
@@ -150,3 +150,8 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
     </>
   );
 }
+
+export const createSkillModal = defineModal<void>()({
+  id: 'createSkillModal',
+  component: CreateSkillModal,
+});

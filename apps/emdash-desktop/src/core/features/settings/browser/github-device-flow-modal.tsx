@@ -1,9 +1,10 @@
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitHubUser } from '@core/primitives/github/api';
+import { defineModal } from '@core/primitives/modals/react';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -20,9 +21,8 @@ export type GithubDeviceFlowModalArgs = {
   onError?: (error: string) => void;
 };
 
-type GithubDeviceFlowModalProps = BaseModalProps<void> & GithubDeviceFlowModalArgs;
-
-export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDeviceFlowModalProps) {
+export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
+  const modal = useModalController('githubDeviceFlowModal');
   const { toast } = useToast();
   const { cancelGithubConnect } = useGithubContext();
 
@@ -41,6 +41,8 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
   const hasAutocopied = useRef(false);
   const hasOpenedBrowser = useRef(false);
   const authSucceededRef = useRef(false);
+  const completeRef = useRef(modal.complete);
+  completeRef.current = modal.complete;
 
   // Cancel the auth flow if the modal is dismissed before auth completes
   useEffect(() => {
@@ -163,7 +165,7 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
             authSucceededRef.current = true;
             setSuccess(true);
             setUser(event.user);
-            setTimeout(() => onSuccess(), 1000);
+            setTimeout(() => completeRef.current(), 1000);
           } else if (event.type === 'auth-error') {
             setError(event.message || event.error);
             onError?.(event.error);
@@ -184,11 +186,7 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
       disposed = true;
       unsubscribe?.();
     };
-  }, [copyToClipboard, onError, onSuccess, toast]);
-
-  const handleClose = () => {
-    onClose();
-  };
+  }, [copyToClipboard, onError, toast]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -326,12 +324,12 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
       </DialogContentArea>
       <DialogFooter>
         {error || success ? (
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={modal.dismiss}>
             Close
           </Button>
         ) : (
           <>
-            <Button variant="outline" onClick={handleClose}>
+            <Button variant="outline" onClick={modal.dismiss}>
               Cancel
             </Button>
             <Button
@@ -352,3 +350,9 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
     </>
   );
 }
+
+export const githubDeviceFlowModal = defineModal<void>()({
+  id: 'githubDeviceFlowModal',
+  component: GithubDeviceFlowModal,
+  size: 'md',
+});

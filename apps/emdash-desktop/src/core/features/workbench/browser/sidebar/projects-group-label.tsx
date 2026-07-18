@@ -1,6 +1,6 @@
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { buttonVariants } from '@renderer/lib/ui/button';
 import {
@@ -17,7 +17,7 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
-  const showAddProjectModal = useShowModal('addProjectModal');
+  const openAddProjectModal = useOpenModal('addProjectModal');
 
   return (
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
@@ -72,7 +72,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
             render={
               <button
                 type="button"
-                onClick={() => showAddProjectModal({})}
+                onClick={() => void openAddProjectModal({})}
                 aria-label="Add Project"
                 className={buttonVariants({
                   size: 'icon-xs',

@@ -1,12 +1,7 @@
 import { libraryViewRuntime } from '../browser/library-view';
-import { PromptModal } from '../browser/prompts/prompt-modal';
+import { promptModal } from '../browser/prompts/prompt-modal';
 
 export const libraryBrowserContributions = {
   views: [libraryViewRuntime],
-  modals: {
-    promptModal: {
-      component: PromptModal,
-      size: 'lg',
-    },
-  },
+  modalDefs: [promptModal],
 } as const;

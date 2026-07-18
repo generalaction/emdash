@@ -9,7 +9,7 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@core/features/tasks/browser/task-view-context';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Input } from '@renderer/lib/ui/input';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
@@ -43,7 +43,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const fullMessage = description ? `${commitMessage}\n\n${description}` : commitMessage;
   const isInFlight = phase !== 'idle';
 
-  const showCreatePrModal = useShowModal('createPrModal');
+  const openCreatePrModal = useOpenModal('createPrModal');
   const repositoryUrl = workspace.gitRepository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
@@ -126,14 +126,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     setPhase('opening-pr');
     await new Promise((r) => setTimeout(r, 500));
     setPhase('idle');
-    showCreatePrModal({
+    void openCreatePrModal({
       projectId,
       taskId,
       repositoryUrl: repositoryUrl ?? '',
       branchName: branchName ?? '',
       draft: false,
       workspaceId,
-      onSuccess: () => {},
     });
   };
 

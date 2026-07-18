@@ -20,13 +20,13 @@ export const featureViewRuntimes = [
   ...tasksBrowserContributions.views,
 ] as const;
 
-export const featureModalContributions = {
-  ...conversationsBrowserContributions.modals,
-  ...integrationsBrowserContributions.modals,
-  ...libraryBrowserContributions.modals,
-  ...projectsBrowserContributions.modals,
-  ...settingsBrowserContributions.modals,
-  ...skillsBrowserContributions.modals,
-  ...tasksBrowserContributions.modals,
-  ...workbenchBrowserContributions.modals,
-} as const;
+export const featureModalDefs = [
+  ...conversationsBrowserContributions.modalDefs,
+  ...integrationsBrowserContributions.modalDefs,
+  ...libraryBrowserContributions.modalDefs,
+  ...projectsBrowserContributions.modalDefs,
+  ...settingsBrowserContributions.modalDefs,
+  ...skillsBrowserContributions.modalDefs,
+  ...tasksBrowserContributions.modalDefs,
+  ...workbenchBrowserContributions.modalDefs,
+] as const;

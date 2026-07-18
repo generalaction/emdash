@@ -16,7 +16,7 @@ import type { JsonObject } from '@core/primitives/views/api';
 import { NavigationHistoryStore } from './navigation-history-store';
 
 const runtimeResolvers = vi.hoisted(() => new Map<string, (params: JsonObject) => Resolution>());
-const closeModal = vi.hoisted(() => vi.fn());
+const dismissModal = vi.hoisted(() => vi.fn());
 
 vi.mock('@core/primitives/views/react', () => ({
   getViewRuntime: (viewId: string) => {
@@ -26,7 +26,7 @@ vi.mock('@core/primitives/views/react', () => ({
 }));
 
 vi.mock('@renderer/lib/modal/modal-store', () => ({
-  modalStore: { closeModal },
+  modalStore: { dismiss: dismissModal },
 }));
 
 vi.mock('@renderer/utils/focus-tracker', () => ({
@@ -149,12 +149,12 @@ describe('NavigationStore', () => {
   it('closes the active modal for traversals but not parameter refinements', () => {
     const store = buildStore();
     store.navigate(settingsViewDef({ tab: 'general' }));
-    expect(closeModal).toHaveBeenCalledOnce();
-    closeModal.mockClear();
+    expect(dismissModal).toHaveBeenCalledWith('navigation');
+    dismissModal.mockClear();
 
     store.navigate(settingsViewDef({ tab: 'browser' }));
 
-    expect(closeModal).not.toHaveBeenCalled();
+    expect(dismissModal).not.toHaveBeenCalled();
   });
 
   it('uses full history refs when toggling out of settings', () => {

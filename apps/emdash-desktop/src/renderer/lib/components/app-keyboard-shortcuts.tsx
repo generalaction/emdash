@@ -14,13 +14,13 @@ import {
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const showCommandPalette = useShowModal('commandPaletteModal');
+  const openCommandPalette = useOpenModal('commandPaletteModal');
   const { exitZenMode, toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
@@ -49,12 +49,13 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(
     getHotkeyRegistration('commandPalette', keyboard),
-    () =>
-      showCommandPalette({
+    () => {
+      void openCommandPalette({
         projectId: currentProjectId,
         taskId: currentTaskId,
         workspaceId: currentWorkspaceId,
-      }),
+      });
+    },
     { enabled: commandPaletteHotkey !== null }
   );
 

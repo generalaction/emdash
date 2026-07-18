@@ -15,7 +15,7 @@ import {
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useModalContext } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,
@@ -74,7 +74,8 @@ export function useProjectSettingsForm({
   writeConfigToRepo,
   migrateProjectConfig,
 }: UseProjectSettingsFormArgs) {
-  const { showModal } = useModalContext();
+  const openShareProjectConfigModal = useOpenModal('shareProjectConfigModal');
+  const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
   const { toast } = useToast();
   const baseline = useMemo(
     () => settingsToForm(initial, baseRemote, remotes),
@@ -179,25 +180,25 @@ export function useProjectSettingsForm({
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
-    showModal('shareProjectConfigModal', {
+    void openShareProjectConfigModal({
       availableFields: availableWriteFields,
       defaultFields: defaultSelectedWriteFields,
       initialTarget: initialWriteTarget,
       targets: writeTargets,
       writeConfigToRepo,
-      onSuccess: ({ page }) => {
-        const nextForm = settingsToForm(page.settings, baseRemote, remotes);
-        setFormSnapshot({
-          baseline: nextForm,
-          form: nextForm,
-          savedForm: nextForm,
-        });
-        toast({
-          title: 'Team config shared',
-          description: '.emdash.json was written successfully.',
-        });
-        onSuccess();
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const nextForm = settingsToForm(outcome.data.page.settings, baseRemote, remotes);
+      setFormSnapshot({
+        baseline: nextForm,
+        form: nextForm,
+        savedForm: nextForm,
+      });
+      toast({
+        title: 'Team config shared',
+        description: '.emdash.json was written successfully.',
+      });
+      onSuccess();
     });
   }, [
     availableWriteFields,
@@ -206,9 +207,9 @@ export function useProjectSettingsForm({
     defaultSelectedWriteFields,
     initialWriteTarget,
     onSuccess,
+    openShareProjectConfigModal,
     remotes,
     shareDisabled,
-    showModal,
     toast,
     writeConfigToRepo,
     writeTargets,
@@ -216,22 +217,23 @@ export function useProjectSettingsForm({
 
   const openImportConfigModal = useCallback(() => {
     if (!canImportConfig || importDisabled) return;
-    showModal('projectConfigImportModal', {
+    void openProjectConfigImportModal({
       migrations: configMigrations,
       migrateProjectConfig,
-      onSuccess: ({ page, migration }) => {
-        const nextForm = settingsToForm(page.settings, baseRemote, remotes);
-        setFormSnapshot({
-          baseline: nextForm,
-          form: nextForm,
-          savedForm: nextForm,
-        });
-        toast({
-          title: `${migration.label} config imported`,
-          description: `${migration.files.join(', ')} was imported successfully.`,
-        });
-        onSuccess();
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const { page, migration } = outcome.data;
+      const nextForm = settingsToForm(page.settings, baseRemote, remotes);
+      setFormSnapshot({
+        baseline: nextForm,
+        form: nextForm,
+        savedForm: nextForm,
+      });
+      toast({
+        title: `${migration.label} config imported`,
+        description: `${migration.files.join(', ')} was imported successfully.`,
+      });
+      onSuccess();
     });
   }, [
     baseRemote,
@@ -240,8 +242,8 @@ export function useProjectSettingsForm({
     importDisabled,
     migrateProjectConfig,
     onSuccess,
+    openProjectConfigImportModal,
     remotes,
-    showModal,
     toast,
   ]);
 

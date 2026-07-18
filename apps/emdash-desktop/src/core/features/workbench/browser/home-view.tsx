@@ -6,7 +6,7 @@ import { defineViewRuntime } from '@core/primitives/views/react';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 const PROJECT_ACTIONS = [
@@ -37,10 +37,12 @@ const PROJECT_ACTIONS = [
 ] as const;
 
 export function HomeMainPanel() {
-  const showAddProjectModal = useShowModal('addProjectModal');
+  const openAddProjectModal = useOpenModal('addProjectModal');
   const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(
     PROJECT_ACTIONS.length,
-    (index) => showAddProjectModal(PROJECT_ACTIONS[index].modalArgs)
+    (index) => {
+      void openAddProjectModal(PROJECT_ACTIONS[index].modalArgs);
+    }
   );
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
@@ -71,7 +73,7 @@ export function HomeMainPanel() {
               icon={action.icon}
               isSelected={i === selectedIndex}
               onMouseEnter={() => setSelectedIndex(i)}
-              onClick={() => showAddProjectModal(action.modalArgs)}
+              onClick={() => void openAddProjectModal(action.modalArgs)}
             />
           ))}
         </div>

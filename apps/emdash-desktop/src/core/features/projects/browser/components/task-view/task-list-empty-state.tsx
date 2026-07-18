@@ -6,7 +6,7 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 interface TaskAction {
@@ -23,7 +23,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
 }: {
   projectId: string;
 }) {
-  const showTaskModal = useShowModal('taskModal');
+  const openTaskModal = useOpenModal('taskModal');
   const { navigate } = useNavigate();
   const { hasAnyIssueIntegration } = useConnectedIssueProviders();
   const repositoryStore = getGitRepositoryStore(projectId);
@@ -41,7 +41,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       description: 'Create a task from an existing branch',
       icon: GitBranch,
       disabled: false,
-      onActivate: () => showTaskModal({ projectId, strategy: 'from-branch' }),
+      onActivate: () => void openTaskModal({ projectId, strategy: 'from-branch' }),
     },
     {
       label: 'Create from Issue',
@@ -52,7 +52,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       disabled: false,
       onActivate: () =>
         hasAnyIntegration
-          ? showTaskModal({ projectId, strategy: 'from-issue' })
+          ? void openTaskModal({ projectId, strategy: 'from-issue' })
           : navigate(settingsViewDef({ tab: 'integrations' })),
     },
     {
@@ -61,7 +61,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       icon: GitPullRequest,
       disabled: !supportsPullRequests,
       disabledReason: 'No remote repository connected',
-      onActivate: () => showTaskModal({ projectId, strategy: 'from-pull-request' }),
+      onActivate: () => void openTaskModal({ projectId, strategy: 'from-pull-request' }),
     },
   ];
 

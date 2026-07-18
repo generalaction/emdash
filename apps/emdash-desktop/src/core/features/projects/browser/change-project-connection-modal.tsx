@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
-import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -22,50 +23,54 @@ export interface ChangeProjectConnectionModalProps {
 export function ChangeProjectConnectionModal({
   projectId,
   currentConnectionId,
-  onSuccess,
-  onClose,
-}: ChangeProjectConnectionModalProps & BaseModalProps<void>) {
+}: ChangeProjectConnectionModalProps) {
+  const modal = useModalController('changeProjectConnectionModal');
   const [selectedConnectionId, setSelectedConnectionId] = useState(currentConnectionId);
   const [isSaving, setIsSaving] = useState(false);
 
-  const showSshConnModal = useShowModal('addSshConnModal');
-  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const openSshConnModal = useOpenModal('addSshConnModal');
+  const openChangeConnectionModal = useOpenModal('changeProjectConnectionModal');
 
-  const handleAddConnection = () => {
-    showSshConnModal({
-      onSuccess: (result: unknown) => {
-        const newId = (result as { connectionId: string }).connectionId;
-        showChangeConnectionModal({ projectId, currentConnectionId: newId });
-      },
-      onClose: () => {
-        showChangeConnectionModal({ projectId, currentConnectionId: selectedConnectionId });
-      },
+  const reopenParent = (connectionId: string) => {
+    void openChangeConnectionModal({
+      projectId,
+      currentConnectionId: connectionId,
     });
   };
 
-  const handleEditConnection = (id: string) => {
+  const handleAddConnection = async () => {
+    const priorConnectionId = selectedConnectionId;
+    const outcome = await openSshConnModal({});
+    if (outcome.success) {
+      reopenParent(outcome.data.connectionId);
+    } else if (outcome.error.reason === 'explicit') {
+      reopenParent(priorConnectionId);
+    }
+  };
+
+  const handleEditConnection = async (id: string) => {
     const conn = appState.sshConnections.connections.find((c) => c.id === id);
     if (!conn) return;
-    showSshConnModal({
+    const priorConnectionId = selectedConnectionId;
+    const outcome = await openSshConnModal({
       initialConfig: conn,
-      onSuccess: () => {
-        showChangeConnectionModal({ projectId, currentConnectionId: id });
-      },
-      onClose: () => {
-        showChangeConnectionModal({ projectId, currentConnectionId: id });
-      },
     });
+    if (outcome.success) {
+      reopenParent(outcome.data.connectionId);
+    } else if (outcome.error.reason === 'explicit') {
+      reopenParent(priorConnectionId);
+    }
   };
 
   const handleSave = async () => {
     if (selectedConnectionId === currentConnectionId) {
-      onClose();
+      modal.dismiss();
       return;
     }
     setIsSaving(true);
     try {
       await getProjectManagerStore()?.updateProjectConnection(projectId, selectedConnectionId);
-      onSuccess();
+      modal.complete();
     } finally {
       setIsSaving(false);
     }
@@ -80,7 +85,7 @@ export function ChangeProjectConnectionModal({
       }
       footer={
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>
+          <Button variant="outline" onClick={modal.dismiss} disabled={isSaving}>
             Cancel
           </Button>
           <ConfirmButton
@@ -98,11 +103,17 @@ export function ChangeProjectConnectionModal({
           <SshConnectionSelector
             connectionId={selectedConnectionId}
             onConnectionIdChange={setSelectedConnectionId}
-            onAddConnection={handleAddConnection}
-            onEditConnection={handleEditConnection}
+            onAddConnection={() => void handleAddConnection()}
+            onEditConnection={(id) => void handleEditConnection(id)}
           />
         </Field>
       </DialogContentArea>
     </ModalLayout>
   );
 }
+
+export const changeProjectConnectionModal = defineModal<void>()({
+  id: 'changeProjectConnectionModal',
+  component: ChangeProjectConnectionModal,
+  size: 'sm',
+});

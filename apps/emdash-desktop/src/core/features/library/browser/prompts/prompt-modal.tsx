@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -19,9 +20,10 @@ type PromptModalArgs = {
   initialPrompt?: PromptLibraryPrompt | PromptFormResult;
 };
 
-type Props = BaseModalProps<PromptFormResult> & PromptModalArgs;
+type Props = PromptModalArgs;
 
-export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
+export function PromptModal({ initialPrompt }: Props) {
+  const { complete, dismiss } = useModalController('promptModal');
   const initialForm = useMemo<PromptFormResult>(
     () => ({
       title: initialPrompt?.title ?? '',
@@ -37,7 +39,7 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
 
   const handleSave = () => {
     if (!canSave) return;
-    onSuccess({ title: normalizedTitle, prompt: normalizedPrompt });
+    complete({ title: normalizedTitle, prompt: normalizedPrompt });
   };
 
   return (
@@ -68,7 +70,7 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={dismiss}>
           Cancel
         </Button>
         <ConfirmButton onClick={handleSave} disabled={!canSave}>
@@ -78,3 +80,9 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
     </>
   );
 }
+
+export const promptModal = defineModal<PromptFormResult>()({
+  id: 'promptModal',
+  component: PromptModal,
+  size: 'lg',
+});

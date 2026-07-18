@@ -12,9 +12,10 @@ import { useInitialConversationState } from '@core/features/tasks/browser/task-c
 import { TaskConfigPanel } from '@core/features/tasks/browser/task-config/task-config-panel';
 import { TaskStateProvider } from '@core/features/tasks/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/browser/task-config/workspace-settings-section';
+import { defineModal } from '@core/primitives/modals/react';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -53,12 +54,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   strategy: initialStrategy = 'from-branch',
   initialPR,
-  onClose,
-}: BaseModalProps & {
+}: {
   projectId?: string;
   strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
   initialPR?: PullRequest;
 }) {
+  const { complete } = useModalController('taskModal');
   const selectedProjectId = useDefaultProjectId(projectId);
 
   const projectData = selectedProjectId
@@ -111,7 +112,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     state,
     initialConversation,
     navigate,
-    onClose,
+    onCreated: complete,
   });
 
   return (
@@ -170,4 +171,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogFooter>
     </>
   );
+});
+
+export const taskModal = defineModal<void>()({
+  id: 'taskModal',
+  component: CreateTaskModal,
+  ignoreOutsidePressAfterWindowBlur: true,
 });

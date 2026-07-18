@@ -14,7 +14,7 @@ import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indi
 import { PrBadge } from '@renderer/lib/components/pr-badge';
 import { StackedAgentLogos } from '@renderer/lib/components/stacked-agent-logos';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
@@ -32,27 +32,31 @@ export const TaskRow = observer(function TaskRow({
   onToggleSelect: (shiftKey: boolean) => void;
 }) {
   const { navigate } = useNavigate();
-  const showRename = useShowModal('renameTaskModal');
-  const showDeleteTask = useShowModal('deleteTaskModal');
+  const openRename = useOpenModal('renameTaskModal');
+  const openDeleteTask = useOpenModal('deleteTaskModal');
   const taskManager = getTaskManagerStore(task.data.projectId);
   const shiftKeyRef = useRef(false);
 
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
   const handleProvision = () => void taskManager?.provisionTask(task.data.id);
-  const handleDelete = () =>
-    showDeleteTask({
+  const handleDelete = () => {
+    void openDeleteTask({
       projectId: task.data.projectId,
       tasks: [{ taskId: task.data.id, taskName: task.data.name }],
-      onSuccess: ({ deleteWorktree, deleteBranch }) =>
-        void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const { deleteWorktree, deleteBranch } = outcome.data;
+      void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch });
     });
-  const handleRename = () =>
-    showRename({
+  };
+  const handleRename = () => {
+    void openRename({
       projectId: task.data.projectId,
       taskId: task.data.id,
       currentName: task.data.name,
     });
+  };
   const isArchived = Boolean(task.data.archivedAt);
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);

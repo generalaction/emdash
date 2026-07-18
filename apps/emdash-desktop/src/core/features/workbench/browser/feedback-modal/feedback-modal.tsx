@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -26,8 +27,6 @@ import { useFeedbackSubmit } from './use-feedback-submit';
 type FeedbackModalArgs = {
   blurb?: string;
 };
-
-type Props = BaseModalProps<void> & FeedbackModalArgs;
 
 function AttachmentThumbnail({
   name,
@@ -56,7 +55,8 @@ function AttachmentThumbnail({
   );
 }
 
-export function FeedbackModal({ onSuccess, blurb }: Props) {
+export function FeedbackModal({ blurb }: FeedbackModalArgs) {
+  const controller = useModalController('feedbackModal');
   const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
   const { user: githubUser } = useGithubContext();
   const appVersion = appState.update.currentVersion;
@@ -99,7 +99,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     onSuccess: () => {
       resetAttachments();
       setIncludeDiagnosticLogs(false);
-      onSuccess();
+      controller.complete();
     },
   });
 
@@ -288,3 +288,8 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     </div>
   );
 }
+
+export const feedbackModal = defineModal<void>()({
+  id: 'feedbackModal',
+  component: FeedbackModal,
+});

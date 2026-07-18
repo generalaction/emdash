@@ -1,6 +1,7 @@
 import { err, type Result } from '@emdash/shared';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import type {
   ProjectSettingsPage,
   ProjectSettingsWriteTarget,
@@ -9,7 +10,7 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -40,8 +41,6 @@ type ShareProjectConfigModalResult = {
   page: ProjectSettingsPage;
 };
 
-type Props = BaseModalProps<ShareProjectConfigModalResult> & ShareProjectConfigModalArgs;
-
 export function projectConfigTargetValue(target: ProjectSettingsWriteTargetOption): string {
   if (target.type === 'project') return 'project:repository';
   if (target.type === 'task') return `task:${target.taskId}`;
@@ -71,9 +70,8 @@ export function ShareProjectConfigModal({
   initialTarget,
   targets,
   writeConfigToRepo,
-  onSuccess,
-  onClose,
-}: Props) {
+}: ShareProjectConfigModalArgs) {
+  const modal = useModalController('shareProjectConfigModal');
   const firstTarget = targets[0] ?? null;
   const initialTargetOption = targets.find(
     (target) => projectConfigTargetValue(target) === initialTarget
@@ -118,7 +116,7 @@ export function ShareProjectConfigModal({
 
     if (result.success) {
       setStatus('written');
-      onSuccess({ fields, page: result.data });
+      modal.complete({ fields, page: result.data });
       return;
     }
 
@@ -196,7 +194,7 @@ export function ShareProjectConfigModal({
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={status === 'writing'}>
+        <Button variant="outline" onClick={modal.dismiss} disabled={status === 'writing'}>
           Cancel
         </Button>
         <ConfirmButton onClick={() => void handleWrite()} disabled={disabled}>
@@ -214,3 +212,9 @@ export function ShareProjectConfigModal({
     </>
   );
 }
+
+export const shareProjectConfigModal = defineModal<ShareProjectConfigModalResult>()({
+  id: 'shareProjectConfigModal',
+  component: ShareProjectConfigModal,
+  size: 'md',
+});

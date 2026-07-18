@@ -1,5 +1,6 @@
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
+import { useEffect } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogDescription,
@@ -12,11 +13,14 @@ export type ConflictDialogArgs = {
   filePath: string;
 };
 
-type Props = BaseModalProps<boolean> & ConflictDialogArgs;
-
-export function ConflictDialog({ filePath, onSuccess }: Props) {
+export function ConflictDialog({ filePath }: ConflictDialogArgs) {
+  const { complete, setCloseGuard } = useModalController('conflictDialog');
   const shortPath = filePath.split('/').slice(-2).join('/');
-  useCloseGuard(true);
+
+  useEffect(() => {
+    setCloseGuard(true);
+    return () => setCloseGuard(false);
+  }, [setCloseGuard]);
 
   return (
     <>
@@ -28,11 +32,17 @@ export function ConflictDialog({ filePath, onSuccess }: Props) {
         </DialogDescription>
       </DialogHeader>
       <DialogFooter className="gap-2">
-        <Button variant="outline" onClick={() => onSuccess(false)}>
+        <Button variant="outline" onClick={() => complete(false)}>
           Keep Mine
         </Button>
-        <Button onClick={() => onSuccess(true)}>Accept Incoming</Button>
+        <Button onClick={() => complete(true)}>Accept Incoming</Button>
       </DialogFooter>
     </>
   );
 }
+
+export const conflictDialog = defineModal<boolean>()({
+  id: 'conflictDialog',
+  component: ConflictDialog,
+  size: 'sm',
+});

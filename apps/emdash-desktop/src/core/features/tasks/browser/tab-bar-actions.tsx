@@ -11,7 +11,7 @@ import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -21,10 +21,23 @@ export const TabBarActions = observer(function TabBarActions() {
   const { projectId, taskId, workspaceId } = useTaskViewContext();
   const { pane, isFocusedPane } = usePaneContext();
   const { paneLayout } = taskView;
-  const showCommandPalette = useShowModal('commandPaletteModal');
-  const showCreateConversationModal = useShowModal('createConversationModal');
+  const openCommandPalette = useOpenModal('commandPaletteModal');
+  const openCreateConversationModal = useOpenModal('createConversationModal');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const canSplit = pane.resolvedTabs.length >= 2 && paneLayout.groups.length < 3;
+
+  const handleCreateConversation = () => {
+    void (async () => {
+      const outcome = await openCreateConversationModal({ projectId, taskId });
+      if (!outcome.success) return;
+      const { conversationId, type } = outcome.data;
+      if (type === 'acp') {
+        pane.open('acp-chat', { conversationId, preview: false });
+      } else {
+        pane.open('conversation', { conversationId, preview: false });
+      }
+    })();
+  };
 
   useHotkey(
     getHotkeyRegistration('splitPane', keyboard),
@@ -42,23 +55,7 @@ export const TabBarActions = observer(function TabBarActions() {
     <div className="flex h-full shrink-0 items-center px-2">
       <Tooltip>
         <TooltipTrigger>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() =>
-              showCreateConversationModal({
-                projectId,
-                taskId,
-                onSuccess: ({ conversationId, type }) => {
-                  if (type === 'acp') {
-                    pane.open('acp-chat', { conversationId, preview: false });
-                  } else {
-                    pane.open('conversation', { conversationId, preview: false });
-                  }
-                },
-              })
-            }
-          >
+          <Button size="icon-sm" variant="ghost" onClick={handleCreateConversation}>
             <MessageSquarePlus className="size-3.5" />
           </Button>
         </TooltipTrigger>
@@ -72,7 +69,11 @@ export const TabBarActions = observer(function TabBarActions() {
             size="icon-sm"
             variant="ghost"
             onClick={() =>
-              showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+              void openCommandPalette({
+                projectId,
+                taskId,
+                workspaceId: workspaceId ?? undefined,
+              })
             }
           >
             <FileSearch className="size-3.5" />

@@ -4,7 +4,7 @@ import { type ReactNode, useState } from 'react';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -78,7 +78,7 @@ export function PrSelector({
   renderSelectedValue,
   renderPlaceholder,
 }: PrSelectorProps) {
-  const showGithubConnectModal = useShowModal('githubConnectModal');
+  const openGithubConnectModal = useOpenModal('githubConnectModal');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
@@ -131,7 +131,12 @@ export function PrSelector({
       ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
       : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.';
   const connectGitHubButton = (
-    <Button type="button" variant="outline" size="xs" onClick={() => showGithubConnectModal({})}>
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      onClick={() => void openGithubConnectModal({})}
+    >
       Connect GitHub
     </Button>
   );

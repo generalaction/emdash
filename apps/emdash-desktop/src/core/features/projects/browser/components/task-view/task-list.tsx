@@ -16,7 +16,7 @@ import {
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -139,8 +139,8 @@ export const TaskList = observer(function TaskList() {
   } = useCurrentViewParams(projectViewDef);
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
-  const showDeleteTask = useShowModal('deleteTaskModal');
-  const showCreateTaskModal = useShowModal('taskModal');
+  const openDeleteTask = useOpenModal('deleteTaskModal');
+  const openCreateTaskModal = useOpenModal('taskModal');
   const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const taskView = store?.view.taskView ?? null;
@@ -182,13 +182,14 @@ export const TaskList = observer(function TaskList() {
 
     if (selectedTasks.length === 0) return;
 
-    showDeleteTask({
+    void openDeleteTask({
       projectId,
       tasks: selectedTasks,
-      onSuccess: ({ deleteWorktree, deleteBranch }) => {
-        void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
-        clearSelection();
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const { deleteWorktree, deleteBranch } = outcome.data;
+      void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
+      clearSelection();
     });
   };
 
@@ -236,7 +237,7 @@ export const TaskList = observer(function TaskList() {
               onChange={(e) => taskView.setSearchQuery(e.target.value)}
               className="flex-1"
             />
-            <Button onClick={() => showCreateTaskModal({ projectId })}>
+            <Button onClick={() => void openCreateTaskModal({ projectId })}>
               Create Task <BoundShortcut settingsKey="newTask" variant="keycaps" />
             </Button>
           </div>

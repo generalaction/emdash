@@ -3,9 +3,10 @@ import { Terminal } from '@xterm/xterm';
 import { Loader2 } from 'lucide-react';
 import { reaction } from 'mobx';
 import { useEffect, useRef, useState } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import { AcpAuthLoginBinding } from '@renderer/lib/acp/auth-login-binding';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { isPrimaryMouseButton } from '@renderer/lib/pty/file-link-provider';
 import {
@@ -30,20 +31,15 @@ export type AgentSignInModalArgs = {
   providerName: string;
 };
 
-type AgentSignInModalProps = BaseModalProps<void> & AgentSignInModalArgs;
-
-export function AgentSignInModal({
-  providerId,
-  methodId,
-  providerName,
-  onSuccess,
-  onClose,
-}: AgentSignInModalProps) {
+export function AgentSignInModal({ providerId, methodId, providerName }: AgentSignInModalArgs) {
+  const modal = useModalController('agentSignInModal');
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const terminalHostRef = useRef<HTMLDivElement | null>(null);
   const bindingRef = useRef<AcpAuthLoginBinding | null>(null);
   const handledUrlsRef = useRef(new Set<string>());
+  const completeRef = useRef(modal.complete);
+  completeRef.current = modal.complete;
 
   useEffect(() => {
     const host = terminalHostRef.current;
@@ -105,7 +101,7 @@ export function AgentSignInModal({
         if (state.status.kind === 'authenticated') {
           void binding.dispose(false);
           bindingRef.current = null;
-          onSuccess();
+          completeRef.current();
           return;
         }
 
@@ -117,7 +113,7 @@ export function AgentSignInModal({
       },
       { fireImmediately: true }
     );
-  }, [onSuccess, ready]);
+  }, [ready]);
 
   return (
     <>
@@ -144,13 +140,19 @@ export function AgentSignInModal({
         </div>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={modal.dismiss}>
           Close
         </Button>
       </DialogFooter>
     </>
   );
 }
+
+export const agentSignInModal = defineModal<void>()({
+  id: 'agentSignInModal',
+  component: AgentSignInModal,
+  size: 'lg',
+});
 
 function createLoginTerminal(): Terminal {
   const terminal = new Terminal({

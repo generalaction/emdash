@@ -1,16 +1,26 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { modalCatalog } from '@core/manifests/modal-catalog';
 import {
-  modalRegistry,
+  ModalHostContext,
+  type ModalHostController,
   type ModalPosition,
-  type ModalRegistryEntry,
   type ModalSize,
-} from '@renderer/app/modal-registry';
+} from '@core/primitives/modals/react';
 import { Dialog, DialogOverlay, DialogPortal } from '@renderer/lib/ui/dialog';
 import { cn } from '@renderer/utils/utils';
 import { modalStore } from './modal-store';
+
+type RuntimeModalEntry = {
+  // The catalog erases each component's props at this renderer boundary.
+  // oxlint-disable-next-line typescript/no-explicit-any
+  readonly component: React.ComponentType<any>;
+  readonly size?: ModalSize;
+  readonly position?: ModalPosition;
+  readonly ignoreOutsidePressAfterWindowBlur?: boolean;
+};
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
   xs: 'sm:max-w-xs',
@@ -25,35 +35,49 @@ const POSITION_CLASSES: Record<ModalPosition, string> = {
 };
 
 export const ModalRenderer = observer(function ModalRenderer() {
-  const entry = (
-    modalStore.activeModalId
-      ? modalRegistry[modalStore.activeModalId as keyof typeof modalRegistry]
-      : null
-  ) as ModalRegistryEntry | null;
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const Component = entry?.component as React.ComponentType<any> | undefined;
+  const entry = modalStore.activeModalId
+    ? (modalCatalog.byId(modalStore.activeModalId) as RuntimeModalEntry | undefined)
+    : undefined;
+  const Component = entry?.component;
 
   // Preserve the last rendered content and entry config so the close animation plays with the
   // correct dimensions and full content rather than collapsing while the popup fades out.
   // oxlint-disable-next-line typescript/no-explicit-any
   const lastComponentRef = useRef<React.ComponentType<any> | null>(null);
   const lastArgsRef = useRef<Record<string, unknown> | null>(null);
-  const lastEntryRef = useRef<ModalRegistryEntry | null>(null);
+  const lastEntryRef = useRef<RuntimeModalEntry | null>(null);
+  const lastModalIdRef = useRef<string | null>(null);
 
-  if (modalStore.isOpen && Component && modalStore.activeModalArgs) {
+  if (modalStore.isOpen && modalStore.activeModalId && Component && modalStore.activeModalArgs) {
     lastComponentRef.current = Component;
     lastArgsRef.current = modalStore.activeModalArgs;
-    lastEntryRef.current = entry;
+    lastEntryRef.current = entry ?? null;
+    lastModalIdRef.current = modalStore.activeModalId;
   }
 
   const DisplayComponent = lastComponentRef.current;
   const displayArgs = lastArgsRef.current;
   const displayEntry = lastEntryRef.current;
+  const displayModalId = lastModalIdRef.current;
   const activeModalId = modalStore.activeModalId;
-  const activeEntryRef = useRef<ModalRegistryEntry | null>(null);
+  const activeEntryRef = useRef<RuntimeModalEntry | null>(null);
   const ignoreNextOutsidePressRef = useRef(false);
 
-  activeEntryRef.current = entry;
+  activeEntryRef.current = entry ?? null;
+
+  const completeModal = useCallback((result: unknown) => modalStore.complete(result), []);
+  const dismissModal = useCallback(() => modalStore.dismiss(), []);
+  const setCloseGuard = useCallback((active: boolean) => modalStore.setCloseGuard(active), []);
+  const hasActiveCloseGuard = modalStore.closeGuardActive;
+  const hostController = useMemo<ModalHostController>(
+    () => ({
+      complete: completeModal,
+      dismiss: dismissModal,
+      setCloseGuard,
+      hasActiveCloseGuard,
+    }),
+    [completeModal, dismissModal, hasActiveCloseGuard, setCloseGuard]
+  );
 
   useEffect(() => {
     ignoreNextOutsidePressRef.current = false;
@@ -88,21 +112,21 @@ export const ModalRenderer = observer(function ModalRenderer() {
       const isPassiveDismiss = isOutsidePress || eventDetails.reason === 'escape-key';
       if (modalStore.closeGuardActive && isPassiveDismiss) return;
       ignoreNextOutsidePressRef.current = false;
-      modalStore.closeModal();
+      modalStore.dismiss('passive');
     }
   };
 
   const popupRef = useRef<HTMLDivElement>(null);
 
-  // Restore focus to the element captured by modalStore.setModal when the modal closes.
+  // Restore focus to the element captured when the first modal in a flow opens.
   useEffect(
     () =>
       reaction(
         () => modalStore.isOpen,
         (isOpen) => {
-          if (!isOpen && modalStore.previousFocus) {
-            const el = modalStore.previousFocus;
-            modalStore.previousFocus = null;
+          if (!isOpen) {
+            const el = modalStore.consumePreviousFocus();
+            if (!el) return;
             requestAnimationFrame(() => {
               if (el.isConnected) el.focus();
             });
@@ -146,7 +170,11 @@ export const ModalRenderer = observer(function ModalRenderer() {
             SIZE_CLASSES[displayEntry?.size ?? 'md']
           )}
         >
-          {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}
+          {DisplayComponent && displayArgs && displayModalId ? (
+            <ModalHostContext.Provider value={{ id: displayModalId, controller: hostController }}>
+              <DisplayComponent {...displayArgs} />
+            </ModalHostContext.Provider>
+          ) : null}
         </DialogPrimitive.Popup>
       </DialogPortal>
     </Dialog>

@@ -18,7 +18,7 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
@@ -36,8 +36,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
-  const showRename = useShowModal('renameTaskModal');
-  const showDeleteTask = useShowModal('deleteTaskModal');
+  const openRename = useOpenModal('renameTaskModal');
+  const openDeleteTask = useOpenModal('deleteTaskModal');
 
   const { currentView } = useWorkspaceSlots();
   const params = useViewParams(taskViewDef);
@@ -65,17 +65,21 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     void taskManager?.archiveTask(taskId);
   };
 
-  const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
+  const handleRename = () => {
+    void openRename({ projectId, taskId, currentName: taskName });
+  };
 
-  const handleDelete = () =>
-    showDeleteTask({
+  const handleDelete = () => {
+    void openDeleteTask({
       projectId,
       tasks: [{ taskId, taskName }],
-      onSuccess: ({ deleteWorktree, deleteBranch }) => {
-        void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
-        if (isActive) navigate(projectViewDef({ projectId }));
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const { deleteWorktree, deleteBranch } = outcome.data;
+      void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
+      if (isActive) navigate(projectViewDef({ projectId }));
     });
+  };
 
   const canPin = task.state !== 'unregistered';
 

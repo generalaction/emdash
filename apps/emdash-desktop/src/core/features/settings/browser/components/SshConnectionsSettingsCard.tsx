@@ -3,7 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -12,8 +12,8 @@ import { SshConnectionRow } from './SshConnectionRow';
 export const SshConnectionsSettingsCard = observer(function SshConnectionsSettingsCard() {
   const [usage, setUsage] = useState<SshConnectionUsage>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const showSshConnModal = useShowModal('addSshConnModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const openSshConnModal = useOpenModal('addSshConnModal');
+  const openConfirm = useOpenModal('confirmActionModal');
 
   const connections = [...appState.sshConnections.connections].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -39,21 +39,19 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
   }, [connections.length, refreshUsage]);
 
   const openAddModal = () => {
-    showSshConnModal({
+    void openSshConnModal({
       dismissControl: 'close',
-      onSuccess: () => {
-        void refreshUsage();
-      },
+    }).then((outcome) => {
+      if (outcome.success) void refreshUsage();
     });
   };
 
   const openEditModal = (connection: SshConfig) => {
-    showSshConnModal({
+    void openSshConnModal({
       dismissControl: 'close',
       initialConfig: connection,
-      onSuccess: () => {
-        void refreshUsage();
-      },
+    }).then((outcome) => {
+      if (outcome.success) void refreshUsage();
     });
   };
 
@@ -82,7 +80,7 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
 
     const projects = latestUsage[connection.id] ?? [];
     if (projects.length > 0) {
-      showConfirm({
+      void openConfirm({
         title: 'Cannot delete SSH connection',
         description:
           'This SSH connection is still used by at least one project. Change those projects to another connection before deleting it.',
@@ -91,15 +89,13 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
       return;
     }
 
-    showConfirm({
+    const outcome = await openConfirm({
       title: 'Delete SSH connection',
       description: `This will remove "${connection.name}" and its saved credentials from this device.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
-      onSuccess: () => {
-        void deleteConnection(connection);
-      },
     });
+    if (outcome.success) void deleteConnection(connection);
   };
 
   return (

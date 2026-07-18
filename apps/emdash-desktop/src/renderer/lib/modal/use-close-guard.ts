@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useModalContext } from '@renderer/lib/modal/modal-provider';
+import { useContext, useEffect } from 'react';
+import { ModalHostContext } from '@core/primitives/modals/react';
 
 /**
  * Activates a close guard on the currently open modal while `isActive` is true,
@@ -7,7 +7,11 @@ import { useModalContext } from '@renderer/lib/modal/modal-provider';
  * Does not block explicit close button clicks.
  */
 export function useCloseGuard(isActive: boolean) {
-  const { setCloseGuard } = useModalContext();
+  const host = useContext(ModalHostContext);
+  if (!host) {
+    throw new Error('useCloseGuard must be used inside a modal host');
+  }
+  const { setCloseGuard } = host.controller;
 
   useEffect(() => {
     setCloseGuard(isActive);

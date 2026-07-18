@@ -7,7 +7,7 @@ import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-conte
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import {
   addMonacoKeyboardShortcuts,
@@ -51,7 +51,7 @@ export const EditorProvider = observer(function EditorProvider({
   const isActive = useIsActiveTask(taskId);
 
   // Conflict dialog — shown when editorView.pendingConflictUri is set.
-  const showConflictModal = useShowModal('conflictDialog');
+  const openConflictModal = useOpenModal('conflictDialog');
 
   // The directly-created Monaco editor for this pane.
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
@@ -219,12 +219,12 @@ export const EditorProvider = observer(function EditorProvider({
         const filePath = modelRegistry.filePathForUri(uri);
         if (!filePath) return;
         if (!editorView.openFilePaths.includes(filePath)) return;
-        showConflictModal({
-          filePath,
-          onSuccess: (accept) => {
-            void editorView.resolveConflict(accept);
-          },
-        });
+        void (async () => {
+          const outcome = await openConflictModal({ filePath });
+          if (outcome.success) {
+            void editorView.resolveConflict(outcome.data);
+          }
+        })();
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []

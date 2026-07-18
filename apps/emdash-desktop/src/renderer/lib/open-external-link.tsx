@@ -1,6 +1,6 @@
 import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
@@ -16,20 +16,20 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
 
   const taskView = getActiveTaskView();
 
-  showModal('confirmExternalLinkModal', {
+  void openModal('confirmExternalLinkModal', {
     url: normalizedUrl,
     canOpenInEmdashBrowser: taskView !== undefined,
     onCopy: () => copyExternalLink(normalizedUrl),
-    onSuccess: (choice) => {
-      if (choice === 'emdash-browser') {
-        taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
-        taskView?.setFocusedRegion('main');
-        return;
-      }
-      void rpc.app.openExternal(normalizedUrl).catch((error) => {
-        onError?.(error);
-      });
-    },
+  }).then((outcome) => {
+    if (!outcome.success) return;
+    if (outcome.data === 'emdash-browser') {
+      taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
+      taskView?.setFocusedRegion('main');
+      return;
+    }
+    void rpc.app.openExternal(normalizedUrl).catch((error) => {
+      onError?.(error);
+    });
   });
 }
 

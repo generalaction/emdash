@@ -12,7 +12,7 @@ interface UseCreateTaskCallbackParams {
   state: CreateTaskState;
   initialConversation: InitialConversationState;
   navigate: NavigateFnTyped;
-  onClose: () => void;
+  onCreated: () => void;
 }
 
 export function useCreateTaskCallback({
@@ -20,7 +20,7 @@ export function useCreateTaskCallback({
   state,
   initialConversation,
   navigate,
-  onClose,
+  onCreated,
 }: UseCreateTaskCallbackParams): { handleCreateTask: () => void; canCreate: boolean } {
   const canCreate = !!selectedProjectId && state.isValid;
 
@@ -46,8 +46,8 @@ export function useCreateTaskCallback({
       .catch((e) => log.error('create task failed', e));
 
     navigate(taskViewDef({ projectId: selectedProjectId, taskId: id }));
-    onClose();
-  }, [selectedProjectId, state, initialConversation, navigate, onClose]);
+    onCreated();
+  }, [selectedProjectId, state, initialConversation, navigate, onCreated]);
 
   return { handleCreateTask, canCreate };
 }

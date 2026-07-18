@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { Dialog } from '@renderer/lib/ui/dialog';
 import { ExternalLinkChoiceDialog } from './external-link-choice-dialog';
 
+vi.mock('@renderer/lib/modal/api', () => ({
+  useModalController: () => ({
+    complete: vi.fn(),
+    dismiss: vi.fn(),
+    setCloseGuard: vi.fn(),
+    hasActiveCloseGuard: false,
+  }),
+}));
+
 describe('ExternalLinkChoiceDialog', () => {
   it('offers a copy action inside the displayed external link', () => {
     const html = renderToStaticMarkup(
@@ -14,8 +23,6 @@ describe('ExternalLinkChoiceDialog', () => {
           url: 'https://example.com/docs',
           canOpenInEmdashBrowser: true,
           onCopy: vi.fn(() => true),
-          onSuccess: vi.fn(),
-          onClose: vi.fn(),
         })
       )
     );

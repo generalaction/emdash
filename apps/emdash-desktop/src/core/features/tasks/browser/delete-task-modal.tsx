@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
@@ -24,9 +25,8 @@ export type DeleteTaskModalResult = {
   deleteBranch: boolean;
 };
 
-type Props = BaseModalProps<DeleteTaskModalResult> & DeleteTaskModalArgs;
-
-export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props) {
+export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
+  const { complete, dismiss } = useModalController('deleteTaskModal');
   const { deleteBranchByDefault } = useTaskSettings();
   const [deleteWorktree, setDeleteWorktree] = useState(true);
   const [deleteBranchOverride, setDeleteBranchOverride] = useState<boolean>();
@@ -136,14 +136,14 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         )}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={dismiss}>
           Cancel
         </Button>
         <ConfirmButton
           variant="destructive"
           disabled={isLoading}
           onClick={() =>
-            onSuccess({
+            complete({
               deleteWorktree,
               deleteBranch: showBranchCheckbox && shouldDeleteBranch,
             })
@@ -155,3 +155,9 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
     </>
   );
 }
+
+export const deleteTaskModal = defineModal<DeleteTaskModalResult>()({
+  id: 'deleteTaskModal',
+  component: DeleteTaskModal,
+  size: 'sm',
+});

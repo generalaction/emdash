@@ -16,9 +16,10 @@ import {
   type ComponentProps,
   type ReactNode,
 } from 'react';
+import { defineModal } from '@core/primitives/modals/react';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
 import { useSshConfigHost, useSshConfigHosts } from '@renderer/lib/hooks/use-ssh-config-hosts';
-import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useModalController } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
@@ -47,7 +48,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import { suggestedAuthTypeForSshConfigHost, type AuthType } from './ssh-connection-form-model';
 import { sshConnectionFormSchema } from './ssh-connection-form-schema';
 
-export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
+export interface AddSshConnModalProps {
   initialConfig?: SshConfig;
   dismissControl?: 'back' | 'close';
 }
@@ -109,12 +110,8 @@ function FieldLabelWithInfo({
   );
 }
 
-export function AddSshConnModal({
-  onSuccess,
-  onClose,
-  initialConfig,
-  dismissControl = 'back',
-}: AddSshConnModalProps) {
+export function AddSshConnModal({ initialConfig, dismissControl = 'back' }: AddSshConnModalProps) {
+  const modal = useModalController('addSshConnModal');
   const sshConnections = appState.sshConnections;
   const isEditing = !!initialConfig;
   const showBackButton = dismissControl === 'back';
@@ -186,7 +183,7 @@ export function AddSshConnModal({
           passphrase: value.authType === 'key' ? value.passphrase : undefined,
         };
         const saved = await sshConnections.saveConnection(config);
-        onSuccess({ connectionId: saved.id });
+        modal.complete({ connectionId: saved.id });
       } catch (err) {
         setTestState('error');
         setTestResult({ success: false, error: formatSshConnectionError(err) });
@@ -300,7 +297,7 @@ export function AddSshConnModal({
         >
           <div className={`flex items-center gap-2 ${showBackButton ? '-ml-2' : ''}`}>
             {showBackButton && (
-              <Button variant="ghost" size="icon-xs" onClick={onClose}>
+              <Button variant="ghost" size="icon-xs" onClick={modal.dismiss}>
                 <ArrowLeftIcon className="h-4 w-4" />
               </Button>
             )}
@@ -327,7 +324,12 @@ export function AddSshConnModal({
           </Button>
           <div className="flex gap-2">
             {!showBackButton && (
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={modal.dismiss}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
             )}
@@ -814,3 +816,8 @@ export function AddSshConnModal({
     </ModalLayout>
   );
 }
+
+export const addSshConnModal = defineModal<{ connectionId: string }>()({
+  id: 'addSshConnModal',
+  component: AddSshConnModal,
+});

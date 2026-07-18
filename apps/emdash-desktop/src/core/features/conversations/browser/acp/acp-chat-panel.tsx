@@ -43,7 +43,7 @@ import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -329,14 +329,15 @@ const ComposerForStore = observer(function ComposerForStore({
         store.sendQueuedPromptNow(id);
         return;
       }
-      showModal('confirmActionModal', {
+      void openModal('confirmActionModal', {
         title: 'Turn in progress',
         description: 'Send this queued prompt now and cancel the active turn?',
         confirmLabel: 'Cancel & Send',
         variant: 'destructive',
-        onSuccess: () => {
+      }).then((outcome) => {
+        if (outcome.success) {
           store.sendQueuedPromptNow(id);
-        },
+        }
       });
     },
     [store]
@@ -725,13 +726,14 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const openSignInModal = useCallback(() => {
     if (!providerId || !cliAuthMethod || !store) return;
-    showModal('agentSignInModal', {
+    void openModal('agentSignInModal', {
       providerId,
       methodId: cliAuthMethod.id,
       providerName: agent?.name ?? providerId,
-      onSuccess: () => {
+    }).then((outcome) => {
+      if (outcome.success) {
         if (store.loadError?.kind === 'auth_required') store.retry();
-      },
+      }
     });
   }, [agent?.name, cliAuthMethod, providerId, store]);
 

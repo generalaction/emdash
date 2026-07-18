@@ -7,7 +7,7 @@ import {
   useAccountSignIn,
   useAccountSignOut,
 } from '@renderer/lib/hooks/useAccount';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
@@ -17,7 +17,7 @@ export function AccountTab() {
   const signInMutation = useAccountSignIn();
   const signOutMutation = useAccountSignOut();
   const { toast } = useToast();
-  const showConfirmSignOut = useShowModal('confirmActionModal');
+  const openConfirmSignOut = useOpenModal('confirmActionModal');
   const [error, setError] = useState<string | null>(null);
 
   const user = session?.user ?? null;
@@ -70,12 +70,13 @@ export function AccountTab() {
   };
 
   const handleSignOut = () => {
-    showConfirmSignOut({
+    void openConfirmSignOut({
       title: 'Sign out of Emdash?',
       description: 'You will need to sign in again to reconnect your Emdash account.',
       confirmLabel: 'Sign Out',
       variant: 'default',
-      onSuccess: () => void performSignOut(),
+    }).then((outcome) => {
+      if (outcome.success) void performSignOut();
     });
   };
 

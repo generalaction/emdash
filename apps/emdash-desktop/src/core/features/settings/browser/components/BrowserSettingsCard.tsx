@@ -14,7 +14,7 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -44,7 +44,7 @@ export function BrowserSettingsCard() {
     isLoading,
     isSaving,
   } = useAppSettingsKey('browser');
-  const showConfirm = useShowModal('confirmActionModal');
+  const openConfirm = useOpenModal('confirmActionModal');
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isBrowsingDataExpanded, setIsBrowsingDataExpanded] = useState(false);
@@ -79,15 +79,14 @@ export function BrowserSettingsCard() {
   };
 
   const clearProfileStorage = (profile: BrowserProfile) => {
-    showConfirm({
+    void openConfirm({
       title: `Clear ${profile.name} browser storage?`,
       description:
         'This clears cookies, local storage, IndexedDB, and cache for this profile. Browser tabs using it will be signed out.',
       confirmLabel: 'Clear Storage',
       variant: 'destructive',
-      onSuccess: () => {
-        void clearProfileStorageAndReload(profile.id);
-      },
+    }).then((outcome) => {
+      if (outcome.success) void clearProfileStorageAndReload(profile.id);
     });
   };
 
@@ -117,36 +116,35 @@ export function BrowserSettingsCard() {
   };
 
   const clearBrowsingData = (kind: BrowsingDataKind, label: string) => {
-    showConfirm({
+    void openConfirm({
       ...BROWSING_DATA_CONFIRMATIONS[kind],
       variant: 'destructive',
-      onSuccess: () => {
-        void runClearBrowsingData(kind, label);
-      },
+    }).then((outcome) => {
+      if (outcome.success) void runClearBrowsingData(kind, label);
     });
   };
 
   const deleteProfile = (profile: BrowserProfile) => {
     if (profiles.length <= 1) return;
-    showConfirm({
+    void openConfirm({
       title: `Delete ${profile.name} browser profile?`,
       description:
         'This removes the profile and clears its cookies, local storage, IndexedDB, and cache.',
       confirmLabel: 'Delete Profile',
       variant: 'destructive',
-      onSuccess: () => {
-        const nextProfiles = profiles.filter((candidate) => candidate.id !== profile.id);
-        const replacementProfileId =
-          selectedDefault === profile.id
-            ? (nextProfiles[0]?.id ?? DEFAULT_BROWSER_PROFILE_ID)
-            : selectedDefault;
-        void deleteProfileAfterStorageClear({
-          deletedProfileId: profile.id,
-          replacementProfileId,
-          nextProfiles,
-          updateAsync,
-        });
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const nextProfiles = profiles.filter((candidate) => candidate.id !== profile.id);
+      const replacementProfileId =
+        selectedDefault === profile.id
+          ? (nextProfiles[0]?.id ?? DEFAULT_BROWSER_PROFILE_ID)
+          : selectedDefault;
+      void deleteProfileAfterStorageClear({
+        deletedProfileId: profile.id,
+        replacementProfileId,
+        nextProfiles,
+        updateAsync,
+      });
     });
   };
 

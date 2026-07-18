@@ -1,9 +1,5 @@
-import { CreateConversationModal } from '../browser/create-conversation-modal';
+import { createConversationModal } from '../browser/create-conversation-modal';
 
 export const conversationsBrowserContributions = {
-  modals: {
-    createConversationModal: {
-      component: CreateConversationModal,
-    },
-  },
+  modalDefs: [createConversationModal],
 } as const;

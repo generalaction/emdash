@@ -2,7 +2,8 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { defineModal } from '@core/primitives/modals/react';
+import { useModalController } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -26,15 +27,12 @@ type RenameTaskModalArgs = {
   currentName: string;
 };
 
-type Props = BaseModalProps<void> & RenameTaskModalArgs;
-
 export const RenameTaskModal = observer(function RenameTaskModal({
   projectId,
   taskId,
   currentName,
-  onSuccess,
-  onClose,
-}: Props) {
+}: RenameTaskModalArgs) {
+  const { complete, dismiss } = useModalController('renameTaskModal');
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +84,12 @@ export const RenameTaskModal = observer(function RenameTaskModal({
         setIsSubmitting(false);
         return;
       }
-      onSuccess();
+      complete();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename task');
       setIsSubmitting(false);
     }
-  }, [isValid, taskManager, taskId, normalizedName, onSuccess]);
+  }, [isValid, taskManager, taskId, normalizedName, complete]);
 
   return (
     <>
@@ -119,7 +117,7 @@ export const RenameTaskModal = observer(function RenameTaskModal({
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={dismiss}>
           Cancel
         </Button>
         <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
@@ -128,4 +126,10 @@ export const RenameTaskModal = observer(function RenameTaskModal({
       </DialogFooter>
     </>
   );
+});
+
+export const renameTaskModal = defineModal<void>()({
+  id: 'renameTaskModal',
+  component: RenameTaskModal,
+  size: 'xs',
 });

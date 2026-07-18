@@ -4,12 +4,11 @@ import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
-import type { PromptFormResult } from './prompt-modal';
 import { usePromptLibrary } from './use-prompt-library';
 
 type PromptListItem = {
@@ -83,8 +82,8 @@ export function PromptLibraryView() {
     isLoading: isPromptLibraryLoading,
     isSaving: isPromptLibrarySaving,
   } = usePromptLibrary();
-  const showPromptModal = useShowModal('promptModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const openPromptModal = useOpenModal('promptModal');
+  const openConfirm = useOpenModal('confirmActionModal');
   const [search, setSearch] = useState('');
 
   const promptLibrary = useMemo(() => promptLibraryValue ?? [], [promptLibraryValue]);
@@ -106,33 +105,34 @@ export function PromptLibraryView() {
   };
 
   const createPrompt = () => {
-    showPromptModal({
-      onSuccess: (result: PromptFormResult) => {
-        upsertPrompt({ id: createPromptId(), ...result }, 'Prompt added');
-      },
+    void openPromptModal().then((outcome) => {
+      if (!outcome.success) return;
+      upsertPrompt({ id: createPromptId(), ...outcome.data }, 'Prompt added');
     });
   };
 
   const editPrompt = (prompt: PromptLibraryPrompt) => {
-    showPromptModal({
+    void openPromptModal({
       initialPrompt: prompt,
-      onSuccess: (result: PromptFormResult) =>
-        upsertPrompt({ ...prompt, ...result }, 'Prompt updated'),
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      upsertPrompt({ ...prompt, ...outcome.data }, 'Prompt updated');
     });
   };
 
   const deletePrompt = (prompt: PromptLibraryPrompt) => {
-    showConfirm({
+    void openConfirm({
       title: 'Delete prompt?',
       description: `"${prompt.title}" will be removed from the prompt library.`,
       confirmLabel: 'Delete',
-      onSuccess: () =>
-        updatePromptLibrary(
-          promptLibrary.filter((item) => item.id !== prompt.id),
-          {
-            onSuccess: () => toast({ title: 'Prompt deleted' }),
-          }
-        ),
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      updatePromptLibrary(
+        promptLibrary.filter((item) => item.id !== prompt.id),
+        {
+          onSuccess: () => toast({ title: 'Prompt deleted' }),
+        }
+      );
     });
   };
 

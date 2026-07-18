@@ -31,7 +31,7 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import {
   ContextMenu,
@@ -66,8 +66,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { currentView } = useWorkspaceSlots();
   const projectParams = useViewParams(projectViewDef);
   const taskParams = useViewParams(taskViewDef);
-  const showCreateTaskModal = useShowModal('taskModal');
-  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const openCreateTaskModal = useOpenModal('taskModal');
+  const openChangeConnectionModal = useOpenModal('changeProjectConnectionModal');
   const confirmDeleteProject = useConfirmDeleteProject();
 
   const project = getProjectStore(projectId);
@@ -200,7 +200,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   onPointerEnter={() => prefetchRepository()}
                   onClick={(e) => {
                     e.stopPropagation();
-                    showCreateTaskModal({ projectId });
+                    void openCreateTaskModal({ projectId });
                   }}
                   disabled={project.state === 'unregistered'}
                 >
@@ -229,7 +229,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => {
-                showChangeConnectionModal({
+                void openChangeConnectionModal({
                   projectId,
                   currentConnectionId: sshConnectionId,
                 });

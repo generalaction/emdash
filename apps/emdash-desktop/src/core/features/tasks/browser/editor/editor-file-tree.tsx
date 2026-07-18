@@ -37,7 +37,7 @@ import {
 } from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal, useOpenModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { filesPath } from '@renderer/lib/runtime/files';
 import { getFilesRuntimeClient } from '@renderer/lib/runtime/files-client';
@@ -129,21 +129,21 @@ async function importLocalFiles(args: {
         existingPaths.length === 1
           ? `${existingPaths[0]} already exists. Replace it with the dropped file?`
           : `${existingPaths.length} files already exist: ${existingPaths.join(', ')}. Replace them with the dropped files?`;
-      showModal('confirmActionModal', {
+      const outcome = await openModal('confirmActionModal', {
         title: existingPaths.length === 1 ? 'Replace existing file?' : 'Replace existing files?',
         description,
         confirmLabel: 'Replace',
         variant: 'destructive',
-        onSuccess: () => {
-          void importLocalFiles({
-            files,
-            workspacePath,
-            sourceFiles,
-            destDirPath,
-            overwrite: true,
-          });
-        },
       });
+      if (outcome.success) {
+        void importLocalFiles({
+          files,
+          workspacePath,
+          sourceFiles,
+          destDirPath,
+          overwrite: true,
+        });
+      }
       return;
     }
 
@@ -215,6 +215,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
   const files = editorView.files;
+  const openConfirmActionModal = useOpenModal('confirmActionModal');
   const { isActive, open: openFile } = useTabSelection('file', row.node.path);
 
   const node = row.node;
@@ -407,21 +408,27 @@ const FileTreeRow = observer(function FileTreeRow({
   };
 
   const confirmDelete = () => {
-    showModal('confirmActionModal', {
-      title:
-        node.type === 'directory' ? 'Delete folder?' : isSymlink ? 'Delete link?' : 'Delete file?',
-      description:
-        node.type === 'directory'
-          ? `"${node.path}" and all of its contents will be deleted from the workspace.`
-          : isSymlink
-            ? `"${node.path}" will be removed from the workspace. Its target will not be deleted.`
-            : `"${node.path}" will be deleted from the workspace.`,
-      confirmLabel: 'Delete',
-      variant: 'destructive',
-      onSuccess: () => {
+    void (async () => {
+      const outcome = await openConfirmActionModal({
+        title:
+          node.type === 'directory'
+            ? 'Delete folder?'
+            : isSymlink
+              ? 'Delete link?'
+              : 'Delete file?',
+        description:
+          node.type === 'directory'
+            ? `"${node.path}" and all of its contents will be deleted from the workspace.`
+            : isSymlink
+              ? `"${node.path}" will be removed from the workspace. Its target will not be deleted.`
+              : `"${node.path}" will be deleted from the workspace.`,
+        confirmLabel: 'Delete',
+        variant: 'destructive',
+      });
+      if (outcome.success) {
         void deleteItem();
-      },
-    });
+      }
+    })();
   };
 
   const [isDropTarget, setIsDropTarget] = useState(false);

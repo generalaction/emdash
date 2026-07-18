@@ -4,7 +4,7 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
@@ -69,13 +69,14 @@ export function confirmClearBrowserStorage(
   adapter: BrowserWebviewAdapter | null,
   profileLabel = 'this browser profile'
 ): void {
-  showModal('confirmActionModal', {
+  void openModal('confirmActionModal', {
     title: 'Clear browser storage?',
     description: `This clears cookies, local storage, IndexedDB, and cache for ${profileLabel}. Browser tabs using the same storage boundary will be signed out.`,
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
-    onSuccess: () => {
+  }).then((outcome) => {
+    if (outcome.success) {
       void clearBrowserData(session, 'storage', () => adapter?.reload());
-    },
+    }
   });
 }

@@ -11,7 +11,7 @@ import {
   useRemoveGitHubAccount,
   useSetDefaultGitHubAccount,
 } from '@renderer/lib/hooks/useGithubAccounts';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();
   const sortedAccounts = sortGitHubAccountsByDefault(accounts);
-  const showConnectGitHub = useShowModal('githubConnectModal');
+  const openConnectGitHub = useOpenModal('githubConnectModal');
 
   return (
     <section className="space-y-3">
@@ -34,7 +34,7 @@ export function GitHubAccountsSection() {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => showConnectGitHub({})}
+                onClick={() => void openConnectGitHub({})}
                 aria-label="Add GitHub account"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -69,7 +69,7 @@ export function GitHubAccountsSection() {
 export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary[] }) {
   const setDefaultMutation = useSetDefaultGitHubAccount();
   const removeMutation = useRemoveGitHubAccount();
-  const showConfirmRemove = useShowModal('confirmActionModal');
+  const openConfirmRemove = useOpenModal('confirmActionModal');
   const { toast } = useToast();
 
   const setDefaultAccount = async (account: GitHubAccountSummary) => {
@@ -116,12 +116,12 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
       }
     } catch {}
 
-    showConfirmRemove({
+    const outcome = await openConfirmRemove({
       title: `Remove @${account.login}?`,
       description,
       confirmLabel: 'Remove',
-      onSuccess: () => void removeAccount(account),
     });
+    if (outcome.success) void removeAccount(account);
   };
 
   return (

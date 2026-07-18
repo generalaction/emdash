@@ -8,7 +8,7 @@ import type {
 } from '@core/features/workbench/browser/tabs/core/tab-provider';
 import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
 import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { openModal } from '@renderer/lib/modal/api';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { resolveWorkspacePath } from '../stores/workspace-path';
@@ -127,46 +127,29 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       if (!modelRegistry.isDirty(bufferUri)) return true;
 
       const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
-      return new Promise<boolean>((resolve) =>
-        showModal('unsavedChangesModal', {
-          fileName,
-          onSuccess: (result) => {
-            if (result === 'save') {
-              void modelRegistry
-                .saveFileToDisk(bufferUri)
-                .then((saved) => {
-                  if (saved !== null) {
-                    resolve(true);
-                    return;
-                  }
-                  if (!modelRegistry.hasPendingConflict(bufferUri)) {
-                    resolve(false);
-                    return;
-                  }
-                  showModal('conflictDialog', {
-                    filePath: entry.state.path,
-                    onSuccess: (acceptIncoming) => {
-                      if (acceptIncoming) {
-                        modelRegistry.reloadFromDisk(bufferUri);
-                        resolve(true);
-                        return;
-                      }
-                      void modelRegistry
-                        .saveFileToDisk(bufferUri, { overwrite: true })
-                        .then((overwritten) => resolve(overwritten !== null))
-                        .catch(() => resolve(false));
-                    },
-                    onClose: () => resolve(false),
-                  });
-                })
-                .catch(() => resolve(false));
-            } else {
-              resolve(true);
-            }
-          },
-          onClose: () => resolve(false),
-        })
-      );
+      const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
+      if (!unsavedOutcome.success) return false;
+      if (unsavedOutcome.data === 'discard') return true;
+
+      try {
+        const saved = await modelRegistry.saveFileToDisk(bufferUri);
+        if (saved !== null) return true;
+        if (!modelRegistry.hasPendingConflict(bufferUri)) return false;
+
+        const conflictOutcome = await openModal('conflictDialog', {
+          filePath: entry.state.path,
+        });
+        if (!conflictOutcome.success) return false;
+        if (conflictOutcome.data) {
+          modelRegistry.reloadFromDisk(bufferUri);
+          return true;
+        }
+
+        const overwritten = await modelRegistry.saveFileToDisk(bufferUri, { overwrite: true });
+        return overwritten !== null;
+      } catch {
+        return false;
+      }
     },
 
     TabBarItem: FileTabBarItem,

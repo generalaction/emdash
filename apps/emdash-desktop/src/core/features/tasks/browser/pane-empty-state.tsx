@@ -5,30 +5,32 @@ import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-conte
 import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 
 export function PaneEmptyState() {
   const { projectId, taskId, workspaceId } = useTaskViewContext();
   const { pane } = usePaneContext();
-  const showCreateConversationModal = useShowModal('createConversationModal');
-  const showCommandPalette = useShowModal('commandPaletteModal');
+  const openCreateConversationModal = useOpenModal('createConversationModal');
+  const openCommandPalette = useOpenModal('commandPaletteModal');
 
   const actions = [
-    () =>
-      showCreateConversationModal({
-        projectId,
-        taskId,
-        onSuccess: ({ conversationId, type }) => {
-          if (type === 'acp') {
-            pane.open('acp-chat', { conversationId, preview: false });
-          } else {
-            pane.open('conversation', { conversationId, preview: false });
-          }
-        },
-      }),
-    () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),
+    () => {
+      void (async () => {
+        const outcome = await openCreateConversationModal({ projectId, taskId });
+        if (!outcome.success) return;
+        const { conversationId, type } = outcome.data;
+        if (type === 'acp') {
+          pane.open('acp-chat', { conversationId, preview: false });
+        } else {
+          pane.open('conversation', { conversationId, preview: false });
+        }
+      })();
+    },
+    () => {
+      void openCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined });
+    },
   ];
 
   const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(actions.length, (index) =>

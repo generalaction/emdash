@@ -5,7 +5,7 @@ import { sortGitHubAccountsByDefault } from '@core/features/projects/browser/com
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { TooltipProvider } from '@renderer/lib/ui/tooltip';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
@@ -42,9 +42,9 @@ const IntegrationsCard: React.FC = () => {
     [githubAccounts]
   );
   const [selectedProvider, setSelectedProvider] = useState<IssueProviderType | null>(null);
-  const showIntegrationSetup = useShowModal('integrationSetupModal');
-  const showConnectGitHub = useShowModal('githubConnectModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const openIntegrationSetup = useOpenModal('integrationSetupModal');
+  const openConnectGitHub = useOpenModal('githubConnectModal');
+  const openConfirm = useOpenModal('confirmActionModal');
 
   const confirmDisconnect = ({
     name,
@@ -55,15 +55,14 @@ const IntegrationsCard: React.FC = () => {
     credential?: string;
     onDisconnect: () => void | Promise<void>;
   }) => {
-    showConfirm({
+    void openConfirm({
       title: `Disconnect ${name}`,
       description: credential
         ? `This will delete the saved ${name} ${credential} and disconnect ${name}.`
         : `This will disconnect ${name}.`,
       confirmLabel: 'Disconnect',
-      onSuccess: () => {
-        void onDisconnect();
-      },
+    }).then((outcome) => {
+      if (outcome.success) void onDisconnect();
     });
   };
 
@@ -92,7 +91,7 @@ const IntegrationsCard: React.FC = () => {
           connectionError: isConfigured ? status.error : undefined,
           displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
           displayDetail: status.displayDetail,
-          onConnect: () => showConnectGitHub({}),
+          onConnect: () => void openConnectGitHub({}),
         };
       }
 
@@ -108,7 +107,7 @@ const IntegrationsCard: React.FC = () => {
         connectionError: isConfigured ? status.error : undefined,
         displayName: status.displayName,
         displayDetail: status.displayDetail,
-        onConnect: () => showIntegrationSetup({ integration: provider }),
+        onConnect: () => void openIntegrationSetup({ integration: provider }),
         onDisconnect: () =>
           confirmDisconnect({
             name: integration.name,

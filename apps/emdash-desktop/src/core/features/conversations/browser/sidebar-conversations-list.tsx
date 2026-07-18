@@ -15,7 +15,7 @@ import { useTabSelection } from '@core/features/workbench/browser/task-tab-regis
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
   ContextMenu,
@@ -46,7 +46,7 @@ const ConversationRow = observer(function ConversationRow({
   const conversations = useConversations();
   const { projectId, taskId } = useTaskViewContext();
   const { paneLayout } = useWorkspaceViewModel();
-  const showConfirm = useShowModal('confirmActionModal');
+  const openConfirm = useOpenModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
@@ -98,24 +98,26 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDelete = () => {
-    showConfirm({
+    void openConfirm({
       title: 'Delete conversation',
       description: `"${displayTitle}" will be permanently deleted. This action cannot be undone.`,
       confirmLabel: 'Delete',
       variant: 'destructive',
-      onSuccess: () => {
+    }).then((outcome) => {
+      if (outcome.success) {
         void conversations.deleteConversation(conversationId);
-      },
+      }
     });
   };
 
   const handleKillSession = () => {
-    showConfirm({
+    void openConfirm({
       title: 'Kill session',
       description: `"${displayTitle}" will be stopped. The conversation will remain available as inactive/resumable.`,
       confirmLabel: 'Kill session',
       variant: 'destructive',
-      onSuccess: () => {
+    }).then((outcome) => {
+      if (outcome.success) {
         void (async () => {
           try {
             await conversations.killSession(conversationId);
@@ -128,7 +130,7 @@ const ConversationRow = observer(function ConversationRow({
             });
           }
         })();
-      },
+      }
     });
   };
 
@@ -246,7 +248,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { paneLayout } = taskView;
-  const showCreateConversationModal = useShowModal('createConversationModal');
+  const openCreateConversationModal = useOpenModal('createConversationModal');
   const sortedConversations = Array.from(conversations.conversations.values()).sort((a, b) => {
     const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
     const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
@@ -290,16 +292,17 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   });
 
   const handleCreate = () => {
-    showCreateConversationModal({
+    void openCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId, type }) => {
-        if (type === 'acp') {
-          paneLayout.open('acp-chat', { conversationId }, { preview: false });
-        } else {
-          paneLayout.open('conversation', { conversationId }, { preview: false });
-        }
-      },
+    }).then((outcome) => {
+      if (!outcome.success) return;
+      const { conversationId, type } = outcome.data;
+      if (type === 'acp') {
+        paneLayout.open('acp-chat', { conversationId }, { preview: false });
+      } else {
+        paneLayout.open('conversation', { conversationId }, { preview: false });
+      }
     });
   };
 

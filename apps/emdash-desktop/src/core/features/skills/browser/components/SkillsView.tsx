@@ -2,7 +2,7 @@ import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { CardGridSection } from '@renderer/lib/components/card-grid';
 import { PageHeader } from '@renderer/lib/components/page-header';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useOpenModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -30,8 +30,8 @@ export const SkillsView: React.FC = () => {
     openDetail,
     closeDetail,
   } = useSkills();
-  const showCreateSkillModal = useShowModal('createSkillModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const openCreateSkillModal = useOpenModal('createSkillModal');
+  const openConfirm = useOpenModal('confirmActionModal');
 
   const handleOpenTerminal = (skillPath: string) => {
     void rpc.app.openIn({ app: 'terminal', path: skillPath });
@@ -40,17 +40,18 @@ export const SkillsView: React.FC = () => {
   const handleUninstallRequest = useCallback(
     (skillId: string) => {
       const displayName = catalog?.skills.find((s) => s.id === skillId)?.displayName ?? skillId;
-      showConfirm({
+      void openConfirm({
         title: 'Uninstall skill?',
         description: `This will uninstall "${displayName}" from all agents. This action cannot be undone.`,
         confirmLabel: 'Uninstall',
-        onSuccess: () => {
+      }).then((outcome) => {
+        if (outcome.success) {
           closeDetail();
           void uninstall(skillId);
-        },
+        }
       });
     },
-    [catalog, closeDetail, showConfirm, uninstall]
+    [catalog, closeDetail, openConfirm, uninstall]
   );
 
   if (isLoading) {
@@ -87,7 +88,7 @@ export const SkillsView: React.FC = () => {
                   className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                 />
               </Button>
-              <Button onClick={() => showCreateSkillModal({})}>
+              <Button onClick={() => void openCreateSkillModal()}>
                 <Plus className="size-4" />
                 New Skill
               </Button>
