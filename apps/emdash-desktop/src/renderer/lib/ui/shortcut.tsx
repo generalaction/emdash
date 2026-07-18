@@ -1,21 +1,10 @@
-import { detectPlatform, parseHotkey, type Hotkey } from '@tanstack/react-hotkeys';
-import { ArrowBigUp } from 'lucide-react';
-import { useMemo } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import {
-  getEffectiveHotkey,
-  type ShortcutSettingsKey,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { observer } from 'mobx-react-lite';
+import { useEffect, useMemo, useState } from 'react';
+import type { CommandDef } from '@core/primitives/commands/api';
+import { chord, detectPlatformContext, type Chord } from '@core/primitives/keybindings/api';
+import { keyboardLayoutService, keybindingService } from '@renderer/lib/keybindings';
 import { cn } from '@renderer/utils/utils';
 import { Kbd } from './kbd';
-import {
-  describeShortcut,
-  formatShortcutKey,
-  getShortcutKeyOpticalAlignClass,
-  getShortcutKeys,
-} from './shortcut-format';
-
-const PLATFORM = detectPlatform();
 
 type ShortcutVariant = 'text' | 'badge' | 'keycaps';
 
@@ -33,42 +22,44 @@ const KEYCAP_KBD_CLASS = cn(
 );
 
 interface ShortcutProps {
-  hotkey: Hotkey | null | undefined;
+  hotkey: Chord | string | null | undefined;
   className?: string;
   variant?: ShortcutVariant;
 }
 
 function ShortcutKey({ keyName }: { keyName: string }) {
-  if (keyName === 'Shift' && PLATFORM === 'mac') {
-    return <ArrowBigUp aria-hidden="true" className="size-[11px]" strokeWidth={2.25} />;
-  }
-
   return (
-    <span
-      aria-hidden="true"
-      className={cn('inline-block', getShortcutKeyOpticalAlignClass(keyName))}
-    >
-      {formatShortcutKey(keyName, PLATFORM)}
+    <span aria-hidden="true" className="inline-block">
+      {keyName}
     </span>
   );
 }
 
 /** Display a shortcut when the hotkey string is already resolved. */
 function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
+  const [, setLayoutVersion] = useState(0);
+  useEffect(
+    () => keyboardLayoutService.onDidChangeLayout(() => setLayoutVersion((version) => version + 1)),
+    []
+  );
   const parsed = useMemo(() => {
     if (!hotkey) return null;
-    return parseHotkey(hotkey, PLATFORM);
+    try {
+      return chord(hotkey);
+    } catch {
+      return null;
+    }
   }, [hotkey]);
 
   if (!parsed) return null;
 
-  const keys = getShortcutKeys(parsed, PLATFORM);
+  const keys = keyboardLayoutService.displayLabel(parsed, detectPlatformContext());
 
   return (
     <span
       data-slot="shortcut"
       role="img"
-      aria-label={describeShortcut(parsed, PLATFORM)}
+      aria-label={keys.join(' + ')}
       className={cn(
         variant === 'text' &&
           'inline-flex shrink-0 items-center justify-center gap-0 rounded px-1.5 py-1 text-xs leading-none text-muted-foreground in-data-[slot=tooltip-content]:text-background',
@@ -93,17 +84,20 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
 }
 
 interface BoundShortcutProps {
-  settingsKey: ShortcutSettingsKey;
+  command: CommandDef | string;
   className?: string;
   variant?: ShortcutVariant;
 }
 
 /** Display a shortcut directly from an app shortcut settings key. */
-function BoundShortcut({ settingsKey, className, variant }: BoundShortcutProps) {
-  const { value: keyboard } = useAppSettingsKey('keyboard');
-  const hotkey = getEffectiveHotkey(settingsKey, keyboard);
+const BoundShortcut = observer(function BoundShortcut({
+  command,
+  className,
+  variant,
+}: BoundShortcutProps) {
+  const hotkey = keybindingService.chordFor(typeof command === 'string' ? command : command.id);
 
   return <Shortcut hotkey={hotkey} className={className} variant={variant} />;
-}
+});
 
 export { BoundShortcut, Shortcut, type ShortcutVariant };

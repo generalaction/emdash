@@ -15,8 +15,6 @@ import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
-import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
-import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { initMementos } from '@renderer/lib/mementos';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
@@ -62,8 +60,6 @@ async function bootstrap() {
   appState.sidebar.attachMemento(sidebarHandle);
   if (!sidebarHandle.hasStoredValue) appState.sidebar.expandAllProjects();
   wireNavigationTelemetry(appState.navigation);
-  setupAppCommandProvider();
-  setupViewCommandProvider();
 
   // Avoid double-mount in dev which can duplicate PTY sessions
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

@@ -72,6 +72,20 @@ export function ViewScopeInstanceProvider({ instance, children }: ViewScopeInsta
   return createElement(ViewScopeInstanceContext.Provider, { value: instance }, children);
 }
 
+export function useViewScopeInstance(): ViewScopeInstance | undefined {
+  return useContext(ViewScopeInstanceContext);
+}
+
+export function useFocusDelegate<TElement extends HTMLElement>(): RefCallback<TElement> {
+  const instance = useViewScopeInstance();
+  return useCallback(
+    (element) => {
+      instance?.attachFocusDelegate(element);
+    },
+    [instance]
+  );
+}
+
 export interface UseViewScopeResult {
   readonly instance: ViewScopeInstance | undefined;
   readonly attachRef: RefCallback<HTMLElement>;
@@ -113,6 +127,9 @@ export function useViewScope<TDef extends ViewScopeDefinition>(
   }
   const stableScope = stableScopeRef.current;
 
+  // Child layout effects run before a parent publishes its instance through context.
+  // A nested scope can therefore instantiate once without a parent and then be
+  // recreated with the parent on the following render; disposal keeps both paths safe.
   useLayoutEffect(() => {
     const next = runtime.instantiate(stableScope.ref, {
       parent,

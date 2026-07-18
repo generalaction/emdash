@@ -1,5 +1,4 @@
 import type React from 'react';
-import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 
 /**
  * A single actionable entry in a tab context menu (close, rename, …).
@@ -12,10 +11,9 @@ export interface TabCommand {
   /** Grouping key for separator placement. */
   group?: 'close' | (string & {});
   /**
-   * Hotkey binding. Either a user-configurable settings key (resolved via the
-   * shortcut settings system) or a getter returning a raw key string.
+   * Shortcut hint from a contributed command or a raw chord getter.
    */
-  shortcut?: ShortcutSettingsKey | (() => string | undefined);
+  shortcut?: { readonly commandId: string } | { readonly chord: () => string | undefined };
   /** Hides the command when false (default: always visible). */
   isAvailable?(): boolean;
   run(): void | Promise<void>;

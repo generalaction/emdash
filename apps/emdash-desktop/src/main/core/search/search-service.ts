@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { ALL_COMMAND_DEFS } from '@core/primitives/commands/api/commands';
+import { PALETTE_CATALOG } from '@core/manifests/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
@@ -306,11 +306,18 @@ class SearchService {
           `INSERT INTO search_index (item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('command', ?, NULL, NULL, ?, ?)`
         );
-        for (const def of ALL_COMMAND_DEFS) {
-          stmt.run(def.id, def.label, def.description ?? '');
+        for (const item of PALETTE_CATALOG.items) {
+          const { command } = item;
+          const keywords = [
+            command.description,
+            ...new Set([...command.keywords, ...(item.keywords ?? [])]),
+          ]
+            .filter(Boolean)
+            .join(' ');
+          stmt.run(command.id, command.title, keywords);
         }
       })();
-      log.info('SearchService: seeded commands', { count: ALL_COMMAND_DEFS.length });
+      log.info('SearchService: seeded commands', { count: PALETTE_CATALOG.items.length });
     } catch (e) {
       log.warn('SearchService: seedCommands failed', { error: String(e) });
     }

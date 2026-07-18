@@ -11,27 +11,20 @@ export interface RuntimeViewDef {
   readonly layout: LayoutDef;
 }
 
-export interface ViewRuntime<
-  TDef extends RuntimeViewDef = RuntimeViewDef,
-  TCommandProvider = unknown,
-> {
+export interface ViewRuntime<TDef extends RuntimeViewDef = RuntimeViewDef> {
   readonly slots: SlotFills<TDef['layout'], ViewParams<TDef>>;
   readonly resolve?: (params: ViewParams<TDef>) => Resolution;
-  readonly commandProvider?: (params: ViewParams<TDef>) => TCommandProvider;
 }
 
-export interface ViewRuntimeContribution<
-  TDef extends RuntimeViewDef = RuntimeViewDef,
-  TCommandProvider = unknown,
-> {
+export interface ViewRuntimeContribution<TDef extends RuntimeViewDef = RuntimeViewDef> {
   readonly def: TDef;
-  readonly runtime: ViewRuntime<TDef, TCommandProvider>;
+  readonly runtime: ViewRuntime<TDef>;
 }
 
-export function defineViewRuntime<TDef extends RuntimeViewDef, TCommandProvider = unknown>(
+export function defineViewRuntime<TDef extends RuntimeViewDef>(
   def: TDef,
-  runtime: ViewRuntime<TDef, TCommandProvider>
-): ViewRuntimeContribution<TDef, TCommandProvider> {
+  runtime: ViewRuntime<TDef>
+): ViewRuntimeContribution<TDef> {
   return Object.freeze({ def, runtime: Object.freeze(runtime) });
 }
 
@@ -48,7 +41,7 @@ export function registerViewRuntime(contribution: RegistrableViewRuntime): void 
   }
   runtimes.set(
     contribution.def.id,
-    contribution as unknown as ViewRuntimeContribution<RuntimeViewDef, unknown>
+    contribution as unknown as ViewRuntimeContribution<RuntimeViewDef>
   );
 }
 

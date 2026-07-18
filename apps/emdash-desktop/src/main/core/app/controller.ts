@@ -8,6 +8,7 @@ import {
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
 import { getDiagnosticLogAttachment, writeRendererLogEntry } from '@main/host/file-logger';
+import { setApplicationMenuKeybindings } from '@main/host/menu';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { appService } from './service';
@@ -131,6 +132,7 @@ export const appOperations = {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  setMenuKeybindings: setApplicationMenuKeybindings,
   quit: () => {
     try {
       appService.quit();

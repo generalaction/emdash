@@ -214,7 +214,7 @@ function NewTerminalButton({
           <Plus className="size-3" />
         </TooltipTrigger>
         <TooltipContent>
-          New terminal <BoundShortcut settingsKey="newTerminal" variant="keycaps" />
+          New terminal <BoundShortcut command="task.newTerminal" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
       <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>

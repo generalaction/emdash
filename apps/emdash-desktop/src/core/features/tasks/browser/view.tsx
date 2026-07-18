@@ -11,8 +11,8 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { appState } from '@renderer/lib/stores/app-state';
-import { createTaskCommandProvider } from './commands';
 import { TaskMainPanel } from './main-panel';
+import { TaskScope } from './task-scope';
 import { TaskTitlebar } from './task-titlebar';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
@@ -39,17 +39,11 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
       .catch(() => {});
   }, [kind, projectId, taskId, taskStore]);
 
-  if (kind !== 'ready') {
-    return (
-      <TaskViewWrapper projectId={projectId} taskId={taskId}>
-        {children}
-      </TaskViewWrapper>
-    );
-  }
-
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      {children}
+      <TaskScope projectId={projectId} taskId={taskId}>
+        {children}
+      </TaskScope>
     </TaskViewWrapper>
   );
 });
@@ -60,8 +54,6 @@ export const taskViewRuntime = defineViewRuntime(taskViewDef, {
     titlebar: TaskTitlebar,
     main: TaskMainPanel,
   },
-  commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
-    createTaskCommandProvider(projectId, taskId),
   resolve: ({ projectId, taskId }) => {
     if (
       !appState.projects.projects.has(projectId) &&

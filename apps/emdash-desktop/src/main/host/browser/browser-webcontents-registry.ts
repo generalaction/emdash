@@ -10,6 +10,7 @@ import {
 } from 'electron';
 import { browserEvents } from '@core/features/browser/node';
 import { desktopHostEvents } from '@core/features/workbench/node';
+import { buildBrowserClaims, type BrowserClaim } from '@core/manifests/browser-claims';
 import type { AppSettings } from '@core/primitives/app-settings/api';
 import {
   browserProfilePartition,
@@ -19,12 +20,10 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import {
-  APP_SHORTCUTS,
   getElectronTabNavigationDirection,
-  resolveDefaultHotkey,
-  type ShortcutSettingsKey,
-} from '@core/primitives/commands/api/shortcuts';
-import { log } from '@main/lib/logger';
+  matchesElectronInput,
+  type PlatformContext,
+} from '@core/primitives/keybindings/api';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
@@ -65,7 +64,7 @@ export class BrowserWebContentsRegistry {
   private readonly browserIdByWebContentsId = new Map<number, string>();
   private readonly pendingWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
-  private browserShortcuts = getBrowserShortcuts();
+  private browserShortcuts = buildBrowserClaims();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -84,7 +83,7 @@ export class BrowserWebContentsRegistry {
   }
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
-    this.browserShortcuts = getBrowserShortcuts(keyboard);
+    this.browserShortcuts = buildBrowserClaims(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -257,17 +256,17 @@ export class BrowserWebContentsRegistry {
         }
       }
 
-      const shortcutKey = getBrowserShortcutKey(input, this.browserShortcuts);
-      if (shortcutKey === null) return;
+      const commandId = getBrowserShortcutCommand(input, this.browserShortcuts);
+      if (commandId === null) return;
 
-      if (shortcutKey !== 'browserCopyUrl') {
+      if (commandId !== 'task.browserCopyUrl') {
         const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (!browserId) return;
         event.preventDefault();
         desktopHostEvents.emit(undefined, {
           type: 'browser-app-shortcut',
           source: { kind: 'browser', browserId },
-          shortcutKey,
+          commandId,
         });
         return;
       }
@@ -450,112 +449,22 @@ function getBrowserContextTarget(
   return null;
 }
 
-type ParsedShortcut = {
-  key: string;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  control: boolean;
-};
-
-function getBrowserShortcuts(
-  keyboard?: AppSettings['keyboard']
-): Map<ShortcutSettingsKey, ParsedShortcut> {
-  const shortcuts = new Map<ShortcutSettingsKey, ParsedShortcut>();
-  for (const shortcutKey of Object.keys(APP_SHORTCUTS) as ShortcutSettingsKey[]) {
-    if (shortcutKey === 'closeModal' || APP_SHORTCUTS[shortcutKey].ignoreWhenBrowserFocused) {
-      continue;
-    }
-
-    const configured = keyboard?.[shortcutKey];
-    if (configured === null) continue;
-
-    const fallback = resolveDefaultHotkey(APP_SHORTCUTS[shortcutKey]) ?? null;
-    const hotkey = configured ?? fallback;
-    if (hotkey === null) continue;
-
-    const parsed = parseShortcut(hotkey);
-    if (parsed) {
-      shortcuts.set(shortcutKey, parsed);
-      continue;
-    }
-
-    if (configured) {
-      const parsedFallback = fallback ? parseShortcut(fallback) : null;
-      if (parsedFallback) shortcuts.set(shortcutKey, parsedFallback);
-      log.warn('Invalid browser app shortcut, falling back to default', {
-        shortcutKey,
-        shortcut: configured,
-      });
-    }
-  }
-  return shortcuts;
+function platformContextForBrowser(): PlatformContext {
+  return {
+    os: process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux',
+  };
 }
 
-function getBrowserShortcutKey(
+function getBrowserShortcutCommand(
   input: Electron.Input,
-  shortcuts: ReadonlyMap<ShortcutSettingsKey, ParsedShortcut>
-): ShortcutSettingsKey | null {
-  if (input.type !== 'keyDown') return null;
-  for (const [shortcutKey, parsed] of shortcuts) {
-    if (
-      normalizeInputKey(input.key) === parsed.key &&
-      Boolean(input.shift) === parsed.shift &&
-      Boolean(input.alt) === parsed.alt &&
-      Boolean(input.meta) === parsed.meta &&
-      Boolean(input.control) === parsed.control
-    ) {
-      return shortcutKey;
+  claims: readonly BrowserClaim[]
+): string | null {
+  for (const claim of claims) {
+    if (matchesElectronInput(input, claim.chord, platformContextForBrowser())) {
+      return claim.commandId;
     }
   }
   return null;
-}
-
-function parseShortcut(shortcut: string): {
-  key: string;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  control: boolean;
-} | null {
-  const parts = shortcut
-    .split('+')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const key = parts.pop();
-  if (!key) return null;
-  const modifiers = { shift: false, alt: false, meta: false, control: false };
-  for (const part of parts) {
-    switch (part.toLowerCase()) {
-      case 'shift':
-        modifiers.shift = true;
-        break;
-      case 'alt':
-      case 'option':
-        modifiers.alt = true;
-        break;
-      case 'meta':
-      case 'cmd':
-      case 'command':
-        modifiers.meta = true;
-        break;
-      case 'ctrl':
-      case 'control':
-        modifiers.control = true;
-        break;
-      case 'mod':
-        if (process.platform === 'darwin') modifiers.meta = true;
-        else modifiers.control = true;
-        break;
-      default:
-        return null;
-    }
-  }
-  return { key: normalizeInputKey(key), ...modifiers };
-}
-
-function normalizeInputKey(key: string): string {
-  return key.toLowerCase();
 }
 
 function clearWebviewSelection(webContents: WebContents): void {

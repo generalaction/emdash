@@ -178,7 +178,7 @@ export const archiveTaskCommand = defineCommand({
   category: 'Task',
   icon: 'archive',
   keybinding: keybinding.settings('archiveTask', 'Mod+Shift+E', {
-    ignoreWhenTextInputFocused: true,
+    ignoreWhenEditorFocused: true,
   }),
 });
 
@@ -197,7 +197,7 @@ export const nextTaskCommand = defineCommand({
   category: 'Navigation',
   icon: 'chevron-down',
   keybinding: keybinding.settings('taskNext', 'Mod+Alt+ArrowDown', {
-    ignoreWhenTextInputFocused: true,
+    ignoreWhenEditorFocused: true,
   }),
 });
 
@@ -208,7 +208,7 @@ export const previousTaskCommand = defineCommand({
   category: 'Navigation',
   icon: 'chevron-up',
   keybinding: keybinding.settings('taskPrev', 'Mod+Alt+ArrowUp', {
-    ignoreWhenTextInputFocused: true,
+    ignoreWhenEditorFocused: true,
   }),
 });
 
@@ -217,7 +217,9 @@ export const deleteSelectedTasksCommand = defineCommand({
   title: 'Delete Selected Tasks',
   description: 'Delete the selected tasks',
   category: 'Task',
-  keybinding: keybinding.settings('deleteSelectedTasks', 'Mod+Backspace'),
+  keybinding: keybinding.settings('deleteSelectedTasks', 'Mod+Backspace', {
+    ignoreWhenTextInputFocused: true,
+  }),
 });
 
 export const TASK_COMMAND_DEFS = [

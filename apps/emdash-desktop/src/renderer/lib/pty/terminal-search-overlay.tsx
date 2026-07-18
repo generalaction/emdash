@@ -1,11 +1,15 @@
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import React, { type RefObject } from 'react';
+import { terminalSearchScope } from '@core/features/workbench/contributions/scopes';
+import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope } from '@core/primitives/view-scopes/react';
 import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
 import type { TerminalSearchStatus } from './use-terminal-search';
 
 interface Props {
+  sessionId: string;
   isOpen: boolean;
   fullWidth?: boolean;
   searchQuery: string;
@@ -13,10 +17,12 @@ interface Props {
   searchInputRef: RefObject<HTMLInputElement | null>;
   onQueryChange: (value: string) => void;
   onStep: (direction: 'next' | 'prev') => void;
+  onFind: () => void;
   onClose: () => void;
 }
 
 export function TerminalSearchOverlay({
+  sessionId,
   isOpen,
   fullWidth = false,
   searchQuery,
@@ -24,12 +30,20 @@ export function TerminalSearchOverlay({
   searchInputRef,
   onQueryChange,
   onStep,
+  onFind,
   onClose,
 }: Props) {
+  const implementation = {
+    'terminal.find': () => ({ execute: onFind }),
+    'terminalSearch.close': () => ({ execute: onClose }),
+  } satisfies ViewScopeImpl<typeof terminalSearchScope>;
+  const { attachRef } = useViewScope(terminalSearchScope({ sessionId }), implementation);
+
   if (!isOpen) return null;
 
   return (
     <div
+      ref={attachRef}
       className={cn(
         'absolute top-3 z-20 flex items-center gap-1 rounded-md border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur',
         fullWidth ? 'left-3 right-3 w-auto max-w-none' : 'right-3 w-[min(28rem,calc(100%-1.5rem))]'
@@ -46,11 +60,6 @@ export function TerminalSearchOverlay({
               event.preventDefault();
               onStep(event.shiftKey ? 'prev' : 'next');
               return;
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              event.stopPropagation();
-              onClose();
             }
           }}
           placeholder="Find in terminal..."

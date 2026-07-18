@@ -210,7 +210,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             />
             <TooltipContent>
               New Task
-              <BoundShortcut settingsKey="newTask" variant="keycaps" />
+              <BoundShortcut command="app.newTask" variant="keycaps" />
             </TooltipContent>
           </Tooltip>
         </SidebarMenuRow>

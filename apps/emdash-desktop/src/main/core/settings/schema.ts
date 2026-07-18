@@ -1,7 +1,7 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import z from 'zod';
+import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
 import { BROWSER_ISOLATED_PROFILE_ID } from '@core/primitives/browser/api';
-import { APP_SHORTCUTS } from '@core/primitives/commands/api/shortcuts';
 import { openInAppIdSchema } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { normalizeBranchPrefix } from '@core/primitives/tasks/api';
 import {
@@ -67,8 +67,12 @@ export const keyboardSettingsSchema = z
   .optional(
     z.object(
       Object.fromEntries(
-        Object.keys(APP_SHORTCUTS).map((k) => [k, z.string().nullable().optional()])
-      ) as Record<keyof typeof APP_SHORTCUTS, z.ZodOptional<z.ZodNullable<z.ZodString>>>
+        COMMAND_CATALOG.defs.flatMap((command) =>
+          command.keybinding?.kind === 'settings'
+            ? [[command.keybinding.settingsKey, z.string().nullable().optional()]]
+            : []
+        )
+      ) as Record<string, z.ZodOptional<z.ZodNullable<z.ZodString>>>
     )
   )
   .default({});

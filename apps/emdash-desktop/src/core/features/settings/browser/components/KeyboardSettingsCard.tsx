@@ -1,36 +1,55 @@
-import { useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
 import { RotateCcw, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
+import { SCOPE_CATALOG } from '@core/manifests/scope-catalog';
+import {
+  CODE_TO_US_CHAR,
+  detectPlatformContext,
+  findConflicts,
+  keybinding,
+  type Chord,
+  type KeybindingEntry,
+} from '@core/primitives/keybindings/api';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import {
-  APP_SHORTCUTS,
-  getEffectiveHotkey,
-  resolveDefaultHotkey,
-  type ShortcutSettingsKey,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
+  keyboardLayoutService,
+  keybindingService,
+  useChordRecorder,
+} from '@renderer/lib/keybindings';
 import { Button } from '@renderer/lib/ui/button';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
-import { describeHotkey } from '@renderer/lib/ui/shortcut-format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
-const CONFIGURABLE_SHORTCUTS = (
-  Object.entries(APP_SHORTCUTS) as [
-    ShortcutSettingsKey,
-    (typeof APP_SHORTCUTS)[ShortcutSettingsKey],
-  ][]
-).filter(([, def]) => !def.hideFromSettings);
+const groupsByCommandId = new Map<string, string[]>();
+for (const scope of SCOPE_CATALOG) {
+  for (const command of scope.commands) {
+    const groups = groupsByCommandId.get(command.id) ?? [];
+    groups.push(scope.id);
+    groupsByCommandId.set(command.id, groups);
+  }
+}
 
-const SHORTCUTS_BY_CATEGORY = CONFIGURABLE_SHORTCUTS.reduce<
-  Record<string, [ShortcutSettingsKey, (typeof APP_SHORTCUTS)[ShortcutSettingsKey]][]>
->((acc, entry) => {
-  const category = entry[1].category;
-  if (!acc[category]) acc[category] = [];
-  acc[category].push(entry);
-  return acc;
-}, {});
+const CONFLICT_ENTRIES: readonly KeybindingEntry[] = COMMAND_CATALOG.defs.flatMap((command) =>
+  command.keybinding
+    ? [
+        {
+          id: command.id,
+          groups: groupsByCommandId.get(command.id),
+          binding: command.keybinding,
+        },
+      ]
+    : []
+);
 
-const KeyboardSettingsCard: React.FC = () => {
+const SYSTEM_HIDE_ENTRY: KeybindingEntry = {
+  id: 'system.hide',
+  groups: [],
+  binding: keybinding.fixed('Mod+H'),
+};
+
+const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() {
   const {
     value: keyboard,
     update,
@@ -38,85 +57,86 @@ const KeyboardSettingsCard: React.FC = () => {
     isSaving: saving,
     resetField,
   } = useAppSettingsKey('keyboard');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const groups = keybindingService.settingsEntries();
+  const platform = detectPlatformContext();
 
-  const [editingKey, setEditingKey] = useState<ShortcutSettingsKey | null>(null);
+  const recorder = useChordRecorder({
+    onRecord: (candidate: Chord) => {
+      const editingEntry = groups
+        .flatMap((group) => group.entries)
+        .find((entry) => entry.binding.settingsKey === editingKey);
+      if (!editingEntry || !editingKey) return;
 
-  const recorder = useHotkeyRecorder({
-    onRecord: (hotkey: Hotkey) => {
-      if (!editingKey) return;
-
-      const conflict = CONFIGURABLE_SHORTCUTS.find(([key]) => {
-        if (key === editingKey) return false;
-        return getEffectiveHotkey(key, keyboard) === hotkey;
-      });
-
-      if (conflict) {
-        const [, def] = conflict;
-        const msg = `Conflicts with "${def.label}". Choose a different shortcut.`;
-        toast({ title: 'Shortcut conflict', description: msg, variant: 'destructive' });
-        recorder.cancelRecording();
+      const conflicts = findConflicts(
+        platform.os === 'mac' ? [...CONFLICT_ENTRIES, SYSTEM_HIDE_ENTRY] : CONFLICT_ENTRIES,
+        candidate,
+        editingEntry.command.id,
+        keyboard ?? {},
+        platform,
+        keyboardLayoutService.codeToCharMap() ?? CODE_TO_US_CHAR
+      );
+      const rejected = conflicts.find(
+        (conflict) => conflict.severity === 'reserved' || conflict.severity === 'error'
+      );
+      if (rejected) {
+        const conflictingTitle =
+          COMMAND_CATALOG.byId(rejected.id)?.title ??
+          (rejected.id === SYSTEM_HIDE_ENTRY.id ? 'Hide Emdash' : rejected.id);
+        toast({
+          title: rejected.severity === 'reserved' ? 'Shortcut is reserved' : 'Shortcut conflict',
+          description: `Conflicts with "${conflictingTitle}". Choose a different shortcut.`,
+          variant: 'destructive',
+        });
         setEditingKey(null);
         return;
       }
 
-      update({ [editingKey]: hotkey });
+      update({ [editingKey]: candidate });
+      const shadowing = conflicts.find((conflict) => conflict.severity === 'shadowing');
+      const label = keyboardLayoutService.displayLabel(candidate, platform).join(' + ');
       toast({
         title: 'Shortcut updated',
-        description: `${APP_SHORTCUTS[editingKey].label} is now ${describeHotkey(hotkey)}`,
+        description: shadowing
+          ? `${editingEntry.command.title} is now ${label}. It shadows ${
+              COMMAND_CATALOG.byId(shadowing.id)?.title ?? shadowing.id
+            } in some contexts.`
+          : `${editingEntry.command.title} is now ${label}.`,
       });
       setEditingKey(null);
     },
     onCancel: () => setEditingKey(null),
   });
 
-  const startCapture = (key: ShortcutSettingsKey) => {
-    setEditingKey(key);
+  const startCapture = (settingsKey: string) => {
+    setEditingKey(settingsKey);
     recorder.startRecording();
-  };
-
-  const handleReset = (key: ShortcutSettingsKey) => {
-    resetField(key);
-    toast({
-      title: 'Shortcut reset',
-      description: `${APP_SHORTCUTS[key].label} reset to default.`,
-    });
-  };
-
-  const handleClear = (key: ShortcutSettingsKey) => {
-    update({ [key]: null });
-    toast({
-      title: 'Shortcut removed',
-      description: `${APP_SHORTCUTS[key].label} no longer has a key binding.`,
-    });
   };
 
   return (
     <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
       <div className="space-y-6">
-        {Object.entries(SHORTCUTS_BY_CATEGORY).map(([category, shortcuts]) => (
-          <div key={category}>
+        {groups.map((group) => (
+          <div key={group.category}>
             <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-              {category}
+              {group.category}
             </div>
             <div className="space-y-3">
-              {shortcuts.map(([key, def]) => {
-                const effectiveHotkey = getEffectiveHotkey(key, keyboard);
+              {group.entries.map((entry) => {
+                const key = entry.binding.settingsKey;
                 const capturing = editingKey === key && recorder.isRecording;
                 const cleared = keyboard?.[key] === null;
+                const showReset = keyboard?.[key] !== undefined;
                 const showClear = !cleared;
-                const defaultHotkey = resolveDefaultHotkey(def);
-                const showReset = defaultHotkey != null && effectiveHotkey !== defaultHotkey;
-                const showActions = showClear || showReset;
-
                 return (
                   <div
-                    key={key}
+                    key={entry.command.id}
                     className="group/shortcut flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-2"
                   >
                     <div className="min-w-0 flex-1 basis-64 space-y-1">
-                      <div className="text-sm break-words">{def.label}</div>
-                      <div className="text-muted-foreground text-xs break-words">
-                        {def.description}
+                      <div className="text-sm wrap-break-word">{entry.command.title}</div>
+                      <div className="text-muted-foreground text-xs wrap-break-word">
+                        {entry.command.description}
                       </div>
                     </div>
                     <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -127,7 +147,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             variant="outline"
                             size="sm"
                             className="min-w-[80px] animate-pulse"
-                            onClick={() => recorder.cancelRecording()}
+                            onClick={recorder.cancelRecording}
                             disabled={saving}
                           >
                             Press keys...
@@ -136,7 +156,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => recorder.cancelRecording()}
+                            onClick={recorder.cancelRecording}
                             disabled={saving}
                           >
                             Cancel
@@ -144,7 +164,7 @@ const KeyboardSettingsCard: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          {showActions && (
+                          {(showClear || showReset) && (
                             <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/shortcut:pointer-events-auto group-hover/shortcut:opacity-100">
                               <TooltipProvider delay={150}>
                                 {showReset && (
@@ -155,7 +175,13 @@ const KeyboardSettingsCard: React.FC = () => {
                                         variant="ghost"
                                         size="icon"
                                         className="text-muted-foreground hover:text-foreground"
-                                        onClick={() => handleReset(key)}
+                                        onClick={() => {
+                                          resetField(key);
+                                          toast({
+                                            title: 'Shortcut reset',
+                                            description: `${entry.command.title} reset to default.`,
+                                          });
+                                        }}
                                         disabled={loading || saving}
                                         aria-label="Reset to default"
                                       >
@@ -173,7 +199,13 @@ const KeyboardSettingsCard: React.FC = () => {
                                         variant="ghost"
                                         size="icon"
                                         className="text-muted-foreground hover:text-foreground"
-                                        onClick={() => handleClear(key)}
+                                        onClick={() => {
+                                          update({ [key]: null });
+                                          toast({
+                                            title: 'Shortcut removed',
+                                            description: `${entry.command.title} no longer has a key binding.`,
+                                          });
+                                        }}
                                         disabled={loading || saving}
                                         aria-label="Remove shortcut"
                                       >
@@ -194,7 +226,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             onClick={() => startCapture(key)}
                             disabled={loading || saving}
                           >
-                            <Shortcut hotkey={effectiveHotkey} variant="keycaps" />
+                            <Shortcut hotkey={entry.chord} variant="keycaps" />
                           </Button>
                         </>
                       )}
@@ -208,6 +240,6 @@ const KeyboardSettingsCard: React.FC = () => {
       </div>
     </div>
   );
-};
+});
 
 export default KeyboardSettingsCard;

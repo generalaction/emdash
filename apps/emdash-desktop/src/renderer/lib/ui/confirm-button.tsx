@@ -1,12 +1,7 @@
 import type { Button as ButtonPrimitive } from '@base-ui/react/button';
-import { useHotkey } from '@tanstack/react-hotkeys';
 import type { VariantProps } from 'class-variance-authority';
 import { useRef } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import {
-  getEffectiveHotkey,
-  getHotkeyRegistration,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { useConfirm } from '@renderer/lib/keybindings';
 import { Button, type buttonVariants } from './button';
 import { BoundShortcut } from './shortcut';
 
@@ -14,18 +9,15 @@ type ConfirmButtonProps = ButtonPrimitive.Props & VariantProps<typeof buttonVari
 
 export function ConfirmButton({ disabled, children, ...props }: ConfirmButtonProps) {
   const ref = useRef<HTMLButtonElement>(null);
-  const { value: keyboard } = useAppSettingsKey('keyboard');
-  const confirmHotkey = getEffectiveHotkey('confirm', keyboard);
-
-  useHotkey(getHotkeyRegistration('confirm', keyboard), () => ref.current?.click(), {
-    enabled: !disabled && confirmHotkey !== null,
+  useConfirm(() => ref.current?.click(), {
+    enabled: !disabled,
   });
 
   return (
     <Button ref={ref} disabled={disabled} {...props}>
       <span className="flex items-center gap-2">
         {children}
-        <BoundShortcut settingsKey="confirm" variant="keycaps" />
+        <BoundShortcut command="app.confirm" variant="keycaps" />
       </span>
     </Button>
   );

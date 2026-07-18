@@ -1,6 +1,6 @@
-import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useChordKeydown } from '@renderer/lib/keybindings';
 import {
   Combobox,
   ComboboxCollection,
@@ -17,7 +17,7 @@ import { cn } from '@renderer/utils/utils';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from '../context-bar/context-actions';
 
-const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
+const ADD_CONTEXT_HOTKEY = 'Mod+Shift+A';
 type AddContextPopoverSide = 'top' | 'bottom';
 
 export function ActionItemBaseRow({
@@ -125,9 +125,14 @@ export function AddContextPopover({
     });
   }, [query, actions]);
 
-  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), {
-    enabled: (hotkeyEnabled ?? !disabled) && isActivePane,
-  });
+  useChordKeydown(
+    ADD_CONTEXT_HOTKEY,
+    (event) => {
+      event.preventDefault();
+      setOpen((value) => !value);
+    },
+    { enabled: (hotkeyEnabled ?? !disabled) && isActivePane }
+  );
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;

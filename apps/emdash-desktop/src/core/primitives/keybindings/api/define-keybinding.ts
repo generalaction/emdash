@@ -2,6 +2,9 @@ import { chord, resolveChordSpec, type Chord, type ChordSpec, type PlatformConte
 
 export interface KeybindingOptions {
   readonly ignoreWhenTextInputFocused?: boolean;
+  readonly ignoreWhenEditorFocused?: boolean;
+  readonly ignoreWhenBrowserFocused?: boolean;
+  readonly allowWhenTerminalFocused?: boolean;
   readonly allowRepeat?: boolean;
 }
 

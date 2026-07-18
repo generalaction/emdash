@@ -1,8 +1,8 @@
-import { detectPlatform } from '@tanstack/react-hotkeys';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { useInstalledFonts } from '@core/features/settings/browser/use-installed-fonts';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
@@ -70,7 +70,7 @@ const DEFAULT_OPTION: FontOption = {
 const clampFontSize = (size: number) =>
   Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
 
-const isMac = detectPlatform() === 'mac';
+const isMac = detectPlatformContext().os === 'mac';
 
 const TerminalSettingsCard: React.FC = () => {
   const {

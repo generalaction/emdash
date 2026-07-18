@@ -1,4 +1,5 @@
 export {
+  chordFromCaptureEvent,
   isTextInputFocusTarget,
   shouldIgnoreForOptions,
   type KeybindingFocusContext,

@@ -2,6 +2,10 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreviewServers } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import {
+  cycleNextTabCommand,
+  cyclePreviousTabCommand,
+} from '@core/features/workbench/contributions/commands';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Button } from '@renderer/lib/ui/button';
@@ -33,7 +37,7 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
-  const { pane } = usePaneContext();
+  const { scopeInstance } = usePaneContext();
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
@@ -126,8 +130,9 @@ export const BrowserPane = observer(function BrowserPane({
           ) {
             return;
           }
-          if (event.direction === 'next') pane.setNextTabActive();
-          else pane.setPreviousTabActive();
+          const command =
+            event.direction === 'next' ? cycleNextTabCommand : cyclePreviousTabCommand;
+          void scopeInstance?.getCommand(command)?.execute(undefined, 'keybinding');
         },
         onGap: () => {},
       });
@@ -138,7 +143,7 @@ export const BrowserPane = observer(function BrowserPane({
       disposed = true;
       unsubscribe?.();
     };
-  }, [sessionBrowserId, pane, visible]);
+  }, [sessionBrowserId, scopeInstance, visible]);
 
   const webviewProps = useMemo(() => {
     if (!webviewMount) return null;

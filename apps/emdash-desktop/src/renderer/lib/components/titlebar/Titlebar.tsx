@@ -1,6 +1,6 @@
-import { detectPlatform } from '@tanstack/react-hotkeys';
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { NavButtons } from '@renderer/lib/components/nav-buttons';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { WindowControls } from './window-controls';
 
-const platform = detectPlatform();
+const platform = detectPlatformContext().os;
 const isMac = platform === 'mac';
 const isLinux = platform === 'linux';
 
@@ -45,7 +45,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   </TooltipTrigger>
                   <TooltipContent>
                     Toggle left sidebar
-                    <BoundShortcut settingsKey="toggleLeftSidebar" variant="keycaps" />
+                    <BoundShortcut command="workbench.toggleLeftSidebar" variant="keycaps" />
                   </TooltipContent>
                 </Tooltip>
                 <NavButtons />

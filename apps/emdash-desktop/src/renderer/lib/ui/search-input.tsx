@@ -1,6 +1,6 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { Search } from 'lucide-react';
 import * as React from 'react';
+import { useChordKeydown } from '@renderer/lib/keybindings';
 import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
 
@@ -16,13 +16,10 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
 
   React.useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
 
-  useHotkey(
-    'Mod+F',
-    () => {
-      inputRef.current?.focus();
-    },
-    { enabled: true }
-  );
+  useChordKeydown('Mod+F', (event) => {
+    event.preventDefault();
+    inputRef.current?.focus();
+  });
   return (
     <div className={cn('relative flex min-w-0 items-center', containerClassName)}>
       <Search className="pointer-events-none absolute left-2.5 size-3.5 shrink-0 text-foreground-muted" />

@@ -1,9 +1,7 @@
 import { LeftSidebar } from '@core/features/workbench/browser/sidebar/left-sidebar';
-import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
-import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
-import { BrowserAppShortcutEvents } from '@renderer/lib/components/browser-app-shortcut-events';
-import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-bridge';
+import { WindowScope } from '@core/features/workbench/browser/window-scope';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { BrowserShortcutForwarding, KeybindingDispatcherMount } from '@renderer/lib/keybindings';
 import {
   useWorkspaceSlots,
   useWorkspaceViewParams,
@@ -17,11 +15,9 @@ export function Workspace() {
   const { params } = useWorkspaceViewParams();
 
   return (
-    <>
-      <AppKeyboardShortcuts />
-      <BrowserAppShortcutEvents />
-      <CommandShortcutBinder />
-      <MonacoKeyboardBridge />
+    <WindowScope>
+      <BrowserShortcutForwarding />
+      <KeybindingDispatcherMount />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={
@@ -31,7 +27,7 @@ export function Workspace() {
         }
       />
       <Toaster />
-    </>
+    </WindowScope>
   );
 }
 

@@ -1,3 +1,4 @@
+import { SETTINGS_COMMAND_DEFS } from '@core/features/settings/contributions/commands';
 import {
   TASK_COMMAND_DEFS,
   TASK_LIST_COMMAND_DEFS,
@@ -6,6 +7,7 @@ import { WORKBENCH_COMMAND_DEFS } from '@core/features/workbench/contributions/c
 import { defineCommandCatalog } from '@core/primitives/commands/api';
 
 export const COMMAND_CATALOG = defineCommandCatalog([
+  ...SETTINGS_COMMAND_DEFS,
   ...WORKBENCH_COMMAND_DEFS,
   ...TASK_COMMAND_DEFS,
   ...TASK_LIST_COMMAND_DEFS,

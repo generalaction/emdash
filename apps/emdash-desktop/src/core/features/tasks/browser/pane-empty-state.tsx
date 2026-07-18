@@ -2,7 +2,6 @@ import { FileSearch, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useOpenModal } from '@renderer/lib/modal/api';
@@ -47,7 +46,7 @@ export function PaneEmptyState() {
           onClick={actions[0]}
           icon={<MessageSquare className="size-3.5" />}
           label="New conversation"
-          shortcutSettingsKey="newConversation"
+          commandId="task.newConversation"
         />
         <PaneEmptyStateAction
           isSelected={selectedIndex === 1}
@@ -55,7 +54,7 @@ export function PaneEmptyState() {
           onClick={actions[1]}
           icon={<FileSearch className="size-3.5" />}
           label="Open file"
-          shortcutSettingsKey="commandPalette"
+          commandId="app.commandPalette"
         />
       </div>
     </div>
@@ -65,14 +64,14 @@ export function PaneEmptyState() {
 function PaneEmptyStateAction({
   icon,
   label,
-  shortcutSettingsKey,
+  commandId,
   isSelected,
   onClick,
   onMouseEnter,
 }: {
   icon: ReactNode;
   label: string;
-  shortcutSettingsKey: ShortcutSettingsKey;
+  commandId: string;
   isSelected?: boolean;
   onClick: () => void;
   onMouseEnter: () => void;
@@ -91,7 +90,7 @@ function PaneEmptyStateAction({
         {icon}
         {label}
       </div>
-      <BoundShortcut settingsKey={shortcutSettingsKey} variant="keycaps" />
+      <BoundShortcut command={commandId} variant="keycaps" />
     </button>
   );
 }

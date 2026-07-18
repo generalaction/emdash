@@ -1,9 +1,14 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, type ReactNode } from 'react';
 import { SettingsPage } from '@core/features/settings/browser/components/SettingsPage';
+import { settingsScope } from '@core/features/settings/contributions/scopes';
 import { settingsViewDef, type SettingsPageTab } from '@core/features/settings/contributions/views';
+import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { scopes } from '@core/primitives/view-scopes/browser';
+import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 
 const SettingsTabContext = createContext<{
   tab: SettingsPageTab;
@@ -24,10 +29,24 @@ export function SettingsViewWrapper({
     },
     [setParams]
   );
+  const implementation = {
+    'settings.close': () => ({
+      execute: () => appState.navigation.toggleSettings(),
+    }),
+  } satisfies ViewScopeImpl<typeof settingsScope>;
+  const { instance } = useViewScope(settingsScope(), implementation);
+
+  useLayoutEffect(() => {
+    if (instance) scopes.activate(instance);
+  }, [instance]);
+
+  if (!instance) return null;
   return (
-    <SettingsTabContext.Provider value={{ tab, onTabChange: handleTabChange }}>
-      {children}
-    </SettingsTabContext.Provider>
+    <ViewScopeInstanceProvider instance={instance}>
+      <SettingsTabContext.Provider value={{ tab, onTabChange: handleTabChange }}>
+        {children}
+      </SettingsTabContext.Provider>
+    </ViewScopeInstanceProvider>
   );
 }
 

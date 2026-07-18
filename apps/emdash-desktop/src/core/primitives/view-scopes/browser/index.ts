@@ -6,6 +6,7 @@ export {
   unregisterViewScopeImpl,
 } from './impl-registry';
 export {
+  focusScope,
   scopes,
   ViewScopes,
   ViewScopeInstance,

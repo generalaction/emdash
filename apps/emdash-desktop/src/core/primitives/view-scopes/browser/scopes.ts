@@ -88,8 +88,11 @@ export class ViewScopeInstance extends ScopeHandle {
   readonly parent: ViewScopeInstance | undefined;
   readonly children = new Set<ViewScopeInstance>();
   readonly attachRef: (element: HTMLElement | null) => void;
+  readonly attachFocusDelegate: (element: HTMLElement | null) => void;
   private readonly owner: ViewScopes;
   private attachedElement: HTMLElement | undefined;
+  private focusDelegate: HTMLElement | undefined;
+  private focusDelegateAction: (() => void) | undefined;
   private disposed = false;
 
   constructor(
@@ -108,11 +111,32 @@ export class ViewScopeInstance extends ScopeHandle {
       this.attachedElement?.removeAttribute('data-view-scope');
       this.attachedElement = element ?? undefined;
       this.attachedElement?.setAttribute('data-view-scope', this.id);
+      if (!element) this.owner.handleElementDetached(this);
+    };
+    this.attachFocusDelegate = (element) => {
+      this.focusDelegate = element ?? undefined;
     };
   }
 
   get isDisposed(): boolean {
     return this.disposed;
+  }
+
+  focus(): boolean {
+    if (this.disposed) return false;
+    if (this.focusDelegateAction) {
+      this.focusDelegateAction();
+      return true;
+    }
+    const target =
+      this.focusDelegate?.isConnected === true ? this.focusDelegate : this.attachedElement;
+    if (!target?.isConnected) return false;
+    target.focus({ preventScroll: true });
+    return true;
+  }
+
+  setFocusDelegate(delegate: (() => void) | undefined): void {
+    this.focusDelegateAction = delegate;
   }
 
   dispose(): void {
@@ -121,6 +145,8 @@ export class ViewScopeInstance extends ScopeHandle {
     for (const child of [...this.children]) {
       child.dispose();
     }
+    this.setFocusDelegate(undefined);
+    this.attachFocusDelegate(null);
     this.attachRef(null);
     this.owner.remove(this);
   }
@@ -132,6 +158,7 @@ export class ViewScopes {
   private readonly instancesByKey = new Map<string, ViewScopeInstance[]>();
   private readonly logicalActive: IObservableValue<ViewScopeInstance | undefined>;
   private readonly focusActive: IObservableValue<ViewScopeInstance | undefined>;
+  private readonly captureOriginPath: IObservableValue<readonly ViewScopeInstance[]>;
   private readonly activePathValue: IComputedValue<readonly ViewScopeHandle[]>;
   private readonly document: Document | undefined;
 
@@ -139,12 +166,21 @@ export class ViewScopes {
     this.document = document;
     this.logicalActive = observable.box(undefined, { deep: false });
     this.focusActive = observable.box(undefined, { deep: false });
+    this.captureOriginPath = observable.box([], { deep: false });
     this.activePathValue = computed(() => this.computeActivePath());
     this.document?.addEventListener('focusin', this.handleFocusIn);
   }
 
   get activePath(): readonly ViewScopeHandle[] {
     return this.activePathValue.get();
+  }
+
+  get activeInstance(): ViewScopeInstance | undefined {
+    return this.activeScopeInstance();
+  }
+
+  isWithinActivePath(instance: ViewScopeInstance): boolean {
+    return this.activePath.includes(instance);
   }
 
   instantiate<TDef extends ViewScopeDefinition = ViewScopeDefinition>(
@@ -182,6 +218,10 @@ export class ViewScopes {
     if (instance?.isDisposed) {
       throw new Error('Cannot activate a disposed view scope');
     }
+    const focused = this.focusActive.get();
+    if (instance && focused && !this.isDescendantOf(focused, instance)) {
+      this.focusActive.set(undefined);
+    }
     this.logicalActive.set(instance);
   }
 
@@ -200,6 +240,22 @@ export class ViewScopes {
     if (definition.activation !== 'logical') return undefined;
     const implementation = getViewScopeImpl(definition);
     return implementation ? new ScopeHandle(ref, implementation) : undefined;
+  }
+
+  getActiveCommand<TCommand extends CommandDef>(
+    command: TCommand,
+    options: { readonly fromCaptureOrigin?: boolean } = {}
+  ): BoundCommand<TCommand> | undefined {
+    const path =
+      options.fromCaptureOrigin && this.activePath[0]?.def.traits.has('capturing')
+        ? this.captureOriginPath.get().filter((instance) => !instance.isDisposed)
+        : this.activePath;
+    for (const handle of path) {
+      const bound = handle.getCommand(command);
+      if (bound) return bound;
+      if (handle.def.traits.has('capturing')) return undefined;
+    }
+    return undefined;
   }
 
   /**
@@ -252,11 +308,18 @@ export class ViewScopes {
       else this.instancesByKey.delete(instance.ref.key);
     }
     if (this.logicalActive.get() === instance) {
-      let ancestor = instance.parent;
-      while (ancestor?.isDisposed) ancestor = ancestor.parent;
-      this.logicalActive.set(ancestor);
+      this.logicalActive.set(this.nearestLiveAncestor(instance.parent));
     }
-    if (this.focusActive.get() === instance) this.focusActive.set(undefined);
+    if (this.focusActive.get() === instance) {
+      this.focusActive.set(this.nearestLiveAncestor(instance.parent));
+    }
+  }
+
+  /** @internal Called when an instance's attached DOM root is removed. */
+  handleElementDetached(instance: ViewScopeInstance): void {
+    if (this.focusActive.get() === instance) {
+      this.focusActive.set(this.nearestLiveAncestor(instance.parent));
+    }
   }
 
   private resolveCommand<TCommand extends CommandDef>(command: TCommand): KeybindingHit {
@@ -283,14 +346,40 @@ export class ViewScopes {
   }
 
   private computeActivePath(): readonly ViewScopeHandle[] {
-    const path: ViewScopeHandle[] = [];
-    let current = this.focusActive.get() ?? this.logicalActive.get();
-    while (current?.isDisposed) current = current.parent;
+    return this.computeActiveInstancePath();
+  }
+
+  private computeActiveInstancePath(): readonly ViewScopeInstance[] {
+    const path: ViewScopeInstance[] = [];
+    let current = this.activeScopeInstance();
     while (current) {
       path.push(current);
       current = current.parent;
     }
     return Object.freeze(path);
+  }
+
+  private nearestLiveAncestor(
+    instance: ViewScopeInstance | undefined
+  ): ViewScopeInstance | undefined {
+    let current = instance;
+    while (current?.isDisposed) current = current.parent;
+    return current;
+  }
+
+  private isDescendantOf(instance: ViewScopeInstance, ancestor: ViewScopeInstance): boolean {
+    let current: ViewScopeInstance | undefined = instance;
+    while (current) {
+      if (current === ancestor) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+
+  private activeScopeInstance(): ViewScopeInstance | undefined {
+    let current = this.focusActive.get() ?? this.logicalActive.get();
+    while (current?.isDisposed) current = current.parent;
+    return current;
   }
 
   private readonly handleFocusIn = (event: FocusEvent): void => {
@@ -301,8 +390,17 @@ export class ViewScopes {
         ? target.closest<HTMLElement>('[data-view-scope]')
         : null;
     const id = element?.getAttribute('data-view-scope');
-    this.focusActive.set(id ? this.instancesById.get(id) : undefined);
+    const instance = id ? this.instancesById.get(id) : undefined;
+    if (!instance) return;
+    if (instance.def.traits.has('capturing') && this.activePath[0] !== instance) {
+      this.captureOriginPath.set(this.computeActiveInstancePath());
+    }
+    this.focusActive.set(instance);
   };
 }
 
 export const scopes = new ViewScopes();
+
+export function focusScope(instance: ViewScopeInstance | undefined): boolean {
+  return instance?.focus() ?? false;
+}

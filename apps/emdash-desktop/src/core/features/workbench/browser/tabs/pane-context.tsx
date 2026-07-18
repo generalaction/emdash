@@ -1,11 +1,15 @@
+import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
-import { useTabShortcuts } from './hooks/useTabShortcuts';
+import type { ViewScopeInstance } from '@core/primitives/view-scopes/browser';
+import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import type { Pane } from './pane-layout-store';
 import type { PaneStore } from './pane-store';
+import { usePaneScope } from './use-pane-scope';
 
 export interface PaneContextValue {
   paneId: string;
   pane: PaneStore;
+  scopeInstance: ViewScopeInstance | undefined;
   /** True when this pane is the focused pane in the main region. */
   isFocusedPane: boolean;
 }
@@ -26,7 +30,8 @@ export function usePaneContext(): PaneContextValue {
 
 interface PaneProviderProps {
   group: Pane;
-  isFocusedPane: boolean;
+  canSplit: boolean;
+  splitPane: () => void;
   children: ReactNode;
 }
 
@@ -35,16 +40,36 @@ interface PaneProviderProps {
  * Callers (e.g. SplitPaneLayout) are responsible for composing EditorProvider
  * around the pane content outside this component.
  */
-export function PaneProvider({
+export const PaneProvider = observer(function PaneProvider({
   group,
-  isFocusedPane,
+  canSplit,
+  splitPane,
   children,
-}: Omit<PaneProviderProps, 'taskId' | 'projectId'>) {
-  useTabShortcuts(group.pane, { focused: isFocusedPane });
+}: PaneProviderProps) {
+  const { attachRef, instance, isFocused } = usePaneScope(group.paneId, group.pane, {
+    canSplit,
+    splitPane,
+  });
 
   return (
-    <PaneContext.Provider value={{ paneId: group.paneId, pane: group.pane, isFocusedPane }}>
-      {children}
+    <PaneContext.Provider
+      value={{
+        paneId: group.paneId,
+        pane: group.pane,
+        scopeInstance: instance,
+        isFocusedPane: isFocused,
+      }}
+    >
+      <ViewScopeInstanceProvider instance={instance}>
+        <div
+          ref={attachRef}
+          tabIndex={-1}
+          className="h-full min-w-0 outline-none"
+          onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+        >
+          {children}
+        </div>
+      </ViewScopeInstanceProvider>
     </PaneContext.Provider>
   );
-}
+});

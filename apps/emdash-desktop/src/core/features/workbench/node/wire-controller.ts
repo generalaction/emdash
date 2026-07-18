@@ -14,6 +14,7 @@ export function createDesktopHostWireController(): Controller {
     persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
     persistClipboardImage: () => appOperations.persistClipboardImage(),
     showTerminalContextMenu: (input) => appOperations.showTerminalContextMenu(input),
+    setMenuKeybindings: (input) => appOperations.setMenuKeybindings(input),
     quit: () => appOperations.quit(),
     openIn: (input) => appOperations.openIn(input),
     checkInstalledApps: () => appOperations.checkInstalledApps(),

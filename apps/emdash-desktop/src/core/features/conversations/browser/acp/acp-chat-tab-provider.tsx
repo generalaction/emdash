@@ -64,7 +64,7 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
           id: 'conversation:rename',
           label: 'Rename',
           group: 'edit',
-          shortcut: 'tabRename',
+          shortcut: { commandId: 'workbench.tabRename' },
           run: () => host.requestRename(tab.tabId),
         },
       ]}

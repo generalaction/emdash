@@ -26,6 +26,17 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: { browser: browserRpc },
 }));
 
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
+    browser: browserRpc,
+    host: {
+      events: {
+        subscribe: vi.fn(async () => () => {}),
+      },
+    },
+  }),
+}));
+
 vi.mock('./browser-toolbar', async () => {
   const React = await import('react');
   return {

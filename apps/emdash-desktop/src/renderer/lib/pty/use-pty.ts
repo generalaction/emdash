@@ -3,7 +3,6 @@ import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
 import type { AppSettings } from '@core/primitives/app-settings/api';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
-import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
@@ -15,7 +14,6 @@ import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
-  shouldDispatchAppHotkeyFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
@@ -29,11 +27,6 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
-
-function dispatchTerminalAppHotkey(event: KeyboardEvent): boolean {
-  if (!shouldDispatchAppHotkeyFromTerminal(event, IS_MAC_PLATFORM)) return false;
-  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
-}
 
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
@@ -380,15 +373,6 @@ export function usePty(
         // rendered inside it (e.g. the agent sign-in terminal).
         const dialog = document.querySelector('[role="dialog"]');
         if (dialog && !dialog.contains(container)) return false;
-
-        // xterm handles key events before TanStack's document-level hotkey listeners.
-        // Preserve terminal Ctrl sequences on non-macOS except for tab navigation.
-        if (dispatchTerminalAppHotkey(event)) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          event.stopPropagation();
-          return false;
-        }
 
         if (
           shouldCopySelectionFromTerminal(

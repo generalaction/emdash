@@ -5,17 +5,19 @@ import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import { getTaskStore, getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { ALL_COMMAND_DEFS, type CommandDef } from '@core/primitives/commands/api/commands';
+import { PALETTE_CATALOG } from '@core/manifests/palette-catalog';
 import { defineModal } from '@core/primitives/modals/react';
+import type { PaletteItemDef } from '@core/primitives/palette/api';
+import { getPaletteRenderer } from '@core/primitives/palette/browser';
 import type { SearchItem } from '@core/primitives/search/api';
-import { commandRegistry } from '@renderer/lib/commands/registry';
+import type { BoundCommand } from '@core/primitives/view-scopes/api';
+import { scopes } from '@core/primitives/view-scopes/browser';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { keybindingService } from '@renderer/lib/keybindings';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useModalController } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -38,10 +40,14 @@ interface CommandPaletteProps {
 interface PaletteAction {
   kind: 'action';
   id: string;
+  item: PaletteItemDef;
+  bound: BoundCommand;
   title: string;
   subtitle?: string;
-  shortcut?: ReturnType<typeof getEffectiveHotkey>;
+  chord: ReturnType<typeof keybindingService.chordFor>;
   icon?: LucideIcon;
+  disabled: boolean;
+  disabledReason?: string;
   execute: () => void;
 }
 
@@ -71,6 +77,35 @@ const TASK_SUGGESTED = [
 const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
 const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
 
+function resolvePaletteAction(
+  item: PaletteItemDef,
+  onClose: () => void
+): PaletteAction | undefined {
+  const bound = scopes.getActiveCommand(item.command, { fromCaptureOrigin: true });
+  if (!bound || bound.availability.kind === 'hidden') return undefined;
+
+  const presentation = bound.presentation;
+  const availability = bound.availability;
+
+  return {
+    kind: 'action',
+    id: item.command.id,
+    item,
+    bound,
+    title: presentation?.title ?? item.command.title,
+    subtitle: presentation?.description ?? item.command.description,
+    chord: keybindingService.chordFor(item.command.id),
+    icon: getCommandIcon(presentation?.icon ?? item.command.icon),
+    disabled: availability.kind === 'disabled',
+    disabledReason: availability.kind === 'disabled' ? availability.reason : undefined,
+    execute: () => {
+      if (bound.availability.kind !== 'enabled') return;
+      onClose();
+      bound.execute(undefined, 'palette');
+    },
+  };
+}
+
 function PaletteItem({
   value,
   item,
@@ -81,6 +116,19 @@ function PaletteItem({
   onSelect: () => void;
 }) {
   const action = item.kind === 'action' ? (item as PaletteAction) : null;
+  if (action) {
+    const Renderer = getPaletteRenderer(action.item.command);
+    if (Renderer) {
+      return (
+        <Renderer
+          item={action.item}
+          bound={action.bound}
+          chord={action.chord}
+          onSelect={action.disabled ? () => {} : onSelect}
+        />
+      );
+    }
+  }
   const ActionIcon = action?.icon;
   const iconNode = ActionIcon ? (
     <ActionIcon size={14} className="shrink-0 text-foreground/40" />
@@ -88,10 +136,27 @@ function PaletteItem({
     KIND_ICON[item.kind]
   );
   return (
-    <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
+    <Command.Item
+      value={value}
+      onSelect={onSelect}
+      disabled={action?.disabled}
+      title={action?.disabledReason}
+      className={cn(
+        PALETTE_ITEM_CLASS,
+        'group',
+        action?.disabled && 'cursor-not-allowed opacity-50'
+      )}
+    >
       {iconNode}
-      <span className="flex-1 truncate">{item.title}</span>
-      {action?.shortcut && <Shortcut hotkey={action.shortcut} variant="keycaps" />}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{item.title}</span>
+        {(action?.disabledReason ?? action?.subtitle) && (
+          <span className="truncate text-xs text-foreground/40">
+            {action?.disabledReason ?? action?.subtitle}
+          </span>
+        )}
+      </span>
+      {action?.chord && <Shortcut hotkey={action.chord} variant="keycaps" />}
     </Command.Item>
   );
 }
@@ -128,7 +193,6 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 100);
   const { navigate } = useNavigate();
-  const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
   const { dismiss: handleClose } = useModalController('commandPaletteModal');
 
@@ -165,37 +229,34 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
     enabled: debouncedQuery.length === 0 || debouncedQuery.length >= 3,
   });
 
-  const registryActions = useObserver((): PaletteAction[] =>
-    commandRegistry.activeCommands
-      .filter((cmd) => cmd.enabled !== false && !cmd.hideFromPalette)
-      .map((cmd) => {
-        const def = ALL_COMMAND_DEFS.find((d) => d.id === cmd.id) as CommandDef | undefined;
-        return {
-          kind: 'action' as const,
-          id: cmd.id,
-          title: cmd.label,
-          subtitle: cmd.description,
-          shortcut: cmd.shortcutKey ? getEffectiveHotkey(cmd.shortcutKey, keyboard) : null,
-          icon: getCommandIcon(def?.iconKey),
-          execute: () => {
-            handleClose();
-            cmd.execute();
-          },
-        };
-      })
+  const paletteActions = useObserver(() =>
+    PALETTE_CATALOG.items.flatMap((item) => {
+      const action = resolvePaletteAction(item, handleClose);
+      return action ? [action] : [];
+    })
   );
 
   const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    return registryActions
+    return paletteActions
       .filter((a) => suggestedIds.includes(a.id))
-      .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
+      .sort((a, b) => (a.item.rank ?? 0) - (b.item.rank ?? 0))
       .slice(0, 7);
-  }, [registryActions, projectId, taskId]);
+  }, [paletteActions, projectId, taskId]);
+
+  const actionGroups = useMemo(() => {
+    const groups = new Map<string, PaletteAction[]>();
+    for (const action of actions) {
+      const group = action.item.group ?? action.item.command.category;
+      const entries = groups.get(group) ?? [];
+      entries.push(action);
+      groups.set(group, entries);
+    }
+    return [...groups.entries()];
+  }, [actions]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
-  const actionResults = actions;
   const workspacePath =
     projectId && workspaceId ? workspaceRegistry.get(projectId, workspaceId)?.path : undefined;
 
@@ -261,34 +322,19 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
             </Command.Empty>
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
-                const live = commandRegistry.findById(item.id);
-                if (!live || live.enabled === false || live.hideFromPalette) return null;
-                const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
-                  | CommandDef
-                  | undefined;
-                const shortcut = def?.shortcutKey
-                  ? getEffectiveHotkey(def.shortcutKey, keyboard)
-                  : null;
-                const displayItem: PaletteAction = {
-                  kind: 'action',
-                  id: item.id,
-                  title: live.label,
-                  subtitle: live.description,
-                  shortcut,
-                  icon: getCommandIcon(def?.iconKey),
-                  execute: () => {
-                    handleClose();
-                    live.execute();
-                  },
-                };
+                const definition = PALETTE_CATALOG.byCommandId(item.id);
+                if (!definition) return null;
+                const displayItem = resolvePaletteAction(definition, handleClose);
+                if (!displayItem) return null;
                 return (
                   <PaletteItem
                     key={item.id}
                     value={item.id}
                     item={displayItem}
                     onSelect={() => {
+                      if (displayItem.bound.availability.kind !== 'enabled') return;
                       handleClose();
-                      live.execute();
+                      scopes.execute(displayItem.item.command, undefined, 'palette');
                     }}
                   />
                 );
@@ -348,13 +394,13 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
               onClose={handleClose}
               navigate={navigate}
             />
-            {actionResults.length > 0 && (
-              <Command.Group heading="Suggested Actions" className={GROUP_CLASS}>
-                {actionResults.map((item) => (
+            {actionGroups.map(([group, items]) => (
+              <Command.Group key={group} heading={group} className={GROUP_CLASS}>
+                {items.map((item) => (
                   <PaletteItem key={item.id} value={item.id} item={item} onSelect={item.execute} />
                 ))}
               </Command.Group>
-            )}
+            ))}
             {taskResults.length > 0 && (
               <Command.Group heading="Recent Tasks" className={GROUP_CLASS}>
                 {taskResults.slice(0, 5).map((item) => {

@@ -1,15 +1,15 @@
-import { detectPlatform, matchesKeyboardEvent } from '@tanstack/react-hotkeys';
 import { motion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
 import YTBanner from '@/assets/images/ytbanner.webp';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { confirmCommand } from '@core/features/workbench/contributions/commands';
+import { detectPlatformContext, resolveEffectiveChord } from '@core/primitives/keybindings/api';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { useChordKeydown } from '@renderer/lib/keybindings';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 
-const PLATFORM = detectPlatform();
 const SHORTCUT_PRESS_DURATION_MS = 120;
 
 interface WelcomeScreenProps {
@@ -19,7 +19,9 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
   const { effectiveTheme } = useTheme();
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const confirmHotkey = getEffectiveHotkey('confirm', keyboard);
+  const confirmHotkey = confirmCommand.keybinding
+    ? resolveEffectiveChord(confirmCommand.keybinding, keyboard ?? {}, detectPlatformContext())
+    : null;
   const [isShortcutPressed, setIsShortcutPressed] = useState(false);
   const shortcutPressTimeoutRef = useRef<number | null>(null);
 
@@ -33,12 +35,8 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
     onGetStarted();
   }, [onGetStarted]);
 
-  useEffect(() => {
-    if (confirmHotkey === null) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!matchesKeyboardEvent(event, confirmHotkey, PLATFORM)) return;
-
+  const handleConfirmKeyDown = useCallback(
+    (event: KeyboardEvent) => {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -49,11 +47,13 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
       shortcutPressTimeoutRef.current = window.setTimeout(() => {
         handleGetStarted();
       }, SHORTCUT_PRESS_DURATION_MS);
-    };
-
-    document.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [confirmHotkey, handleGetStarted]);
+    },
+    [handleGetStarted]
+  );
+  useChordKeydown(confirmHotkey ?? 'Mod+Enter', handleConfirmKeyDown, {
+    capture: true,
+    enabled: confirmHotkey !== null,
+  });
 
   useEffect(() => {
     return () => {
@@ -142,7 +142,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
             >
               <span className="flex items-center gap-2">
                 Start shipping
-                <BoundShortcut settingsKey="confirm" variant="keycaps" />
+                <BoundShortcut command="app.confirm" variant="keycaps" />
               </span>
             </Button>
           </div>

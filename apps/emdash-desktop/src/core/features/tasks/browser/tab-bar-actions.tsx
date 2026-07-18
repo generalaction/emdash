@@ -1,16 +1,10 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import {
-  getEffectiveHotkey,
-  getHotkeyRegistration,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
@@ -19,11 +13,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 export const TabBarActions = observer(function TabBarActions() {
   const taskView = useWorkspaceViewModel();
   const { projectId, taskId, workspaceId } = useTaskViewContext();
-  const { pane, isFocusedPane } = usePaneContext();
+  const { pane } = usePaneContext();
   const { paneLayout } = taskView;
   const openCommandPalette = useOpenModal('commandPaletteModal');
   const openCreateConversationModal = useOpenModal('createConversationModal');
-  const { value: keyboard } = useAppSettingsKey('keyboard');
   const canSplit = pane.resolvedTabs.length >= 2 && paneLayout.groups.length < 3;
 
   const handleCreateConversation = () => {
@@ -39,18 +32,6 @@ export const TabBarActions = observer(function TabBarActions() {
     })();
   };
 
-  useHotkey(
-    getHotkeyRegistration('splitPane', keyboard),
-    (e) => {
-      e.preventDefault();
-      paneLayout.splitRight();
-    },
-    {
-      enabled: isFocusedPane && canSplit && getEffectiveHotkey('splitPane', keyboard) !== null,
-      conflictBehavior: 'allow',
-    }
-  );
-
   return (
     <div className="flex h-full shrink-0 items-center px-2">
       <Tooltip>
@@ -60,7 +41,7 @@ export const TabBarActions = observer(function TabBarActions() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          New Conversations <BoundShortcut settingsKey="newConversation" variant="keycaps" />
+          New Conversations <BoundShortcut command="task.newConversation" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -100,7 +81,7 @@ export const TabBarActions = observer(function TabBarActions() {
             {canSplit ? (
               <span className="flex items-center gap-2">
                 Move active tab to a new pane
-                <BoundShortcut settingsKey="splitPane" variant="keycaps" />
+                <BoundShortcut command="workbench.splitPane" variant="keycaps" />
               </span>
             ) : (
               'Open at least 2 tabs to split this pane'

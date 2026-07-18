@@ -330,7 +330,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="keycaps" />
+              Toggle terminal{' '}
+              <BoundShortcut command="task.toggleTerminalDrawer" variant="keycaps" />
             </TooltipContent>
           </Tooltip>
           <Separator orientation="vertical" className="h-5 self-center!" />
@@ -377,7 +378,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Changes <BoundShortcut settingsKey="sidebarChanges" variant="keycaps" />
+                Changes <BoundShortcut command="task.sidebarChanges" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -389,7 +390,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Files <BoundShortcut settingsKey="sidebarFiles" variant="keycaps" />
+                Files <BoundShortcut command="task.sidebarFiles" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -401,7 +402,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="keycaps" />
+                Conversations{' '}
+                <BoundShortcut command="task.sidebarConversations" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>

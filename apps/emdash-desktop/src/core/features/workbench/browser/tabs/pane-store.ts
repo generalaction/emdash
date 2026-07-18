@@ -435,18 +435,18 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
     def.commands.rename.exec(resource, name);
   }
 
-  /**
-   * Signals inline rename of the active tab when its kind supports it.
-   * Returns true when a renamable tab was signalled, false otherwise.
-   */
-  renameActiveTab(): boolean {
+  canRenameActiveTab(): boolean {
     const id = this.resolvedActiveTabId;
     if (!id) return false;
     const entry = this.entries.get(id);
     if (!entry || !this.registry.has(entry.kind)) return false;
-    if (!this.registry.get(entry.kind).commands?.rename) return false;
-    this.requestRename(id);
-    return true;
+    return Boolean(this.registry.get(entry.kind).commands?.rename);
+  }
+
+  /** Signals inline rename of the active tab when its kind supports it. */
+  renameActiveTab(): void {
+    const id = this.resolvedActiveTabId;
+    if (id && this.canRenameActiveTab()) this.requestRename(id);
   }
 
   setContentFocuser(focuser: (() => void) | null): void {

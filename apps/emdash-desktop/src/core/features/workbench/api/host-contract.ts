@@ -1,19 +1,14 @@
 import { defineContract, eventStream, procedure } from '@emdash/wire';
 import { z } from 'zod';
-import type {
-  ShortcutSettingsKey,
-  TabNavigationDirection,
-} from '@core/primitives/commands/api/shortcuts';
+import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 
 export type DesktopHostEvent =
-  | { type: 'menu-open-settings' }
+  | { type: 'menu-command'; commandId: string }
   | { type: 'menu-check-for-updates' }
   | { type: 'menu-undo' }
   | { type: 'menu-redo' }
-  | { type: 'menu-close-tab' }
   | { type: 'menu-quit-requested' }
-  | { type: 'menu-give-feedback' }
   | { type: 'window-maximize-changed'; maximized: boolean }
   | { type: 'external-link-open-requested'; url: string }
   | {
@@ -24,7 +19,7 @@ export type DesktopHostEvent =
   | {
       type: 'browser-app-shortcut';
       source: { kind: 'browser'; browserId: string };
-      shortcutKey: ShortcutSettingsKey;
+      commandId: string;
     }
   | {
       type: 'terminal-context-menu-action';
@@ -92,6 +87,16 @@ export const desktopHostContract = defineContract({
       y: z.number(),
     }),
     output: z.custom<ActionResult>(),
+  }),
+  setMenuKeybindings: procedure({
+    input: z.array(
+      z.object({
+        commandId: z.string(),
+        title: z.string(),
+        accelerator: z.string().nullable(),
+      })
+    ),
+    output: z.void(),
   }),
   quit: procedure({ input: z.void(), output: z.custom<ActionResult>() }),
   openIn: procedure({

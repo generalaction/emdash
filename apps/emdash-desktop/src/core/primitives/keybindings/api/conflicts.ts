@@ -6,6 +6,7 @@ import { CODE_TO_US_CHAR, type CodeToCharMap } from './key-codes';
 export interface KeybindingEntry {
   readonly id: string;
   readonly group?: string;
+  readonly groups?: readonly string[];
   readonly binding: Keybinding;
 }
 
@@ -50,11 +51,19 @@ export function findConflicts(
       severity:
         entry.binding.kind === 'fixed'
           ? 'reserved'
-          : entry.group === target.group
+          : sharesGroup(entry, target)
             ? 'error'
             : 'shadowing',
       id: entry.id,
     });
   }
   return conflicts;
+}
+
+function sharesGroup(left: KeybindingEntry, right: KeybindingEntry): boolean {
+  const leftGroups = left.groups ?? (left.group ? [left.group] : []);
+  const rightGroups = right.groups ?? (right.group ? [right.group] : []);
+  if (leftGroups.length === 0 || rightGroups.length === 0) return false;
+  const rightSet = new Set(rightGroups);
+  return leftGroups.some((group) => rightSet.has(group));
 }

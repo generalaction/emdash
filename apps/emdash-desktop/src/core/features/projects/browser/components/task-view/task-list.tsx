@@ -1,4 +1,3 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -8,16 +7,14 @@ import {
   getProjectStore,
 } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { deleteSelectedTasks } from '@core/features/tasks/browser/delete-selected-tasks';
 import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskListScope } from '@core/features/tasks/contributions/scopes';
+import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
-import {
-  getEffectiveHotkey,
-  getHotkeyRegistration,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { useOpenModal } from '@renderer/lib/modal/api';
-import { modalStore } from '@renderer/lib/modal/modal-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -123,7 +120,7 @@ function SelectionBar({
         )}
         <Button variant="destructive" size="sm" onClick={onDelete}>
           <Trash2 className="size-3.5" />
-          Delete <BoundShortcut settingsKey="deleteSelectedTasks" variant="keycaps" />
+          Delete <BoundShortcut command="task.deleteSelected" variant="keycaps" />
         </Button>
         <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
           <X className="size-3.5" />
@@ -139,11 +136,19 @@ export const TaskList = observer(function TaskList() {
   } = useCurrentViewParams(projectViewDef);
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
-  const openDeleteTask = useOpenModal('deleteTaskModal');
   const openCreateTaskModal = useOpenModal('taskModal');
-  const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const taskView = store?.view.taskView ?? null;
+  const implementation = {
+    'task.deleteSelected': () => ({
+      availability: () =>
+        taskView && taskView.selectedIds.size > 0 ? enabled : disabled('Select one or more tasks'),
+      execute: () => {
+        void deleteSelectedTasks(projectId);
+      },
+    }),
+  } satisfies ViewScopeImpl<typeof taskListScope>;
+  const { attachRef, instance } = useViewScope(taskListScope({ projectId }), implementation);
 
   const allTasks = taskManager
     ? Array.from(taskManager.tasks.values()).filter(
@@ -172,41 +177,8 @@ export const TaskList = observer(function TaskList() {
   };
 
   const bulkDelete = () => {
-    if (!taskView) return;
-    if (taskView.selectedIds.size === 0) return;
-
-    const selectedTasks = [...taskView.selectedIds]
-      .map((id) => taskManager?.tasks.get(id))
-      .filter((t): t is ReadyTask => !!t)
-      .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
-
-    if (selectedTasks.length === 0) return;
-
-    void openDeleteTask({
-      projectId,
-      tasks: selectedTasks,
-    }).then((outcome) => {
-      if (!outcome.success) return;
-      const { deleteWorktree, deleteBranch } = outcome.data;
-      void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
-      clearSelection();
-    });
+    void deleteSelectedTasks(projectId);
   };
-
-  useHotkey(
-    getHotkeyRegistration('deleteSelectedTasks', keyboard),
-    (e) => {
-      e.preventDefault();
-      bulkDelete();
-    },
-    {
-      enabled:
-        (taskView?.selectedIds.size ?? 0) > 0 &&
-        !modalStore.isOpen &&
-        getEffectiveHotkey('deleteSelectedTasks', keyboard) !== null,
-      ignoreInputs: true,
-    }
-  );
 
   if (!taskView) return null;
 
@@ -217,60 +189,67 @@ export const TaskList = observer(function TaskList() {
     : displayTasks;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-col">
-      <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ToggleGroup
-            multiple={false}
-            value={[taskView.tab]}
-            onValueChange={([value]) => {
-              if (value) taskView.setTab(value as 'active' | 'archived');
-            }}
-          >
-            <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
-            <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
-          </ToggleGroup>
-          <div className="flex items-center gap-2">
-            <SearchInput
-              placeholder="Search tasks…"
-              value={taskView.searchQuery}
-              onChange={(e) => taskView.setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={() => void openCreateTaskModal({ projectId })}>
-              Create Task <BoundShortcut settingsKey="newTask" variant="keycaps" />
-            </Button>
+    <ViewScopeInstanceProvider instance={instance}>
+      <div
+        ref={attachRef}
+        tabIndex={-1}
+        className="relative flex h-full min-h-0 w-full flex-col outline-none"
+        onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+      >
+        <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ToggleGroup
+              multiple={false}
+              value={[taskView.tab]}
+              onValueChange={([value]) => {
+                if (value) taskView.setTab(value as 'active' | 'archived');
+              }}
+            >
+              <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
+              <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
+            </ToggleGroup>
+            <div className="flex items-center gap-2">
+              <SearchInput
+                placeholder="Search tasks…"
+                value={taskView.searchQuery}
+                onChange={(e) => taskView.setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={() => void openCreateTaskModal({ projectId })}>
+                Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {filteredTasks.length === 0 && taskView.tab === 'active' ? (
-        <TaskListEmptyState projectId={projectId} />
-      ) : (
-        <TaskVirtualList
-          tasks={filteredTasks}
-          selectedIds={taskView.selectedIds}
-          onToggleSelect={(id, shiftKey) => {
-            if (shiftKey) {
-              taskView.selectRange(
-                filteredTasks.map((t) => t.data.id),
-                id
-              );
-            } else {
-              taskView.toggleSelect(id);
-            }
-          }}
+        {filteredTasks.length === 0 && taskView.tab === 'active' ? (
+          <TaskListEmptyState projectId={projectId} />
+        ) : (
+          <TaskVirtualList
+            tasks={filteredTasks}
+            selectedIds={taskView.selectedIds}
+            onToggleSelect={(id, shiftKey) => {
+              if (shiftKey) {
+                taskView.selectRange(
+                  filteredTasks.map((t) => t.data.id),
+                  id
+                );
+              } else {
+                taskView.toggleSelect(id);
+              }
+            }}
+          />
+        )}
+
+        <SelectionBar
+          count={taskView.selectedIds.size}
+          tab={taskView.tab}
+          onClear={clearSelection}
+          onArchive={bulkArchive}
+          onRestore={bulkRestore}
+          onDelete={bulkDelete}
         />
-      )}
-
-      <SelectionBar
-        count={taskView.selectedIds.size}
-        tab={taskView.tab}
-        onClear={clearSelection}
-        onArchive={bulkArchive}
-        onRestore={bulkRestore}
-        onDelete={bulkDelete}
-      />
-    </div>
+      </div>
+    </ViewScopeInstanceProvider>
   );
 });

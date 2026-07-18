@@ -28,7 +28,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Back
-          <BoundShortcut settingsKey="navigateBack" variant="keycaps" />
+          <BoundShortcut command="app.navigateBack" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -45,7 +45,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Forward
-          <BoundShortcut settingsKey="navigateForward" variant="keycaps" />
+          <BoundShortcut command="app.navigateForward" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
     </div>

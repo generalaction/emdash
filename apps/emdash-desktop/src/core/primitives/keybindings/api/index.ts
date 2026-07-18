@@ -20,6 +20,12 @@ export {
 } from './chord';
 export { findConflicts, type ConflictInfo, type KeybindingEntry } from './conflicts';
 export {
+  getElectronTabNavigationDirection,
+  matchesElectronInput,
+  type ElectronKeyInput,
+  type TabNavigationDirection,
+} from './electron-input';
+export {
   keybinding,
   resolveEffectiveChord,
   type ChordOverrides,

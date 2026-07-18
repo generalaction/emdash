@@ -23,10 +23,6 @@ const mocks = vi.hoisted(() => ({
   updateOpenIn: vi.fn(),
 }));
 
-vi.mock('@tanstack/react-hotkeys', () => ({
-  useHotkey: vi.fn(),
-}));
-
 vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
   useAppSettingsKey: (key: string) => {
     if (key === 'openIn') {
@@ -42,11 +38,6 @@ vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
 
 vi.mock('@renderer/lib/hooks/use-toast', () => ({
   useToast: () => ({ toast: mocks.toast }),
-}));
-
-vi.mock('@renderer/lib/hooks/useKeyboardShortcuts', () => ({
-  getEffectiveHotkey: () => null,
-  getHotkeyRegistration: () => '',
 }));
 
 vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({

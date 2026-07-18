@@ -1,5 +1,4 @@
 import type React from 'react';
-import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 import type { TabBarItemProps, TabContentProps } from './tab-host';
 
 /**
@@ -78,9 +77,6 @@ export interface TabHandle {
  * A named capability surfaced through the tab context menu and command palette.
  * Examples: `rename`, `export`, `duplicate`.
  *
- * `shortcut` may be either a user-configurable settings key (looked up to find
- * the effective hotkey) or a plain getter function returning the key string.
- * This allows commands that are not user-configurable to still show a hotkey.
  */
 export interface CommandEntry<T> {
   label: string;
@@ -91,7 +87,6 @@ export interface CommandEntry<T> {
   // oxlint-disable-next-line typescript/no-explicit-any
   exec(resource: T, ...args: any[]): void;
   isAvailable?(resource: T): boolean;
-  shortcut?: ShortcutSettingsKey | (() => string | undefined);
 }
 
 /**

@@ -5,7 +5,7 @@ import { deepFreeze, type JsonObject, type JsonValue } from '@core/primitives/js
 const viewScopeDefSymbol = Symbol('viewScopeDef');
 
 export type ViewScopeActivation = 'logical' | 'focus';
-export type ViewScopeTrait = 'text-input' | 'capturing';
+export type ViewScopeTrait = 'text-input' | 'editor' | 'terminal' | 'capturing';
 export type CommandSource = 'keybinding' | 'palette' | 'menu' | 'programmatic';
 
 export type ViewScopeRefArgs<TSchema extends z.ZodType<JsonObject>> =

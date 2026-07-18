@@ -1,6 +1,5 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   getAppById,
@@ -8,16 +7,13 @@ import {
   type OpenInAppId,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import {
-  getEffectiveHotkey,
-  getHotkeyRegistration,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { openInCommandRegistry } from './open-in-command-registry';
 
 interface OpenInMenuProps {
   path: string;
@@ -37,8 +33,6 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, platform, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
-  const { value: keyboard } = useAppSettingsKey('keyboard');
-  const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
 
   const defaultApp: OpenInAppId | null =
     openIn?.default && isValidOpenInAppId(openIn.default) ? openIn.default : null;
@@ -114,14 +108,14 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
   const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
 
-  useHotkey(
-    getHotkeyRegistration('openInEditor', keyboard),
-    () => {
-      if (!buttonAppId) return;
-      void triggerOpenIn(buttonAppId);
-    },
-    { enabled: !!buttonAppId && !loading && openInHotkey !== null }
-  );
+  useEffect(() => {
+    if (!buttonAppId || loading) return;
+    return openInCommandRegistry.register({
+      trigger: () => {
+        void triggerOpenIn(buttonAppId);
+      },
+    });
+  }, [buttonAppId, loading, triggerOpenIn]);
 
   return (
     <div
@@ -161,7 +155,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           <TooltipContent side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
-              <BoundShortcut settingsKey="openInEditor" variant="keycaps" />
+              <BoundShortcut command="app.openInEditor" variant="keycaps" />
             </div>
           </TooltipContent>
         </Tooltip>

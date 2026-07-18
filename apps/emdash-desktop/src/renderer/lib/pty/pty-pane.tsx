@@ -1,8 +1,18 @@
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,
 } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
+import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
+import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope } from '@core/primitives/view-scopes/react';
 import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
@@ -40,6 +50,7 @@ type Props = {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  onFind?: () => void;
 };
 
 type TerminalInputHelpers = Parameters<PasteFromClipboardHandler>[0];
@@ -125,10 +136,27 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       onFirstMessage,
       onEnterPress,
       onInterruptPress,
+      onFind,
     },
     ref
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const { attachRef: attachTerminalScope, instance: terminalScopeInstance } = useViewScope(
+      terminalInputScope({ sessionId }),
+      {
+        'terminal.find': () => ({
+          availability: () => (onFind ? enabled : hidden),
+          execute: () => onFind?.(),
+        }),
+      } satisfies ViewScopeImpl<typeof terminalInputScope>
+    );
+    const setContainerRef = useCallback(
+      (element: HTMLDivElement | null) => {
+        containerRef.current = element;
+        attachTerminalScope(element);
+      },
+      [attachTerminalScope]
+    );
     const lastDomImagePasteAtRef = useRef(0);
     const lastSystemPasteAtRef = useRef(0);
 
@@ -168,6 +196,12 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
       },
       containerRef
     );
+
+    useEffect(() => {
+      if (!terminalScopeInstance) return;
+      terminalScopeInstance.setFocusDelegate(focus);
+      return () => terminalScopeInstance.setFocusDelegate(undefined);
+    }, [focus, terminalScopeInstance]);
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
@@ -311,7 +345,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
         }}
       >
         <div
-          ref={containerRef}
+          ref={setContainerRef}
           data-terminal-container
           className={cn(themeOverride?.background ? '' : 'bg-background-secondary-1')}
           style={{

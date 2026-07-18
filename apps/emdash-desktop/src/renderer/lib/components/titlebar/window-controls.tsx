@@ -1,10 +1,10 @@
-import { detectPlatform } from '@tanstack/react-hotkeys';
 import { Copy, Minus, Square, X } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { cn } from '@renderer/utils/utils';
 
-const isLinux = detectPlatform() === 'linux';
+const isLinux = detectPlatformContext().os === 'linux';
 
 /**
  * Linux-only top overlay providing a draggable strip and window controls for

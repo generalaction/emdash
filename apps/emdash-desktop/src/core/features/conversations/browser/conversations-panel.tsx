@@ -62,12 +62,12 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     searchQuery,
     searchStatus,
     searchInputRef,
+    openSearch,
     closeSearch,
     handleSearchQueryChange,
     stepSearch,
   } = useTerminalSearch({
     terminal: activeSession?.pty?.terminal,
-    containerRef: terminalContainerRef,
     enabled: Boolean(activeSession?.pty),
     onCloseFocus: () => terminalRef.current?.focus(),
   });
@@ -145,6 +145,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
                   <TerminalSearchOverlay
+                    sessionId={activeSessionId}
                     isOpen={isSearchOpen}
                     fullWidth
                     searchQuery={searchQuery}
@@ -152,12 +153,14 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     searchInputRef={searchInputRef}
                     onQueryChange={handleSearchQueryChange}
                     onStep={stepSearch}
+                    onFind={openSearch}
                     onClose={closeSearch}
                   />
                   <PtyPane
                     ref={terminalRef}
                     sessionId={activeSessionId}
                     pty={activeSession.pty}
+                    onFind={openSearch}
                     className="h-full w-full"
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ

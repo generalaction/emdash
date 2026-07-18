@@ -1,5 +1,5 @@
 import type { Terminal } from '@xterm/xterm';
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   collectTerminalSearchMatches,
   getNextTerminalSearchIndex,
@@ -19,22 +19,13 @@ const EMPTY_SEARCH_STATUS: TerminalSearchStatus = {
   total: 0,
 };
 
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
 interface UseTerminalSearchOptions {
   terminal: Terminal | null | undefined;
-  containerRef: RefObject<HTMLElement | null>;
   enabled: boolean;
   onCloseFocus?: () => void;
 }
 
-export function useTerminalSearch({
-  terminal,
-  containerRef,
-  enabled,
-  onCloseFocus,
-}: UseTerminalSearchOptions) {
+export function useTerminalSearch({ terminal, enabled, onCloseFocus }: UseTerminalSearchOptions) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchedTerminalRef = useRef<Terminal | null>(null);
   const activeSearchQueryRef = useRef('');
@@ -205,41 +196,6 @@ export function useTerminalSearch({
   }, [enabled, isSearchOpen, runTerminalSearch, searchQuery, terminal]);
 
   useEffect(() => {
-    if (!enabled) return;
-
-    const handleSearchShortcut = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      const hasPlatformModifier = IS_MAC_PLATFORM
-        ? event.metaKey && !event.ctrlKey
-        : event.ctrlKey && !event.metaKey;
-      if (!hasPlatformModifier || event.altKey || event.shiftKey || key !== 'f') {
-        return;
-      }
-
-      const container = containerRef.current;
-      if (!container) return;
-
-      const activeElement = document.activeElement;
-      if (!activeElement || !container.contains(activeElement)) return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      event.stopPropagation();
-
-      if (isSearchOpen) {
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-        return;
-      }
-
-      openSearch();
-    };
-
-    window.addEventListener('keydown', handleSearchShortcut, true);
-    return () => window.removeEventListener('keydown', handleSearchShortcut, true);
-  }, [containerRef, enabled, isSearchOpen, openSearch]);
-
-  useEffect(() => {
     return () => clearTerminalSelection();
   }, [clearTerminalSelection]);
 
@@ -248,6 +204,7 @@ export function useTerminalSearch({
     searchQuery,
     searchStatus,
     searchInputRef,
+    openSearch,
     closeSearch,
     handleSearchQueryChange,
     stepSearch,

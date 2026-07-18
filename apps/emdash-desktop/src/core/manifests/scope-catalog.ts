@@ -1,11 +1,28 @@
-import { deleteSelectedTasksCommand } from '@core/features/tasks/contributions/commands';
-import { taskViewScope } from '@core/features/tasks/contributions/scopes';
-import { defineWindowScope } from '@core/features/workbench/contributions/scopes';
+import { settingsScope } from '@core/features/settings/contributions/scopes';
+import { taskListScope, taskViewScope } from '@core/features/tasks/contributions/scopes';
+import {
+  defineWindowScope,
+  editorScope,
+  modalScope,
+  paneScope,
+  terminalInputScope,
+  terminalSearchScope,
+} from '@core/features/workbench/contributions/scopes';
 import { COMMAND_CATALOG } from './command-catalog';
 
-export const windowScope = defineWindowScope([deleteSelectedTasksCommand] as const);
+export const windowScope = defineWindowScope([]);
 
-export const SCOPE_CATALOG = [windowScope, taskViewScope] as const;
+export const SCOPE_CATALOG = [
+  windowScope,
+  taskViewScope,
+  modalScope,
+  settingsScope,
+  paneScope,
+  editorScope,
+  terminalInputScope,
+  terminalSearchScope,
+  taskListScope,
+] as const;
 
 const catalogCommands = new Set(COMMAND_CATALOG.defs);
 for (const scope of SCOPE_CATALOG) {

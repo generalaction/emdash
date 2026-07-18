@@ -117,18 +117,18 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 const SplitPane = observer(function SplitPane({
   group,
   index,
-  isFocused,
   onActivate,
   defaultSizePct,
 }: {
   group: PaneGroup;
   index: number;
-  isFocused: boolean;
   onActivate: () => void;
   defaultSizePct: number;
 }) {
+  const taskView = useWorkspaceViewModel();
+  const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
   return (
-    <PaneProvider group={group} isFocusedPane={isFocused}>
+    <>
       {index > 0 && <ResizableHandle />}
       <ResizablePanel
         id={`pane-${group.paneId}`}
@@ -136,9 +136,15 @@ const SplitPane = observer(function SplitPane({
         minSize="200px"
         onPointerDown={onActivate}
       >
-        <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
+        <PaneProvider
+          group={group}
+          canSplit={canSplit}
+          splitPane={() => taskView.paneLayout.splitRight()}
+        >
+          <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
+        </PaneProvider>
       </ResizablePanel>
-    </PaneProvider>
+    </>
   );
 });
 
@@ -154,7 +160,6 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
           key={group.paneId}
           group={group}
           index={i}
-          isFocused={taskView.focusedRegion === 'main' && paneLayout.activePaneId === group.paneId}
           onActivate={() => paneLayout.setActiveGroup(group.paneId)}
           defaultSizePct={paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}
         />

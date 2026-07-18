@@ -2,6 +2,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { modalCatalog } from '@core/manifests/modal-catalog';
 import {
   ModalHostContext,
@@ -9,6 +10,9 @@ import {
   type ModalPosition,
   type ModalSize,
 } from '@core/primitives/modals/react';
+import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
+import { confirmRegistry } from '@renderer/lib/keybindings';
 import { Dialog, DialogOverlay, DialogPortal } from '@renderer/lib/ui/dialog';
 import { cn } from '@renderer/utils/utils';
 import { modalStore } from './modal-store';
@@ -62,6 +66,18 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const activeModalId = modalStore.activeModalId;
   const activeEntryRef = useRef<RuntimeModalEntry | null>(null);
   const ignoreNextOutsidePressRef = useRef(false);
+  const implementation = {
+    'modal.close': () => ({
+      availability: () =>
+        modalStore.closeGuardActive ? disabled('This dialog cannot be closed yet') : enabled,
+      execute: () => modalStore.dismiss('passive'),
+    }),
+    'app.confirm': () => ({
+      availability: () => (confirmRegistry.current?.isEnabled() ? enabled : hidden),
+      execute: () => confirmRegistry.current?.trigger(),
+    }),
+  } satisfies ViewScopeImpl<typeof modalScope>;
+  const { attachRef, instance } = useViewScope(modalScope(), implementation);
 
   activeEntryRef.current = entry ?? null;
 
@@ -99,6 +115,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
     eventDetails: DialogPrimitive.Root.ChangeEventDetails
   ) => {
     if (!open && modalStore.isOpen) {
+      if (eventDetails.reason === 'escape-key') return;
       const isOutsidePress = eventDetails.reason === 'outside-press';
       if (
         isOutsidePress &&
@@ -109,14 +126,20 @@ export const ModalRenderer = observer(function ModalRenderer() {
         return;
       }
 
-      const isPassiveDismiss = isOutsidePress || eventDetails.reason === 'escape-key';
-      if (modalStore.closeGuardActive && isPassiveDismiss) return;
+      if (modalStore.closeGuardActive && isOutsidePress) return;
       ignoreNextOutsidePressRef.current = false;
       modalStore.dismiss('passive');
     }
   };
 
   const popupRef = useRef<HTMLDivElement>(null);
+  const attachPopupRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      popupRef.current = element;
+      attachRef(element);
+    },
+    [attachRef]
+  );
 
   // Restore focus to the element captured when the first modal in a flow opens.
   useEffect(
@@ -150,15 +173,10 @@ export const ModalRenderer = observer(function ModalRenderer() {
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Popup
-          ref={popupRef}
+          ref={attachPopupRef}
           finalFocus={false}
           initialFocus={initialFocus}
           data-slot="dialog-content"
-          onKeyDownCapture={(e) => {
-            if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
-              e.preventDefault();
-            }
-          }}
           onPointerDownCapture={() => {
             if (displayEntry?.ignoreOutsidePressAfterWindowBlur) {
               ignoreNextOutsidePressRef.current = false;
@@ -171,9 +189,11 @@ export const ModalRenderer = observer(function ModalRenderer() {
           )}
         >
           {DisplayComponent && displayArgs && displayModalId ? (
-            <ModalHostContext.Provider value={{ id: displayModalId, controller: hostController }}>
-              <DisplayComponent {...displayArgs} />
-            </ModalHostContext.Provider>
+            <ViewScopeInstanceProvider instance={instance}>
+              <ModalHostContext.Provider value={{ id: displayModalId, controller: hostController }}>
+                <DisplayComponent {...displayArgs} />
+              </ModalHostContext.Provider>
+            </ViewScopeInstanceProvider>
           ) : null}
         </DialogPrimitive.Popup>
       </DialogPortal>

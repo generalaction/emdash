@@ -4,6 +4,9 @@ import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useWorkspaceViewModel } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { editorScope } from '@core/features/workbench/contributions/scopes';
+import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -49,6 +52,24 @@ export const EditorProvider = observer(function EditorProvider({
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
+  const editorScopeImplementation = {
+    'editor.save': () => ({
+      availability: () => (getActiveFilePath(paneTabManager) ? enabled : hidden),
+      execute: () => {
+        const path = getActiveFilePath(paneTabManager);
+        if (path) void editorView.saveFile(path);
+      },
+    }),
+    'editor.saveAll': () => ({
+      execute: () => {
+        void editorView.saveAllFiles();
+      },
+    }),
+  } satisfies ViewScopeImpl<typeof editorScope>;
+  const { instance: editorScopeInstance } = useViewScope(
+    editorScope({ paneId }),
+    editorScopeImplementation
+  );
 
   // Conflict dialog — shown when editorView.pendingConflictUri is set.
   const openConflictModal = useOpenModal('conflictDialog');
@@ -132,37 +153,17 @@ export const EditorProvider = observer(function EditorProvider({
     // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Save shortcut — handle at the task-pane level so preview/source transitions
-  // (notably markdown/MDX source editing) do not depend on Monaco receiving the
-  // key event. Capture and stop propagation to avoid a second Monaco save.
-  // ---------------------------------------------------------------------------
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (!isActive || taskView.focusedRegion !== 'main') return;
-      if (paneLayout.activePaneId !== paneId) return;
-      if (event.key.toLowerCase() !== 's') return;
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-
-      if (event.shiftKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        void editorView.saveAllFiles();
-        return;
-      }
-
-      const path = getActiveFilePath(paneTabManager);
-      if (!path) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      void editorView.saveFile(path);
+    const container = containerRef.current;
+    const editor = editorRef.current;
+    if (!editorScopeInstance || !container || !editor) return;
+    editorScopeInstance.attachRef(container);
+    editorScopeInstance.setFocusDelegate(() => editor.focus());
+    return () => {
+      editorScopeInstance.setFocusDelegate(undefined);
+      editorScopeInstance.attachRef(null);
     };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [editorView, paneId, isActive, paneTabManager, paneLayout, taskView]);
+  }, [editorScopeInstance]);
 
   // ---------------------------------------------------------------------------
   // Model attachment — autorun that re-evaluates whenever the pane-local active
@@ -260,5 +261,9 @@ export const EditorProvider = observer(function EditorProvider({
     }
   }, []);
 
-  return <EditorContext.Provider value={{ setEditorHost }}>{children}</EditorContext.Provider>;
+  return (
+    <ViewScopeInstanceProvider instance={editorScopeInstance}>
+      <EditorContext.Provider value={{ setEditorHost }}>{children}</EditorContext.Provider>
+    </ViewScopeInstanceProvider>
+  );
 });

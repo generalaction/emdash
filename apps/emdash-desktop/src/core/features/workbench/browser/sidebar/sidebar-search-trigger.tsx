@@ -44,7 +44,7 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
         <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
         <span className="truncate">Search…</span>
       </span>
-      <BoundShortcut settingsKey="commandPalette" variant="keycaps" />
+      <BoundShortcut command="app.commandPalette" variant="keycaps" />
     </SidebarMenuButton>
   );
 });

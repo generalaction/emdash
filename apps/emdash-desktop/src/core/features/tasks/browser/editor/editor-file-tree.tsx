@@ -1,5 +1,4 @@
 import { MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
-import { detectPlatform } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -30,6 +29,7 @@ import {
 } from '@core/features/tasks/browser/task-view-context';
 import { useTabSelection } from '@core/features/workbench/browser/task-tab-registry';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
   clearDraggedWorkspaceFile,
   hasDraggedFiles,
@@ -52,7 +52,7 @@ import { cn } from '@renderer/utils/utils';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
-const PLATFORM = detectPlatform();
+const PLATFORM = detectPlatformContext().os;
 const REVEAL_LABEL =
   PLATFORM === 'mac'
     ? 'Show in Finder'

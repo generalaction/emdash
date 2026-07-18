@@ -1,4 +1,3 @@
-import { detectPlatform, parseHotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type { TabHost } from '@core/features/workbench/browser/tabs/core/tab-host';
@@ -6,7 +5,6 @@ import type {
   ResolvedTab,
   TabViewContext,
 } from '@core/features/workbench/browser/tabs/core/tab-provider';
-import type { ShortcutSettingsKey } from '@core/primitives/commands/api/shortcuts';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -17,22 +15,13 @@ import {
 import { BoundShortcut, Shortcut } from '@renderer/lib/ui/shortcut';
 import type { TabCommand } from './tab-commands';
 
-const _PLATFORM = detectPlatform();
-
-/** Renders a shortcut hint that works with both a settings key and a raw getter. */
-function CmdShortcut({
-  shortcut,
-}: {
-  shortcut?: ShortcutSettingsKey | (() => string | undefined);
-}) {
+/** Renders a shortcut hint from a command or raw chord getter. */
+function CmdShortcut({ shortcut }: { shortcut?: TabCommand['shortcut'] }) {
   if (!shortcut) return null;
-  if (typeof shortcut === 'function') {
-    const raw = shortcut();
-    // oxlint-disable-next-line typescript/no-explicit-any
-    const parsed = raw ? (parseHotkey(raw, _PLATFORM) as any) : null;
-    return parsed ? <Shortcut hotkey={parsed} className="ml-auto" /> : null;
+  if ('chord' in shortcut) {
+    return <Shortcut hotkey={shortcut.chord()} className="ml-auto" />;
   }
-  return <BoundShortcut settingsKey={shortcut} className="ml-auto" />;
+  return <BoundShortcut command={shortcut.commandId} className="ml-auto" />;
 }
 
 /**
