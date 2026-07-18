@@ -2,11 +2,14 @@ import { Readable, Writable } from 'node:stream';
 import {
   ClientSideConnection,
   ndJsonStream,
+  type Client,
   type LoadSessionRequest,
   type LoadSessionResponse,
   type NewSessionRequest,
   type NewSessionResponse,
   type SessionConfigOption,
+  type SessionConfigSelectGroup,
+  type SessionConfigSelectOption,
   type SetSessionConfigOptionRequest,
   type SetSessionConfigOptionResponse,
 } from '@agentclientprotocol/sdk';
@@ -36,20 +39,35 @@ export function connectGrokAcp(io: AcpProcessIo, toClient: AcpClientFactory): Ac
     Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
     Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
   );
-  const connection = new ClientSideConnection((agent) => toClient(agent as never), stream);
+  let client: Client | null = null;
+  const connection = new ClientSideConnection((agent) => {
+    const resolvedClient = toClient(agent as never);
+    client = resolvedClient;
+    return resolvedClient;
+  }, stream);
   const sessions = new Map<string, SessionConfigOption[]>();
 
   return {
     initialize: (params) => connection.initialize(params),
     newSession: async (params: NewSessionRequest) => {
       const response = await connection.newSession(params);
-      return normalizeSessionResponse(response, response.sessionId, sessions);
+      return normalizeSessionResponse(response, response.sessionId, sessions, false);
     },
     loadSession: async (params: LoadSessionRequest) => {
       const response = await connection.loadSession(params);
-      return normalizeSessionResponse(response, params.sessionId, sessions);
+      return normalizeSessionResponse(response, params.sessionId, sessions, true);
     },
-    prompt: (params) => connection.prompt(params),
+    prompt: async (params) => {
+      const lockedOptions = lockModelOptions(sessions.get(params.sessionId));
+      if (lockedOptions) {
+        sessions.set(params.sessionId, lockedOptions);
+        await client?.sessionUpdate({
+          sessionId: params.sessionId,
+          update: { sessionUpdate: 'config_option_update', configOptions: lockedOptions },
+        });
+      }
+      return connection.prompt(params);
+    },
     cancel: (params) => connection.cancel(params),
     setSessionConfigOption: (params) => setSessionConfigOption(connection, sessions, params),
     setSessionMode: (params) => connection.setSessionMode(params),
@@ -101,14 +119,54 @@ async function setSessionConfigOption(
 function normalizeSessionResponse<T extends NewSessionResponse | LoadSessionResponse>(
   response: T,
   sessionId: string,
-  sessions: Map<string, SessionConfigOption[]>
+  sessions: Map<string, SessionConfigOption[]>,
+  locked: boolean
 ): T {
   const models = parseGrokModelState((response as T & GrokSessionResponse).models);
   if (!models) return response;
 
-  const configOptions = replaceModelOption(response.configOptions ?? [], models);
+  const normalizedOptions = replaceModelOption(response.configOptions ?? [], models);
+  const configOptions = locked
+    ? (lockModelOptions(normalizedOptions) ?? normalizedOptions)
+    : normalizedOptions;
   sessions.set(sessionId, configOptions);
   return { ...response, configOptions };
+}
+
+function lockModelOptions(
+  configOptions: readonly SessionConfigOption[] | undefined
+): SessionConfigOption[] | null {
+  if (!configOptions) return null;
+  let modelOption: SessionConfigOption | null = null;
+  for (const option of configOptions) {
+    if (option.id === 'model' && option.type === 'select') {
+      modelOption = option;
+      break;
+    }
+  }
+  if (!modelOption || modelOption.type !== 'select' || modelOption.options.length < 2) return null;
+  const modelOptions = modelOption.options;
+  if (!modelOptions.every(isSelectOption)) return null;
+
+  const family = grokAgentFamily(modelOption.currentValue);
+  return configOptions.map((option) =>
+    option === modelOption
+      ? {
+          ...modelOption,
+          options: modelOptions.filter((candidate) => grokAgentFamily(candidate.value) === family),
+        }
+      : option
+  );
+}
+
+function isSelectOption(
+  option: SessionConfigSelectOption | SessionConfigSelectGroup
+): option is SessionConfigSelectOption {
+  return 'value' in option;
+}
+
+function grokAgentFamily(modelId: string): 'cursor' | 'grok-build' {
+  return modelId.startsWith('grok-composer-') ? 'cursor' : 'grok-build';
 }
 
 function replaceModelOption(
@@ -122,18 +180,29 @@ function replaceModelOption(
 }
 
 function toModelConfigOption(models: GrokModelState): SessionConfigOption {
+  const currentValue = resolveCurrentModelId(models.currentModelId, models.availableModels);
   return {
     id: 'model',
     name: 'Model',
     category: 'model',
     type: 'select',
-    currentValue: models.currentModelId,
+    currentValue,
     options: models.availableModels.map((model) => ({
       value: model.modelId,
       name: model.name,
       ...(model.description ? { description: model.description } : {}),
     })),
   };
+}
+
+function resolveCurrentModelId(currentModelId: string, availableModels: GrokModel[]): string {
+  const ids = availableModels.map((model) => model.modelId);
+  if (ids.includes(currentModelId)) return currentModelId;
+  return (
+    ids
+      .filter((id) => currentModelId.startsWith(`${id}-`))
+      .sort((left, right) => right.length - left.length)[0] ?? currentModelId
+  );
 }
 
 function parseGrokModelState(value: unknown): GrokModelState | null {

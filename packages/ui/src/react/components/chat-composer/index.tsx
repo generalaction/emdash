@@ -14,6 +14,7 @@ import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
+import { submitAndClearUnchanged } from '../prompt-editor/submit-and-clear';
 import type {
   CommandItem,
   ContextMentionProvider,
@@ -206,7 +207,7 @@ export interface ChatComposerProps {
   selectedPermissionMode?: string;
   onPermissionModeChange?: (modeId: string) => void;
 
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => boolean | void | Promise<boolean | void>;
   /** Called whenever the editor serialized plain text changes. */
   onInputChange?: (text: string) => void;
   /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
@@ -217,7 +218,7 @@ export interface ChatComposerProps {
    * confirm interruption, or otherwise resolve the conflict.
    * When absent, submit attempts while working are silently ignored.
    */
-  onSubmitWhileWorking?: (text: string) => void;
+  onSubmitWhileWorking?: (text: string) => boolean | void | Promise<boolean | void>;
   onStop?: () => void;
   onAttach?: () => void;
   /** Context-window usage data for the toolbar donut indicator. Hidden when null/undefined. */
@@ -606,15 +607,22 @@ export function ChatComposer({
   const handleSubmit = (text: string) => {
     // Allow image-only sends: a message with attachments but no text is valid.
     const hasImages = attachments.some((a) => a.kind === 'image');
-    if (!text.trim() && !hasImages) return;
+    if (!text.trim() && !hasImages) return false;
     // While the agent is actively working, route to the host's conflict handler
     // (e.g. queueing or a cancel-and-send confirmation) instead of submitting.
     if (isWorking) {
-      onSubmitWhileWorking?.(text);
-      return;
+      return onSubmitWhileWorking?.(text) ?? false;
     }
-    if (disabled || !canSubmit) return;
-    onSubmit(text);
+    if (disabled || !canSubmit) return false;
+    return onSubmit(text);
+  };
+
+  const handleSubmitButtonClick = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const text = editor.getText();
+    const version = editor.beginSubmitAttempt();
+    void submitAndClearUnchanged(text, version, handleSubmit, editor.getVersion, editor.clear);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -1043,7 +1051,7 @@ export function ChatComposer({
                   size="sm"
                   icon
                   className={styles.sendButtonRound}
-                  onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
+                  onClick={handleSubmitButtonClick}
                   disabled={disabled || isModelChanging || !canSubmit}
                   aria-label="Send message"
                 >

@@ -293,9 +293,9 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const sendPreparedPrompt = useCallback(
     async (value: string, queued: boolean) => {
-      if (promptPreparationRef.current) return;
+      if (promptPreparationRef.current) return false;
       const requestedAttachments = buildPromptAttachments();
-      if (!value.trim() && requestedAttachments.length === 0) return;
+      if (!value.trim() && requestedAttachments.length === 0) return false;
 
       promptPreparationRef.current = true;
       try {
@@ -306,11 +306,11 @@ const ComposerForStore = observer(function ComposerForStore({
         const promptAttachments = requestedAttachments.filter((attachment) =>
           currentAttachmentIds.has(attachment.ref.id)
         );
-        if (!value.trim() && promptAttachments.length === 0) return;
+        if (!value.trim() && promptAttachments.length === 0) return false;
         const accepted = queued
           ? store.queuePrompt(value, promptAttachments, hiddenContext)
           : store.submitPrompt(value, promptAttachments, hiddenContext);
-        if (!accepted) return;
+        if (!accepted) return false;
 
         const submittedAttachmentIds = new Set(
           promptAttachments.map((attachment) => attachment.ref.id)
@@ -322,8 +322,7 @@ const ComposerForStore = observer(function ComposerForStore({
             )
           );
         }
-        const editor = editorApiRef.current;
-        if (editor?.getText() === value) editor.clear();
+        return true;
       } finally {
         promptPreparationRef.current = false;
       }
