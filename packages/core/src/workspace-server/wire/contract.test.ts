@@ -6,6 +6,12 @@ import { describe, expect, it } from 'vitest';
 import { workspaceWireContract } from './contract';
 
 describe('workspaceWireContract', () => {
+  it('mounts every worker-backed runtime expected by the aggregate controller', () => {
+    expect(workspaceWireContract.automations.deploy.kind).toBe('procedure');
+    expect(workspaceWireContract.fileSearch.searchContent.kind).toBe('liveJob');
+    expect(workspaceWireContract.terminals.startTerminal.kind).toBe('procedure');
+  });
+
   it('mounts the ACP contract under the acp domain without changing protocol shape elsewhere', () => {
     expect(workspaceWireContract.acp.startSession.kind).toBe('procedure');
     expect(workspaceWireContract.acp.sessions.kind).toBe('liveModel');
