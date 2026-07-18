@@ -84,7 +84,10 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
       }
     });
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
-      onReattach: () => void this.client.refresh(),
+      onReattach: () => {
+        // A disconnect can race this resync during teardown. The next reattach retries it.
+        void this.client.refresh().catch(() => {});
+      },
     });
     void this.result.catch(() => undefined);
   }

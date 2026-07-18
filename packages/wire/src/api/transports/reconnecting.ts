@@ -13,11 +13,29 @@ export type ReconnectingTransportOptions = {
   clock?: Clock;
   retrySchedule?: RetrySchedule;
   maxQueuedMessages?: number;
+  /** Return false for failures, such as a protocol mismatch, that retries cannot repair. */
+  shouldRetry?: (error: unknown, context: ReconnectFailureContext) => boolean;
+};
+
+export type ReconnectFailureContext = {
+  /** Zero-based attempt within the current initial-connect or reconnect cycle. */
+  attempt: number;
+  /** True once this transport has previously reached readiness. */
+  isReconnect: boolean;
 };
 
 export type ReconnectingTransport = WireTransport & {
+  /** Resolves when the current physical connection has passed connectOnce readiness. */
+  ready(): Promise<void>;
   onReconnect(cb: () => void): Unsubscribe;
   close(): void;
+};
+
+type Readiness = {
+  promise: Promise<void>;
+  settled: boolean;
+  resolve(): void;
+  reject(error: unknown): void;
 };
 
 export function reconnectingTransport(
@@ -43,11 +61,14 @@ export function reconnectingTransport(
   let hasConnected = false;
   let cleanupInner: Unsubscribe[] = [];
   let activeReconnect: symbol | undefined;
+  let readiness = createReadiness();
+  let terminal = false;
+  let terminalError: unknown;
 
   void reconnect();
 
   async function reconnect(): Promise<void> {
-    if (reconnecting || closed) return;
+    if (reconnecting || closed || terminal) return;
     reconnecting = true;
     const reconnectToken = Symbol('reconnect');
     activeReconnect = reconnectToken;
@@ -71,16 +92,32 @@ export function reconnectingTransport(
           }
           setInner(next);
           const isReconnect = hasConnected;
-          hasConnected = true;
           reconnecting = false;
           activeReconnect = undefined;
           flushQueue();
-          if (isReconnect && inner === next && !closed) notifyReconnect();
+          if (inner !== next || closed) return;
+          hasConnected = true;
+          readiness.resolve();
+          if (isReconnect) notifyReconnect();
           return;
         } catch (error) {
           if (closed || signal.aborted) break;
-          const delay = retrySchedule.delayFor(attempt);
-          if (delay === undefined) throw error;
+          const context = { attempt, isReconnect: hasConnected } satisfies ReconnectFailureContext;
+          let delay: number | undefined;
+          try {
+            if (options.shouldRetry && !options.shouldRetry(error, context)) {
+              failPermanently(error);
+              break;
+            }
+            delay = retrySchedule.delayFor(attempt);
+          } catch (classificationError) {
+            failPermanently(classificationError);
+            break;
+          }
+          if (delay === undefined) {
+            failPermanently(error);
+            break;
+          }
           attempt += 1;
           await clock.sleep(delay, { signal, unref: true });
         }
@@ -114,6 +151,7 @@ export function reconnectingTransport(
       next.onDisconnect(() => {
         if (inner !== next) return;
         inner = null;
+        resetReadiness();
         for (const listener of disconnectListeners) listener();
         if (!closed) void reconnect();
       })
@@ -146,9 +184,22 @@ export function reconnectingTransport(
     for (const listener of reconnectListeners) listener();
   }
 
+  function failPermanently(error: unknown): void {
+    terminal = true;
+    terminalError = error;
+    queue.clear();
+    readiness.reject(error);
+  }
+
+  function resetReadiness(): void {
+    if (!readiness.settled) return;
+    readiness = createReadiness();
+  }
+
   return {
     post(message) {
       if (closed) throw new Error('Wire transport closed');
+      if (terminal) throw terminalError;
       const current = inner;
       if (!current) {
         enqueue(message);
@@ -169,6 +220,10 @@ export function reconnectingTransport(
       reconnectListeners.add(cb);
       return () => reconnectListeners.delete(cb);
     },
+    ready() {
+      if (closed) return Promise.reject(new Error('Wire transport closed'));
+      return readiness.promise;
+    },
     close() {
       if (closed) return;
       closed = true;
@@ -177,11 +232,37 @@ export function reconnectingTransport(
       inner?.close?.();
       inner = null;
       queue.clear();
+      readiness.reject(new Error('Reconnecting transport closed'));
       messageListeners.clear();
       disconnectListeners.clear();
       reconnectListeners.clear();
     },
   };
+}
+
+function createReadiness(): Readiness {
+  let resolvePromise!: () => void;
+  let rejectPromise!: (error: unknown) => void;
+  const readiness: Readiness = {
+    promise: Promise.resolve(),
+    settled: false,
+    resolve() {
+      if (readiness.settled) return;
+      readiness.settled = true;
+      resolvePromise();
+    },
+    reject(error) {
+      if (readiness.settled) return;
+      readiness.settled = true;
+      rejectPromise(error);
+    },
+  };
+  readiness.promise = new Promise<void>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  void readiness.promise.catch(() => {});
+  return readiness;
 }
 
 function isBlobChannelMessage(message: WireMessage): boolean {

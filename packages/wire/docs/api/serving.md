@@ -109,6 +109,7 @@ const connection = connect(pair.left, { instrumentation });
 - `snapshot(topic)`.
 - `attach(topic, push, { onReattach? })`.
 - `onDisconnect(cb)`.
+- `dispose()` to release the logical connection without closing its transport.
 
 On disconnect, pending calls reject with `WireError` code `DISCONNECTED`.
 Existing attachments are retained locally. If the transport exposes
@@ -118,6 +119,12 @@ link is live and then calls each attachment's `onReattach` callback.
 Replicas use `onReattach` for live models, logs, and jobs to force a fresh
 snapshot after reattach. Direct client-handle consumers can use the same callback when
 they need to reseed UI state after reconnect.
+
+`dispose()` rejects pending calls, releases live attachments and blob channels, and
+unsubscribes the connection from transport events. It intentionally does not call
+`transport.close()`. This allows a short-lived application handshake connection to
+validate a candidate transport before handing that same transport to a stable
+reconnecting connection.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are

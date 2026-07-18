@@ -27,6 +27,30 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
+  it('reaches readiness only after connectOnce completes and queued messages flush', async () => {
+    const handshake = deferred<void>();
+    const inner = new FakeTransport();
+    const transport = reconnectingTransport(async () => {
+      await handshake.promise;
+      return inner;
+    });
+    let ready = false;
+    void transport.ready().then(() => {
+      ready = true;
+    });
+
+    transport.post({ kind: 'detach', topic: 'after-handshake' });
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    expect(inner.sent).toEqual([]);
+
+    handshake.resolve();
+    await transport.ready();
+    await vi.waitFor(() => expect(ready).toBe(true));
+    expect(inner.sent).toEqual([{ kind: 'detach', topic: 'after-handshake' }]);
+    transport.close();
+  });
+
   it('drops the oldest queued messages beyond maxQueuedMessages', async () => {
     const connected = deferred<WireTransport>();
     const transport = reconnectingTransport(() => connected.promise, { maxQueuedMessages: 2 });
@@ -122,6 +146,91 @@ describe('reconnectingTransport', () => {
       expect(second.sent).toEqual([{ kind: 'detach', topic: 'queued-on-reconnect' }]);
       expect(reconnects).toEqual(['reconnected']);
     });
+    transport.close();
+  });
+
+  it('returns readiness for the replacement connection after disconnect', async () => {
+    const firstReady = deferred<WireTransport>();
+    const secondReady = deferred<WireTransport>();
+    const first = new FakeTransport();
+    const second = new FakeTransport();
+    const transport = reconnectingTransport(() =>
+      firstReady.settled ? secondReady.promise : firstReady.promise
+    );
+
+    firstReady.resolve(first);
+    await transport.ready();
+    first.disconnect();
+
+    let replacementReady = false;
+    void transport.ready().then(() => {
+      replacementReady = true;
+    });
+    await Promise.resolve();
+    expect(replacementReady).toBe(false);
+
+    secondReady.resolve(second);
+    await transport.ready();
+    await vi.waitFor(() => expect(replacementReady).toBe(true));
+    transport.close();
+  });
+
+  it('stops retrying and rejects readiness for a permanent initial failure', async () => {
+    const mismatch = new Error('protocol mismatch');
+    let attempts = 0;
+    const transport = reconnectingTransport(
+      () => {
+        attempts += 1;
+        return Promise.reject(mismatch);
+      },
+      { shouldRetry: () => false }
+    );
+
+    await expect(transport.ready()).rejects.toBe(mismatch);
+    expect(attempts).toBe(1);
+    expect(() => transport.post({ kind: 'detach', topic: 'rejected' })).toThrow(mismatch);
+    transport.close();
+  });
+
+  it('rejects readiness when retry classification fails', async () => {
+    const classificationError = new Error('classification failed');
+    const transport = reconnectingTransport(() => Promise.reject(new Error('offline')), {
+      shouldRetry: () => {
+        throw classificationError;
+      },
+    });
+
+    await expect(transport.ready()).rejects.toBe(classificationError);
+    transport.close();
+  });
+
+  it('rejects replacement readiness without firing reconnect after a permanent failure', async () => {
+    const first = new FakeTransport();
+    const mismatch = new Error('protocol mismatch');
+    const reconnects: string[] = [];
+    const failures: Array<{ attempt: number; isReconnect: boolean }> = [];
+    let attempts = 0;
+    const transport = reconnectingTransport(
+      () => {
+        attempts += 1;
+        return attempts === 1 ? Promise.resolve(first) : Promise.reject(mismatch);
+      },
+      {
+        shouldRetry: (_error, context) => {
+          failures.push(context);
+          return false;
+        },
+      }
+    );
+    transport.onReconnect(() => reconnects.push('reconnected'));
+
+    await transport.ready();
+    first.disconnect();
+
+    await expect(transport.ready()).rejects.toBe(mismatch);
+    expect(attempts).toBe(2);
+    expect(failures).toEqual([{ attempt: 0, isReconnect: true }]);
+    expect(reconnects).toEqual([]);
     transport.close();
   });
 

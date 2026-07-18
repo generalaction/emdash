@@ -1,4 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
+import type { LiveCursorEntry } from '../live/protocol';
 import type { BlobDownloadHandle, WireFile } from './blob-channel';
 import type { ContractClient } from './client';
 import { createController, type CallMeta, type ContractImpl, type Controller } from './controller';
@@ -13,6 +14,7 @@ import {
   type EndpointDef,
   type EndpointInput,
   type EndpointOutput,
+  type LiveModelDef,
   type UploadFileEndpointDef,
   type UploadFileError,
   type UploadFileInput,
@@ -23,7 +25,21 @@ export function forwardController<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   client: ContractClient<Defs>
 ): Controller {
-  return createController(contract, buildForwardImpl(contract, client) as ContractImpl<Defs>);
+  return createController(contract, forwardContractImpl(contract, client));
+}
+
+/**
+ * Builds a controller implementation that forwards every contract endpoint to an existing client.
+ *
+ * This is useful when a contract is mounted inside a larger aggregate contract. Live endpoint
+ * handles are rebound to the mounted definitions while retaining their upstream client methods,
+ * so a standalone `model` topic can be exposed as (for example) `git.model`.
+ */
+export function forwardContractImpl<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  client: ContractClient<Defs>
+): ContractImpl<Defs> {
+  return buildForwardImpl(contract, client) as ContractImpl<Defs>;
 }
 
 function buildForwardImpl(
@@ -57,9 +73,46 @@ function createForwardEntry(def: EndpointDef, clientEntry: unknown): unknown {
     case 'liveLog':
     case 'eventStream':
     case 'liveModel':
-      return clientEntry;
+      return rebindLiveClientHandle(def, clientEntry);
   }
 }
+
+function rebindLiveClientHandle(def: EndpointDef, clientEntry: unknown): unknown {
+  if (typeof clientEntry !== 'object' || clientEntry === null || Array.isArray(clientEntry)) {
+    return clientEntry;
+  }
+  if (def.kind !== 'liveModel') return { ...clientEntry, def };
+
+  const source = clientEntry as {
+    def?: LiveModelDef;
+    mutate?: (...args: unknown[]) => Promise<ForwardedMutationResult>;
+  };
+  if (!source.def || typeof source.mutate !== 'function') return { ...clientEntry, def };
+
+  const targetStateIds = new Map(
+    Object.entries(source.def.states).flatMap(([name, state]) => {
+      const target = def.states[name];
+      return target ? [[state.id, target.id] as const] : [];
+    })
+  );
+  return {
+    ...clientEntry,
+    def,
+    async mutate(...args: unknown[]) {
+      const result = await source.mutate!(...args);
+      if (!result.success) return result;
+      return ok({
+        ...result.data,
+        cursors: result.data.cursors.map((cursor) => ({
+          ...cursor,
+          model: targetStateIds.get(cursor.model) ?? cursor.model,
+        })),
+      });
+    },
+  };
+}
+
+type ForwardedMutationResult = Result<{ data: unknown; cursors: LiveCursorEntry[] }, unknown>;
 
 function createProcedureForward<Def extends EndpointDef>(
   clientEntry: unknown

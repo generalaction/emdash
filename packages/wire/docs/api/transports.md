@@ -125,18 +125,69 @@ const transport = reconnectingTransport(
   },
   { backoffMs: [100, 250, 500, 1000], maxQueuedMessages: 1000 }
 );
+
+await transport.ready();
 ```
 
-Messages posted while no inner transport is connected are queued. When an inner
-transport disconnects, listeners are notified and reconnection starts. The queue
-uses the shared bounded-buffer core with drop-oldest semantics;
-`maxQueuedMessages` defaults to `1000`. Blob-channel frames are never queued
-across reconnects because stale credit, chunks, or close frames cannot be safely
-replayed.
+`connectOnce` is the readiness boundary for one physical connection. The returned
+transport remains private until the promise resolves. Applications that require a
+handshake should open the candidate, run the handshake against it, dispose the
+temporary logical `Connection`, and only then return the candidate:
 
-`onReconnect` fires after a replacement inner transport is connected and queued
-messages are flushed. `Connection` listens for that signal and re-issues active
-`attach` requests; replicas refresh their snapshots after reattach.
+```ts
+const transport = reconnectingTransport(
+  async () => {
+    const candidate = await openRemoteTransport();
+    const handshakeConnection = connect(candidate);
+    const handshakeClient = client(api, handshakeConnection);
+    try {
+      const result = await handshakeClient.initialize({ version: PROTOCOL_VERSION });
+      if (!result.success) throw new ProtocolMismatchError(result.error);
+      return candidate;
+    } catch (error) {
+      candidate.close?.();
+      throw error;
+    } finally {
+      handshakeConnection.dispose();
+    }
+  },
+  {
+    shouldRetry: (error) => !(error instanceof ProtocolMismatchError),
+  }
+);
+
+await transport.ready();
+const stableClient = client(api, connect(transport));
+```
+
+This ordering guarantees that queued calls and live-topic reattachments cannot
+overtake an application handshake. Wire itself remains version-agnostic; the
+application owns the handshake contract and permanent-error classification.
+
+Messages posted while no ready inner transport exists are queued. When an inner
+transport disconnects, listeners are notified, readiness resets, and reconnection
+starts. The queue uses the shared bounded-buffer core with drop-oldest semantics;
+`maxQueuedMessages` defaults to `1000`. Blob-channel frames are never queued across
+reconnects because stale credit, chunks, or close frames cannot be safely replayed.
+Applications must account for the fact that a dropped queued request cannot produce
+a result; use cancellation/deadlines and avoid issuing unbounded calls while the
+transport is not ready.
+
+`ready()` resolves after the current `connectOnce` succeeds, its candidate is
+installed, and queued messages are flushed. After a disconnect, a new call to
+`ready()` waits for the replacement generation. A previously resolved readiness
+promise does not become pending again, so disconnect observers should call
+`ready()` after receiving the disconnect event.
+
+`shouldRetry(error, { attempt, isReconnect })` classifies factory or handshake
+failures. Returning `false`, or exhausting a finite `retrySchedule`, permanently
+stops that transport and rejects its current readiness promise. Future `post()`
+calls fail with the terminal error. By default, failures remain retryable under the
+configured schedule.
+
+`onReconnect` fires only after a replacement inner transport reaches readiness and
+queued messages are flushed. `Connection` listens for that signal and re-issues
+active `attach` requests; replicas refresh their snapshots after reattach.
 `close()` stops the retry loop, closes the current inner
 transport if present, and clears queued messages and listeners.
 
