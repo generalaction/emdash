@@ -10,9 +10,9 @@ import {
   type WorkbenchNavigationState,
 } from '@core/features/workbench/contributions/mementos';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
+import type { JsonObject } from '@core/primitives/json/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { Resolution } from '@core/primitives/navigation/api';
-import type { JsonObject } from '@core/primitives/views/api';
 import { NavigationHistoryStore } from './navigation-history-store';
 
 const runtimeResolvers = vi.hoisted(() => new Map<string, (params: JsonObject) => Resolution>());

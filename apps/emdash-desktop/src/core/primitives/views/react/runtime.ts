@@ -1,8 +1,9 @@
 import type { z } from 'zod';
+import type { JsonObject } from '@core/primitives/json/api';
 import type { LayoutDef } from '@core/primitives/layouts/api';
 import type { SlotFills } from '@core/primitives/layouts/react';
 import type { Resolution } from '@core/primitives/navigation/api';
-import type { JsonObject, ViewParams } from '@core/primitives/views/api';
+import type { ViewParams } from '@core/primitives/views/api';
 
 export interface RuntimeViewDef {
   readonly id: string;

@@ -1,5 +1,5 @@
+import type { JsonObject } from '@core/primitives/json/api';
 import type { ViewRef } from './define-view';
-import type { JsonObject } from './json';
 
 export interface ViewCatalogEntry {
   readonly id: string;

@@ -1,7 +1,8 @@
 import type { z } from 'zod';
+import { deepFreeze, type JsonObject, type JsonValue } from '@core/primitives/json/api';
 import type { LayoutDef } from '@core/primitives/layouts/api';
 import type { Subject } from '@core/primitives/subjects/api';
-import type { JsonObject, JsonValue } from './json';
+import type { ViewScopeRef } from '@core/primitives/view-scopes/api';
 
 declare const viewRefBrand: unique symbol;
 
@@ -11,20 +12,6 @@ export type RefArgs<TSchema extends z.ZodType<JsonObject>> =
   Record<string, never> extends z.input<TSchema>
     ? [params?: z.input<TSchema>]
     : [params: z.input<TSchema>];
-
-function deepFreeze<T extends JsonValue>(value: T): T {
-  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
-    return value;
-  }
-
-  Object.freeze(value);
-  for (const nested of Object.values(value)) {
-    if (nested !== undefined) {
-      deepFreeze(nested);
-    }
-  }
-  return value;
-}
 
 export interface ViewRef<TId extends string = string, TParams extends JsonObject = JsonObject> {
   readonly viewId: TId;
@@ -53,6 +40,7 @@ export interface ViewDef<
   readonly telemetryEvent: TTelemetryEvent | undefined;
   readonly historyKey: (params: z.output<TParamsSchema>) => string;
   readonly subject: ((params: z.output<TParamsSchema>) => Subject) | undefined;
+  readonly scope: ((params: z.output<TParamsSchema>) => ViewScopeRef) | undefined;
   readonly location: LocationContract<TLocationSchema> | undefined;
   safeRef(params: unknown): ViewRef<TId, z.output<TParamsSchema>> | undefined;
 }
@@ -71,6 +59,7 @@ export interface DefineViewOptions<
   readonly telemetryEvent?: TTelemetryEvent;
   readonly historyKey?: (params: z.output<TParamsSchema>) => string;
   readonly subject?: (params: z.output<TParamsSchema>) => Subject;
+  readonly scope?: (params: z.output<TParamsSchema>) => ViewScopeRef;
   readonly location?: LocationContract<TLocationSchema>;
 }
 
@@ -111,6 +100,7 @@ export function defineView<
       telemetryEvent: options.telemetryEvent,
       historyKey,
       subject: options.subject,
+      scope: options.scope,
       location: options.location,
       safeRef: (input: unknown) => {
         const parsed = options.params.safeParse(input === undefined ? {} : input);

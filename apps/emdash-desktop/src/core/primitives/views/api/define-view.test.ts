@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import { defineLayout, slot } from '@core/primitives/layouts/api';
+import { defineViewScope } from '@core/primitives/view-scopes/api';
 import { defineView, type ViewLocation, type ViewParams } from './define-view';
 
 const layout = defineLayout({
@@ -94,6 +95,27 @@ describe('defineView', () => {
 
     expect(view({ taskId: 'task-1' }).key).toBe('task:task-1');
     expect(view({ taskId: 'task-2' }).key).toBe('task:task-2');
+  });
+
+  it('preserves a scope projection typed against view params', () => {
+    const taskScope = defineViewScope({
+      id: 'view.task',
+      params: z.object({ taskId: z.string() }),
+      commands: [],
+      activation: 'logical',
+      key: ({ taskId }) => taskId,
+    });
+    const view = defineView({
+      id: 'task',
+      params: z.object({ projectId: z.string(), taskId: z.string() }),
+      layout,
+      scope: ({ taskId }) => taskScope({ taskId }),
+    });
+
+    expect(view.scope?.({ projectId: 'project-1', taskId: 'task-1' })).toMatchObject({
+      scopeId: 'view.task',
+      params: { taskId: 'task-1' },
+    });
   });
 
   it('safely rehydrates valid params and strips unknown keys', () => {

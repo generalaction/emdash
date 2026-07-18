@@ -8,6 +8,7 @@ import {
 } from '@core/features/workbench/contributions/mementos';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { viewCatalog, type ViewId } from '@core/manifests/view-catalog';
+import type { JsonObject, JsonValue } from '@core/primitives/json/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type {
   HistoryEntry,
@@ -16,7 +17,7 @@ import type {
   Resolution,
 } from '@core/primitives/navigation/api';
 import type { Subject } from '@core/primitives/subjects/api';
-import type { JsonObject, JsonValue, ViewRef } from '@core/primitives/views/api';
+import type { ViewRef } from '@core/primitives/views/api';
 import { getViewRuntime, type RuntimeViewDef } from '@core/primitives/views/react';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';

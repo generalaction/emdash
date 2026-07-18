@@ -3,8 +3,9 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
+import type { JsonValue } from '@core/primitives/json/api';
 import type { HistoryEntry } from '@core/primitives/navigation/api';
-import type { JsonValue, ViewRef } from '@core/primitives/views/api';
+import type { ViewRef } from '@core/primitives/views/api';
 import { NavigationHistoryStore } from './navigation-history-store';
 
 function entry(ref: ViewRef, location?: JsonValue, key = ref.key): HistoryEntry {

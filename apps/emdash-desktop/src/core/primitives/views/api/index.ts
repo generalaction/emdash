@@ -10,4 +10,3 @@ export {
   type ViewTrait,
 } from './define-view';
 export { defineViewCatalog, type ViewCatalog, type ViewCatalogEntry } from './catalog';
-export type { JsonObject, JsonPrimitive, JsonValue } from './json';

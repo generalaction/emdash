@@ -1,5 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
-import type { JsonValue, ViewRef } from '@core/primitives/views/api';
+import type { JsonValue } from '@core/primitives/json/api';
+import type { ViewRef } from '@core/primitives/views/api';
 
 export interface HistoryEntry {
   readonly ref: ViewRef;

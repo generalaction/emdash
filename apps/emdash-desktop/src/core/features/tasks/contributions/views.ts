@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { workbenchLayout } from '@core/primitives/layouts/api';
 import { defineView } from '@core/primitives/views/api';
+import { taskViewScope } from './scopes';
 import { taskSubject } from './subject';
 
 export const taskViewLocationSchema = z.object({
@@ -16,6 +17,7 @@ export const taskViewDef = defineView({
   layout: workbenchLayout,
   historyKey: ({ taskId }) => taskId,
   subject: ({ taskId }) => taskSubject({ taskId }),
+  scope: ({ projectId, taskId }) => taskViewScope({ projectId, taskId }),
   location: {
     schema: taskViewLocationSchema,
     key: ({ tabId }) => tabId,
