@@ -7,6 +7,12 @@ import { vars } from '@styles/theme.css';
 export const executeBody = style({
   position: 'relative',
   boxSizing: 'content-box',
+  scrollbarWidth: 'thin',
+});
+
+globalStyle(`${executeBody}::-webkit-scrollbar`, {
+  width: 'var(--execute-scrollbar-size)',
+  height: 'var(--execute-scrollbar-size)',
 });
 
 // ── Line ──────────────────────────────────────────────────────────────────────

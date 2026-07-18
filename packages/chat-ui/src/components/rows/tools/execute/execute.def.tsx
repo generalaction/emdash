@@ -18,6 +18,8 @@ export type ExecuteVars = {
   border: number;
   /** Horizontal padding on each command line. */
   linePadX: number;
+  /** Width and height of the thin native scrollbar. */
+  scrollbarSize: number;
   /** Visual separation between command text and the horizontal scrollbar. */
   scrollbarGap: number;
   /** Max lines shown in the collapsed (preview) state. */
@@ -30,30 +32,11 @@ const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
   linePadX: 12,
+  scrollbarSize: 8,
   scrollbarGap: 3,
   collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
-
-type ScrollbarSize = { width: number; height: number };
-
-let cachedScrollbarSize: ScrollbarSize | undefined;
-
-function scrollbarSize(): ScrollbarSize {
-  if (cachedScrollbarSize) return cachedScrollbarSize;
-  if (typeof document === 'undefined') return { width: 0, height: 0 };
-
-  const probe = document.createElement('div');
-  probe.style.cssText =
-    'position:absolute;width:100px;height:100px;overflow:scroll;visibility:hidden;pointer-events:none;';
-  (document.body ?? document.documentElement).appendChild(probe);
-  cachedScrollbarSize = {
-    width: probe.offsetWidth - probe.clientWidth,
-    height: probe.offsetHeight - probe.clientHeight,
-  };
-  probe.remove();
-  return cachedScrollbarSize;
-}
 
 /** 3 borders: top card edge + header-separator + bottom card edge. */
 function chromeY(vars: ExecuteVars): number {
@@ -119,12 +102,11 @@ function scrollbarSpace(
   lines: ExecuteDisplayLine[],
   ctx: MeasureCtx,
   vars: ExecuteVars,
-  scrollbar: ScrollbarSize,
   hasVerticalOverflow: boolean
 ): number {
-  const verticalScrollbarW = hasVerticalOverflow ? scrollbar.width : 0;
+  const verticalScrollbarW = hasVerticalOverflow ? vars.scrollbarSize : 0;
   return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW)
-    ? vars.scrollbarGap + scrollbar.height
+    ? vars.scrollbarGap + vars.scrollbarSize
     : 0;
 }
 
@@ -137,14 +119,8 @@ function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): nu
     isExpanded,
     vars
   );
-  const scrollbar = scrollbarSize();
   const hasVerticalOverflow = isExpanded && contentH > bodyH;
-  return (
-    vars.rowH +
-    bodyH +
-    scrollbarSpace(lines, ctx, vars, scrollbar, hasVerticalOverflow) +
-    chromeY(vars)
-  );
+  return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, hasVerticalOverflow) + chromeY(vars);
 }
 
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
@@ -163,7 +139,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
     const ctx = mCtx();
     const geometry = bodyGeometry();
     const hasVerticalOverflow = isExpanded() && geometry.contentH > geometry.bodyH;
-    const verticalScrollbarW = hasVerticalOverflow ? scrollbarSize().width : 0;
+    const verticalScrollbarW = hasVerticalOverflow ? props.vars.scrollbarSize : 0;
     return ctx ? hasHorizontalOverflow(lines(), ctx, props.vars, verticalScrollbarW) : false;
   });
 
@@ -195,7 +171,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
           contentH={bodyGeometry().contentH}
           codeLineH={codeLineH()}
           linePadX={props.vars.linePadX}
-          scrollbarH={showScrollbar() ? scrollbarSize().height : 0}
+          scrollbarH={showScrollbar() ? props.vars.scrollbarSize : 0}
           scrollbarGap={showScrollbar() ? props.vars.scrollbarGap : 0}
           expanded={isExpanded()}
         />
@@ -215,9 +191,7 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
     // Approximate code line height — use a fixed fallback of 20px for estimate.
     const approxLineH = 20;
     const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
-    return (
-      vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, scrollbarSize(), false) + chromeY(vars)
-    );
+    return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, false) + chromeY(vars);
   },
 
   measure(item, ctx, vars): number {
