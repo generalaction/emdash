@@ -48,7 +48,7 @@ export function PageSidebarMenu<T extends string>({
             >
               <span className="text-left">{item.label}</span>
               {item.badge && (
-                <span className="ml-auto text-xs tabular-nums text-foreground-passive">
+                <span className="ml-auto text-xs text-foreground-passive tabular-nums">
                   {item.badge}
                 </span>
               )}
