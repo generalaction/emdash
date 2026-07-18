@@ -88,9 +88,8 @@ export function ExecuteBody(props: ExecuteBodyProps) {
       style={{
         height: `${props.bodyH}px`,
         'padding-bottom': `${props.scrollbarH + props.scrollbarGap}px`,
-        '--execute-scrollbar-height': `${props.scrollbarH}px`,
         'overflow-x': 'auto',
-        'overflow-y': props.expanded ? 'auto' : 'hidden',
+        'overflow-y': props.expanded && overflows() ? 'auto' : 'hidden',
       }}
     >
       <Show when={!props.expanded && overflows()}>

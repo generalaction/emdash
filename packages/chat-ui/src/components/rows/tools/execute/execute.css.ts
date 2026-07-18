@@ -9,10 +9,6 @@ export const executeBody = style({
   boxSizing: 'content-box',
 });
 
-globalStyle(`${executeBody}::-webkit-scrollbar`, {
-  height: 'var(--execute-scrollbar-height)',
-});
-
 // ── Line ──────────────────────────────────────────────────────────────────────
 
 export const executeLine = style({
