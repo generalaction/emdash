@@ -5,7 +5,10 @@ import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  getTaskManagerStore,
+  taskAgentStatus,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import {
   getEffectiveHotkey,
@@ -17,11 +20,63 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
+import type { ProjectTaskSortBy } from '@shared/view-state';
 import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
+
+const SORT_OPTIONS: { value: ProjectTaskSortBy; label: string }[] = [
+  { value: 'updated-at', label: 'Last used' },
+  { value: 'created-at', label: 'Created at' },
+  { value: 'pr-status', label: 'PR status' },
+  { value: 'unread', label: 'Unread first' },
+];
+
+function latestInstant(task: ReadyTask) {
+  return task.data.lastInteractedAt ?? task.data.updatedAt;
+}
+
+function prStatusRank(task: ReadyTask) {
+  const pr = selectCurrentPr(task.data.prs);
+  if (!pr) return 4;
+  if (pr.status === 'merged') return 0;
+  if (pr.status === 'open' && !pr.isDraft) return 1;
+  if (pr.status === 'closed') return 2;
+  return 3;
+}
+
+function isUnread(task: ReadyTask) {
+  const status = taskAgentStatus(task);
+  return status === 'awaiting-input' || status === 'error' || status === 'completed';
+}
+
+function sortTasks(tasks: ReadyTask[], sortBy: ProjectTaskSortBy) {
+  return [...tasks].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'created-at') {
+      comparison = b.data.createdAt.localeCompare(a.data.createdAt);
+    } else if (sortBy === 'pr-status') {
+      comparison = prStatusRank(a) - prStatusRank(b);
+    } else if (sortBy === 'unread') {
+      comparison = Number(isUnread(b)) - Number(isUnread(a));
+    }
+
+    if (comparison !== 0) return comparison;
+
+    const latestComparison = latestInstant(b).localeCompare(latestInstant(a));
+    return latestComparison || a.data.id.localeCompare(b.data.id);
+  });
+}
 
 function TaskVirtualList({
   tasks,
@@ -205,7 +260,10 @@ export const TaskList = observer(function TaskList() {
 
   if (!taskView) return null;
 
-  const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
+  const displayTasks = sortTasks(
+    taskView.tab === 'active' ? activeTasks : archivedTasks,
+    taskView.sortBy
+  );
   const q = taskView.searchQuery.trim().toLowerCase();
   const filteredTasks = q
     ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
@@ -236,6 +294,29 @@ export const TaskList = observer(function TaskList() {
               Create Task <BoundShortcut settingsKey="newTask" variant="keycaps" />
             </Button>
           </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-foreground-passive">Sort</span>
+          <Select
+            value={taskView.sortBy}
+            onValueChange={(value) => taskView.setSortBy(value as ProjectTaskSortBy)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
+            >
+              <SelectValue>
+                {SORT_OPTIONS.find(({ value }) => value === taskView.sortBy)?.label}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start" alignItemWithTrigger={false}>
+              {SORT_OPTIONS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
