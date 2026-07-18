@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
+  execFile: vi.fn(),
+  dbLimit: vi.fn(),
+  dbSelect: vi.fn(),
   getVersion: vi.fn(() => '1.1.27'),
   openExternal: vi.fn(),
   openPath: vi.fn(),
@@ -19,6 +22,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:child_process', () => ({
   exec: mocks.exec,
+  execFile: mocks.execFile,
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -48,7 +56,9 @@ vi.mock('@main/app/window', () => ({
 }));
 
 vi.mock('@main/db/client', () => ({
-  db: {},
+  db: {
+    select: mocks.dbSelect,
+  },
 }));
 
 vi.mock('@main/db/schema', () => ({
@@ -88,6 +98,19 @@ describe('AppService.openIn', () => {
     vi.clearAllMocks();
     setPlatform('win32');
     mocks.openPath.mockResolvedValue('');
+    mocks.openExternal.mockResolvedValue(undefined);
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: object, callback: (error: Error | null) => void) =>
+        callback(null)
+    );
+    mocks.dbLimit.mockResolvedValue([
+      { id: 'connection-1', host: 'example.com', username: 'alice', port: 22 },
+    ]);
+    mocks.dbSelect.mockReturnValue({
+      from: () => ({
+        where: () => ({ limit: mocks.dbLimit }),
+      }),
+    });
     mocks.exec.mockImplementation(
       (_command: string, _options: object, callback: (error: Error | null) => void) => {
         callback(null);
@@ -117,6 +140,80 @@ describe('AppService.openIn', () => {
     );
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
+  });
+
+  it('opens remote VS Code workspaces in a new window via the macOS bundle', async () => {
+    setPlatform('darwin');
+
+    await appService.openIn({
+      app: 'vscode',
+      path: '/repo with space',
+      isRemote: true,
+      sshConnectionId: 'connection-1',
+    });
+
+    expect(mocks.execFile).toHaveBeenCalledTimes(1);
+    expect(mocks.execFile.mock.calls[0]?.slice(0, 2)).toEqual([
+      'open',
+      [
+        '-n',
+        '-b',
+        'com.microsoft.VSCode',
+        '--args',
+        '--new-window',
+        '--remote',
+        'ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d',
+        '/repo with space',
+      ],
+    ]);
+    expect(mocks.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the registered VS Code URI when command launchers are unavailable', async () => {
+    setPlatform('darwin');
+    mocks.execFile.mockImplementation(
+      (_file: string, _args: string[], _options: object, callback: (error: Error | null) => void) =>
+        callback(new Error('not installed'))
+    );
+
+    await appService.openIn({
+      app: 'vscode',
+      path: '/repo',
+      isRemote: true,
+      sshConnectionId: 'connection-1',
+    });
+
+    const vscodeArgs = [
+      '--new-window',
+      '--remote',
+      'ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d',
+      '/repo',
+    ];
+    expect(mocks.execFile.mock.calls.map(([file, args]) => [file, args])).toEqual([
+      ['open', ['-n', '-b', 'com.microsoft.VSCode', '--args', ...vscodeArgs]],
+      ['open', ['-n', '-b', 'com.microsoft.VSCodeInsiders', '--args', ...vscodeArgs]],
+      ['open', ['-n', '-a', 'Visual Studio Code', '--args', ...vscodeArgs]],
+      ['open', ['-n', '-a', 'Visual Studio Code - Insiders', '--args', ...vscodeArgs]],
+    ]);
+    expect(mocks.openExternal).toHaveBeenCalledWith(
+      'vscode://vscode-remote/ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d/repo'
+    );
+  });
+
+  it('keeps other remote editor launches on their registered URI', async () => {
+    setPlatform('darwin');
+
+    await appService.openIn({
+      app: 'vscodium',
+      path: '/repo',
+      isRemote: true,
+      sshConnectionId: 'connection-1',
+    });
+
+    expect(mocks.execFile).not.toHaveBeenCalled();
+    expect(mocks.openExternal).toHaveBeenCalledWith(
+      'vscodium://vscode-remote/ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d/repo'
+    );
   });
 });
 

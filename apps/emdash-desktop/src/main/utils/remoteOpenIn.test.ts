@@ -3,6 +3,7 @@ import {
   buildRemoteEditorUrl,
   buildRemoteSshAuthority,
   buildRemoteTerminalExecArgs,
+  buildRemoteVsCodeCliArgs,
 } from './remoteOpenIn';
 
 describe('remoteOpenIn', () => {
@@ -41,6 +42,17 @@ describe('remoteOpenIn', () => {
       expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo with space/#1')).toBe(
         'zed://ssh/dev@localhost/repo%20with%20space/%231'
       );
+    });
+  });
+
+  describe('buildRemoteVsCodeCliArgs', () => {
+    it('requests a new window for the selected remote SSH workspace', () => {
+      expect(buildRemoteVsCodeCliArgs('example.com', 'alice', '/repo with space')).toEqual([
+        '--new-window',
+        '--remote',
+        'ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d',
+        '/repo with space',
+      ]);
     });
   });
 

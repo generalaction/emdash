@@ -51,6 +51,21 @@ function buildVsCodeRemoteAuthority(host: string, username: string): string {
   ).toString('hex');
 }
 
+/**
+ * Builds VS Code argv tokens for a remote SSH workspace.
+ *
+ * Callers pass these tokens through execFile (shell disabled), so the remote path stays an
+ * individual argument and does not require shell quoting.
+ */
+export function buildRemoteVsCodeCliArgs(
+  host: string,
+  username: string,
+  targetPath: string
+): string[] {
+  const remoteAuthority = `ssh-remote+${buildVsCodeRemoteAuthority(host, username)}`;
+  return ['--new-window', '--remote', remoteAuthority, targetPath];
+}
+
 export function buildRemoteEditorUrl(
   scheme: RemoteEditorScheme,
   host: string,
