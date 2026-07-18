@@ -118,11 +118,16 @@ export function QueuedPromptsBand({
               <button
                 type="button"
                 className={cx(styles.promptText, !prompt.text.trim() && styles.emptyText)}
-                onClick={() => {
-                  if (!isEditing) onStartEdit(prompt.id);
-                }}
+                onClick={() => onStartEdit(prompt.id)}
+                disabled={!!editingPromptId}
                 aria-label={`Edit queued prompt ${index + 1}`}
-                title={isEditing ? 'Editing in composer' : 'Edit queued prompt'}
+                title={
+                  isEditing
+                    ? 'Editing in composer'
+                    : editingPromptId
+                      ? 'Finish editing the current prompt first'
+                      : 'Edit queued prompt'
+                }
               >
                 {prompt.text.trim() || 'Image-only prompt'}
               </button>
@@ -134,8 +139,13 @@ export function QueuedPromptsBand({
                     variant="ghost"
                     size="sm"
                     icon
+                    disabled={!!editingPromptId}
                     aria-label={`Edit queued prompt ${index + 1}`}
-                    title="Edit queued prompt"
+                    title={
+                      editingPromptId
+                        ? 'Finish editing the current prompt first'
+                        : 'Edit queued prompt'
+                    }
                     onClick={(event) => {
                       event.stopPropagation();
                       onStartEdit(prompt.id);

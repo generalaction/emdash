@@ -582,11 +582,10 @@ export function ChatComposer({
   }, []);
 
   const beginQueuedPromptEdit = (id: string) => {
+    if (editingQueuedPromptIdRef.current) return;
     const prompt = queuedPrompts.find((item) => item.id === id);
     if (!prompt) return;
-    if (!editingQueuedPromptIdRef.current) {
-      stashedDraftRef.current = editorRef.current?.getText() ?? '';
-    }
+    stashedDraftRef.current = editorRef.current?.getText() ?? '';
     editingQueuedPromptIdRef.current = id;
     setEditingQueuedPromptId(id);
     editorRef.current?.setText(prompt.text);
@@ -595,7 +594,7 @@ export function ChatComposer({
 
   const saveQueuedPromptEdit = (text: string) => {
     const id = editingQueuedPromptIdRef.current;
-    if (!id || !text.trim() || !onEditQueuedPrompt) return;
+    if (!id || !onEditQueuedPrompt) return;
     onEditQueuedPrompt(id, text);
     restoreStashedDraft();
   };
@@ -865,6 +864,7 @@ export function ChatComposer({
               if (!editingQueuedPromptIdRef.current) onInputChange?.(text);
             }}
             onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
+            onCancel={editingQueuedPromptId ? restoreStashedDraft : undefined}
             onMentionInsert={onMentionInsert}
             mentionProvider={mentionProvider}
             renderMentionIcon={renderMentionIcon}
@@ -1052,18 +1052,31 @@ export function ChatComposer({
 
             {showSubmitButton ? (
               editingQueuedPromptId ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon
-                  className={styles.sendButtonRound}
-                  onClick={() => saveQueuedPromptEdit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled}
-                  aria-label="Save queued prompt"
-                  title="Save queued prompt"
-                >
-                  <Check />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon
+                    onClick={restoreStashedDraft}
+                    disabled={disabled}
+                    aria-label="Cancel queued prompt edit"
+                    title="Cancel queued prompt edit"
+                  >
+                    <X />
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon
+                    className={styles.sendButtonRound}
+                    onClick={() => saveQueuedPromptEdit(editorRef.current?.getText() ?? '')}
+                    disabled={disabled}
+                    aria-label="Save queued prompt"
+                    title="Save queued prompt"
+                  >
+                    <Check />
+                  </Button>
+                </>
               ) : isWorking ? (
                 <Button
                   variant="primary"

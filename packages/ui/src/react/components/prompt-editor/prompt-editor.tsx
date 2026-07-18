@@ -173,6 +173,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     disabled = false,
     onChange,
     onSubmit,
+    onCancel,
     onMentionInsert,
     mentionProvider,
     renderMentionIcon,
@@ -186,6 +187,8 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   // Stable refs so callbacks inside TipTap extensions always see current values.
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   const onMentionInsertRef = useRef(onMentionInsert);
   onMentionInsertRef.current = onMentionInsert;
   const onCommandRef = useRef(onCommand);
@@ -216,10 +219,15 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     const ed = editorRef.current;
     if (!ed) return;
     const text = serializeDoc(ed.state.doc);
-    if (!text.trim()) return;
     if (!onSubmitRef.current) return;
     ed.commands.clearContent(true);
     onSubmitRef.current(text);
+  }, []);
+
+  const handleCancelFromKeymap = useCallback(() => {
+    if (!onCancelRef.current) return false;
+    onCancelRef.current();
+    return true;
   }, []);
 
   const mentionExtension = buildMentionExtension(
@@ -268,7 +276,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     }
   );
 
-  const submitKeymap = buildSubmitKeymap(handleSubmitFromKeymap);
+  const submitKeymap = buildSubmitKeymap(handleSubmitFromKeymap, handleCancelFromKeymap);
 
   const editor = useEditor({
     extensions: [
