@@ -1,7 +1,5 @@
 import crypto from 'node:crypto';
 import net from 'node:net';
-import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { workspaceJobError } from '@emdash/core/runtimes/workspace/node';
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
 import {
   negotiateProtocol,
@@ -9,29 +7,21 @@ import {
   workspaceWireContract,
 } from '@emdash/core/workspace-server';
 import { err, ok } from '@emdash/shared';
-import {
-  createController,
-  type ContractImpl,
-  type LiveModelDef,
-  type LiveModelProvider,
-} from '@emdash/wire';
+import { createController, forwardContractImpl, type ContractImpl } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import type { WorkspaceAcpRuntimeClient } from '../acp/host';
+import type { WorkspaceServerRuntimeClients } from '../runtime/host';
 
 export type WorkspaceWireControllerDeps = {
+  runtimes: WorkspaceServerRuntimeClients;
+  hostDependencies: ContractClient<HostDependenciesContract>;
   appVersion?: string;
   daemonId?: string;
   startedAt?: number;
-  acp?: WorkspaceAcpRuntimeClient;
-  hostDependencies?: ContractClient<HostDependenciesContract>;
-  workspace?: ContractClient<WorkspaceContract>;
 };
 
 const defaultStartedAt = Date.now();
 const defaultDaemonId = crypto.randomUUID();
-const notImplementedMessage = 'Workspace domain is not implemented yet.';
-
-export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps = {}) {
+export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps) {
   const appVersion = deps.appVersion ?? '0.0.0';
   const daemonId = deps.daemonId ?? defaultDaemonId;
   const startedAt = deps.startedAt ?? defaultStartedAt;
@@ -64,291 +54,21 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps 
         },
       });
     },
-    git: {
-      inspectPath: ({ path }) => ({
-        kind: 'inspect-failed' as const,
-        path,
-        message: notImplementedMessage,
-      }),
-      ensureRepository: ({ path }) =>
-        err({ type: 'inspect-failed' as const, path, message: notImplementedMessage }),
-      cloneRepository: unavailableGitJob(),
-      repository: {
-        model: unavailableLiveModel(workspaceWireContract.git.repository.model),
-        listWorktrees: unavailableGitResult,
-        getDefaultBranch: unavailableGitResult,
-        readBlobAtRef: unavailableGitResult,
-        fetch: unavailableGitJob(),
-        publishBranch: unavailableGitJob(),
-        fetchPrForReview: unavailableGitJob(),
-      },
-      checkout: {
-        model: unavailableLiveModel(workspaceWireContract.git.checkout.model),
-        content: unavailableLiveModel(workspaceWireContract.git.checkout.content),
-        fileDiff: unavailableLiveModel(workspaceWireContract.git.checkout.fileDiff),
-        getFileDiff: unavailableGitResult,
-        getChangedFiles: unavailableGitResult,
-        getConflictVersions: unavailableGitResult,
-        getFileAtRef: unavailableGitResult,
-        getFileAtIndex: unavailableGitResult,
-        getImageAtRef: unavailableGitResult,
-        getImageAtIndex: unavailableGitResult,
-        getLog: unavailableGitResult,
-        getCommit: unavailableGitResult,
-        getCommitFiles: unavailableGitResult,
-        blame: unavailableGitResult,
-        push: unavailableGitJob(),
-        pull: unavailableGitJob(),
-        sync: unavailableGitJob(),
-      },
-    },
-    files: {
-      fs: {
-        glob: {
-          run: async (input) =>
-            err({ type: 'io' as const, path: input.options.cwd, message: notImplementedMessage }),
-        },
-        enumerate: {
-          run: async (input) =>
-            err({ type: 'io' as const, path: input.relative, message: notImplementedMessage }),
-        },
-      },
-      tree: {
-        model: unavailableLiveModel(workspaceWireContract.files.tree.model),
-      },
-      content: unavailableLiveModel(workspaceWireContract.files.content),
-    },
-    agentConfig: unavailableAgentConfig(),
-    tuiAgents: unavailableTuiAgents(),
-    acp: deps.acp ? createAcpProxy(deps.acp) : unavailableAcp(),
-    hostDependencies: deps.hostDependencies
-      ? createHostDependenciesProxy(deps.hostDependencies)
-      : unavailableHostDependencies(),
-    workspace: deps.workspace ? createWorkspaceProxy(deps.workspace) : unavailableWorkspace(),
+    acp: forwardContractImpl(workspaceWireContract.acp, deps.runtimes.acp),
+    agentConfig: forwardContractImpl(workspaceWireContract.agentConfig, deps.runtimes.agentConfig),
+    automations: forwardContractImpl(workspaceWireContract.automations, deps.runtimes.automations),
+    fileSearch: forwardContractImpl(workspaceWireContract.fileSearch, deps.runtimes.fileSearch),
+    files: forwardContractImpl(workspaceWireContract.files, deps.runtimes.files),
+    git: forwardContractImpl(workspaceWireContract.git, deps.runtimes.git),
+    terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
+    tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
+    workspace: forwardContractImpl(workspaceWireContract.workspace, deps.runtimes.workspace),
+    hostDependencies: forwardContractImpl(
+      workspaceWireContract.hostDependencies,
+      deps.hostDependencies
+    ),
     portForwards: createPortForwardsController(),
   });
-}
-
-const unavailableGitResult = () =>
-  err({ type: 'git_error' as const, message: notImplementedMessage });
-
-function unavailableGitJob() {
-  return {
-    run: async () => unavailableGitResult(),
-    toError: () => ({ type: 'git_error' as const, message: notImplementedMessage }),
-  };
-}
-
-function unavailableLiveModel<Group extends LiveModelDef>(
-  contract: Group
-): LiveModelProvider<Group> {
-  return {
-    kind: 'liveModelProvider',
-    contract,
-    resolveState: () => null,
-    async runMutation() {
-      throw new Error(notImplementedMessage);
-    },
-  };
-}
-
-function createAcpProxy(
-  client: WorkspaceAcpRuntimeClient
-): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
-  return {
-    startSession: (input, meta) => client.startSession(input, meta),
-    resumeSession: (input, meta) => client.resumeSession(input, meta),
-    stopSession: (input, meta) => client.stopSession(input, meta),
-    sendPrompt: (input, meta) => client.sendPrompt(input, meta),
-    queuePrompt: (input, meta) => client.queuePrompt(input, meta),
-    editQueuedPrompt: (input, meta) => client.editQueuedPrompt(input, meta),
-    deleteQueuedPrompt: (input, meta) => client.deleteQueuedPrompt(input, meta),
-    changeQueuePromptOrder: (input, meta) => client.changeQueuePromptOrder(input, meta),
-    cancelTurn: (input, meta) => client.cancelTurn(input, meta),
-    setModelOption: (input, meta) => client.setModelOption(input, meta),
-    setModeOption: (input, meta) => client.setModeOption(input, meta),
-    resolvePermission: (input, meta) => client.resolvePermission(input, meta),
-    setPromptDraft: (input, meta) => client.setPromptDraft(input, meta),
-    exportACPTranscript: (input, meta) => client.exportACPTranscript(input, meta),
-    exportRawAcpLog: (input, meta) => client.exportRawAcpLog(input, meta),
-    uploadAttachment: (input, file, meta) => client.uploadAttachment(input, file, meta),
-    downloadAttachment: async (input, meta) => {
-      const result = await client.downloadAttachment(input, meta);
-      if (!result.success) return result;
-      return ok({ meta: result.data.meta, source: result.data.chunks() });
-    },
-    deleteAttachment: (input, meta) => client.deleteAttachment(input, meta),
-    getHistory: (input, meta) => client.getHistory(input, meta),
-    sessions: client.sessions,
-    session: client.session,
-    terminalOutput: client.terminalOutput,
-  };
-}
-
-function unavailableTuiAgents(): NonNullable<
-  ContractImpl<typeof workspaceWireContract>['tuiAgents']
-> {
-  const unavailable = () =>
-    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
-
-  return {
-    startSession: unavailable,
-    resumeSession: unavailable,
-    stopSession: unavailable,
-    deleteSession: unavailable,
-    sendInput: unavailable,
-    resize: unavailable,
-    output: () => null,
-    sessions: unavailableLiveModel(workspaceWireContract.tuiAgents.sessions),
-    agentStates: unavailableLiveModel(workspaceWireContract.tuiAgents.agentStates),
-  };
-}
-
-function unavailableAgentConfig(): NonNullable<
-  ContractImpl<typeof workspaceWireContract>['agentConfig']
-> {
-  const unavailable = () =>
-    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
-  return {
-    agents: unavailableLiveModel(workspaceWireContract.agentConfig.agents),
-    refreshAgents: unavailable,
-    startLogin: unavailable,
-    cancelLogin: unavailable,
-    sendLoginInput: unavailable,
-    resizeLogin: unavailable,
-    markUrlHandled: unavailable,
-    refreshAuthStatus: unavailable,
-    loginOutput: () => null,
-    mcpServers: unavailableLiveModel(workspaceWireContract.agentConfig.mcpServers),
-    saveMcpServer: unavailable,
-    removeMcpServer: unavailable,
-    removeMcpForAgent: unavailable,
-    listMcpForAgent: unavailable,
-    skills: unavailableLiveModel(workspaceWireContract.agentConfig.skills),
-    installSkill: unavailable,
-    removeSkill: unavailable,
-    createSkill: unavailable,
-  };
-}
-
-function createHostDependenciesProxy(
-  client: ContractClient<HostDependenciesContract>
-): NonNullable<ContractImpl<typeof workspaceWireContract>['hostDependencies']> {
-  return {
-    resolver: {
-      resolve: (input, meta) => client.resolver.resolve(input, meta),
-    },
-    snapshot: client.snapshot,
-    runUpdateCommand: client.runUpdateCommand,
-  };
-}
-
-function unavailableHostDependencies(): NonNullable<
-  ContractImpl<typeof workspaceWireContract>['hostDependencies']
-> {
-  const unavailable = () => err({ type: 'io' as const, message: notImplementedMessage });
-  return {
-    resolver: {
-      resolve: unavailable,
-    },
-    snapshot: unavailableLiveModel(workspaceWireContract.hostDependencies.snapshot),
-    runUpdateCommand: {
-      run: async () => err({ type: 'io' as const, message: notImplementedMessage }),
-      toError: (error) => ({
-        type: 'command-failed' as const,
-        message: error instanceof Error ? error.message : String(error),
-        output: '',
-      }),
-    },
-  };
-}
-
-function unavailableAcp(): NonNullable<ContractImpl<typeof workspaceWireContract>['acp']> {
-  const unavailable = (): never => {
-    throw new Error('ACP runtime is not available.');
-  };
-  return {
-    startSession: unavailable,
-    resumeSession: unavailable,
-    stopSession: unavailable,
-    sendPrompt: unavailable,
-    queuePrompt: unavailable,
-    editQueuedPrompt: unavailable,
-    deleteQueuedPrompt: unavailable,
-    changeQueuePromptOrder: unavailable,
-    cancelTurn: unavailable,
-    setModelOption: unavailable,
-    setModeOption: unavailable,
-    resolvePermission: unavailable,
-    setPromptDraft: unavailable,
-    exportACPTranscript: unavailable,
-    exportRawAcpLog: unavailable,
-    uploadAttachment: unavailable,
-    downloadAttachment: unavailable,
-    deleteAttachment: unavailable,
-    getHistory: unavailable,
-    sessions: unavailableLiveModel(workspaceWireContract.acp.sessions),
-    session: unavailableLiveModel(workspaceWireContract.acp.session),
-    terminalOutput: () => null,
-  };
-}
-
-function createWorkspaceProxy(
-  client: ContractClient<WorkspaceContract>
-): NonNullable<ContractImpl<typeof workspaceWireContract>['workspace']> {
-  return {
-    workspace: client.workspace,
-    reconcile: (input, meta) => client.reconcile(input, meta),
-    measureUsage: (input, meta) => client.measureUsage(input, meta),
-    provision: client.provision,
-    convert: client.convert,
-    activate: client.activate,
-    deactivate: client.deactivate,
-    teardown: client.teardown,
-    cleanArtifacts: client.cleanArtifacts,
-  };
-}
-
-function unavailableWorkspace(): NonNullable<
-  ContractImpl<typeof workspaceWireContract>['workspace']
-> {
-  const unavailable = () =>
-    err({ type: 'runtime-unavailable' as const, message: notImplementedMessage });
-  return {
-    workspace: unavailableLiveModel(workspaceWireContract.workspace.workspace),
-    reconcile: unavailable,
-    measureUsage: unavailable,
-    provision: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    convert: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    activate: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    deactivate: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    teardown: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-    cleanArtifacts: {
-      run: async () =>
-        err({ type: 'runtime-unavailable' as const, message: notImplementedMessage }),
-      toError: workspaceJobError,
-    },
-  };
 }
 
 function createPortForwardsController(): NonNullable<

@@ -1,0 +1,33 @@
+import { basename, dirname, join } from 'node:path';
+import { daemonPaths } from '../daemon/paths';
+
+export type WorkspaceServerRuntimePaths = {
+  rootDirectory: string;
+  stateDirectory: string;
+  attachmentsDirectory: string;
+  acpIntentsFile: string;
+  tuiAgentsIntentsFile: string;
+  automationsDatabase: string;
+  fileSearchDatabase: string;
+  hostDependenciesStore: string;
+  worktreePoolDirectory: string;
+};
+
+export function workspaceServerRuntimePaths(socketPath?: string): WorkspaceServerRuntimePaths {
+  const socketDirectory = dirname(daemonPaths(socketPath).socketPath);
+  const rootDirectory =
+    basename(socketDirectory) === 'run' ? dirname(socketDirectory) : socketDirectory;
+  const stateDirectory = join(rootDirectory, 'state');
+
+  return {
+    rootDirectory,
+    stateDirectory,
+    attachmentsDirectory: join(stateDirectory, 'acp-attachments'),
+    acpIntentsFile: join(stateDirectory, 'acp-session-intents.json'),
+    tuiAgentsIntentsFile: join(stateDirectory, 'tui-agent-session-intents.json'),
+    automationsDatabase: join(stateDirectory, 'automations.db'),
+    fileSearchDatabase: join(stateDirectory, 'file-search.db'),
+    hostDependenciesStore: join(stateDirectory, 'host-dependencies.json'),
+    worktreePoolDirectory: join(stateDirectory, 'worktrees'),
+  };
+}

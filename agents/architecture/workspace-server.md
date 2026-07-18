@@ -4,19 +4,19 @@ The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a 
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
-The ACP domain is mounted under `workspaceWireContract.acp` and is served by a
-forked child process. The daemon parent forwards the ACP API contract to the child
-and receives ACP session ids through `startSession` / `resumeSession` return
-values. Runtime spawn context is resolved inside the child runtime and structured
-child logs are forwarded from stderr. This mount was added before any
-workspace-server contract deployment, so the initial addition intentionally does
-not bump `PROTOCOL_VERSION`; future deployed additions must follow the rules below.
+The daemon is the Electron-free equivalent of the desktop runtime host. Every core runtime is a
+required supervised child worker in both socket and stdio modes: ACP, agent config, automations,
+file search, files, Git, terminals, TUI agents, and workspace. The filesystem watcher is also a
+worker because it is the shared dependency for files, Git, file search, and workspace. Server
+startup fails if any required worker cannot become ready; there are no unavailable-domain fallback
+implementations in the aggregate controller.
 
-The TUI agents contract exposes runtime-owned sessions and agent-state LiveModels. Desktop-local
-TUI is currently hosted by the Electron app, while future workspace-server TUI hosting should run
-the same `tui-agents` runtime on the remote host so provider hooks post to that host-local runtime
-over loopback. Clients should treat any persisted desktop database values as a cache of the runtime
-state, not the source of truth.
+The parent mounts each complete runtime contract under `workspaceWireContract`. Aggregate
+forwarding rebinds live endpoint definitions to their namespaced contract ids while retaining the
+standalone worker client's upstream topic handles, and translates mutation cursor model ids to the
+same aggregate namespace. Runtime-owned persistence lives below the workspace-server state
+directory, including automation and file-search databases, session intents, ACP attachments, and
+the workspace worktree pool.
 
 Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
 The daemon parent owns one local `HostDependencies` component backed by a JSON-file
@@ -34,10 +34,11 @@ preview traffic.
 
 ## Protocol Version
 
-The wire contract is versioned with a single [semver](https://semver.org) string, defined in [`packages/core/src/workspace-server/versions.ts`](../../packages/core/src/workspace-server/versions.ts):
+The wire contract is versioned with a single [semver](https://semver.org) string, defined in
+[`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '3.3.0';
+export const PROTOCOL_VERSION = '4.1.0';
 ```
 
 ### What each component means
@@ -88,17 +89,21 @@ Zod strips unknown keys on `.parse()` by default. This is the correct behavior f
 
 ## Initialize Handshake
 
-Every client must call `initialize` as the first procedure on a new connection before using any other procedure. Because the daemon is independently lived, `initialize` must be re-called on every reconnect — the daemon may have changed versions between connections.
+Every client must call `initialize` before using a new connection for workspace operations. `health`
+is the only pre-initialization exception because daemon lifecycle probes use it to distinguish an
+absent daemon from an incompatible one. Because the daemon is independently lived, `initialize`
+must be re-called on every reconnect: the daemon may have changed versions between connections.
+
+The reconnecting desktop transport treats `connectOnce` as a readiness barrier. A candidate stream
+is not installed, queued messages are not flushed, and live topics are not reattached until the
+candidate's `initialize` call succeeds. A protocol incompatibility is permanent for that client
+version and stops the reconnect loop; ordinary I/O failures remain retryable.
 
 ### Request (client → server)
 
 ```ts
 {
   protocolVersion: string;  // the client's PROTOCOL_VERSION
-  client: {
-    id: string;             // 'emdash-desktop' | 'emdash-mobile' | ...
-    appVersion: string;     // the application's own version (for telemetry)
-  };
 }
 ```
 
@@ -117,12 +122,13 @@ Every client must call `initialize` as the first procedure on a new connection b
 }
 ```
 
-### Failure: PROTOCOL_INCOMPATIBLE
+### Failure: protocol-incompatible
 
-When majors differ the server throws a typed `PROTOCOL_INCOMPATIBLE` error:
+When majors differ, the fallible `initialize` procedure returns a typed error:
 
 ```ts
 {
+  code: 'protocol-incompatible';
   action: 'upgrade-client' | 'upgrade-server';
   clientProtocolVersion: string;
   serverProtocolVersion: string;
@@ -137,13 +143,13 @@ When majors differ the server throws a typed `PROTOCOL_INCOMPATIBLE` error:
 sequenceDiagram
   participant C as Client
   participant S as WorkspaceServer
-  C->>S: initialize { protocolVersion, client }
+  C->>S: initialize { protocolVersion }
   S->>S: negotiateProtocol(clientVersion, PROTOCOL_VERSION)
   alt same major
-    S-->>C: serverHello { agreedVersion, agreedMinor, server }
+    S-->>C: ok { agreedVersion, agreedMinor, server }
     Note over C: gate minor-guarded features on agreedMinor
   else differing major
-    S-->>C: error PROTOCOL_INCOMPATIBLE { action }
+    S-->>C: err protocol-incompatible { action }
     Note over C: show protocolUpgradeMessage(action) to user
   end
 ```
@@ -153,7 +159,7 @@ sequenceDiagram
 ```ts
 // Server introduces a new subscribe feature at protocol 1.1.0.
 // Clients with agreedMinor >= 1 may call it; others fall back to polling.
-const session = await connect(client, appVersion);
+const session = await connect(client);
 if (session.agreedMinor >= 1) {
   // use git.worktree.subscribe
 } else {
@@ -167,8 +173,9 @@ if (session.agreedMinor >= 1) {
 |------|------|
 | [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts) | `PROTOCOL_VERSION`, `negotiateProtocol`, `protocolUpgradeMessage` |
 | [`packages/core/src/workspace-server/wire/schemas.ts`](../../packages/core/src/workspace-server/wire/schemas.ts) | initialize/health schemas |
-| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | wire contract (`health`, `initialize`, `git`, `files`, `deps`, `tuiAgents`, `acp`, `portForwards`) |
+| [`packages/core/src/workspace-server/wire/contract.ts`](../../packages/core/src/workspace-server/wire/contract.ts) | aggregate control-plane and core-runtime wire contract |
 | [`packages/core/src/workspace-server/port-forwards/contract.ts`](../../packages/core/src/workspace-server/port-forwards/contract.ts) | daemon-local preview port inspection contract |
 | [`apps/workspace-server/src/api/controller.ts`](../../apps/workspace-server/src/api/controller.ts) | Server-side procedure and live-model handlers |
-| [`apps/workspace-server/src/acp/host.ts`](../../apps/workspace-server/src/acp/host.ts) | Parent-side ACP child process host and spawn-context resolution |
+| [`apps/workspace-server/src/runtime/host.ts`](../../apps/workspace-server/src/runtime/host.ts) | required worker graph, runtime configuration, and dependency composition |
+| [`apps/workspace-server/src/worker-manifest.json`](../../apps/workspace-server/src/worker-manifest.json) | packaged subprocess entry for every core runtime and FS watch |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |

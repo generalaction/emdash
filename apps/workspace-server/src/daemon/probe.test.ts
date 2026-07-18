@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createWorkspaceWireController } from '../api/controller';
+import { createTestWorkspaceWireController } from '../testing/controller';
 import { serveSocket, type SocketServeHandle } from '../wire/serve-socket';
 import { probeDaemon } from './probe';
 
@@ -15,9 +15,10 @@ afterEach(async () => {
 describe('probeDaemon', () => {
   it('returns daemon health for a running workspace socket', async () => {
     const socketPath = await tempSocketPath();
-    const handle = await serveSocket(createWorkspaceWireController({ appVersion: '1.2.3' }), {
-      socketPath,
-    });
+    const handle = await serveSocket(
+      createTestWorkspaceWireController({}, { appVersion: '1.2.3' }),
+      { socketPath }
+    );
     handles.push(handle);
 
     const result = await probeDaemon(socketPath);

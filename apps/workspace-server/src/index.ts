@@ -1,24 +1,7 @@
-import { dirname, join } from 'node:path';
-import { createJsonFileKeyValueStore } from '@emdash/core/primitives/kv/node';
-import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
-import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
-import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
-import { NodeExecutionContext } from '@emdash/core/services/exec/api';
-import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
-import {
-  CORE_DEPENDENCIES,
-  createHostDependenciesComponent,
-} from '@emdash/core/services/host-dependencies/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
-import { pluginRegistry } from '@emdash/plugins/agents';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createScope } from '@emdash/shared/concurrency';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
-import { createWireWorkerHost } from '@emdash/wire/worker';
-import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { defineAcpWorkspaceRuntimeWorker } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,
@@ -30,18 +13,13 @@ import { removePidFile, writePidFile } from './daemon/pid-file';
 import { startDaemon } from './daemon/start';
 import { statusDaemon } from './daemon/status';
 import { stopDaemon } from './daemon/stop';
+import { createWorkspaceServerRuntimeHost } from './runtime/host';
 import { serveSocket } from './wire/serve-socket';
 import { serveStdio } from './wire/serve-stdio';
 
 type Disposable = {
   dispose(): void | Promise<void>;
 };
-
-type WorkspaceRuntime = {
-  workspace: ContractClient<WorkspaceContract>;
-};
-
-const DETACHED_TERMINAL_GRACE_MS = 5 * 60_000;
 
 async function main(): Promise<void> {
   initProcessLogging({ name: 'workspace-server' });
@@ -69,40 +47,32 @@ async function main(): Promise<void> {
 }
 
 async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
-  if (config.serve.kind === 'socket') {
-    const scope = createScope({ label: 'workspace-server' });
-    const workerHost = createWireWorkerHost({
-      scope: scope.child('workers'),
-      processSpawner: childProcessSpawner(),
+  const scope = createScope({
+    label: config.serve.kind === 'socket' ? 'workspace-server' : 'workspace-server-stdio',
+  });
+  try {
+    const runtimeHost = await createWorkspaceServerRuntimeHost({
+      scope,
+      socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
+      validate: workspaceServerWireValidationPolicy(),
     });
-    const runtime = createWorkspaceServerRuntime(scope);
-    const initialPaths = daemonPaths(config.serve.path);
-    const hostDependencies = createWorkspaceHostDependencies(scope, initialPaths.socketPath);
-    const acpWorker = defineAcpWorkspaceRuntimeWorker(workerHost, {
-      socketPath: config.serve.path,
-      hostDependencies: hostDependencies.client.resolver,
-    });
-    let acpClient: Awaited<ReturnType<typeof acpWorker.ready>> | undefined;
-    try {
-      acpClient = await acpWorker.ready();
-    } catch (error) {
-      process.stderr.write(
-        `workspace-server ACP runtime failed to start: ${
-          error instanceof Error ? error.message : String(error)
-        }\n`
-      );
-    }
-
     const controller = withValidation(
       workspaceWireContract,
       createWorkspaceWireController({
         appVersion: config.appVersion,
-        acp: acpClient,
-        hostDependencies: hostDependencies.client,
-        workspace: runtime.workspace,
+        runtimes: runtimeHost.runtimes,
+        hostDependencies: runtimeHost.hostDependencies,
       }),
       workspaceServerWireValidationPolicy()
     );
+
+    if (config.serve.kind !== 'socket') {
+      const dispose = serveStdio(controller);
+      scope.add(dispose);
+      process.stderr.write('workspace-server wire stdio listening\n');
+      return { dispose: () => scope.dispose() };
+    }
+
     const handle = await serveSocket(controller, { socketPath: config.serve.path });
     scope.add(() => handle.dispose());
     const paths = daemonPaths(handle.socketPath);
@@ -119,78 +89,10 @@ async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
         await scope.dispose();
       },
     };
+  } catch (error) {
+    await scope.dispose();
+    throw error;
   }
-
-  const scope = createScope({ label: 'workspace-server-stdio' });
-  const runtime = createWorkspaceServerRuntime(scope);
-  const controller = withValidation(
-    workspaceWireContract,
-    createWorkspaceWireController({
-      appVersion: config.appVersion,
-      workspace: runtime.workspace,
-    }),
-    workspaceServerWireValidationPolicy()
-  );
-  const dispose = serveStdio(controller);
-  process.stderr.write('workspace-server wire stdio listening\n');
-  return {
-    async dispose() {
-      dispose();
-      await scope.dispose();
-    },
-  };
-}
-
-function createWorkspaceServerRuntime(scope: Scope): WorkspaceRuntime {
-  const watcher = fsWatchComponent.create({
-    scope,
-    dependencies: {},
-    config: {},
-    validate: workspaceServerWireValidationPolicy(),
-  });
-  const terminals = terminalsComponent.create({
-    scope,
-    dependencies: {},
-    config: {
-      lifecycle: {
-        terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
-        backgroundScript: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
-      },
-    },
-    validate: workspaceServerWireValidationPolicy(),
-  });
-  const workspace = workspaceComponent.create({
-    scope,
-    dependencies: {
-      terminals: terminals.client,
-      watcher: watcher.client,
-    },
-    config: {},
-    validate: workspaceServerWireValidationPolicy(),
-  });
-  return { workspace: workspace.client };
-}
-
-function createWorkspaceHostDependencies(scope: Scope, socketPath: string) {
-  const root = dirname(dirname(socketPath));
-  const store = createJsonFileKeyValueStore({
-    path: join(root, 'state', 'kv.json'),
-  });
-  return createHostDependenciesComponent({
-    store,
-    exec: new NodeExecutionContext({ env: process.env }),
-  }).create({
-    scope,
-    dependencies: {},
-    config: {
-      hostId: 'local',
-      definitions: [
-        ...CORE_DEPENDENCIES,
-        ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
-      ],
-    },
-    validate: workspaceServerWireValidationPolicy(),
-  });
 }
 
 function workspaceServerWireValidationPolicy(): ValidatePolicy {

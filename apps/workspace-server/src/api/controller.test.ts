@@ -1,18 +1,29 @@
+import { mkdtemp, rm } from 'node:fs/promises';
 import net from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import { parseAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
+import { filesContract } from '@emdash/core/runtimes/files/api';
+import { createFilesController, FilesRuntime } from '@emdash/core/runtimes/files/node';
+import { gitContract } from '@emdash/core/runtimes/git/api';
+import { createGitController, GitRuntime } from '@emdash/core/runtimes/git/node';
+import type { IWatchService } from '@emdash/core/services/fs-watch/api';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { ok } from '@emdash/shared';
 import { client as createClient, connect, serve, streamTransport } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceAcpRuntimeClient } from '../acp/host';
-import { createWorkspaceWireController } from './controller';
+import { createTestWorkspaceWireController } from '../testing/controller';
 
 describe('createWorkspaceWireController', () => {
   it('forwards ACP procedures to the mounted runtime client', async () => {
     const acp = createFakeAcpClient();
     const clientToServer = new PassThrough();
     const serverToClient = new PassThrough();
-    const controller = createWorkspaceWireController({ acp });
+    const controller = createTestWorkspaceWireController({ acp });
     const disposeServer = serve(streamTransport(clientToServer, serverToClient), controller);
     const transport = streamTransport(serverToClient, clientToServer);
     const wireClient = createClient(workspaceWireContract, connect(transport));
@@ -40,36 +51,9 @@ describe('createWorkspaceWireController', () => {
       transport.close?.();
     }
   });
-
-  it('reports ACP procedures as unavailable when no ACP runtime is mounted', async () => {
-    const clientToServer = new PassThrough();
-    const serverToClient = new PassThrough();
-    const controller = createWorkspaceWireController();
-    const disposeServer = serve(streamTransport(clientToServer, serverToClient), controller);
-    const transport = streamTransport(serverToClient, clientToServer);
-    const wireClient = createClient(workspaceWireContract, connect(transport));
-
-    try {
-      await expect(
-        wireClient.acp.startSession({
-          input: {
-            conversationId: 'conversation-1',
-            providerId: 'codex',
-            cwd: '/tmp/project',
-            sessionId: null,
-            model: null,
-          },
-        })
-      ).rejects.toThrow('ACP runtime is not available.');
-    } finally {
-      disposeServer();
-      transport.close?.();
-    }
-  });
 });
 
-function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
-  const acpContract = workspaceWireContract.acp;
+function createFakeAcpClient(): ContractClient<AcpApiContract> {
   const liveSource = {
     snapshot: async () => ({ version: 0, data: null }),
     attach: async () => () => {},
@@ -91,6 +75,7 @@ function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
     startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
     resumeSession: vi.fn(),
     stopSession: vi.fn(),
+    killSession: vi.fn(),
     sendPrompt: vi.fn(),
     queuePrompt: vi.fn(),
     editQueuedPrompt: vi.fn(),
@@ -107,19 +92,110 @@ function createFakeAcpClient(): WorkspaceAcpRuntimeClient {
     downloadAttachment: vi.fn(),
     deleteAttachment: vi.fn(),
     getHistory: vi.fn(),
-    sessions: liveModel(acpContract.sessions),
-    session: liveModel(acpContract.session),
-    terminalOutput: liveLog(acpContract.terminalOutput),
-  } as unknown as WorkspaceAcpRuntimeClient;
+    sessions: liveModel(workspaceWireContract.acp.sessions),
+    session: liveModel(workspaceWireContract.acp.session),
+    terminalOutput: liveLog(workspaceWireContract.acp.terminalOutput),
+  } as unknown as ContractClient<AcpApiContract>;
+}
+
+describe('runtime domain forwarding', () => {
+  it('forwards Git and Files procedures, live models, and binary streams', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-server-domains-'));
+    const root = parseAbsolute(directory);
+    const textPath = parsePortableRelativePath('remote.txt');
+    const binaryPath = parsePortableRelativePath('remote.bin');
+    if (!root.success || !textPath.success || !binaryPath.success) {
+      throw new Error('expected test paths to parse');
+    }
+
+    const watcher = createNoopWatcher();
+    const filesRuntime = new FilesRuntime({ watcher });
+    const gitRuntime = new GitRuntime({ watcher });
+    const files = createTestWire(filesContract, createFilesController(filesRuntime));
+    const git = createTestWire(gitContract, createGitController(gitRuntime));
+    const workspace = createTestWire(
+      workspaceWireContract,
+      createTestWorkspaceWireController({ files: files.client, git: git.client })
+    );
+
+    try {
+      await expect(
+        workspace.client.files.mutations.createFile({
+          root: root.data,
+          path: textPath.data,
+          content: 'hello from the remote runtime',
+        })
+      ).resolves.toEqual(ok(undefined));
+      await expect(
+        workspace.client.files.fs.readText({ root: root.data, relative: textPath.data })
+      ).resolves.toMatchObject({
+        success: true,
+        data: { content: 'hello from the remote runtime', truncated: false },
+      });
+
+      const binary = new Uint8Array([0, 1, 2, 255]);
+      await expect(
+        workspace.client.files.fs.upload(
+          { root: root.data, path: binaryPath.data },
+          {
+            name: 'remote.bin',
+            mimeType: 'application/octet-stream',
+            size: binary.byteLength,
+            source: chunks(binary),
+          }
+        )
+      ).resolves.toEqual(ok({ bytesWritten: binary.byteLength }));
+      const download = await workspace.client.files.fs.readBytes({
+        root: root.data,
+        relative: binaryPath.data,
+      });
+      expect(download.success).toBe(true);
+      if (!download.success) return;
+      await expect(download.data.bytes()).resolves.toEqual(binary);
+
+      await expect(
+        workspace.client.git.ensureRepository({
+          path: root.data,
+          options: { initIfMissing: true },
+        })
+      ).resolves.toMatchObject({ success: true });
+      await expect(
+        workspace.client.git.repository.model.state({ repository: root.data }, 'refs').snapshot()
+      ).resolves.toMatchObject({ data: { branches: [] } });
+    } finally {
+      await workspace.dispose();
+      await git.dispose();
+      await files.dispose();
+      await Promise.all([gitRuntime.dispose(), filesRuntime.dispose(), watcher.dispose()]);
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+function createNoopWatcher(): IWatchService {
+  return {
+    watch: () => ({
+      ready: async () => {},
+      release: async () => {},
+    }),
+    dispose: async () => {},
+  };
+}
+
+async function* chunks(data: Uint8Array): AsyncIterable<Uint8Array> {
+  yield data;
 }
 
 describe('createWorkspaceWireController', () => {
   it('health returns ok status and protocol version', async () => {
-    const controller = createWorkspaceWireController({
-      appVersion: '1.2.3',
-      daemonId: 'daemon-test',
-      startedAt: Date.now(),
-    });
+    const controller = createTestWorkspaceWireController(
+      {},
+      {
+        appVersion: '1.2.3',
+        daemonId: 'daemon-test',
+        startedAt: Date.now(),
+      }
+    );
 
     const result = await controller.call('health', undefined);
 
@@ -132,11 +208,14 @@ describe('createWorkspaceWireController', () => {
   });
 
   it('initializes compatible clients with the negotiated minor version', async () => {
-    const controller = createWorkspaceWireController({
-      appVersion: '1.2.3',
-      daemonId: 'daemon-test',
-      startedAt: 100,
-    });
+    const controller = createTestWorkspaceWireController(
+      {},
+      {
+        appVersion: '1.2.3',
+        daemonId: 'daemon-test',
+        startedAt: 100,
+      }
+    );
     const [major] = PROTOCOL_VERSION.split('.');
 
     const result = await controller.call('initialize', {
@@ -159,7 +238,7 @@ describe('createWorkspaceWireController', () => {
   });
 
   it('returns upgrade-client when the client major is too old', async () => {
-    const controller = createWorkspaceWireController();
+    const controller = createTestWorkspaceWireController();
 
     const result = await controller.call('initialize', {
       protocolVersion: '0.9.0',
@@ -177,7 +256,7 @@ describe('createWorkspaceWireController', () => {
   });
 
   it('returns upgrade-server when the client major is too new', async () => {
-    const controller = createWorkspaceWireController();
+    const controller = createTestWorkspaceWireController();
     const [major] = PROTOCOL_VERSION.split('.');
     const futureVersion = `${Number(major) + 1}.0.0`;
 
@@ -204,7 +283,7 @@ describe('createWorkspaceWireController', () => {
       throw new Error('expected TCP listener address');
     }
 
-    const controller = createWorkspaceWireController();
+    const controller = createTestWorkspaceWireController();
 
     try {
       const result = await controller.call('portForwards.inspect', { port: address.port });
@@ -230,7 +309,7 @@ describe('createWorkspaceWireController', () => {
     }
     await closeServer(server);
 
-    const controller = createWorkspaceWireController();
+    const controller = createTestWorkspaceWireController();
     const result = await controller.call('portForwards.inspect', { port: address.port });
 
     expect(result).toEqual({
