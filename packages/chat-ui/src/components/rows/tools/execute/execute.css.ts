@@ -6,6 +6,11 @@ import { vars } from '@styles/theme.css';
 /** Wrapper: height + overflow set inline (depend on expanded state + bodyH). */
 export const executeBody = style({
   position: 'relative',
+  boxSizing: 'content-box',
+});
+
+globalStyle(`${executeBody}::-webkit-scrollbar`, {
+  height: 'var(--execute-scrollbar-height)',
 });
 
 // ── Line ──────────────────────────────────────────────────────────────────────
@@ -16,8 +21,6 @@ export const executeLine = style({
   fontWeight: vars.typeCodeFontWeight,
   fontFamily: vars.typeCodeFontFamily,
   color: vars.fg,
-  paddingLeft: '12px',
-  paddingRight: '12px',
   // line-height is set via inline style from theme.fonts.code.lineHeight
   // so it cannot drift from the measured value via a CSS variable.
 });

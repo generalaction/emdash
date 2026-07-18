@@ -1,7 +1,9 @@
 import { ROW_H } from '@components/engine/row-metrics';
 import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
 import { IconTerminal } from '@components/primitives/icons';
+import { measureProseNaturalWidth } from '@components/rows/markdown/prose/layout';
 import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { ProseBlock } from '@core/markdown/document';
 import { defineUnit } from '@core/units';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
@@ -14,6 +16,12 @@ export type ExecuteVars = {
   rowH: number;
   /** Border width (px) on each side of the card. */
   border: number;
+  /** Horizontal padding on each command line. */
+  linePadX: number;
+  /** Space reserved below command text for the horizontal scrollbar. */
+  scrollbarH: number;
+  /** Visual separation between command text and the horizontal scrollbar. */
+  scrollbarGap: number;
   /** Max lines shown in the collapsed (preview) state. */
   collapsedMaxLines: number;
   /** Max lines shown / scrollable in the expanded state. */
@@ -23,6 +31,9 @@ export type ExecuteVars = {
 const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
+  linePadX: 12,
+  scrollbarH: 8,
+  scrollbarGap: 3,
   collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
@@ -67,11 +78,34 @@ function executeBodyH(
   return { bodyH, contentH };
 }
 
+function hasHorizontalOverflow(
+  lines: ExecuteDisplayLine[],
+  ctx: MeasureCtx,
+  vars: ExecuteVars
+): boolean {
+  const availableWidth = ctx.width - 2 * vars.border - 2 * vars.linePadX;
+  const codeFonts = { ...ctx.theme.fonts, body: ctx.theme.fonts.code };
+
+  return lines.some((line) => {
+    const block: ProseBlock = {
+      kind: 'prose',
+      id: 'execute-width',
+      variant: 'body',
+      runs: [{ kind: 'text', text: line.text }],
+    };
+    return measureProseNaturalWidth(block, codeFonts) > availableWidth;
+  });
+}
+
+function scrollbarSpace(lines: ExecuteDisplayLine[], ctx: MeasureCtx, vars: ExecuteVars): number {
+  return hasHorizontalOverflow(lines, ctx, vars) ? vars.scrollbarGap + vars.scrollbarH : 0;
+}
+
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
   const lines = executeLines(item);
   const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, isExpanded, vars);
-  return vars.rowH + bodyH + chromeY(vars);
+  return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars) + chromeY(vars);
 }
 
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
@@ -81,6 +115,10 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
 
   const lines = createMemo(() => executeLines(props.data));
   const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
+  const showScrollbar = createMemo(() => {
+    const ctx = mCtx();
+    return ctx ? hasHorizontalOverflow(lines(), ctx, props.vars) : false;
+  });
 
   const bodyGeometry = createMemo(() => {
     const lineH = codeLineH();
@@ -115,6 +153,9 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
           bodyH={bodyGeometry().bodyH}
           contentH={bodyGeometry().contentH}
           codeLineH={codeLineH()}
+          linePadX={props.vars.linePadX}
+          scrollbarH={showScrollbar() ? props.vars.scrollbarH : 0}
+          scrollbarGap={showScrollbar() ? props.vars.scrollbarGap : 0}
           expanded={isExpanded()}
         />
       </Show>
@@ -127,13 +168,13 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
   margin: { top: 2, bottom: 6 },
   vars: EXECUTE_VARS,
 
-  estimate(item, _ctx, vars): number {
-    // O(1) cheap estimate: use collapsedMaxLines cap (default state).
+  estimate(item, ctx, vars): number {
+    // Use the collapsed line cap and current width for stable initial geometry.
     const lines = executeLines(item);
     // Approximate code line height — use a fixed fallback of 20px for estimate.
     const approxLineH = 20;
     const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
-    return vars.rowH + bodyH + chromeY(vars);
+    return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars) + chromeY(vars);
   },
 
   measure(item, ctx, vars): number {
