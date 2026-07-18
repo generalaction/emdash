@@ -166,4 +166,20 @@ describe('MonacoModelRegistry', () => {
 
     expect(registry.getModelByUri(headUri)?.getValue()).toBe('');
   });
+
+  it('reports whether it restored a saved diff viewport', () => {
+    const registry = new MonacoModelRegistry();
+    const viewState = { modified: null, original: null };
+    const editor = {
+      saveViewState: () => viewState,
+      restoreViewState: vi.fn(),
+    };
+
+    expect(registry.restoreDiffViewState('original', 'modified', editor as never)).toBe(false);
+
+    registry.saveDiffViewState('original', 'modified', editor as never);
+
+    expect(registry.restoreDiffViewState('original', 'modified', editor as never)).toBe(true);
+    expect(editor.restoreViewState).toHaveBeenCalledWith(viewState);
+  });
 });

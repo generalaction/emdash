@@ -158,12 +158,12 @@ export function StickyDiffEditor({
 
       editor.setModel({ original: origModel, modified: modModel });
       editor.layout();
-      modelRegistry.restoreDiffViewState(originalUri, modifiedUri, editor);
+      const restored = modelRegistry.restoreDiffViewState(originalUri, modifiedUri, editor);
 
       // Cached models can already have line changes before onDidUpdateDiff is
       // subscribed. Try synchronously first, then wait for async diff calculation.
       diffUpdateDisposable?.dispose();
-      diffUpdateDisposable = revealFirstDiffChangeWhenReady(editor);
+      diffUpdateDisposable = restored ? null : revealFirstDiffChangeWhenReady(editor);
       onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
     });
 
