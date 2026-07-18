@@ -869,7 +869,7 @@ function parseRecursiveSnapshot(
     if (!entryType) continue;
 
     const size = fields[index + 1];
-    const mtime = fields[index + 2];
+    const mtime = normalizeSnapshotMtime(fields[index + 2]);
     const absPath = toRemoteAbsolutePath(rootPath, fields[index + 3]);
     if (isIgnoredRemotePath(rootPath, absPath)) continue;
 
@@ -881,6 +881,11 @@ function parseRecursiveSnapshot(
   }
 
   return entries;
+}
+
+function normalizeSnapshotMtime(raw: string): string {
+  const fractionalSeparator = raw.indexOf('.');
+  return fractionalSeparator === -1 ? raw : raw.slice(0, fractionalSeparator);
 }
 
 function parseSnapshotEntryType(raw: string): Exclude<FileEntryType, 'unknown'> | null {

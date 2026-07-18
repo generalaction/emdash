@@ -140,11 +140,13 @@ describe('LegacySshFilesRuntime', () => {
       snapshot([
         { kind: 'file', path: 'README.md', size: '1', mtime: '1' },
         { kind: 'file', path: 'src/a.ts', size: '1', mtime: '1' },
+        { kind: 'file', path: 'src/stable.ts', size: '1', mtime: '3' },
       ]),
       snapshot([
         { kind: 'file', path: 'src/a.ts', size: '2', mtime: '2.5000000000' },
         { kind: 'file', path: 'src/b.ts', size: '1', mtime: '1' },
         { kind: 'file', path: "src/line\nbreak's.ts", size: '1', mtime: '1' },
+        { kind: 'file', path: 'src/stable.ts', size: '1', mtime: '3.7500000000' },
         { kind: 'file', path: 'node_modules/pkg/index.js', size: '1', mtime: '1' },
       ]),
     ]);
