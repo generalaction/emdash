@@ -98,6 +98,26 @@ export class PrAutoCleanupService {
 
 const markerStore = new KV<PrAutoCleanupKv>('pr-auto-cleanup');
 
+export async function cleanupMergedPrTask(
+  candidate: PrAutoCleanupCandidate,
+  action: PrAutoCleanupAction
+): Promise<void> {
+  // TaskService archive/delete preserve their existing best-effort semantics for
+  // manual actions, so require teardown to succeed before an automatic cleanup
+  // can mutate the task and record its completion marker.
+  const teardownMode = action === 'archive' ? 'archive' : 'terminate';
+  const teardownResult = await taskService.teardown(candidate.taskId, teardownMode);
+  if (!teardownResult.success) {
+    throw new Error(teardownResult.error.message);
+  }
+
+  if (action === 'archive') {
+    await taskService.archiveTask(candidate.projectId, candidate.taskId);
+  } else {
+    await taskService.deleteTask(candidate.projectId, candidate.taskId);
+  }
+}
+
 const productionDependencies: PrAutoCleanupDependencies = {
   getMode: async () => (await appSettingsService.get('tasks')).autoCleanupOnPrMerge,
   listCandidates: listPrAutoCleanupCandidates,
@@ -110,13 +130,7 @@ const productionDependencies: PrAutoCleanupDependencies = {
     return row != null && row.archivedAt == null;
   },
   getMarker: (taskId) => markerStore.get(taskId),
-  cleanup: async (candidate, action) => {
-    if (action === 'archive') {
-      await taskService.archiveTask(candidate.projectId, candidate.taskId);
-    } else {
-      await taskService.deleteTask(candidate.projectId, candidate.taskId);
-    }
-  },
+  cleanup: cleanupMergedPrTask,
   setMarker: (taskId, marker) => markerStore.setOrThrow(taskId, marker),
   notify: (candidate, action) => {
     events.emit(taskAutoCleanupChannel, {

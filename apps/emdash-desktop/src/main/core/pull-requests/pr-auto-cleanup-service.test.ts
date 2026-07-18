@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrAutoCleanupCandidate } from './pr-auto-cleanup-candidates';
 import {
+  cleanupMergedPrTask,
   PrAutoCleanupService,
   type PrAutoCleanupDependencies,
   type PrAutoCleanupMarker,
 } from './pr-auto-cleanup-service';
+
+const taskServiceMocks = vi.hoisted(() => ({
+  teardown: vi.fn(),
+  archiveTask: vi.fn(),
+  deleteTask: vi.fn(),
+}));
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: { get: vi.fn() },
 }));
 
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { archiveTask: vi.fn(), deleteTask: vi.fn() },
+  taskService: taskServiceMocks,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -35,6 +42,52 @@ const candidate: PrAutoCleanupCandidate = {
   taskName: 'Fix cleanup',
   prUrl: 'https://github.com/acme/repo/pull/42',
 };
+
+describe('production auto-cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ['archive', 'archive'],
+    ['delete', 'terminate'],
+  ] as const)('does not %s when teardown fails', async (action, teardownMode) => {
+    taskServiceMocks.teardown.mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'teardown failed' },
+    });
+
+    await expect(cleanupMergedPrTask(candidate, action)).rejects.toThrow('teardown failed');
+
+    expect(taskServiceMocks.teardown).toHaveBeenCalledWith(candidate.taskId, teardownMode);
+    expect(taskServiceMocks.archiveTask).not.toHaveBeenCalled();
+    expect(taskServiceMocks.deleteTask).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['archive', 'archive'],
+    ['delete', 'terminate'],
+  ] as const)('runs %s after teardown succeeds', async (action, teardownMode) => {
+    taskServiceMocks.teardown.mockResolvedValue({ success: true, data: undefined });
+
+    await cleanupMergedPrTask(candidate, action);
+
+    expect(taskServiceMocks.teardown).toHaveBeenCalledWith(candidate.taskId, teardownMode);
+    if (action === 'archive') {
+      expect(taskServiceMocks.archiveTask).toHaveBeenCalledWith(
+        candidate.projectId,
+        candidate.taskId
+      );
+      expect(taskServiceMocks.deleteTask).not.toHaveBeenCalled();
+    } else {
+      expect(taskServiceMocks.deleteTask).toHaveBeenCalledWith(
+        candidate.projectId,
+        candidate.taskId
+      );
+      expect(taskServiceMocks.archiveTask).not.toHaveBeenCalled();
+    }
+  });
+});
 
 describe('PrAutoCleanupService', () => {
   let mode: 'off' | 'archive' | 'delete';
