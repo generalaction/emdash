@@ -12,7 +12,7 @@ export type ComposerQueuedPrompt = {
 export interface QueuedPromptsBandProps {
   prompts: ComposerQueuedPrompt[];
   editingPromptId?: string | null;
-  onEdit: (id: string) => void;
+  onStartEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onReorder: (ids: string[]) => void;
   onSendNow: (id: string) => void;
@@ -23,7 +23,7 @@ export interface QueuedPromptsBandProps {
 export function QueuedPromptsBand({
   prompts,
   editingPromptId,
-  onEdit,
+  onStartEdit,
   onDelete,
   onReorder,
   onSendNow,
@@ -118,62 +118,62 @@ export function QueuedPromptsBand({
               <button
                 type="button"
                 className={cx(styles.promptText, !prompt.text.trim() && styles.emptyText)}
-                onClick={() => onEdit(prompt.id)}
+                onClick={() => {
+                  if (!isEditing) onStartEdit(prompt.id);
+                }}
                 aria-label={`Edit queued prompt ${index + 1}`}
                 title={isEditing ? 'Editing in composer' : 'Edit queued prompt'}
               >
                 {prompt.text.trim() || 'Image-only prompt'}
               </button>
 
-              <div className={styles.actions}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  icon
-                  aria-label={`Edit queued prompt ${index + 1}`}
-                  title={isEditing ? 'Editing in composer' : 'Edit queued prompt'}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEdit(prompt.id);
-                  }}
-                >
-                  <Pencil />
-                </Button>
-                {!isEditing && (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon
-                      aria-label="Send queued prompt now"
-                      title="Send now - cancels the active turn"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSendNow(prompt.id);
-                      }}
-                    >
-                      <ArrowUp />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      tone="destructive"
-                      size="sm"
-                      icon
-                      aria-label="Delete queued prompt"
-                      title="Delete queued prompt"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(prompt.id);
-                      }}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </>
-                )}
-              </div>
+              {!isEditing && (
+                <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon
+                    aria-label={`Edit queued prompt ${index + 1}`}
+                    title="Edit queued prompt"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onStartEdit(prompt.id);
+                    }}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon
+                    aria-label="Send queued prompt now"
+                    title="Send now - cancels the active turn"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSendNow(prompt.id);
+                    }}
+                  >
+                    <ArrowUp />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    tone="destructive"
+                    size="sm"
+                    icon
+                    aria-label="Delete queued prompt"
+                    title="Delete queued prompt"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete(prompt.id);
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })}

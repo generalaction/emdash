@@ -1,7 +1,7 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
 import { ArrowUp, Check, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { ComboboxPopover } from '../combobox-popover';
@@ -574,12 +574,12 @@ export function ChatComposer({
   const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
-  const restoreStashedDraft = () => {
+  const restoreStashedDraft = useCallback(() => {
     editingQueuedPromptIdRef.current = null;
     setEditingQueuedPromptId(null);
     editorRef.current?.setText(stashedDraftRef.current);
     editorRef.current?.focus();
-  };
+  }, []);
 
   const beginQueuedPromptEdit = (id: string) => {
     const prompt = queuedPrompts.find((item) => item.id === id);
@@ -603,11 +603,8 @@ export function ChatComposer({
   useEffect(() => {
     if (!editingQueuedPromptId) return;
     if (queuedPrompts.some((prompt) => prompt.id === editingQueuedPromptId)) return;
-    editingQueuedPromptIdRef.current = null;
-    setEditingQueuedPromptId(null);
-    editorRef.current?.setText(stashedDraftRef.current);
-    editorRef.current?.focus();
-  }, [editingQueuedPromptId, queuedPrompts]);
+    restoreStashedDraft();
+  }, [editingQueuedPromptId, queuedPrompts, restoreStashedDraft]);
 
   // Retain the last notice so its content stays rendered while the band
   // collapses out, letting the exit transition play before unmount.
@@ -782,7 +779,7 @@ export function ChatComposer({
         <QueuedPromptsBand
           prompts={queuedPrompts}
           editingPromptId={editingQueuedPromptId}
-          onEdit={beginQueuedPromptEdit}
+          onStartEdit={beginQueuedPromptEdit}
           onDelete={onDeleteQueuedPrompt}
           onReorder={onReorderQueuedPrompts}
           onSendNow={onSendQueuedPromptNow}
