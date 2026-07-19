@@ -2,7 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { claimNumberHotkey, useNumberHotkeys } from '@renderer/lib/hooks/use-number-hotkeys';
 import {
   getEffectiveHotkey,
@@ -23,12 +23,13 @@ import { numberShortcutChannel } from '@shared/events/appEvents';
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft } = useWorkspaceLayoutContext();
+  const { exitZenMode, toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
+  const zenModeHotkey = getEffectiveHotkey('zenMode', keyboard);
 
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -46,6 +47,8 @@ export function AppKeyboardShortcuts() {
     if (!currentProjectId || !currentTaskId) return undefined;
     return getRegisteredTaskData(currentProjectId, currentTaskId)?.workspaceId ?? undefined;
   });
+
+  useEffect(() => () => exitZenMode(), [currentProjectId, currentTaskId, currentView, exitZenMode]);
 
   useHotkey(
     getHotkeyRegistration('commandPalette', keyboard),
@@ -86,6 +89,25 @@ export function AppKeyboardShortcuts() {
       navigateToTaskByIndex(navigate, event.index);
     });
   }, [navigate]);
+
+  useHotkey(
+    getHotkeyRegistration('zenMode', keyboard),
+    () => {
+      const taskView =
+        currentProjectId && currentTaskId
+          ? getTaskView(currentProjectId, currentTaskId)
+          : undefined;
+      toggleZenMode(
+        taskView
+          ? {
+              isCollapsed: taskView.isSidebarCollapsed,
+              setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
+            }
+          : undefined
+      );
+    },
+    { enabled: zenModeHotkey !== null, ignoreInputs: true }
+  );
 
   return null;
 }

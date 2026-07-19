@@ -7,6 +7,7 @@ import {
   numberShortcutModifierChannel,
   tabNavigationShortcutChannel,
 } from '@shared/events/appEvents';
+import { isMacLike } from '@shared/shortcuts';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -261,15 +262,16 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
-    // Default tab family on macOS is Command+1-9; digit 3+ must forward too.
+    // The default tab family is Mod+1-9; digit 3+ must forward too.
+    const macLike = isMacLike();
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: '3',
-      control: false,
+      control: !macLike,
       shift: false,
       alt: false,
-      meta: true,
+      meta: macLike,
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -288,13 +290,14 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
+    const macLike = isMacLike();
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: '2',
-      control: true,
+      control: macLike,
       shift: false,
-      alt: false,
+      alt: !macLike,
       meta: false,
     });
 
@@ -331,16 +334,17 @@ describe('BrowserWebContentsRegistry', () => {
     });
 
     vi.mocked(events.emit).mockClear();
-    const controlEvent = { preventDefault: vi.fn() };
-    webContents.emitEvent('before-input-event', controlEvent, {
+    const macLike = isMacLike();
+    const disabledTaskEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', disabledTaskEvent, {
       type: 'keyDown',
       key: '2',
-      control: true,
+      control: macLike,
       shift: false,
-      alt: false,
+      alt: !macLike,
       meta: false,
     });
-    expect(controlEvent.preventDefault).not.toHaveBeenCalled();
+    expect(disabledTaskEvent.preventDefault).not.toHaveBeenCalled();
     expect(events.emit).not.toHaveBeenCalledWith(numberShortcutChannel, expect.anything());
   });
 
@@ -400,14 +404,15 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
+    const macLike = isMacLike();
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: 'K',
-      control: false,
+      control: !macLike,
       shift: false,
       alt: false,
-      meta: true,
+      meta: macLike,
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -426,14 +431,15 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
+    const macLike = isMacLike();
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: 'K',
-      control: false,
+      control: !macLike,
       shift: false,
       alt: false,
-      meta: true,
+      meta: macLike,
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
@@ -453,6 +459,28 @@ describe('BrowserWebContentsRegistry', () => {
       type: 'keyDown',
       key: 'Escape',
       control: false,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+  });
+
+  it('does not consume shortcuts ignored in focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Z',
+      control: true,
       shift: false,
       alt: false,
       meta: false,

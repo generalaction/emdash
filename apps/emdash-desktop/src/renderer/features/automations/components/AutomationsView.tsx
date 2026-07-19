@@ -111,7 +111,7 @@ export function AutomationsView() {
         onOpenChange={(open) => !open && closeSheet()}
         onOpenChangeComplete={handleSheetOpenChangeComplete}
       >
-        <SheetContent showCloseButton={false}>
+        <SheetContent showCloseButton={false} className="[-webkit-app-region:no-drag]">
           {creating && (
             <CreateAutomationView
               onClose={closeSheet}

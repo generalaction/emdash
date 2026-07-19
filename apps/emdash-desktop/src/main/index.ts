@@ -1,5 +1,6 @@
 import './app/configure-app-identity';
 import './core/telemetry/automation-telemetry';
+import './core/telemetry/task-telemetry';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
@@ -11,7 +12,7 @@ import { LIBSECRET_PASSWORD_STORE, shouldForceLibsecretBackend } from './app/lin
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { registerQuitHandler } from './app/shutdown';
-import { createMainWindow } from './app/window';
+import { applyNativeTheme, createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { acpAgentStatusBridge } from './core/acp/agent-status-bridge';
@@ -148,6 +149,7 @@ void app.whenReady().then(async () => {
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  applyNativeTheme(await appSettingsService.get('theme'));
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();

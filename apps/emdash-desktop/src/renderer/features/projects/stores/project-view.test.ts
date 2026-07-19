@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import { ProjectViewStore } from './project-view';
 
 describe('TaskViewStore range selection', () => {
@@ -12,5 +13,28 @@ describe('TaskViewStore range selection', () => {
 
     expect([...store.selectedIds]).toEqual(['1', '2', '3']);
     expect(store.lastSelectedId).toBe('1');
+  });
+});
+
+describe('ProjectViewStore snapshots', () => {
+  it('persists and restores the task sort option', () => {
+    const store = new ProjectViewStore();
+    store.taskView.setSortBy('pr-status');
+
+    expect(store.snapshot.taskSortBy).toBe('pr-status');
+
+    const restored = new ProjectViewStore();
+    restored.restoreSnapshot(store.snapshot);
+
+    expect(restored.taskView.sortBy).toBe('pr-status');
+  });
+
+  it('keeps the default task sort for an unknown persisted value', () => {
+    const store = new ProjectViewStore();
+    const snapshot = JSON.parse('{"taskSortBy":"future-sort"}') as Partial<ProjectViewSnapshot>;
+
+    store.restoreSnapshot(snapshot);
+
+    expect(store.taskView.sortBy).toBe('updated-at');
   });
 });

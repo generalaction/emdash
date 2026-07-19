@@ -52,6 +52,14 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  showItemInFolder: async (path: string) => {
+    try {
+      await appService.showItemInFolder(path);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   readUserFile: async (path: string) => {
     try {
       const result = await appService.readUserFile(path);
