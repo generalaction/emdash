@@ -8,6 +8,7 @@ import { provider as autohand } from './impl/autohand';
 import { provider as charm } from './impl/charm';
 import { provider as claude } from './impl/claude';
 import { provider as cline } from './impl/cline';
+import { provider as codebuddy } from './impl/codebuddy';
 import { provider as codebuff } from './impl/codebuff';
 import { provider as codex } from './impl/codex';
 import { provider as commandcode } from './impl/commandcode';
@@ -63,6 +64,7 @@ for (const p of [
   kiro,
   rovo,
   cline,
+  codebuddy,
   continueCli,
   codebuff,
   freebuff,
