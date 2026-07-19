@@ -36,6 +36,7 @@ export class MountedProject {
     return {
       activeView: this.view.activeView,
       taskViewTab: this.view.taskView.tab,
+      taskSortBy: this.view.taskView.sortBy,
     };
   }
 

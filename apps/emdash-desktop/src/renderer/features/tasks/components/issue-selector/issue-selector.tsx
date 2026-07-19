@@ -202,7 +202,7 @@ export const IssueSelector = observer(function IssueSelector({
         <SelectContent>
           {issueProviderOrder.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
-              <ProviderLogo provider={p} className="h-3.5 w-3.5" />
+              <ProviderLogo provider={p} className="size-4" size={16} />
               <span>{getIntegrationName(integrationById, p)}</span>
             </SelectItem>
           ))}

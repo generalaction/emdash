@@ -47,6 +47,8 @@ export class FileTree implements IFileTree {
     NodeId | null,
     Promise<Result<FileTreeSequences, FileTreeError>>
   >();
+  private resyncRun: Promise<void> | null = null;
+  private trailingResyncRequested = false;
   private disposed = false;
   private readyPromise: Promise<Result<void, FileTreeError>> | null = null;
 
@@ -66,11 +68,7 @@ export class FileTree implements IFileTree {
       },
       {
         debounceMs: WATCH_DEBOUNCE_MS,
-        onResync: () => {
-          void this.runMutation(() => this.resync()).catch((error) =>
-            this.onError(`file-tree resync ${this.rootPath}`, error)
-          );
-        },
+        onResync: () => this.requestResync(),
       }
     );
     const interval = REVALIDATE_INTERVAL_MS;
@@ -149,8 +147,10 @@ export class FileTree implements IFileTree {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.trailingResyncRequested = false;
     if (this.revalidateTimer) clearInterval(this.revalidateTimer);
     await this.watch.release();
+    await this.resyncRun?.catch(() => {});
     this.collection.dispose();
   }
 
@@ -401,6 +401,39 @@ export class FileTree implements IFileTree {
     this.collection.resetWithNewGeneration(
       this.store.entries().map((node) => [node.id, node] as const)
     );
+  }
+
+  private requestResync(): void {
+    if (this.disposed) return;
+    if (this.resyncRun) {
+      this.trailingResyncRequested = true;
+      return;
+    }
+
+    const run = this.runMutation(() => this.drainResyncs());
+    this.resyncRun = run;
+    void run.then(
+      () => this.finishResyncRun(run),
+      (error) => {
+        this.onError(`file-tree resync ${this.rootPath}`, error);
+        this.finishResyncRun(run);
+      }
+    );
+  }
+
+  private async drainResyncs(): Promise<void> {
+    do {
+      this.trailingResyncRequested = false;
+      await this.resync();
+    } while (this.trailingResyncRequested && !this.disposed);
+  }
+
+  private finishResyncRun(run: Promise<void>): void {
+    if (this.resyncRun !== run) return;
+    this.resyncRun = null;
+    if (!this.trailingResyncRequested || this.disposed) return;
+    this.trailingResyncRequested = false;
+    this.requestResync();
   }
 
   private runMutation<T>(fn: () => Promise<T>): Promise<T> {

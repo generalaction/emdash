@@ -1,9 +1,15 @@
 import { makeAutoObservable } from 'mobx';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import type { IssueProviderType } from '@shared/issue-providers';
-import type { ProjectViewSnapshot } from '@shared/view-state';
+import type { ProjectTaskSortBy, ProjectViewSnapshot } from '@shared/view-state';
 
 export type ProjectView = 'tasks' | 'pull-request' | 'settings';
+
+function isProjectTaskSortBy(value: unknown): value is ProjectTaskSortBy {
+  return (
+    value === 'created-at' || value === 'updated-at' || value === 'pr-status' || value === 'unread'
+  );
+}
 
 export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';
@@ -26,6 +32,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
     return {
       activeView: this.activeView,
       taskViewTab: this.taskView.tab,
+      taskSortBy: this.taskView.sortBy,
       selectedIssueProvider: this.selectedIssueProvider ?? undefined,
     };
   }
@@ -33,6 +40,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
     if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
     if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
+    if (isProjectTaskSortBy(snapshot.taskSortBy)) this.taskView.setSortBy(snapshot.taskSortBy);
     if (snapshot.selectedIssueProvider)
       this.selectedIssueProvider = snapshot.selectedIssueProvider as IssueProviderType;
   }
@@ -40,6 +48,7 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
 
 class TaskViewStore {
   tab: 'active' | 'archived' = 'active';
+  sortBy: ProjectTaskSortBy = 'updated-at';
   searchQuery: string = '';
   selectedIds: Set<string> = new Set();
   lastSelectedId: string | null = null;
@@ -50,6 +59,10 @@ class TaskViewStore {
 
   setTab(tab: 'active' | 'archived') {
     this.tab = tab;
+  }
+
+  setSortBy(sortBy: ProjectTaskSortBy) {
+    this.sortBy = sortBy;
   }
 
   setSearchQuery(query: string) {

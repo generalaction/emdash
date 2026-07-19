@@ -69,6 +69,7 @@ export class WorkspaceFileIndexService {
       return;
     }
     if (meta.status === 'truncated') return;
+    if (update.changes.every((change) => change.kind === 'update')) return;
 
     this.applyChanges(workspaceId, update.changes);
   }

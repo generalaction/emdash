@@ -113,9 +113,12 @@ export type TaskViewSnapshot = {
   diffView?: DiffViewSnapshot;
 };
 
+export type ProjectTaskSortBy = 'created-at' | 'updated-at' | 'pr-status' | 'unread';
+
 export type ProjectViewSnapshot = {
   activeView: string;
   taskViewTab: 'active' | 'archived';
+  taskSortBy?: ProjectTaskSortBy;
   selectedIssueProvider?: string;
 };
 
