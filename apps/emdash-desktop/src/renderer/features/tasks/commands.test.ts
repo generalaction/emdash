@@ -147,6 +147,7 @@ describe('createTaskCommandProvider', () => {
     });
     mocks.getTaskView.mockReturnValue({
       isSidebarCollapsed: false,
+      sidebarTab: 'changes',
       isTerminalDrawerOpen: false,
       openNewTerminal: vi.fn(),
       setFocusedRegion: vi.fn(),
@@ -199,6 +200,40 @@ describe('createTaskCommandProvider', () => {
         expect(command.shortcutKey in APP_SHORTCUTS).toBe(true);
       }
     }
+  });
+
+  it.each([
+    ['task.sidebarChanges', 'changes'],
+    ['task.sidebarFiles', 'files'],
+    ['task.sidebarConversations', 'conversations'],
+  ] as const)('collapses the selected sidebar panel from %s', (commandId, sidebarTab) => {
+    const taskView = mocks.getTaskView();
+    taskView.sidebarTab = sidebarTab;
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === commandId)
+      ?.execute();
+
+    expect(taskView.setSidebarCollapsed).toHaveBeenCalledWith(true);
+    expect(taskView.setSidebarTab).not.toHaveBeenCalled();
+  });
+
+  it('switches to a different sidebar panel without collapsing the sidebar', () => {
+    const taskView = mocks.getTaskView();
+    taskView.sidebarTab = 'changes';
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.sidebarFiles')
+      ?.execute();
+
+    expect(taskView.setSidebarTab).toHaveBeenCalledWith('files');
+    expect(taskView.setSidebarCollapsed).toHaveBeenCalledWith(false);
   });
 
   it('opens a new conversation in a right split from the split command', () => {

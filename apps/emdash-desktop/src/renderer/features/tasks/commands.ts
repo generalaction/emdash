@@ -142,8 +142,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: sidebarChangesDef.shortcutKey,
           group: sidebarChangesDef.group,
           execute() {
-            taskView?.setSidebarTab('changes');
-            taskView?.setSidebarCollapsed(false);
+            if (!taskView) return;
+            if (!taskView.isSidebarCollapsed && taskView.sidebarTab === 'changes') {
+              taskView.setSidebarCollapsed(true);
+              return;
+            }
+            taskView.setSidebarTab('changes');
+            taskView.setSidebarCollapsed(false);
           },
         },
         {
@@ -153,8 +158,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: sidebarConversationsDef.shortcutKey,
           group: sidebarConversationsDef.group,
           execute() {
-            taskView?.setSidebarTab('conversations');
-            taskView?.setSidebarCollapsed(false);
+            if (!taskView) return;
+            if (!taskView.isSidebarCollapsed && taskView.sidebarTab === 'conversations') {
+              taskView.setSidebarCollapsed(true);
+              return;
+            }
+            taskView.setSidebarTab('conversations');
+            taskView.setSidebarCollapsed(false);
           },
         },
         {
@@ -164,8 +174,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: sidebarFilesDef.shortcutKey,
           group: sidebarFilesDef.group,
           execute() {
-            taskView?.setSidebarTab('files');
-            taskView?.setSidebarCollapsed(false);
+            if (!taskView) return;
+            if (!taskView.isSidebarCollapsed && taskView.sidebarTab === 'files') {
+              taskView.setSidebarCollapsed(true);
+              return;
+            }
+            taskView.setSidebarTab('files');
+            taskView.setSidebarCollapsed(false);
           },
         },
         {
