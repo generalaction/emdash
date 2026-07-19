@@ -1,8 +1,9 @@
 import { ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
+import { useAgentInstallationStatus } from '@core/features/agents/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallMethod } from '@core/primitives/agents/api';
 import { resolveActiveInstallation } from '@core/primitives/agents/api';
-import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type DependencyInstallationUpdateCardProps = {
@@ -31,7 +32,11 @@ export function DependencyInstallationUpdateCard({
   connectionId,
   agentPayload,
 }: DependencyInstallationUpdateCardProps) {
-  const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
+  const vm = useAgentInstallationStatus(
+    agentId,
+    hostRefFromConnectionId(connectionId),
+    agentPayload
+  );
   const { used, installations, update, isUpdating, updatingMethod } = vm;
 
   const updates = agentPayload?.capabilities.hostDependency.updates;

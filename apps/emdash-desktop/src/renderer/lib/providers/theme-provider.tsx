@@ -6,9 +6,9 @@ import {
   type ReactNode,
 } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { applyThemeToAll } from '@core/features/terminals/browser/pty/pty';
 import type { Theme } from '@core/primitives/app-settings/api';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
 
 type EffectiveTheme = 'emlight' | 'emdark';

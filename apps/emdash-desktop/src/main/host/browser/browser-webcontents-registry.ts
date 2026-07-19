@@ -10,7 +10,7 @@ import {
 } from 'electron';
 import { browserEvents } from '@core/features/browser/node';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import { buildBrowserClaims, type BrowserClaim } from '@core/manifests/browser-claims';
+import { buildBrowserClaims, type BrowserClaim } from '@core/manifests/shared/browser-claims';
 import type { AppSettings } from '@core/primitives/app-settings/api';
 import {
   browserProfilePartition,

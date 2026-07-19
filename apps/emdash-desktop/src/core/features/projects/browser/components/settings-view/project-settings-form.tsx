@@ -1,7 +1,7 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import type { Result } from '@emdash/shared';
 import { observer } from 'mobx-react-lite';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,

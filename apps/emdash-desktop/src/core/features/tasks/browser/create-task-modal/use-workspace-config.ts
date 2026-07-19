@@ -1,6 +1,6 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useMemo, useState } from 'react';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { useProjectWorkspaces } from '@core/features/tasks/browser/task-config/existing-workspace-picker';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { buildWorkspaceConfigFromPreset } from '@core/primitives/workspaces/api';

@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { getTaskGitCheckoutStore } from '@core/features/tasks/browser/stores/task-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
 import { isRegistered, type TaskStore } from '@core/features/tasks/browser/stores/task-store';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';

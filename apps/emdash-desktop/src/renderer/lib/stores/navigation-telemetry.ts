@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { viewCatalog, type ViewId } from '@core/manifests/view-catalog';
+import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type { NavigationStore } from './navigation-store';
 

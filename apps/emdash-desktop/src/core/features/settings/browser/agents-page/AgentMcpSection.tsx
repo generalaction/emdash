@@ -1,12 +1,12 @@
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
+import { useAgentMcps } from '@core/features/agents/browser/use-agent-mcps';
 import { libraryViewDef } from '@core/features/library/contributions/views';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
-import { useAgentMcps } from './useAgentMcps';
 
 function McpServerPill({
   server,

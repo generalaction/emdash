@@ -1,6 +1,8 @@
+import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import { ok, type Result } from '@emdash/shared';
 import {
   LifecycleRegistry,
@@ -9,14 +11,16 @@ import {
 } from '@emdash/shared/concurrency';
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { createLiveJobReplica } from '@emdash/wire';
+import { deactivateWorkspaceParticipants } from '@core/features/workspaces/node/lifecycle-participants';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
 import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
-import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
-import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
+import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type {
@@ -38,6 +42,8 @@ export type WorkspaceHint = {
   type: SharedWorkspaceType;
   path?: string;
 };
+
+type TeardownMode = 'detach' | 'terminate';
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
 type RuntimeStoredTask = StoredTask & {
@@ -100,17 +106,14 @@ export async function executeTeardown(
     // 'terminate' and 'archive' both reap the tmux sessions and agent processes.
     await task.conversations.destroyAll();
   }
-  if (runtimeWorkspace) {
-    await deactivateWorkspaceConsumer(
-      task.taskId,
-      runtimeWorkspace,
-      mode === 'detach' ? 'detach' : 'stop',
-      automation
-    );
-  }
-  // Only 'terminate' destroys the workspace (worktree + teardown script). 'archive'
-  // keeps the worktree alive, same as 'detach', so Restore can resume the task.
-  await workspaceRegistry.teardown(workspaceId, mode === 'terminate' ? 'terminate' : 'detach');
+  await deactivateWorkspaceConsumer(
+    task.taskId,
+    workspaceId,
+    mode === 'detach' ? 'detach' : 'stop',
+    mode === 'terminate',
+    automation,
+    runtimeWorkspace
+  );
 }
 
 async function cleanupDetachedSessions(
@@ -129,21 +132,72 @@ async function cleanupDetachedSessions(
 
 async function deactivateWorkspaceConsumer(
   taskId: string,
-  workspace: HostFileRef,
+  workspaceId: string,
   strategy: 'stop' | 'detach',
-  automation?: WorkspaceBootstrapResult['postActivationAutomation']
+  teardown: boolean,
+  automation?: WorkspaceBootstrapResult['postActivationAutomation'],
+  runtimeWorkspace?: HostFileRef
 ): Promise<void> {
-  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(
-    workspaceContract.deactivate,
-    workspaceRuntimeClient.deactivate
-  );
-  const lease = await jobs.start({
-    workspace,
-    consumerId: taskId,
-    strategy,
-    automation: strategy === 'stop' ? automation : undefined,
-  });
+  const identity = await workspaceIdentityService.resolve(workspaceId);
+  const workspace =
+    identity && hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
+  const target = workspace ?? runtimeWorkspace;
+  if (!target) return;
+  const brokerLease = getDesktopRuntimeBroker().session(target.host);
+  try {
+    const runtime = await brokerLease.ready();
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    await runWorkspaceDeactivateJob(runtime.data.workspace.deactivate, {
+      workspace: target,
+      consumerId: taskId,
+      strategy,
+      automation: strategy === 'stop' ? automation : undefined,
+    });
+    const snapshot = await runtime.data.workspace.workspace
+      .state(target, 'state')
+      .asLiveSource()
+      .snapshot();
+    const hasConsumers =
+      ((snapshot.data as { consumers?: readonly unknown[] }).consumers?.length ?? 0) > 0;
+    if (hasConsumers) return;
+    if (identity) await deactivateWorkspaceParticipants(identity);
+    if (teardown) {
+      await runWorkspaceTeardownJob(runtime.data.workspace.teardown, {
+        workspace: target,
+        force: false,
+        automation,
+      });
+    }
+  } finally {
+    await brokerLease.release();
+  }
+}
+
+async function runWorkspaceDeactivateJob(
+  handle: Parameters<typeof createLiveJobReplica<typeof workspaceContract.deactivate>>[1],
+  input: Parameters<
+    ReturnType<typeof createLiveJobReplica<typeof workspaceContract.deactivate>>['start']
+  >[0]
+): Promise<void> {
+  const jobs = createLiveJobReplica(workspaceContract.deactivate, handle);
+  const lease = await jobs.start(input);
+  try {
+    const job = await lease.ready();
+    await job.result;
+  } finally {
+    await lease.release();
+    await jobs.dispose();
+  }
+}
+
+async function runWorkspaceTeardownJob(
+  handle: Parameters<typeof createLiveJobReplica<typeof workspaceContract.teardown>>[1],
+  input: Parameters<
+    ReturnType<typeof createLiveJobReplica<typeof workspaceContract.teardown>>['start']
+  >[0]
+): Promise<void> {
+  const jobs = createLiveJobReplica(workspaceContract.teardown, handle);
+  const lease = await jobs.start(input);
   try {
     const job = await lease.ready();
     await job.result;
@@ -228,24 +282,7 @@ class TaskSessionManager {
 
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
-    if (mode === 'detach') {
-      // Detach sessions but leave workspaces alive; provider.cleanup() will call
-      // workspaceRegistry.teardownAllForProject to handle workspace teardown.
-      await Promise.all(
-        taskIds.flatMap((id) => {
-          const stored = this._lifecycle.get(id);
-          if (!stored) return [];
-          return [stored.taskProvider.conversations.detachAll()];
-        })
-      );
-      // Remove entries from lifecycle maps without running workspace teardown.
-      await Promise.all(
-        taskIds.map((id) => this.forceRemoveTask(id, 'project detached task sessions'))
-      );
-    } else {
-      // teardownTask handles _tasksByProject cleanup in onFinally.
-      await Promise.all(taskIds.map((id) => this.teardownTask(id, 'terminate')));
-    }
+    await Promise.all(taskIds.map((id) => this.teardownTask(id, mode)));
   }
 
   getTask(taskId: string): TaskProvider | undefined {

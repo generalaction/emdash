@@ -1,5 +1,7 @@
 import path from 'node:path';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
 import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
 import { safePathSegment } from '@core/primitives/path-name/api';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
@@ -20,15 +22,13 @@ import { ProjectProvider, type ProjectProviderTransport } from './project-provid
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
 import { WorktreeService } from './worktrees/worktree-service';
 
-export type CreateProviderError = { message: string };
+export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
 export async function createProvider(
   project: LocalProject | SshProject
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
   if (project.type === 'ssh') {
-    return err({
-      message: 'Remote projects require the workspace server and are not supported by this build',
-    });
+    return err(remoteRuntimeUnavailable(project.connectionId, 'projects'));
   }
   return createLocalProvider(project);
 }
@@ -84,7 +84,10 @@ async function createLocalProvider(
       worktreeDirectory
     );
     if (!madeWorktreeDirectory.success) {
-      return err({ message: `Failed to create worktree directory: ${worktreeDirectory}` });
+      return err({
+        type: 'error',
+        message: `Failed to create worktree directory: ${worktreeDirectory}`,
+      });
     }
 
     const resolveWorktreePoolPath = async () =>
@@ -160,7 +163,7 @@ async function createLocalProvider(
 }
 
 function toCreateProviderError(error: unknown): CreateProviderError {
-  return { message: error instanceof Error ? error.message : String(error) };
+  return { type: 'error', message: error instanceof Error ? error.message : String(error) };
 }
 
 async function backfillGitHubAccount(provider: ProjectProvider): Promise<void> {

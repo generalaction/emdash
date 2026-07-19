@@ -1,7 +1,7 @@
 import { err } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
+import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
 import type {
-  ManualPreviewServerRequest,
   ManualPreviewServerResult,
   PreviewServer,
   PreviewServerEvent,
@@ -64,26 +64,14 @@ export class PreviewServerStore implements Disposable {
       .filter((url): url is string => url !== null);
   }
 
-  async forwardManual(input: ManualForwardInput): Promise<ManualPreviewServerResult> {
+  async forwardManual(_input: ManualForwardInput): Promise<ManualPreviewServerResult> {
     if (!this.connectionId) {
       return err({
         type: 'not-ssh-workspace',
         message: 'Manual port forwarding requires a remote workspace',
       });
     }
-    const request: ManualPreviewServerRequest = {
-      projectId: this.projectId,
-      workspaceId: this.workspaceId,
-      connectionId: this.connectionId,
-      protocol: input.protocol,
-      remotePort: input.remotePort,
-      ...(input.preferredLocalPort ? { preferredLocalPort: input.preferredLocalPort } : {}),
-    };
-    void request;
-    return err({
-      type: 'runtime-unavailable',
-      message: 'Port forwarding requires the workspace server and is not available in this build.',
-    });
+    return err(remoteRuntimeUnavailable(this.connectionId, 'port-forwarding'));
   }
 
   async restart(_id: string): Promise<void> {

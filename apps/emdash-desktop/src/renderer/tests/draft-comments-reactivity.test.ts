@@ -1,6 +1,6 @@
 import { autorun, isObservableMap } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DraftCommentsStore } from '@core/features/tasks/browser/diff-view/stores/draft-comments-store';
+import { DraftCommentsStore } from '@core/features/source-control/browser/diff-view/stores/draft-comments-store';
 import type { DraftCommentTarget } from '@core/primitives/line-comments/api';
 
 const target: DraftCommentTarget = { kind: 'working-tree', group: 'disk', path: 'a.ts' };

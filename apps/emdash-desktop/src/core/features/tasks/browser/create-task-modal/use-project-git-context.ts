@@ -2,10 +2,10 @@ import type { CheckoutHeadState, GitBranchRef } from '@emdash/core/runtimes/git/
 import { useQuery } from '@tanstack/react-query';
 import {
   asMounted,
-  getGitRepositoryStore,
   getProjectStore,
 } from '@core/features/projects/browser/stores/project-selectors';
-import { readCheckoutHead } from '@renderer/lib/runtime/git';
+import { readCheckoutHead } from '@core/features/source-control/browser/client';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 
 export type ProjectGitContext = {
   defaultBranch: GitBranchRef | undefined;
@@ -25,10 +25,10 @@ export function useProjectGitContext(projectId: string | undefined): ProjectGitC
 
   const headQuery = useQuery({
     queryKey: ['gitRepository', 'projectRootHead', projectId],
-    enabled: !!projectId && project?.data.type === 'local',
+    enabled: !!project?.data.repositoryWorkspaceId,
     queryFn: async () => {
-      if (!project || project.data.type !== 'local') throw new Error('Local project required');
-      return readCheckoutHead(project.data.path);
+      if (!project?.data.repositoryWorkspaceId) throw new Error('Repository workspace required');
+      return readCheckoutHead(project.data.repositoryWorkspaceId);
     },
     refetchOnWindowFocus: true,
   });

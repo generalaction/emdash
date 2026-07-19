@@ -28,9 +28,7 @@ describe('ModalStore', () => {
     expect(store.activeModalId).toBe('secondModal');
 
     store.dismiss();
-    await expect(second).resolves.toEqual(
-      err({ type: 'modal_dismissed', reason: 'explicit' })
-    );
+    await expect(second).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'explicit' }));
   });
 
   it('dismisses the previous outcome when a modal is replaced while still active', async () => {
@@ -39,15 +37,11 @@ describe('ModalStore', () => {
 
     const second = store.open('secondModal', {});
 
-    await expect(first).resolves.toEqual(
-      err({ type: 'modal_dismissed', reason: 'replaced' })
-    );
+    await expect(first).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'replaced' }));
     expect(store.activeModalId).toBe('secondModal');
 
     store.dismiss();
-    await expect(second).resolves.toEqual(
-      err({ type: 'modal_dismissed', reason: 'explicit' })
-    );
+    await expect(second).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'explicit' }));
   });
 
   it('reports why an active modal was dismissed', async () => {
@@ -56,9 +50,7 @@ describe('ModalStore', () => {
 
     store.dismiss('navigation');
 
-    await expect(outcome).resolves.toEqual(
-      err({ type: 'modal_dismissed', reason: 'navigation' })
-    );
+    await expect(outcome).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'navigation' }));
   });
 
   it('consumes the previously focused element once', () => {

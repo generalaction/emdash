@@ -4,7 +4,8 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import { readTextFile, writeTextFile, type AcpProcessHost } from '@runtimes/acp/api';
+import type { AcpProcessHost } from '@runtimes/acp/api';
+import { readTextFile, writeTextFile } from './fs-text';
 
 type FsHost = Pick<AcpProcessHost, 'fs'>;
 

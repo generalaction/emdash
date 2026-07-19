@@ -1,14 +1,7 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
-import { acpApiContract } from '@runtimes/acp/api';
-import { agentConfigContract } from '@runtimes/agent-config/api/contract';
 import { automationsContract } from '@runtimes/automations/api';
 import { fileSearchContract } from '@runtimes/file-search/api';
-import { filesContract } from '@runtimes/files/api/api/contract';
-import { gitContract } from '@runtimes/git/api/api/contract';
-import { terminalsContract } from '@runtimes/terminals/api';
-import { tuiAgentsContract } from '@runtimes/tui-agents/api/contract';
-import { workspaceContract } from '@runtimes/workspace/api';
-import { hostDependenciesContract } from '@services/host-dependencies/api';
+import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
 import { portForwardsContract } from '../port-forwards/contract';
 import {
@@ -25,15 +18,8 @@ export const workspaceWireContract = defineContract({
     data: wireInitializeResultSchema,
     error: wireProtocolIncompatibleSchema,
   }),
-  git: gitContract,
-  files: filesContract,
+  ...hostRuntimesDefinitions,
   fileSearch: fileSearchContract,
-  agentConfig: agentConfigContract,
   automations: automationsContract,
-  terminals: terminalsContract,
-  tuiAgents: tuiAgentsContract,
-  acp: acpApiContract,
-  hostDependencies: hostDependenciesContract,
-  workspace: workspaceContract,
   portForwards: portForwardsContract,
 });

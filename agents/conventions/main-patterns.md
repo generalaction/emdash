@@ -15,7 +15,8 @@ export function createTasksWireController(): Controller {
 }
 ```
 
-Contracts are assembled in `src/core/manifests/desktop-wire-contract.ts`; controllers are served by
+Contracts are assembled in `src/core/manifests/shared/desktop-wire-contract.ts`; controllers are
+served by
 `src/main/gateway/desktop-wire.ts`.
 
 **Rules:**

@@ -1,18 +1,20 @@
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import {
-  useTaskViewContext,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import {
+  useTaskComposition,
+  useWorkspaceId,
+} from '@core/features/workbench/browser/task-composition-context';
 import { useOpenModal } from '@renderer/lib/modal/api';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const TabBarActions = observer(function TabBarActions() {
-  const taskView = useWorkspaceViewModel();
-  const { projectId, taskId, workspaceId } = useTaskViewContext();
+  const taskView = useTaskComposition();
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
   const { pane } = usePaneContext();
   const { paneLayout } = taskView;
   const openCommandPalette = useOpenModal('commandPaletteModal');
@@ -53,7 +55,7 @@ export const TabBarActions = observer(function TabBarActions() {
               void openCommandPalette({
                 projectId,
                 taskId,
-                workspaceId: workspaceId ?? undefined,
+                workspaceId,
               })
             }
           >

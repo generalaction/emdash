@@ -12,7 +12,7 @@ vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 
-vi.mock('@core/features/projects/browser/stores/project-selectors', () => ({
+vi.mock('@core/features/source-control/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => undefined,
 }));
 

@@ -1,5 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
+import { useAgentInstallationStatus } from '@core/features/agents/browser/use-agent-installation-statuses';
 import type {
   AgentPayload,
   Installation,
@@ -8,7 +10,6 @@ import type {
   SelectedSource,
 } from '@core/primitives/agents/api';
 import { sourceKey } from '@core/primitives/agents/api';
-import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { DependencyInstallationStatusCard } from './DependencyInstallationStatusCard';
 import type { InstallationState } from './DependencyInstallationStatusCard';
 import { DependencyInstallationUpdateCard } from './DependencyInstallationUpdateCard';
@@ -69,18 +70,10 @@ export const InstallSection = observer(function InstallSection({
   installDocs,
   hideOverrideOptions,
 }: InstallSectionProps) {
-  if (connectionId) {
-    return (
-      <div className="rounded-lg border border-border bg-background-1 px-3 py-2 text-sm text-foreground-muted">
-        Remote host dependency management requires the workspace server and is not available in this
-        build.
-      </div>
-    );
-  }
-
   return (
     <LocalInstallSection
       agentId={agentId}
+      connectionId={connectionId}
       agentPayload={agentPayload}
       installOptions={installOptions}
       installDocs={installDocs}
@@ -91,12 +84,17 @@ export const InstallSection = observer(function InstallSection({
 
 const LocalInstallSection = observer(function LocalInstallSection({
   agentId,
+  connectionId,
   agentPayload,
   installOptions,
   installDocs: _installDocs,
   hideOverrideOptions: _hideOverrideOptions,
-}: Omit<InstallSectionProps, 'connectionId'>) {
-  const vm = useAgentInstallationStatus(agentId, undefined, agentPayload);
+}: InstallSectionProps) {
+  const vm = useAgentInstallationStatus(
+    agentId,
+    hostRefFromConnectionId(connectionId),
+    agentPayload
+  );
 
   const [selectedSource, setSelectedSource] = useState<SelectedSource>(() =>
     seedSource(vm.used, vm.status, installOptions)
@@ -172,6 +170,21 @@ const LocalInstallSection = observer(function LocalInstallSection({
     }
     return installOptions;
   }, [installOptions, selectedSource]);
+
+  if (vm.runtimeError) {
+    switch (vm.runtimeError.type) {
+      case 'host-unavailable':
+      case 'not-configured':
+        return (
+          <div
+            role="alert"
+            className="rounded-lg border border-border bg-background-secondary p-3 text-sm text-foreground-muted"
+          >
+            {vm.runtimeError.message}
+          </div>
+        );
+    }
+  }
 
   return (
     <div className="space-y-2">

@@ -2,6 +2,7 @@ import type {
   DependencyId,
   HostDependencySnapshot,
 } from '@emdash/core/services/host-dependencies/node';
+import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import {
@@ -20,30 +21,34 @@ import {
 export const agentOperations = {
   // ── Metadata ────────────────────────────────────────────────────────────────
 
-  list: async (connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  list: async (connectionId?: string, manager?: HostDependenciesClient) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     const snapshot = await snapshotFor(mgr);
     return buildAgentPayloads(snapshot, connectionId);
   },
 
-  get: async (id: string, connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  get: async (id: string, connectionId?: string, manager?: HostDependenciesClient) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     const snapshot = await snapshotFor(mgr);
     return buildAgentPayload(id, snapshot, connectionId);
   },
 
   // ── Installation status ──────────────────────────────────────────────────────
 
-  listAgentInstallationStatus: async (connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  listAgentInstallationStatus: async (connectionId?: string, manager?: HostDependenciesClient) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     const snapshot = await snapshotFor(mgr);
     return Object.values(snapshot.dependencies)
       .filter((view) => view.definition.category === 'agent')
       .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
   },
 
-  getAgentInstallationStatus: async (id: string, connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  getAgentInstallationStatus: async (
+    id: string,
+    connectionId?: string,
+    manager?: HostDependenciesClient
+  ) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     const snapshot = await snapshotFor(mgr);
     return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
   },
@@ -84,19 +89,20 @@ export const agentOperations = {
   setUsedInstallation: async (
     id: DependencyId,
     connectionId?: string,
-    selection?: unknown
+    selection?: unknown,
+    manager?: HostDependenciesClient
   ): Promise<void> => {
     // undefined = no-op; null = explicit auto (clear override)
     if (selection === undefined) return;
-    const mgr = await getDependencyManager(connectionId);
+    const mgr = await resolveDependencyManager(connectionId, manager);
     await mgr.snapshot.mutate('setSelection', {
       key: undefined,
       input: { id, selection: normalizeSelection(selection) },
     });
   },
 
-  probe: async (id: DependencyId, connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  probe: async (id: DependencyId, connectionId?: string, manager?: HostDependenciesClient) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     const result = await mgr.snapshot.mutate('refresh', {
       key: undefined,
       input: { id },
@@ -112,8 +118,8 @@ export const agentOperations = {
 
   refreshLatestVersion: async (_id: DependencyId, _connectionId?: string): Promise<void> => {},
 
-  probeAll: async (connectionId?: string) => {
-    const mgr = await getDependencyManager(connectionId);
+  probeAll: async (connectionId?: string, manager?: HostDependenciesClient) => {
+    const mgr = await resolveDependencyManager(connectionId, manager);
     await ensureAgentDependenciesProbed(mgr);
   },
 
@@ -121,6 +127,16 @@ export const agentOperations = {
     return buildAgentMetadataList();
   },
 };
+
+async function resolveDependencyManager(
+  connectionId?: string,
+  manager?: HostDependenciesClient
+): Promise<HostDependenciesClient> {
+  if (manager) return manager;
+  const result = await getDependencyManager(connectionId);
+  if (!result.success) throw runtimeResolveErrorAsError(result.error);
+  return result.data;
+}
 
 async function snapshotFor(manager: HostDependenciesClient): Promise<HostDependencySnapshot> {
   await ensureAgentDependenciesProbed(manager);

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { modelRegistry } from '@core/features/editor/browser/monaco/monaco-model-registry';
 import type { ActiveSessionSummary } from '@core/features/workbench/api';
 import { useMementoClient } from '@core/primitives/mementos/react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useOpenModal } from '@renderer/lib/modal/api';
 import { modalStore } from '@renderer/lib/modal/modal-store';
-import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { log } from '@renderer/utils/logger';

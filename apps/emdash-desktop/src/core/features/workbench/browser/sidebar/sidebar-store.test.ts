@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
 import type { WorkbenchSidebarState } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { SidebarStore } from './sidebar-store';
@@ -52,23 +53,26 @@ function projectManagerWithTasks(
 ): SidebarProjectManager {
   return {
     projects: new Map(
-      projects.map((project) => [
-        project.id,
-        {
-          id: project.id,
-          createdAt: project.createdAt,
-          mountedProject: {
-            taskManager: {
-              tasks: new Map(
-                project.taskIds.map((taskId, index) => [
-                  taskId,
-                  task(taskId, `2026-01-01T00:00:0${index}.000Z`),
-                ])
-              ),
+      projects.map((project) => {
+        const taskManager = {
+          tasks: new Map(
+            project.taskIds.map((taskId, index) => [
+              taskId,
+              task(taskId, `2026-01-01T00:00:0${index}.000Z`),
+            ])
+          ),
+        };
+        return [
+          project.id,
+          {
+            id: project.id,
+            createdAt: project.createdAt,
+            mountedProject: {
+              get: (token: unknown) => (token === taskManagerStoreToken ? taskManager : undefined),
             },
           },
-        },
-      ])
+        ];
+      })
     ),
   } as unknown as SidebarProjectManager;
 }
@@ -175,7 +179,7 @@ describe('SidebarStore project ordering', () => {
       },
     ]);
     const project = manager.projects.get('project-1')!;
-    const tasks = project.mountedProject!.taskManager.tasks;
+    const tasks = project.mountedProject!.get(taskManagerStoreToken).tasks;
     tasks.get('regular-task')!.data.isPinned = true;
     tasks.get('automation-task')!.data.isPinned = true;
     tasks.get('automation-task')!.data.type = 'automation-run';

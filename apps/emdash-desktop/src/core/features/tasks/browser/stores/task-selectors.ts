@@ -1,9 +1,10 @@
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
 import { isUnmountedProject } from '@core/features/projects/browser/stores/project';
-import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
-import type { DiffViewStore } from '@core/features/tasks/browser/diff-view/stores/diff-view-store';
-import type { EditorViewStore } from '@core/features/tasks/browser/editor/stores/editor-view-store';
-import type { AgentStatus } from '@core/primitives/agents/api';
+import {
+  asMounted,
+  getProjectManagerStore,
+  getProjectStore,
+} from '@core/features/projects/browser/stores/project-selectors';
+import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
 import type { Task } from '@core/primitives/tasks/api';
 import type { TaskManagerStore } from './task-manager';
 import {
@@ -13,14 +14,10 @@ import {
   registeredTaskData,
   type TaskStore,
 } from './task-store';
-import { terminalRegistry } from './terminal-registry';
-import { workspaceRegistry } from './workspace-registry';
-import type { WorkspaceViewModel } from './workspace-view-model';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
-  const p = getProjectManagerStore().projects.get(projectId);
-  return p?.mountedProject?.taskManager;
+  return asMounted(getProjectStore(projectId))?.get(taskManagerStoreToken);
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
@@ -46,32 +43,6 @@ export function getTaskIdForAutomationRun(
     if (task.data.automationRunId === automationRunId) return task.data.id;
   }
   return null;
-}
-
-/** Call only inside `observer` components (or other MobX reactions). */
-export function getTaskView(projectId: string, taskId: string): WorkspaceViewModel | undefined {
-  return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
-}
-
-/** Call only inside `observer` components (or other MobX reactions). */
-export function getEditorView(projectId: string, taskId: string): EditorViewStore | undefined {
-  return getTaskView(projectId, taskId)?.editorView;
-}
-
-/** Call only inside `observer` components (or other MobX reactions). */
-export function getDiffView(projectId: string, taskId: string): DiffViewStore | undefined {
-  return getTaskView(projectId, taskId)?.diffView ?? undefined;
-}
-
-export function getTaskGitCheckoutStore(projectId: string, taskId: string) {
-  const store = getTaskStore(projectId, taskId);
-  if (!store?.workspaceId) return undefined;
-  return workspaceRegistry.get(projectId, store.workspaceId)?.gitCheckout;
-}
-
-export function taskAgentStatus(store: TaskStore): AgentStatus | null {
-  const mgr = conversationRegistry.get(store.data.id);
-  return mgr?.taskStatus ?? null;
 }
 
 export type TaskViewKind =
@@ -131,30 +102,6 @@ export function asProvisioned(
   return store && isProvisioned(store) ? store : undefined;
 }
 
-// ---------------------------------------------------------------------------
-// New focused selectors (Phase 4)
-// ---------------------------------------------------------------------------
-
-export function getWorkspaceForTask(projectId: string, taskId: string) {
-  const wsId = getTaskStore(projectId, taskId)?.workspaceId;
-  return wsId ? (workspaceRegistry.get(projectId, wsId) ?? undefined) : undefined;
-}
-
-export function getWorkspaceViewModel(
-  projectId: string,
-  taskId: string
-): WorkspaceViewModel | undefined {
-  return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
-}
-
-export function getConversationsForTask(taskId: string) {
-  return conversationRegistry.get(taskId);
-}
-
-export function getTerminalsForTask(taskId: string) {
-  return terminalRegistry.get(taskId);
-}
-
 /** Returns the display name from any task store variant. */
 export function taskDisplayName(store: TaskStore | undefined): string | undefined {
   if (!store) return undefined;
@@ -176,13 +123,4 @@ export function taskErrorMessage(store: TaskStore | undefined): string | undefin
     }
   }
   return undefined;
-}
-
-/** Returns the mount error message for the project. */
-export function projectMountErrorMessage(projectId: string): string {
-  const store = getProjectManagerStore().projects.get(projectId);
-  if (store && isUnmountedProject(store) && store.phase === 'error') {
-    return store.error ?? 'Failed to open project';
-  }
-  return 'Failed to open project';
 }

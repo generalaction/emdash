@@ -1,10 +1,8 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import {
-  getProjectSettingsStore,
-  getGitRepositoryStore,
-} from '@core/features/projects/browser/stores/project-selectors';
+import { getProjectSettingsStore } from '@core/features/projects/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { defineModal } from '@core/primitives/modals/react';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { useModalController } from '@renderer/lib/modal/api';

@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { taskEvents } from '@core/features/tasks/node';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
   CreateTaskError,
@@ -19,7 +20,6 @@ import {
   workspaceBootstrapService,
   type WorkspaceBootstrapResult,
 } from '@main/core/workspaces/workspace-bootstrap-service';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -95,8 +95,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     if (existingTask) {
       const pd = taskSessionManager.getPersistData(taskId);
       const wsId = pd?.workspaceId ?? '';
+      const identity = wsId ? await workspaceIdentityService.resolve(wsId) : null;
       const provisionResult: ProvisionResult = {
-        path: workspaceRegistry.get(wsId)?.path ?? '',
+        path: identity?.path ?? '',
         workspaceId: wsId,
         sshConnectionId: pd?.sshConnectionId,
       };

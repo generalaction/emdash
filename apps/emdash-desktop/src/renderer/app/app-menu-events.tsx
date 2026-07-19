@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';

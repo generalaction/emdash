@@ -4,18 +4,19 @@ import { FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-re
 import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
+import { FileIcon } from '@core/features/editor/browser/renderers/file-icon';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getTaskStore, getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
-import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
+import { getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { PALETTE_CATALOG } from '@core/manifests/palette-catalog';
+import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
+import { workspaceRegistry } from '@core/features/workspaces/browser/stores/workspace-registry';
+import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import { defineModal } from '@core/primitives/modals/react';
 import type { PaletteItemDef } from '@core/primitives/palette/api';
 import { getPaletteRenderer } from '@core/primitives/palette/browser';
 import type { SearchItem } from '@core/primitives/search/api';
 import type { BoundCommand } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
-import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { keybindingService } from '@renderer/lib/keybindings';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -258,7 +259,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const workspacePath =
-    projectId && workspaceId ? workspaceRegistry.get(projectId, workspaceId)?.path : undefined;
+    projectId && workspaceId ? workspaceRegistry.get(workspaceId)?.path : undefined;
 
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
@@ -276,7 +277,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.paneLayout.open(
+    getTaskComposition(item.projectId, item.taskId)?.paneLayout.open(
       'conversation',
       { conversationId: item.id },
       { preview: false }
@@ -287,7 +288,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.activePane.open(
+    getTaskComposition(item.projectId, item.taskId)?.activePane.open(
       'file',
       { path: item.id },
       { preview: false }

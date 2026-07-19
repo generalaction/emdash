@@ -100,6 +100,17 @@ test('allows only the core module dependency graph', () => {
   const runtimeFiles = { type: 'runtimes', moduleName: 'files' };
   const serviceExec = { type: 'services', moduleName: 'exec' };
   const servicePty = { type: 'services', moduleName: 'pty' };
+  const serviceRuntimeBroker = { type: 'services', moduleName: 'runtime-broker' };
+  const serviceHostDependenciesApi = {
+    type: 'services',
+    moduleName: 'host-dependencies',
+    surface: 'api',
+  };
+  const serviceHostDependenciesNode = {
+    type: 'services',
+    moduleName: 'host-dependencies',
+    surface: 'node',
+  };
   const primitivePath = { type: 'primitives', moduleName: 'path' };
   const primitiveHost = { type: 'primitives', moduleName: 'host' };
   const featureTasks = { type: 'features', moduleName: 'tasks' };
@@ -119,6 +130,17 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(serviceExec, primitivePath), true);
   assert.equal(isAllowedCoreModuleDependency(serviceExec, servicePty), false);
   assert.equal(isAllowedCoreModuleDependency(serviceExec, runtimeGit), false);
+  assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, runtimeGitApi), true);
+  assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, runtimeGitNode), false);
+  assert.equal(
+    isAllowedCoreModuleDependency(serviceRuntimeBroker, serviceHostDependenciesApi),
+    true
+  );
+  assert.equal(
+    isAllowedCoreModuleDependency(serviceRuntimeBroker, serviceHostDependenciesNode),
+    false
+  );
+  assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, serviceExec), false);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, primitiveHost), true);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, serviceExec), false);
   assert.equal(isAllowedCoreModuleDependency(primitivePath, runtimeGit), false);

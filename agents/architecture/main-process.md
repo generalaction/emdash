@@ -11,7 +11,8 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - **app** — App lifecycle service and controller
 - **conversations** — Conversation CRUD and session start
 - **dependencies** — CLI agent detection, probing, dependency management
-- **editor** — Editor buffer service for Monaco integration
+- **editor** (`src/core/features/editor/node/`) — Workspace-identity file adapter and editor buffer
+  service
 - **fs** — Filesystem operations with provider pattern (`local-fs.ts`, `ssh-fs.ts`)
 - **git** — Git operations (`git-service.ts`, `git-repo-utils.ts`, `detectGitInfo.ts`)
 - **github** — GitHub auth, PRs, issues, repos (via `gh` CLI)
@@ -40,8 +41,11 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 
 ## IPC / RPC Structure
 
-- Domain Wire contracts are assembled in `src/core/manifests/desktop-wire-contract.ts`.
+- Domain Wire contracts are assembled in
+  `src/core/manifests/shared/desktop-wire-contract.ts`.
 - Node controllers and event hosts live in owning slices under `src/core/features/*/node/`.
+- Lazy controller factories are contributed by `src/core/manifests/node/controllers.ts`; the
+  shared desktop contract remains a hand-composed renderer-safe manifest of slice API contracts.
 - `src/main/gateway/desktop-wire.ts` serves the desktop contract over a transferred message port.
 - The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
   `getPathForFile`.

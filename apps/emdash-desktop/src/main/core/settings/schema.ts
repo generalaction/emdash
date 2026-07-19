@@ -1,6 +1,6 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import z from 'zod';
-import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import { BROWSER_ISOLATED_PROFILE_ID } from '@core/primitives/browser/api';
 import { openInAppIdSchema } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { normalizeBranchPrefix } from '@core/primitives/tasks/api';

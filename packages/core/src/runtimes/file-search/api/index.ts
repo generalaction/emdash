@@ -43,3 +43,5 @@ export {
   type PathSearchInput,
   type PathSearchResult,
 } from './schemas';
+
+export { fileSearchWorker } from './worker';

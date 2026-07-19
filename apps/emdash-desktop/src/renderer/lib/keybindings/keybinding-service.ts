@@ -1,7 +1,7 @@
 import { computed, observable, type IComputedValue, type IObservableValue } from 'mobx';
 import type { KeybindingPress } from 'tinykeys';
-import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
-import { MENU_ITEMS } from '@core/manifests/menu-items';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { MENU_ITEMS } from '@core/manifests/shared/menu-items';
 import type { CommandDef } from '@core/primitives/commands/api';
 import {
   detectPlatformContext,

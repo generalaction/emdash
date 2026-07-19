@@ -1,3 +1,4 @@
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
 
 export type PreviewServerSource =
@@ -61,7 +62,7 @@ export type ManualPreviewServerRequest = {
 
 export type ManualPreviewServerError =
   | { type: 'not-ssh-workspace'; message: string }
-  | { type: 'runtime-unavailable'; message: string };
+  | RuntimeResolveError;
 
 export type ManualPreviewServerResult = Result<PreviewServer, ManualPreviewServerError>;
 

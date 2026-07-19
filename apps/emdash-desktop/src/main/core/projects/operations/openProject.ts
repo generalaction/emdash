@@ -1,3 +1,4 @@
+import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { OpenProjectError, OpenProjectSuccess } from '@core/primitives/projects/api';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -16,7 +17,9 @@ export async function openProject(
   }
   const result = await projectManager.openProject(project);
   if (!result.success) {
-    return err({ type: 'error', message: result.error.message });
+    return isRuntimeResolveError(result.error)
+      ? err(result.error)
+      : err({ type: 'error', message: result.error.message });
   }
 
   // Ensure the project has a shared repository-root workspace row.

@@ -1,5 +1,5 @@
 import { defineConfig } from 'tsdown';
-import workspaceWorkers from './src/worker-manifest.json' with { type: 'json' };
+import { workspaceWorkers } from './src/worker-manifest.js';
 import { workspaceWorkerBuildInputs } from './worker-manifest-utils.js';
 
 export default defineConfig({

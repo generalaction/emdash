@@ -14,14 +14,14 @@
  * so they stay in sync automatically.
  */
 
-import { TaskTabViewPersistor } from '@core/features/tasks/browser/stores/task-tab-view-persistor';
 import {
   type KindOf,
   type OpenArgsOf,
 } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
 import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
 import { createTabView } from '@core/features/workbench/browser/tabs/tab-view-factory';
-import { taskTabContributions } from '@core/manifests/task-tab-contributions';
+import { taskTabContributions } from '@core/manifests/browser/task-tab-contributions';
+import { TaskTabViewPersistor } from './tabs/task-tab-view-persistor';
 
 export const taskTabView = createTabView(taskTabContributions, {
   makePersistor: (ctx) => new TaskTabViewPersistor(ctx as TaskTabContext),

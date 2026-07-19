@@ -1,5 +1,7 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { ok, type Result } from '@emdash/shared';
 import type { WorkspaceBootstrapStep } from '@core/features/workspaces/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -47,7 +49,7 @@ export async function buildTaskFromWorkspace(
   settings: ProjectSettingsProvider,
   workspaceBranchName?: string,
   workspaceSourceBranch?: GitBranchRef
-): Promise<BuildTaskResult> {
+): Promise<Result<BuildTaskResult, RuntimeResolveError>> {
   const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
     task,
     workspace,
@@ -55,7 +57,7 @@ export async function buildTaskFromWorkspace(
     settings
   );
 
-  const { conversations: conversationProvider } = await buildTaskProviders(type, {
+  const providers = await buildTaskProviders(type, {
     projectId,
     taskId: task.id,
     workspaceId: workspace.id,
@@ -64,6 +66,8 @@ export async function buildTaskFromWorkspace(
     shellSetup,
     taskEnvVars,
   });
+  if (!providers.success) return providers;
+  const { conversations: conversationProvider } = providers.data;
 
   const taskProvider: TaskProvider = {
     taskId: task.id,
@@ -73,5 +77,5 @@ export async function buildTaskFromWorkspace(
     conversations: conversationProvider,
   };
 
-  return { taskProvider, conversationProvider };
+  return ok({ taskProvider, conversationProvider });
 }

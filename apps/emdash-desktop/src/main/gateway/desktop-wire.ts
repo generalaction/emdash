@@ -1,62 +1,19 @@
-import { acpApiContract } from '@emdash/core/runtimes/acp/api';
-import { agentConfigContract } from '@emdash/core/runtimes/agent-config/api';
-import { filesContract } from '@emdash/core/runtimes/files/api';
-import { gitContract } from '@emdash/core/runtimes/git/api';
-import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
-import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { compose } from '@emdash/shared/requests';
-import {
-  createController,
-  exposeWireToWindows,
-  forwardController,
-  validation,
-  type Controller,
-} from '@emdash/wire/api';
+import { exposeWireToWindows, validation, type Controller } from '@emdash/wire/api';
 import { ipcMain, MessageChannelMain } from 'electron';
-import { createAutomationsWireController } from '@core/features/automations/node/wire-controller';
-import { createBrowserWireController } from '@core/features/browser/node/wire-controller';
-import { createConversationsWireController } from '@core/features/conversations/node/wire-controller';
-import { createGithubWireController } from '@core/features/github/node/wire-controller';
-import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
-import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
-import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
-import { projectsWireContract } from '@core/features/projects/api';
-import { createSshWireController } from '@core/features/ssh/node/wire-controller';
-import { tasksWireContract } from '@core/features/tasks/api';
-import { terminalTabsWireContract } from '@core/features/terminals/api';
-import { createUpdatesWireController } from '@core/features/updates/node/wire-controller';
-import { createDesktopHostWireController } from '@core/features/workbench/node/wire-controller';
-import { workspacesWireContract } from '@core/features/workspaces/api';
-import { desktopWireContract } from '@core/manifests/desktop-wire-contract';
-import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/wire-channels';
-import { mementosWireContract } from '@core/primitives/mementos/api';
-import { catalogWireContract } from '@core/services/catalog/api';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
+import {
+  desktopNodeControllers,
+  type DesktopControllerContext,
+} from '@core/manifests/node/controllers';
+import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
+import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import { appScope } from '@main/bootstrap/app-scope';
-import { createCatalogWireController } from '@main/core/catalog/wire-controller';
-import { createDevServerBridge } from '@main/core/preview-servers/dev-server-bridge';
-import { createProjectsWireController } from '@main/core/projects/wire-controller';
-import { createTasksWireController } from '@main/core/tasks/wire-controller';
-import { createTerminalTabsWireController } from '@main/core/terminals/wire-controller';
-import {
-  createWorkspacesWireController,
-  type CreateWorkspacesWireControllerOptions,
-} from '@main/core/workspaces/wire-controller';
-import {
-  getAcpRuntimeClient,
-  getAgentConfigRuntimeClient,
-  getFilesRuntimeClient,
-  getGitRuntimeClient,
-  getMementosRuntimeClient,
-  getPullRequestsRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-} from '@main/gateway/desktop-workers';
-import { notificationService } from '@root/src/core/services/notifications/node';
-import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
-import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
-import { createLegacyRpcWireControllers } from './legacy-rpc-wire-controllers';
+import { createRetryableReady } from './retryable-ready';
+import { getDesktopRuntimeBroker } from './runtime-broker';
 
-export type InstallDesktopWireOptions = CreateWorkspacesWireControllerOptions;
+export type InstallDesktopWireOptions = DesktopControllerContext['workspaces'];
 
 const scope = appScope.child('desktop-wire');
 let installed = false;
@@ -65,40 +22,8 @@ export function installDesktopWire(options: InstallDesktopWireOptions): void {
   if (installed || typeof ipcMain?.handle !== 'function') return;
   installed = true;
 
-  const workspacesController = createWorkspacesWireController(options);
-  const projectsController = createProjectsWireController();
-  const terminalTabsController = createTerminalTabsWireController();
-  const tasksController = createTasksWireController();
-  const catalogController = createCatalogWireController();
-  const previewServersController = createPreviewServersWireController();
-  const updatesController = createUpdatesWireController();
-  const sshController = createSshWireController();
-  const githubController = createGithubWireController();
-  const integrationsController = createIntegrationsWireController();
-  const issuesController = createIssuesWireController();
-  const automationsController = createAutomationsWireController();
-  const browserController = createBrowserWireController();
-  const conversationsController = createConversationsWireController();
-  const legacyRpcControllers = createLegacyRpcWireControllers();
-  const desktopHostController = createDesktopHostWireController();
-  const controller = createLazyDesktopController({
-    workspacesController,
-    projectsController,
-    terminalTabsController,
-    tasksController,
-    catalogController,
-    previewServersController,
-    updatesController,
-    sshController,
-    githubController,
-    integrationsController,
-    issuesController,
-    automationsController,
-    browserController,
-    conversationsController,
-    legacyRpcControllers,
-    desktopHostController,
-  });
+  const runtimes = getDesktopRuntimeBroker();
+  const controller = createLazyDesktopController(options, runtimes);
 
   scope.add(
     exposeWireToWindows(
@@ -115,86 +40,37 @@ function createMessageChannel() {
   return { port1: channel.port1, port2: channel.port2 };
 }
 
-function createLazyDesktopController({
-  workspacesController,
-  projectsController,
-  terminalTabsController,
-  tasksController,
-  catalogController,
-  previewServersController,
-  updatesController,
-  sshController,
-  githubController,
-  integrationsController,
-  issuesController,
-  automationsController,
-  browserController,
-  conversationsController,
-  legacyRpcControllers,
-  desktopHostController,
-}: {
-  workspacesController: ReturnType<typeof createWorkspacesWireController>;
-  projectsController: ReturnType<typeof createProjectsWireController>;
-  terminalTabsController: ReturnType<typeof createTerminalTabsWireController>;
-  tasksController: ReturnType<typeof createTasksWireController>;
-  catalogController: ReturnType<typeof createCatalogWireController>;
-  previewServersController: Controller;
-  updatesController: Controller;
-  sshController: Controller;
-  githubController: Controller;
-  integrationsController: Controller;
-  issuesController: Controller;
-  automationsController: Controller;
-  browserController: Controller;
-  conversationsController: Controller;
-  legacyRpcControllers: Record<string, Controller>;
-  desktopHostController: Controller;
-}): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
+function createLazyDesktopController(
+  workspaces: InstallDesktopWireOptions,
+  runtimes: RuntimeBroker
+): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
-  let devServerBridge: Awaited<ReturnType<typeof createDevServerBridge>> | undefined;
+  let controllerScopes: ReturnType<typeof scope.child>[] = [];
+  let disposePromise: Promise<void> | undefined;
 
-  async function ready(): Promise<void> {
-    if (controllers) return;
-    const [acp, agentConfig, files, git, mementos, pullRequests, terminals, tuiAgents] =
-      await Promise.all([
-        getAcpRuntimeClient(),
-        getAgentConfigRuntimeClient(),
-        getFilesRuntimeClient(),
-        getGitRuntimeClient(),
-        getMementosRuntimeClient(),
-        getPullRequestsRuntimeClient(),
-        getTerminalsRuntimeClient(),
-        getTuiAgentsRuntimeClient(),
-      ]);
-    devServerBridge = await createDevServerBridge(terminals);
-    controllers = {
-      ...legacyRpcControllers,
-      host: desktopHostController,
-      git: forwardController(gitContract, git),
-      mementos: forwardController(mementosWireContract, mementos),
-      pullRequests: forwardController(pullRequestsContract, pullRequests),
-      files: forwardController(filesContract, files),
-      acp: forwardController(acpApiContract, acp),
-      agentConfig: forwardController(agentConfigContract, agentConfig),
-      terminals: forwardController(terminalsContract, terminals),
-      terminalTabs: createController(terminalTabsWireContract, terminalTabsController.impl),
-      tasks: createController(tasksWireContract, tasksController.impl),
-      tuiAgents: forwardController(tuiAgentsContract, tuiAgents),
-      notifications: createNotificationsWireController(notificationService),
-      catalog: createController(catalogWireContract, catalogController.impl),
-      workspaces: createController(workspacesWireContract, workspacesController.impl),
-      projects: createController(projectsWireContract, projectsController.impl),
-      previewServers: previewServersController,
-      updates: updatesController,
-      ssh: sshController,
-      github: githubController,
-      integrations: integrationsController,
-      issues: issuesController,
-      automations: automationsController,
-      browser: browserController,
-      conversations: conversationsController,
-    };
-  }
+  const ready = createRetryableReady(async () => {
+    const pendingScopes: ReturnType<typeof scope.child>[] = [];
+    try {
+      const entries = await Promise.all(
+        Object.entries(desktopNodeControllers).map(async ([domain, contribution]) => {
+          const controllerScope = scope.child(`controller:${domain}`);
+          pendingScopes.push(controllerScope);
+          const controller = await contribution.create({
+            scope: controllerScope,
+            runtimes,
+            workspaceIdentity: workspaceIdentityService,
+            workspaces,
+          });
+          return [domain, controller] as const;
+        })
+      );
+      controllerScopes = pendingScopes;
+      controllers = Object.fromEntries(entries);
+    } catch (error) {
+      await Promise.all(pendingScopes.map((controllerScope) => controllerScope.dispose(error)));
+      throw error;
+    }
+  });
 
   return {
     ready,
@@ -214,17 +90,17 @@ function createLazyDesktopController({
       return routed.controller.acquireLive(routed.path);
     },
     async dispose() {
-      await Promise.all(
-        Object.values(controllers ?? {}).map(async (controller) => {
-          await controller.dispose?.();
-        })
-      );
-      await projectsController.dispose();
-      await workspacesController.dispose();
-      await terminalTabsController.dispose();
-      await tasksController.dispose();
-      await catalogController.dispose();
-      await devServerBridge?.dispose();
+      disposePromise ??= (async () => {
+        await Promise.all(
+          Object.values(controllers ?? {}).map(async (controller) => {
+            await controller.dispose?.();
+          })
+        );
+        await Promise.all(controllerScopes.map((controllerScope) => controllerScope.dispose()));
+        controllers = undefined;
+        controllerScopes = [];
+      })();
+      return disposePromise;
     },
   };
 }

@@ -1,9 +1,12 @@
-import { terminalKeySchema } from '@emdash/core/runtimes/terminals/api';
+import { scriptWorkflowStateSchema } from '@emdash/core/runtimes/terminals/api';
+import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import {
+  scriptWorkflowProgressSchema,
+  scriptWorkflowResultSchema,
   terminalErrorSchema,
   terminalSizeSchema,
 } from '@emdash/core/services/script-workflows/api';
-import { defineContract, fallible } from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import { TERMINAL_SHELL_IDS } from '@core/primitives/terminals/api';
 
@@ -46,12 +49,10 @@ export const terminalRenameInputSchema = z.object({
 });
 
 export const terminalHydrateResultSchema = z.object({
-  key: terminalKeySchema,
-});
-
-export const terminalCreateResultSchema = z.object({
-  terminal: terminalRecordSchema,
-  key: terminalKeySchema,
+  key: z.object({
+    workspaceId: z.string(),
+    terminalId: z.string(),
+  }),
 });
 
 export const terminalShellAvailabilitySchema = z.object({
@@ -62,39 +63,108 @@ export const terminalShellAvailabilitySchema = z.object({
   reason: z.string().optional(),
 });
 
-export const terminalTabsWireContract = defineContract({
+export const terminalCreateResultSchema = z.object({
+  terminal: terminalRecordSchema,
+  key: terminalHydrateResultSchema.shape.key,
+});
+
+export const terminalRuntimeKeySchema = terminalHydrateResultSchema.shape.key;
+
+export const terminalRuntimeDataInputSchema = terminalRuntimeKeySchema.extend({
+  data: z.string(),
+});
+
+export const terminalRuntimeResizeInputSchema = terminalRuntimeKeySchema.merge(terminalSizeSchema);
+
+export const terminalWorkspaceInputSchema = z.object({
+  workspaceId: z.string(),
+});
+
+export const runTerminalScriptWorkflowInputSchema = z.object({
+  projectId: z.string(),
+  taskId: z.string(),
+  workspaceId: z.string(),
+  type: z.enum(['setup', 'run', 'teardown']),
+});
+
+export const terminalSliceErrorSchema = z.union([runtimeResolveErrorSchema, terminalErrorSchema]);
+
+export const terminalsContract = defineContract({
   list: fallible({
     input: terminalTaskInputSchema,
     data: z.array(terminalRecordSchema),
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
   }),
   create: fallible({
     input: terminalCreateInputSchema,
     data: terminalCreateResultSchema,
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
   }),
   delete: fallible({
     input: terminalDeleteInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
   }),
   rename: fallible({
     input: terminalRenameInputSchema,
     data: z.void(),
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
   }),
   hydrate: fallible({
     input: terminalHydrateInputSchema,
     data: terminalHydrateResultSchema,
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
   }),
   getShellAvailability: fallible({
     input: z.void().optional(),
     data: z.array(terminalShellAvailabilitySchema),
-    error: terminalErrorSchema,
+    error: terminalSliceErrorSchema,
+  }),
+  runScriptWorkflow: liveJob({
+    input: runTerminalScriptWorkflowInputSchema,
+    progress: scriptWorkflowProgressSchema,
+    result: scriptWorkflowResultSchema,
+    error: terminalSliceErrorSchema,
+  }),
+  workflows: liveModel({
+    key: terminalWorkspaceInputSchema,
+    states: {
+      state: liveState({ data: scriptWorkflowStateSchema.nullable() }),
+    },
+  }),
+  output: liveLog({
+    key: terminalRuntimeKeySchema,
+  }),
+  sendInput: fallible({
+    input: terminalRuntimeDataInputSchema,
+    data: z.void(),
+    error: terminalSliceErrorSchema,
+  }),
+  resize: fallible({
+    input: terminalRuntimeResizeInputSchema,
+    data: z.void(),
+    error: terminalSliceErrorSchema,
+  }),
+  kill: fallible({
+    input: terminalRuntimeKeySchema,
+    data: z.void(),
+    error: terminalSliceErrorSchema,
+  }),
+  killScope: fallible({
+    input: terminalWorkspaceInputSchema,
+    data: z.void(),
+    error: terminalSliceErrorSchema,
+  }),
+  detachScope: fallible({
+    input: terminalWorkspaceInputSchema,
+    data: z.void(),
+    error: terminalSliceErrorSchema,
   }),
 });
 
-export type TerminalTabsWireContract = typeof terminalTabsWireContract;
+export type TerminalsContract = typeof terminalsContract;
 export type TerminalCreateResult = z.infer<typeof terminalCreateResultSchema>;
 export type TerminalHydrateResult = z.infer<typeof terminalHydrateResultSchema>;
+export type TerminalRuntimeKey = z.infer<typeof terminalRuntimeKeySchema>;
+export type RunTerminalScriptWorkflowInput = z.infer<typeof runTerminalScriptWorkflowInputSchema>;
+export type TerminalSliceError = z.infer<typeof terminalSliceErrorSchema>;

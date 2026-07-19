@@ -9,10 +9,8 @@ import {
   taskErrorMessage,
   taskViewKind,
 } from '@core/features/tasks/browser/stores/task-selectors';
-import {
-  useTaskViewContext,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
 import { taskTabView } from '@core/features/workbench/browser/task-tab-registry';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
@@ -190,7 +188,7 @@ function fallbackProvisionProgress(
 const SIDEBAR_COLLAPSED_SIZE = '0px';
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const sidebarPanelRef = usePanelRef();
 
   useEffect(() => {

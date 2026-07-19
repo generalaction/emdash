@@ -191,10 +191,11 @@ releases currently publish to R2 only.
 - Main-process RPC handlers live in `src/main/core/*/controller.ts` and delegate to
   imported operation or service functions.
 - Renderer-main calls go through Wire using `src/renderer/lib/runtime/desktop-wire-client.ts`.
-- Feature UI lives under `src/core/features/<feature>/browser/`; shared renderer primitives,
-  stores, hooks, modals, PTY, Monaco, and UI live under `src/renderer/lib/`.
+- Feature UI lives under `src/core/features/<feature>/browser/`; the editor slice owns Monaco and
+  file rendering under `src/core/features/editor/browser/`; shared renderer primitives, stores,
+  hooks, modals, PTY, and UI live under `src/renderer/lib/`.
 - New feature modals and views must be exposed through the owning slice's `contributions/browser.ts`
-  and aggregated by `src/core/manifests/browser-contributions.ts`.
+  and aggregated by `src/core/manifests/browser/browser-contributions.ts`.
 - New task tabs contribute providers through `src/core/features/<feature>/contributions/tabs.ts`;
   the workbench registry lives at `src/core/features/workbench/browser/task-tab-registry.tsx`.
 - New commands should use `src/renderer/lib/commands/registry.ts` and view-level
@@ -389,8 +390,9 @@ pnpm run test
 - ACP process hosts live under `src/main/core/acp/transport/` for local and SSH-backed
   execution.
 - Feature modal and view definitions are contributed by slices and aggregated in
-  `src/core/manifests/browser-contributions.ts`; renderer app registries compose host entries.
-- Task tab providers are aggregated through `src/core/manifests/task-tab-contributions.ts`.
+  `src/core/manifests/browser/browser-contributions.ts`; renderer app registries compose host entries.
+- Task tab providers are aggregated through
+  `src/core/manifests/browser/task-tab-contributions.ts`.
 - MCP server config handling lives in `src/main/core/mcp/services/McpService.ts`,
   `src/main/core/mcp/utils/`, `src/core/primitives/mcp/api/`, and
   `src/core/features/mcp/browser/`.

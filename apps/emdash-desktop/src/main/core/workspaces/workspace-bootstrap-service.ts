@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
@@ -22,6 +23,12 @@ import type {
   WorkspaceBootstrapStep,
   WorkspaceCloneProvisionResult,
 } from '@core/features/workspaces/api';
+import {
+  activateWorkspaceParticipants,
+  deactivateWorkspaceParticipants,
+} from '@core/features/workspaces/node/lifecycle-participants';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
+import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { Task, ProvisionWorkspaceError } from '@core/primitives/tasks/api';
 import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
@@ -47,9 +54,7 @@ import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-works
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
-import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
-import { workspaceRegistry } from './workspace-registry';
 
 export type WorkspaceBootstrapResult = {
   path: string;
@@ -211,7 +216,7 @@ export class WorkspaceBootstrapService {
 
     // BYOI workspaces are managed by provisionBYOITask.
     if (isByoi) {
-      return this._provisionBYOI(workspaceRow, task, project);
+      return this._provisionBYOI(project);
     }
 
     const intent = resolveWorkspaceIntent(taskRow, workspaceRow);
@@ -352,6 +357,7 @@ export class WorkspaceBootstrapService {
       .update(workspaces)
       .set({ path, key, branchName: branchName ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
+    workspaceIdentityService.invalidate(workspaceId);
     return workspaceId;
   }
 
@@ -473,29 +479,23 @@ export class WorkspaceBootstrapService {
       });
     }
 
-    let acquired;
-    try {
-      acquired = await workspaceRegistry.acquire(
-        workspaceId,
-        project.projectId,
-        createWorkspaceFactory(workspaceId, type, {
-          task,
-          workDir,
-          projectId: project.projectId,
-          projectPath: project.repoPath,
-          settings: project.settings,
-          logPrefix: 'WorkspaceBootstrapService',
-        })
-      );
-    } catch (e) {
+    workspaceIdentityService.invalidate(workspaceId);
+    const accessResult = await tryAcquireWorkspaceRuntime(workspaceId);
+    if (!accessResult.success) {
+      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+      return err(accessResult.error);
+    }
+    const access = accessResult.data;
+    if (!access) {
       await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
       return err({
         type: 'setup-failed',
-        stepKind: 'workspace-acquire',
-        stepErrorType: 'error',
-        message: String(e),
+        stepKind: 'workspace-identity',
+        stepErrorType: 'not-found',
+        message: `Workspace ${workspaceId} was not found after provisioning`,
       });
     }
+    await activateWorkspaceParticipants(access.identity);
 
     emitTaskProvisionProgress({
       taskId: task.id,
@@ -508,7 +508,14 @@ export class WorkspaceBootstrapService {
     try {
       const buildResult = await buildTaskFromWorkspace(
         task,
-        acquired.workspace,
+        {
+          id: workspaceId,
+          host: access.identity.host,
+          path: workDir,
+          configPath: project.configPathForDirectory(workDir),
+          files: access.files,
+          settings: project.settings,
+        },
         type,
         project.projectId,
         project.repoPath,
@@ -516,6 +523,10 @@ export class WorkspaceBootstrapService {
         workspaceBranchName,
         workspaceSourceBranch
       );
+      if (!buildResult.success) {
+        await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+        return err(buildResult.error);
+      }
       buildSucceeded = true;
       return ok({
         path: workDir,
@@ -523,7 +534,7 @@ export class WorkspaceBootstrapService {
         runtimeWorkspace: runtimePlan.workspace,
         sshConnectionId: type.kind === 'ssh' ? type.connectionId : undefined,
         worktreeGitDir: undefined,
-        taskProvider: buildResult.taskProvider,
+        taskProvider: buildResult.data.taskProvider,
         postActivationAutomation: automation,
       });
     } catch (e) {
@@ -535,9 +546,8 @@ export class WorkspaceBootstrapService {
         message: String(e),
       });
     } finally {
-      if (!buildSucceeded) {
-        await workspaceRegistry.teardown(workspaceId, 'terminate').catch(() => {});
-      }
+      await access.release();
+      if (!buildSucceeded) await deactivateWorkspaceParticipants(access.identity);
     }
   }
 
@@ -545,12 +555,6 @@ export class WorkspaceBootstrapService {
    * Provisions a BYOI workspace by delegating to `provisionBYOITask`.
    */
   private async _provisionBYOI(
-    workspaceRow: {
-      id: string;
-      workspaceProvider?: string | null;
-      data?: WorkspaceProviderData | null;
-    },
-    task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const projectSettings = await project.settings.get();
@@ -565,18 +569,15 @@ export class WorkspaceBootstrapService {
 
     try {
       const result = await provisionBYOITask({
-        task,
-        wpConfig: projectSettings.workspaceProvider,
-        ctx: project.ctx,
-        projectId: project.projectId,
-        projectPath: project.repoPath,
-        settings: project.settings,
-        logPrefix: `${project.type}ProjectProvider[byoi]`,
-        workspaceId: workspaceRow.id,
+        host:
+          project.defaultWorkspaceType.kind === 'ssh'
+            ? hostRef('remote', project.defaultWorkspaceType.connectionId)
+            : LOCAL_HOST_REF,
       });
+      if (!result.success) return result;
       return ok({
-        ...result,
-        runtimeWorkspace: hostFileRefFromNativePath(result.path, result.sshConnectionId),
+        ...result.data,
+        runtimeWorkspace: hostFileRefFromNativePath(result.data.path, result.data.sshConnectionId),
       });
     } catch (e) {
       return err({

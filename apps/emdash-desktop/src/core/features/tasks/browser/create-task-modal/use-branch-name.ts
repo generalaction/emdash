@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { resolveTaskBranchName } from '@core/primitives/tasks/api';
 

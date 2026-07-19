@@ -1,8 +1,9 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMemo, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
+import { useAgentInstallationStatuses } from '@core/features/agents/browser/use-agent-installation-statuses';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {
@@ -20,7 +21,8 @@ export function useEffectiveProvider(
   );
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
-  const { data: agents } = useAgents();
+  const host = hostRefFromConnectionId(connectionId);
+  const { data: agents } = useAgents(host);
   const orderedProviderIds = useMemo(
     () => (agents ?? []).map((agent) => agent.id as AgentProviderId),
     [agents]
@@ -28,7 +30,7 @@ export function useEffectiveProvider(
   const defaultProviderId =
     defaultAgentValue && orderedProviderIds.includes(defaultAgentValue) ? defaultAgentValue : null;
 
-  const { data: statuses } = useAgentInstallationStatuses(connectionId);
+  const { data: statuses } = useAgentInstallationStatuses(host);
   const availabilityKnown = statuses !== undefined;
 
   const installedProviderIds = useMemo(

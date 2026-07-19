@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { SidebarConversationsList } from '@core/features/conversations/browser/sidebar-conversations-list';
-import { useWorkspaceViewModel } from '@core/features/tasks/browser/task-view-context';
+import { EditorFileTree } from '@core/features/editor/browser/task-editor/editor-file-tree';
+import { ChangesPanel } from '@core/features/source-control/browser/diff-view/changes-panel/changes-panel';
+import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { ChangesPanel } from '../diff-view/changes-panel/changes-panel';
-import { EditorFileTree } from '../editor/editor-file-tree';
 
 export const TaskSidebar = observer(function TaskSidebar() {
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const { isSidebarCollapsed, sidebarTab: activeTab } = taskView;
 
   return (

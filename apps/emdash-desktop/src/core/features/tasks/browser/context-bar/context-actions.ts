@@ -1,8 +1,8 @@
+import type { DraftComment } from '@core/features/source-control/browser/diff-view/stores/draft-comments-store';
 import { buildIssueContextText } from '@core/primitives/issues/api';
 import { formatCommentsForAgent } from '@core/primitives/line-comments/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 
 export { buildIssueContextText } from '@core/primitives/issues/api';
 

@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import type { HostDependencyInstallation } from '@core/features/agents/browser/use-agent-installation-statuses';
 import type { Installation } from '@core/primitives/agents/api';
-import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Alert } from '@renderer/lib/ui/alert';
 import { Input } from '@renderer/lib/ui/input';
 import { CommandActionButton } from './install-command-row';

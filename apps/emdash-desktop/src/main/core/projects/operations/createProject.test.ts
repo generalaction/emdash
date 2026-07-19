@@ -436,7 +436,7 @@ describe('getLocalProjectPathStatus', () => {
 describe('createSshProject', () => {
   const projectPath = '/remote/worktree';
 
-  it('requires the workspace server', async () => {
+  it('returns a typed host-unavailable error', async () => {
     await expect(
       createSshProject({
         id: 'project-id',
@@ -447,8 +447,8 @@ describe('createSshProject', () => {
     ).resolves.toEqual({
       success: false,
       error: {
-        type: 'inspect-failed',
-        path: projectPath,
+        type: 'host-unavailable',
+        host: { type: 'remote', id: 'connection-id' },
         message: 'Remote projects require the workspace server and are not supported by this build',
       },
     });
@@ -460,15 +460,15 @@ describe('createSshProject', () => {
 describe('getSshProjectPathStatus', () => {
   const projectPath = '/remote/worktree';
 
-  it('reports the workspace server requirement', async () => {
+  it('reports a typed host-unavailable error', async () => {
     const status = await getSshProjectPathStatus(projectPath, 'connection-id');
 
     expect(status).toEqual({
       isDirectory: false,
       isGitRepo: false,
       error: {
-        type: 'inspect-failed',
-        path: projectPath,
+        type: 'host-unavailable',
+        host: { type: 'remote', id: 'connection-id' },
         message: 'Remote projects require the workspace server and are not supported by this build',
       },
     });

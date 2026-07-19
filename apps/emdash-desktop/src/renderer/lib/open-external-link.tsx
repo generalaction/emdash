@@ -1,4 +1,4 @@
-import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
+import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -64,5 +64,5 @@ function getActiveTaskView() {
     taskId?: string;
   };
   if (!projectId || !taskId) return undefined;
-  return getTaskView(projectId, taskId);
+  return getTaskComposition(projectId, taskId);
 }

@@ -1,11 +1,16 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
-import type { GitRepositoryStore } from '@core/features/projects/browser/stores/git-repository-store';
-import { DraftCommentsStore } from '@core/features/tasks/browser/diff-view/stores/draft-comments-store';
+import type { TaskScopedStoreContext } from '@core/features/tasks/browser/contributions/task-stores';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
+import { taskStoreContributions } from '@core/manifests/browser/task-scoped-stores';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import {
+  ScopedStoreHost,
+  type ScopedStoreLookup,
+  type ScopedStoreToken,
+  type ScopedStoreValue,
+} from '@core/primitives/scoped-stores/browser';
 import type {
   RenameTaskError,
   RenameTaskSuccess,
@@ -14,8 +19,6 @@ import type {
 } from '@core/primitives/tasks/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
-import { workspaceRegistry } from './workspace-registry';
-import { WorkspaceViewModel } from './workspace-view-model';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
@@ -49,13 +52,9 @@ export class TaskStore {
 
   /** The workspace ID for this task session — null when unprovisioned. */
   workspaceId: string | null = null;
-  /**
-   * Stable view model — created when task first becomes registered, persists
-   * across provision/unprovision cycles. Null only while task is unregistered.
-   */
-  viewModel: WorkspaceViewModel | null = null;
-  /** Task-lifetime store for draft code-review comments. Null while unregistered. */
-  draftComments: DraftCommentsStore | null = null;
+  workspacePath: string | null = null;
+  workspaceSshConnectionId: string | undefined;
+  private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
     return this.data.name;
@@ -72,61 +71,57 @@ export class TaskStore {
   constructor(
     data: UnregisteredTaskData | Task,
     state: TaskStore['state'],
-    phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null = null
+    phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null = null,
+    projectId: string = 'projectId' in data ? data.projectId : '',
+    projectStores: ScopedStoreLookup = unavailableProjectStores
   ) {
     this.state = state;
     this.data = data;
     this.phase = phase;
-    makeAutoObservable(this, {
+    makeAutoObservable<TaskStore, 'stores'>(this, {
       workspaceId: observable,
-      viewModel: observable.ref,
+      workspacePath: observable,
+      workspaceSshConnectionId: observable,
+      stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
     });
-
-    // Create stable task-lifetime stores immediately for registered tasks.
-    if (state !== 'unregistered') {
-      this.ensureRegisteredStores();
-    }
+    this.stores = new ScopedStoreHost(
+      { projectId, taskId: data.id, task: this, projectStores },
+      taskStoreContributions
+    );
   }
 
-  ensureRegisteredStores(): void {
-    if (this.state === 'unregistered') return;
-    const taskData = this.data as Task;
-    if (!this.draftComments) {
-      this.draftComments = new DraftCommentsStore(taskData.id);
-    }
-    if (!this.viewModel) {
-      this.viewModel = new WorkspaceViewModel(this);
-    }
+  get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
+    return this.stores.get(token);
+  }
+
+  ready(): Promise<void> {
+    return this.stores.ready();
   }
 
   transitionToProvisioned(
     data: Task,
     path: string,
     workspaceId: string,
-    gitRepository: GitRepositoryStore,
     sshConnectionId?: string
   ): void {
     this.data = data;
-    this.ensureRegisteredStores();
-    workspaceRegistry.acquire(data.projectId, workspaceId, path, gitRepository, sshConnectionId);
     this.workspaceId = workspaceId;
+    this.workspacePath = path;
+    this.workspaceSshConnectionId = sshConnectionId;
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
     this.provisionProgress = null;
     this.provisionError = null;
-    this.viewModel?.initialize();
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
-    this.viewModel?.suspend();
-    if (this.workspaceId) {
-      workspaceRegistry.release(data.projectId, this.workspaceId);
-      this.workspaceId = null;
-    }
+    this.workspaceId = null;
+    this.workspacePath = null;
+    this.workspaceSshConnectionId = undefined;
     this.data = data;
     this.state = 'unprovisioned';
     this.phase = phase;
@@ -134,9 +129,6 @@ export class TaskStore {
     this.provisionProgressMessage = null;
     this.provisionProgress = null;
     this.provisionError = null;
-
-    // Create stable stores on first registration (when transitioning from unregistered).
-    if (!this.draftComments || !this.viewModel) this.ensureRegisteredStores();
   }
 
   transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -151,12 +143,9 @@ export class TaskStore {
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
-    this.viewModel?.suspend();
-    if (this.workspaceId) {
-      const projectId = (this.data as Task).projectId;
-      workspaceRegistry.release(projectId, this.workspaceId);
-      this.workspaceId = null;
-    }
+    this.workspaceId = null;
+    this.workspacePath = null;
+    this.workspaceSshConnectionId = undefined;
     this.data = data;
     this.state = 'unregistered';
     this.phase = 'creating';
@@ -167,40 +156,14 @@ export class TaskStore {
   }
 
   activate(): void {
-    if (this.workspaceId) {
-      const projectId = (this.data as Task).projectId;
-      workspaceRegistry.activate(projectId, this.workspaceId);
-    }
+    this.stores.activate();
   }
 
   dispose(): void {
-    this.viewModel?.dispose();
-    this.viewModel = null;
-    if (this.workspaceId) {
-      const projectId = (this.data as Task).projectId;
-      workspaceRegistry.release(projectId, this.workspaceId);
-      this.workspaceId = null;
-    }
-    this.draftComments?.dispose();
-    this.draftComments = null;
-  }
-
-  get conversationStats(): Record<string, number> {
-    if (this.state === 'unregistered') {
-      return {};
-    }
-    if (this.state === 'provisioned') {
-      const mgr = conversationRegistry.get(this.data.id);
-      if (mgr) {
-        const counts: Record<string, number> = {};
-        for (const conv of mgr.conversations.values()) {
-          const id = conv.data.providerId;
-          counts[id] = (counts[id] ?? 0) + 1;
-        }
-        return counts;
-      }
-    }
-    return (this.data as Task).conversations;
+    this.stores.dispose();
+    this.workspaceId = null;
+    this.workspacePath = null;
+    this.workspaceSshConnectionId = undefined;
   }
 
   async rename(name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
@@ -360,10 +323,21 @@ export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | u
   return isUnregistered(store) ? store.data : undefined;
 }
 
-export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {
-  return new TaskStore(data, 'unregistered', 'creating');
+export function createUnregisteredTask(
+  data: UnregisteredTaskData,
+  projectId: string,
+  projectStores?: ScopedStoreLookup
+): TaskStore {
+  return new TaskStore(data, 'unregistered', 'creating', projectId, projectStores);
 }
 
-export function createUnprovisionedTask(data: Task): TaskStore {
-  return new TaskStore(data, 'unprovisioned', 'idle');
+export function createUnprovisionedTask(data: Task, projectStores?: ScopedStoreLookup): TaskStore {
+  return new TaskStore(data, 'unprovisioned', 'idle', data.projectId, projectStores);
 }
+
+const unavailableProjectStores: ScopedStoreLookup = {
+  get(token): never {
+    throw new Error(`Project scoped store '${token.id}' is unavailable`);
+  },
+  has: () => false,
+};

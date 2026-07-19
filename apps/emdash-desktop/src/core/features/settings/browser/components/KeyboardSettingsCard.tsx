@@ -2,8 +2,8 @@ import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
-import { SCOPE_CATALOG } from '@core/manifests/scope-catalog';
+import { SCOPE_CATALOG } from '@core/manifests/browser/scope-catalog';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import {
   CODE_TO_US_CHAR,
   detectPlatformContext,

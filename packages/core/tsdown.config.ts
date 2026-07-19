@@ -28,6 +28,7 @@ export default defineConfig({
     'services-pty-node': 'src/services/pty/node/index.ts',
     'services-host-dependencies-api': 'src/services/host-dependencies/api/index.ts',
     'services-host-dependencies-node': 'src/services/host-dependencies/node/index.ts',
+    'services-runtime-broker-api': 'src/services/runtime-broker/api/index.ts',
     'services-agent-plugins-api': 'src/services/agent-plugins/api/index.ts',
     'services-agent-plugins-api-plugins': 'src/services/agent-plugins/api/plugins/index.ts',
     'services-agent-plugins-api-plugins-helpers':

@@ -1,13 +1,13 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import type {
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
-import type { FilesClientScope } from '@main/core/files/runtime-client';
+import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import {
   projects as projectsTable,
@@ -15,7 +15,6 @@ import {
   workspaces as workspacesTable,
 } from '@main/db/schema';
 import type { ProjectProvider } from '../../project-provider';
-import { resolveWorkspace } from '../../utils';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
   files: FilesClientScope;
@@ -59,11 +58,11 @@ async function resolveTaskTarget(
   let configPath: string | null = null;
 
   if (task.workspaceId) {
-    const activeWorkspace = workspaceRegistry.get(task.workspaceId);
-    if (activeWorkspace) {
-      targetPath = activeWorkspace.path;
-      files = activeWorkspace.files;
-      configPath = activeWorkspace.configPath;
+    const identity = await workspaceIdentityService.resolve(task.workspaceId);
+    if (identity) {
+      targetPath = identity.path;
+      files = filesClientScope(project.files.client, identity.path);
+      configPath = project.configPathForDirectory(identity.path);
     }
   }
 
@@ -147,15 +146,15 @@ export async function resolveProjectSettingsTarget(
   if (target) return target;
 
   if (request.target.type === 'workspace') {
-    const workspace = resolveWorkspace(project.projectId, request.target.workspaceId);
-    if (!workspace) return null;
+    const workspace = await workspaceIdentityService.resolve(request.target.workspaceId);
+    if (!workspace || workspace.projectId !== project.projectId) return null;
     return {
       type: 'workspace',
       workspaceId: request.target.workspaceId,
       label: 'Workspace',
       path: workspace.path,
-      files: workspace.files,
-      configPath: workspace.configPath,
+      files: filesClientScope(project.files.client, workspace.path),
+      configPath: project.configPathForDirectory(workspace.path),
     };
   }
 

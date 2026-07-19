@@ -190,7 +190,8 @@ whether the daemon is not running or unhealthy.
 - `src/api/controller.ts` builds the `workspaceWireContract` controller.
 - `src/runtime/host.ts` owns the complete required worker graph and runtime state configuration.
 - `src/runtime/paths.ts` owns runtime database, intent, attachment, and worktree-pool paths.
-- `src/worker-manifest.json` declares every packaged worker executable.
+- `src/worker-manifest.ts` selects the Core runtime worker descriptors and configures each
+  packaged worker executable.
 
 ## Desktop Integration
 

@@ -1,4 +1,4 @@
-import type { ModalCatalog } from '@core/manifests/modal-catalog';
+import type { ModalCatalog } from '@core/manifests/browser/modal-catalog';
 import {
   createModalApi,
   type ModalApiTransport,

@@ -1,3 +1,4 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import {
   mergeSkillsInstalledState,
   type CatalogIndex,
@@ -5,13 +6,13 @@ import {
 } from '@emdash/core/primitives/skills/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { useInstalledSkillsLiveModel } from '@renderer/lib/agent-config/live-model-hooks';
-import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { getSkillsClient } from '../client';
+import { useInstalledSkillsLiveModel } from '../live-model-hooks';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
@@ -62,8 +63,8 @@ export function useSkills() {
       const catalogClient = await getCatalogRuntimeClient();
       const payload = await catalogClient.resolveSkillInstall({ skillId });
       if (!payload.success) throw new Error(payload.error.message);
-      const agentConfigClient = await getAgentConfigRuntimeClient();
-      const result = await agentConfigClient.installSkill({ skill: payload.data });
+      const skillsClient = await getSkillsClient();
+      const result = await skillsClient.install({ host: LOCAL_HOST_REF, skill: payload.data });
       if (!result.success) throw new Error(result.error.message);
       return skillId;
     },
@@ -109,8 +110,8 @@ export function useSkills() {
           (candidate) => candidate.id === skillId || candidate.installId === skillId
         );
       const name = skill?.installId ?? skillId;
-      const agentConfigClient = await getAgentConfigRuntimeClient();
-      const result = await agentConfigClient.removeSkill({ name });
+      const skillsClient = await getSkillsClient();
+      const result = await skillsClient.remove({ host: LOCAL_HOST_REF, name });
       if (!result.success) throw new Error(result.error.message);
       return skillId;
     },

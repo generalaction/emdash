@@ -3,9 +3,9 @@ import { useMemo } from 'react';
 import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
 import {
   getProjectManagerStore,
-  getGitRepositoryStore,
   mountedProjectData,
 } from '@core/features/projects/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
 import { ConversationField } from '@core/features/tasks/browser/task-config/conversation-field';
 import { useInitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';

@@ -1,24 +1,17 @@
-import type { ProjectSettings } from '@core/primitives/project-settings/api';
-import type { Task } from '@core/primitives/tasks/api';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { err, type Result } from '@emdash/shared';
+import { runtimeCapabilityNotConfigured } from '@core/features/runtime-routing/api';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 
 export type ProvisionBYOITaskParams = {
-  task: Task;
-  wpConfig: NonNullable<ProjectSettings['workspaceProvider']>;
-  ctx: IExecutionContext;
-  projectId: string;
-  projectPath: string;
-  settings: ProjectSettingsProvider;
-  logPrefix: string;
-  workspaceId: string;
+  host: HostRef;
 };
 
 export async function provisionBYOITask(
-  _params: ProvisionBYOITaskParams
-): Promise<WorkspaceBootstrapResult> {
-  throw new Error(
-    'Remote workspaces require the workspace server and are not supported by this build'
-  );
+  params: ProvisionBYOITaskParams
+): Promise<Result<WorkspaceBootstrapResult, RuntimeResolveError>> {
+  // TODO(workspace-server): Restore the full provisioning input when BYOI execution moves
+  // behind the workspace-server runtime boundary.
+  return err(runtimeCapabilityNotConfigured(params.host, 'workspaces'));
 }

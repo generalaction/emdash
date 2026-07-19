@@ -1,6 +1,6 @@
 import { app, clipboard, Menu, shell } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import { MENU_ITEMS } from '@core/manifests/menu-items';
+import { MENU_ITEMS } from '@core/manifests/shared/menu-items';
 import {
   resolveEffectiveChord,
   toElectronAccelerator,

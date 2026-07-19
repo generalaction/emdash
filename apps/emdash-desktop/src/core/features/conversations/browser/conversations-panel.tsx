@@ -5,18 +5,18 @@ import { useAppSettingsKey } from '@core/features/settings/browser/use-app-setti
 import { ContextBar } from '@core/features/tasks/browser/context-bar/context-bar';
 // TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
 import { useIsActiveTask } from '@core/features/tasks/browser/hooks/use-is-active-task';
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { PaneSizingContextProvider } from '@core/features/terminals/browser/pty/pane-sizing-context';
+import { PtyPane } from '@core/features/terminals/browser/pty/pty-pane';
+import { TerminalSearchOverlay } from '@core/features/terminals/browser/pty/terminal-search-overlay';
+import { useTerminalSearch } from '@core/features/terminals/browser/pty/use-terminal-search';
+import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
 import {
   useConversations,
-  useTaskViewContext,
+  useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
-import { PtyPane } from '@renderer/lib/pty/pty-pane';
-import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
-import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
+} from '@core/features/workbench/browser/task-composition-context';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
   activeConversationResource,
@@ -25,7 +25,7 @@ import {
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { taskId } = useTaskViewContext();
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const conversations = useConversations();
   const workspace = useWorkspace();
   const workspaceId = useWorkspaceId();

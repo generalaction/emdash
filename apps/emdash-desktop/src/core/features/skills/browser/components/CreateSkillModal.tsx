@@ -1,8 +1,8 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { defineModal } from '@core/primitives/modals/react';
-import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
 import { useModalController } from '@renderer/lib/modal/api';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { Button } from '@renderer/lib/ui/button';
@@ -17,6 +17,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { getSkillsClient } from '../client';
 
 export function CreateSkillModal() {
   const { complete, dismiss } = useModalController('createSkillModal');
@@ -44,8 +45,9 @@ export function CreateSkillModal() {
 
     setIsCreating(true);
     try {
-      const client = await getAgentConfigRuntimeClient();
-      const result = await client.createSkill({
+      const client = await getSkillsClient();
+      const result = await client.create({
+        host: LOCAL_HOST_REF,
         name: trimmedName,
         description: description.trim(),
         content: content.trim(),

@@ -3,7 +3,7 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
-import { modalCatalog } from '@core/manifests/modal-catalog';
+import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import {
   ModalHostContext,
   type ModalHostController,

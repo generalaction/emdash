@@ -27,11 +27,16 @@ const mocks = vi.hoisted(() => ({
   sshStateFor: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: {
-    on: mocks.eventOn,
-  },
-  rpc: {
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
+    ssh: {
+      events: {
+        subscribe: async (
+          key: undefined,
+          observer: { onEvent: (event: { type: string; connectionId: string }) => void }
+        ) => mocks.eventOn(key, observer.onEvent),
+      },
+    },
     github: {
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
@@ -44,7 +49,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
       patchProjectSettings: mocks.patchProjectSettings,
       updateProjectSettings: mocks.updateProjectSettings,
     },
-  },
+  }),
 }));
 
 vi.mock('@emdash/wire', async (importOriginal) => {
@@ -202,12 +207,12 @@ describe('ProjectManagerStore project creation', () => {
     manager.projects.set('project-id', {
       id: 'project-id',
       mountedProject: {
-        taskManager: {
+        get: () => ({
           tasks: new Map([
             ['task-1', {}],
             ['task-2', {}],
           ]),
-        },
+        }),
         dispose,
       },
     } as unknown as ProjectStore);
@@ -294,6 +299,35 @@ describe('ProjectManagerStore project creation', () => {
     });
   });
 
+  it('returns a typed host-unavailable error for remote clones', async () => {
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'ssh', connectionId: 'ssh-1' },
+      {
+        mode: 'clone',
+        name: 'child-project',
+        path: '/parent',
+        repositoryUrl: 'https://github.com/acme/child-project.git',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'host-unavailable',
+          host: { type: 'remote', id: 'ssh-1' },
+          message:
+            'Remote projects require the workspace server and are not supported by this build',
+        },
+      });
+    }
+    expect(mocks.projectWireCreate).not.toHaveBeenCalled();
+  });
+
   it('stores remote creation operation progress on the pending project', async () => {
     let resolveResult: (project: LocalProject) => void = () => {};
     mocks.projectWireResult = new Promise<LocalProject>((resolve) => {
@@ -312,8 +346,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(mocks.projectWireProgressCallbacks).toHaveLength(1));
 
     const progress: WorkspaceBootstrapProgress = {
       step: 'setting-up-workspace',
@@ -368,8 +401,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(mocks.projectWireProgressCallbacks).toHaveLength(1));
     store.cancelProjectCreation('optimistic-project');
     rejectResult(new LiveJobCancelledError());
 
@@ -477,13 +509,14 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).toHaveBeenCalledWith('optimistic-project', {
-      githubAccountId: 'github.com:42',
+    expect(mocks.patchProjectSettings).toHaveBeenCalledWith({
+      projectId: 'optimistic-project',
+      patch: { githubAccountId: 'github.com:42' },
     });
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
-  it('removes window and SSH event listeners on dispose', () => {
+  it('removes window and SSH event listeners on dispose', async () => {
     const disposeSshEvent = vi.fn();
     mocks.eventOn.mockReturnValueOnce(disposeSshEvent);
     const addEventListener = vi.fn();
@@ -493,8 +526,8 @@ describe('ProjectManagerStore project creation', () => {
 
     store.dispose();
     store.dispose();
+    await vi.waitFor(() => expect(disposeSshEvent).toHaveBeenCalledTimes(1));
 
-    expect(disposeSshEvent).toHaveBeenCalledTimes(1);
     expect(removeEventListener).toHaveBeenCalledWith('online', expect.any(Function));
     expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
     expect(addEventListener).toHaveBeenCalledWith('online', expect.any(Function));
@@ -518,7 +551,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.openProject).not.toHaveBeenCalled();
   });
 
-  it('mounts SSH-disconnected projects after a successful reconnect event', () => {
+  it('mounts SSH-disconnected projects after a successful reconnect event', async () => {
     const store = new ProjectManagerStore();
     const project = sshProject();
     store.projects.set(project.id, createUnmountedProject(project, 'idle'));
@@ -528,14 +561,17 @@ describe('ProjectManagerStore project creation', () => {
     projectStore.error = project.connectionId;
     projectStore.errorCode = 'ssh-disconnected';
 
+    await vi.waitFor(() => expect(mocks.eventOn).toHaveBeenCalled());
     const handler = mocks.eventOn.mock.calls[0]?.[1];
     if (!handler) throw new Error('Expected SSH event subscription');
     handler({ type: 'connected', connectionId: 'ssh-1' });
 
-    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+    await vi.waitFor(() =>
+      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
+    );
   });
 
-  it('mounts SSH-disconnected projects when the connection is already connected', () => {
+  it('mounts SSH-disconnected projects when the connection is already connected', async () => {
     mocks.sshStateFor.mockReturnValue('connected');
     const store = new ProjectManagerStore();
     const project = sshProject();
@@ -549,7 +585,9 @@ describe('ProjectManagerStore project creation', () => {
     store.retryDisconnectedSshProjects({ force: true });
 
     expect(mocks.sshConnect).not.toHaveBeenCalled();
-    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+    await vi.waitFor(() =>
+      expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
+    );
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {
@@ -661,8 +699,9 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') await result.completion;
 
-    expect(mocks.patchProjectSettings).toHaveBeenCalledWith('optimistic-project', {
-      githubAccountId: 'github.com:42',
+    expect(mocks.patchProjectSettings).toHaveBeenCalledWith({
+      projectId: 'optimistic-project',
+      patch: { githubAccountId: 'github.com:42' },
     });
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
@@ -709,8 +748,10 @@ describe('ProjectManagerStore project creation', () => {
 
     if (result.kind === 'creating') void result.completion;
 
-    expect(mocks.createGithubRepository).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: 'github.com:42' })
+    await vi.waitFor(() =>
+      expect(mocks.createGithubRepository).toHaveBeenCalledWith(
+        expect.objectContaining({ accountId: 'github.com:42' })
+      )
     );
   });
 

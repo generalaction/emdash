@@ -1,4 +1,4 @@
-import { mementoCatalog } from '@core/manifests/memento-catalog';
+import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 import { getMementosWireClient, MementoClient } from '@core/primitives/mementos/browser';
 import { log } from '@renderer/utils/logger';
 

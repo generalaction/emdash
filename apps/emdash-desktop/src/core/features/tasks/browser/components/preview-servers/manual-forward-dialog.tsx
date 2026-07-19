@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { usePreviewServers } from '@core/features/tasks/browser/task-view-context';
+import { usePreviewServers } from '@core/features/workbench/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -52,7 +52,13 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
         ...(parsedLocalPort ? { preferredLocalPort: parsedLocalPort } : {}),
       });
       if (!result.success) {
-        setError(result.error.message);
+        switch (result.error.type) {
+          case 'not-ssh-workspace':
+          case 'host-unavailable':
+          case 'not-configured':
+            setError(result.error.message);
+            break;
+        }
         return;
       }
       setRemotePort('');

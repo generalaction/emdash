@@ -2,11 +2,11 @@ import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
 import { useAutomationRunActions } from '@core/features/automations/browser/use-automation-run-actions';
+import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
 import {
   getRegisteredTaskData,
   getTaskIdForAutomationRun,
   getTaskStore,
-  taskAgentStatus,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { isAutomationRunAdoptable } from '@core/primitives/automations/api';

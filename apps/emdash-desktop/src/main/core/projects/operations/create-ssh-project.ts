@@ -1,4 +1,5 @@
 import { err } from '@emdash/shared';
+import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
 import type { CreateProjectResult, ProjectPathStatus } from '@core/primitives/projects/api';
 
 export type CreateSshProjectParams = {
@@ -12,24 +13,16 @@ export type CreateSshProjectParams = {
 export async function createSshProject(
   params: CreateSshProjectParams
 ): Promise<CreateProjectResult> {
-  return err({
-    type: 'inspect-failed',
-    path: params.path,
-    message: 'Remote projects require the workspace server and are not supported by this build',
-  });
+  return err(remoteRuntimeUnavailable(params.connectionId, 'projects'));
 }
 
 export async function getSshProjectPathStatus(
-  path: string,
-  _connectionId: string
+  _path: string,
+  connectionId: string
 ): Promise<ProjectPathStatus> {
   return {
     isDirectory: false,
     isGitRepo: false,
-    error: {
-      type: 'inspect-failed',
-      path,
-      message: 'Remote projects require the workspace server and are not supported by this build',
-    },
+    error: remoteRuntimeUnavailable(connectionId, 'projects'),
   };
 }

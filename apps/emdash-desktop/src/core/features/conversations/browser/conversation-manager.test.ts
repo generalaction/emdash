@@ -6,7 +6,7 @@ const dehydrateConversation = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 
-vi.mock('@core/features/tasks/browser/stores/open-file-in-file-editor', () => ({
+vi.mock('@core/features/editor/browser/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({
     onOpenExternal: vi.fn(),
     onOpenFile: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/pty/pty', () => ({
+vi.mock('@core/features/terminals/browser/pty/pty', () => ({
   FrontendPty: class {
     constructor(readonly sessionId: string) {}
 

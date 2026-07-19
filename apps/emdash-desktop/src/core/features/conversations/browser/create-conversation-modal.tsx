@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
 import { getProjectSshConnectionId } from '@core/features/projects/browser/stores/project-selectors';
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
@@ -11,7 +12,6 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { useModalController } from '@renderer/lib/modal/api';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,

@@ -1,7 +1,7 @@
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { viewCatalog } from '@core/manifests/view-catalog';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import type { ViewRef } from '@core/primitives/views/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';

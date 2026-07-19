@@ -1,14 +1,16 @@
 import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import { makeAutoObservable, observable } from 'mobx';
-import { projectViewMemento } from '@core/features/projects/contributions/mementos';
+import { type ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
-import { TaskManagerStore } from '@core/features/tasks/browser/stores/task-manager';
+import { projectStoreContributions } from '@core/manifests/browser/project-scoped-stores';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import {
+  ScopedStoreHost,
+  type ScopedStoreToken,
+  type ScopedStoreValue,
+} from '@core/primitives/scoped-stores/browser';
 import { getMementoClient } from '@renderer/lib/mementos';
-import { GitRepositoryStore } from './git-repository-store';
-import { ProjectSettingsStore } from './project-settings-store';
-import { ProjectViewStore } from './project-view';
 
 export type UnregisteredProjectPhase =
   | 'creating-repo' // gh api — new mode only
@@ -25,38 +27,27 @@ export type ProjectMode = 'pick' | 'clone' | 'new';
  * ProjectStore.transitionToMounted and disposed on unmount or deletion.
  */
 export class MountedProject {
-  readonly taskManager: TaskManagerStore;
-  readonly view: ProjectViewStore;
-  readonly settings: ProjectSettingsStore;
-  readonly gitRepository: GitRepositoryStore;
   readonly data: LocalProject | SshProject;
   readonly space: SubjectSpace<'project'>;
+  private readonly stores: ScopedStoreHost<ProjectScopedStoreContext>;
+
+  get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
+    return this.stores.get(token);
+  }
 
   constructor(data: LocalProject | SshProject) {
     this.data = data;
     this.space = getMementoClient().subject(projectSubject({ projectId: data.id }));
-    this.view = new ProjectViewStore(this.space.handle(projectViewMemento));
-    this.settings = new ProjectSettingsStore(
-      data.id,
-      data.type === 'local' ? data.path : undefined
-    );
-    this.gitRepository = new GitRepositoryStore(data.id, data.path, this.settings, data.baseRef);
-    this.gitRepository.start();
-    this.taskManager = new TaskManagerStore(data.id, this.gitRepository, this.settings);
+    this.stores = new ScopedStoreHost({ data, space: this.space }, projectStoreContributions);
 
-    makeAutoObservable(this, {
-      taskManager: false,
-      view: false,
-      settings: false,
-      gitRepository: false,
+    makeAutoObservable<MountedProject, 'stores'>(this, {
       space: false,
+      stores: false,
     });
   }
 
   dispose(): void {
-    this.taskManager.dispose();
-    this.gitRepository.dispose();
-    this.settings.dispose();
+    this.stores.dispose();
     void this.space.release().catch((error: unknown) => getMementoClient().reportError(error));
   }
 }

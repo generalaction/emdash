@@ -6,9 +6,10 @@ import {
   asMounted,
   getProjectManagerStore,
 } from '@core/features/projects/browser/stores/project-selectors';
-import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
 import { isRegistered, type TaskStore } from '@core/features/tasks/browser/stores/task-store';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -45,7 +46,7 @@ export function PaletteNotificationsGroup({
       if (!mounted) continue;
       const pid = mounted.data.id;
 
-      for (const [tid, taskStore] of mounted.taskManager.tasks) {
+      for (const [tid, taskStore] of mounted.get(taskManagerStoreToken).tasks) {
         if (!isRegistered(taskStore)) continue;
         const conversations = conversationRegistry.get(tid);
         if (!conversations) continue;
@@ -82,7 +83,7 @@ export function PaletteNotificationsGroup({
               conv={item.conv}
               value={`notif:conversation:${item.conv.data.id}`}
               onSelect={() => {
-                getTaskView(item.projectId, item.taskId)?.paneLayout.open(
+                getTaskComposition(item.projectId, item.taskId)?.paneLayout.open(
                   'conversation',
                   { conversationId: item.conv.data.id },
                   { preview: false }

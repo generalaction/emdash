@@ -81,3 +81,5 @@ export {
   type StartRunInput,
   type StartRunResult,
 } from './schemas';
+
+export { automationsWorker } from './worker';

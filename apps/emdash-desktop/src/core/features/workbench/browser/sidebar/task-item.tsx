@@ -1,17 +1,17 @@
 import { observer } from 'mobx-react-lite';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
 import { TaskContextMenu } from '@core/features/tasks/browser/components/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
 import {
-  getTaskGitCheckoutStore,
   getTaskManagerStore,
   getTaskStore,
-  getWorkspaceForTask,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
+import { getTaskWorkspace } from '@core/features/workbench/browser/task-composition-selectors';
 import { PrBadge } from '@renderer/lib/components/pr-badge';
 import {
   useNavigate,
@@ -83,7 +83,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
-  const workspaceStore = getWorkspaceForTask(projectId, taskId);
+  const workspaceStore = getTaskWorkspace(projectId, taskId);
   const git = getTaskGitCheckoutStore(projectId, taskId);
   const showLineChanges = interfaceSettings?.showLeftSidebarLineChanges ?? true;
   const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;

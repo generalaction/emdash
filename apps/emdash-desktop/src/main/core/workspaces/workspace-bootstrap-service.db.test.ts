@@ -49,11 +49,19 @@ vi.mock('@main/core/tasks/task-builder', () => ({
   emitTaskProvisionProgress: mocks.emitTaskProvisionProgress,
 }));
 
-vi.mock('./workspace-registry', () => ({
-  workspaceRegistry: {
-    acquire: mocks.acquireWorkspace,
-    release: mocks.releaseWorkspace,
+vi.mock('@core/features/workspaces/node/workspace-runtime-access', () => ({
+  acquireWorkspaceRuntime: mocks.acquireWorkspace,
+}));
+
+vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
+  workspaceIdentityService: {
+    invalidate: vi.fn(),
   },
+}));
+
+vi.mock('@core/features/workspaces/node/lifecycle-participants', () => ({
+  activateWorkspaceParticipants: vi.fn(),
+  deactivateWorkspaceParticipants: vi.fn(),
 }));
 
 const WS_ID = 'ws-1';
@@ -87,9 +95,14 @@ describe('WorkspaceBootstrapService', () => {
     await fixture.db.insert(workspaces).values({ id: WS_ID, type: 'local' });
 
     mocks.acquireWorkspace.mockResolvedValue({
-      git: {
-        getWorktreeGitDir: vi.fn().mockResolvedValue('worktrees/task-branch'),
+      identity: {
+        workspaceId: WS_ID,
+        projectId: 'proj-1',
+        host: { type: 'local', id: 'local' },
+        path: '/repo/task',
       },
+      files: {},
+      release: mocks.releaseWorkspace,
     });
     mocks.releaseWorkspace.mockResolvedValue(undefined);
     mocks.buildTaskFromWorkspace.mockResolvedValue({
@@ -211,6 +224,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {
           get: vi.fn(),
@@ -247,8 +261,8 @@ describe('WorkspaceBootstrapService', () => {
         project
       );
 
+      if (!result.success) throw new Error(JSON.stringify(result.error));
       expect(result.success).toBe(true);
-      if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
       expect(serveBranchWorktree).toHaveBeenCalledWith('task/branch', {
         type: 'local',
@@ -314,6 +328,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {
           get: vi.fn(),
@@ -376,6 +391,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {
           get: vi.fn(),

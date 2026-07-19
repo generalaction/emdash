@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DraftComment } from '@core/features/source-control/browser/diff-view/stores/draft-comments-store';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
@@ -6,7 +7,6 @@ import {
   buildPromptLibraryContextActions,
   buildTaskContextActions,
 } from '@core/features/tasks/browser/context-bar/context-actions';
-import type { DraftComment } from '@core/features/tasks/browser/diff-view/stores/draft-comments-store';
 import {
   getDraftCommentTargetKey,
   type DraftCommentTarget,

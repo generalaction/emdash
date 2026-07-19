@@ -1,23 +1,23 @@
 import ReactDOM from 'react-dom/client';
+import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { prefetchAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import {
   workbenchHistoryMemento,
   workbenchNavigationMemento,
   workbenchSidebarMemento,
 } from '@core/features/workbench/contributions/mementos';
-import { featureViewRuntimes } from '@core/manifests/browser-contributions';
-import { viewCatalog } from '@core/manifests/view-catalog';
+import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { appSubject } from '@core/primitives/subjects/api';
-import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
+import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { initMementos } from '@renderer/lib/mementos';
-import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';

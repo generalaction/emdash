@@ -4,7 +4,7 @@ import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { libraryViewDef } from '@core/features/library/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { viewCatalog } from '@core/manifests/view-catalog';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   isCurrentView,

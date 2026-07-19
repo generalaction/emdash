@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
+import { resolveDroppedFile } from '@core/features/terminals/browser/pty/terminal-image-injection';
+import { formatTerminalImagePaths } from '@core/features/terminals/browser/pty/terminal-image-paths';
 import {
   getDraggedWorkspaceFile,
   hasDraggedFiles,
   hasDraggedWorkspaceFile,
 } from '@renderer/lib/drag-files';
-import { resolveDroppedFile } from '@renderer/lib/pty/terminal-image-injection';
-import { formatTerminalImagePaths } from '@renderer/lib/pty/terminal-image-paths';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
 

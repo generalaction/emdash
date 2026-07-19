@@ -1,22 +1,26 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { Loader2 } from 'lucide-react';
 import { reaction } from 'mobx';
 import { useEffect, useRef, useState } from 'react';
-import { defineModal } from '@core/primitives/modals/react';
-import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
-import { AcpAuthLoginBinding } from '@renderer/lib/acp/auth-login-binding';
-import { useModalController } from '@renderer/lib/modal/api';
-import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
-import { isPrimaryMouseButton } from '@renderer/lib/pty/file-link-provider';
+import { AcpAuthLoginBinding } from '@core/features/agents/browser/auth-login-binding';
+import { isPrimaryMouseButton } from '@core/features/terminals/browser/pty/file-link-provider';
 import {
   buildTheme,
   TERMINAL_LETTER_SPACING,
   TERMINAL_LINE_HEIGHT,
   TERMINAL_PADDING_PX,
-} from '@renderer/lib/pty/pty';
-import { computeGridDimensions, measureTerminalCell } from '@renderer/lib/pty/pty-dimensions';
-import { buildTerminalFontFamily } from '@renderer/lib/pty/terminal-font';
+} from '@core/features/terminals/browser/pty/pty';
+import {
+  computeGridDimensions,
+  measureTerminalCell,
+} from '@core/features/terminals/browser/pty/pty-dimensions';
+import { buildTerminalFontFamily } from '@core/features/terminals/browser/pty/terminal-font';
+import { defineModal } from '@core/primitives/modals/react';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
+import { useModalController } from '@renderer/lib/modal/api';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -66,7 +70,12 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
     observer.observe(host);
     resize();
 
-    void AcpAuthLoginBinding.create({ providerId, methodId, terminal }).then(
+    void AcpAuthLoginBinding.create({
+      host: LOCAL_HOST_REF,
+      providerId,
+      methodId,
+      terminal,
+    }).then(
       (binding) => {
         if (disposed) {
           void binding.dispose();

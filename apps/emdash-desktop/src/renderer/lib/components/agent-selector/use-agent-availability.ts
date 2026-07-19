@@ -1,7 +1,8 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useMemo } from 'react';
-import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
-import { useAgents } from '@renderer/lib/stores/use-agents';
+import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
+import { useAgentInstallationStatuses } from '@core/features/agents/browser/use-agent-installation-statuses';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import {
   buildAgentGroups,
   getAssumedInstalledAgents,
@@ -17,8 +18,9 @@ export function useAgentAvailability({
   getDisabledReason?: AgentDisableReason;
   value: AgentProviderId | null;
 }) {
-  const { data: agents } = useAgents();
-  const { data: statuses, install, isInstalling } = useAgentInstallationStatuses(connectionId);
+  const host = hostRefFromConnectionId(connectionId);
+  const { data: agents } = useAgents(host);
+  const { data: statuses, install, isInstalling } = useAgentInstallationStatuses(host);
 
   const dependencyData = useMemo(() => {
     if (!statuses) return null;

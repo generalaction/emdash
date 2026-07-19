@@ -1,8 +1,8 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';

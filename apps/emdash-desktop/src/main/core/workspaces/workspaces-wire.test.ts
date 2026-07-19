@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { provisionWorkspaceErrorToWorkspaceError } from './wire-controller';
+import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 
 vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
   runCloneRepositoryProvision: vi.fn(),

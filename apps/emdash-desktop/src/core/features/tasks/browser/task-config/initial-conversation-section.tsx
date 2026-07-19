@@ -10,6 +10,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { useEffectiveProvider } from '@core/features/conversations/browser/use-effective-provider';
 import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
 import { usePromptLibrary } from '@core/features/library/browser/prompts/use-prompt-library';
@@ -28,7 +29,6 @@ import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import type { AgentDisableReason } from '@renderer/lib/components/agent-selector/agent-selector-options';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field, FieldDescription } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';

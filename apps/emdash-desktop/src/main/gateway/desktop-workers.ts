@@ -30,29 +30,21 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { eq } from 'drizzle-orm';
 import { app } from 'electron';
-import { conversationWireEvents } from '@core/features/conversations/node';
-import { mementoSweepPolicies } from '@core/manifests/memento-catalog';
+import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import { appScope } from '@main/bootstrap/app-scope';
 import { automationRuntimePaths } from '@main/core/automations/runtime-paths';
-import { setConversationModeId } from '@main/core/conversations/set-mode-id';
-import { setSessionId } from '@main/core/conversations/set-session-id';
-import { touchConversation } from '@main/core/conversations/touchConversation';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { workspaceRuntimePaths } from '@main/core/workspaces/runtime/workspace-runtime-paths';
-import { db } from '@main/db/client';
 import { desktopKeyValueStore } from '@main/db/kv';
-import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
 import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { pullRequestsComponent } from '@root/src/core/services/pull-requests/node';
 import { desktopWorkerPath } from './worker-paths';
@@ -211,7 +203,7 @@ export async function ensurePullRequestsWorkerReady(): Promise<void> {
 }
 
 export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  acpClientPromise ??= acpWorker.ready().then(withSessionIdPersistence).then(withModePersistence);
+  acpClientPromise ??= acpWorker.ready();
   return acpClientPromise;
 }
 
@@ -390,7 +382,7 @@ async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
       },
     },
   });
-  return withTuiConversationInputEvents(await tuiAgentsWorker.ready());
+  return await tuiAgentsWorker.ready();
 }
 
 async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
@@ -434,108 +426,4 @@ async function createWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
     supervision: { restart: 'never' },
   });
   return await workspaceWorker.ready();
-}
-
-function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {
-  return {
-    ...client,
-    startSession: async (input, meta) => {
-      const result = await client.startSession(input, meta);
-      if (result.success) {
-        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
-      }
-      return result;
-    },
-    resumeSession: async (input, meta) => {
-      const result = await client.resumeSession(input, meta);
-      if (result.success) {
-        await persistReturnedSessionId(input.input.conversationId, result.data.sessionId);
-      }
-      return result;
-    },
-  };
-}
-
-async function persistReturnedSessionId(conversationId: string, sessionId: string): Promise<void> {
-  const result = await setSessionId(conversationId, sessionId);
-  if (!result.success) {
-    log.warn('ACP runtime failed to persist returned session id', {
-      conversationId,
-      error: result.error,
-    });
-  }
-}
-
-function withModePersistence(client: AcpRuntimeClient): AcpRuntimeClient {
-  return {
-    ...client,
-    setModeOption: async (input, meta) => {
-      const result = await client.setModeOption(input, meta);
-      if (result.success) {
-        await persistSelectedModeId(input.conversationId, input.value);
-      }
-      return result;
-    },
-  };
-}
-
-async function persistSelectedModeId(conversationId: string, modeId: string): Promise<void> {
-  const result = await setConversationModeId(conversationId, modeId);
-  if (!result.success) {
-    log.warn('ACP runtime failed to persist selected mode id', {
-      conversationId,
-      error: result.error,
-    });
-    return;
-  }
-  conversationWireEvents.emit(undefined, {
-    type: 'changed',
-    conversationId,
-    taskId: result.data.taskId,
-    projectId: result.data.projectId,
-    changes: { modeId },
-  });
-}
-
-function withTuiConversationInputEvents(client: TuiAgentsRuntimeClient): TuiAgentsRuntimeClient {
-  return {
-    ...client,
-    sendInput: async (input, meta) => {
-      const result = await client.sendInput(input, meta);
-      if (result.success && input.data.includes('\r')) {
-        await recordTuiInputSubmitted(input.conversationId);
-      }
-      return result;
-    },
-  };
-}
-
-async function recordTuiInputSubmitted(conversationId: string): Promise<void> {
-  const [row] = await db
-    .select({
-      projectId: conversations.projectId,
-      taskId: conversations.taskId,
-      providerId: conversations.provider,
-    })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
-  if (!row) return;
-  if (!row.providerId) return;
-
-  telemetryService.capture('agent_run_started', {
-    provider: row.providerId,
-    project_id: row.projectId,
-    task_id: row.taskId,
-    conversation_id: conversationId,
-  });
-
-  const now = new Date().toISOString();
-  await touchConversation(conversationId, now);
-  conversationWireEvents.emit(undefined, {
-    type: 'changed',
-    conversationId,
-    taskId: row.taskId,
-    projectId: row.projectId,
-    changes: { lastInteractedAt: now },
-  });
 }

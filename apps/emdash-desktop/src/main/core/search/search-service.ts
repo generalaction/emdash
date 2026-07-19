@@ -1,5 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { PALETTE_CATALOG } from '@core/manifests/palette-catalog';
+import { acquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
+import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
@@ -16,7 +17,6 @@ import { conversationEvents } from '../conversations/conversation-events';
 import { searchFileSearchRoot } from '../file-search/runtime-client';
 import { projectEvents } from '../projects/project-events';
 import { taskService } from '../tasks/task-service';
-import { workspaceRegistry } from '../workspaces/workspace-registry';
 
 type FtsRow = {
   item_type: string;
@@ -69,9 +69,13 @@ class SearchService {
     query: string,
     limit?: number
   ): Promise<WorkspaceFileHit[]> {
-    const workspace = workspaceRegistry.get(workspaceId);
+    const workspace = await acquireWorkspaceRuntime(workspaceId);
     if (!workspace) return [];
-    return await searchFileSearchRoot(workspace.files.root, query, limit);
+    try {
+      return await searchFileSearchRoot(workspace.files.root, query, limit);
+    } finally {
+      await workspace.release();
+    }
   }
 
   async search({ query, context }: CommandPaletteQuery): Promise<SearchItem[]> {

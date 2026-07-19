@@ -15,3 +15,7 @@ export function hostRefEquals(left: HostRef, right: HostRef): boolean {
 export function hostRefKey(ref: HostRef): string {
   return `${ref.type}:${encodeURIComponent(ref.id)}`;
 }
+
+export function sshConnectionIdOf(ref: HostRef): string | undefined {
+  return ref.type === 'remote' ? ref.id : undefined;
+}

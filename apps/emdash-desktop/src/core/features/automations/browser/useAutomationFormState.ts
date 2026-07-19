@@ -1,5 +1,6 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useEffect, useMemo, useState } from 'react';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import {
   asMounted,
   firstMountedProjectId,
@@ -17,7 +18,6 @@ import type { Automation } from '@core/primitives/automations/api';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);

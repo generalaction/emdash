@@ -10,11 +10,15 @@ The desktop app no longer has a `src/shared/` directory. Shared code has an expl
 - `src/core/features/<domain>/contributions/` exposes view, modal, tab, subject, and memento
   contributions.
 - `src/core/services/` owns reusable active capabilities.
-- `src/core/manifests/` is the application composition root for contracts and contributions.
+- `src/core/manifests/{shared,node,browser}/` are the application composition roots for portable
+  contracts, main-process registries, and renderer contributions.
 
 Renderer-main traffic uses Wire. The desktop contract is assembled in
-`src/core/manifests/desktop-wire-contract.ts`, served by `src/main/gateway/desktop-wire.ts`, and
+`src/core/manifests/shared/desktop-wire-contract.ts`, served by
+`src/main/gateway/desktop-wire.ts`, and
 consumed through `src/renderer/lib/runtime/desktop-wire-client.ts`.
+The shared manifest imports only slice API contracts. A drift test compares its keys and contract
+references with the lazy Node controller registry in `src/core/manifests/node/controllers.ts`.
 
 ## Path Aliases
 

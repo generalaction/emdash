@@ -168,7 +168,8 @@ describe('PreviewServerStore', () => {
     ).resolves.toEqual({
       success: false,
       error: {
-        type: 'runtime-unavailable',
+        type: 'host-unavailable',
+        host: { type: 'remote', id: 'ssh-1' },
         message:
           'Port forwarding requires the workspace server and is not available in this build.',
       },

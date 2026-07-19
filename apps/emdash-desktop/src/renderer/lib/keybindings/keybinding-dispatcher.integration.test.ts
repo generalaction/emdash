@@ -5,8 +5,8 @@ import {
 } from '@core/features/tasks/contributions/commands';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { settingsCommand } from '@core/features/workbench/contributions/commands';
-import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
-import { windowScope } from '@core/manifests/scope-catalog';
+import { windowScope } from '@core/manifests/browser/scope-catalog';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import {
   disabled,
   enabled,

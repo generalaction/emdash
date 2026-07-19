@@ -2,10 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import {
-  asMounted,
-  getProjectStore,
-} from '@core/features/projects/browser/stores/project-selectors';
+import { getProjectViewStore } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { deleteSelectedTasks } from '@core/features/tasks/browser/delete-selected-tasks';
 import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
@@ -134,11 +131,11 @@ export const TaskList = observer(function TaskList() {
   const {
     params: { projectId },
   } = useCurrentViewParams(projectViewDef);
-  const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
+  const projectView = getProjectViewStore(projectId);
   const openCreateTaskModal = useOpenModal('taskModal');
 
-  const taskView = store?.view.taskView ?? null;
+  const taskView = projectView?.taskView ?? null;
   const implementation = {
     'task.deleteSelected': () => ({
       availability: () =>

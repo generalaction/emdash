@@ -11,23 +11,26 @@ import {
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
+import {
+  isTerminalDrawerDragData,
+  type TerminalDrawerDragData,
+} from '@core/features/terminals/browser/task-terminal/terminal-drag';
+import { TerminalsPanel } from '@core/features/terminals/browser/task-terminal/terminal-panel';
 import { PaneContent } from '@core/features/workbench/browser/tabs/pane-content';
 import { PaneProvider } from '@core/features/workbench/browser/tabs/pane-context';
 import type { Pane as PaneGroup } from '@core/features/workbench/browser/tabs/pane-layout-store';
 import { TabDragPreview } from '@core/features/workbench/browser/tabs/tab-bar/tab-drag-preview';
+import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
-import { useWorkspaceViewModel } from '../task-view-context';
-import { isTerminalDrawerDragData, type TerminalDrawerDragData } from '../terminals/terminal-drag';
-import { TerminalsPanel } from '../terminals/terminal-panel';
 
 type ActiveDrag =
   | { kind: 'tab'; tabId: string }
   | { kind: 'terminal'; terminal: TerminalDrawerDragData };
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const { paneLayout } = taskView;
   const bottomPanelRef = usePanelRef();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -125,7 +128,7 @@ const SplitPane = observer(function SplitPane({
   onActivate: () => void;
   defaultSizePct: number;
 }) {
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
   return (
     <>
@@ -150,7 +153,7 @@ const SplitPane = observer(function SplitPane({
 
 /** Renders one vertical pane per tab group inside a ResizablePanelGroup. */
 const SplitPaneLayout = observer(function SplitPaneLayout() {
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const { paneLayout } = taskView;
 
   return (
@@ -170,7 +173,7 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
 
 function resolveDropPaneId(
   overId: string,
-  paneLayout: ReturnType<typeof useWorkspaceViewModel>['paneLayout']
+  paneLayout: ReturnType<typeof useTaskComposition>['paneLayout']
 ): string | undefined {
   if (overId.startsWith('pane-drop-')) return overId.slice('pane-drop-'.length);
   if (overId.startsWith('pane-content-')) return overId.slice('pane-content-'.length);

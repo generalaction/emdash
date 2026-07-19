@@ -69,3 +69,5 @@ export {
   type FileTreeModel,
   type SymlinkTargetKind,
 } from '@runtimes/files/api/tree/state';
+
+export { filesWorker } from './worker';

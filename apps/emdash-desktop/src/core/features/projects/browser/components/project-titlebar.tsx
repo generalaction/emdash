@@ -4,11 +4,11 @@ import { useConfirmDeleteProject } from '@core/features/projects/browser/hooks/u
 import {
   asMounted,
   getProjectStore,
-  getGitRepositoryStore,
   projectDisplayName,
   projectViewKind,
 } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';

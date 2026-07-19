@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hostRef, hostRefEquals, hostRefKey, hostRefSchema, LOCAL_HOST_REF } from './index';
+import {
+  hostRef,
+  hostRefEquals,
+  hostRefKey,
+  hostRefSchema,
+  LOCAL_HOST_REF,
+  sshConnectionIdOf,
+} from './index';
 
 describe('host refs', () => {
   it('identifies local and remote runtime hosts', () => {
@@ -9,6 +16,8 @@ describe('host refs', () => {
     expect(remote).toEqual({ type: 'remote', id: 'connection-1' });
     expect(hostRefEquals(remote, { type: 'remote', id: 'connection-1' })).toBe(true);
     expect(hostRefKey(remote)).toBe('remote:connection-1');
+    expect(sshConnectionIdOf(remote)).toBe('connection-1');
+    expect(sshConnectionIdOf(LOCAL_HOST_REF)).toBeUndefined();
   });
 
   it('rejects empty and null-containing ids', () => {

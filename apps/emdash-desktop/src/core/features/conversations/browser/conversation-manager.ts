@@ -1,11 +1,15 @@
-import { acpApiContract, type SessionSummary } from '@emdash/core/runtimes/acp/api/client';
-import { tuiAgentsContract, type TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
+import type { SessionSummary } from '@emdash/core/runtimes/acp/api/client';
+import type { TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { createLiveModelReplica, ReplicaLog } from '@emdash/wire';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { conversationsContract } from '@core/features/conversations/api';
 // TODO(conversations-extraction): Inject file-link handlers instead of importing task editor plumbing.
-import { makeFileLinkHandlers } from '@core/features/tasks/browser/stores/open-file-in-file-editor';
+import { makeFileLinkHandlers } from '@core/features/editor/browser/open-file-in-file-editor';
+import type { FrontendPtyConnector } from '@core/features/terminals/browser/pty/pty';
+import { PtySession } from '@core/features/terminals/browser/pty/pty-session';
+import { createXtermLogSink } from '@core/features/terminals/browser/pty/xterm-log-sink';
 import { type AgentStatus, type NotificationType } from '@core/primitives/agents/api';
 import {
   type Conversation,
@@ -13,12 +17,8 @@ import {
   type CreateConversationParams,
 } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import type { FrontendPtyConnector } from '@renderer/lib/pty/pty';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import { createXtermLogSink } from '@renderer/lib/pty/xterm-log-sink';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { getTuiAgentsRuntimeClient } from '@renderer/lib/runtime/tui-agents-client';
 import { Resource } from '@renderer/lib/stores/resource';
+import { getConversationsClient } from './client';
 
 export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;
@@ -56,7 +56,7 @@ export class ConversationManagerStore implements Disposable {
       hasPreloaded
         ? null
         : async () =>
-            (await getDesktopWireClient()).conversations.getConversationsForTask({
+            (await getConversationsClient()).getConversationsForTask({
               projectId,
               taskId,
             }),
@@ -107,6 +107,7 @@ export class ConversationManagerStore implements Disposable {
     this.offAcpSessionState = this.listenToAcpSessionState();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
+    if (!hasPreloaded) void this.list.load();
   }
 
   private addConversation(conversation: Conversation): void {
@@ -119,10 +120,11 @@ export class ConversationManagerStore implements Disposable {
   }
 
   private subscribeConversationEvents(onEvent: (event: ConversationEvent) => void): () => void {
+    if (typeof window === 'undefined') return () => {};
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.conversations.events.subscribe(undefined, {
+    void getConversationsClient().then(async (client) => {
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent,
         onGap: () => void this.list.load(),
       });
@@ -157,13 +159,17 @@ export class ConversationManagerStore implements Disposable {
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void (async () => {
-      const client = await getTuiAgentsRuntimeClient();
+      const client = await getConversationsClient();
       if (disposed) return;
-      const replica = createLiveModelReplica(tuiAgentsContract.sessions, client.sessions, {
-        onChange: {
-          list: (list: TuiSessionList) => this.handleTuiSessionListChanged(list),
-        },
-      });
+      const replica = createLiveModelReplica(
+        conversationsContract.tui.sessions,
+        client.tui.sessions,
+        {
+          onChange: {
+            list: (list: TuiSessionList) => this.handleTuiSessionListChanged(list),
+          },
+        }
+      );
       const lease = replica.acquire(undefined);
       cleanup = () => {
         void lease.release();
@@ -194,13 +200,17 @@ export class ConversationManagerStore implements Disposable {
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void (async () => {
-      const client = (await getDesktopWireClient()).acp;
+      const client = await getConversationsClient();
       if (disposed) return;
-      const replica = createLiveModelReplica(acpApiContract.sessions, client.sessions, {
-        onChange: {
-          list: (list: Record<string, SessionSummary>) => this.handleAcpSessionListChanged(list),
-        },
-      });
+      const replica = createLiveModelReplica(
+        conversationsContract.acp.sessions,
+        client.acp.sessions,
+        {
+          onChange: {
+            list: (list: Record<string, SessionSummary>) => this.handleAcpSessionListChanged(list),
+          },
+        }
+      );
       const lease = replica.acquire(undefined);
       cleanup = () => {
         void lease.release();
@@ -276,9 +286,7 @@ export class ConversationManagerStore implements Disposable {
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
-    const conversation = await (
-      await getDesktopWireClient()
-    ).conversations.createConversation(params);
+    const conversation = await (await getConversationsClient()).createConversation(params);
     runInAction(() => {
       this.addConversation(conversation);
     });
@@ -287,8 +295,8 @@ export class ConversationManagerStore implements Disposable {
 
   async hydrateConversation(conversationId: string): Promise<void> {
     await (
-      await getDesktopWireClient()
-    ).conversations.hydrateConversation({
+      await getConversationsClient()
+    ).hydrateConversation({
       projectId: this.projectId,
       taskId: this.taskId,
       conversationId,
@@ -299,8 +307,8 @@ export class ConversationManagerStore implements Disposable {
     const session = this.sessions.get(conversationId);
     session?.dispose();
     await (
-      await getDesktopWireClient()
-    ).conversations.dehydrateConversation({
+      await getConversationsClient()
+    ).dehydrateConversation({
       projectId: this.projectId,
       taskId: this.taskId,
       conversationId,
@@ -319,8 +327,8 @@ export class ConversationManagerStore implements Disposable {
 
     try {
       await (
-        await getDesktopWireClient()
-      ).conversations.deleteConversation({
+        await getConversationsClient()
+      ).deleteConversation({
         projectId: this.projectId,
         taskId: this.taskId,
         conversationId,
@@ -338,11 +346,11 @@ export class ConversationManagerStore implements Disposable {
   async killSession(conversationId: string): Promise<void> {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
-    const client = await getDesktopWireClient();
+    const client = await getConversationsClient();
     const result =
       conversation.data.type === 'acp'
         ? await client.acp.killSession({ conversationId })
-        : await client.tuiAgents.killSession({ conversationId });
+        : await client.tui.killSession({ conversationId });
     if (!result.success) {
       throw new Error(result.error.message ?? `Failed to kill session '${conversationId}'`);
     }
@@ -364,8 +372,8 @@ export class ConversationManagerStore implements Disposable {
 
     try {
       await (
-        await getDesktopWireClient()
-      ).conversations.renameConversation({
+        await getConversationsClient()
+      ).renameConversation({
         conversationId,
         name,
       });
@@ -420,15 +428,15 @@ function createNoopConnector(): FrontendPtyConnector {
 
 function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector {
   let logBinding: ReplicaLog | null = null;
-  let clientPromise: ReturnType<typeof getTuiAgentsRuntimeClient> | null = null;
+  let clientPromise: ReturnType<typeof getConversationsClient> | null = null;
   const client = () => {
-    clientPromise ??= getTuiAgentsRuntimeClient();
+    clientPromise ??= getConversationsClient();
     return clientPromise;
   };
   return {
     async connect(terminal: Terminal) {
       const runtime = await client();
-      logBinding = new ReplicaLog(runtime.output.handle({ conversationId }), {
+      logBinding = new ReplicaLog(runtime.tui.output.handle({ conversationId }), {
         store: createXtermLogSink(terminal),
       });
       await logBinding.ready;
@@ -438,10 +446,10 @@ function createTuiAgentsConnector(conversationId: string): FrontendPtyConnector 
       };
     },
     sendInput(data: string) {
-      void client().then((runtime) => runtime.sendInput({ conversationId, data }));
+      void client().then((runtime) => runtime.tui.sendInput({ conversationId, data }));
     },
     resize(cols: number, rows: number) {
-      void client().then((runtime) => runtime.resize({ conversationId, cols, rows }));
+      void client().then((runtime) => runtime.tui.resize({ conversationId, cols, rows }));
     },
   };
 }
@@ -513,8 +521,8 @@ export class ConversationStore {
 
   markSeen() {
     this.seen = true;
-    void getDesktopWireClient().then((client) =>
-      client.conversations.markConversationSeen({ conversationId: this.data.id })
+    void getConversationsClient().then((client) =>
+      client.markConversationSeen({ conversationId: this.data.id })
     );
   }
 

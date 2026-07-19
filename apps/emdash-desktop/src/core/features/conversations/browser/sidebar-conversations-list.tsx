@@ -5,11 +5,11 @@ import { useCallback, useRef, useState } from 'react';
 import { conversationTabKind } from '@core/features/conversations/browser/conversation-tab-kind';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/browser/conversation-title-utils';
 // TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import {
   useConversations,
-  useTaskViewContext,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
+  useTaskComposition,
+} from '@core/features/workbench/browser/task-composition-context';
 // TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
 import { useTabSelection } from '@core/features/workbench/browser/task-tab-registry';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
@@ -45,7 +45,7 @@ const ConversationRow = observer(function ConversationRow({
   const committedRef = useRef(false);
   const conversations = useConversations();
   const { projectId, taskId } = useTaskViewContext();
-  const { paneLayout } = useWorkspaceViewModel();
+  const { paneLayout } = useTaskComposition();
   const openConfirm = useOpenModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -245,7 +245,7 @@ const ConversationRow = observer(function ConversationRow({
 
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const conversations = useConversations();
   const { paneLayout } = taskView;
   const openCreateConversationModal = useOpenModal('createConversationModal');

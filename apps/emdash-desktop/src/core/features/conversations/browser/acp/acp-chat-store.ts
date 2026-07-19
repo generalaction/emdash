@@ -1,5 +1,6 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
 import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type {
   AttachmentMimeType,
   AttachmentRef,
@@ -17,12 +18,8 @@ import type {
   ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
 import type { BlobSource } from '@emdash/wire';
-import { action, computed, makeObservable, observable, runInAction, toJS } from 'mobx';
-// TODO(conversations-extraction): Inject task/workspace lookups instead of importing task stores.
-import { asProvisioned, getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { workspaceRegistry } from '@core/features/tasks/browser/stores/workspace-registry';
-import { AcpLiveSession, AcpStartError, asValueSource } from '@renderer/lib/acp/acp-live-session';
-import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { getAgentsClient } from '@core/features/agents/browser/client';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -32,6 +29,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from '../stores/conversation-registry';
+import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
 export interface AgentAffordances {
@@ -423,11 +421,10 @@ export class AcpChatStore {
   }
 
   private async _runBootstrap(): Promise<void> {
-    let providerId: string | undefined;
+    const providerId = conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)
+      ?.data.providerId;
     try {
-      const input = this._startInput();
-      providerId = input.providerId;
-      const clientSession = await AcpLiveSession.create(this.conversationId, input);
+      const clientSession = await AcpLiveSession.create(this.conversationId);
 
       const history = await clientSession.getHistory(undefined, 100);
       if (!history.success) throw resultError(history.error);
@@ -461,8 +458,8 @@ export class AcpChatStore {
 
   private async _refreshAuthStatus(providerId: string): Promise<void> {
     try {
-      const client = await getAgentConfigRuntimeClient();
-      const result = await client.refreshAuthStatus({ providerId });
+      const client = await getAgentsClient();
+      const result = await client.refreshAuthStatus({ host: LOCAL_HOST_REF, providerId });
       if (!result.success) {
         log.warn('Failed to refresh agent auth status after ACP auth error', {
           providerId,
@@ -475,34 +472,6 @@ export class AcpChatStore {
         error,
       });
     }
-  }
-
-  private _startInput() {
-    const conversation = conversationRegistry
-      .get(this.taskId)
-      ?.conversations.get(this.conversationId)?.data;
-    if (!conversation) throw new Error('Conversation not found');
-
-    const task = asProvisioned(getTaskStore(this.projectId, this.taskId));
-    if (!task?.workspaceId) throw new Error('No workspace found for task');
-
-    const workspace = workspaceRegistry.get(this.projectId, task.workspaceId);
-    if (!workspace) throw new Error('Workspace not found');
-
-    const initialQueue =
-      conversation.sessionId === undefined && conversation.initialQueue?.length
-        ? toJS(conversation.initialQueue)
-        : undefined;
-
-    return {
-      conversationId: this.conversationId,
-      providerId: conversation.providerId,
-      cwd: workspace.path,
-      sessionId: conversation.sessionId ?? null,
-      model: conversation.model ?? null,
-      modeId: conversation.modeId ?? null,
-      ...(initialQueue && { initialQueue }),
-    };
   }
 
   private _queuedPromptModels(): QueuedPrompt[] {

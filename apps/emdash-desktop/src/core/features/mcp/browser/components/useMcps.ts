@@ -1,13 +1,14 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { useInstalledMcpServersLiveModel } from '@renderer/lib/agent-config/live-model-hooks';
-import { getAgentConfigRuntimeClient } from '@renderer/lib/agent-config/runtime-client';
+import { useAgentInstallationStatuses } from '@core/features/agents/browser/use-agent-installation-statuses';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { getMcpClient } from '../client';
+import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
 
 const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;
 
@@ -53,8 +54,8 @@ export function useMcps() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: { server: McpServer; source: 'catalog' | 'custom' | null }) => {
-      const client = await getAgentConfigRuntimeClient();
-      const result = await client.saveMcpServer({ server: payload.server });
+      const client = await getMcpClient();
+      const result = await client.saveServer({ host: LOCAL_HOST_REF, server: payload.server });
       if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: (_, payload) => {
@@ -80,8 +81,8 @@ export function useMcps() {
 
   const removeMutation = useMutation({
     mutationFn: async (serverName: string) => {
-      const client = await getAgentConfigRuntimeClient();
-      const result = await client.removeMcpServer({ name: serverName });
+      const client = await getMcpClient();
+      const result = await client.removeServer({ host: LOCAL_HOST_REF, name: serverName });
       if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: () => {

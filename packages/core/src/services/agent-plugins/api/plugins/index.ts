@@ -103,6 +103,7 @@ export type {
   AcpAgentApi,
   AcpClientFactory,
 } from '@services/agent-plugins/api/plugins/capabilities/acp';
+export { agentAuthStatusSchema } from '@services/agent-plugins/api/plugins/capabilities/auth';
 export type {
   AgentAuthContext,
   AgentAuthDescriptor,

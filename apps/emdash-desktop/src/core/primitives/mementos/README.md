@@ -142,7 +142,7 @@ Concrete subjects and mementos belong to their owning vertical slice under
 `src/core/features/<owner>/contributions/`. Contribution modules are declarative:
 they may import primitive APIs and schemas, but not Node, browser, renderer, or
 main-process implementations. Register persisted definitions in
-`src/core/manifests/memento-catalog.ts`:
+`src/core/manifests/shared/memento-catalog.ts`:
 
 ```ts
 import { terminalDrawerMemento } from '@core/features/pty/contributions/mementos';
@@ -165,7 +165,7 @@ import {
   getMementosWireClient,
   MementoClient,
 } from '@core/primitives/mementos/browser';
-import { mementoCatalog } from '@core/manifests/memento-catalog';
+import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 
 const scope = createScope({ label: `task-view:${taskId}` });
 const client = new MementoClient(await getMementosWireClient(), {

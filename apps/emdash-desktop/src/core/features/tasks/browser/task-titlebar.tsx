@@ -17,17 +17,20 @@ import {
   projectDisplayName,
 } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { useGitActions } from '@core/features/source-control/browser/use-git-actions';
 import {
   getRegisteredTaskData,
   getTaskStore,
   taskDisplayName,
   taskViewKind,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import {
-  useTaskViewContext,
+  useTaskComposition,
   useWorkspace,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
+} from '@core/features/workbench/browser/task-composition-context';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
@@ -49,7 +52,6 @@ import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 import { type SidebarTab } from './types';
-import { useGitActions } from './use-git-actions';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -106,7 +108,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId);
   const taskPayload = getRegisteredTaskData(projectId, taskId);
   const workspace = useWorkspace();
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
+  const gitCheckout = workspace.get(gitCheckoutStoreToken);
 
   const {
     hasUpstream,
@@ -122,8 +125,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
-  const linesAdded = workspace.gitCheckout.totalLinesAdded;
-  const linesDeleted = workspace.gitCheckout.totalLinesDeleted;
+  const linesAdded = gitCheckout.totalLinesAdded;
+  const linesDeleted = gitCheckout.totalLinesDeleted;
   const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
   const projectStore = asMounted(getProjectStore(projectId));
@@ -169,7 +172,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{workspace.gitCheckout.branchName}</span>
+                  <span>{gitCheckout.branchName}</span>
                 </span>
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
@@ -279,7 +282,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={workspace.gitRepository.canonicalRepositoryUrl ?? ''}
+                repositoryUrl={getGitRepositoryStore(projectId)?.canonicalRepositoryUrl ?? ''}
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />

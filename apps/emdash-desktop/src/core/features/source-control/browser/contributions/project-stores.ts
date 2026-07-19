@@ -1,0 +1,49 @@
+import {
+  projectSettingsStoreToken,
+  type ProjectScopedStoreContext,
+} from '@core/features/projects/contributions/project-stores';
+import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
+import {
+  contributeScopedStore,
+  scopedStoreToken,
+  type ScopedStoreContribution,
+} from '@core/primitives/scoped-stores/browser';
+import { GitRepositoryStore } from '../stores/git-repository-store';
+import { TaskPrSyncCoordinator } from '../stores/task-pr-sync-coordinator';
+
+export const gitRepositoryStoreToken = scopedStoreToken<GitRepositoryStore>(
+  'source-control.repository'
+);
+export const taskPrSyncCoordinatorToken = scopedStoreToken<TaskPrSyncCoordinator>(
+  'source-control.task-pr-sync'
+);
+
+export const sourceControlProjectStoreContributions: readonly ScopedStoreContribution<ProjectScopedStoreContext>[] =
+  [
+    contributeScopedStore({
+      token: gitRepositoryStoreToken,
+      create: ({ data }, stores) => {
+        const store = new GitRepositoryStore(
+          data.id,
+          stores.get(projectSettingsStoreToken),
+          data.baseRef
+        );
+        store.start();
+        return store;
+      },
+      dispose: (store) => store.dispose(),
+    }),
+  ];
+
+export const sourceControlTaskProjectStoreContributions: readonly ScopedStoreContribution<ProjectScopedStoreContext>[] =
+  [
+    contributeScopedStore({
+      token: taskPrSyncCoordinatorToken,
+      create: (_context, stores) =>
+        new TaskPrSyncCoordinator(
+          stores.get(taskManagerStoreToken),
+          stores.get(gitRepositoryStoreToken)
+        ),
+      dispose: (coordinator) => coordinator.dispose(),
+    }),
+  ];

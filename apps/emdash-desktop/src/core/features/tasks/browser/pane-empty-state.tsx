@@ -2,6 +2,7 @@ import { FileSearch, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { useWorkspaceId } from '@core/features/workbench/browser/task-composition-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useOpenModal } from '@renderer/lib/modal/api';
@@ -9,7 +10,8 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 
 export function PaneEmptyState() {
-  const { projectId, taskId, workspaceId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
   const { pane } = usePaneContext();
   const openCreateConversationModal = useOpenModal('createConversationModal');
   const openCommandPalette = useOpenModal('commandPaletteModal');
@@ -28,7 +30,7 @@ export function PaneEmptyState() {
       })();
     },
     () => {
-      void openCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined });
+      void openCommandPalette({ projectId, taskId, workspaceId });
     },
   ];
 

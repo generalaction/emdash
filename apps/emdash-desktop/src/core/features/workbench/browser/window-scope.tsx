@@ -1,13 +1,10 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { libraryViewDef } from '@core/features/library/contributions/views';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import {
-  getRegisteredTaskData,
-  getTaskView,
-} from '@core/features/tasks/browser/stores/task-selectors';
+import { getRegisteredTaskData } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { windowScope } from '@core/manifests/scope-catalog';
-import { viewCatalog } from '@core/manifests/view-catalog';
+import { windowScope } from '@core/manifests/browser/scope-catalog';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -21,6 +18,7 @@ import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { openModal } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
+import { getTaskComposition } from './task-composition-selectors';
 
 export function WindowScope({ children }: { readonly children: ReactNode }) {
   const { currentView } = useWorkspaceSlots();
@@ -114,7 +112,7 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       execute: () => {
         const taskView =
           currentProjectId && currentTaskId
-            ? getTaskView(currentProjectId, currentTaskId)
+            ? getTaskComposition(currentProjectId, currentTaskId)
             : undefined;
         toggleZenMode(
           taskView

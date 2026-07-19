@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { browserEvents } from '@core/features/browser/node';
 import { commandPaletteCommand } from '@core/features/workbench/contributions/commands';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import { buildBrowserClaims } from '@core/manifests/browser-claims';
+import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
 import { matchesElectronInput } from '@core/primitives/keybindings/api';
 import { defineViewScope, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { ViewScopes } from '@core/primitives/view-scopes/browser';

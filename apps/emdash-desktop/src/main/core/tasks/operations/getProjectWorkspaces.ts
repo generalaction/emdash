@@ -1,8 +1,11 @@
+import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull } from 'drizzle-orm';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
+import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { resolveWorkspaceKind } from '../../workspaces/resolve-workspace-kind';
 
 /**
@@ -66,6 +69,17 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
   for (const row of taskWsRows) {
     wsTaskCount.set(row.wsId, (wsTaskCount.get(row.wsId) ?? 0) + 1);
   }
+  const workspaceIds = new Set(taskWsRows.map((row) => row.wsId));
+  if (repoWsRow) workspaceIds.add(repoWsRow.id);
+  const liveWorkspaceIds = new Set(
+    (
+      await Promise.all(
+        Array.from(workspaceIds, async (workspaceId) =>
+          (await workspaceHasConsumers(workspaceId)) ? workspaceId : null
+        )
+      )
+    ).filter((workspaceId): workspaceId is string => workspaceId !== null)
+  );
 
   // 5. Build the result set, deduplicating by workspace ID.
   const seen = new Set<string>();
@@ -84,7 +98,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
       linesDeleted: repoWsRow.linesDeleted,
       taskId: null,
       taskName: null,
-      isLive: !!workspaceRegistry.get(repoWsRow.id),
+      isLive: liveWorkspaceIds.has(repoWsRow.id),
       linkedTaskCount: wsTaskCount.get(repoWsRow.id) ?? 0,
     });
   }
@@ -102,10 +116,29 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
       linesDeleted: row.wsLinesDeleted,
       taskId: row.taskId,
       taskName: row.taskName,
-      isLive: !!workspaceRegistry.get(row.wsId),
+      isLive: liveWorkspaceIds.has(row.wsId),
       linkedTaskCount: wsTaskCount.get(row.wsId) ?? 0,
     });
   }
 
   return result;
+}
+
+async function workspaceHasConsumers(workspaceId: string): Promise<boolean> {
+  const identity = await workspaceIdentityService.resolve(workspaceId);
+  if (!identity) return false;
+  const lease = getDesktopRuntimeBroker().session(identity.host);
+  try {
+    const runtime = await lease.ready();
+    if (!runtime.success) return false;
+    const workspace = hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
+    const snapshot = await runtime.data.workspace.workspace
+      .state(workspace, 'state')
+      .asLiveSource()
+      .snapshot();
+    const state = snapshot.data as { consumers?: readonly unknown[] };
+    return (state.consumers?.length ?? 0) > 0;
+  } finally {
+    await lease.release();
+  }
 }

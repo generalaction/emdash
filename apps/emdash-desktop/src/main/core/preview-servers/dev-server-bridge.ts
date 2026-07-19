@@ -1,16 +1,16 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
+import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { DirectPreviewServer } from '@core/primitives/preview-servers/api';
 import { parsePtySessionId } from '@core/primitives/pty/api';
 import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
-import { workspaceRegistry } from '../workspaces/workspace-registry';
 import type { DetectedPreviewUrl, StopTerminalServerHandler } from './preview-server-service';
 import { previewServerService } from './preview-server-service-instance';
 
-type DevServerBridge = {
+export type DevServerBridge = {
   dispose(): Promise<void>;
 };
 
@@ -29,10 +29,15 @@ export async function createDevServerBridge(
     },
   });
   const lease = replica.acquire(undefined);
-  await lease.ready();
+  try {
+    await lease.ready();
+  } catch (error) {
+    await Promise.allSettled([lease.release(), replica.dispose()]);
+    throw error;
+  }
 
   const stopHandler: StopTerminalServerHandler = async (server) => {
-    const devServer = findDevServerForPreview(previous, server);
+    const devServer = await findDevServerForPreview(previous, server);
     if (!devServer) return;
     const result = await client.sendInput({ key: devServer.key, data: '\x03' });
     if (!result.success) {
@@ -47,8 +52,7 @@ export async function createDevServerBridge(
   return {
     async dispose() {
       previewServerService.setStopTerminalServerHandler(undefined);
-      await lease.release();
-      await replica.dispose();
+      await Promise.all([lease.release(), replica.dispose()]);
       previous = new Map();
     },
   };
@@ -74,7 +78,7 @@ async function syncDevServers(
 }
 
 async function handleDevServerAdded(server: TerminalDevServer): Promise<void> {
-  const context = resolveServerContext(server);
+  const context = await resolveServerContext(server);
   if (!context) return;
   await previewServerService.registerDetectedTarget({
     projectId: context.projectId,
@@ -89,7 +93,7 @@ async function handleDevServerAdded(server: TerminalDevServer): Promise<void> {
 }
 
 async function handleDevServerRemoved(server: TerminalDevServer): Promise<void> {
-  const context = resolveServerContext(server);
+  const context = await resolveServerContext(server);
   if (!context) return;
   await previewServerService.handleTerminalSourceClosed({
     projectId: context.projectId,
@@ -101,15 +105,19 @@ async function handleDevServerRemoved(server: TerminalDevServer): Promise<void> 
   });
 }
 
-function resolveServerContext(server: TerminalDevServer):
+async function resolveServerContext(server: TerminalDevServer): Promise<
   | {
       projectId: string;
       workspaceId: string;
       terminalId: string;
     }
-  | undefined {
+  | undefined
+> {
   const workspacePath = nativePathFromHost(server.key.workspace.path);
-  const workspace = workspaceRegistry.findByPath(workspacePath);
+  const workspace = await workspaceIdentityService.findByPath(
+    workspacePath,
+    server.key.workspace.host
+  );
   if (!workspace) return undefined;
   const parsed = parsePtySessionId(server.key.id);
   return {
@@ -128,16 +136,16 @@ function detectedPreviewUrl(server: TerminalDevServer): DetectedPreviewUrl {
   };
 }
 
-function findDevServerForPreview(
+async function findDevServerForPreview(
   devServers: Map<string, TerminalDevServer>,
   preview: DirectPreviewServer
-): TerminalDevServer | undefined {
+): Promise<TerminalDevServer | undefined> {
   if (preview.source.kind !== 'terminal-output') return undefined;
   for (const devServer of devServers.values()) {
     if (devServer.protocol !== preview.protocol) continue;
     if (devServer.host !== preview.host) continue;
     if (devServer.port !== preview.port) continue;
-    const context = resolveServerContext(devServer);
+    const context = await resolveServerContext(devServer);
     if (!context) continue;
     if (context.projectId !== preview.projectId) continue;
     if (context.workspaceId !== preview.workspaceId) continue;

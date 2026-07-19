@@ -1,6 +1,6 @@
 import { reaction, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@core/features/workbench/browser/tabs/pane-layout-store';
-import { conversationRegistry } from './stores/conversation-registry';
+import type { ConversationManagerStore } from './conversation-manager';
 
 /**
  * Seeds the one automatic default conversation tab for a fresh task.
@@ -17,11 +17,11 @@ export class DefaultConversationSeeder {
   private _disposer: () => void;
 
   constructor(
-    private readonly taskId: string,
+    private readonly conversations: ConversationManagerStore,
     private readonly paneLayout: PaneLayoutStore
   ) {
     this._disposer = reaction(
-      () => conversationRegistry.get(this.taskId)?.conversations.size ?? 0,
+      () => this.conversations.conversations.size,
       (size) => {
         if (size === 0) return;
         this.seed();
@@ -38,14 +38,13 @@ export class DefaultConversationSeeder {
   /** Opens the initial conversation tab for a fresh task, exactly once. */
   seed(): void {
     if (this._consumed) return;
-    const conversations = conversationRegistry.get(this.taskId);
-    if (!conversations || conversations.conversations.size === 0) return;
+    if (this.conversations.conversations.size === 0) return;
 
     this._consumed = true;
     if (this.paneLayout.focusedPane.tabOrder.length !== 0) return;
 
     runInAction(() => {
-      for (const [id, store] of conversations.conversations) {
+      for (const [id, store] of this.conversations.conversations) {
         if (store.isInitialConversation) {
           if (store.data.type === 'acp') {
             this.paneLayout.open('acp-chat', { conversationId: id }, { preview: false });

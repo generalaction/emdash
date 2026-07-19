@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { modalCatalog } from '@core/manifests/modal-catalog';
+import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import type { ModalDismissed } from '@core/primitives/modals/react';
 import { openModal } from '@renderer/lib/modal/api';
 

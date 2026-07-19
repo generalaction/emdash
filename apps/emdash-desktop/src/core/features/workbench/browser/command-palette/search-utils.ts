@@ -1,4 +1,4 @@
-import { relativeToWorkspace } from '@core/features/tasks/browser/stores/workspace-path';
+import { relativeToWorkspace } from '@core/features/workspaces/browser/workspace-path';
 import type { SearchItem } from '@core/primitives/search/api';
 
 /**

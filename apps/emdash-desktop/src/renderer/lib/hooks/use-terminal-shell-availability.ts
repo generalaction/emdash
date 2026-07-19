@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { getTerminalsClient } from '@core/features/terminals/browser/client';
 import type { TerminalShellAvailability } from '@core/primitives/terminals/api';
-import { getTerminalTabsWireClient } from '@renderer/lib/runtime/terminal-tabs-client';
 
 export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
 
@@ -12,7 +12,7 @@ export function useTerminalShellAvailability(
   return useQuery({
     queryKey: ['terminal-shell-availability', remoteConnectionId ?? 'local'],
     queryFn: async () => {
-      const result = await (await getTerminalTabsWireClient()).getShellAvailability(undefined);
+      const result = await (await getTerminalsClient()).getShellAvailability(undefined);
       if (!result.success) throw new Error(result.error.message);
       return result.data;
     },

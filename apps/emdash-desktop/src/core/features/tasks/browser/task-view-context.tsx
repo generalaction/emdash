@@ -1,27 +1,17 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
-import type { ConversationManagerStore } from '@core/features/conversations/browser/conversation-manager';
 import { ProjectViewWrapper } from '@core/features/projects/browser/components/project-view-wrapper';
-import type { PreviewServerStore } from '@core/features/tasks/browser/stores/preview-server-store';
 import {
-  getConversationsForTask,
   getTaskStore,
-  getTerminalsForTask,
-  getWorkspaceForTask,
   taskViewKind,
   type TaskViewKind,
 } from '@core/features/tasks/browser/stores/task-selectors';
-import type { WorkspaceStore } from '@core/features/tasks/browser/stores/workspace';
-import type { WorkspaceViewModel } from '@core/features/tasks/browser/stores/workspace-view-model';
-import type { TerminalManagerStore } from '@core/features/tasks/browser/terminals/terminal-manager';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { SubjectProvider } from '@core/primitives/mementos/react';
 
 interface TaskViewContext {
   projectId: string;
   taskId: string;
-  /** The workspace ID for this task, or null when not yet registered. */
-  workspaceId: string | null;
 }
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
@@ -35,11 +25,10 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const workspaceId = getTaskStore(projectId, taskId)?.workspaceId ?? null;
   return (
     <ProjectViewWrapper projectId={projectId}>
       <SubjectProvider subject={taskSubject({ taskId })}>
-        <TaskViewContext.Provider value={{ projectId, taskId, workspaceId }}>
+        <TaskViewContext.Provider value={{ projectId, taskId }}>
           {children}
         </TaskViewContext.Provider>
       </SubjectProvider>
@@ -58,59 +47,4 @@ export function useTaskViewContext(): TaskViewContext {
 export function useTaskViewKind(): TaskViewKind {
   const { projectId, taskId } = useTaskViewContext();
   return taskViewKind(getTaskStore(projectId, taskId), projectId);
-}
-
-/** Returns the active WorkspaceStore. Throws if the task is not provisioned. */
-export function useWorkspace(): WorkspaceStore {
-  const { projectId, taskId } = useTaskViewContext();
-  const workspace = getWorkspaceForTask(projectId, taskId);
-  if (!workspace) {
-    throw new Error('useWorkspace: task is not provisioned (no workspace)');
-  }
-  return workspace;
-}
-
-/** Returns the workspace ID. Throws if the task has no workspace yet. */
-export function useWorkspaceId(): string {
-  const { workspaceId } = useTaskViewContext();
-  if (!workspaceId) throw new Error('useWorkspaceId: task has no workspace');
-  return workspaceId;
-}
-
-/** Returns the PreviewServerStore. Throws if the task is not provisioned. */
-export function usePreviewServers(): PreviewServerStore {
-  const { projectId, taskId } = useTaskViewContext();
-  const previewServers = getTaskStore(projectId, taskId)?.viewModel?.previewServers;
-  if (!previewServers) throw new Error('usePreviewServers: task is not provisioned');
-  return previewServers;
-}
-
-/** Returns the WorkspaceViewModel. Throws if the task is not registered. */
-export function useWorkspaceViewModel(): WorkspaceViewModel {
-  const { projectId, taskId } = useTaskViewContext();
-  const viewModel = getTaskStore(projectId, taskId)?.viewModel;
-  if (!viewModel) {
-    throw new Error('useWorkspaceViewModel: task is not registered (no view model)');
-  }
-  return viewModel;
-}
-
-/** Returns the ConversationManagerStore for the task. Throws if not registered. */
-export function useConversations(): ConversationManagerStore {
-  const { taskId } = useTaskViewContext();
-  const mgr = getConversationsForTask(taskId);
-  if (!mgr) {
-    throw new Error('useConversations: task is not registered (no conversation manager)');
-  }
-  return mgr;
-}
-
-/** Returns the TerminalManagerStore for the task. Throws if not registered. */
-export function useTerminals(): TerminalManagerStore {
-  const { taskId } = useTaskViewContext();
-  const mgr = getTerminalsForTask(taskId);
-  if (!mgr) {
-    throw new Error('useTerminals: task is not registered (no terminal manager)');
-  }
-  return mgr;
 }

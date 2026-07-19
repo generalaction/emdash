@@ -5,6 +5,7 @@ import type {
   GitBranchRef,
   PushError,
 } from '@emdash/core/runtimes/git/api';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import z from 'zod';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
@@ -145,7 +146,8 @@ export type ProvisionTaskResult = {
 export type ProvisionWorkspaceError =
   | { type: 'no-intent' }
   | { type: 'missing-workspace' }
-  | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
+  | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string }
+  | RuntimeResolveError;
 
 export type DeleteTaskOptions = {
   deleteWorktree?: boolean;

@@ -23,10 +23,13 @@ Feature-owned React components, hooks, and MobX stores live beside their portabl
 implementation. Major browser slices include `tasks`, `projects`, `conversations`, `automations`,
 `browser`, `integrations`, `settings`, `skills`, `mcp`, and `library`. Workbench-owned tabs,
 sidebar, command palette, and onboarding UI live under `src/core/features/workbench/browser/`.
+Cross-slice task-view lifecycle and workspace composition live in
+`src/core/features/workbench/browser/task-composition.tsx`; task, project, and workspace stores
+expose feature-owned children through scoped-store tokens.
 
 Feature views, modals, and task tabs are exposed through `contributions/` and aggregated by
-`src/core/manifests/browser-contributions.ts` and
-`src/core/manifests/task-tab-contributions.ts`.
+`src/core/manifests/browser/browser-contributions.ts` and
+`src/core/manifests/browser/task-tab-contributions.ts`.
 
 ## Shared Renderer Infrastructure (`src/renderer/lib/`)
 
@@ -35,9 +38,11 @@ Feature views, modals, and task tabs are exposed through `contributions/` and ag
 - `layout/` — layout, navigation, and panel drag providers
 - `commands/` — command registry (`registry.ts`) and view-level `commandProvider` hooks
 - `pty/` — frontend PTY sessions, pool provider, panes, prompt injection
-- `monaco/`, `editor/` — Monaco editor integration
 - `stores/` — cross-feature stores (navigation, dependencies, resource monitor, ...)
 - `providers/`, `hooks/`, `components/`, `ui/`, `theme/` — shared providers, hooks, and UI primitives
+
+Monaco, file rendering, file-tree projection, and renderer-facing file runtime access are owned by
+`src/core/features/editor/browser/`.
 
 ## Tests
 

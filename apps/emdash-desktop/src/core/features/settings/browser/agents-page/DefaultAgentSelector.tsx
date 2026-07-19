@@ -1,9 +1,9 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import React from 'react';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import type { AppSettings } from '@core/primitives/app-settings/api';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 
 export const DefaultAgentSelector: React.FC = () => {
   const {

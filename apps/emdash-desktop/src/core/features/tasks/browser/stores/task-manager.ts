@@ -1,25 +1,18 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
 import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
-import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
+import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
-import type { GitRepositoryStore } from '@core/features/projects/browser/stores/git-repository-store';
-import {
-  getProjectManagerStore,
-  getProjectSshConnectionId,
-} from '@core/features/projects/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getTaskGitCheckoutStore } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import {
   workspacesWireContract,
   type WorkspaceBootstrapState,
 } from '@core/features/workspaces/api';
-import type { Conversation } from '@core/primitives/conversations/api';
+import { getWorkspacesWireClient } from '@core/features/workspaces/browser/client';
+import { workspaceRegistry } from '@core/features/workspaces/browser/stores/workspace-registry';
+import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -29,10 +22,7 @@ import type {
 } from '@core/primitives/tasks/api';
 import { getMementoClient } from '@renderer/lib/mementos';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
-import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
-import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import {
   createUnprovisionedTask,
@@ -43,8 +33,6 @@ import {
   isUnregistered,
   type TaskStore,
 } from './task-store';
-import { terminalRegistry } from './terminal-registry';
-import { workspaceRegistry } from './workspace-registry';
 
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   return match(error)
@@ -121,18 +109,12 @@ function wireErrorToWorkspaceError(error: unknown): WorkspaceError {
 
 export class TaskManagerStore {
   private readonly projectId: string;
-  private readonly _repository: GitRepositoryStore;
   private readonly _settingsStore: ProjectSettingsStore;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
   private _unsubTaskEvents: (() => void) | null = null;
-  private _prSyncModel: OptimisticLiveModel<typeof pullRequestsContract.syncState> | null = null;
-  private _disposePrSyncReaction: (() => void) | null = null;
-  private _prSyncGeneration = 0;
-  private _disposeGitHeadReaction: (() => void) | null = null;
-  private _disposeRepositoryReaction: (() => void) | null = null;
   private _bootstrapReplicaPromise: Promise<
     LiveModelReplica<typeof workspacesWireContract.bootstrap>
   > | null = null;
@@ -142,11 +124,10 @@ export class TaskManagerStore {
 
   constructor(
     projectId: string,
-    repository: GitRepositoryStore,
-    settingsStore: ProjectSettingsStore
+    settingsStore: ProjectSettingsStore,
+    private readonly projectStores?: ScopedStoreLookup
   ) {
     this.projectId = projectId;
-    this._repository = repository;
     this._settingsStore = settingsStore;
     makeObservable(this, { tasks: observable });
 
@@ -159,9 +140,7 @@ export class TaskManagerStore {
             const { task } = event;
             if (task.projectId !== this.projectId || this.tasks.has(task.id)) return;
             runInAction(() => {
-              this.tasks.set(task.id, createUnprovisionedTask(task));
-              conversationRegistry.acquire(task.id, this.projectId, []);
-              terminalRegistry.acquire(task.id, this.projectId);
+              this.tasks.set(task.id, createUnprovisionedTask(task, this.projectStores));
             });
             if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
             return;
@@ -180,107 +159,6 @@ export class TaskManagerStore {
       disposed = true;
       unsubscribe?.();
     };
-
-    this._disposeGitHeadReaction = reaction(
-      () =>
-        [...this.tasks.values()].filter(isRegistered).map((store) => {
-          const git = getTaskGitCheckoutStore(this.projectId, store.data.id);
-          return `${store.workspaceId}:${git?.branchName ?? ''}:${git?.headOid ?? ''}`;
-        }),
-      () => {
-        for (const store of this.tasks.values()) {
-          if (isRegistered(store)) void this._reloadPrsForTask(store);
-        }
-      }
-    );
-
-    this._disposeRepositoryReaction = reaction(
-      () => this._repository.pullRequestRepositoryUrl,
-      (repositoryUrl) => {
-        void this._watchPullRequestSync(repositoryUrl);
-        for (const [, store] of this.tasks) {
-          if (isRegistered(store)) {
-            void this._reloadPrsForTask(store);
-          }
-        }
-      },
-      { fireImmediately: true }
-    );
-  }
-
-  private async _reloadPrsForTask(store: TaskStore): Promise<void> {
-    if (!isRegistered(store)) return;
-    const repositoryUrl = this._repository.pullRequestRepositoryUrl;
-    const branch = getTaskGitCheckoutStore(this.projectId, store.data.id)?.branchName;
-    if (!repositoryUrl || !branch) return;
-    const client = await getPullRequestsRuntimeClient();
-    const result = await client.getPullRequestsForBranch({ repositoryUrl, branch });
-    if (!result.success) return;
-    if (
-      this._repository.pullRequestRepositoryUrl !== repositoryUrl ||
-      getTaskGitCheckoutStore(this.projectId, store.data.id)?.branchName !== branch
-    ) {
-      return;
-    }
-    const prs = result.data.prs;
-    runInAction(() => {
-      if (isRegistered(store)) {
-        (store.data as Task).prs = prs;
-      }
-    });
-  }
-
-  private async _watchPullRequestSync(repositoryUrl: string | null): Promise<void> {
-    const generation = ++this._prSyncGeneration;
-    this._disposePrSyncReaction?.();
-    this._disposePrSyncReaction = null;
-    if (this._prSyncModel) {
-      void this._prSyncModel.dispose();
-      this._prSyncModel = null;
-    }
-    if (!repositoryUrl) return;
-
-    const client = await getPullRequestsRuntimeClient();
-    if (generation !== this._prSyncGeneration) return;
-    const replica = createLiveModelReplica(pullRequestsContract.syncState, client.syncState);
-    const model = new OptimisticLiveModel(
-      pullRequestsContract.syncState,
-      { repositoryUrl },
-      replica
-    );
-    this._prSyncModel = model;
-    let previousLastSyncedAt: number | undefined;
-    this._disposePrSyncReaction = reaction(
-      () => model.values.state,
-      (state) => {
-        if (
-          state?.phase !== 'idle' ||
-          state.lastSyncedAt === undefined ||
-          state.lastSyncedAt === previousLastSyncedAt
-        ) {
-          return;
-        }
-        previousLastSyncedAt = state.lastSyncedAt;
-        for (const taskStore of this.tasks.values()) {
-          if (isRegistered(taskStore)) void this._reloadPrsForTask(taskStore);
-        }
-      }
-    );
-    try {
-      await model.ready;
-    } catch {
-      if (this._prSyncModel === model) {
-        this._disposePrSyncReaction?.();
-        this._disposePrSyncReaction = null;
-        this._prSyncModel = null;
-      }
-      await model.dispose();
-    }
-  }
-
-  private _releaseTaskRegistries(taskId: string): void {
-    conversationRegistry.release(taskId);
-    terminalRegistry.release(taskId);
   }
 
   private async _removeTaskLocally(taskId: string): Promise<void> {
@@ -290,7 +168,6 @@ export class TaskManagerStore {
       this.tasks.delete(taskId);
     });
     appState.navigation.invalidateSubject(taskSubject({ taskId }));
-    this._releaseTaskRegistries(taskId);
     this._bootstrapDisposers.get(taskId)?.();
     this._bootstrapDisposers.delete(taskId);
     const mementos = getMementoClient();
@@ -304,39 +181,15 @@ export class TaskManagerStore {
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = Promise.all([
-        getDesktopWireClient().then((client) =>
-          client.tasks.getTasks({ projectId: this.projectId })
-        ),
-        getDesktopWireClient().then((client) =>
-          client.conversations.getConversationsForProject({ projectId: this.projectId })
-        ),
-      ])
-        .then(([tasks, allConversations]) => {
-          const conversationsByTask = new Map<string, Conversation[]>();
-          for (const conv of allConversations) {
-            const list = conversationsByTask.get(conv.taskId) ?? [];
-            list.push(conv);
-            conversationsByTask.set(conv.taskId, list);
-          }
+      this._loadPromise = getDesktopWireClient()
+        .then((client) => client.tasks.getTasks({ projectId: this.projectId }))
+        .then((tasks) => {
           runInAction(() => {
             for (const t of tasks) {
-              this.tasks.set(t.id, createUnprovisionedTask(t));
+              this.tasks.set(t.id, createUnprovisionedTask(t, this.projectStores));
               if (t.workspaceId) this._watchWorkspaceBootstrap(t.id, t.workspaceId);
-              // Preload conversations for each task so sidebar badges are available immediately.
-              conversationRegistry.acquire(
-                t.id,
-                this.projectId,
-                conversationsByTask.get(t.id) ?? []
-              );
-              terminalRegistry.acquire(t.id, this.projectId);
             }
           });
-          const reloadPromises = tasks.flatMap((t) => {
-            const store = this.tasks.get(t.id);
-            return store && isRegistered(store) ? [this._reloadPrsForTask(store)] : [];
-          });
-          void Promise.all(reloadPromises);
         })
         .catch((e) => {
           console.error('Error loading tasks', e);
@@ -350,38 +203,21 @@ export class TaskManagerStore {
       const { taskConfig } = params;
       this.tasks.set(
         params.id,
-        createUnregisteredTask({
-          id: params.id,
-          lastInteractedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          name: taskConfig.name,
-          status: taskConfig.initialStatus ?? 'in_progress',
-          statusChangedAt: new Date().toISOString(),
-          isPinned: false,
-          type: 'task',
-        })
+        createUnregisteredTask(
+          {
+            id: params.id,
+            lastInteractedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            name: taskConfig.name,
+            status: taskConfig.initialStatus ?? 'in_progress',
+            statusChangedAt: new Date().toISOString(),
+            isPinned: false,
+            type: 'task',
+          },
+          this.projectId,
+          this.projectStores
+        )
       );
-
-      if (taskConfig.initialConversation) {
-        const ic = taskConfig.initialConversation;
-        const optimistic: Conversation = {
-          id: ic.id,
-          projectId: this.projectId,
-          taskId: params.id,
-          providerId: ic.provider as AgentProviderId,
-          title: ic.title ?? '',
-          lastInteractedAt: null,
-          autoApprove: ic.autoApprove ?? false,
-          model: ic.model,
-          initialQueue: ic.initialQueue,
-          isInitialConversation: true,
-          type: ic.type ?? 'pty',
-        };
-        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
-      } else {
-        conversationRegistry.acquire(params.id, this.projectId, []);
-      }
-      terminalRegistry.acquire(params.id, this.projectId);
     });
 
     const result = await getDesktopWireClient()
@@ -401,6 +237,8 @@ export class TaskManagerStore {
       });
 
     if (!result.success) {
+      const { getProjectSshConnectionId } =
+        await import('@core/features/projects/browser/stores/project-selectors');
       const message = formatCreateTaskError(result.error, {
         isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
       });
@@ -429,7 +267,6 @@ export class TaskManagerStore {
         if (result.data.task.workspaceId) {
           this._watchWorkspaceBootstrap(result.data.task.id, result.data.task.workspaceId);
         }
-        // Conversation and terminal registries already acquired in the optimistic phase.
       }
     });
 
@@ -443,6 +280,8 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
+    const { getProjectManagerStore } =
+      await import('@core/features/projects/browser/stores/project-selectors');
     await getProjectManagerStore().mountProject(this.projectId);
     await this.loadTasks();
 
@@ -490,7 +329,7 @@ export class TaskManagerStore {
     }
 
     // Single-phase provision: workspace bootstrap + task provider construction + registration.
-    workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+    workspaceRegistry.setBootstrapState(wsId, { kind: 'resolving' });
     this._watchWorkspaceBootstrap(taskId, wsId);
 
     const client = await getWorkspacesWireClient();
@@ -512,7 +351,7 @@ export class TaskManagerStore {
 
     if (!result.success) {
       const message = formatProvisionWorkspaceError(result.error);
-      workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'error', message });
+      workspaceRegistry.setBootstrapState(wsId, { kind: 'error', message });
       runInAction(() => {
         const current = this.tasks.get(taskId);
         if (current && isUnprovisioned(current)) {
@@ -524,24 +363,20 @@ export class TaskManagerStore {
       return;
     }
 
-    workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
+    workspaceRegistry.setBootstrapState(wsId, { kind: 'ready' });
 
     const taskBeforeTransition = this.tasks.get(taskId);
     if (taskBeforeTransition && isUnprovisioned(taskBeforeTransition)) {
-      runInAction(() => taskBeforeTransition.ensureRegisteredStores());
-      await taskBeforeTransition.viewModel?.space.ready;
+      await taskBeforeTransition.ready();
     }
 
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
-        terminalRegistry.acquire(taskId, this.projectId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
-          this._repository,
           result.data.sshConnectionId ?? undefined
         );
         current.activate();
@@ -557,19 +392,15 @@ export class TaskManagerStore {
   ): Promise<void> {
     const taskBeforeTransition = this.tasks.get(taskId);
     if (taskBeforeTransition && isUnprovisioned(taskBeforeTransition)) {
-      runInAction(() => taskBeforeTransition.ensureRegisteredStores());
-      await taskBeforeTransition.viewModel?.space.ready;
+      await taskBeforeTransition.ready();
     }
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
-        conversationRegistry.acquire(taskId, this.projectId);
-        terminalRegistry.acquire(taskId, this.projectId);
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
-          this._repository,
           sshConnectionId
         );
         current.activate();
@@ -616,7 +447,7 @@ export class TaskManagerStore {
     if (state.status === 'provisioning' && isUnprovisioned(store)) {
       const workspaceId = store.data.workspaceId;
       if (workspaceId) {
-        workspaceRegistry.setBootstrapState(this.projectId, workspaceId, { kind: 'resolving' });
+        workspaceRegistry.setBootstrapState(workspaceId, { kind: 'resolving' });
       }
       runInAction(() => {
         store.phase = 'provision';
@@ -738,7 +569,6 @@ export class TaskManagerStore {
       throw e;
     }
 
-    this._releaseTaskRegistries(taskId);
     runInAction(() => {
       const task = this.tasks.get(taskId);
       if (task && isRegistered(task)) {
@@ -807,11 +637,7 @@ export class TaskManagerStore {
     });
 
     try {
-      // Release conversation and terminal registries before disposing each task.
-      removed.forEach((t, id) => {
-        this._releaseTaskRegistries(id);
-        t.dispose();
-      });
+      removed.forEach((task) => task.dispose());
       await tasksClient.deleteTasks({
         projectId: this.projectId,
         taskIds,
@@ -836,24 +662,12 @@ export class TaskManagerStore {
   }
 
   dispose(): void {
-    for (const [taskId, task] of this.tasks) {
-      this._releaseTaskRegistries(taskId);
+    for (const task of this.tasks.values()) {
       task.dispose();
     }
     this.tasks.clear();
     this._unsubTaskEvents?.();
     this._unsubTaskEvents = null;
-    this._prSyncGeneration++;
-    this._disposePrSyncReaction?.();
-    this._disposePrSyncReaction = null;
-    if (this._prSyncModel) {
-      void this._prSyncModel.dispose();
-      this._prSyncModel = null;
-    }
-    this._disposeGitHeadReaction?.();
-    this._disposeGitHeadReaction = null;
-    this._disposeRepositoryReaction?.();
-    this._disposeRepositoryReaction = null;
     for (const dispose of this._bootstrapDisposers.values()) dispose();
     this._bootstrapDisposers.clear();
     const replicaPromise = this._bootstrapReplicaPromise;

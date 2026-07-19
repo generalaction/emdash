@@ -1,10 +1,11 @@
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
 
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
-  error?: { type: 'inspect-failed'; path: string; message: string };
+  error?: { type: 'inspect-failed'; path: string; message: string } | RuntimeResolveError;
 };
 
 export const localProjectSchema = z.object({
@@ -69,7 +70,8 @@ export type CreateProjectError =
   | { type: 'not-repository'; path: string }
   | { type: 'inspect-failed'; path: string; message: string }
   | { type: 'init-failed'; path: string; message: string }
-  | { type: 'open-repository-failed'; path: string; message: string };
+  | { type: 'open-repository-failed'; path: string; message: string }
+  | RuntimeResolveError;
 
 export type CreateProjectResult = Result<Project, CreateProjectError>;
 
@@ -93,7 +95,8 @@ export type ProjectPathInspection = ProjectPathStatus & {
 export type OpenProjectError =
   | { type: 'path-not-found'; path: string }
   | { type: 'ssh-disconnected'; connectionId: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | RuntimeResolveError;
 
 export type OpenProjectSuccess = {
   repositoryWorkspaceId: string | null;

@@ -1,12 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
+import {
+  taskAgentStatus,
+  taskConversationStats,
+} from '@core/features/conversations/browser/conversation-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
 import { TaskContextMenu } from '@core/features/tasks/browser/components/task-context-menu';
 import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
-import {
-  getTaskGitCheckoutStore,
-  getTaskManagerStore,
-  taskAgentStatus,
-} from '@core/features/tasks/browser/stores/task-selectors';
+import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
 import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type Task } from '@core/primitives/tasks/api';
@@ -116,7 +117,7 @@ export const TaskRow = observer(function TaskRow({
             {currentPr && <PrBadge pr={currentPr} />}
           </div>
         </div>
-        <StackedAgentLogos stats={task.conversationStats} />
+        <StackedAgentLogos stats={taskConversationStats(task)} />
         <div
           className={cn(
             'flex min-w-8 shrink-0 items-center justify-end',

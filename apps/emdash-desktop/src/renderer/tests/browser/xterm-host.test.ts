@@ -2,7 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function getPtyModule() {
-  return import('@renderer/lib/pty/pty');
+  return import('@core/features/terminals/browser/pty/pty');
 }
 
 function noopConnector() {

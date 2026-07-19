@@ -8,7 +8,7 @@ Modals are renderer-only feature contributions. Only one modal can be active at 
 
 - `src/core/primitives/modals/react/` — modal definitions, catalog types, host context, and typed API
 - `src/core/features/*/contributions/browser.ts` — feature-owned `modalDefs`
-- `src/core/manifests/modal-catalog.ts` — application modal catalog
+- `src/core/manifests/browser/modal-catalog.ts` — application modal catalog
 - `src/renderer/lib/modal/api.ts` — catalog-bound `openModal`, `useOpenModal`, and
   `useModalController`
 - `src/renderer/lib/modal/modal-renderer.tsx` — resolves and renders the active catalog definition

@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { taskAgentStatus } from '@core/features/tasks/browser/stores/task-selectors';
+import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
 import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
 import { CLISpinner } from '@renderer/lib/components/cliSpinner';

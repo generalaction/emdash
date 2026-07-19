@@ -3,6 +3,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { sql } from 'drizzle-orm';
 import { app, dialog, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
+import { editorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import { githubEvents } from '@core/features/github/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import { initializeNotificationService } from '@core/services/notifications/node';
@@ -15,7 +16,6 @@ import { automationsService } from '@main/core/automations/automations-service';
 import { resetStaleAcpAgentStatuses } from '@main/core/conversations/reset-stale-acp-agent-statuses';
 import { resetStaleTuiAgentStatuses } from '@main/core/conversations/reset-stale-tui-agent-statuses';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
-import { editorBufferService } from '@main/core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from '@main/core/github/accounts/github-account-reconciliation-instance';
 import { startLifecycleReconciler } from '@main/core/operations/lifecycle-reconciler';
 import { operationsService } from '@main/core/operations/operations-service';
@@ -41,6 +41,7 @@ import {
   ensureWorkspaceWorkerReady,
   getMementosRuntimeClient,
 } from '@main/gateway/desktop-workers';
+import { installDevServerBridge } from '@main/gateway/dev-server-bridge';
 import { cleanupLegacyBrowserPartitions } from '@main/host/browser/browser-partition-cleanup';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
@@ -55,8 +56,10 @@ import { initializeTray } from '@main/host/tray';
 import { updateService } from '@main/host/updates/update-service';
 import { createMainWindow, showMainWindow } from '@main/host/window';
 import { log } from '@main/lib/logger';
+import { withRetry } from '@main/lib/retry';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveUserEnv } from '@main/lib/userEnv';
+import { appScope } from './app-scope';
 import { runInBackground } from './background';
 import { registerQuitHandler } from './shutdown';
 import {
@@ -203,6 +206,13 @@ async function initializeServicesPhase(): Promise<void> {
 
 function initializeGatewayPhase(): void {
   installDesktopWire(createDesktopWireOptions());
+  runInBackground(
+    'dev-server-bridge',
+    () => withRetry(installDevServerBridge, { signal: appScope.signal }),
+    {
+      onError: (error) => log.warn('Failed to install dev-server bridge', { error }),
+    }
+  );
 
   runInBackground('acp-runtime', () => acpWorker.ready());
   runInBackground('agent-config-runtime', () => agentConfigWorker.ready());

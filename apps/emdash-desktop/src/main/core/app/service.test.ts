@@ -49,10 +49,8 @@ vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(),
 }));
 
-vi.mock('@main/core/workspaces/workspace-registry', () => ({
-  workspaceRegistry: {
-    get: mocks.workspaceGet,
-  },
+vi.mock('@core/features/workspaces/node/workspace-runtime-access', () => ({
+  acquireWorkspaceRuntime: mocks.workspaceGet,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -134,11 +132,12 @@ describe('AppService.showWorkspaceItemInFolder', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.workspaceGet.mockReturnValue({
-      host: LOCAL_HOST_REF,
+      identity: { host: LOCAL_HOST_REF },
       files: {
         root: workspaceRoot,
         client: { fs: { realPath: mocks.filesRealPath } },
       },
+      release: vi.fn(),
     });
   });
 
@@ -228,11 +227,12 @@ describe('AppService.showWorkspaceItemInFolder', () => {
   it('returns a typed error without resolving paths for a remote workspace', async () => {
     const remoteHost = hostRef('remote', 'ssh-connection-1');
     mocks.workspaceGet.mockReturnValue({
-      host: remoteHost,
+      identity: { host: remoteHost },
       files: {
         root: workspaceRoot,
         client: { fs: { realPath: mocks.filesRealPath } },
       },
+      release: vi.fn(),
     });
 
     const result = await appService.showWorkspaceItemInFolder({

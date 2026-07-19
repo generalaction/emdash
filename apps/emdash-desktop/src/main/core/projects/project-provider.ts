@@ -8,7 +8,6 @@ import type { FilesClientScope } from '@main/core/files/runtime-client';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { SetupResult } from '@main/core/workspaces/workspace-setup-executor';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
 import type { ConversationProvider } from '../conversations/types';
@@ -156,12 +155,7 @@ export class ProjectProvider implements Disposable {
 
   async release(): Promise<void> {
     this.gitRepositoryFetchService.stop();
-    const results = await Promise.allSettled([
-      workspaceRegistry.releaseLeasesForProject(this.projectId),
-      this._releaseProjectLeases(),
-    ]);
-    const failure = results.find((result) => result.status === 'rejected');
-    if (failure?.status === 'rejected') throw failure.reason;
+    await this._releaseProjectLeases();
   }
 
   async dispose(): Promise<void> {
@@ -170,7 +164,6 @@ export class ProjectProvider implements Disposable {
       const projectSettings = await this.settings.get();
       const mode = projectSettings.tmux ? 'detach' : 'terminate';
       await taskSessionManager.teardownAllForProject(this.projectId, mode);
-      await workspaceRegistry.teardownAllForProject(this.projectId, mode);
       await previewServerService.stopForProject(this.projectId);
     } finally {
       await this.release();

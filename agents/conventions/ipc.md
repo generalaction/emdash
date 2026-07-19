@@ -6,7 +6,7 @@ All renderer-main application traffic uses `@emdash/wire`:
 
 - **Contracts**: `src/core/features/<domain>/api/` using `defineContract`.
 - **Controllers**: `src/core/features/<domain>/node/` using `createController`.
-- **Manifest**: `src/core/manifests/desktop-wire-contract.ts`.
+- **Manifest**: `src/core/manifests/shared/desktop-wire-contract.ts`.
 - **Gateway**: `src/main/gateway/desktop-wire.ts`.
 - **Client**: `src/renderer/lib/runtime/desktop-wire-client.ts`.
 

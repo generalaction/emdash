@@ -14,6 +14,7 @@ import {
   useScheduledAutomationRun,
   useAutomationTargetAvailability,
 } from '@core/features/automations/browser/use-automations';
+import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
 import {
   getProjectStore,
   projectDisplayName,
@@ -21,7 +22,6 @@ import {
 import {
   getTaskIdForAutomationRun,
   getTaskStore,
-  taskAgentStatus,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';

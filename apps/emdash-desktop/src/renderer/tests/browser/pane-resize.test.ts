@@ -14,9 +14,12 @@ import { action, makeObservable, observable, runInAction } from 'mobx';
  * overhead.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  computeGridDimensions,
+  measureTerminalCell,
+} from '@core/features/terminals/browser/pty/pty-dimensions';
+import { createResizeScheduler } from '@core/features/terminals/browser/pty/resize-scheduler';
 import type { PaneDimensionSink } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
-import { computeGridDimensions, measureTerminalCell } from '@renderer/lib/pty/pty-dimensions';
-import { createResizeScheduler } from '@renderer/lib/pty/resize-scheduler';
 
 // ── Minimal observable sink ───────────────────────────────────────────────────
 
@@ -267,7 +270,7 @@ describe('PaneDimensionProvider single-source measurement', () => {
 // so the bySession registry is exercised end-to-end.
 
 async function getPtyModule() {
-  return import('@renderer/lib/pty/pty');
+  return import('@core/features/terminals/browser/pty/pty');
 }
 
 describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {

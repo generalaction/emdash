@@ -1,6 +1,9 @@
+import {
+  projectSettingsStoreToken,
+  projectViewStoreToken,
+} from '@core/features/projects/contributions/project-stores';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { appState } from '@renderer/lib/stores/app-state';
-import type { GitRepositoryStore } from './git-repository-store';
 import {
   isUnmountedProject,
   isUnregisteredProject,
@@ -87,17 +90,12 @@ export function unmountedMountErrorMessage(store: ProjectStore | undefined): str
   return 'Failed to open project';
 }
 
-/** Returns the GitRepositoryStore for a mounted project, or undefined if not ready. */
-export function getGitRepositoryStore(projectId: string): GitRepositoryStore | undefined {
-  return asMounted(getProjectStore(projectId))?.gitRepository;
-}
-
 /** Returns the ProjectSettingsStore for a mounted project, or undefined if not ready. */
 export function getProjectSettingsStore(projectId: string): ProjectSettingsStore | undefined {
-  return asMounted(getProjectStore(projectId))?.settings;
+  return asMounted(getProjectStore(projectId))?.get(projectSettingsStoreToken);
 }
 
 /** Returns the ProjectViewStore for a mounted project, or undefined if not ready. */
 export function getProjectViewStore(projectId: string): ProjectViewStore | undefined {
-  return asMounted(getProjectStore(projectId))?.view;
+  return asMounted(getProjectStore(projectId))?.get(projectViewStoreToken);
 }

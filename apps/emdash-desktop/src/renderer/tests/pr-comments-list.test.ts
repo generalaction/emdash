@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { CommentsList } from '@core/features/tasks/browser/diff-view/changes-panel/components/pr-entry/comments-list';
-import { buildPullRequestConversationItems } from '@core/features/tasks/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
+import { CommentsList } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/comments-list';
+import { buildPullRequestConversationItems } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
 import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({

@@ -10,6 +10,7 @@ import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
+import { acquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
@@ -19,7 +20,6 @@ import {
   type PlatformConfig,
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import {
@@ -224,7 +224,7 @@ class AppService implements Disposable {
     workspaceId: string;
     relativePath: string;
   }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
-    const workspace = workspaceRegistry.get(args.workspaceId);
+    const workspace = await acquireWorkspaceRuntime(args.workspaceId);
     if (!workspace) {
       return err({
         type: 'not_found',
@@ -233,10 +233,11 @@ class AppService implements Disposable {
         message: `Workspace not found: ${args.workspaceId}`,
       });
     }
-    if (workspace.host.type !== 'local') {
+    if (workspace.identity.host.type !== 'local') {
+      await workspace.release();
       return err({
         type: 'unsupported_host',
-        host: workspace.host,
+        host: workspace.identity.host,
         message: 'Show in file manager is only available for local workspaces',
       });
     }
@@ -245,6 +246,7 @@ class AppService implements Disposable {
       unicodeNormalization: 'preserve',
     });
     if (!relativePath.success) {
+      await workspace.release();
       return err({
         type: 'invalid-path',
         path: args.relativePath,
@@ -252,14 +254,18 @@ class AppService implements Disposable {
       });
     }
 
-    const resolved = await workspace.files.client.fs.realPath({
-      root: workspace.files.root,
-      relative: relativePath.data,
-    });
-    if (!resolved.success) return resolved;
+    try {
+      const resolved = await workspace.files.client.fs.realPath({
+        root: workspace.files.root,
+        relative: relativePath.data,
+      });
+      if (!resolved.success) return resolved;
 
-    shell.showItemInFolder(nativePathFromHost(resolved.data));
-    return ok();
+      shell.showItemInFolder(nativePathFromHost(resolved.data));
+      return ok();
+    } finally {
+      await workspace.release();
+    }
   }
 
   /**

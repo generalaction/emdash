@@ -15,7 +15,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/monaco/monaco-model-registry', () => ({
+vi.mock('@core/features/editor/browser/monaco/monaco-model-registry', () => ({
   modelRegistry: {
     dirtyUris: new Set<string>(),
     isDirty: vi.fn(() => false),
@@ -33,7 +33,7 @@ vi.mock('@core/features/browser/browser/browser-tab-item', () => ({
   BrowserTabBarItem: () => null,
   BrowserTabBarItemDragPreview: () => null,
 }));
-vi.mock('@core/features/tasks/browser/editor/file-tab-item', () => ({
+vi.mock('@core/features/editor/browser/task-editor/file-tab-item', () => ({
   FileTabBarItem: () => null,
   FileTabBarItemDragPreview: () => null,
 }));
@@ -41,7 +41,7 @@ vi.mock('@core/features/conversations/browser/conversation-tab-item', () => ({
   ConversationTabBarItem: () => null,
   ConversationTabBarItemDragPreview: () => null,
 }));
-vi.mock('@core/features/tasks/browser/diff-view/diff-tab-item', () => ({
+vi.mock('@core/features/source-control/browser/diff-view/diff-tab-item', () => ({
   DiffTabBarItem: () => null,
   DiffTabBarItemDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
@@ -65,11 +65,11 @@ vi.mock('@renderer/utils/logger', () => ({
 }));
 
 import { browserSessionStore } from '@core/features/browser/browser/browser-session-store';
-import { terminalRegistry } from '@core/features/tasks/browser/stores/terminal-registry';
+import { terminalRegistry } from '@core/features/terminals/browser/stores/terminal-registry';
 import type {
   TerminalManagerStore,
   TerminalStore,
-} from '@core/features/tasks/browser/terminals/terminal-manager';
+} from '@core/features/terminals/browser/task-terminal/terminal-manager';
 import { taskTabView } from '@core/features/workbench/browser/task-tab-registry';
 import { PaneLayoutStore } from './pane-layout-store';
 

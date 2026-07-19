@@ -13,5 +13,6 @@ export type {
   AcpTerminalExit,
   AcpTerminalProcess,
 } from './transport';
-export { readTextFile, writeTextFile } from './transport';
 export * from './reducer/index';
+
+export { acpWorker } from './worker';

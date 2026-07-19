@@ -2,17 +2,18 @@ import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/browser/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { draftCommentsStoreToken } from '@core/features/source-control/browser/contributions/task-stores';
 import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { pastePromptInjection } from '@core/features/terminals/browser/pty/prompt-injection';
+import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
 import {
   useConversations,
-  useTaskViewContext,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
+  useTaskComposition,
+} from '@core/features/workbench/browser/task-composition-context';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -33,12 +34,12 @@ export const ContextBar = observer(function ContextBar({
 }: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
   const { paneId } = usePaneContext();
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const conversations = useConversations();
   const { update: updateInterfaceSettings, isSaving: isSavingInterfaceSettings } =
     useAppSettingsKey('interface');
   const task = getRegisteredTaskData(projectId, taskId);
-  const draftComments = getTaskStore(projectId, taskId)?.draftComments;
+  const draftComments = getTaskStore(projectId, taskId)?.get(draftCommentsStoreToken);
   const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
   const activeSession = conversationId ? conversations.sessions.get(conversationId) : undefined;
   const activeConversationStore = conversationId

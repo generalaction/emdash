@@ -7,7 +7,7 @@ import {
   type WorkbenchNavigationState,
 } from '@core/features/workbench/contributions/mementos';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import { viewCatalog, type ViewId } from '@core/manifests/view-catalog';
+import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
 import type { JsonObject, JsonValue } from '@core/primitives/json/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type {

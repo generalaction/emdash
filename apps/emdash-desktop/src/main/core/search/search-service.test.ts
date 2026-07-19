@@ -30,8 +30,8 @@ vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { on: vi.fn() },
 }));
 
-vi.mock('@main/core/workspaces/workspace-registry', () => ({
-  workspaceRegistry: { get: mocks.workspaceGet },
+vi.mock('@core/features/workspaces/node/workspace-runtime-access', () => ({
+  acquireWorkspaceRuntime: mocks.workspaceGet,
 }));
 
 vi.mock('@main/core/file-search/runtime-client', () => ({
@@ -43,7 +43,7 @@ describe('SearchService runtime file search', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.workspaceGet.mockReturnValue({ files: { root } });
+    mocks.workspaceGet.mockReturnValue({ files: { root }, release: vi.fn() });
     mocks.fileSearch.mockResolvedValue([{ path: '/repo/src/index.ts', filename: 'index.ts' }]);
   });
 

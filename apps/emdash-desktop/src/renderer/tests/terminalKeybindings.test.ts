@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOsc52ClipboardData } from '@renderer/lib/pty/pty-clipboard';
+import { decodeOsc52ClipboardData } from '@core/features/terminals/browser/pty/pty-clipboard';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -9,7 +9,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
   type KeyEventLike,
-} from '@renderer/lib/pty/pty-keybindings';
+} from '@core/features/terminals/browser/pty/pty-keybindings';
 
 describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
   const makeEvent = (overrides: Partial<KeyEventLike> = {}): KeyEventLike => ({

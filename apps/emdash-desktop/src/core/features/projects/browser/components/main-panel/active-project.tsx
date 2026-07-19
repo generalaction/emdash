@@ -6,6 +6,7 @@ import { WorkspacesView } from '@core/features/projects/browser/components/works
 import {
   asMounted,
   getProjectStore,
+  getProjectViewStore,
 } from '@core/features/projects/browser/stores/project-selectors';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
 import { projectViewDef } from '@core/features/projects/contributions/views';
@@ -58,10 +59,11 @@ export const ActiveProject = observer(function ActiveProject() {
     params: { projectId },
   } = useCurrentViewParams(projectViewDef);
   const store = asMounted(getProjectStore(projectId));
+  const view = getProjectViewStore(projectId);
 
-  if (!store) return null;
+  if (!store || !view) return null;
 
-  const activeView = store.view.activeView;
+  const activeView = view.activeView;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -69,7 +71,7 @@ export const ActiveProject = observer(function ActiveProject() {
         <div className="grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-8 overflow-hidden">
           <ProjectViewNav
             activeView={activeView}
-            onChange={(view) => store.view.setProjectView(view)}
+            onChange={(nextView) => view.setProjectView(nextView)}
           />
           <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">

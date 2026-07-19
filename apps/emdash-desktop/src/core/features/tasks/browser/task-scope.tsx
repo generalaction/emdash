@@ -1,17 +1,23 @@
 import { useLayoutEffect, type ReactNode } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/browser/browser-controls-registry';
 import type { BrowserTabResource } from '@core/features/browser/browser/browser-tab-resource';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
+import {
+  runGitFetch,
+  runGitPublishBranch,
+  runGitPull,
+  runGitPush,
+} from '@core/features/source-control/browser/git-action-handlers';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
 import {
   getRegisteredTaskData,
-  getTaskGitCheckoutStore,
   getTaskManagerStore,
   getTaskStore,
-  getTaskView,
 } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { ResolvedTab } from '@core/features/workbench/browser/tabs/core/tab-provider';
+import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
 import {
   disabled,
@@ -26,7 +32,6 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
-import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
 
 type TaskScopeParams = { readonly projectId: string; readonly taskId: string };
 
@@ -40,7 +45,7 @@ function taskAvailability(
 }
 
 function activeBrowser(params: TaskScopeParams) {
-  const taskView = getTaskView(params.projectId, params.taskId);
+  const taskView = getTaskComposition(params.projectId, params.taskId);
   const tab = taskView?.activePane?.resolvedTabs.find(
     (candidate) => candidate.isActive && candidate.kind === 'browser'
   ) as ResolvedTab<BrowserTabResource> | undefined;
@@ -54,7 +59,7 @@ function activeBrowser(params: TaskScopeParams) {
 async function createConversation(params: TaskScopeParams, target?: 'right'): Promise<void> {
   const outcome = await openModal('createConversationModal', params);
   if (!outcome.success) return;
-  const taskView = getTaskView(params.projectId, params.taskId);
+  const taskView = getTaskComposition(params.projectId, params.taskId);
   const { conversationId, type } = outcome.data;
   taskView?.paneLayout.open(
     type === 'acp' ? 'acp-chat' : 'conversation',
@@ -80,7 +85,7 @@ const taskScopeImplementation = {
   'task.sidebarChanges': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       taskView?.setSidebarTab('changes');
       taskView?.setSidebarCollapsed(false);
     },
@@ -88,7 +93,7 @@ const taskScopeImplementation = {
   'task.sidebarConversations': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       taskView?.setSidebarTab('conversations');
       taskView?.setSidebarCollapsed(false);
     },
@@ -96,19 +101,19 @@ const taskScopeImplementation = {
   'task.sidebarFiles': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       taskView?.setSidebarTab('files');
       taskView?.setSidebarCollapsed(false);
     },
   }),
   'task.viewTerminals': (params) => ({
     availability: () => taskAvailability(params),
-    execute: () => getTaskView(params.projectId, params.taskId)?.setTerminalDrawerOpen(true),
+    execute: () => getTaskComposition(params.projectId, params.taskId)?.setTerminalDrawerOpen(true),
   }),
   'task.toggleTerminalDrawer': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       if (!taskView) return;
       if (taskView.isTerminalDrawerOpen) {
         taskView.setTerminalDrawerOpen(false);
@@ -122,26 +127,26 @@ const taskScopeImplementation = {
   'task.toggleRightSidebar': (params) => ({
     availability: () => taskAvailability(params),
     presentation: () => {
-      const collapsed = getTaskView(params.projectId, params.taskId)?.isSidebarCollapsed;
+      const collapsed = getTaskComposition(params.projectId, params.taskId)?.isSidebarCollapsed;
       return {
         title: collapsed ? 'Show Right Sidebar' : 'Hide Right Sidebar',
       };
     },
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       if (taskView) taskView.setSidebarCollapsed(!taskView.isSidebarCollapsed);
     },
   }),
   'task.newTerminal': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      void getTaskView(params.projectId, params.taskId)?.openNewTerminal();
+      void getTaskComposition(params.projectId, params.taskId)?.openNewTerminal();
     },
   }),
   'task.openBrowser': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskView(params.projectId, params.taskId);
+      const taskView = getTaskComposition(params.projectId, params.taskId);
       taskView?.paneLayout.open('browser', {});
       taskView?.setFocusedRegion('main');
     },

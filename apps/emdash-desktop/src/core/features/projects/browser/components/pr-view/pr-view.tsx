@@ -8,8 +8,8 @@ import {
   type LabelItem,
   type StatusFilter,
 } from '@core/features/projects/browser/components/pr-view/usePrViewState';
-import { getGitRepositoryStore } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {

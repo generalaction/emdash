@@ -1,3 +1,7 @@
+import {
+  isRuntimeResolveError,
+  type RuntimeResolveError,
+} from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
   LifecycleRegistry,
@@ -23,7 +27,8 @@ type ProjectSessionManagerHooks = {
 
 type ProviderLifecycleError =
   | { type: 'timeout'; message: string; timeout: number }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | RuntimeResolveError;
 
 type ProjectLifecycleState = LifecycleRegistryState<
   ProjectProvider,
@@ -38,6 +43,7 @@ type ProjectLifecycleStateChange = LifecycleRegistryStateChange<
 >;
 
 function toInitError(e: unknown): ProviderLifecycleError {
+  if (isRuntimeResolveError(e)) return e;
   if (e instanceof TimeoutError)
     return { type: 'timeout', message: e.message, timeout: e.durationMs };
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
@@ -117,7 +123,7 @@ class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, Dis
       const provider = await runWithTimeout(() => createProvider(project), {
         timeoutMs: project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS,
       });
-      if (!provider.success) return err({ type: 'error', message: provider.error.message });
+      if (!provider.success) return err(provider.error);
       return ok(provider.data);
     } catch (e) {
       const initError = toInitError(e);

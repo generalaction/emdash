@@ -1,12 +1,13 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ExternalLink } from 'lucide-react';
 import React from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
+import { useAgentInstallationStatus } from '@core/features/agents/browser/use-agent-installation-statuses';
+import { useAgent } from '@core/features/agents/browser/use-agents';
 import { InstallSection } from '@core/features/settings/browser/agents-page/InstallSection';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
 import type { AppSettings } from '@core/primitives/app-settings/api';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
-import { useAgent } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 
@@ -16,8 +17,9 @@ type Props = {
 };
 
 export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
-  const { data: payload } = useAgent(id, connectionId);
-  const { data: statusData } = useAgentInstallationStatus(id, connectionId);
+  const host = hostRefFromConnectionId(connectionId);
+  const { data: payload } = useAgent(id, host);
+  const { data: statusData } = useAgentInstallationStatus(id, host);
   const {
     value: defaultAgent,
     update: updateDefaultAgent,

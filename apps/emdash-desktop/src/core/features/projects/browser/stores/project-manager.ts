@@ -1,9 +1,12 @@
+import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { projectsWireContract } from '@core/features/projects/api';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
+import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
@@ -197,11 +200,7 @@ export class ProjectManagerStore {
 
         case 'clone': {
           if (projectType.type === 'ssh') {
-            result = err({
-              type: 'clone-failed',
-              message:
-                'Remote projects require the workspace server and are not supported by this build',
-            });
+            result = err(remoteRuntimeUnavailable(projectType.connectionId, 'projects'));
             break;
           }
 
@@ -350,7 +349,9 @@ export class ProjectManagerStore {
           }
         });
         // Load the task list before provisioning so the tasks map is populated.
-        const taskManager = this.projects.get(projectId)?.mountedProject?.taskManager;
+        const taskManager = this.projects
+          .get(projectId)
+          ?.mountedProject?.get(taskManagerStoreToken);
         if (taskManager) {
           await taskManager.loadTasks();
           const nav = appState.navigation;
@@ -388,7 +389,7 @@ export class ProjectManagerStore {
 
   async deleteProject(projectId: string): Promise<void> {
     const snapshot = this.projects.get(projectId);
-    const taskIds = [...(snapshot?.mountedProject?.taskManager.tasks.keys() ?? [])];
+    const taskIds = [...(snapshot?.mountedProject?.get(taskManagerStoreToken).tasks.keys() ?? [])];
     const projectIds = [...this.projects.keys()];
     const deletedIndex = projectIds.indexOf(projectId);
     const adjacentProjectId =
@@ -648,10 +649,7 @@ export class ProjectManagerStore {
         opts.repositoryNameWithOwner,
         opts.githubAccountId
       );
-      return err({
-        type: 'clone-failed',
-        message: 'Remote projects require the workspace server and are not supported by this build',
-      });
+      return err(remoteRuntimeUnavailable(opts.projectType.connectionId, 'projects'));
     }
 
     let result: Result<LocalProject, ProjectCreationError>;
@@ -738,6 +736,7 @@ function projectWireErrorToCreationError(error: unknown): ProjectCreationError {
   }
 
   const payload = error instanceof LiveJobFailedError ? error.error : error;
+  if (isRuntimeResolveError(payload)) return payload;
   if (typeof payload === 'object' && payload !== null) {
     const type = (payload as { type?: unknown }).type;
     const message = (payload as { message?: unknown }).message;

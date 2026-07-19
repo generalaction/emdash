@@ -8,7 +8,7 @@ import {
   isNearDuplicatePaste,
   isUnstableDropPath,
   wrapAsBracketedPaste,
-} from '@renderer/lib/pty/terminal-image-paths';
+} from '@core/features/terminals/browser/pty/terminal-image-paths';
 
 describe('terminal-image-injection', () => {
   it('detects unstable Chromium drop paths', () => {

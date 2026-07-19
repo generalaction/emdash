@@ -10,8 +10,8 @@ import {
 import { observer } from 'mobx-react-lite';
 import {
   usePreviewServers,
-  useWorkspaceViewModel,
-} from '@core/features/tasks/browser/task-view-context';
+  useTaskComposition,
+} from '@core/features/workbench/browser/task-composition-context';
 import type { PreviewServer } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -36,7 +36,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
   server: PreviewServer;
 }) {
   const previews = usePreviewServers();
-  const taskView = useWorkspaceViewModel();
+  const taskView = useTaskComposition();
   const url = previewServerUrl(server);
   const hasUrl = url !== null;
   const canOpen = server.status.kind === 'ready' && hasUrl;

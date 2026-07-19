@@ -5,7 +5,7 @@ import {
   type TerminalSearchBufferLike,
   type TerminalSearchBufferLineLike,
   type TerminalSearchMatch,
-} from '@renderer/lib/pty/terminal-search';
+} from '@core/features/terminals/browser/pty/terminal-search';
 
 class MockBufferLine implements TerminalSearchBufferLineLike {
   constructor(

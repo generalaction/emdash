@@ -117,6 +117,10 @@
       "types": "./dist/services-host-dependencies-node.d.mts",
       "default": "./dist/services-host-dependencies-node.mjs"
     },
+    "./services/runtime-broker/api": {
+      "types": "./dist/services-runtime-broker-api.d.mts",
+      "default": "./dist/services-runtime-broker-api.mjs"
+    },
     "./services/agent-plugins/api": {
       "types": "./dist/services-agent-plugins-api.d.mts",
       "default": "./dist/services-agent-plugins-api.mjs"

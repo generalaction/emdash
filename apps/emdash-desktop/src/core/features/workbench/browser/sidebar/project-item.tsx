@@ -19,10 +19,10 @@ import {
 } from '@core/features/projects/browser/stores/project';
 import {
   getProjectStore,
-  getGitRepositoryStore,
   projectViewKind,
 } from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';

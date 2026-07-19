@@ -13,7 +13,13 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
+// TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
+import {
+  openFileInAdjacentPane,
+  openFileInTaskEditor,
+} from '@core/features/editor/browser/open-file-in-file-editor';
 import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
 import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
 import { usePromptLibrary } from '@core/features/library/browser/prompts/use-prompt-library';
@@ -22,17 +28,17 @@ import {
   getProjectStore,
   getProjectViewStore,
 } from '@core/features/projects/browser/stores/project-selectors';
-// TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
-import {
-  openFileInAdjacentPane,
-  openFileInTaskEditor,
-} from '@core/features/tasks/browser/stores/open-file-in-file-editor';
+import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import {
   asProvisioned,
   getRegisteredTaskData,
   getTaskStore,
 } from '@core/features/tasks/browser/stores/task-selectors';
+import {
+  isHeicLikeFile,
+  isUnstableDropPath,
+} from '@core/features/terminals/browser/pty/terminal-image-paths';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
@@ -44,10 +50,8 @@ import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript'
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { openModal } from '@renderer/lib/modal/api';
-import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
@@ -442,8 +446,8 @@ const ComposerForStore = observer(function ComposerForStore({
     return {
       projectPath: mounted?.data.path,
       repositoryUrl:
-        mounted?.gitRepository.issueRepositoryUrl ??
-        mounted?.gitRepository.canonicalRepositoryUrl ??
+        getGitRepositoryStore(store.projectId)?.issueRepositoryUrl ??
+        getGitRepositoryStore(store.projectId)?.canonicalRepositoryUrl ??
         undefined,
       selectedIssueProvider: getProjectViewStore(store.projectId)?.selectedIssueProvider ?? null,
     };

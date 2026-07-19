@@ -176,3 +176,5 @@ export {
   type WorktreeHeadSummary,
   type WorktreeSummary,
 } from '@runtimes/git/api/repository/states/worktrees';
+
+export { gitWorker } from './worker';

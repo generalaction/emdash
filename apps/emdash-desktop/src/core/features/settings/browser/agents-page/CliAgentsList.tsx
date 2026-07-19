@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useAgents } from '@renderer/lib/stores/use-agents';
+import { useAgents } from '@core/features/agents/browser/use-agents';
 import { Label } from '@renderer/lib/ui/label';
 import { Separator } from '@renderer/lib/ui/separator';
 import { AgentDetailSheet } from './AgentDetailSheet';

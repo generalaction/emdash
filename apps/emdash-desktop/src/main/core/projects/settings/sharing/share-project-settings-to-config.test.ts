@@ -1,5 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { ShareableProjectSettings } from '@core/primitives/project-settings/api';
 import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
@@ -12,13 +13,11 @@ import { shareProjectSettingsToConfig } from './share-project-settings-to-config
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   workspaceGet: vi.fn(),
-  listForProject: vi.fn(),
 }));
 
-vi.mock('@main/core/workspaces/workspace-registry', () => ({
-  workspaceRegistry: {
-    get: mocks.workspaceGet,
-    listForProject: mocks.listForProject,
+vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
+  workspaceIdentityService: {
+    resolve: mocks.workspaceGet,
   },
 }));
 
@@ -74,15 +73,35 @@ function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
     files.set(filePath, content);
     return ok({ bytesWritten: Buffer.byteLength(content) });
   });
-  const resolve = (relative: string) => joinPath(repoPath, relative);
-  const clientReadText = vi.fn(({ relative }: { relative: string }) => readText(resolve(relative)));
-  const writeFile = vi.fn(({ path, content }: { path: string; content: string }) =>
-    writeText(resolve(path), content).then((result) => (result.success ? ok(undefined) : result))
+  const resolve = (relative: string, root = repoPath) => joinPath(root, relative);
+  const clientReadText = vi.fn(
+    ({ root, relative }: { root: Parameters<typeof nativePathFromHost>[0]; relative: string }) =>
+      readText(resolve(relative, nativePathFromHost(root)))
+  );
+  const writeFile = vi.fn(
+    ({
+      root,
+      path,
+      content,
+    }: {
+      root: Parameters<typeof nativePathFromHost>[0];
+      path: string;
+      content: string;
+    }) =>
+      writeText(resolve(path, nativePathFromHost(root)), content).then((result) =>
+        result.success ? ok(undefined) : result
+      )
   );
   const scope = filesClientScope(
     {
       fs: {
-        exists: ({ relative }: { relative: string }) => exists(resolve(relative)),
+        exists: ({
+          root,
+          relative,
+        }: {
+          root: Parameters<typeof nativePathFromHost>[0];
+          relative: string;
+        }) => exists(resolve(relative, nativePathFromHost(root))),
         readText: clientReadText,
       },
       mutations: { writeFile },
@@ -120,14 +139,6 @@ function projectFixture(files: FilesClientScope, overrides: Record<string, unkno
   };
 }
 
-function workspaceFixture(workspacePath: string, files: FilesClientScope) {
-  return {
-    path: workspacePath,
-    files,
-    configPath: configPathForDirectory(workspacePath),
-  };
-}
-
 function projectTarget(files: FilesClientScope) {
   return { type: 'project' as const, label: 'Repo Name', path: repoPath, files, configPath };
 }
@@ -136,7 +147,6 @@ describe('shareProjectSettingsToConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.workspaceGet.mockReturnValue(undefined);
-    mocks.listForProject.mockReturnValue([]);
   });
 
   it('writes selected shareable project settings to .emdash.json', async () => {
@@ -490,8 +500,6 @@ describe('shareProjectSettingsToConfig', () => {
   it('excludes task targets that use the project root working directory', async () => {
     const projectRootFs = createMemoryFileSystem({
       '.emdash.json': JSON.stringify({ shellSetup: 'root setup' }),
-    });
-    const worktreeFs = createMemoryFileSystem({
       '/repo/.emdash/worktrees/task-two/.emdash.json': JSON.stringify({
         shellSetup: 'worktree setup',
       }),
@@ -504,10 +512,14 @@ describe('shareProjectSettingsToConfig', () => {
     });
     mocks.workspaceGet.mockImplementation((workspaceId: string) => {
       if (workspaceId === 'root-workspace') {
-        return workspaceFixture('/repo', projectRootFs);
+        return { workspaceId, projectId: 'project-1', path: '/repo' };
       }
       if (workspaceId === 'worktree-workspace') {
-        return workspaceFixture('/repo/.emdash/worktrees/task-two', worktreeFs);
+        return {
+          workspaceId,
+          projectId: 'project-1',
+          path: '/repo/.emdash/worktrees/task-two',
+        };
       }
       return undefined;
     });

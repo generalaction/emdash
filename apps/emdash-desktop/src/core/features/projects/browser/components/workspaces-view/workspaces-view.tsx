@@ -13,6 +13,7 @@ import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getWorkspacesWireClient } from '@core/features/workspaces/browser/client';
 import type { DeletionState } from '@core/primitives/operations/api';
 import type {
   ProjectWorkspaceActionResult,
@@ -26,7 +27,6 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { getWorkspacesWireClient } from '@renderer/lib/runtime/workspaces-wire-client';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { SearchInput } from '@renderer/lib/ui/search-input';

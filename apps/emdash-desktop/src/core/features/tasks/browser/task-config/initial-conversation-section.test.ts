@@ -86,7 +86,7 @@ vi.mock('../context-bar/add-context-popover', () => ({
   AddContextPopover: () => null,
 }));
 
-vi.mock('@renderer/lib/stores/use-agents', () => ({
+vi.mock('@core/features/agents/browser/use-agents', () => ({
   useAgents: () => ({
     data: [
       {

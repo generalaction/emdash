@@ -1,6 +1,6 @@
 import { useObserver } from 'mobx-react-lite';
 import { Fragment, useCallback, type ComponentType, type ReactNode } from 'react';
-import type { viewCatalog, ViewId } from '@core/manifests/view-catalog';
+import type { viewCatalog, ViewId } from '@core/manifests/browser/view-catalog';
 import type { ViewParams, ViewRef } from '@core/primitives/views/api';
 import { getViewRuntime } from '@core/primitives/views/react';
 import { appState } from '@renderer/lib/stores/app-state';

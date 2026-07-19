@@ -1,7 +1,7 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
-import { getTaskView } from '@core/features/tasks/browser/stores/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { NotificationTarget } from '../api';
@@ -41,9 +41,9 @@ export function useRegisterNotificationOpenHandlers(): void {
       if (!conversationId) return;
 
       const dispose = when(
-        () => !!getTaskView(target.projectId, target.taskId),
+        () => !!getTaskComposition(target.projectId, target.taskId),
         () => {
-          getTaskView(target.projectId, target.taskId)?.paneLayout.open(
+          getTaskComposition(target.projectId, target.taskId)?.paneLayout.open(
             'conversation',
             { conversationId },
             { preview: false }

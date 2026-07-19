@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePreviewServers } from '@core/features/tasks/browser/task-view-context';
 import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { usePreviewServers } from '@core/features/workbench/browser/task-composition-context';
 import {
   cycleNextTabCommand,
   cyclePreviousTabCommand,

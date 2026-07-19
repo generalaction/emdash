@@ -1,4 +1,5 @@
 import type { Result } from '@emdash/shared';
+import { watchFileContent } from '@core/features/editor/browser/files';
 import {
   PROJECT_CONFIG_FILE,
   type MigrateProjectConfigRequest,
@@ -12,7 +13,6 @@ import {
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { watchFileContent } from '@renderer/lib/runtime/files';
 import { Resource } from '@renderer/lib/stores/resource';
 
 export class ProjectSettingsStore {
@@ -23,7 +23,7 @@ export class ProjectSettingsStore {
 
   constructor(
     private readonly projectId: string,
-    localProjectPath?: string
+    repositoryWorkspaceId?: string
   ) {
     this.pageData = new Resource(async () => {
       const result = await (
@@ -39,8 +39,8 @@ export class ProjectSettingsStore {
       return result.data;
     }, [{ kind: 'demand' }]);
 
-    if (localProjectPath) {
-      void watchFileContent(localProjectPath, PROJECT_CONFIG_FILE, () => {
+    if (repositoryWorkspaceId) {
+      void watchFileContent(repositoryWorkspaceId, PROJECT_CONFIG_FILE, () => {
         this.pageData.invalidate();
       })
         .then((unsubscribe) => {

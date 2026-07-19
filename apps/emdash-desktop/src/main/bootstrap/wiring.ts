@@ -1,9 +1,9 @@
+import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 import { providerTokenRegistry } from '@main/core/account/provider-token-registry';
 import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
 import { GitHubAuthServerAdapter } from '@main/core/github/accounts/github-auth-server-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { taskService } from '@main/core/tasks/task-service';
-import { provisionWorkspaceErrorToWorkspaceError } from '@main/core/workspaces/wire-controller';
 import type { InstallDesktopWireOptions } from '@main/gateway/desktop-wire';
 import { telemetryService } from '@main/lib/telemetry';
 

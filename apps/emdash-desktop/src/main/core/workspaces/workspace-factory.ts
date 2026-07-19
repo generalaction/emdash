@@ -1,76 +1,15 @@
-import path from 'node:path';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
+import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
 import type { Task } from '@core/primitives/tasks/api';
 import { TuiConversationProvider } from '@main/core/conversations/tui-conversation-provider';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
-import { filesClientScope } from '@main/core/files/runtime-client';
-import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import type { WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
-import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { getTaskEnvVars } from './workspace-env';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
-
-type WorkspaceFactoryContext = {
-  task: Pick<Task, 'id' | 'name'>;
-  workDir: string;
-  projectId: string;
-  projectPath: string;
-  settings: ProjectSettingsProvider;
-  logPrefix: string;
-  extraHooks?: {
-    onCreate?: (workspace: Workspace) => Promise<void>;
-    onDestroy?: (workspace: Workspace) => Promise<void>;
-    onDetach?: (workspace: Workspace) => Promise<void>;
-  };
-};
-
-export function createWorkspaceFactory(
-  workspaceId: string,
-  type: WorkspaceType,
-  context: WorkspaceFactoryContext
-): () => Promise<WorkspaceFactoryResult> {
-  return async () => {
-    if (type.kind === 'ssh') {
-      throw new Error(
-        'Remote workspaces require the workspace server and are not supported by this build'
-      );
-    }
-
-    const workDir = context.workDir;
-    const filesClient = await getFilesRuntimeClient();
-    const files = filesClientScope(filesClient, workDir);
-    const configPath = path.join(workDir, '.emdash.json');
-    const workspace: Workspace = {
-      id: workspaceId,
-      host: LOCAL_HOST_REF,
-      path: workDir,
-      configPath,
-      files,
-      settings: context.settings,
-    };
-
-    return {
-      workspace,
-      onCreateSideEffect: (created) => {
-        void registerFileSearchRoot(created.files.root);
-      },
-      onCreate: context.extraHooks?.onCreate,
-      onDestroy: async (destroyed) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        await context.extraHooks?.onDestroy?.(destroyed);
-      },
-      onDetach: async (detached) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        await context.extraHooks?.onDetach?.(detached);
-      },
-    };
-  };
-}
 
 type TaskProviderOpts = {
   projectId: string;
@@ -85,13 +24,11 @@ type TaskProviderOpts = {
 export async function buildTaskProviders(
   type: WorkspaceType,
   opts: TaskProviderOpts
-): Promise<{ conversations: ConversationProvider }> {
+): Promise<Result<{ conversations: ConversationProvider }, RuntimeResolveError>> {
   if (type.kind === 'ssh') {
-    throw new Error(
-      'Remote workspaces require the workspace server and are not supported by this build'
-    );
+    return err(remoteRuntimeUnavailable(type.connectionId, 'workspaces'));
   }
-  return {
+  return ok({
     conversations: new TuiConversationProvider({
       projectId: opts.projectId,
       taskPath: opts.taskPath,
@@ -100,7 +37,7 @@ export async function buildTaskProviders(
       shellSetup: opts.shellSetup,
       taskEnvVars: opts.taskEnvVars,
     }),
-  };
+  });
 }
 
 export async function resolveTaskEnv(
