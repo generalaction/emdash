@@ -6,6 +6,7 @@ export type {
   ComposerModelOption,
   ComposerEffortOption,
   ComposerPermissionModeOption,
+  PermissionModeIconKind,
   ComposerNotice,
   ComposerNoticeVariant,
   ComposerQueuedPrompt,

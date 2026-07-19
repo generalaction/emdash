@@ -1,6 +1,11 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChatComposer } from '@emdash/ui/react/components';
-import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
+import type {
+  CommandItem,
+  ComposerPermissionModeOption,
+  MentionItem,
+  PromptEditorRef,
+} from '@emdash/ui/react/components';
 import {
   useCallback,
   useEffect,
@@ -285,13 +290,14 @@ export function InitialConversationField({
     [promptLibrary]
   );
 
-  const permissionModeOptions =
+  const permissionModeOptions: Record<string, ComposerPermissionModeOption> | null =
     showAutoApproveToggle && canToggleAutoApprove && !state.useChatUi
       ? {
-          ask: { name: 'Ask' },
+          ask: { name: 'Ask', iconKind: 'ask' },
           bypass: {
             name: 'Bypass Permissions',
             description: 'Let the agent approve supported actions automatically.',
+            iconKind: 'full-access',
           },
         }
       : null;

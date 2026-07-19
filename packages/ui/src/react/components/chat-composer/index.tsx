@@ -18,6 +18,7 @@ import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
 import { PermissionModeIcon } from './permission-mode-icon';
+import type { PermissionModeIconKind } from './permission-mode-icon';
 import { QueuedPromptsBand } from './queued-prompts-band';
 import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
@@ -33,6 +34,7 @@ export type {
 } from '../prompt-editor/types';
 export type { ContextUsage } from './context-usage-indicator';
 export type { ComposerQueuedPrompt } from './queued-prompts-band';
+export type { PermissionModeIconKind } from './permission-mode-icon';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 
@@ -145,6 +147,7 @@ export interface ComposerEffortOption {
 export interface ComposerPermissionModeOption {
   name: string;
   description?: string;
+  iconKind: PermissionModeIconKind;
 }
 
 // ── Agent option types ────────────────────────────────────────────────────────
@@ -707,10 +710,8 @@ export function ChatComposer({
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
-  interface PermissionModeItem {
+  interface PermissionModeItem extends ComposerPermissionModeOption {
     id: string;
-    name: string;
-    description?: string;
   }
 
   const permissionModeItems: PermissionModeItem[] = permissionModeOptions
@@ -954,7 +955,7 @@ export function ChatComposer({
                       lineHeight: 1.25,
                     }}
                   >
-                    <PermissionModeIcon item={selected} />
+                    <PermissionModeIcon kind={selected?.iconKind} />
                     {selected?.name ?? 'Permissions…'}
                   </span>
                 )}
@@ -968,7 +969,7 @@ export function ChatComposer({
                     }}
                   >
                     <span style={{ display: 'inline-flex', paddingTop: '0.125rem' }}>
-                      <PermissionModeIcon item={item} size="0.875rem" />
+                      <PermissionModeIcon kind={item.iconKind} size="0.875rem" />
                     </span>
                     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                       <span

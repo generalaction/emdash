@@ -209,13 +209,26 @@ async function queryCommands(query: string): Promise<CommandItem[]> {
 // ── Mock permission modes (approveSettings) ───────────────────────────────────
 
 const MOCK_PERMISSION_MODES: Record<string, ComposerPermissionModeOption> = {
-  default: { name: 'Default', description: 'Prompt for each sensitive action.' },
+  default: {
+    name: 'Default',
+    description: 'Prompt for each sensitive action.',
+    iconKind: 'ask',
+  },
   acceptEdits: {
     name: 'Accept edits',
     description: 'Auto-allow file edits, prompt for shell commands.',
+    iconKind: 'approve',
   },
-  plan: { name: 'Plan only', description: 'Agent proposes changes but never writes files.' },
-  bypass: { name: 'Bypass all', description: 'Auto-approve everything — use with caution.' },
+  plan: {
+    name: 'Plan only',
+    description: 'Agent proposes changes but never writes files.',
+    iconKind: 'plan',
+  },
+  bypass: {
+    name: 'Bypass all',
+    description: 'Auto-approve everything — use with caution.',
+    iconKind: 'full-access',
+  },
 };
 
 // ── Mock permission requests ──────────────────────────────────────────────────

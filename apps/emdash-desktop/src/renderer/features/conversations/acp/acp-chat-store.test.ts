@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
+import { permissionModeIconKind } from './permission-mode-icon-kind';
 
 class FakeLiveList<T> {
   private listeners = new Set<() => void>();
@@ -88,5 +89,26 @@ describe('bindSessionTerminalOutputs', () => {
 
     log.set('late output');
     expect(outputs.get('term-1')).toBeNull();
+  });
+});
+
+describe('permissionModeIconKind', () => {
+  it.each([
+    ['read-only', 'ask'],
+    ['agent', 'approve'],
+    ['agent-full-access', 'full-access'],
+    ['auto', 'approve'],
+    ['default', 'ask'],
+    ['acceptEdits', 'approve'],
+    ['plan', 'plan'],
+    ['dontAsk', 'ask'],
+    ['bypassPermissions', 'full-access'],
+    ['build', 'approve'],
+  ] as const)('maps the known harness mode %s', (modeId, expected) => {
+    expect(permissionModeIconKind(modeId)).toBe(expected);
+  });
+
+  it('uses the approval icon for unknown future harness modes', () => {
+    expect(permissionModeIconKind('custom')).toBe('approve');
   });
 });
