@@ -200,28 +200,7 @@ describe('SidebarStore project ordering', () => {
     expect(viewStateCache.peek('sidebar')).toBeUndefined();
   });
 
-  it('rejects a flush when the current snapshot cannot be persisted', async () => {
-    const projects = projectManagerWithTasks([
-      {
-        id: 'project-1',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        taskIds: ['task-1a', 'task-1b'],
-      },
-    ]);
-    const store = new SidebarStore(projects);
-    const registry = new SnapshotRegistry();
-    const dispose = registry.register('sidebar', () => store.snapshot, 0);
-    vi.mocked(rpc.viewState.save).mockReset();
-    vi.mocked(rpc.viewState.save).mockRejectedValue(new Error('database is read-only'));
-
-    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
-
-    await expect(registry.flush()).rejects.toThrow('database is read-only');
-    dispose();
-    registry.evict('sidebar');
-  });
-
-  it('flushes the retained snapshot after its active registration is disposed', async () => {
+  it('rejects failed flushes before and after the active registration is disposed', async () => {
     const projects = projectManagerWithTasks([
       {
         id: 'project-1',
@@ -237,7 +216,10 @@ describe('SidebarStore project ordering', () => {
 
     store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
     await Promise.resolve();
+
+    await expect(registry.flush()).rejects.toThrow('database is read-only');
     dispose();
+    vi.mocked(rpc.viewState.save).mockClear();
 
     await expect(registry.flush()).rejects.toThrow('database is read-only');
     expect(rpc.viewState.save).toHaveBeenLastCalledWith(
