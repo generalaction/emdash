@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { IntegrationsProvider } from '@core/features/integrations/browser/integrations-provider';
 import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { AppMenuEvents } from './app/app-menu-events';
+import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
@@ -102,6 +103,7 @@ function AppContent() {
                 <RightSidebarProvider>
                   <ThemeProvider>
                     <ModalRenderer />
+                    <AppShutdownLifecycle />
                     {renderContent()}
                   </ThemeProvider>
                 </RightSidebarProvider>

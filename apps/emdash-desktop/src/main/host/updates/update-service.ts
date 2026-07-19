@@ -344,6 +344,10 @@ class UpdateService implements Disposable {
     return { ...this.updateState };
   }
 
+  get isInstallRequested(): boolean {
+    return this.installRequested;
+  }
+
   dispose(): void {
     if (this.checkTimer) {
       clearTimeout(this.checkTimer);

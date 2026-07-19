@@ -12,7 +12,6 @@ import {
   EMDASH_RELEASES_URL,
 } from '@core/primitives/urls/api/urls';
 import { telemetryService } from '@main/lib/telemetry';
-import { getMainWindow } from './window';
 
 export interface MenuKeybindingSnapshotEntry {
   readonly commandId: string;
@@ -47,19 +46,6 @@ function copyInstallationId(): void {
     `Electron: ${process.versions.electron}`,
   ];
   clipboard.writeText(lines.join('\n'));
-}
-
-function requestQuit(): void {
-  const win = getMainWindow();
-  if (!win || win.webContents.isLoading()) {
-    app.quit();
-    return;
-  }
-
-  if (win.isMinimized()) win.restore();
-  win.show();
-  win.focus();
-  desktopHostEvents.emit(undefined, { type: 'menu-quit-requested' });
 }
 
 export function setupApplicationMenu(
@@ -101,7 +87,7 @@ export function setupApplicationMenu(
               {
                 label: `Quit ${app.name}`,
                 accelerator: 'CmdOrCtrl+Q',
-                click: requestQuit,
+                click: () => app.quit(),
               },
             ],
           } as Electron.MenuItemConstructorOptions,
@@ -131,7 +117,7 @@ export function setupApplicationMenu(
           : {
               label: 'Quit',
               accelerator: 'CmdOrCtrl+Q',
-              click: requestQuit,
+              click: () => app.quit(),
             },
       ],
     },

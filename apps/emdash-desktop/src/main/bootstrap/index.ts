@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { sql } from 'drizzle-orm';
-import { app, BrowserWindow, dialog, systemPreferences } from 'electron';
+import { app, dialog, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { githubEvents } from '@core/features/github/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
@@ -30,11 +30,15 @@ import { installDesktopWire } from '@main/gateway/desktop-wire';
 import {
   acpWorker,
   agentConfigWorker,
+  ensureAutomationsWorkerReady,
   ensureFileSearchWorkerReady,
   ensureFilesWorkerReady,
   ensureGitWorkerReady,
   ensureMementosWorkerReady,
+  ensurePullRequestsWorkerReady,
+  ensureTerminalsWorkerReady,
   ensureTuiAgentsWorkerReady,
+  ensureWorkspaceWorkerReady,
   getMementosRuntimeClient,
 } from '@main/gateway/desktop-workers';
 import { cleanupLegacyBrowserPartitions } from '@main/host/browser/browser-partition-cleanup';
@@ -47,8 +51,9 @@ import {
 } from '@main/host/linux-secret-storage';
 import { setupApplicationMenu } from '@main/host/menu';
 import { registerAppScheme, setupAppProtocol } from '@main/host/protocol';
+import { initializeTray } from '@main/host/tray';
 import { updateService } from '@main/host/updates/update-service';
-import { createMainWindow } from '@main/host/window';
+import { createMainWindow, showMainWindow } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveUserEnv } from '@main/lib/userEnv';
@@ -59,6 +64,8 @@ import {
   registerProviderTokenHandlers,
   wireAccountTelemetry,
 } from './wiring';
+
+let windowPhaseReady = false;
 
 export async function bootstrap(): Promise<void> {
   if (!prepareElectron()) return;
@@ -95,9 +102,7 @@ function prepareElectron(): boolean {
   registerProcessErrorLogging(log);
 
   app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0];
-    if (win?.isMinimized()) win.restore();
-    win?.focus();
+    if (windowPhaseReady) showMainWindow();
   });
 
   if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
@@ -113,16 +118,13 @@ function prepareElectron(): boolean {
     }
   }
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit();
-    }
-  });
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
+    if (windowPhaseReady) showMainWindow();
   });
+
+  // Emdash remains available from the tray when its main window is destroyed.
+  // Explicit quit requests are coordinated through the before-quit handler.
+  app.on('window-all-closed', () => {});
 
   return true;
 }
@@ -208,7 +210,11 @@ function initializeGatewayPhase(): void {
   runInBackground('file-search-runtime', ensureFileSearchWorkerReady);
   runInBackground('git-runtime', ensureGitWorkerReady);
   runInBackground('mementos-runtime', ensureMementosWorkerReady);
+  runInBackground('terminals-runtime', ensureTerminalsWorkerReady);
   runInBackground('tui-agents-runtime', ensureTuiAgentsWorkerReady);
+  runInBackground('workspace-runtime', ensureWorkspaceWorkerReady);
+  runInBackground('automations-runtime', ensureAutomationsWorkerReady);
+  runInBackground('pull-requests-runtime', ensurePullRequestsWorkerReady);
 
   acpAgentStatusBridge.initialize();
   tuiAgentStatusBridge.initialize();
@@ -224,7 +230,9 @@ function initializeGatewayPhase(): void {
 function initializeWindowPhase(): void {
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
+  windowPhaseReady = true;
   createMainWindow();
+  initializeTray();
 }
 
 function scheduleBackgroundTasks(): void {

@@ -3,6 +3,11 @@ import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import {
+  ackShutdownFlush,
+  markShutdownReady,
+  resolveQuitConfirmation,
+} from '@main/bootstrap/shutdown';
+import {
   cleanupExpiredDroppedBlobs,
   persistClipboardImagePath,
   persistDroppedBlobBytes,
@@ -141,6 +146,11 @@ export const appOperations = {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  resolveQuitConfirmation: (args: { requestId: string; confirmed: boolean }) => {
+    resolveQuitConfirmation(args.requestId, args.confirmed);
+  },
+  ackShutdownFlush,
+  shutdownReady: markShutdownReady,
   openIn: async (args: {
     app: OpenInAppId;
     path: string;

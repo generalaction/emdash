@@ -3,12 +3,26 @@ import { z } from 'zod';
 import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 
+export interface ActiveSessionSummary {
+  acpSessions: number;
+  localTuiSessions: number;
+  remoteTuiSessions: number;
+  terminals: number;
+  incomplete: boolean;
+}
+
 export type DesktopHostEvent =
   | { type: 'menu-command'; commandId: string }
   | { type: 'menu-check-for-updates' }
   | { type: 'menu-undo' }
   | { type: 'menu-redo' }
-  | { type: 'menu-quit-requested' }
+  | {
+      type: 'quit-confirmation-requested';
+      requestId: string;
+      summary: ActiveSessionSummary;
+    }
+  | { type: 'quit-confirmation-cancelled'; requestId: string }
+  | { type: 'shutdown-started' }
   | { type: 'window-maximize-changed'; maximized: boolean }
   | { type: 'external-link-open-requested'; url: string }
   | {
@@ -99,6 +113,12 @@ export const desktopHostContract = defineContract({
     output: z.void(),
   }),
   quit: procedure({ input: z.void(), output: z.custom<ActionResult>() }),
+  resolveQuitConfirmation: procedure({
+    input: z.object({ requestId: z.string(), confirmed: z.boolean() }),
+    output: z.void(),
+  }),
+  ackShutdownFlush: procedure({ input: z.void(), output: z.void() }),
+  shutdownReady: procedure({ input: z.void(), output: z.void() }),
   openIn: procedure({
     input: z.object({
       app: z.custom<OpenInAppId>(),

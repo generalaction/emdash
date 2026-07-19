@@ -2,12 +2,10 @@ import { useEffect } from 'react';
 import { COMMAND_CATALOG } from '@core/manifests/command-catalog';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
-  const openConfirmQuitModal = useOpenModal('confirmActionModal');
   useRegisterNotificationOpenHandlers();
 
   useEffect(() => {
@@ -35,17 +33,6 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
                 }
               });
             }
-          } else if (event.type === 'menu-quit-requested') {
-            void openConfirmQuitModal({
-              title: 'Quit Emdash?',
-              description:
-                'Active terminal sessions and running agents will stop when the app quits.',
-              confirmLabel: 'Quit',
-            }).then((outcome) => {
-              if (outcome.success) {
-                void getDesktopWireClient().then((nextClient) => nextClient.host.quit());
-              }
-            });
           }
         },
         onGap: () => {},
@@ -57,7 +44,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       disposed = true;
       unsubscribe?.();
     };
-  }, [onOpenSettings, openConfirmQuitModal]);
+  }, [onOpenSettings]);
 
   useEffect(() => {
     let disposed = false;

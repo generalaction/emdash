@@ -120,7 +120,7 @@ function trackPersistedDroppedBlob(path: string): void {
   persistedDroppedBlobPaths.add(path);
   if (cleanupRegistered) return;
   cleanupRegistered = true;
-  app.once('will-quit', () => {
+  app.once('quit', () => {
     cleanupPersistedDroppedBlobsSync();
   });
 }

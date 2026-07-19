@@ -770,6 +770,52 @@ export class MonacoModelRegistry {
     return this.dirtyUris.has(uri);
   }
 
+  async saveAllDirtyBuffers(): Promise<boolean> {
+    for (const uri of [...this.dirtyUris]) {
+      if ((await this.saveFileToDisk(uri)) === null) return false;
+    }
+    return this.dirtyUris.size === 0;
+  }
+
+  async discardAllDirtyBuffers(): Promise<void> {
+    const client = await getDesktopWireClient();
+    const entries = [...this.dirtyUris].flatMap((uri) => {
+      const entry = this.modelMap.get(uri);
+      return entry?.type === 'buffer' ? [{ uri, entry }] : [];
+    });
+    for (const { uri } of entries) {
+      const timer = this.bufferAutosaveTimers.get(uri);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        this.bufferAutosaveTimers.delete(uri);
+      }
+    }
+    try {
+      await Promise.all(
+        entries.map(({ entry }) =>
+          client.editor.clearBuffer({
+            projectId: entry.projectId,
+            workspaceId: entry.workspaceId,
+            filePath: entry.filePath,
+          })
+        )
+      );
+    } catch (error) {
+      await Promise.allSettled(
+        entries.map(({ entry }) =>
+          client.editor.saveBuffer({
+            projectId: entry.projectId,
+            workspaceId: entry.workspaceId,
+            filePath: entry.filePath,
+            content: entry.model.getValue(),
+          })
+        )
+      );
+      throw error;
+    }
+    for (const { uri } of entries) this.reloadFromDisk(uri);
+  }
+
   /** Computes actual dirty state by comparing model values. Used internally to populate dirtyUris. */
   private computeIsDirtyRaw(uri: string): boolean {
     const buf = this.modelMap.get(uri);
@@ -912,13 +958,12 @@ export class MonacoModelRegistry {
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
-    void getDesktopWireClient().then((client) =>
-      client.editor.clearBuffer({
-        projectId: buf.projectId,
-        workspaceId: buf.workspaceId,
-        filePath: buf.filePath,
-      })
-    );
+    const client = await getDesktopWireClient();
+    await client.editor.clearBuffer({
+      projectId: buf.projectId,
+      workspaceId: buf.workspaceId,
+      filePath: buf.filePath,
+    });
     return content;
   }
 

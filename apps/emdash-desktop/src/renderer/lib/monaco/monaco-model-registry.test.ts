@@ -13,6 +13,10 @@ const runtimeClients = vi.hoisted(() => ({
   files: undefined as unknown,
   git: undefined as unknown,
 }));
+const editorClient = vi.hoisted(() => ({
+  clearBuffer: vi.fn().mockResolvedValue(undefined),
+  saveBuffer: vi.fn().mockResolvedValue(undefined),
+}));
 const filesTestContract = defineContract({ content: filesContract.content });
 const gitTestContract = defineContract({
   checkout: defineContract({ content: gitContract.checkout.content }),
@@ -24,6 +28,10 @@ vi.mock('@renderer/lib/runtime/files-client', () => ({
 
 vi.mock('@renderer/lib/runtime/git-client', () => ({
   getGitRuntimeClient: async () => runtimeClients.git,
+}));
+
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({ editor: editorClient }),
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
@@ -106,6 +114,8 @@ let cleanup: (() => Promise<void>) | null = null;
 afterEach(async () => {
   await cleanup?.();
   cleanup = null;
+  editorClient.clearBuffer.mockClear();
+  editorClient.saveBuffer.mockClear();
 });
 
 describe('MonacoModelRegistry live content', () => {
@@ -174,6 +184,40 @@ describe('MonacoModelRegistry live content', () => {
     await waitFor(() => runtime.registry.getModelByUri(gitUri)?.getValue() === '');
 
     expect(runtime.registry.getModelByUri(gitUri)?.getValue()).toBe('');
+  });
+
+  it('saves every dirty buffer before shutdown', async () => {
+    const runtime = createRuntime();
+    const uri = await register(runtime.registry, 'disk');
+    await register(runtime.registry, 'buffer');
+    runtime.registry.getModelByUri(uri)?.setValue('saved');
+
+    await expect(runtime.registry.saveAllDirtyBuffers()).resolves.toBe(true);
+
+    expect(editorClient.clearBuffer).toHaveBeenCalledWith({
+      projectId: 'project',
+      workspaceId: 'workspace',
+      filePath: 'file.ts',
+    });
+    expect(runtime.registry.isDirty(uri)).toBe(false);
+    expect(runtime.registry.getDiskValue(uri)).toBe('saved');
+  });
+
+  it('discards dirty buffers and clears their crash-recovery state', async () => {
+    const runtime = createRuntime();
+    const uri = await register(runtime.registry, 'disk');
+    await register(runtime.registry, 'buffer');
+    runtime.registry.getModelByUri(uri)?.setValue('discarded');
+
+    await runtime.registry.discardAllDirtyBuffers();
+
+    expect(editorClient.clearBuffer).toHaveBeenCalledWith({
+      projectId: 'project',
+      workspaceId: 'workspace',
+      filePath: 'file.ts',
+    });
+    expect(runtime.registry.getValue(uri)).toBe('base');
+    expect(runtime.registry.isDirty(uri)).toBe(false);
   });
 });
 

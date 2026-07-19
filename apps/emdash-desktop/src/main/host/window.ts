@@ -3,6 +3,11 @@ import { app, BrowserWindow } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
+import {
+  isShutdownInProgress,
+  shouldAllowWindowClose,
+  watchWindow,
+} from '@main/bootstrap/shutdown';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import {
   hardenBrowserWebviewPreferences,
@@ -50,6 +55,7 @@ export function createMainWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { frame: false } : {}),
     show: false,
   });
+  watchWindow(mainWindow);
 
   if (process.platform !== 'darwin') {
     mainWindow.setMenuBarVisibility(false);
@@ -83,6 +89,13 @@ export function createMainWindow(): BrowserWindow {
     telemetryService.capture('app_window_unfocused');
   });
 
+  mainWindow.on('close', (event) => {
+    if (shouldAllowWindowClose()) return;
+    event.preventDefault();
+    if (isShutdownInProgress()) return;
+    mainWindow?.hide();
+  });
+
   // Keep the renderer's custom window controls (Linux) in sync with the
   // actual maximize state so the maximize/restore icon stays correct.
   mainWindow.on('maximize', () => {
@@ -104,6 +117,19 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+export function showMainWindow(): BrowserWindow {
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  if (process.platform === 'darwin') {
+    app.focus({ steal: true });
+  } else {
+    app.focus();
+  }
+  win.focus();
+  return win;
+}
+
 export function isAppFocused(): boolean {
   const windows = BrowserWindow.getAllWindows();
   return windows.some((window) => !window.isDestroyed() && window.isFocused());
@@ -112,18 +138,7 @@ export function isAppFocused(): boolean {
 export function focusAppFromNotification(): BrowserWindow | null {
   const win = getMainWindow();
   if (!win || win.isDestroyed()) return null;
-
-  if (win.isMinimized()) win.restore();
-  win.show();
-
-  if (process.platform === 'darwin') {
-    app.focus({ steal: true });
-  } else {
-    app.focus();
-  }
-
-  win.focus();
-  return win;
+  return showMainWindow();
 }
 
 function registerBrowserWebviewHandlers(win: BrowserWindow): void {

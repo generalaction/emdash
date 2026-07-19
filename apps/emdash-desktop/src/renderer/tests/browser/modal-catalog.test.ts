@@ -26,6 +26,7 @@ const expectedModalIds = [
   'integrationSetupModal',
   'projectConfigImportModal',
   'promptModal',
+  'quitUnsavedChangesModal',
   'renameTaskModal',
   'shareProjectConfigModal',
   'taskModal',

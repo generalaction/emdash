@@ -194,6 +194,22 @@ export async function ensureTuiAgentsWorkerReady(): Promise<void> {
   await getTuiAgentsRuntimeClient();
 }
 
+export async function ensureTerminalsWorkerReady(): Promise<void> {
+  await getTerminalsRuntimeClient();
+}
+
+export async function ensureWorkspaceWorkerReady(): Promise<void> {
+  await getWorkspaceRuntimeClient();
+}
+
+export async function ensureAutomationsWorkerReady(): Promise<void> {
+  await getAutomationsRuntimeClient();
+}
+
+export async function ensurePullRequestsWorkerReady(): Promise<void> {
+  await getPullRequestsRuntimeClient();
+}
+
 export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
   acpClientPromise ??= acpWorker.ready().then(withSessionIdPersistence).then(withModePersistence);
   return acpClientPromise;
