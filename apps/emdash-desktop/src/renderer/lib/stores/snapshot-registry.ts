@@ -63,7 +63,7 @@ export class SnapshotRegistry {
   }
 
   async flush(): Promise<void> {
-    await Promise.allSettled([...this.pendingSaves]);
+    await this.drainPendingSaves();
     await Promise.all(
       [...this.latestSnapshots].map(([key, latestSnapshot]) => {
         const snapshot = this.snapshots.get(key)?.() ?? latestSnapshot;
@@ -72,6 +72,13 @@ export class SnapshotRegistry {
         return this.save(key, snapshot);
       })
     );
+    await this.drainPendingSaves();
+  }
+
+  private async drainPendingSaves(): Promise<void> {
+    while (this.pendingSaves.size > 0) {
+      await Promise.allSettled([...this.pendingSaves]);
+    }
   }
 
   private save(key: string, snapshot: unknown): Promise<void> {

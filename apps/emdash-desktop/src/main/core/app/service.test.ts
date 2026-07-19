@@ -185,8 +185,15 @@ describe('AppService.reload', () => {
     const reload = vi.fn();
     mocks.getMainWindow.mockReturnValue({ webContents: { reload } });
 
-    appService.reload();
+    const reloaded = appService.reload();
 
+    expect(reloaded).toBe(true);
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('returns false when the main window is unavailable', () => {
+    mocks.getMainWindow.mockReturnValue(null);
+
+    expect(appService.reload()).toBe(false);
   });
 });

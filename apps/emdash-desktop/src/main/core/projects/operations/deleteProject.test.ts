@@ -108,6 +108,13 @@ describe('deleteProject', () => {
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-2:tabs');
     expect(mocks.delViewState).toHaveBeenCalledWith('project:project-1');
     expect(deletedTaskIds).toEqual(['task-1', 'task-2']);
+
+    const projectStateDeleteIndex = mocks.delViewState.mock.calls.findIndex(
+      ([key]) => key === 'project:project-1'
+    );
+    expect(mocks.delViewState.mock.invocationCallOrder[projectStateDeleteIndex]).toBeLessThan(
+      mocks.deleteWhere.mock.invocationCallOrder[0]
+    );
   });
 
   it('cleans PR sync data before deleting the project row', async () => {

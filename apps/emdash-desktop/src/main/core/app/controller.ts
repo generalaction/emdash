@@ -103,7 +103,9 @@ export const appController = createRPCController({
   },
   reload: () => {
     try {
-      appService.reload();
+      if (!appService.reload()) {
+        return { success: false, error: 'Main window is not available' };
+      }
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

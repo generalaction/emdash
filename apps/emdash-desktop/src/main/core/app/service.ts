@@ -308,8 +308,11 @@ class AppService implements IInitializable, IDisposable {
     app.quit();
   }
 
-  reload(): void {
-    getMainWindow()?.webContents.reload();
+  reload(): boolean {
+    const win = getMainWindow();
+    if (!win) return false;
+    win.webContents.reload();
+    return true;
   }
 
   minimizeWindow(): void {

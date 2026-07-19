@@ -200,6 +200,42 @@ describe('SidebarStore project ordering', () => {
     expect(viewStateCache.peek('sidebar')).toBeUndefined();
   });
 
+  it('waits for reaction saves started during the canonical flush writes', async () => {
+    const projects = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['task-1a', 'task-1b'],
+      },
+    ]);
+    const store = new SidebarStore(projects);
+    const registry = new SnapshotRegistry();
+    registry.register('sidebar', () => store.snapshot, 0);
+    const canonicalSave = Promise.withResolvers<void>();
+    const reactionSave = Promise.withResolvers<void>();
+    vi.mocked(rpc.viewState.save).mockReset();
+    vi.mocked(rpc.viewState.save)
+      .mockReturnValueOnce(canonicalSave.promise)
+      .mockReturnValueOnce(reactionSave.promise);
+
+    let flushed = false;
+    const flush = registry.flush().then(() => {
+      flushed = true;
+    });
+    await vi.waitFor(() => expect(rpc.viewState.save).toHaveBeenCalledTimes(1));
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(2);
+    canonicalSave.resolve();
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+
+    reactionSave.resolve();
+    await flush;
+    expect(flushed).toBe(true);
+    registry.evict('sidebar');
+  });
+
   it('rejects failed flushes before and after the active registration is disposed', async () => {
     const projects = projectManagerWithTasks([
       {

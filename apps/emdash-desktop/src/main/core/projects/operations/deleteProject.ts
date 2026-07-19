@@ -17,16 +17,16 @@ export async function deleteProject(id: string): Promise<string[]> {
     await projectManager.closeProject(id);
   }
 
-  await Promise.allSettled(
-    projectTasks.flatMap((task) => [
+  await Promise.allSettled([
+    viewStateService.del(`project:${id}`),
+    ...projectTasks.flatMap((task) => [
       viewStateService.del(`task:${task.id}`),
       viewStateService.del(`task:${task.id}:tabs`),
-    ])
-  );
+    ]),
+  ]);
 
   await prSyncEngine.deleteProjectData(id);
   await db.delete(projects).where(eq(projects.id, id));
-  await viewStateService.del(`project:${id}`);
   projectEvents._emit('project:deleted', id);
   telemetryService.capture('project_deleted', { project_id: id });
   return projectTasks.map((task) => task.id);
