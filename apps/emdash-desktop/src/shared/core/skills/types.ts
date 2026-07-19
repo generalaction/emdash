@@ -26,11 +26,11 @@ export interface CatalogSkill {
   brandColor?: string;
   /** Example prompt */
   defaultPrompt?: string;
-  /** Skills.SH source repository, e.g. owner/repo */
+  /** Skills.sh source repository, e.g. owner/repo */
   sourceRef?: string;
   /** Leaf skill id/name inside the source repository */
   catalogSkillId?: string;
-  /** Exact SKILL.md-relative directory path from Skills.SH */
+  /** Exact SKILL.md-relative directory path from Skills.sh */
   skillShPath?: string;
   /** Public install count when provided by a catalog */
   installs?: number;
