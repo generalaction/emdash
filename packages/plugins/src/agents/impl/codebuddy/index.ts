@@ -1,8 +1,8 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
+  createMcpAdapter,
   npmDependency,
-  passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
@@ -58,5 +58,17 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdFlag: '--session-id',
       }),
   },
-  mcp: passthroughMcpAdapter('.codebuddy/.mcp.json'),
+  mcp: createMcpAdapter({
+    configPath: '.codebuddy/.mcp.json',
+    format: 'json',
+    serversKey: 'mcpServers',
+    toNative(server) {
+      const { name: _name, transport, ...entry } = server;
+      if (!entry.type && transport) entry.type = transport;
+      return entry;
+    },
+    fromNative(name, raw) {
+      return { name, ...raw };
+    },
+  }),
 });

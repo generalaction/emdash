@@ -99,17 +99,34 @@ describe('codebuddy provider', () => {
     });
   });
 
-  it('writes MCP servers to the documented global configuration path', async () => {
+  it('writes stdio and HTTP MCP servers using CodeBuddy native transport fields', async () => {
     const files = new Map<string, string>();
     const fs = createMemoryFs(files);
 
     await provider.behavior.mcp!.writeServers(fs, [
-      { name: 'local-tools', command: 'node', args: ['server.js'] },
+      {
+        name: 'local-tools',
+        transport: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+      },
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' },
+      },
     ]);
 
     expect(JSON.parse(files.get('.codebuddy/.mcp.json')!)).toEqual({
       mcpServers: {
-        'local-tools': { command: 'node', args: ['server.js'] },
+        'local-tools': { type: 'stdio', command: 'node', args: ['server.js'] },
+        docs: {
+          type: 'http',
+          url: 'https://example.com/mcp',
+          headers: { Authorization: 'Bearer token' },
+        },
       },
     });
   });
