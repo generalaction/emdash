@@ -221,6 +221,25 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.setSidebarTab).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['task.sidebarChanges', 'changes'],
+    ['task.sidebarFiles', 'files'],
+    ['task.sidebarConversations', 'conversations'],
+  ] as const)('expands the selected sidebar panel from %s', (commandId, sidebarTab) => {
+    const taskView = mocks.getTaskView();
+    taskView.isSidebarCollapsed = true;
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === commandId)
+      ?.execute();
+
+    expect(taskView.setSidebarTab).toHaveBeenCalledWith(sidebarTab);
+    expect(taskView.setSidebarCollapsed).toHaveBeenCalledWith(false);
+  });
+
   it('switches to a different sidebar panel without collapsing the sidebar', () => {
     const taskView = mocks.getTaskView();
     taskView.sidebarTab = 'changes';
