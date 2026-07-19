@@ -5,8 +5,8 @@ import { rpc } from '@renderer/lib/ipc';
  *
  * After the bulk `getAll()` load at bootstrap, every subsequent `get` call is
  * a synchronous Map lookup (returned as a resolved Promise). Writes update the
- * cache immediately and then fire the async IPC save. Eviction happens when a
- * SnapshotRegistry disposer is called (task or project teardown/deletion).
+ * cache immediately and then fire the async IPC save. Snapshot disposers retain
+ * cached state for suspension; permanent deletion explicitly evicts its keys.
  */
 class ViewStateCache {
   private readonly map = new Map<string, unknown>();
@@ -42,7 +42,7 @@ class ViewStateCache {
     this.map.set(key, value);
   }
 
-  /** Evict a key from the cache (called by SnapshotRegistry disposers). */
+  /** Evict a key from the cache after its owning entity is permanently deleted. */
   delete(key: string): void {
     this.map.delete(key);
   }

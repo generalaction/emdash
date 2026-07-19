@@ -308,6 +308,10 @@ class AppService implements IInitializable, IDisposable {
     app.quit();
   }
 
+  reload(): void {
+    getMainWindow()?.webContents.reload();
+  }
+
   minimizeWindow(): void {
     getMainWindow()?.minimize();
   }

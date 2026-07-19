@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     popup: mocks.menuPopup,
     template,
   })),
+  getMainWindow: vi.fn(),
   eventEmit: vi.fn(),
   clipboardWriteText: vi.fn(),
 }));
@@ -44,7 +45,7 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('@main/app/window', () => ({
-  getMainWindow: vi.fn(),
+  getMainWindow: mocks.getMainWindow,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -176,5 +177,16 @@ describe('AppService.showTerminalContextMenu', () => {
     copyItem?.click?.({} as Electron.MenuItem, undefined as never, undefined as never);
 
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith('   ');
+  });
+});
+
+describe('AppService.reload', () => {
+  it('reloads the main window web contents', () => {
+    const reload = vi.fn();
+    mocks.getMainWindow.mockReturnValue({ webContents: { reload } });
+
+    appService.reload();
+
+    expect(reload).toHaveBeenCalledOnce();
   });
 });

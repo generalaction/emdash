@@ -101,6 +101,14 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  reload: () => {
+    try {
+      appService.reload();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   openIn: async (args: {
     app: OpenInAppId;
     path: string;

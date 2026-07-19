@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { rpc } from '@renderer/lib/ipc';
+import { SnapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import type { SidebarSnapshot } from '@shared/view-state';
 import { SidebarStore } from './sidebar-store';
 
 type SidebarProjectManager = ConstructorParameters<typeof SidebarStore>[0];
@@ -7,11 +11,21 @@ vi.mock('@renderer/lib/ipc', () => ({
   events: {
     on: vi.fn(),
   },
-  rpc: {},
+  rpc: {
+    viewState: {
+      save: vi.fn(),
+    },
+  },
 }));
 
 vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {},
+}));
+
+vi.mock('@renderer/utils/logger', () => ({
+  log: {
+    error: vi.fn(),
+  },
 }));
 
 vi.mock('@renderer/features/conversations/acp/acp-chat-store', () => ({
@@ -123,5 +137,115 @@ describe('SidebarStore project ordering', () => {
       { projectId: 'project-1', taskId: 'task-1b' },
       { projectId: 'project-2', taskId: 'task-2a' },
     ]);
+  });
+
+  it('synchronously persists and restores manual task order', () => {
+    const projects = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['task-1a', 'task-1b'],
+      },
+    ]);
+    const store = new SidebarStore(projects);
+    const dispose = new SnapshotRegistry().register('sidebar', () => store.snapshot, 0);
+    vi.mocked(rpc.viewState.save).mockClear();
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(1);
+    expect(rpc.viewState.save).toHaveBeenCalledWith(
+      'sidebar',
+      expect.objectContaining({
+        taskOrderByProject: { 'project-1': ['task-1b', 'task-1a'] },
+      })
+    );
+
+    const restored = new SidebarStore(projects);
+    const savedSnapshot = vi.mocked(rpc.viewState.save).mock.calls[0][1] as SidebarSnapshot;
+    expect(() => structuredClone(savedSnapshot)).not.toThrow();
+    restored.restoreSnapshot(savedSnapshot);
+    expect(restored.visibleTaskIdsForProject('project-1')).toEqual(['task-1b', 'task-1a']);
+
+    dispose();
+  });
+
+  it('flushes pending saves before reload and retains cached state after disposal', async () => {
+    const projects = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['task-1a', 'task-1b'],
+      },
+    ]);
+    const store = new SidebarStore(projects);
+    const registry = new SnapshotRegistry();
+    const dispose = registry.register('sidebar', () => store.snapshot, 0);
+    const pending = Promise.withResolvers<void>();
+    vi.mocked(rpc.viewState.save).mockReset();
+    vi.mocked(rpc.viewState.save).mockReturnValueOnce(pending.promise);
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+    const flush = registry.flush();
+    await Promise.resolve();
+
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(1);
+    pending.resolve();
+    await flush;
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(2);
+
+    dispose();
+    expect(viewStateCache.peek('sidebar')).toEqual(store.snapshot);
+    registry.evict('sidebar');
+    expect(viewStateCache.peek('sidebar')).toBeUndefined();
+  });
+
+  it('rejects a flush when the current snapshot cannot be persisted', async () => {
+    const projects = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['task-1a', 'task-1b'],
+      },
+    ]);
+    const store = new SidebarStore(projects);
+    const registry = new SnapshotRegistry();
+    const dispose = registry.register('sidebar', () => store.snapshot, 0);
+    vi.mocked(rpc.viewState.save).mockReset();
+    vi.mocked(rpc.viewState.save).mockRejectedValue(new Error('database is read-only'));
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+
+    await expect(registry.flush()).rejects.toThrow('database is read-only');
+    dispose();
+    registry.evict('sidebar');
+  });
+
+  it('flushes the retained snapshot after its active registration is disposed', async () => {
+    const projects = projectManagerWithTasks([
+      {
+        id: 'project-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        taskIds: ['task-1a', 'task-1b'],
+      },
+    ]);
+    const store = new SidebarStore(projects);
+    const registry = new SnapshotRegistry();
+    const dispose = registry.register('sidebar', () => store.snapshot, 0);
+    vi.mocked(rpc.viewState.save).mockReset();
+    vi.mocked(rpc.viewState.save).mockRejectedValue(new Error('database is read-only'));
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+    await Promise.resolve();
+    dispose();
+
+    await expect(registry.flush()).rejects.toThrow('database is read-only');
+    expect(rpc.viewState.save).toHaveBeenLastCalledWith(
+      'sidebar',
+      expect.objectContaining({
+        taskOrderByProject: { 'project-1': ['task-1b', 'task-1a'] },
+      })
+    );
+    registry.evict('sidebar');
   });
 });

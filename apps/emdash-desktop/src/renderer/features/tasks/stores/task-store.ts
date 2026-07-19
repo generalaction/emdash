@@ -114,7 +114,7 @@ export class TaskStore {
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
-    if (savedSnapshot) this.viewModel?.restoreSnapshot(savedSnapshot);
+    this.viewModel?.restoreSnapshot(savedSnapshot ?? {});
     this.viewModel?.initialize();
   }
 

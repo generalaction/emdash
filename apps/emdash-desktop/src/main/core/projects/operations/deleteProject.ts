@@ -9,20 +9,25 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 
-export async function deleteProject(id: string): Promise<void> {
+export async function deleteProject(id: string): Promise<string[]> {
   const provider = projectManager.getProject(id);
+  const projectTasks = await getTasks(id);
   if (provider) {
-    const projectTasks = await getTasks(id);
-    await Promise.allSettled([
-      ...projectTasks.map((t) => taskSessionManager.teardownTask(t.id)),
-      ...projectTasks.map((t) => viewStateService.del(`task:${t.id}`)),
-    ]);
+    await Promise.allSettled([...projectTasks.map((t) => taskSessionManager.teardownTask(t.id))]);
     await projectManager.closeProject(id);
   }
 
+  await Promise.allSettled(
+    projectTasks.flatMap((task) => [
+      viewStateService.del(`task:${task.id}`),
+      viewStateService.del(`task:${task.id}:tabs`),
+    ])
+  );
+
   await prSyncEngine.deleteProjectData(id);
   await db.delete(projects).where(eq(projects.id, id));
-  void viewStateService.del(`project:${id}`);
+  await viewStateService.del(`project:${id}`);
   projectEvents._emit('project:deleted', id);
   telemetryService.capture('project_deleted', { project_id: id });
+  return projectTasks.map((task) => task.id);
 }
