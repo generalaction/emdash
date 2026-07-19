@@ -133,7 +133,7 @@ export function useSkills() {
     queryFn: async () => {
       const result = await rpc.skills.searchSkillSh({ query: skillShQuery });
       if (result.success && result.data) return result.data;
-      throw new Error(result.error ?? 'Failed to search Skills.SH');
+      throw new Error(result.error ?? 'Failed to search Skills.sh');
     },
     enabled: skillShQuery.length >= 2,
     staleTime: 60_000,
