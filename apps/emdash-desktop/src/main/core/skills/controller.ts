@@ -28,7 +28,7 @@ export const skillsController = createRPCController({
       const skills = await skillsService.searchSkillSh(args.query);
       return { success: true, data: skills };
     } catch (error) {
-      log.error('Failed to search Skills.SH:', error);
+      log.error('Failed to search Skills.sh:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },

@@ -7,10 +7,10 @@ type SkillsServiceInternals = {
   getSkillShInstallName(sourceRef: string, skillPath: string): string;
 };
 
-describe('SkillsService Skills.SH install names', () => {
+describe('SkillsService Skills.sh install names', () => {
   const service = new SkillsService() as unknown as SkillsServiceInternals;
 
-  it('keeps nested Skills.SH paths distinct even when the leaf name matches', () => {
+  it('keeps nested Skills.sh paths distinct even when the leaf name matches', () => {
     const first = service.getSkillShInstallName('owner/repo', 'skills/react');
     const second = service.getSkillShInstallName('owner/repo', 'examples/react');
 
@@ -28,14 +28,14 @@ describe('SkillsService Skills.SH install names', () => {
     expect(isValidSkillName(second)).toBe(true);
   });
 
-  it('sanitizes uppercase and punctuation in Skills.SH paths', () => {
+  it('sanitizes uppercase and punctuation in Skills.sh paths', () => {
     const installName = service.getSkillShInstallName('Owner/Repo', 'skills/React:Components');
 
     expect(installName).toMatch(/^skillssh-owner-repo-skills-react-components-[a-f0-9]{8}$/);
     expect(isValidSkillName(installName)).toBe(true);
   });
 
-  it('truncates long Skills.SH install names to the local skill name limit', () => {
+  it('truncates long Skills.sh install names to the local skill name limit', () => {
     const installName = service.getSkillShInstallName(
       'very-long-owner-name/very-long-repository-name',
       'skills/very-long-skill-name-that-would-otherwise-exceed-the-sixty-four-character-limit'
@@ -55,7 +55,7 @@ describe('SkillsService uninstall and sync safety', () => {
     tempDirs.length = 0;
   });
 
-  it('rejects non-Skills.SH uninstall ids that are not valid local skill names', async () => {
+  it('rejects non-Skills.sh uninstall ids that are not valid local skill names', async () => {
     const service = new SkillsService();
 
     await expect(service.uninstallSkill('../outside')).rejects.toThrow(
