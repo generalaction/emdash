@@ -83,6 +83,15 @@ describe('settings search shortcuts', () => {
     ]);
   });
 
+  it('keeps the shared input focus ring and corner styling', async () => {
+    const search = await renderSearch();
+
+    expect(search.classList).toContain('rounded-md');
+    expect(search.classList).toContain('focus-visible:ring-2');
+    expect(search.classList).not.toContain('rounded-sm');
+    expect(search.classList).not.toContain('focus-visible:ring-0');
+  });
+
   it('allows a nested search field to opt out of owning Mod+F', async () => {
     await act(async () => {
       root.render(

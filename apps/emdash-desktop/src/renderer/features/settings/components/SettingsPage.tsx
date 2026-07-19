@@ -220,9 +220,13 @@ export function SettingsPage({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Escape' && searchQuery) {
-                  event.stopPropagation();
+                if (event.key !== 'Escape') return;
+                event.stopPropagation();
+
+                if (searchQuery) {
                   setSearchQuery('');
+                } else {
+                  event.currentTarget.blur();
                 }
               }}
               focusSlashHotkey

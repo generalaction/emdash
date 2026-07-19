@@ -37,7 +37,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
     <div className={cn('relative flex min-w-0 items-center', containerClassName)}>
       <Search className="pointer-events-none absolute left-2.5 size-3.5 shrink-0 text-foreground-muted" />
       <Input
-        className={cn('rounded-sm pl-8 focus-visible:ring-0', shortcutHotkey && 'pr-16', className)}
+        className={cn('pl-8', shortcutHotkey && 'pr-16', className)}
         {...props}
         ref={inputRef}
       />
