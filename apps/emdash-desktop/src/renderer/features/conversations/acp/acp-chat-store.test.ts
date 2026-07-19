@@ -94,21 +94,27 @@ describe('bindSessionTerminalOutputs', () => {
 
 describe('permissionModeIconKind', () => {
   it.each([
-    ['read-only', 'ask'],
-    ['agent', 'approve'],
-    ['agent-full-access', 'full-access'],
-    ['auto', 'approve'],
-    ['default', 'ask'],
-    ['acceptEdits', 'approve'],
-    ['plan', 'plan'],
-    ['dontAsk', 'ask'],
-    ['bypassPermissions', 'full-access'],
-    ['build', 'approve'],
-  ] as const)('maps the known harness mode %s', (modeId, expected) => {
-    expect(permissionModeIconKind(modeId)).toBe(expected);
+    ['codex', 'read-only', 'ask'],
+    ['codex', 'agent', 'approve'],
+    ['codex', 'agent-full-access', 'full-access'],
+    ['claude', 'auto', 'approve'],
+    ['claude', 'default', 'ask'],
+    ['claude', 'acceptEdits', 'approve'],
+    ['claude', 'plan', 'plan'],
+    ['claude', 'dontAsk', 'ask'],
+    ['claude', 'bypassPermissions', 'full-access'],
+    ['opencode', 'build', 'approve'],
+    ['opencode', 'plan', 'plan'],
+  ] as const)('maps the known %s harness mode %s', (providerId, modeId, expected) => {
+    expect(permissionModeIconKind(providerId, modeId)).toBe(expected);
   });
 
   it('uses the approval icon for unknown future harness modes', () => {
-    expect(permissionModeIconKind('custom')).toBe('approve');
+    expect(permissionModeIconKind('claude', 'custom')).toBe('approve');
+  });
+
+  it('does not interpret mode IDs from another provider', () => {
+    expect(permissionModeIconKind('opencode', 'bypassPermissions')).toBe('approve');
+    expect(permissionModeIconKind('claude', 'agent-full-access')).toBe('approve');
   });
 });
