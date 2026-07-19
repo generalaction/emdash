@@ -1,12 +1,19 @@
 import { join } from 'node:path';
 import { app } from 'electron';
-import { APP_NAME_LOWER, PRODUCT_NAME, USER_DATA_DIR_NAME } from '@shared/app-identity';
+import {
+  APP_NAME_LOWER,
+  IS_CANARY,
+  PRODUCT_NAME,
+  USER_DATA_DIR_NAME,
+} from '@shared/app-identity';
 
 app.setName(PRODUCT_NAME);
 app.setPath('userData', join(app.getPath('appData'), USER_DATA_DIR_NAME));
 
-// Associate the running window with the installed .desktop file so GNOME Wayland
-// can display the correct dock icon and group windows with the launcher entry.
+// Must match the .desktop filename produced by electron-builder: stable uses
+// PRODUCT_NAME (executableName defaults to productName), canary overrides
+// linux.executableName to APP_NAME_LOWER.
 if (process.platform === 'linux') {
-  app.desktopFileName = `${APP_NAME_LOWER}.desktop`;
+  const desktopName = IS_CANARY ? APP_NAME_LOWER : PRODUCT_NAME;
+  app.desktopFileName = `${desktopName}.desktop`;
 }
