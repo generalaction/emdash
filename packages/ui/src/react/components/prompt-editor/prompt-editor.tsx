@@ -170,6 +170,7 @@ function mentionInsertContent(item: MentionItem) {
 export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
   {
     placeholder = 'Message…',
+    initialValue = '',
     disabled = false,
     onChange,
     onSubmit,
@@ -200,7 +201,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   queryCommandsRef.current = queryCommands;
 
   // Separate suggestion state for @ and / so they don't conflict.
-  const [isEmpty, setIsEmpty] = useState(true);
+  const [isEmpty, setIsEmpty] = useState(() => initialValue.length === 0);
   const [mentionSuggestion, setMentionSuggestion] =
     useState<SuggestionState<MentionItem>>(emptySuggestion());
   const [commandSuggestion, setCommandSuggestion] =
@@ -271,6 +272,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   const submitKeymap = buildSubmitKeymap(handleSubmitFromKeymap);
 
   const editor = useEditor({
+    content: plainTextDoc(initialValue),
     extensions: [
       StarterKit.configure({
         // Disable block-level nodes we don't need for a chat input.

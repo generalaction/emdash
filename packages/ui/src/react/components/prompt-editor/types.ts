@@ -104,6 +104,8 @@ export interface PromptEditorRef {
 export interface PromptEditorProps {
   /** Controlled placeholder text when the editor is empty. */
   placeholder?: string;
+  /** Initial serialized plain text. Later changes should use the imperative editor API. */
+  initialValue?: string;
   /** Whether the editor is disabled (read-only, no input). */
   disabled?: boolean;
   /** Called with the serialized plain-text value on every change. */
