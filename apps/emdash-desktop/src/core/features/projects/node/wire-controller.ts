@@ -29,6 +29,8 @@ export function createProjectsWireController(): ProjectsWireController {
     impl: {
       createProject: (input) => projectOperations.createProject(input),
       inspectProjectPath: (input) => projectOperations.inspectProjectPath(input),
+      resolveRepositoryDestination: (input) =>
+        projectOperations.resolveRepositoryDestination(input),
       getProjects: () => projectOperations.getProjects(),
       deleteProject: ({ projectId }) => projectOperations.deleteProject(projectId),
       getProjectSettingsPage: ({ projectId }) =>

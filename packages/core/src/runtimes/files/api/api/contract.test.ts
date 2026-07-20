@@ -4,6 +4,7 @@ import { filesContract } from './contract';
 
 describe('filesContract', () => {
   it('uses Wire-native endpoint kinds and standalone IDs', () => {
+    expect(filesContract.getHomeDir.kind).toBe('procedure');
     expect(filesContract.fs.stat.kind).toBe('procedure');
     expect(filesContract.fs.readBytes.kind).toBe('downloadFile');
     expect(filesContract.fs.readBytes.id).toBe('fs.readBytes');

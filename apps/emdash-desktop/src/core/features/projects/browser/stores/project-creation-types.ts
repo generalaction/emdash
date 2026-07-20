@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import type { CreateProjectError } from '@core/primitives/projects/api';
+import type { CreateProjectError, ProjectPlacementError } from '@core/primitives/projects/api';
 
 interface BaseModeData {
   name: string;
@@ -31,6 +31,7 @@ export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: strin
 
 export type ProjectCreationError =
   | CreateProjectError
+  | ProjectPlacementError
   | { type: 'cancelled'; message: string }
   | { type: 'clone-failed'; message: string }
   | { type: 'repository-create-failed'; message: string }

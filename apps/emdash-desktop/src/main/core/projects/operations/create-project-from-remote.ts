@@ -1,4 +1,4 @@
-import { rm, stat } from 'node:fs/promises';
+import { readdir, rm, stat } from 'node:fs/promises';
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import type { LiveJobContext } from '@emdash/wire';
 import type {
@@ -18,7 +18,16 @@ export async function createProjectFromRemote(
   ctx: LiveJobContext<WorkspaceBootstrapProgress>,
   publishCreationState: ProjectCreationPublisher
 ) {
-  const targetExistedBeforeClone = await pathExists(input.targetPath);
+  const targetStatus = await inspectTarget(input.targetPath);
+  if (targetStatus === 'non-empty') {
+    const error = workspaceError(
+      'destination-not-empty',
+      `Clone destination is not empty: ${input.targetPath}`
+    );
+    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
+    return { success: false as const, error };
+  }
+  const targetExistedBeforeClone = targetStatus === 'empty-directory';
   publishCreationState(input.projectId, { phase: 'cloning', message: 'Cloning repository…' });
   const clone = await runCloneRepositoryProvision({
     url: input.repositoryUrl,
@@ -83,15 +92,16 @@ export async function createProjectFromRemote(
   return { success: true as const, data: project.data satisfies LocalProject };
 }
 
-async function pathExists(path: string): Promise<boolean> {
+async function inspectTarget(path: string): Promise<'missing' | 'empty-directory' | 'non-empty'> {
   try {
-    await stat(path);
-    return true;
+    const entry = await stat(path);
+    if (!entry.isDirectory()) return 'non-empty';
+    return (await readdir(path)).length === 0 ? 'empty-directory' : 'non-empty';
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return false;
+      return 'missing';
     }
-    return true;
+    return 'non-empty';
   }
 }
 

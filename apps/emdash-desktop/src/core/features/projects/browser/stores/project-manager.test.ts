@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   projectWireDelete: vi.fn(),
   projectWireProgressCallbacks: [] as Array<(progress: WorkspaceBootstrapProgress) => void>,
   projectWireResult: undefined as Promise<LocalProject> | undefined,
+  resolveRepositoryDestination: vi.fn(),
   deleteMementoSubject: vi.fn(),
   mementoReportError: vi.fn(),
   updateProjectSettings: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
       createProject: mocks.createProject,
       getProjects: vi.fn(async () => []),
       inspectProjectPath: mocks.inspectProjectPath,
+      resolveRepositoryDestination: mocks.resolveRepositoryDestination,
       openProject: mocks.openProject,
       patchProjectSettings: mocks.patchProjectSettings,
       updateProjectSettings: mocks.updateProjectSettings,
@@ -145,6 +147,10 @@ describe('ProjectManagerStore project creation', () => {
     vi.clearAllMocks();
     mocks.eventOn.mockReturnValue(vi.fn());
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
+    mocks.resolveRepositoryDestination.mockImplementation(
+      async ({ chosenDir, name }: { chosenDir: string; name: string }) =>
+        ({ success: true, data: `${chosenDir}/${name}` }) as const
+    );
     mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
     mocks.projectWireProgressCallbacks.length = 0;
@@ -297,6 +303,34 @@ describe('ProjectManagerStore project creation', () => {
       type: 'local',
       path: '/parent/child-project',
     });
+  });
+
+  it('uses the destination allocated by the main-process placement policy', async () => {
+    mocks.resolveRepositoryDestination.mockResolvedValueOnce({
+      success: true,
+      data: '/parent/child-project-2',
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'clone',
+        name: 'child-project',
+        path: '/parent',
+        repositoryUrl: 'https://github.com/acme/child-project.git',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    if (result.kind === 'creating') await result.completion;
+    expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
+      type: 'local',
+      path: '/parent/child-project-2',
+    });
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ targetPath: '/parent/child-project-2' })
+    );
   });
 
   it('returns a typed host-unavailable error for remote clones', async () => {

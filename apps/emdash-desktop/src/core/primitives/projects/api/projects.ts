@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
@@ -90,6 +91,18 @@ export type InspectProjectPathParams = InspectLocalProjectPathParams | InspectSs
 
 export type ProjectPathInspection = ProjectPathStatus & {
   existingProject?: Project;
+};
+
+export type ProjectPlacementError =
+  | RuntimeResolveError
+  | { type: 'host-home-unavailable'; message: string }
+  | { type: 'invalid-host-path'; path: string; message: string }
+  | { type: 'filesystem-unavailable'; path: string; message: string };
+
+export type ResolveRepositoryDestinationParams = {
+  host: HostRef;
+  name: string;
+  chosenDir?: string;
 };
 
 export type OpenProjectError =

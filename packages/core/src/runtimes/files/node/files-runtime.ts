@@ -1,3 +1,7 @@
+import { realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import path from 'node:path';
+import { parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
 import { FileContentRuntime } from '@runtimes/files/node/content/content-runtime';
 import { FileSystemRuntime } from '@runtimes/files/node/fs/file-system';
@@ -35,6 +39,20 @@ export class FilesRuntime {
     this.fs = new FileSystemRuntime(this.allocations);
     this.tree = new FileTreeRuntime(this.allocations);
     this.content = new FileContentRuntime(this.allocations);
+  }
+
+  async getHomeDir(): Promise<HostAbsolutePath> {
+    const canonicalHome = await realpath(homedir());
+    const parsed = parseAbsolute(canonicalHome, {
+      profile: {
+        style: path.sep === '\\' ? 'win32' : 'posix',
+        unicodeNormalization: 'preserve',
+      },
+    });
+    if (!parsed.success) {
+      throw new Error(`Host home directory is not an absolute path: ${parsed.error.message}`);
+    }
+    return parsed.data;
   }
 
   async dispose(): Promise<void> {

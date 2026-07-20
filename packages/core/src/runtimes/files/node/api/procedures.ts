@@ -9,6 +9,7 @@ export function createFilesProcedures(
   contract: FilesContract = filesContract
 ): FilesProcedures {
   return {
+    getHomeDir: () => runtime.getHomeDir(),
     fs: {
       stat: (input) => runtime.fs.stat(input),
       measureUsage: (input) => runtime.fs.measureUsage(input),

@@ -1,3 +1,4 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
@@ -122,7 +123,36 @@ export class ProjectManagerStore {
   ): Promise<StartProjectCreationResult> {
     const isSsh = projectType.type === 'ssh';
     const projectId = options.id ?? crypto.randomUUID();
-    const targetPath = data.mode === 'pick' ? data.path : `${data.path}/${data.name}`;
+    const targetPathResult =
+      data.mode === 'pick'
+        ? ok(data.path)
+        : await (
+            await getDesktopWireClient()
+          ).projects.resolveRepositoryDestination({
+            host: isSsh ? hostRef('remote', projectType.connectionId) : LOCAL_HOST_REF,
+            name: data.name,
+            chosenDir: data.path,
+          });
+    if (!targetPathResult.success) {
+      runInAction(() => {
+        this.projects.set(
+          projectId,
+          createUnregisteredProject(
+            projectId,
+            data.name,
+            initialCreationPhase(data.mode),
+            data.mode
+          )
+        );
+      });
+      this._markCreationError(projectId, targetPathResult.error);
+      return {
+        kind: 'creating',
+        projectId,
+        completion: Promise.resolve(err(targetPathResult.error)),
+      };
+    }
+    const targetPath = targetPathResult.data;
     const inspection = await (
       await getDesktopWireClient()
     ).projects.inspectProjectPath(

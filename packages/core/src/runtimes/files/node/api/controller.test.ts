@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { waitFor } from '@emdash/shared/testing';
@@ -37,6 +37,9 @@ describe('createFilesController', () => {
     const key = { root: rootRef, sessionId: 'session-1' };
 
     try {
+      await expect(connection.api.getHomeDir()).resolves.toEqual(
+        runtimeRoot(await realpath(homedir()))
+      );
       await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
         data: { entries: { '': { childrenLoaded: false } } },
       });

@@ -6,6 +6,7 @@ import {
   liveModel,
   liveState,
   mutation,
+  procedure,
   uploadFile,
 } from '@emdash/wire';
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
@@ -42,6 +43,10 @@ import {
 export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export const filesContract = defineContract({
+  getHomeDir: procedure({
+    input: z.void().optional(),
+    output: hostAbsolutePathSchema,
+  }),
   fs: defineContract({
     stat: fallible({ input: pathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
     measureUsage: fallible({ input: pathKeySchema, data: fileUsageSchema, error: fsErrorSchema }),

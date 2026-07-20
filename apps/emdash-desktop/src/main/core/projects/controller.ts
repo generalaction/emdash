@@ -8,6 +8,7 @@ import { createProject, inspectProjectPath } from './operations/createProject';
 import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
+import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 import { projectSettingsService } from './settings/project-settings-service';
@@ -15,6 +16,7 @@ import { projectSettingsService } from './settings/project-settings-service';
 export const projectOperations = {
   createProject,
   inspectProjectPath,
+  resolveRepositoryDestination,
   getProjects,
   deleteProject,
   getProjectSettingsPage: (projectId: string) =>

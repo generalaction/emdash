@@ -33,7 +33,9 @@ import {
   type OpenProjectError,
   type OpenProjectSuccess,
   type Project,
+  type ProjectPlacementError,
   type ProjectPathInspection,
+  type ResolveRepositoryDestinationParams,
   type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
 
@@ -86,6 +88,10 @@ export const projectsWireContract = defineContract({
   inspectProjectPath: procedure({
     input: z.custom<InspectProjectPathParams>(),
     output: z.custom<ProjectPathInspection>(),
+  }),
+  resolveRepositoryDestination: procedure({
+    input: z.custom<ResolveRepositoryDestinationParams>(),
+    output: z.custom<Result<string, ProjectPlacementError>>(),
   }),
   getProjects: procedure({
     input: z.void(),
