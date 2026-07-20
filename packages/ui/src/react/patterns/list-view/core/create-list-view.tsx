@@ -233,9 +233,11 @@ export function createListView<const S extends ListViewSpec<any>>(
             ? sections.map((s) => ({
                 key: s.key,
                 items: s.items,
-                header: spec.sections?.header
-                  ? spec.sections.header(s.key, s.items.length)
-                  : undefined,
+                header: spec.sections?.header ? (
+                  spec.sections.header(s.key, s.items.length)
+                ) : (
+                  <SectionHeader label={s.key} count={s.items.length} />
+                ),
               }))
             : undefined
         }

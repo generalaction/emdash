@@ -183,7 +183,10 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
 
   /** Flat ordered id list — source of truth for range selection across virtual rows. */
   get orderedIds(): string[] {
-    return this.visibleItems.map(this.spec.getItemId);
+    const displayedItems = this.sections
+      ? this.sections.flatMap((section) => section.items)
+      : this.visibleItems;
+    return displayedItems.map(this.spec.getItemId);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

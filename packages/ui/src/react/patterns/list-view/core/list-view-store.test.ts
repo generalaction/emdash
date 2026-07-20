@@ -106,6 +106,7 @@ describe('ListViewStore — sync pipeline', () => {
     };
     const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
     expect(store.sections![0]!.key).toBe('not-installed');
+    expect(store.orderedIds).toEqual(['3', '4', '1', '2']);
   });
 });
 
@@ -124,6 +125,15 @@ describe('ListViewStore — selection', () => {
     const spec: ListViewSpec<Agent> = { ...baseSpec, selection: { kind: 'multi' } };
     const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
     store.selectionSlice!.toggle('1');
+    store.selectionSlice!.selectRange('1', '3', store.orderedIds);
+    expect([...store.selectionSlice!.selectedIds].sort()).toEqual(['1', '2', '3']);
+  });
+
+  it('multi selection — reversing a range contracts it', () => {
+    const spec: ListViewSpec<Agent> = { ...baseSpec, selection: { kind: 'multi' } };
+    const store = new ListViewStore<Agent, ListViewSpec<Agent>>(spec);
+    store.selectionSlice!.toggle('1');
+    store.selectionSlice!.selectRange('1', '4', store.orderedIds);
     store.selectionSlice!.selectRange('1', '3', store.orderedIds);
     expect([...store.selectionSlice!.selectedIds].sort()).toEqual(['1', '2', '3']);
   });
