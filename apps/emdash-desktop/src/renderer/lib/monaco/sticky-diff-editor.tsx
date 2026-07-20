@@ -26,6 +26,8 @@ export function StickyDiffEditor({
   onEditorChange,
 }: StickyDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const originalUriRef = useRef(originalUri);
+  originalUriRef.current = originalUri;
   const modifiedUriRef = useRef(modifiedUri);
   modifiedUriRef.current = modifiedUri;
 
@@ -75,6 +77,11 @@ export function StickyDiffEditor({
     return () => {
       onEditorChangeRef.current?.(null);
       heightDisposable.dispose();
+      // Save the viewport before disposal. The URI effect's cleanup can't cover
+      // unmount: it runs after this one, when editorBox is already null.
+      if (editor.getModel()) {
+        modelRegistry.saveDiffViewState(originalUriRef.current, modifiedUriRef.current, editor);
+      }
       runInAction(() => editorBox.set(null));
       editor.dispose();
     };
