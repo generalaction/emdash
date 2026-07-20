@@ -71,6 +71,17 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 initializeFileLogger();
+let resolveTelemetryInitialization = () => {};
+const telemetryInitialization = new Promise<void>((resolve) => {
+  resolveTelemetryInitialization = resolve;
+});
+registerProcessErrorLogging(log, async (error, mechanism) => {
+  await telemetryInitialization;
+  await telemetryService.captureExceptionImmediate(error, {
+    process_type: 'main',
+    mechanism,
+  });
+});
 registerRendererLogHandler(ipcMain);
 
 app.on('child-process-gone', (_event, details) => {
@@ -129,13 +140,9 @@ void app.whenReady().then(async () => {
       await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
     } catch (e) {
       log.warn('telemetry init failed:', e);
+    } finally {
+      resolveTelemetryInitialization();
     }
-    registerProcessErrorLogging(log, (error, mechanism) =>
-      telemetryService.captureExceptionImmediate(error, {
-        process_type: 'main',
-        mechanism,
-      })
-    );
 
     await resetStaleAcpAgentStatuses();
     searchService.initialize();

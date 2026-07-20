@@ -191,6 +191,21 @@ describe('TelemetryService', () => {
     await expect(service.setTelemetryEnabledViaUser(true)).rejects.toThrow('Write failed');
 
     expect(service.getTelemetryStatus().enabled).toBe(false);
+    expect(mocks.store.get('enabled')).toBe('false');
+    expect(mocks.clients[0]?.disable).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back an opted-in session when persisting consent fails', async () => {
+    mocks.store.set('enabled', 'false');
+    const service = new TelemetryService(false);
+    await service.initialize();
+    mocks.writeFailures.add('enabled');
+
+    await expect(service.setTelemetryEnabledViaUser(true)).rejects.toThrow('Write failed');
+
+    expect(service.getTelemetryStatus().enabled).toBe(false);
+    expect(mocks.store.get('enabled')).toBe('false');
+    expect(mocks.store.has('sessionState')).toBe(false);
     expect(mocks.clients[0]?.disable).toHaveBeenCalledOnce();
   });
 

@@ -797,6 +797,22 @@ export class TelemetryService implements IInitializable, IDisposable {
     if (this.lifecycle !== 'active') return;
     const previousOptOut = this.userOptOut;
     this.userOptOut = !enabledFlag;
+    if (enabledFlag) {
+      this.consentGeneration += 1;
+      this.requestController = new AbortController();
+      await this.client?.enable();
+      await this.ensureClient();
+      try {
+        await this.armSessionState();
+      } catch (error) {
+        this.userOptOut = true;
+        this.consentGeneration += 1;
+        this.requestController.abort();
+        await this.client?.disable();
+        await this.disarmSessionState();
+        throw error;
+      }
+    }
     if (!enabledFlag) {
       this.consentGeneration += 1;
       this.requestController.abort();
@@ -812,9 +828,12 @@ export class TelemetryService implements IInitializable, IDisposable {
         throw error;
       }
       this.userOptOut = previousOptOut;
-      if (!this.userOptOut) {
-        this.requestController = new AbortController();
-        await this.client?.enable();
+      if (this.userOptOut) {
+        this.consentGeneration += 1;
+        this.requestController.abort();
+        await this.client?.disable();
+        await this.clearSessionState();
+        await this.flushPendingRequests(2_000);
       }
       throw error;
     }
@@ -824,21 +843,6 @@ export class TelemetryService implements IInitializable, IDisposable {
       await this.clearSessionState();
       await this.flushPendingRequests(2_000);
       return;
-    }
-
-    this.consentGeneration += 1;
-    this.requestController = new AbortController();
-    await this.client?.enable();
-    await this.ensureClient();
-    try {
-      await this.armSessionState();
-    } catch (error) {
-      this.userOptOut = true;
-      this.consentGeneration += 1;
-      this.requestController.abort();
-      await this.client?.disable();
-      await this.disarmSessionState();
-      throw error;
     }
   }
 
