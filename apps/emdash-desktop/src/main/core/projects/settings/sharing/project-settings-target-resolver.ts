@@ -72,7 +72,7 @@ async function resolveTaskTarget(
     config: task.workspaceConfig,
   });
   if (!targetPath && provisionedBranch) {
-    targetPath = (await project.worktreeService.findBranchAnywhere(provisionedBranch)) ?? null;
+    targetPath = await project.findTaskWorktree(provisionedBranch);
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;

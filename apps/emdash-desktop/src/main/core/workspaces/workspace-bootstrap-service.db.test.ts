@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   releaseWorkspace: vi.fn(),
   buildTaskFromWorkspace: vi.fn(),
   emitTaskProvisionProgress: vi.fn(),
+  resolveWorktreePool: vi.fn(),
+  startWorkspaceJob: vi.fn(),
 }));
 
 // Prevent the module-level singleton from attempting to open the Electron app DB.
@@ -25,13 +27,7 @@ vi.mock('@emdash/wire', async (importOriginal) => {
   return {
     ...actual,
     createLiveJobReplica: () => ({
-      start: vi.fn(async () => ({
-        ready: vi.fn(async () => ({
-          result: Promise.resolve({}),
-          onProgress: vi.fn(() => () => {}),
-        })),
-        release: vi.fn(async () => {}),
-      })),
+      start: mocks.startWorkspaceJob,
       dispose: vi.fn(async () => {}),
     }),
   };
@@ -50,10 +46,11 @@ vi.mock('@main/core/tasks/task-builder', () => ({
 }));
 
 vi.mock('@core/services/workspace-runtime-access/node', () => ({
-  tryAcquireWorkspaceRuntime: async (...args: unknown[]) => ({
-    success: true,
-    data: await mocks.acquireWorkspace(...args),
-  }),
+  tryAcquireWorkspaceRuntime: mocks.acquireWorkspace,
+}));
+
+vi.mock('./placement/workspace-placement-resolver', () => ({
+  workspacePlacementResolver: { resolveWorktreePool: mocks.resolveWorktreePool },
 }));
 
 vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
@@ -90,6 +87,14 @@ describe('WorkspaceBootstrapService', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mocks.resolveWorktreePool.mockResolvedValue(ok('/worktrees'));
+    mocks.startWorkspaceJob.mockImplementation(async (input) => ({
+      ready: vi.fn(async () => ({
+        result: Promise.resolve({ path: input.lifecycle?.ref.path }),
+        onProgress: vi.fn(() => () => {}),
+      })),
+      release: vi.fn(async () => {}),
+    }));
 
     fixture = await openFixture('empty');
     svc = new WorkspaceBootstrapService(fixture.db);
@@ -97,20 +102,21 @@ describe('WorkspaceBootstrapService', () => {
     await fixture.db.insert(projects).values({ id: 'proj-1', name: 'Test Project', path: '/repo' });
     await fixture.db.insert(workspaces).values({ id: WS_ID, type: 'local' });
 
-    mocks.acquireWorkspace.mockResolvedValue({
-      identity: {
-        workspaceId: WS_ID,
-        projectId: 'proj-1',
-        host: { type: 'local', id: 'local' },
-        path: '/repo/task',
-      },
-      files: {},
-      release: mocks.releaseWorkspace,
-    });
+    mocks.acquireWorkspace.mockResolvedValue(
+      ok({
+        identity: {
+          workspaceId: WS_ID,
+          projectId: 'proj-1',
+          host: { type: 'local', id: 'local' },
+          path: '/repo/task',
+        },
+        files: {},
+        release: mocks.releaseWorkspace,
+      })
+    );
     mocks.releaseWorkspace.mockResolvedValue(undefined);
-    mocks.buildTaskFromWorkspace.mockResolvedValue({
-      success: true,
-      data: {
+    mocks.buildTaskFromWorkspace.mockResolvedValue(
+      ok({
         taskProvider: {
           taskId: 'task-1',
           taskBranch: 'task/branch',
@@ -119,8 +125,8 @@ describe('WorkspaceBootstrapService', () => {
           conversations: {},
           terminals: {},
         },
-      },
-    });
+      })
+    );
   });
 
   afterEach(() => {
@@ -224,9 +230,16 @@ describe('WorkspaceBootstrapService', () => {
 
   describe('ensureWorkspaceSetup', () => {
     it('repairs persisted branch worktree paths before acquiring the workspace', async () => {
-      const serveBranchWorktree = vi.fn().mockResolvedValue(ok('/worktrees/task-branch'));
-      const existsAtAbsolutePath = vi.fn().mockResolvedValue(true);
+      const findTaskWorktree = vi.fn().mockResolvedValue('/worktrees/task-branch');
+      const reconcile = vi.fn().mockResolvedValue(
+        ok({
+          workspace: {},
+          path: '/worktrees/task-branch',
+          topology: { kind: 'worktree' },
+        })
+      );
       const project = {
+        project: { type: 'local', id: 'proj-1', path: '/repo' },
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
@@ -238,11 +251,8 @@ describe('WorkspaceBootstrapService', () => {
         gitRepository: {
           getConfiguredRemotes: vi.fn(),
         },
-        gitRepositoryFetchService: {},
-        worktreeService: {
-          existsAtAbsolutePath,
-          serveBranchWorktree,
-        },
+        findTaskWorktree,
+        workspace: { reconcile, activate: {}, deactivate: {} },
       } as unknown as ProjectProvider;
 
       const result = await svc.ensureWorkspaceSetup(
@@ -270,11 +280,8 @@ describe('WorkspaceBootstrapService', () => {
       if (!result.success) throw new Error(JSON.stringify(result.error));
       expect(result.success).toBe(true);
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(serveBranchWorktree).toHaveBeenCalledWith('task/branch', {
-        type: 'local',
-        branch: 'main',
-      });
-      expect(existsAtAbsolutePath).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
+      expect(findTaskWorktree).toHaveBeenCalledWith('task/branch');
+      expect(reconcile).toHaveBeenCalled();
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
@@ -283,9 +290,10 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('does not acquire an explicit worktree from a stale path without branch intent', async () => {
-      const serveBranchWorktree = vi.fn();
-      const existsAtAbsolutePath = vi.fn().mockResolvedValue(false);
+      const findTaskWorktree = vi.fn();
+      const exists = vi.fn().mockResolvedValue(ok(false));
       const project = {
+        project: { type: 'local', id: 'proj-1', path: '/repo' },
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
@@ -296,11 +304,8 @@ describe('WorkspaceBootstrapService', () => {
         gitRepository: {
           getConfiguredRemotes: vi.fn(),
         },
-        gitRepositoryFetchService: {},
-        worktreeService: {
-          existsAtAbsolutePath,
-          serveBranchWorktree,
-        },
+        findTaskWorktree,
+        files: { client: { fs: { exists } } },
       } as unknown as ProjectProvider;
 
       const result = await svc.ensureWorkspaceSetup(
@@ -320,17 +325,14 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(false);
       if (result.success) throw new Error('expected failure');
       expect(result.error.type).toBe('no-intent');
-      expect(existsAtAbsolutePath).not.toHaveBeenCalled();
-      expect(serveBranchWorktree).not.toHaveBeenCalled();
+      expect(exists).not.toHaveBeenCalled();
+      expect(findTaskWorktree).not.toHaveBeenCalled();
       expect(mocks.acquireWorkspace).not.toHaveBeenCalled();
     });
 
     it('recovers an explicit worktree from legacy task branch intent', async () => {
-      const serveBranchWorktree = vi.fn();
-      const existsAtAbsolutePath = vi.fn().mockResolvedValue(false);
-      const getWorktreePoolPath = vi.fn().mockResolvedValue('/worktrees');
-      const runWorkspaceSetup = vi.fn().mockResolvedValue(ok({ path: '/worktrees/task-branch' }));
       const project = {
+        project: { type: 'local', id: 'proj-1', path: '/repo' },
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
@@ -345,13 +347,7 @@ describe('WorkspaceBootstrapService', () => {
             pushRemote: 'origin',
           }),
         },
-        gitRepositoryFetchService: {},
-        worktreeService: {
-          existsAtAbsolutePath,
-          serveBranchWorktree,
-          getWorktreePoolPath,
-        },
-        runWorkspaceSetup,
+        workspace: { provision: {}, activate: {}, deactivate: {} },
       } as unknown as ProjectProvider;
 
       const result = await svc.ensureWorkspaceSetup(
@@ -375,11 +371,14 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(existsAtAbsolutePath).not.toHaveBeenCalled();
-      expect(serveBranchWorktree).not.toHaveBeenCalled();
-      expect(runWorkspaceSetup).toHaveBeenCalledWith(
-        expect.arrayContaining([{ kind: 'add-worktree', args: { branchName: 'task/branch' } }]),
-        '/worktrees'
+      expect(mocks.startWorkspaceJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lifecycle: expect.objectContaining({
+            context: expect.objectContaining({
+              worktreePoolPath: '/worktrees',
+            }),
+          }),
+        })
       );
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
@@ -389,11 +388,9 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('recovers a legacy workspace with stale path from task branch intent', async () => {
-      const serveBranchWorktree = vi.fn();
-      const existsAtAbsolutePath = vi.fn().mockResolvedValue(false);
-      const getWorktreePoolPath = vi.fn().mockResolvedValue('/worktrees');
-      const runWorkspaceSetup = vi.fn().mockResolvedValue(ok({ path: '/worktrees/task-branch' }));
+      const exists = vi.fn().mockResolvedValue(ok(false));
       const project = {
+        project: { type: 'local', id: 'proj-1', path: '/repo' },
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
@@ -408,13 +405,8 @@ describe('WorkspaceBootstrapService', () => {
             pushRemote: 'origin',
           }),
         },
-        gitRepositoryFetchService: {},
-        worktreeService: {
-          existsAtAbsolutePath,
-          serveBranchWorktree,
-          getWorktreePoolPath,
-        },
-        runWorkspaceSetup,
+        files: { client: { fs: { exists } } },
+        workspace: { provision: {}, activate: {}, deactivate: {} },
       } as unknown as ProjectProvider;
 
       const result = await svc.ensureWorkspaceSetup(
@@ -438,11 +430,9 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(existsAtAbsolutePath).toHaveBeenCalledWith('/worktrees/missing-task-branch');
-      expect(serveBranchWorktree).not.toHaveBeenCalled();
-      expect(runWorkspaceSetup).toHaveBeenCalledWith(
-        expect.arrayContaining([{ kind: 'add-worktree', args: { branchName: 'task/branch' } }]),
-        '/worktrees'
+      expect(exists).toHaveBeenCalled();
+      expect(mocks.startWorkspaceJob).toHaveBeenCalledWith(
+        expect.objectContaining({ lifecycle: expect.any(Object) })
       );
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 

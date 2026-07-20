@@ -52,7 +52,7 @@ async function getTaskPreflight(
     const project = projectManager.getProject(projectId);
     if (project) {
       try {
-        const worktreePath = await project.worktreeService.getWorktree(provisionedBranch);
+        const worktreePath = await project.findTaskWorktree(provisionedBranch);
         if (worktreePath) {
           const status = (
             await project.git.checkout.model

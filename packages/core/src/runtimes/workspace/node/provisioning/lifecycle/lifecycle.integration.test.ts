@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { step } from '@runtimes/workspace/api/provisioning/catalog';
 import { compileBootstrapPlan } from '@runtimes/workspace/api/provisioning/planner';
@@ -180,6 +180,126 @@ describe('workspace bootstrap runtime integration', () => {
     }
   });
 
+  it('refuses to reuse a pool path that belongs to another repository', async () => {
+    const repo = await createTestRepository();
+    const foreignRepo = await createTestRepository();
+    try {
+      const targetPath = path.join(repo.worktreePoolPath, 'occupied');
+      await execGit(repo.repoPath, ['branch', 'task/safe', 'main']);
+      await execGit(foreignRepo.repoPath, ['branch', 'foreign/worktree', 'main']);
+      await execGit(foreignRepo.repoPath, ['worktree', 'add', targetPath, 'foreign/worktree']);
+
+      const result = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'add-worktree:foreign',
+              label: 'Create worktree',
+              step: step('add-worktree', { branchName: 'task/safe', path: targetPath }),
+            },
+          ],
+        },
+        contextFor(repo)
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'foreign-worktree' },
+      });
+      const head = await execGit(targetPath, ['rev-parse', '--abbrev-ref', 'HEAD']);
+      expect(head.stdout.trim()).toBe('foreign/worktree');
+    } finally {
+      await Promise.all([repo.cleanup(), foreignRepo.cleanup()]);
+    }
+  });
+
+  it('refuses teardown fallback deletion for another repository worktree', async () => {
+    const repo = await createTestRepository();
+    const foreignRepo = await createTestRepository();
+    try {
+      const targetPath = path.join(repo.worktreePoolPath, 'foreign');
+      await execGit(foreignRepo.repoPath, ['branch', 'foreign/worktree', 'main']);
+      await execGit(foreignRepo.repoPath, ['worktree', 'add', targetPath, 'foreign/worktree']);
+
+      const result = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'remove-worktree:foreign',
+              label: 'Remove worktree',
+              step: step('remove-worktree', { path: targetPath }),
+            },
+          ],
+        },
+        contextFor(repo)
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'foreign-worktree' },
+      });
+      await expect(stat(targetPath)).resolves.toBeDefined();
+    } finally {
+      await Promise.all([repo.cleanup(), foreignRepo.cleanup()]);
+    }
+  });
+
+  it('removes a registered legacy worktree outside the current pool', async () => {
+    const repo = await createTestRepository();
+    try {
+      const targetPath = path.join(repo.root, 'outside-pool');
+      await execGit(repo.repoPath, ['branch', 'task/outside', 'main']);
+      await execGit(repo.repoPath, ['worktree', 'add', targetPath, 'task/outside']);
+
+      const result = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'remove-worktree:outside',
+              label: 'Remove worktree',
+              step: step('remove-worktree', { path: targetPath }),
+            },
+          ],
+        },
+        contextFor(repo)
+      );
+
+      expect(result.success).toBe(true);
+      await expect(stat(targetPath)).rejects.toThrow();
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('refuses raw deletion outside the declared pool', async () => {
+    const repo = await createTestRepository();
+    try {
+      const targetPath = path.join(repo.root, 'outside-pool');
+      await mkdir(targetPath);
+
+      const result = await runBootstrapPlan(
+        {
+          steps: [
+            {
+              id: 'remove-worktree:outside',
+              label: 'Remove worktree',
+              step: step('remove-worktree', { path: targetPath }),
+            },
+          ],
+        },
+        contextFor(repo)
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: 'unsafe-worktree-path' },
+      });
+      await expect(stat(targetPath)).resolves.toBeDefined();
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
   it('clones a repository and streams git output', async () => {
     const source = await createTestRepository();
     const cloneRoot = path.join(source.root, 'clones');
@@ -293,6 +413,7 @@ function contextFor(repo: { repoPath: string; worktreePoolPath: string }): Boots
   return {
     repoPath: repo.repoPath,
     preservePatterns: [],
+    worktreePoolPath: repo.worktreePoolPath,
   };
 }
 

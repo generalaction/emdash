@@ -12,6 +12,7 @@ import type { z } from 'zod';
 export type StepCtx = {
   repoPath: string;
   preservePatterns: string[];
+  worktreePoolPath?: string;
   resolvedWorktreePath?: string;
   signal?: AbortSignal;
   emitOutput?: (chunk: string) => void;

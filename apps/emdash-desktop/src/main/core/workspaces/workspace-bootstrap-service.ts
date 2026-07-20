@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import { ROOT_RELATIVE_PATH, type HostFileRef } from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
   compileBootstrapPlan,
@@ -28,30 +28,29 @@ import {
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/node/lifecycle-participants';
 import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  hostPathFromNative,
+} from '@core/primitives/desktop-runtime/api';
 import type { Task, ProvisionWorkspaceError } from '@core/primitives/tasks/api';
 import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
-import { compileSetupSpec } from '@core/primitives/workspaces/api';
 import type { WorkspaceType } from '@core/primitives/workspaces/api';
 import { tryAcquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
-import {
-  formatProvisionTaskError,
-  mapWorktreeErrorToProvisionError,
-} from '@main/core/tasks/provision-task-error';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { getFilesRuntimeClient, getWorkspaceRuntimeClient } from '@main/gateway/accessors';
+import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
+import { workspacePlacementResolver } from './placement/workspace-placement-resolver';
 import { postActivationWorkflowNodes, triggerTaskScriptWorkflow } from './script-workflows';
 import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { computeWorkspaceKey } from './workspace-key';
@@ -93,12 +92,12 @@ export class WorkspaceBootstrapService {
    *
    * - **Fast path (idempotent)**: if a non-worktree `workspaceRow.path` is set and
    *   the directory exists on disk, skips git setup and goes straight to workspace
-   *   acquisition. Persisted worktree paths are resolved through `WorktreeService`
-   *   so stale partial directories are repaired before acquisition.
+   *   acquisition. Persisted worktree paths are probed through the runtimes so stale
+   *   partial directories are repaired before acquisition.
    * - **BYOI workspaces**: delegates to `provisionBYOITask` which runs the
    *   provision script, connects SSH, and acquires the workspace.
-   * - **Local/SSH workspaces**: compiles and executes the `WorkspaceSetupSpec`,
-   *   applies recovery on failure, persists the resolved path, then acquires.
+   * - **Local/SSH workspaces**: compiles and executes a runtime lifecycle plan,
+   *   persists the resolved path, then acquires.
    */
   async ensureWorkspaceSetup(
     workspaceRow: {
@@ -151,54 +150,48 @@ export class WorkspaceBootstrapService {
       );
     }
 
-    // Persisted worktree path: resolve through WorktreeService instead of trusting
-    // path existence. Archive/delete can leave a partial directory behind; the
-    // worktree service knows how to remove stale targets and recreate the checkout.
+    // Persisted worktree path: adopt it only when Git still registers the branch and
+    // the runtime probe confirms that the path is a worktree. Otherwise, fall through
+    // to the normal provision plan, which repairs a stale or missing checkout.
     if (workspaceRow.path && workspaceBranchName && isWorktreeWorkspace && !isByoi) {
-      const serveResult = await project.worktreeService.serveBranchWorktree(
-        workspaceBranchName,
-        workspaceSourceBranch
-      );
-      if (!serveResult.success) {
-        const provisionError = mapWorktreeErrorToProvisionError(
-          workspaceBranchName,
-          serveResult.error
+      const registeredPath = await project.findTaskWorktree(workspaceBranchName);
+      const runtimeWorkspace = registeredPath
+        ? hostFileRefFromNativePath(registeredPath, connectionId)
+        : null;
+      const probe = runtimeWorkspace
+        ? await project.workspace.reconcile({ workspace: runtimeWorkspace })
+        : null;
+      const resolvedPath =
+        probe?.success && probe.data.topology?.kind === 'worktree' ? registeredPath : null;
+
+      if (resolvedPath && runtimeWorkspace) {
+        await this.persistPath(
+          workspaceRow.id,
+          resolvedPath,
+          workspaceRow.type,
+          connectionId,
+          workspaceBranchName
         );
-        return err({
-          type: 'setup-failed',
-          stepKind: 'worktree',
-          stepErrorType: provisionError.type,
-          message: formatProvisionTaskError(provisionError),
-        });
+
+        return this._acquireAndBuild(
+          workspaceRow.id,
+          task,
+          project,
+          resolvedPath,
+          { path: resolvedPath, workspace: runtimeWorkspace },
+          workspaceBranchName,
+          workspaceSourceBranch
+        );
       }
-      const resolvedPath = serveResult.data;
-
-      await this.persistPath(
-        workspaceRow.id,
-        resolvedPath,
-        workspaceRow.type,
-        connectionId,
-        workspaceBranchName
-      );
-
-      return this._acquireAndBuild(
-        workspaceRow.id,
-        task,
-        project,
-        resolvedPath,
-        {
-          path: resolvedPath,
-          workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
-        },
-        workspaceBranchName,
-        workspaceSourceBranch
-      );
     }
 
     // Fast path: non-worktree path already persisted and still exists on disk.
     if (workspaceRow.path && !isByoi && !isWorktreeWorkspace) {
-      const exists = await project.worktreeService.existsAtAbsolutePath(workspaceRow.path);
-      if (exists) {
+      const exists = await project.files.client.fs.exists({
+        root: hostPathFromNative(workspaceRow.path),
+        relative: ROOT_RELATIVE_PATH,
+      });
+      if (exists.success && exists.data) {
         return this._acquireAndBuild(
           workspaceRow.id,
           task,
@@ -224,7 +217,9 @@ export class WorkspaceBootstrapService {
       return err({ type: 'no-intent' });
     }
 
-    const runtimePlan = await this.compileRuntimeWorkspacePlan(intent, project, connectionId);
+    const runtimePlanResult = await this.compileRuntimeWorkspacePlan(intent, project, connectionId);
+    if (!runtimePlanResult.success) return runtimePlanResult;
+    const runtimePlan = runtimePlanResult.data;
 
     const intentBranchName = deriveBranchName(intent.git) ?? undefined;
     const intentSourceBranch: GitBranchRef | undefined =
@@ -249,47 +244,36 @@ export class WorkspaceBootstrapService {
       );
     }
 
-    const { baseRemote, pushRemote } = await project.gitRepository.getConfiguredRemotes();
-    const legacySpec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
-    const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
-    const setupResult = await project.runWorkspaceSetup(legacySpec, worktreePoolPath);
-    if (!setupResult.success) {
-      const { kind, type } = setupResult.error;
-      const message = 'message' in setupResult.error ? setupResult.error.message : undefined;
-      return err({ type: 'setup-failed', stepKind: kind, stepErrorType: type, message });
-    }
-
-    const resolvedPath = setupResult.data.path;
     const provisionResult = await runWorkspaceProvisionJob(task, project, {
-      workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
+      workspace: runtimePlan.workspace,
+      lifecycle: runtimePlan.lifecycle,
     });
     if (!provisionResult.success) {
-      emitTaskProvisionProgress({
-        taskId: task.id,
-        projectId: project.projectId,
-        step: 'setting-up-workspace',
-        message: `Workspace runtime provision skipped: ${provisionResult.error.message}`,
+      return err({
+        type: 'setup-failed',
+        stepKind: provisionResult.error.stageId ?? 'workspace-runtime',
+        stepErrorType: provisionResult.error.type,
+        message: provisionResult.error.message,
       });
     }
-    if (resolvedPath) {
-      await this.persistPath(
-        workspaceRow.id,
-        resolvedPath,
-        workspaceRow.type,
-        connectionId,
-        intentBranchName
-      );
-    }
+    const resolvedPath = provisionResult.data.path ?? runtimePlan.path;
+    await this.persistPath(
+      workspaceRow.id,
+      resolvedPath,
+      workspaceRow.type,
+      connectionId,
+      intentBranchName
+    );
 
     return this._acquireAndBuild(
       workspaceRow.id,
       task,
       project,
-      resolvedPath ?? '',
+      resolvedPath,
       {
         ...runtimePlan,
-        path: resolvedPath ?? runtimePlan.path,
-        workspace: hostFileRefFromNativePath(resolvedPath ?? runtimePlan.path, connectionId),
+        path: resolvedPath,
+        workspace: hostFileRefFromNativePath(resolvedPath, connectionId),
       },
       intentBranchName,
       intentSourceBranch
@@ -365,7 +349,7 @@ export class WorkspaceBootstrapService {
     intent: { git: GitSetup; workspace: WorkspaceLocation },
     project: ProjectProvider,
     connectionId: string | undefined
-  ): Promise<RuntimeWorkspacePlan> {
+  ): Promise<Result<RuntimeWorkspacePlan, ProvisionWorkspaceError>> {
     const projectSettings = (await project.settings.get()) ?? {};
     const context = {
       repoPath: project.repoPath,
@@ -377,7 +361,7 @@ export class WorkspaceBootstrapService {
         intent.workspace.host !== 'byoi' && intent.workspace.path
           ? intent.workspace.path
           : project.repoPath;
-      return {
+      return ok({
         path: workspacePath,
         workspace: hostFileRefFromNativePath(workspacePath, connectionId),
         lifecycle: {
@@ -385,14 +369,22 @@ export class WorkspaceBootstrapService {
           context,
           setupPlan: { steps: [] },
         },
-      };
+      });
     }
 
     const bootstrapIntent = toBootstrapGitIntent(intent.git);
     const { baseRemote } = await project.gitRepository.getConfiguredRemotes();
-    const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
+    const worktreePoolPath = await workspacePlacementResolver.resolveWorktreePool(project.project);
+    if (!worktreePoolPath.success) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'placement',
+        stepErrorType: worktreePoolPath.error.type,
+        message: worktreePoolPath.error.message,
+      });
+    }
     const compiled = compileBootstrapPlan(bootstrapIntent, {
-      worktreePoolPath,
+      worktreePoolPath: worktreePoolPath.data,
       baseRemote,
     });
     const branchName = deriveBranchName(intent.git);
@@ -406,15 +398,15 @@ export class WorkspaceBootstrapService {
           }
         : { kind: 'directory' as const, path: compiled.workspacePath };
 
-    return {
+    return ok({
       path: compiled.workspacePath,
       workspace: hostFileRefFromNativePath(compiled.workspacePath, connectionId),
       lifecycle: {
         ref,
-        context,
+        context: { ...context, worktreePoolPath: worktreePoolPath.data },
         setupPlan: compiled.plan,
       },
-    };
+    });
   }
 
   async resolveLegacyAutomation(
@@ -424,8 +416,7 @@ export class WorkspaceBootstrapService {
     const projectSettings = await project.settings.get();
     if (!projectSettings) return undefined;
 
-    const filesClient = await getFilesRuntimeClient();
-    const taskFiles = filesClientScope(filesClient, workDir);
+    const taskFiles = filesClientScope(project.files.client, workDir);
     const taskConfigPath = path.join(workDir, '.emdash.json');
     const taskSettings = await getEffectiveTaskSettings({
       projectSettings: project.settings,
@@ -482,12 +473,16 @@ export class WorkspaceBootstrapService {
     workspaceIdentityService.invalidate(workspaceId);
     const accessResult = await tryAcquireWorkspaceRuntime(workspaceId);
     if (!accessResult.success) {
-      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+      await runWorkspaceDeactivateJob(task, project, runtimePlan.workspace, automation).catch(
+        () => {}
+      );
       return err(accessResult.error);
     }
     const access = accessResult.data;
     if (!access) {
-      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+      await runWorkspaceDeactivateJob(task, project, runtimePlan.workspace, automation).catch(
+        () => {}
+      );
       return err({
         type: 'setup-failed',
         stepKind: 'workspace-identity',
@@ -524,7 +519,9 @@ export class WorkspaceBootstrapService {
         workspaceSourceBranch
       );
       if (!buildResult.success) {
-        await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+        await runWorkspaceDeactivateJob(task, project, runtimePlan.workspace, automation).catch(
+          () => {}
+        );
         return err(buildResult.error);
       }
       buildSucceeded = true;
@@ -538,7 +535,9 @@ export class WorkspaceBootstrapService {
         postActivationAutomation: automation,
       });
     } catch (e) {
-      await runWorkspaceDeactivateJob(task, runtimePlan.workspace, automation).catch(() => {});
+      await runWorkspaceDeactivateJob(task, project, runtimePlan.workspace, automation).catch(
+        () => {}
+      );
       return err({
         type: 'setup-failed',
         stepKind: 'build-providers',
@@ -620,8 +619,7 @@ async function runWorkspaceProvisionJob(
   project: ProjectProvider,
   input: ProvisionWorkspaceInput
 ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
+  const jobs = createLiveJobReplica(workspaceContract.provision, project.workspace.provision);
   const lease = await jobs.start(input);
   const job = await lease.ready();
   const unsubscribe = job.onProgress((progress) =>
@@ -694,8 +692,7 @@ async function runWorkspaceActivateJob(
   project: ProjectProvider,
   input: ActivateWorkspaceInput
 ): Promise<Result<unknown, WorkspaceError>> {
-  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(workspaceContract.activate, workspaceRuntimeClient.activate);
+  const jobs = createLiveJobReplica(workspaceContract.activate, project.workspace.activate);
   const lease = await jobs.start(input);
   const job = await lease.ready();
   const unsubscribe = job.onProgress((progress) =>
@@ -743,14 +740,11 @@ export function startWorkspacePostActivationScripts(
 
 async function runWorkspaceDeactivateJob(
   task: Task,
+  project: ProjectProvider,
   workspace: ActivateWorkspaceInput['workspace'],
   automation?: ActivateWorkspaceInput['automation']
 ): Promise<void> {
-  const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(
-    workspaceContract.deactivate,
-    workspaceRuntimeClient.deactivate
-  );
+  const jobs = createLiveJobReplica(workspaceContract.deactivate, project.workspace.deactivate);
   const lease = await jobs.start({
     workspace,
     consumerId: task.id,

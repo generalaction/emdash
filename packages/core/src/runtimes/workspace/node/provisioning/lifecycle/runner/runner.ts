@@ -70,6 +70,9 @@ async function runBootstrapPlanLocked(
           repoPath: context.repoPath,
           preservePatterns: context.preservePatterns,
         };
+        if (context.worktreePoolPath) {
+          stepContext.worktreePoolPath = context.worktreePoolPath;
+        }
         if (resolvedWorktreePath) stepContext.resolvedWorktreePath = resolvedWorktreePath;
         if (ctx.signal) stepContext.signal = ctx.signal;
         stepContext.emitOutput = ctx.emit;

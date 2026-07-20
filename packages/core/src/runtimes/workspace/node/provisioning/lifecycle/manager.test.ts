@@ -182,6 +182,7 @@ function context(repo: { repoPath: string }) {
   return {
     repoPath: repo.repoPath,
     preservePatterns: [],
+    worktreePoolPath: path.join(path.dirname(repo.repoPath), 'worktrees'),
   };
 }
 

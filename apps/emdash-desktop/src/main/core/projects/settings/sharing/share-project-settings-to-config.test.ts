@@ -452,12 +452,10 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('includes task worktrees from git branch discovery, not only active workspaces', async () => {
-    const findBranchAnywhere = vi.fn().mockResolvedValue('/external/worktrees/task-one');
+    const findTaskWorktree = vi.fn().mockResolvedValue('/external/worktrees/task-one');
     const projectFs = createMemoryFileSystem();
     const project = projectFixture(projectFs, {
-      worktreeService: {
-        findBranchAnywhere,
-      },
+      findTaskWorktree,
     });
     mocks.select
       .mockReturnValueOnce({
@@ -494,7 +492,7 @@ describe('shareProjectSettingsToConfig', () => {
         path: '/external/worktrees/task-one',
       },
     ]);
-    expect(findBranchAnywhere).toHaveBeenCalledWith('emdash/task-one');
+    expect(findTaskWorktree).toHaveBeenCalledWith('emdash/task-one');
   });
 
   it('excludes task targets that use the project root working directory', async () => {
@@ -504,11 +502,9 @@ describe('shareProjectSettingsToConfig', () => {
         shellSetup: 'worktree setup',
       }),
     });
-    const findBranchAnywhere = vi.fn();
+    const findTaskWorktree = vi.fn();
     const project = projectFixture(projectRootFs, {
-      worktreeService: {
-        findBranchAnywhere,
-      },
+      findTaskWorktree,
     });
     mocks.workspaceGet.mockImplementation((workspaceId: string) => {
       if (workspaceId === 'root-workspace') {
@@ -565,7 +561,7 @@ describe('shareProjectSettingsToConfig', () => {
         path: '/repo/.emdash/worktrees/task-two',
       },
     ]);
-    expect(findBranchAnywhere).not.toHaveBeenCalled();
+    expect(findTaskWorktree).not.toHaveBeenCalled();
     expect(overrideState.shellSetup).toEqual([
       { label: 'Repo Name', path: '/repo', value: 'root setup' },
       {
@@ -577,12 +573,10 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('skips task target resolution when the project row no longer exists', async () => {
-    const findBranchAnywhere = vi.fn();
+    const findTaskWorktree = vi.fn();
     const projectFs = createMemoryFileSystem();
     const project = projectFixture(projectFs, {
-      worktreeService: {
-        findBranchAnywhere,
-      },
+      findTaskWorktree,
     });
     mocks.select.mockReturnValueOnce({
       from: () => ({
@@ -598,7 +592,7 @@ describe('shareProjectSettingsToConfig', () => {
 
     expect(targets).toEqual([{ type: 'project', label: 'Project repository', path: '/repo' }]);
     expect(mocks.select).toHaveBeenCalledTimes(1);
-    expect(findBranchAnywhere).not.toHaveBeenCalled();
+    expect(findTaskWorktree).not.toHaveBeenCalled();
   });
 
   it('detects workspace setting overrides from .emdash.json files', async () => {
@@ -614,9 +608,7 @@ describe('shareProjectSettingsToConfig', () => {
       }),
     });
     const project = projectFixture(projectFs, {
-      worktreeService: {
-        findBranchAnywhere: vi.fn(),
-      },
+      findTaskWorktree: vi.fn(),
     });
     mocks.select
       .mockReturnValueOnce({

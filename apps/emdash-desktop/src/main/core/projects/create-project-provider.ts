@@ -3,7 +3,6 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import { err, ok, type Result } from '@emdash/shared';
 import { remoteRuntimeUnavailable } from '@core/features/runtime-routing/api';
 import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
-import { safePathSegment } from '@core/primitives/path-name/api';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-client';
@@ -12,15 +11,13 @@ import { GitRepositoryService } from '@main/core/git/repository/service';
 import { checkoutSelector, gitFilePath, repositorySelector } from '@main/core/git/runtime-client';
 import { projectGitHubAccountBackfillService } from '@main/core/github/services/project-github-account-backfill-instance';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
-import { LocalWorkspaceSetupExecutor } from '@main/core/workspaces/local-workspace-setup-executor';
-import { applyRecovery } from '@main/core/workspaces/recovery-strategy';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
+import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
-import { WorktreeService } from './worktrees/worktree-service';
 
 export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
@@ -38,7 +35,11 @@ async function createLocalProvider(
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
   try {
     const ctx = new LocalExecutionContext({ root: project.path });
-    const [git, filesClient] = await Promise.all([getGitRuntimeClient(), getFilesRuntimeClient()]);
+    const [git, filesClient, workspace] = await Promise.all([
+      getGitRuntimeClient(),
+      getFilesRuntimeClient(),
+      getWorkspaceRuntimeClient(),
+    ]);
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);
@@ -78,29 +79,6 @@ async function createLocalProvider(
     );
     await settings.ensure({ git: gitInspector });
 
-    const worktreeDirectory = await settings.getWorktreeDirectory();
-    const madeWorktreeDirectory = await ensureAbsoluteDir(
-      path.dirname(worktreeDirectory),
-      worktreeDirectory
-    );
-    if (!madeWorktreeDirectory.success) {
-      return err({
-        type: 'error',
-        message: `Failed to create worktree directory: ${worktreeDirectory}`,
-      });
-    }
-
-    const resolveWorktreePoolPath = async () =>
-      path.join(await settings.getWorktreeDirectory(), safePathSegment(project.name, project.id));
-    const worktreeService = new WorktreeService({
-      repoPath: project.path,
-      projectSettings: settings,
-      git,
-      files: filesClient,
-      repository,
-      checkout,
-      resolveWorktreePoolPath,
-    });
     const repositoryService = new GitRepositoryService(git, repository, settings);
 
     ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
@@ -113,30 +91,6 @@ async function createLocalProvider(
       projectConfigPath: path.join(project.path, '.emdash.json'),
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
       configPathForDirectory: (directoryPath) => path.join(directoryPath, '.emdash.json'),
-      runWorkspaceSetup: async ({ spec, worktreePoolPath }) => {
-        const stepCtx = {
-          ctx,
-          repoPath: project.path,
-          worktreePoolPath,
-          files: projectFiles,
-          git,
-          repository,
-          checkout,
-          projectSettings: settings,
-          worktreeService,
-        };
-        const executor = new LocalWorkspaceSetupExecutor(stepCtx);
-        let setupResult = await executor.execute(spec);
-        if (!setupResult.success) {
-          const recovery = await applyRecovery(setupResult.error, stepCtx);
-          if (recovery.kind === 'resolved') {
-            setupResult = ok({ path: recovery.path, warnings: [] });
-          } else if (recovery.kind === 'retry') {
-            setupResult = await executor.execute(spec);
-          }
-        }
-        return setupResult;
-      },
       settings,
     };
     const fetchService = new GitRepositoryFetchService(git, repository, () =>
@@ -145,13 +99,12 @@ async function createLocalProvider(
     fetchService.start();
 
     const provider = new ProjectProvider(
-      project.id,
-      project.path,
+      project,
       transport,
       repositoryService,
-      worktreeService,
       fetchService,
       git,
+      workspace,
       repository,
       () => {}
     );

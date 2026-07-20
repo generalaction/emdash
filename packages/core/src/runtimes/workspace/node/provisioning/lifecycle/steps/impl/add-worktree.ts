@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { addWorktreeStep } from '@runtimes/workspace/api/provisioning/catalog';
 import {
@@ -12,6 +12,7 @@ import {
   runGit,
 } from '@runtimes/workspace/node/provisioning/lifecycle/steps/run-git';
 import { parseGitWorktreeList } from '@runtimes/workspace/node/provisioning/lifecycle/steps/worktree-list';
+import { removeStaleWorktreePath } from '@runtimes/workspace/node/provisioning/lifecycle/steps/worktree-path-safety';
 import { gitFailure } from './helpers';
 
 export const addWorktreeImpl = implement(addWorktreeStep, async (args, ctx) => {
@@ -26,6 +27,19 @@ export const addWorktreeImpl = implement(addWorktreeStep, async (args, ctx) => {
   }
 
   await runGit(['worktree', 'prune'], { cwd: ctx.repoPath, signal: ctx.signal });
+  if (await pathExists(args.path)) {
+    const registered = await getRegisteredWorktreeAtPath(args.path, ctx);
+    if (registered) {
+      return stepErr('conflict', {
+        type: 'worktree-path-occupied',
+        message: `The target path is already a registered worktree: ${args.path}`,
+        resolutions: ['use-existing', 'choose-another-path'],
+      });
+    }
+
+    const removed = await removeStaleWorktreePath(args.path, ctx);
+    if (!removed.success) return stepErr('permanent', removed.error);
+  }
   await mkdir(path.dirname(args.path), { recursive: true });
   const result = await runGit(
     ['-c', 'checkout.workers=0', 'worktree', 'add', args.path, args.branchName],
@@ -65,4 +79,26 @@ async function getWorktreeForBranch(
 
   const branchRef = `refs/heads/${branchName}`;
   return parseGitWorktreeList(result.data.stdout).find((entry) => entry.branch === branchRef)?.path;
+}
+
+async function getRegisteredWorktreeAtPath(
+  targetPath: string,
+  ctx: Pick<StepCtx, 'repoPath' | 'signal'>
+): Promise<boolean> {
+  const result = await runGit(['worktree', 'list', '--porcelain'], {
+    cwd: ctx.repoPath,
+    signal: ctx.signal,
+  });
+  if (!result.success) return false;
+  const normalizedTarget = path.resolve(targetPath);
+  return parseGitWorktreeList(result.data.stdout).some(
+    (entry) => path.resolve(entry.path) === normalizedTarget
+  );
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  return lstat(targetPath).then(
+    () => true,
+    () => false
+  );
 }

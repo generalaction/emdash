@@ -120,7 +120,7 @@ export const removeWorktreeStep = defineStep({
   args: z.object({
     path: z.string().min(1),
   }),
-  fatal: false,
+  fatal: true,
   label: (args) => `Remove worktree ${args.path}`,
 });
 
