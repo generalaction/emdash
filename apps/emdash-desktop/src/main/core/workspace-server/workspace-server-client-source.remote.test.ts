@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { hostFileRef, parseAbsolute, type HostFileRef } from '@emdash/core/primitives/path/api';
@@ -15,12 +14,12 @@ import { createWorkspaceServerClientSource } from './workspace-server-client-sou
 
 const remoteTestEnabled = process.env['EMDASH_TEST_REMOTE_WSS'] === '1';
 
-describe.skipIf(!remoteTestEnabled)('workspace server client over SSH', () => {
+describe.skipIf(!remoteTestEnabled)('workspace server client over Docker SSH', () => {
   it(
     'survives SSH reconnect and reinitializes after a daemon restart',
     { timeout: 90_000 },
     async () => {
-      const config = await loadRemoteTestConfig();
+      const config = loadRemoteTestConfig();
       const manager = createRemoteTestConnectionManager(config.ssh);
       const source = createWorkspaceServerClientSource({
         idleTtlMs: 0,
@@ -33,6 +32,7 @@ describe.skipIf(!remoteTestEnabled)('workspace server client over SSH', () => {
         socketPath: config.socketPath,
       };
       const bootstrapProxy = await manager.connect(config.connectionId);
+      await execRemote(bootstrapProxy.client, launcherPreflightCommand(config));
       await execRemote(bootstrapProxy.client, daemonCommand(config, 'start'));
       const lease = source.acquire(target);
       let detachState: (() => void) | undefined;
@@ -43,9 +43,9 @@ describe.skipIf(!remoteTestEnabled)('workspace server client over SSH', () => {
         const workspaceServer = await lease.ready();
         const initialHandshake = workspaceServer.currentHandshake();
         if (!initialHandshake) throw new Error('Expected an initialized workspace-server client');
-        expect(initialHandshake.server.appVersion).toBe('vps-test');
         await expect(workspaceServer.client.health(undefined)).resolves.toMatchObject({
           status: 'ok',
+          version: initialHandshake.server.appVersion,
         });
 
         const proxy = await manager.connect(config.connectionId);
@@ -89,7 +89,7 @@ describe.skipIf(!remoteTestEnabled)('workspace server client over SSH', () => {
                   label: 'Hold job across SSH reconnect',
                   step: step('run-script', {
                     id: 'ssh-reconnect-smoke',
-                    command: '/usr/bin/sleep 15; /usr/bin/printf vps-ok > .emdash-ssh-smoke',
+                    command: '/usr/bin/sleep 15; /usr/bin/printf docker-ok > .emdash-ssh-smoke',
                     cwd: 'worktree',
                   }),
                 },
@@ -120,7 +120,7 @@ describe.skipIf(!remoteTestEnabled)('workspace server client over SSH', () => {
             (await manager.connect(config.connectionId)).client,
             `/usr/bin/cat -- ${quoteShellArg(`${config.workspacePath}/.emdash-ssh-smoke`)}`
           )
-        ).resolves.toContain('vps-ok');
+        ).resolves.toContain('docker-ok');
 
         const daemonDisconnect = deferred<void>();
         const stopWatchingDaemonDisconnect = workspaceServer.connection.onDisconnect(() =>
@@ -167,16 +167,12 @@ type RemoteTestConfig = {
   connectionId: string;
   socketPath: string;
   workspacePath: string;
-  nodePath: string;
-  serverEntrypoint: string;
+  serverLauncher: string;
   ssh: ConnectConfig;
 };
 
-async function loadRemoteTestConfig(): Promise<RemoteTestConfig> {
-  const host = requiredEnv('EMDASH_TEST_SSH_HOST');
-  const username = requiredEnv('EMDASH_TEST_SSH_USERNAME');
-  const privateKeyPath = requiredEnv('EMDASH_TEST_SSH_PRIVATE_KEY');
-  const testRoot = path.posix.normalize(requiredEnv('EMDASH_TEST_REMOTE_ROOT'));
+function loadRemoteTestConfig(): RemoteTestConfig {
+  const testRoot = '/home/devuser/.emdash-workspace-server-test';
   if (
     !path.posix.isAbsolute(testRoot) ||
     path.posix.basename(testRoot) !== '.emdash-workspace-server-test'
@@ -186,16 +182,16 @@ async function loadRemoteTestConfig(): Promise<RemoteTestConfig> {
   const workspacePath = path.posix.join(testRoot, 'workspaces/ssh-reconnect-smoke');
 
   return {
-    connectionId: 'remote-workspace-server-smoke',
+    connectionId: 'docker-workspace-server-smoke',
     socketPath: `${testRoot}/run/workspace.sock`,
     workspacePath,
-    nodePath: `${testRoot}/node-v24.14.0/bin/node`,
-    serverEntrypoint: `${testRoot}/src/apps/workspace-server/dist/index.mjs`,
+    serverLauncher:
+      '/home/devuser/.local/share/emdash/workspace-server/current/bin/emdash-workspace-server',
     ssh: {
-      host,
-      port: Number(process.env['EMDASH_TEST_SSH_PORT'] ?? '22'),
-      username,
-      privateKey: await readFile(privateKeyPath),
+      host: '127.0.0.1',
+      port: 2223,
+      username: 'devuser',
+      password: 'devpass',
       readyTimeout: 10_000,
       keepaliveInterval: 1_000,
       keepaliveCountMax: 3,
@@ -205,7 +201,7 @@ async function loadRemoteTestConfig(): Promise<RemoteTestConfig> {
 
 function createRemoteTestConnectionManager(ssh: ConnectConfig): SshConnectionManager {
   return new SshConnectionManager({
-    loadConnectionRow: async () => ({ id: 'remote-workspace-server-smoke' }) as never,
+    loadConnectionRow: async () => ({ id: 'docker-workspace-server-smoke' }) as never,
     resolveConnectConfig: async () => ({
       config: ssh,
       cleanup: () => {},
@@ -222,12 +218,22 @@ function remoteWorkspaceRef(connectionId: string, workspacePath: string): HostFi
 
 function daemonCommand(config: RemoteTestConfig, command: 'start' | 'stop'): string {
   return [
-    'EMDASH_WS_APP_VERSION=vps-test',
-    quoteShellArg(config.nodePath),
-    quoteShellArg(config.serverEntrypoint),
+    quoteShellArg(config.serverLauncher),
     command,
-    '--socket',
+    '--socket-path',
     quoteShellArg(config.socketPath),
+  ].join(' ');
+}
+
+function launcherPreflightCommand(config: RemoteTestConfig): string {
+  const message =
+    'Workspace-server launcher is missing. Build the matching Linux artifact, then recreate ' +
+    'the Docker remote with WORKSPACE_SERVER_PREINSTALL=1.';
+  return [
+    `if [ ! -x ${quoteShellArg(config.serverLauncher)} ]; then`,
+    `printf '%s\\n' ${quoteShellArg(message)} >&2;`,
+    'exit 1;',
+    'fi',
   ].join(' ');
 }
 
@@ -256,10 +262,4 @@ function execRemote(client: Client, command: string): Promise<string> {
       });
     });
   });
-}
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required for the remote workspace-server test`);
-  return value;
 }

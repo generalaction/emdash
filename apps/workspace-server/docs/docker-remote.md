@@ -74,6 +74,16 @@ ssh -p 2223 devuser@localhost \
 `WORKSPACE_SERVER_AUTOSTART=1` can be used without preinstall after an installation already exists
 in the persistent home volume.
 
+Run the desktop connection smoke test against the installed daemon:
+
+```bash
+pnpm --dir ../emdash-desktop run test:workspace-server-remote
+```
+
+The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
+starts an isolated daemon socket under `/home/devuser/.emdash-workspace-server-test`, exercises SSH
+reconnection and daemon restart, then stops the daemon and removes its temporary workspace.
+
 ## Logs And Socket Forwarding
 
 The daemon log is stored beside its socket. Follow it without opening an SSH session:
