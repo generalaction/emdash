@@ -9,7 +9,7 @@ import {
 import { err, ok } from '@emdash/shared';
 import { createController, forwardContractImpl, type ContractImpl } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import type { WorkspaceServerRuntimeClients } from '../runtime/host';
+import type { WorkspaceServerRuntimeClients } from '../gateway/workspace-workers';
 
 export type WorkspaceWireControllerDeps = {
   runtimes: WorkspaceServerRuntimeClients;

@@ -1,11 +1,10 @@
 import { defineConfig } from 'tsdown';
-import { workspaceWorkers } from './src/worker-manifest.js';
-import { workspaceWorkerBuildInputs } from './worker-manifest-utils.js';
+import { workspaceWorkerBuildInputs } from './src/gateway/worker-manifest.js';
 
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
-    ...workspaceWorkerBuildInputs(workspaceWorkers),
+    ...workspaceWorkerBuildInputs(),
   },
   format: ['esm'],
   outputOptions: {

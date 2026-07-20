@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { workspaceWorkerBuildInputs, workspaceWorkerPath } from './worker-manifest';
+import { workspaceWorkerBuildInputs } from './worker-manifest';
+import { workspaceWorkerPath } from './worker-paths';
 
 const runtimeIds = [
   'acp',

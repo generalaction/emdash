@@ -11,7 +11,7 @@ import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
-import { gitComponent } from '@emdash/core/runtimes/git/node';
+import { gitComponent, NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
@@ -32,8 +32,8 @@ import type { ValidatePolicy } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
-import { workspaceWorkerPath } from '../worker-manifest';
-import { workspaceServerRuntimePaths } from './paths';
+import { workspaceServerRuntimePaths } from '../runtime/paths';
+import { workspaceWorkerPath } from './worker-paths';
 
 export type WorkspaceServerRuntimeClients = {
   acp: ContractClient<AcpApiContract>;
@@ -66,6 +66,13 @@ export async function createWorkspaceServerRuntimeHost(
   options: CreateWorkspaceServerRuntimeHostOptions
 ): Promise<WorkspaceServerRuntimeHost> {
   const env = options.env ?? process.env;
+  const GIT_RUNTIME_ENV = {
+    ...env,
+    ...NON_INTERACTIVE_GIT_ENV,
+    LC_ALL: 'C',
+    LANG: 'C',
+    LANGUAGE: 'C',
+  };
   const paths = workspaceServerRuntimePaths(options.socketPath);
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
@@ -176,12 +183,12 @@ export async function createWorkspaceServerRuntimeHost(
   const gitPromise = workerHost.spawn(gitComponent, {
     name: 'git',
     executable: workspaceWorkerPath('git'),
-    env,
+    env: GIT_RUNTIME_ENV,
     dependencies: {
       watcher,
       hostDependencies: hostDependencies.client.resolver,
     },
-    config: { env },
+    config: { env: GIT_RUNTIME_ENV },
   });
   const workspacePromise = workerHost.spawn(workspaceComponent, {
     name: 'workspace',
@@ -189,6 +196,9 @@ export async function createWorkspaceServerRuntimeHost(
     env,
     dependencies: { terminals, watcher },
     config: {},
+    // Consumer leases and active operation ownership are currently process-local.
+    // Daemon-level escalation and recovery after workspace-worker death can follow separately.
+    supervision: { restart: 'never' },
   });
 
   const [files, fileSearch, git, workspace] = await Promise.all([

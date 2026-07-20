@@ -13,7 +13,7 @@ import { removePidFile, writePidFile } from './daemon/pid-file';
 import { startDaemon } from './daemon/start';
 import { statusDaemon } from './daemon/status';
 import { stopDaemon } from './daemon/stop';
-import { createWorkspaceServerRuntimeHost } from './runtime/host';
+import { createWorkspaceServerRuntimeHost } from './gateway/workspace-workers';
 import { serveSocket } from './wire/serve-socket';
 import { serveStdio } from './wire/serve-stdio';
 

@@ -11,7 +11,7 @@ import { hostDependenciesContract } from '@emdash/core/services/host-dependencie
 import { client } from '@emdash/wire';
 import type { Connection, Contract, ContractClient, ContractDefinitions } from '@emdash/wire/api';
 import { createWorkspaceWireController, type WorkspaceWireControllerDeps } from '../api/controller';
-import type { WorkspaceServerRuntimeClients } from '../runtime/host';
+import type { WorkspaceServerRuntimeClients } from '../gateway/workspace-workers';
 
 type ControllerMetadata = Partial<
   Pick<WorkspaceWireControllerDeps, 'appVersion' | 'daemonId' | 'startedAt'>

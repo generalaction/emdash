@@ -1,8 +1,7 @@
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import { initProcessLogging } from '@emdash/shared/logger/node';
 import { runWireComponentWorker } from '@emdash/wire/worker';
+import { initWorkerProcessLogging } from '@emdash/wire/worker/node';
 
-const logger = initProcessLogging({ name: 'workspace-acp-runtime' });
-
+const logger = initWorkerProcessLogging('acp-runtime');
 void runWireComponentWorker(createAcpComponent({ pluginRegistry }), { logger });
