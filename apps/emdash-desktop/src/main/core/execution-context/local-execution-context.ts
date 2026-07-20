@@ -1,11 +1,11 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
 import {
   getGitExecutable,
   isMissingGitExecutableError,
   missingGitExecutableError,
 } from '@main/core/utils/exec';
-import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
