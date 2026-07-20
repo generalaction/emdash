@@ -11,7 +11,7 @@
   "type": "module",
   "main": "./dist/index.mjs",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown --config-loader tsx",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "start": "node dist/index.mjs",
     "test": "vitest run",
