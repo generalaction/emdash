@@ -78,6 +78,15 @@ describe('shouldSkipAutofocus', () => {
     expect(shouldSkipAutofocus(doc.getElementById('pane-a'))).toBe(false);
   });
 
+  it('does not skip for a typing surface that is not visible', () => {
+    const doc = build();
+    const composer = doc.getElementById('composer')!;
+    composer.focus();
+    Object.defineProperty(composer, 'checkVisibility', { value: () => false });
+    expect(shouldSkipAutofocus(doc.getElementById('pane-a'))).toBe(false);
+    expect(shouldSkipAutofocus(null)).toBe(false);
+  });
+
   it('with ownContainer null, skips for any focused typing surface in a region', () => {
     const doc = build();
     doc.getElementById('composer')!.focus();

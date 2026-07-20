@@ -30,6 +30,10 @@ const TYPING_SURFACE_SELECTOR = 'input, textarea, select, [contenteditable="true
 export function shouldSkipAutofocus(ownContainer: Element | null): boolean {
   const active = document.activeElement;
   if (!active || active === document.body) return false;
+  // A hidden element can linger as activeElement (e.g. a view hidden instead of
+  // unmounted); it is not a place the user can type, so it never blocks.
+  // Feature-detected because jsdom lacks checkVisibility.
+  if (typeof active.checkVisibility === 'function' && !active.checkVisibility()) return false;
   if (ownContainer?.contains(active)) return false;
   if (!active.matches(TYPING_SURFACE_SELECTOR)) return false;
   const activeRegion = active.closest(`[${TASK_FOCUS_REGION_ATTR}]`);
