@@ -205,3 +205,6 @@ The intended flow is:
 5. Create a wire client and call `initialize`.
 
 See `client-connection.md` for the target desktop-to-daemon connection model.
+
+See `packaging.md` for self-contained release artifact targets, layout, build commands, and Linux
+compatibility constraints.

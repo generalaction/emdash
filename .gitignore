@@ -8,6 +8,8 @@ out/
 apps/*/out/
 apps/*/release/
 apps/*/dist/
+apps/workspace-server/dist-artifacts/
+apps/workspace-server/runtime-deps/node_modules/
 
 # Temporary electron-builder deploy directories (created by scripts/release/build.ts)
 .emdash-deploy-*/

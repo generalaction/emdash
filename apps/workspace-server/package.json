@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsdown --config-loader tsx",
     "dev": "node --watch --experimental-strip-types src/index.ts",
+    "package": "node --experimental-strip-types scripts/package.ts",
     "start": "node dist/index.mjs",
     "test": "vitest run",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/apps/workspace-server\"'",
@@ -25,6 +26,8 @@
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
+    "@parcel/watcher": "2.5.6",
+    "better-sqlite3": "12.10.0",
     "node-pty": "1.1.0",
     "zod": "^4.4.3"
   },

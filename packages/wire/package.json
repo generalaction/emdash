@@ -11,7 +11,9 @@
     "dist"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/live/state/immer-setup.ts"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",

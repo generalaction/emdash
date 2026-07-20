@@ -354,6 +354,12 @@ importers:
       '@emdash/wire':
         specifier: workspace:*
         version: link:../../packages/wire
+      '@parcel/watcher':
+        specifier: 2.5.6
+        version: 2.5.6
+      better-sqlite3:
+        specifier: 12.10.0
+        version: 12.10.0
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
@@ -362,8 +368,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@types/node':
-        specifier: ^20.19.42
-        version: 20.19.42
+        specifier: ^24.13.1
+        version: 24.13.1
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
@@ -372,7 +378,7 @@ importers:
         version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
       vitest:
         specifier: ^4.1.0
-        version: 4.1.8(@types/node@20.19.42)(@vitest/browser-playwright@4.1.8)(@vitest/browser-preview@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.8(@types/node@24.13.1)(@vitest/browser-playwright@4.1.8)(@vitest/browser-preview@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@7.1.11(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/chat-ui:
     dependencies:

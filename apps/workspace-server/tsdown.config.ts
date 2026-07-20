@@ -8,10 +8,15 @@ export default defineConfig({
     ...workspaceWorkerBuildInputs(workspaceWorkers),
   },
   format: ['esm'],
+  outputOptions: {
+    codeSplitting: true,
+  },
   dts: false,
   sourcemap: true,
   clean: true,
   deps: {
-    neverBundle: ['node-pty', 'zod'],
+    alwaysBundle: [/.*/],
+    neverBundle: ['node-pty', 'better-sqlite3', '@parcel/watcher'],
+    onlyBundle: false,
   },
 });
