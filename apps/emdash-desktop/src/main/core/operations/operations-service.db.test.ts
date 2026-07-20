@@ -16,6 +16,7 @@ import {
   workspaces,
   type LifecycleOperationRow,
 } from '@main/db/schema';
+import type { OperationsSshManager } from './operations-service';
 
 const mocks = vi.hoisted(() => ({
   db: undefined as AppDb | undefined,
@@ -53,6 +54,18 @@ const mocks = vi.hoisted(() => ({
   runOperationPlan: vi.fn(),
 }));
 
+const sshManager: OperationsSshManager = {
+  on(_eventName, listener) {
+    mocks.connectionListener = listener;
+  },
+  off() {
+    mocks.connectionListener = undefined;
+  },
+  isConnected() {
+    return mocks.hostConnected;
+  },
+};
+
 vi.mock('@main/db/client', () => ({
   get db() {
     if (!mocks.db) throw new Error('Test database not initialized');
@@ -88,18 +101,6 @@ vi.mock('@main/lib/telemetry', () => ({
 
 vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
   workspaceBootstrapService: { resolveLegacyAutomation: vi.fn(async () => undefined) },
-}));
-
-vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {
-    on: vi.fn((_event: string, listener: (event: { type: string }) => void) => {
-      mocks.connectionListener = listener;
-    }),
-    off: vi.fn(() => {
-      mocks.connectionListener = undefined;
-    }),
-    isConnected: vi.fn(() => mocks.hostConnected),
-  },
 }));
 
 vi.mock('@root/src/core/services/notifications/node', () => ({
@@ -281,7 +282,7 @@ describe('OperationsService crash recovery', () => {
 
   it('resumes a running delete after the driver restarts', async () => {
     const firstDriver = (await import('./operations-service')).operationsService;
-    await firstDriver.initialize();
+    await firstDriver.initialize(sshManager);
     const runnerStarted = new Promise<void>((resolve) => {
       mocks.runnerStarted = resolve;
     });
@@ -302,7 +303,7 @@ describe('OperationsService crash recovery', () => {
     mocks.runnerStarted = undefined;
     vi.resetModules();
     const restartedDriver = (await import('./operations-service')).operationsService;
-    await restartedDriver.initialize();
+    await restartedDriver.initialize(sshManager);
     await restartedDriver.waitForIdle();
 
     const [completed] = await fixture.db.select().from(lifecycleOperations);
@@ -324,7 +325,7 @@ describe('OperationsService crash recovery', () => {
 
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     await driver.initialize();
     const result = await driver.enqueueDeleteProject('project-1');
     expect(result.success).toBe(true);
@@ -363,7 +364,7 @@ describe('OperationsService crash recovery', () => {
 
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     await driver.initialize();
     const result = await driver.enqueueDeleteTask({ taskId: 'task-1' });
     expect(result.success).toBe(true);
@@ -392,7 +393,7 @@ describe('OperationsService crash recovery', () => {
   it('parks destructive reconciler proposals until the user confirms them', async () => {
     mocks.runMode = 'complete';
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     await driver.proposeReconcilerTaskCleanup('task-1');
     await driver.waitForIdle();
@@ -415,7 +416,7 @@ describe('OperationsService crash recovery', () => {
   it('requires confirmation for a stale pending local cleanup', async () => {
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     mocks.runMode = 'complete';
 
     const enqueue = await driver.enqueueDeleteTask({ taskId: 'task-1' });
@@ -440,7 +441,7 @@ describe('OperationsService crash recovery', () => {
   it('runs stale non-destructive session cleanup without confirmation', async () => {
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     mocks.runMode = 'complete';
 
     await driver.proposeReconcilerSessionCleanup({
@@ -491,7 +492,7 @@ describe('OperationsService crash recovery', () => {
     };
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     mocks.runMode = 'complete';
 
     const enqueue = await driver.enqueueDeleteTask({ taskId: 'task-1' });
@@ -510,7 +511,7 @@ describe('OperationsService crash recovery', () => {
 
   it('deduplicates concurrent task delete requests', async () => {
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     const results = await Promise.all([
       driver.enqueueDeleteTask({ taskId: 'task-1' }),
@@ -575,7 +576,7 @@ describe('OperationsService crash recovery', () => {
     mocks.runMode = 'complete';
 
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
     await driver.waitForIdle();
 
     expect((await fixture.db.select().from(lifecycleOperations))[0]?.status).toBe('succeeded');
@@ -599,7 +600,7 @@ describe('OperationsService crash recovery', () => {
     });
 
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
     const result = await driver.forgetWithoutCleanup('project', 'project-1');
 
     expect(result.success).toBe(true);
@@ -626,7 +627,7 @@ describe('OperationsService crash recovery', () => {
       branchName: 'orphan',
     };
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     await driver.proposeReconcilerWorkspaceCleanup(input);
     const entityId = 'workspace-path:/repo/orphan';
@@ -642,7 +643,7 @@ describe('OperationsService crash recovery', () => {
 
   it('deduplicates session cleanup proposals by entity key', async () => {
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
     const input = {
       entityId: 'session:orphan',
       terminalSessionIds: ['terminal-1'],
@@ -670,7 +671,7 @@ describe('OperationsService crash recovery', () => {
       .set({ workspaceId: 'workspace-1' })
       .where(eq(tasks.id, 'task-1'));
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     const result = await driver.enqueueDeleteWorkspace('workspace-1');
 
@@ -717,7 +718,7 @@ describe('OperationsService crash recovery', () => {
     });
     mocks.runMode = 'complete';
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
     await driver.waitForIdle();
 
     const [failed] = await fixture.db.select().from(lifecycleOperations);
@@ -737,7 +738,7 @@ describe('OperationsService crash recovery', () => {
     });
     mocks.runMode = 'complete';
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     const result = await driver.enqueueArchiveWorkspace({
       projectId: 'project-1',
@@ -771,7 +772,7 @@ describe('OperationsService crash recovery', () => {
       .where(eq(tasks.id, 'task-1'));
     mocks.runMode = 'complete';
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     const result = await driver.enqueueArchiveWorkspace({
       projectId: 'project-1',
@@ -795,7 +796,7 @@ describe('OperationsService crash recovery', () => {
       path: '/repo/task-1',
     });
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     const archive = await driver.enqueueArchiveWorkspace({
       projectId: 'project-1',
@@ -828,7 +829,7 @@ describe('OperationsService crash recovery', () => {
     });
     const clock = new ManualClock(1_000_000);
     const { OperationsService } = await import('./operations-service');
-    const driver = new OperationsService({ clock });
+    const driver = new OperationsService({ clock, sshManager });
     mocks.runMode = 'complete';
 
     const result = await driver.enqueueArchiveWorkspace({
@@ -965,7 +966,7 @@ describe('OperationsService crash recovery', () => {
   it('converges a mixed batch to no tombstones or non-terminal operations', async () => {
     mocks.runMode = 'complete';
     const driver = (await import('./operations-service')).operationsService;
-    await driver.initialize();
+    await driver.initialize(sshManager);
 
     await Promise.all([
       driver.proposeReconcilerSessionCleanup({

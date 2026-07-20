@@ -27,11 +27,6 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
     fs: {
       fileExists: vi.fn(),
     },
-    ssh: {
-      getConnections: async () => [],
-      getConnectionState: async () => ({}),
-      getHealthStates: async () => ({}),
-    },
   },
 }));
 

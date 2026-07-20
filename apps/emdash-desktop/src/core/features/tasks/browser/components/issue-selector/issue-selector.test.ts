@@ -27,10 +27,6 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
     app: {
       openExternal: vi.fn(),
     },
-    ssh: {
-      getConnections: vi.fn(async () => []),
-      getHealthStates: vi.fn(async () => ({})),
-    },
   },
 }));
 

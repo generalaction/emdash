@@ -10,6 +10,7 @@ import {
 import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
+import type { SshServiceHandle } from '@core/services/ssh/node';
 import { appScope } from '@main/bootstrap/app-scope';
 import { createRetryableReady } from './retryable-ready';
 import { getDesktopRuntimeBroker } from './runtime-broker';
@@ -19,12 +20,15 @@ export type InstallDesktopWireOptions = DesktopControllerContext['workspaces'];
 const scope = appScope.child('desktop-wire');
 let installed = false;
 
-export function installDesktopWire(options: InstallDesktopWireOptions): void {
+export function installDesktopWire(
+  options: InstallDesktopWireOptions,
+  ssh: SshServiceHandle
+): void {
   if (installed || typeof ipcMain?.handle !== 'function') return;
   installed = true;
 
   const runtimes = getDesktopRuntimeBroker();
-  const controller = createLazyDesktopController(options, runtimes);
+  const controller = createLazyDesktopController(options, runtimes, ssh);
 
   scope.add(
     exposeWireToWindows(
@@ -43,7 +47,8 @@ function createMessageChannel() {
 
 function createLazyDesktopController(
   workspaces: InstallDesktopWireOptions,
-  runtimes: RuntimeBroker
+  runtimes: RuntimeBroker,
+  ssh: SshServiceHandle
 ): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
   let controllerScopes: ReturnType<typeof scope.child>[] = [];
@@ -60,6 +65,7 @@ function createLazyDesktopController(
           const controller = await contribution.create({
             scope: controllerScope,
             runtimes,
+            ssh,
             workspaceIdentity: workspaceIdentityService,
             workspaces,
           });

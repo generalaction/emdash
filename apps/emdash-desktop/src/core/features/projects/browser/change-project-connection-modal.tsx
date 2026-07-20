@@ -49,7 +49,7 @@ export function ChangeProjectConnectionModal({
   };
 
   const handleEditConnection = async (id: string) => {
-    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    const conn = appState.machines.connections.find((c) => c.id === id);
     if (!conn) return;
     const priorConnectionId = selectedConnectionId;
     const outcome = await openSshConnModal({

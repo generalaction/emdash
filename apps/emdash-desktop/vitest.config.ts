@@ -118,6 +118,8 @@ export default defineConfig({
           name: 'main-db',
           environment: 'node',
           include: [
+            'src/core/features/**/*.db.test.ts',
+            'src/core/services/**/*.db.test.ts',
             'src/main/core/**/*.db.test.ts',
             'src/main/db/legacy-port/**/*.test.ts',
             'src/services/**/*.db.test.ts',

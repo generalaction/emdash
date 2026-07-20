@@ -19,6 +19,7 @@ import { createIntegrationsWireController } from '@core/features/integrations/no
 import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
 import { createLegacyPortWireController } from '@core/features/legacy-port/node/wire-controller';
 import { createPromptLibraryWireController } from '@core/features/library/node/wire-controller';
+import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
@@ -26,7 +27,6 @@ import { createRepositoryWireController } from '@core/features/repository/node/w
 import { createSearchWireController } from '@core/features/search/node/wire-controller';
 import { createSkillsWireController } from '@core/features/skills/node/wire-controller';
 import { createSourceControlWireController } from '@core/features/source-control/node/wire-controller';
-import { createSshWireController } from '@core/features/ssh/node/wire-controller';
 import { createTasksWireController } from '@core/features/tasks/node/wire-controller';
 import { createTelemetryWireController } from '@core/features/telemetry/node/wire-controller';
 import { createTerminalsWireController } from '@core/features/terminals/node/wire-controller';
@@ -44,6 +44,8 @@ import type { WorkspaceIdentityService } from '@core/features/workspaces/node/wo
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { createCatalogWireController } from '@core/services/catalog/node/wire-controller';
 import { createAppSettingsWireController } from '@core/services/settings/node/wire-controller';
+import type { SshServiceHandle } from '@core/services/ssh/node';
+import { createSshWireController } from '@core/services/ssh/node/wire-controller';
 import {
   getMementosRuntimeClient,
   getPullRequestsRuntimeClient,
@@ -54,6 +56,7 @@ import { createNotificationsWireController } from '@root/src/core/services/notif
 export type DesktopControllerContext = {
   readonly scope: Scope;
   readonly runtimes: RuntimeBroker;
+  readonly ssh: SshServiceHandle;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
@@ -92,6 +95,9 @@ export const desktopNodeControllers = {
   },
   legacyPort: {
     create: () => createLegacyPortWireController(),
+  },
+  machines: {
+    create: ({ ssh }) => createMachinesWireController(ssh.machines),
   },
   projectSettings: {
     create: () => createProjectSettingsWireController(),
@@ -175,7 +181,7 @@ export const desktopNodeControllers = {
     create: () => createIssuesWireController(),
   },
   ssh: {
-    create: () => createSshWireController(),
+    create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
   tasks: {
     create: ({ scope }) =>

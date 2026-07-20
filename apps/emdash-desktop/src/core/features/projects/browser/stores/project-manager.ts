@@ -45,7 +45,6 @@ export class ProjectManagerStore {
   private _projectMountPromises = new Map<string, Promise<void>>();
   private _loadPromise: Promise<void> | null = null;
   private _lastSshRecoveryAttemptAt = 0;
-  private _disposeSshConnectionEvent: (() => void) | null = null;
   private _disposed = false;
   private readonly _handleOnline = (): void => {
     this.retryDisconnectedSshProjects({ force: true });
@@ -57,31 +56,18 @@ export class ProjectManagerStore {
   constructor() {
     makeObservable(this, { projects: observable, pendingCreationIds: observable });
 
-    void this._subscribeSshEvents();
-
     globalThis.window?.addEventListener('online', this._handleOnline);
     globalThis.window?.addEventListener('focus', this._handleFocus);
   }
 
   dispose(): void {
     this._disposed = true;
-    this._disposeSshConnectionEvent?.();
-    this._disposeSshConnectionEvent = null;
     globalThis.window?.removeEventListener('online', this._handleOnline);
     globalThis.window?.removeEventListener('focus', this._handleFocus);
   }
 
-  private async _subscribeSshEvents(): Promise<void> {
-    const client = await getDesktopWireClient();
-    const unsubscribe = await client.ssh.events.subscribe(undefined, {
-      onEvent: (event) => {
-        if (event.type !== 'connected' && event.type !== 'reconnected') return;
-        this._mountDisconnectedSshProjects(event.connectionId);
-      },
-      onGap: () => this.retryDisconnectedSshProjects(),
-    });
-    if (this._disposed) unsubscribe();
-    else this._disposeSshConnectionEvent = unsubscribe;
+  onSshConnectionReady(connectionId: string): void {
+    this._mountDisconnectedSshProjects(connectionId);
   }
 
   load(): Promise<void> {
@@ -490,16 +476,16 @@ export class ProjectManagerStore {
     this._lastSshRecoveryAttemptAt = now;
 
     for (const connectionId of connectionIds) {
-      const state = appState.sshConnections.stateFor(connectionId);
+      const state = appState.machines.stateFor(connectionId);
       if (state === 'connected') {
         this._mountDisconnectedSshProjects(connectionId);
         continue;
       }
       if (state === 'connecting') continue;
-      void appState.sshConnections
+      void appState.machines
         .connect(connectionId, { force: true })
         .then(() => {
-          if (appState.sshConnections.stateFor(connectionId) === 'connected') {
+          if (appState.machines.stateFor(connectionId) === 'connected') {
             this._mountDisconnectedSshProjects(connectionId);
           }
         })

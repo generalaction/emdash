@@ -14,6 +14,8 @@ import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import { initializeNotificationService } from '@core/services/notifications/node';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { appSettingsService, configureAppSettingsService } from '@core/services/settings/node';
+import { createSshService, type SshServiceHandle } from '@core/services/ssh/node';
+import { sshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { appService } from '@main/core/app/service';
@@ -84,8 +86,15 @@ export async function bootstrap(): Promise<void> {
   await resolveUserEnv();
 
   if (!(await initializeDatabasePhase())) return;
-  await initializeServicesPhase();
-  initializeGatewayPhase();
+  const ssh = createSshService({
+    scope: appScope,
+    db,
+    credentials: sshCredentialService,
+    logger: log,
+    telemetry: telemetryService,
+  });
+  await initializeServicesPhase(ssh);
+  initializeGatewayPhase(ssh);
   initializeWindowPhase();
   scheduleBackgroundTasks();
 }
@@ -184,7 +193,7 @@ async function runStartupRepairs(): Promise<void> {
   }
 }
 
-async function initializeServicesPhase(): Promise<void> {
+async function initializeServicesPhase(ssh: SshServiceHandle): Promise<void> {
   try {
     await telemetryService.initialize({
       appVersion: app.getVersion(),
@@ -205,13 +214,13 @@ async function initializeServicesPhase(): Promise<void> {
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
-  await operationsService.initialize();
+  await operationsService.initialize(ssh.manager);
   startLifecycleReconciler(operationsService);
   registerProviderTokenHandlers();
 }
 
-function initializeGatewayPhase(): void {
-  installDesktopWire(createDesktopWireOptions());
+function initializeGatewayPhase(ssh: SshServiceHandle): void {
+  installDesktopWire(createDesktopWireOptions(), ssh);
   runInBackground(
     'dev-server-bridge',
     () => withRetry(installDevServerBridge, { signal: appScope.signal }),

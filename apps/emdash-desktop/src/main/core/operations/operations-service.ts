@@ -15,7 +15,6 @@ import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { appScope } from '@main/bootstrap/app-scope';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import {
   lifecycleOperations,
@@ -81,7 +80,14 @@ type InsertOperationOutcome =
 export type OperationsServiceOptions = {
   clock?: Clock;
   scope?: Scope;
+  sshManager?: OperationsSshManager;
 };
+
+export interface OperationsSshManager {
+  on(eventName: 'connection-event', listener: (event: { type: string }) => void): unknown;
+  off(eventName: 'connection-event', listener: (event: { type: string }) => void): unknown;
+  isConnected(connectionId: string): boolean;
+}
 
 type DeletionStateKey = {
   kind: DeletionEntityKind;
@@ -116,6 +122,7 @@ export type ArchiveWorkspaceInput = {
 export class OperationsService {
   private readonly clock: Clock;
   private readonly scope: Scope;
+  private sshManager: OperationsSshManager | undefined;
   private initialized = false;
   private drainRequested = false;
   private drainPromise: Promise<void> | undefined;
@@ -128,6 +135,7 @@ export class OperationsService {
   constructor(options: OperationsServiceOptions = {}) {
     this.clock = options.clock ?? systemClock;
     this.scope = options.scope ?? appScope.child('lifecycle-operations');
+    this.sshManager = options.sshManager;
     this.deletionStates = createResourceCache<DeletionStateKey, ComputedLiveState<DeletionList>>({
       scope: this.scope,
       label: 'deletion-states',
@@ -154,8 +162,13 @@ export class OperationsService {
     });
   }
 
-  async initialize(): Promise<void> {
+  async initialize(sshManager?: OperationsSshManager): Promise<void> {
     if (this.initialized) return;
+    const configuredSshManager = sshManager ?? this.sshManager;
+    if (!configuredSshManager) {
+      throw new Error('OperationsService requires an SSH connection manager');
+    }
+    this.sshManager = configuredSshManager;
     this.initialized = true;
     await db
       .update(lifecycleOperations)
@@ -165,9 +178,9 @@ export class OperationsService {
       void this.refreshDeletionStates();
       if (event.type === 'connected' || event.type === 'reconnected') this.poke();
     };
-    sshConnectionManager.on('connection-event', onConnection);
+    configuredSshManager.on('connection-event', onConnection);
     this.scope.add(() => {
-      sshConnectionManager.off('connection-event', onConnection);
+      configuredSshManager.off('connection-event', onConnection);
     });
     this.scope.add(async () => {
       await db
@@ -978,7 +991,10 @@ export class OperationsService {
   }
 
   private hostIsOnline(hostRef: string): boolean {
-    return hostRef === 'local' || sshConnectionManager.isConnected(hostRef);
+    if (hostRef === 'local') return true;
+    const sshManager = this.sshManager;
+    if (!sshManager) throw new Error('OperationsService is not initialized');
+    return sshManager.isConnected(hostRef);
   }
 
   private isStale(operation: LifecycleOperationRow): boolean {

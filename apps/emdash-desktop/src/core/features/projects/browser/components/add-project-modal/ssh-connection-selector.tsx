@@ -19,7 +19,7 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
   onEditConnection,
   onDeleteConnection,
 }: SshConnectionSelectorProps) {
-  const { connections } = appState.sshConnections;
+  const { connections } = appState.machines;
 
   const options = connections
     .filter((c): c is typeof c & { id: string } => c.id !== undefined)

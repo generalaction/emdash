@@ -98,9 +98,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
-  const sshConnectionState = sshConnectionId
-    ? appState.sshConnections.stateFor(sshConnectionId)
-    : null;
+  const sshConnectionState = sshConnectionId ? appState.machines.stateFor(sshConnectionId) : null;
   const displayedSshConnectionState: ConnectionState | null =
     isUnmountedProject(project) &&
     project.errorCode === 'ssh-disconnected' &&
@@ -221,7 +219,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             <ContextMenuItem
               disabled={!canReconnect}
               onClick={() => {
-                void appState.sshConnections.connect(sshConnectionId).catch(() => {});
+                void appState.machines.connect(sshConnectionId).catch(() => {});
               }}
             >
               <RotateCcw className="size-4" />

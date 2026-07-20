@@ -13,7 +13,7 @@ export const ProjectSshHealthGate = observer(function ProjectSshHealthGate({
 }) {
   const data = getProjectStore(projectId)?.data;
   const sshConnectionId = data?.type === 'ssh' ? data.connectionId : undefined;
-  const sshHealth = sshConnectionId ? appState.sshConnections.healthFor(sshConnectionId) : null;
+  const sshHealth = sshConnectionId ? appState.machines.healthFor(sshConnectionId) : null;
 
   if (sshConnectionId && sshHealth?.status === 'degraded') {
     return <SshChannelUnavailablePanel />;

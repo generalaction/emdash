@@ -87,7 +87,7 @@ function ProjectSshDisconnectedPanel({
   projectId: string;
 }) {
   const handleReconnect = () => {
-    void appState.sshConnections
+    void appState.machines
       .connect(connectionId)
       .then(() => getProjectManagerStore().mountProject(projectId))
       .catch(() => {});

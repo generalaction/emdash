@@ -1,8 +1,8 @@
+import { MachinesStore } from '@core/features/machines/browser/machines-store';
 import { ProjectManagerStore } from '@core/features/projects/browser/stores/project-manager';
 import { SidebarStore } from '@core/features/workbench/browser/sidebar/sidebar-store';
 import { NavigationHistoryStore } from './navigation-history-store';
 import { NavigationStore } from './navigation-store';
-import { SshConnectionStore } from './ssh-connection-store';
 import { UpdateStore } from './update-store';
 
 class AppState {
@@ -11,21 +11,22 @@ class AppState {
   readonly sidebar: SidebarStore;
   readonly history: NavigationHistoryStore;
   readonly navigation: NavigationStore;
-  readonly sshConnections: SshConnectionStore;
+  readonly machines: MachinesStore;
 
   constructor() {
     this.update = new UpdateStore();
+    this.machines = new MachinesStore({
+      onConnectionReady: (connectionId) => {
+        this.projects.onSshConnectionReady(connectionId);
+      },
+    });
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();
     this.navigation = new NavigationStore();
-    this.sshConnections = new SshConnectionStore({
-      onConnectionReady: (_connectionId) => {
-        // Agent installation statuses for SSH connections are fetched on-demand
-        // via the useAgentInstallationStatuses hook. No explicit refresh needed here.
-      },
-    });
-    this.sshConnections.start();
+    if (typeof window !== 'undefined' && 'electronAPI' in window) {
+      void this.machines.start();
+    }
   }
 }
 

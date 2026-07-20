@@ -63,7 +63,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
   const [submitState, setSubmitState] = useState<'idle' | 'creating'>('idle');
-  const { connections } = appState.sshConnections;
+  const { connections } = appState.machines;
   const availableConnectionIds = useMemo(
     () =>
       connections.map((connection) => connection.id).filter((id): id is string => id !== undefined),
@@ -125,7 +125,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   };
 
   const handleEditConnection = async (id: string) => {
-    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    const conn = appState.machines.connections.find((c) => c.id === id);
     if (!conn) return;
     const priorConnectionId = selectedConnectionId;
     const outcome = await openSshConnModal({
@@ -139,13 +139,13 @@ export const AddProjectModal = observer(function AddProjectModal({
   };
 
   const handleDeleteConnection = async (id: string) => {
-    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    const conn = appState.machines.connections.find((c) => c.id === id);
     if (!conn) return;
     const priorConnectionId = selectedConnectionId ?? id;
 
     let usage;
     try {
-      usage = await (await getDesktopWireClient()).ssh.getConnectionUsage(undefined);
+      usage = await (await getDesktopWireClient()).machines.getMachineUsage(undefined);
     } catch (error) {
       toast({
         title: 'Failed to load SSH connection usage',
@@ -182,8 +182,8 @@ export const AddProjectModal = observer(function AddProjectModal({
     }
 
     try {
-      await appState.sshConnections.deleteConnection(id);
-      const nextConnectionId = appState.sshConnections.connections.find(
+      await appState.machines.deleteConnection(id);
+      const nextConnectionId = appState.machines.connections.find(
         (connection) => connection.id !== id
       )?.id;
       reopenAddProjectModal(nextConnectionId);

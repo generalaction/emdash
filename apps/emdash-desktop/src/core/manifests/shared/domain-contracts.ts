@@ -9,6 +9,7 @@ import { integrationsContract } from '@core/features/integrations/api';
 import { issuesContract } from '@core/features/issues/api';
 import { legacyPortContract } from '@core/features/legacy-port/api';
 import { promptLibraryContract } from '@core/features/library/api';
+import { machinesContract } from '@core/features/machines/api';
 import { mcpContract } from '@core/features/mcp/api';
 import { previewServersContract } from '@core/features/preview-servers/api';
 import { projectsWireContract } from '@core/features/projects/api';
@@ -16,7 +17,6 @@ import { repositoryContract } from '@core/features/repository/api';
 import { searchContract } from '@core/features/search/api';
 import { skillsContract } from '@core/features/skills/api';
 import { sourceControlContract } from '@core/features/source-control/api';
-import { sshContract } from '@core/features/ssh/api';
 import { tasksWireContract } from '@core/features/tasks/api';
 import { telemetryContract } from '@core/features/telemetry/api';
 import { terminalsContract } from '@core/features/terminals/api';
@@ -30,6 +30,7 @@ import {
 import { mementosWireContract } from '@core/primitives/mementos/api';
 import { catalogWireContract } from '@core/services/catalog/api';
 import { appSettingsContract } from '@core/services/settings/api';
+import { sshContract } from '@core/services/ssh/api';
 import { notificationsContract } from '@root/src/core/services/notifications/api';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 
@@ -39,6 +40,7 @@ export const desktopDomainContracts = {
   appSettings: appSettingsContract,
   editor: editorContract,
   legacyPort: legacyPortContract,
+  machines: machinesContract,
   projectSettings: projectSettingsContract,
   projectWorkspaces: projectWorkspacesContract,
   promptLibrary: promptLibraryContract,

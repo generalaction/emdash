@@ -38,12 +38,12 @@ export class WorkspaceStore {
 
   get connectionState(): ConnectionState | null {
     if (!this.sshConnectionId) return null;
-    return appState.sshConnections.stateFor(this.sshConnectionId);
+    return appState.machines.stateFor(this.sshConnectionId);
   }
 
   reconnect(): void {
     if (this.sshConnectionId) {
-      void appState.sshConnections.connect(this.sshConnectionId).catch(() => {});
+      void appState.machines.connect(this.sshConnectionId).catch(() => {});
     }
   }
 

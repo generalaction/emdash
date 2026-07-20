@@ -23,21 +23,12 @@ const mocks = vi.hoisted(() => ({
   deleteMementoSubject: vi.fn(),
   mementoReportError: vi.fn(),
   updateProjectSettings: vi.fn(),
-  eventOn: vi.fn(),
   sshConnect: vi.fn(),
   sshStateFor: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   getDesktopWireClient: async () => ({
-    ssh: {
-      events: {
-        subscribe: async (
-          key: undefined,
-          observer: { onEvent: (event: { type: string; connectionId: string }) => void }
-        ) => mocks.eventOn(key, observer.onEvent),
-      },
-    },
     github: {
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
@@ -82,7 +73,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       invalidateSubject: vi.fn(),
     },
     history: { prune: vi.fn() },
-    sshConnections: {
+    machines: {
       connect: mocks.sshConnect,
       stateFor: mocks.sshStateFor,
     },
@@ -145,7 +136,6 @@ describe('ProjectManagerStore project creation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.eventOn.mockReturnValue(vi.fn());
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
     mocks.resolveRepositoryDestination.mockImplementation(
       async ({ chosenDir, name }: { chosenDir: string; name: string }) =>
@@ -550,9 +540,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
-  it('removes window and SSH event listeners on dispose', async () => {
-    const disposeSshEvent = vi.fn();
-    mocks.eventOn.mockReturnValueOnce(disposeSshEvent);
+  it('removes window listeners on dispose', () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();
     vi.stubGlobal('window', { addEventListener, removeEventListener });
@@ -560,7 +548,6 @@ describe('ProjectManagerStore project creation', () => {
 
     store.dispose();
     store.dispose();
-    await vi.waitFor(() => expect(disposeSshEvent).toHaveBeenCalledTimes(1));
 
     expect(removeEventListener).toHaveBeenCalledWith('online', expect.any(Function));
     expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
@@ -585,7 +572,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.openProject).not.toHaveBeenCalled();
   });
 
-  it('mounts SSH-disconnected projects after a successful reconnect event', async () => {
+  it('mounts SSH-disconnected projects after a connection-ready notification', async () => {
     const store = new ProjectManagerStore();
     const project = sshProject();
     store.projects.set(project.id, createUnmountedProject(project, 'idle'));
@@ -595,10 +582,7 @@ describe('ProjectManagerStore project creation', () => {
     projectStore.error = project.connectionId;
     projectStore.errorCode = 'ssh-disconnected';
 
-    await vi.waitFor(() => expect(mocks.eventOn).toHaveBeenCalled());
-    const handler = mocks.eventOn.mock.calls[0]?.[1];
-    if (!handler) throw new Error('Expected SSH event subscription');
-    handler({ type: 'connected', connectionId: 'ssh-1' });
+    store.onSshConnectionReady('ssh-1');
 
     await vi.waitFor(() =>
       expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })

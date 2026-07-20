@@ -19,11 +19,6 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
     browser: {
       unregisterSession: vi.fn(),
     },
-    ssh: {
-      getConnections: vi.fn(async () => []),
-      getConnectionState: vi.fn(async () => ({})),
-      getHealthStates: vi.fn(async () => ({})),
-    },
   },
 }));
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
@@ -55,7 +50,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
     projects: {
       projects: new Map(),
     },
-    sshConnections: {
+    machines: {
       healthFor: vi.fn(() => ({ status: 'ok' })),
     },
   },

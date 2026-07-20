@@ -8,10 +8,6 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     app: { readUserFile: vi.fn() },
     browser: { unregisterSession: vi.fn() },
-    ssh: {
-      getConnections: vi.fn(async () => []),
-      getHealthStates: vi.fn(async () => ({})),
-    },
   },
 }));
 

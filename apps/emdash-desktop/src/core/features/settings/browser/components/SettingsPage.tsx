@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { MachinesCard } from '@core/features/machines/browser/components/MachinesCard';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
@@ -13,7 +14,6 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
-import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
@@ -82,7 +82,7 @@ function ConnectionsSettingsPage() {
         title="Connections"
         description="Manage reusable SSH connections for remote projects."
       />
-      <SshConnectionsSettingsCard />
+      <MachinesCard />
     </div>
   );
 }
