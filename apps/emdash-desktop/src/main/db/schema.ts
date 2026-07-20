@@ -73,7 +73,12 @@ export const projects = sqliteTable(
     deletedAt: text('deleted_at'),
   },
   (table) => ({
-    pathIdx: uniqueIndex('idx_projects_path').on(table.path),
+    localPathIdx: uniqueIndex('idx_projects_local_path')
+      .on(table.path)
+      .where(sql`${table.workspaceProvider} = 'local' AND ${table.deletedAt} IS NULL`),
+    remotePathIdx: uniqueIndex('idx_projects_remote_path')
+      .on(table.sshConnectionId, table.path)
+      .where(sql`${table.workspaceProvider} = 'ssh' AND ${table.deletedAt} IS NULL`),
     sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
   })
 );

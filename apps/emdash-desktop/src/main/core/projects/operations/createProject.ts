@@ -1,3 +1,4 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type {
   CreateProjectParams,
   CreateProjectResult,
@@ -6,7 +7,7 @@ import type {
 } from '@core/primitives/projects/api';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
-import { getLocalProjectByPath, getSshProjectByPath } from './getProjects';
+import { getProjectByPath } from './getProjects';
 
 export async function createProject(params: CreateProjectParams): Promise<CreateProjectResult> {
   if (params.type === 'local') {
@@ -24,14 +25,14 @@ export async function inspectProjectPath(
   if (params.type === 'local') {
     const [status, existingProject] = await Promise.all([
       getLocalProjectPathStatus(params.path),
-      getLocalProjectByPath(params.path),
+      getProjectByPath(LOCAL_HOST_REF, params.path),
     ]);
     return { ...status, existingProject };
   }
 
   const [status, existingProject] = await Promise.all([
     getSshProjectPathStatus(params.path, params.connectionId),
-    getSshProjectByPath(params.path, params.connectionId),
+    getProjectByPath(hostRef('remote', params.connectionId), params.path),
   ]);
   return { ...status, existingProject };
 }
