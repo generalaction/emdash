@@ -16,7 +16,8 @@ forwarding rebinds live endpoint definitions to their namespaced contract ids wh
 standalone worker client's upstream topic handles, and translates mutation cursor model ids to the
 same aggregate namespace. Runtime-owned persistence lives below the workspace-server state
 directory, including automation and file-search databases, session intents, ACP attachments, and
-the workspace worktree pool.
+other runtime state. Repository and worktree placement is desktop-owned; the server reports its
+home directory through the files runtime and executes plans containing absolute paths.
 
 Host dependencies are mounted under `workspaceWireContract.hostDependencies`.
 The daemon parent owns one local `HostDependencies` component backed by a JSON-file
@@ -38,7 +39,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '4.1.0';
+export const PROTOCOL_VERSION = '5.0.0';
 ```
 
 ### What each component means

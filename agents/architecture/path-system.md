@@ -8,6 +8,12 @@ path operations. The detailed package docs live in
 
 - `packages/core/src/path/` owns pure structured path primitives, resource URI
   encoding, and comparison keys.
+- Desktop placement resolution owns repository and worktree location policy. It combines the target
+  host's home directory from `files.getHomeDir`, desktop settings, per-project overrides, and UI
+  input, then sends absolute paths to the host runtime.
+- Repository destinations default to `~/emdash/repositories/<name>` with numeric suffix allocation.
+  Worktree pools default to `~/emdash/worktrees/<repo-basename>-<hash8(repo-path)>`; the workspace
+  planner adds the sanitized branch leaf.
 - Runtime and app layers own host resolution, native string conversion,
   filesystem I/O, realpath checks, authorization, and persistence migrations.
 - Renderer code should eventually prefer `ResourceUri` or structured refs over
