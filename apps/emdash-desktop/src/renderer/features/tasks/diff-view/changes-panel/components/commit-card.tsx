@@ -160,7 +160,6 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
       <Input
         placeholder="Commit message"
-        autoFocus
         className="w-full bg-background"
         value={commitMessage}
         onChange={(e) => setCommitMessage(e.target.value)}
