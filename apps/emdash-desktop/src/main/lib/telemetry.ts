@@ -488,7 +488,10 @@ export class TelemetryService implements IInitializable, IDisposable {
     const pendingRecoveries = [...(this.sessionState?.pendingRecoveries ?? [])];
     for (const recovery of pendingRecoveries) {
       const lastHeartbeatMs = Date.parse(recovery.lastHeartbeatTs);
-      if (Number.isNaN(lastHeartbeatMs)) continue;
+      if (Number.isNaN(lastHeartbeatMs)) {
+        await this.removePendingRecovery(recovery.eventId, generation);
+        continue;
+      }
       const sent = await this.posthogCapture(
         'app_closed',
         {
@@ -509,11 +512,16 @@ export class TelemetryService implements IInitializable, IDisposable {
         !this.isEnabled()
       )
         continue;
-      this.sessionState.pendingRecoveries = this.sessionState.pendingRecoveries.filter(
-        ({ eventId }) => eventId !== recovery.eventId
-      );
-      await this.writeSessionState(generation);
+      await this.removePendingRecovery(recovery.eventId, generation);
     }
+  }
+
+  private async removePendingRecovery(eventId: string, generation: number): Promise<void> {
+    if (generation !== this.heartbeatGeneration || !this.sessionState || !this.isEnabled()) return;
+    this.sessionState.pendingRecoveries = this.sessionState.pendingRecoveries.filter(
+      (recovery) => recovery.eventId !== eventId
+    );
+    await this.writeSessionState(generation);
   }
 
   private sanitizeError(error: Error | unknown): Error {
@@ -665,10 +673,44 @@ export class TelemetryService implements IInitializable, IDisposable {
 
   async dispose(): Promise<void> {
     if (this.lifecycle !== 'active') return;
-    await this.posthogCapture('app_closed', {
-      event_ts_ms: Date.now(),
-      session_id: this.sessionId,
-    });
+    const closeGeneration = ++this.heartbeatGeneration;
+    if (this.heartbeatInterval !== undefined) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = undefined;
+    }
+    await this.sessionWriteQueue.catch(() => undefined);
+    const closeTimestamp = new Date();
+    const activeSession = this.sessionState?.active;
+    let closeStatePersisted = !activeSession;
+    if (activeSession) {
+      activeSession.lastHeartbeatTs = closeTimestamp.toISOString();
+      closeStatePersisted = await this.writeSessionState(closeGeneration).then(
+        () => true,
+        () => false
+      );
+    }
+    const closeSent = closeStatePersisted
+      ? await this.posthogCapture(
+          'app_closed',
+          {
+            event_ts_ms: closeTimestamp.getTime(),
+            session_id: this.sessionId,
+          },
+          activeSession
+            ? {
+                uuid: recoveryEventId(activeSession.sessionId),
+                timestamp: closeTimestamp,
+                confirmTransport: true,
+              }
+            : undefined
+        )
+      : false;
+    if (!closeSent && activeSession && this.sessionState) {
+      const eventId = recoveryEventId(activeSession.sessionId);
+      if (!this.sessionState.pendingRecoveries.some((recovery) => recovery.eventId === eventId)) {
+        this.sessionState.pendingRecoveries.push({ ...activeSession, eventId });
+      }
+    }
     await this.flushPendingRequests(2_000);
     this.lifecycle = 'disposing';
     this.consentGeneration += 1;

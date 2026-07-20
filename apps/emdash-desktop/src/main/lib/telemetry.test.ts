@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   writeFailures: new Set<string>(),
   transportError: false,
   captureHandler: undefined as
-    | ((event: { event: string; uuid?: string }) => Promise<void>)
+    | ((event: { event: string; timestamp?: Date; uuid?: string }) => Promise<void>)
     | undefined,
   env: {
     build: {
@@ -69,7 +69,7 @@ vi.mock('@main/db/kv', () => ({
 vi.mock('posthog-node', () => ({
   PostHog: class {
     private errorHandlers = new Set<() => void>();
-    captureImmediate = vi.fn(async (event: { event: string; uuid?: string }) => {
+    captureImmediate = vi.fn(async (event: { event: string; timestamp?: Date; uuid?: string }) => {
       await (mocks.captureHandler ? mocks.captureHandler(event) : Promise.resolve());
       if (mocks.transportError) {
         for (const handler of this.errorHandlers) handler();
@@ -307,5 +307,68 @@ describe('TelemetryService', () => {
 
     mocks.transportError = false;
     await service.dispose();
+  });
+
+  it('removes a pending recovery with an invalid timestamp', async () => {
+    mocks.store.set('sessionState', {
+      active: null,
+      pendingRecoveries: [
+        {
+          eventId: '72ce17d2-037a-4b53-bf84-01d680f2dbb7',
+          sessionId: '72ce17d2-037a-4b53-bf84-01d680f2dbb7',
+          lastHeartbeatTs: 'not-a-timestamp',
+        },
+      ],
+    });
+
+    const service = new TelemetryService(false);
+    await service.initialize();
+
+    expect(mocks.store.get('sessionState')).toMatchObject({ pendingRecoveries: [] });
+    expect(
+      mocks.clients[0]?.captureImmediate.mock.calls.some(([event]) => event.event === 'app_closed')
+    ).toBe(false);
+
+    await service.dispose();
+  });
+
+  it('retains the active session when the clean close event fails', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-07-20T10:00:00.000Z'));
+      const service = new TelemetryService(false);
+      await service.initialize();
+      const sessionId = service.getTelemetryStatus().session_id;
+      let closeEvent: { timestamp?: Date } | undefined;
+      let finishClose: (() => void) | undefined;
+      mocks.captureHandler = (event) => {
+        if (event.event !== 'app_closed') return Promise.resolve();
+        closeEvent = event;
+        return new Promise<void>((resolve) => {
+          finishClose = resolve;
+        });
+      };
+      mocks.transportError = true;
+
+      const disposing = service.dispose();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(finishClose).toBeTypeOf('function');
+      await vi.advanceTimersByTimeAsync(60_000);
+      finishClose!();
+      await disposing;
+
+      expect(mocks.store.get('sessionState')).toMatchObject({
+        active: null,
+        pendingRecoveries: [
+          {
+            eventId: sessionId,
+            sessionId,
+            lastHeartbeatTs: closeEvent?.timestamp?.toISOString(),
+          },
+        ],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
