@@ -1,6 +1,6 @@
 import { nativeTheme } from 'electron';
 import type { Theme } from '@core/primitives/app-settings/api';
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { appSettingsService } from '@core/services/settings/node';
 import { log } from '@main/lib/logger';
 
 type EffectiveTheme = 'emlight' | 'emdark';

@@ -14,7 +14,7 @@ import type {
   Installation,
   SelectedSource,
 } from '@core/primitives/agents/api';
-import { providerOverrideSettings } from '../settings/provider-settings-service';
+import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
 
 function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {

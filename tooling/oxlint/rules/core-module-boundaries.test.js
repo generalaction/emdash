@@ -117,6 +117,7 @@ test('allows only the core module dependency graph', () => {
   const featureProjects = { type: 'features', moduleName: 'projects' };
   const featureTasksBrowser = { ...featureTasks, surface: 'browser' };
   const featureTasksApi = { ...featureTasks, surface: 'api' };
+  const featureTasksNode = { ...featureTasks, surface: 'node' };
   const featureProjectsBrowser = { ...featureProjects, surface: 'browser' };
   const featureProjectsApi = { ...featureProjects, surface: 'api' };
   const featureProjectsNode = { ...featureProjects, surface: 'node' };
@@ -153,7 +154,23 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, runtimeGitApi), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, runtimeGitNode), false);
   assert.equal(isAllowedCoreModuleDependency(featureTasksApi, runtimeGitApi), true);
-  assert.equal(isAllowedCoreModuleDependency(featureTasks, serviceExec), false);
+  assert.equal(
+    isAllowedCoreModuleDependency(featureTasksNode, {
+      ...serviceExec,
+      surface: 'api',
+    }),
+    true
+  );
+  assert.equal(
+    isAllowedCoreModuleDependency(featureTasksNode, {
+      ...serviceExec,
+      surface: 'node',
+    }),
+    true
+  );
+  assert.equal(isAllowedCoreModuleDependency(featureTasksNode, serviceExec), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, serviceExec), false);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksNode, featureProjectsNode), false);
 });
 
 test('oxlint visitor reports imports, re-exports, and dynamic imports', async () => {

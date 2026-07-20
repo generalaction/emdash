@@ -5,12 +5,12 @@ import type {
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
+import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import {
   ensureAgentDependenciesProbed,
   getDependencyManager,
   type HostDependenciesClient,
 } from '../dependencies/dependency-managers';
-import { providerOverrideSettings } from '../settings/provider-settings-service';
 import {
   buildAgentMetadataList,
   buildAgentPayload,

@@ -1,4 +1,3 @@
-import type { AppSettings } from '@core/primitives/app-settings/api';
 import {
   chordParts,
   detectPlatformContext,
@@ -6,6 +5,7 @@ import {
   type Chord,
   type PlatformContext,
 } from '@core/primitives/keybindings/api';
+import type { AppSettings } from '@core/services/settings/api';
 import { COMMAND_CATALOG } from './command-catalog';
 
 export interface BrowserClaim {

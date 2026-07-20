@@ -105,6 +105,13 @@ export function isAllowedCoreModuleDependency(source, target) {
       return true;
     }
     if (
+      source.surface === 'node' &&
+      target.type === 'services' &&
+      (target.surface === 'api' || target.surface === 'node')
+    ) {
+      return true;
+    }
+    if (
       source.surface === 'browser' &&
       (target.type === 'primitives' ||
         target.surface === 'api' ||
@@ -126,7 +133,7 @@ export function isAllowedCoreModuleDependency(source, target) {
 export function dependencyMessage(source, target, specifier) {
   return `${source.type}/${source.moduleName} must not import ${target.type}/${
     target.moduleName
-  } via '${specifier}'. Allowed Core module dependencies are: runtime-broker -> runtime/host-dependency APIs and primitives, runtimes -> services/primitives, services -> primitives, feature APIs -> other APIs/primitives, feature browser surfaces -> other api/browser/contributions surfaces or primitives, other feature surfaces -> primitives, primitives -> primitives.`;
+  } via '${specifier}'. Allowed Core module dependencies are: runtime-broker -> runtime/host-dependency APIs and primitives, runtimes -> services/primitives, services -> primitives, feature APIs -> other APIs/primitives, feature node surfaces -> service APIs/node surfaces or primitives, feature browser surfaces -> other api/browser/contributions surfaces or primitives, other feature surfaces -> primitives, primitives -> primitives.`;
 }
 
 function getFilename(context) {

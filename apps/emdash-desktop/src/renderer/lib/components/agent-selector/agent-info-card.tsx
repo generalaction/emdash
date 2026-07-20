@@ -6,7 +6,7 @@ import { useAgentInstallationStatus } from '@core/features/agents/browser/use-ag
 import { useAgent } from '@core/features/agents/browser/use-agents';
 import { InstallSection } from '@core/features/settings/browser/agents-page/InstallSection';
 import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import type { AppSettings } from '@core/primitives/app-settings/api';
+import type { AppSettings } from '@core/services/settings/api';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';

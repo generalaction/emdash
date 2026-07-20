@@ -1,33 +1,81 @@
-import type z from 'zod';
-import {
-  appSettingsSchema,
-  type browserSettingsSchema,
-  type changesViewModeSchema,
-  type interfaceSettingsSchema,
-  type localProjectSettingsSchema,
-  type notificationSettingsSchema,
-  type projectSettingsSchema,
-  type providerCustomConfigEntrySchema,
-  type taskSettingsSchema,
-  type terminalSettingsSchema,
-  type themeSchema,
-} from '@main/core/settings/schema';
+import type { BrowserProfile, BrowserProfileSelection } from '@core/primitives/browser/api';
+import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
+import type { TerminalShellId } from '@core/primitives/terminals/api';
 
-export type LocalProjectSettings = z.infer<typeof localProjectSettingsSchema>;
-export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
-export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
-export type TaskSettings = z.infer<typeof taskSettingsSchema>;
-export type TerminalSettings = z.infer<typeof terminalSettingsSchema>;
-export type Theme = z.infer<typeof themeSchema>;
+export type LocalProjectSettings = {
+  defaultProjectsDirectory: string;
+  defaultWorktreeDirectory: string;
+  writeAgentConfigToGitIgnore: boolean;
+};
 
-export type InterfaceSettings = z.infer<typeof interfaceSettingsSchema>;
-export type ProviderCustomConfig = z.infer<typeof providerCustomConfigEntrySchema>;
+export type ProjectSettings = {
+  pushOnCreate: boolean;
+  branchPrefix: string;
+  appendRandomBranchSuffix: boolean;
+  tmuxByDefault: boolean;
+};
+
+export type NotificationSettings = {
+  enabled: boolean;
+  sound: boolean;
+  customSoundPath: string;
+  osNotifications: boolean;
+  soundFocusMode: 'always' | 'unfocused';
+};
+
+export type TaskSettings = {
+  autoGenerateName: boolean;
+  autoApproveByDefault: boolean;
+  autoTrustWorktrees: boolean;
+  createBranchAndWorktree: boolean;
+  deleteBranchByDefault: boolean;
+  preserveNameCapitalization: boolean;
+  includeIssueContextByDefault: boolean;
+};
+
+export type TerminalSettings = {
+  fontFamily?: string;
+  fontSize?: number;
+  autoCopyOnSelection: boolean;
+  macOptionIsMeta: boolean;
+  defaultShell: TerminalShellId;
+};
+
+export type Theme = 'emlight' | 'emdark' | null;
+
+export type InterfaceSettings = {
+  taskHoverAction: 'delete' | 'archive';
+  autoRightSidebarBehavior: boolean;
+  showLeftSidebarLineChanges: boolean;
+  showLeftSidebarPrStatus: boolean;
+  showLeftSidebarTimestamps: boolean;
+  hideContextBar: boolean;
+};
+
+export type ProviderCustomConfig = {
+  extraArgs?: string;
+  env?: Record<string, string>;
+};
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
-export type ChangesViewMode = z.infer<typeof changesViewModeSchema>;
-export type BrowserSettings = z.infer<typeof browserSettingsSchema>;
+
+export type ChangesViewMode = {
+  unstaged: 'flat' | 'tree';
+  staged: 'flat' | 'tree';
+  pr: 'flat' | 'tree';
+};
+
+export type BrowserSettings = {
+  defaultProfileId: BrowserProfileSelection;
+  relaxCorsForLocalhost: boolean;
+  profiles: BrowserProfile[];
+};
+
+export type KeyboardSettings = Record<string, string | null | undefined>;
+
+export type OpenInSettings = {
+  default: OpenInAppId;
+  hidden: OpenInAppId[];
+};
+
 export type ChangesSection = keyof ChangesViewMode;
 export type ChangesListViewMode = ChangesViewMode[ChangesSection];
-export type AppSettings = z.infer<typeof appSettingsSchema>;
-export type AppSettingsKey = keyof AppSettings;
-
-export const AppSettingsKeys = Object.keys(appSettingsSchema.shape) as AppSettingsKey[];

@@ -8,15 +8,48 @@ import {
   type ContractImpl,
   type Controller,
 } from '@emdash/wire/api';
-import { projectsWireContract } from '@core/features/projects/api';
-import { tasksWireContract } from '@core/features/tasks/api';
-import { workspacesWireContract } from '@core/features/workspaces/api';
-import type { CreateWorkspacesWireControllerOptions } from '@core/features/workspaces/node/wire-controller';
+import { createAccountWireController } from '@core/features/account/node/wire-controller';
+import { createAgentsWireController } from '@core/features/agents/node/wire-controller';
+import { createAutomationsWireController } from '@core/features/automations/node/wire-controller';
+import { createBrowserWireController } from '@core/features/browser/node/wire-controller';
+import { createConversationsWireController } from '@core/features/conversations/node/wire-controller';
+import { createEditorWireController } from '@core/features/editor/node/wire-controller';
+import { createGithubWireController } from '@core/features/github/node/wire-controller';
+import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
+import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
+import { createLegacyPortWireController } from '@core/features/legacy-port/node/wire-controller';
+import { createPromptLibraryWireController } from '@core/features/library/node/wire-controller';
+import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
+import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
+import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
+import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
+import { createSearchWireController } from '@core/features/search/node/wire-controller';
+import { createSkillsWireController } from '@core/features/skills/node/wire-controller';
+import { createSourceControlWireController } from '@core/features/source-control/node/wire-controller';
+import { createSshWireController } from '@core/features/ssh/node/wire-controller';
+import { createTasksWireController } from '@core/features/tasks/node/wire-controller';
+import { createTelemetryWireController } from '@core/features/telemetry/node/wire-controller';
+import { createTerminalsWireController } from '@core/features/terminals/node/wire-controller';
+import { createUpdatesWireController } from '@core/features/updates/node/wire-controller';
+import { createDesktopHostWireController } from '@core/features/workbench/node/wire-controller';
+import {
+  createProjectSettingsWireController,
+  createProjectWorkspacesWireController,
+} from '@core/features/workspaces/node/project-wire-controllers';
+import {
+  createWorkspacesWireController,
+  type CreateWorkspacesWireControllerOptions,
+} from '@core/features/workspaces/node/wire-controller';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-service';
-import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
-import { mementosWireContract } from '@core/primitives/mementos/api';
-import { catalogWireContract } from '@core/services/catalog/api';
-import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
+import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
+import { createCatalogWireController } from '@core/services/catalog/node/wire-controller';
+import { createAppSettingsWireController } from '@core/services/settings/node/wire-controller';
+import {
+  getMementosRuntimeClient,
+  getPullRequestsRuntimeClient,
+} from '@main/gateway/desktop-workers';
+import { notificationService } from '@root/src/core/services/notifications/node';
+import { createNotificationsWireController } from '@root/src/core/services/notifications/node/wire-controller';
 
 export type DesktopControllerContext = {
   readonly scope: Scope;
@@ -28,10 +61,9 @@ export type DesktopControllerContext = {
   >;
 };
 
-type DesktopDomain = Extract<keyof typeof desktopWireContract, string>;
+type DesktopDomain = Extract<keyof typeof desktopDomainContracts, string>;
 
-export type DesktopNodeControllerContribution<Domain extends DesktopDomain = DesktopDomain> = {
-  readonly contract: (typeof desktopWireContract)[Domain];
+export type DesktopNodeControllerContribution = {
   readonly create: (context: DesktopControllerContext) => Controller | Promise<Controller>;
 };
 
@@ -46,263 +78,115 @@ function controllerFromImpl<Defs extends ContractDefinitions>(
 
 export const desktopNodeControllers = {
   account: {
-    contract: desktopWireContract.account,
-    create: async () => {
-      const { createAccountWireController } =
-        await import('@core/features/account/node/wire-controller');
-      return createAccountWireController();
-    },
+    create: () => createAccountWireController(),
   },
   agents: {
-    contract: desktopWireContract.agents,
-    create: async ({ runtimes }) => {
-      const { createAgentsWireController } =
-        await import('@core/features/agents/node/wire-controller');
-      return createAgentsWireController({ runtimes });
-    },
+    create: ({ runtimes }) => createAgentsWireController({ runtimes }),
   },
   appSettings: {
-    contract: desktopWireContract.appSettings,
-    create: async () => {
-      const { createAppSettingsWireController } =
-        await import('@core/features/settings/node/wire-controller');
-      return createAppSettingsWireController();
-    },
+    create: () => createAppSettingsWireController(),
   },
   editor: {
-    contract: desktopWireContract.editor,
-    create: async ({ runtimes, workspaceIdentity }) => {
-      const { createEditorWireController } =
-        await import('@core/features/editor/node/wire-controller');
-      return createEditorWireController({ runtimes, workspaceIdentity });
-    },
+    create: ({ runtimes, workspaceIdentity }) =>
+      createEditorWireController({ runtimes, workspaceIdentity }),
   },
   legacyPort: {
-    contract: desktopWireContract.legacyPort,
-    create: async () => {
-      const { createLegacyPortWireController } =
-        await import('@core/features/legacy-port/node/wire-controller');
-      return createLegacyPortWireController();
-    },
+    create: () => createLegacyPortWireController(),
   },
   projectSettings: {
-    contract: desktopWireContract.projectSettings,
-    create: async () => {
-      const { createProjectSettingsWireController } =
-        await import('@core/features/workspaces/node/project-wire-controllers');
-      return createProjectSettingsWireController();
-    },
+    create: () => createProjectSettingsWireController(),
   },
   projectWorkspaces: {
-    contract: desktopWireContract.projectWorkspaces,
-    create: async () => {
-      const { createProjectWorkspacesWireController } =
-        await import('@core/features/workspaces/node/project-wire-controllers');
-      return createProjectWorkspacesWireController();
-    },
+    create: () => createProjectWorkspacesWireController(),
   },
   promptLibrary: {
-    contract: desktopWireContract.promptLibrary,
-    create: async () => {
-      const { createPromptLibraryWireController } =
-        await import('@core/features/library/node/wire-controller');
-      return createPromptLibraryWireController();
-    },
+    create: () => createPromptLibraryWireController(),
   },
   repository: {
-    contract: desktopWireContract.repository,
-    create: async () => {
-      const { createRepositoryWireController } =
-        await import('@core/features/repository/node/wire-controller');
-      return createRepositoryWireController();
-    },
+    create: () => createRepositoryWireController(),
   },
   search: {
-    contract: desktopWireContract.search,
-    create: async () => {
-      const { createSearchWireController } =
-        await import('@core/features/search/node/wire-controller');
-      return createSearchWireController();
-    },
+    create: () => createSearchWireController(),
   },
   telemetry: {
-    contract: desktopWireContract.telemetry,
-    create: async () => {
-      const { createTelemetryWireController } =
-        await import('@core/features/telemetry/node/wire-controller');
-      return createTelemetryWireController();
-    },
+    create: () => createTelemetryWireController(),
   },
   sourceControl: {
-    contract: desktopWireContract.sourceControl,
-    create: async ({ runtimes, workspaceIdentity }) => {
-      const { createSourceControlWireController } =
-        await import('@core/features/source-control/node/wire-controller');
-      return createSourceControlWireController({ runtimes, workspaceIdentity });
-    },
+    create: ({ runtimes, workspaceIdentity }) =>
+      createSourceControlWireController({ runtimes, workspaceIdentity }),
   },
   mcp: {
-    contract: desktopWireContract.mcp,
-    create: async ({ runtimes }) => {
-      const { createMcpWireController } = await import('@core/features/mcp/node/wire-controller');
-      return createMcpWireController({ runtimes });
-    },
+    create: ({ runtimes }) => createMcpWireController({ runtimes }),
   },
   skills: {
-    contract: desktopWireContract.skills,
-    create: async ({ runtimes }) => {
-      const { createSkillsWireController } =
-        await import('@core/features/skills/node/wire-controller');
-      return createSkillsWireController({ runtimes });
-    },
+    create: ({ runtimes }) => createSkillsWireController({ runtimes }),
   },
   terminals: {
-    contract: desktopWireContract.terminals,
-    create: async ({ runtimes, workspaceIdentity }) => {
-      const { createTerminalsWireController } =
-        await import('@core/features/terminals/node/wire-controller');
-      return createTerminalsWireController({ runtimes, workspaceIdentity });
-    },
+    create: ({ runtimes, workspaceIdentity }) =>
+      createTerminalsWireController({ runtimes, workspaceIdentity }),
   },
   mementos: {
-    contract: desktopWireContract.mementos,
-    create: async () => {
-      const { getMementosRuntimeClient } = await import('@main/gateway/desktop-workers');
-      return forwardController(mementosWireContract, await getMementosRuntimeClient());
-    },
+    create: async () =>
+      forwardController(desktopDomainContracts.mementos, await getMementosRuntimeClient()),
   },
   notifications: {
-    contract: desktopWireContract.notifications,
-    create: async () => {
-      const [{ notificationService }, { createNotificationsWireController }] = await Promise.all([
-        import('@root/src/core/services/notifications/node'),
-        import('@root/src/core/services/notifications/node/wire-controller'),
-      ]);
-      return createNotificationsWireController(notificationService);
-    },
+    create: () => createNotificationsWireController(notificationService),
   },
   pullRequests: {
-    contract: desktopWireContract.pullRequests,
-    create: async () => {
-      const { getPullRequestsRuntimeClient } = await import('@main/gateway/desktop-workers');
-      return forwardController(pullRequestsContract, await getPullRequestsRuntimeClient());
-    },
+    create: async () =>
+      forwardController(desktopDomainContracts.pullRequests, await getPullRequestsRuntimeClient()),
   },
   catalog: {
-    contract: desktopWireContract.catalog,
-    create: async ({ scope }) => {
-      const { createCatalogWireController } =
-        await import('@core/services/catalog/node/wire-controller');
-      return controllerFromImpl(catalogWireContract, createCatalogWireController(), scope);
-    },
+    create: ({ scope }) =>
+      controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    contract: desktopWireContract.workspaces,
-    create: async ({ scope, workspaces, runtimes, workspaceIdentity }) => {
-      const { createWorkspacesWireController } =
-        await import('@core/features/workspaces/node/wire-controller');
-      return controllerFromImpl(
-        workspacesWireContract,
+    create: ({ scope, workspaces, runtimes, workspaceIdentity }) =>
+      controllerFromImpl(
+        desktopDomainContracts.workspaces,
         createWorkspacesWireController({ ...workspaces, runtimes, workspaceIdentity }),
         scope
-      );
-    },
+      ),
   },
   projects: {
-    contract: desktopWireContract.projects,
-    create: async ({ scope }) => {
-      const { createProjectsWireController } =
-        await import('@core/features/projects/node/wire-controller');
-      return controllerFromImpl(projectsWireContract, createProjectsWireController(), scope);
-    },
+    create: ({ scope }) =>
+      controllerFromImpl(desktopDomainContracts.projects, createProjectsWireController(), scope),
   },
   automations: {
-    contract: desktopWireContract.automations,
-    create: async () => {
-      const { createAutomationsWireController } =
-        await import('@core/features/automations/node/wire-controller');
-      return createAutomationsWireController();
-    },
+    create: () => createAutomationsWireController(),
   },
   browser: {
-    contract: desktopWireContract.browser,
-    create: async () => {
-      const { createBrowserWireController } =
-        await import('@core/features/browser/node/wire-controller');
-      return createBrowserWireController();
-    },
+    create: () => createBrowserWireController(),
   },
   conversations: {
-    contract: desktopWireContract.conversations,
-    create: async ({ runtimes, workspaceIdentity }) => {
-      const { createConversationsWireController } =
-        await import('@core/features/conversations/node/wire-controller');
-      return createConversationsWireController({ runtimes, workspaceIdentity });
-    },
+    create: ({ runtimes, workspaceIdentity }) =>
+      createConversationsWireController({ runtimes, workspaceIdentity }),
   },
   previewServers: {
-    contract: desktopWireContract.previewServers,
-    create: async () => {
-      const { createPreviewServersWireController } =
-        await import('@core/features/preview-servers/node/wire-controller');
-      return createPreviewServersWireController();
-    },
+    create: () => createPreviewServersWireController(),
   },
   github: {
-    contract: desktopWireContract.github,
-    create: async () => {
-      const { createGithubWireController } =
-        await import('@core/features/github/node/wire-controller');
-      return createGithubWireController();
-    },
+    create: () => createGithubWireController(),
   },
   integrations: {
-    contract: desktopWireContract.integrations,
-    create: async () => {
-      const { createIntegrationsWireController } =
-        await import('@core/features/integrations/node/wire-controller');
-      return createIntegrationsWireController();
-    },
+    create: () => createIntegrationsWireController(),
   },
   issues: {
-    contract: desktopWireContract.issues,
-    create: async () => {
-      const { createIssuesWireController } =
-        await import('@core/features/issues/node/wire-controller');
-      return createIssuesWireController();
-    },
+    create: () => createIssuesWireController(),
   },
   ssh: {
-    contract: desktopWireContract.ssh,
-    create: async () => {
-      const { createSshWireController } = await import('@core/features/ssh/node/wire-controller');
-      return createSshWireController();
-    },
+    create: () => createSshWireController(),
   },
   tasks: {
-    contract: desktopWireContract.tasks,
-    create: async ({ scope }) => {
-      const { createTasksWireController } =
-        await import('@core/features/tasks/node/wire-controller');
-      return controllerFromImpl(tasksWireContract, createTasksWireController(), scope);
-    },
+    create: ({ scope }) =>
+      controllerFromImpl(desktopDomainContracts.tasks, createTasksWireController(), scope),
   },
   updates: {
-    contract: desktopWireContract.updates,
-    create: async () => {
-      const { createUpdatesWireController } =
-        await import('@core/features/updates/node/wire-controller');
-      return createUpdatesWireController();
-    },
+    create: () => createUpdatesWireController(),
   },
   host: {
-    contract: desktopWireContract.host,
-    create: async () => {
-      const { createDesktopHostWireController } =
-        await import('@core/features/workbench/node/wire-controller');
-      return createDesktopHostWireController();
-    },
+    create: () => createDesktopHostWireController(),
   },
 } satisfies {
-  readonly [Domain in DesktopDomain]: DesktopNodeControllerContribution<Domain>;
+  readonly [Domain in DesktopDomain]: DesktopNodeControllerContribution;
 };

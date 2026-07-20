@@ -3,7 +3,7 @@ import type {
   ProjectWorkspaceActionSummary,
   ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import { operationsService } from '@main/core/operations/operations-service';
 import { taskService } from '@main/core/tasks/task-service';
 import { getProjectWorkspaceProject, listProjectWorkspaces } from './list-project-workspaces';
 
@@ -68,7 +68,6 @@ async function deleteProjectWorkspaceRow(
   }
 
   try {
-    const operationsService = await getOperationsService();
     await operationsService.initialize();
     if (row.tasks.length > 0) {
       for (const task of row.tasks) {
@@ -118,8 +117,4 @@ function success(row: ProjectWorkspaceRow): ProjectWorkspaceActionResult {
     success: true,
     reclaimedBytes: row.usage?.totalBytes,
   };
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }

@@ -1,5 +1,5 @@
 import type { DeleteTaskOptions } from '@core/primitives/tasks/api';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import { operationsService } from '@main/core/operations/operations-service';
 
 export async function deleteTask(
   projectId: string,
@@ -7,7 +7,6 @@ export async function deleteTask(
   options: DeleteTaskOptions = {}
 ): Promise<void> {
   void projectId;
-  const operationsService = await getOperationsService();
   await operationsService.initialize();
   const result = await operationsService.enqueueDeleteTask({
     taskId,
@@ -17,8 +16,4 @@ export async function deleteTask(
   if (!result.success && result.error.type !== 'task-not-found') {
     throw new Error(result.error.message);
   }
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }

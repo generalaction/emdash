@@ -1,6 +1,6 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ProviderTokenPayload } from '@main/core/account/provider-token-registry';
+import type { ProviderTokenPayload } from '@core/features/account/node/provider-token-registry';
 import { GITHUB_PROVIDER_ID, toGitHubAccount } from './github-accounts';
 import { GitHubAuthServerAdapter } from './github-auth-server-adapter';
 

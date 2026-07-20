@@ -1,4 +1,5 @@
 import type { PluginFs } from '@primitives/plugin-fs/api';
+import { parse, stringify } from 'smol-toml';
 import type { z } from 'zod';
 
 export interface ConfigFile<T> {
@@ -32,13 +33,11 @@ export function tomlConfig<T>(schema: z.ZodType<T>, defaultValue: T): ConfigFile
     async read(fs, path) {
       const content = await fs.read(path);
       if (!content) return defaultValue;
-      const { parse } = await import('smol-toml');
       const parsed = parse(content);
       return schema.parse(parsed);
     },
     async write(fs, path, data) {
       schema.parse(data);
-      const { stringify } = await import('smol-toml');
       await fs.write(path, stringify(data as Record<string, unknown>));
     },
     async update(fs, path, updater) {

@@ -1,7 +1,7 @@
 import type {
   ProviderTokenDispatchResult,
   ProviderTokenPayload,
-} from '@main/core/account/provider-token-registry';
+} from '@core/features/account/node/provider-token-registry';
 import { upsertGitHubAccount, type GitHubAccountStore } from './github-accounts';
 
 export class GitHubAuthServerAdapter {

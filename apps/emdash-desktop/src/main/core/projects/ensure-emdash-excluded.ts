@@ -1,10 +1,10 @@
+import { SSH_PROJECT_STATE_DIR_NAME } from '@core/features/projects/node/worktree-defaults';
 import {
   fileKey,
   fileMutationKey,
   fsErrorMessage,
   type FilesClientScope,
 } from '@main/core/files/runtime-client';
-import { SSH_PROJECT_STATE_DIR_NAME } from '@main/core/settings/worktree-defaults';
 import { log } from '@main/lib/logger';
 
 const GIT_EXCLUDE_PATH = '.git/info/exclude';

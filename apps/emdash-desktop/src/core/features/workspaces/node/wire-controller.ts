@@ -37,7 +37,10 @@ import {
   type WorkspacesRuntimeResolveError as RuntimeResolveError,
 } from '@core/features/workspaces/api/runtime-adapter';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import {
+  operationsService,
+  type OperationsService,
+} from '@main/core/operations/operations-service';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
 import {
   runCloneRepositoryProvision,
@@ -205,22 +208,18 @@ export function createWorkspacesWireController(
           return result.success ? ok({ ...result.data, workspaceId: input.workspaceId }) : result;
         }),
       delete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.enqueueDeleteWorkspace(input.workspaceId);
       },
       archive: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.enqueueArchiveWorkspace(input);
       },
       retryDelete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.retryDelete('workspace', input.workspaceId);
       },
       forgetWithoutCleanup: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.forgetWithoutCleanup('workspace', input.workspaceId);
       },
@@ -400,7 +399,6 @@ function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown workspace deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Workspace deletion state lease was released before ready');
-          const operationsService = await getOperationsService();
           await operationsService.initialize();
           lease ??= operationsService.acquireDeletionState('workspace', key.entityId);
           if (released) {
@@ -575,10 +573,6 @@ function unknownToWorkspaceError(error: unknown): WorkspaceSliceError {
     'workspace-wire-error',
     error instanceof Error ? error.message : String(error)
   );
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 export function provisionWorkspaceErrorToWorkspaceError(error: unknown): WorkspaceSliceError {

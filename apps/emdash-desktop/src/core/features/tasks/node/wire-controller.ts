@@ -1,7 +1,10 @@
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
 import { tasksWireContract } from '@core/features/tasks/api';
 import { taskEvents } from '@core/features/tasks/node';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import {
+  operationsService,
+  type OperationsService,
+} from '@main/core/operations/operations-service';
 import { taskOperations } from '@main/core/tasks/controller';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
@@ -36,17 +39,14 @@ export function createTasksWireController(): TasksWireController {
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       events: taskEvents,
       delete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.enqueueDeleteTask(input);
       },
       retryDelete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.retryDelete('task', input.taskId);
       },
       forgetWithoutCleanup: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.forgetWithoutCleanup('task', input.taskId);
       },
@@ -69,7 +69,6 @@ function createTaskDeletionsProvider(): LeasedLiveModelProvider<
         ready: async () => {
           if (name !== 'list') throw new Error(`Unknown task deletion state '${String(name)}'`);
           if (released) throw new Error('Task deletion state lease was released before ready');
-          const operationsService = await getOperationsService();
           await operationsService.initialize();
           lease ??= operationsService.acquireDeletionState('task', key.entityId);
           if (released) {
@@ -89,8 +88,4 @@ function createTaskDeletionsProvider(): LeasedLiveModelProvider<
     },
     async dispose() {},
   };
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }

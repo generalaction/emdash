@@ -1,7 +1,9 @@
+import { isDeepEqual } from '@emdash/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AppSettings, AppSettingsKey } from '@core/primitives/app-settings/api';
+import type { AppSettings, AppSettingsKey } from '@core/services/settings/api';
 import {
   APP_SETTINGS_STALE_TIME_MS,
+  type AppSettingsMeta,
   appSettingsMetaQueryKey,
   getAllAppSettingsFromCache,
   getAppSettingValueSnapshot,
@@ -14,7 +16,6 @@ import {
   restoreAppSettingsCache,
   setAppSettingsValueInCache,
   updateAppSettingsRequest,
-  type SettingsMeta,
 } from './app-settings-client';
 
 export { getAppSettingValueSnapshot, prefetchAppSettingsKey };
@@ -22,7 +23,7 @@ export { getAppSettingValueSnapshot, prefetchAppSettingsKey };
 export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery<SettingsMeta<K>>({
+  const { data, isLoading } = useQuery<AppSettingsMeta<K>>({
     queryKey: appSettingsMetaQueryKey(key),
     queryFn: () => requestAppSettingsMeta(key),
     staleTime: APP_SETTINGS_STALE_TIME_MS,
@@ -32,16 +33,16 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     void,
     Error,
     Partial<AppSettings[K]>,
-    { prev: SettingsMeta<K> | undefined; prevAll: AppSettings | undefined }
+    { prev: AppSettingsMeta<K> | undefined; prevAll: AppSettings | undefined }
   >({
     mutationFn: (partial) => {
-      const current = queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+      const current = queryClient.getQueryData<AppSettingsMeta<K>>(appSettingsMetaQueryKey(key));
       const merged = mergeAppSettingsValue(current?.value, partial);
       return updateAppSettingsRequest(key, merged);
     },
     onMutate: async (partial) => {
       await queryClient.cancelQueries({ queryKey: appSettingsMetaQueryKey(key) });
-      const prev = queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+      const prev = queryClient.getQueryData<AppSettingsMeta<K>>(appSettingsMetaQueryKey(key));
       const prevAll = getAllAppSettingsFromCache();
       const merged = mergeAppSettingsValue(prev?.value, partial);
       setAppSettingsValueInCache(key, merged);
@@ -76,9 +77,8 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     overrides: data?.overrides,
     isLoading,
     isSaving: updateMutation.isPending || resetMutation.isPending || resetFieldMutation.isPending,
-    isOverridden: !!(data?.overrides && Object.keys(data.overrides).length > 0),
-    isFieldOverridden: (field: keyof AppSettings[K]) =>
-      !!(data?.overrides && field in data.overrides),
+    isOverridden: data ? !isDeepEqual(data.value, data.defaults) : false,
+    isFieldOverridden: (field: keyof AppSettings[K]) => !!(data && field in data.overrides),
     update: updateMutation.mutate,
     updateAsync: updateMutation.mutateAsync,
     reset: resetMutation.mutate,

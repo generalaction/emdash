@@ -35,10 +35,10 @@ import { terminalsRuntimeContract } from '@core/features/terminals/api/runtime-a
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { type Terminal, type TerminalShellId } from '@core/primitives/terminals/api';
+import { appSettingsService } from '@core/services/settings/node';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import {
   getLocalTerminalShellAvailability,

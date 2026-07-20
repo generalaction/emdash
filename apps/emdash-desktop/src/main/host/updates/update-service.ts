@@ -16,7 +16,12 @@ import {
 } from '@root/src/core/services/notifications/node';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
-const { autoUpdater } = _electronUpdater;
+let autoUpdater: typeof _electronUpdater.autoUpdater | undefined;
+
+function getAutoUpdater(): typeof _electronUpdater.autoUpdater {
+  autoUpdater ??= _electronUpdater.autoUpdater;
+  return autoUpdater;
+}
 
 const ALLOW_PRERELEASE = IS_CANARY;
 const ALLOW_DOWNGRADE = false;
@@ -79,6 +84,7 @@ class UpdateService implements Disposable {
   }
 
   private setupAutoUpdater(): void {
+    const autoUpdater = getAutoUpdater();
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
@@ -95,6 +101,7 @@ class UpdateService implements Disposable {
   }
 
   private setupEventListeners(): void {
+    const autoUpdater = getAutoUpdater();
     autoUpdater.on('checking-for-update', () => {
       this.updateState.status = 'checking';
       this.updateState.lastCheck = new Date();
@@ -198,7 +205,7 @@ class UpdateService implements Disposable {
       currentVersion: this.updateState.currentVersion,
     });
 
-    const result = await autoUpdater.checkForUpdatesAndNotify();
+    const result = await getAutoUpdater().checkForUpdatesAndNotify();
     return result?.updateInfo ?? null;
   }
 
@@ -223,7 +230,7 @@ class UpdateService implements Disposable {
     });
 
     try {
-      await autoUpdater.downloadUpdate();
+      await getAutoUpdater().downloadUpdate();
     } catch (error: unknown) {
       const errorMessage = formatUpdaterError(error);
       log.error('Update download failed:', errorMessage, error);
@@ -291,7 +298,7 @@ class UpdateService implements Disposable {
 
     setTimeout(() => {
       try {
-        autoUpdater.quitAndInstall(false, true);
+        getAutoUpdater().quitAndInstall(false, true);
       } catch (error) {
         rollback(`quitAndInstall threw: ${formatUpdaterError(error)}`);
       }

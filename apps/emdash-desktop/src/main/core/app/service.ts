@@ -10,7 +10,6 @@ import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import { acquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
@@ -20,6 +19,7 @@ import {
   type PlatformConfig,
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
+import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import {

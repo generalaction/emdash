@@ -4,6 +4,8 @@ import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
+import { appSettingsService } from '@core/services/settings/node';
+import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import {
   spillLargePrompt,
@@ -14,8 +16,6 @@ import type {
   EnsureConversationSessionRequest,
   EnsureConversationSessionResult,
 } from '@main/core/conversations/types';
-import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';

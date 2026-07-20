@@ -1,3 +1,10 @@
+import {
+  connectSession,
+  createChatContext,
+  createChatState,
+  createChatView,
+  pinTopMode,
+} from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { prefetchAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
@@ -16,6 +23,7 @@ import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
 import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
+import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { initMementos } from '@renderer/lib/mementos';
 import { log } from '@renderer/utils/logger';
@@ -27,6 +35,13 @@ import { appState } from './lib/stores/app-state';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
 async function bootstrap() {
+  installChatUiRuntime({
+    connectSession,
+    createChatContext,
+    createChatState,
+    createChatView,
+    pinTopMode,
+  });
   wireExternalLinkRequests();
 
   appState.update.start();

@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
-import { acquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
 import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
+import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 

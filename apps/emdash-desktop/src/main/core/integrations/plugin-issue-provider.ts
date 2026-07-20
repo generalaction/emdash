@@ -1,25 +1,25 @@
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, type Err, ok } from '@emdash/shared';
 import type {
-  IssueContextResult,
-  IssueListError,
-  IssueListResult,
-  IssueProviderType,
-} from '@core/primitives/issue-providers/api';
-import { log } from '@main/lib/logger';
-import type {
   IssueContextOpts,
   IssueProvider,
   IssueQueryOpts,
   IssueSearchOpts,
-} from '../issues/issue-provider';
+} from '@core/features/issues/node/issue-provider';
 import {
   clampIssueProviderLimit,
   DEFAULT_LIST_LIMIT,
   DEFAULT_SEARCH_LIMIT,
   toIssueProviderCapabilities,
   toLinkedIssue,
-} from '../issues/plugin-issue-adapter';
+} from '@core/features/issues/node/plugin-issue-adapter';
+import type {
+  IssueContextResult,
+  IssueListError,
+  IssueListResult,
+  IssueProviderType,
+} from '@core/primitives/issue-providers/api';
+import { log } from '@main/lib/logger';
 import { integrationConnectionService } from './integration-connection-service';
 import { integrationCredentialStore } from './integration-credential-store-instance';
 

@@ -1,8 +1,8 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
-import type { AppSettings } from '@core/primitives/app-settings/api';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
+import type { AppSettings } from '@core/services/settings/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';

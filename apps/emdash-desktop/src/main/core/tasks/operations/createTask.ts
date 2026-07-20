@@ -11,7 +11,7 @@ import type {
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import { operationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
@@ -53,9 +53,7 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const cleanupReady = await (
-    await getOperationsService()
-  ).waitForConflictingCleanup({
+  const cleanupReady = await operationsService.waitForConflictingCleanup({
     projectId: params.projectId,
     workspaceId: wsTarget.kind === 'repository-instance' ? wsTarget.workspaceId : undefined,
     branchName,
@@ -142,10 +140,6 @@ export async function prepareCreateTask(
   }
 
   return ok({ params, initialStatus, workspaceId, newWorkspaceValues, convInsert });
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 /**

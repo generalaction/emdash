@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { app } from 'electron';
+import { assertUserDataConfigured } from '@main/bootstrap/app-paths-guard';
 import { resolveDefaultDatabasePath } from './database-file';
 import { CURRENT_DB_FILENAME, PREVIOUS_DB_FILENAME } from './default-path';
 
@@ -13,7 +14,9 @@ export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): s
     return resolve(explicitDbFile);
   }
 
-  return resolveDefaultDatabasePath(options.userDataPath ?? app.getPath('userData'));
+  if (options.userDataPath) return resolveDefaultDatabasePath(options.userDataPath);
+  assertUserDataConfigured();
+  return resolveDefaultDatabasePath(app.getPath('userData'));
 }
 
 export const databaseFilenames = {

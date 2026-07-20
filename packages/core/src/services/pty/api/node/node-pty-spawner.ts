@@ -6,23 +6,10 @@ import {
   type PtySpawner,
   type PtySpawnSpec,
 } from '@services/pty/api';
+import * as nodePty from 'node-pty';
 
 const MIN_COLS = 2;
 const MIN_ROWS = 1;
-
-type NodePtyModule = {
-  spawn(
-    command: string,
-    args: string[],
-    options: {
-      name: string;
-      cols: number;
-      rows: number;
-      cwd: string;
-      env: Record<string, string>;
-    }
-  ): NodePtyLike;
-};
 
 type NodePtyLike = {
   pid: number;
@@ -36,12 +23,9 @@ type NodePtyLike = {
   on?: (event: 'error', handler: (error: NodeJS.ErrnoException) => void) => void;
 };
 
-let nodePtyPromise: Promise<NodePtyModule> | null = null;
-
 export class NodePtySpawner implements PtySpawner {
   async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
-      const nodePty = await loadNodePty();
       const proc = nodePty.spawn(spec.command, spec.args, {
         name: 'xterm-256color',
         cols: spec.cols,
@@ -118,11 +102,6 @@ class NodePtyProcess implements PtyProcess {
       this.proc.kill();
     } catch {}
   }
-}
-
-async function loadNodePty(): Promise<NodePtyModule> {
-  nodePtyPromise ??= import('node-pty').then((mod) => mod as NodePtyModule);
-  return nodePtyPromise;
 }
 
 function suppressExpectedNodePtyErrors(

@@ -1,6 +1,18 @@
 import type { IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
+import type {
+  IssueProvider,
+  IssueQueryOpts,
+  IssueSearchOpts,
+} from '@core/features/issues/node/issue-provider';
+import {
+  clampIssueProviderLimit,
+  DEFAULT_LIST_LIMIT,
+  DEFAULT_SEARCH_LIMIT,
+  toIssueProviderCapabilities,
+  toLinkedIssue,
+} from '@core/features/issues/node/plugin-issue-adapter';
 import {
   type IssueListError,
   type IssueListResult,
@@ -13,16 +25,8 @@ import { githubApiAuthService } from '@main/core/github/services/github-api-auth
 import { githubApiBaseUrlForHost } from '@main/core/github/services/github-api-base-url';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
-import {
-  clampIssueProviderLimit,
-  DEFAULT_LIST_LIMIT,
-  DEFAULT_SEARCH_LIMIT,
-  toIssueProviderCapabilities,
-  toLinkedIssue,
-} from '@main/core/issues/plugin-issue-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { log } from '@main/lib/logger';
-import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from '../issues/issue-provider';
 
 async function resolveIssueAuthContext(
   projectId: string | undefined

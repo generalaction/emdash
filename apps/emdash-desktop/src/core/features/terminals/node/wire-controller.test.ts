@@ -12,7 +12,7 @@ vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
 }));
 
-vi.mock('@main/core/settings/settings-service', () => ({
+vi.mock('@core/services/settings/node', () => ({
   appSettingsService: {
     get: vi.fn(async () => ({ defaultShell: 'default' })),
   },

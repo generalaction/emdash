@@ -12,8 +12,8 @@ import {
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { appSettingsService } from '@core/services/settings/node';
 import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import {
   migrateLegacyProjectSettingsIfNeeded,

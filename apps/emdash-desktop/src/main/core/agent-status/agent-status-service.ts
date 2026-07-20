@@ -26,11 +26,13 @@ type ConversationContext = {
   providerId: string | null;
 };
 
-const conversationContextSelection = {
-  projectId: conversations.projectId,
-  taskId: conversations.taskId,
-  providerId: conversations.provider,
-};
+function conversationContextSelection() {
+  return {
+    projectId: conversations.projectId,
+    taskId: conversations.taskId,
+    providerId: conversations.provider,
+  };
+}
 
 function deriveAgentStatus(event: AgentStatusSignal): AgentStatus | null {
   if (event.type === 'start') return 'working';
@@ -88,7 +90,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
         )
         .where(eq(conversations.id, signal.conversationId))
         .returning({
-          ...conversationContextSelection,
+          ...conversationContextSelection(),
           agentStatusSeen: conversations.agentStatusSeen,
         });
       if (!row) return;
@@ -104,7 +106,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       });
     } else {
       const [row] = await db
-        .select(conversationContextSelection)
+        .select(conversationContextSelection())
         .from(conversations)
         .where(eq(conversations.id, signal.conversationId))
         .limit(1);
@@ -132,7 +134,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
           inArray(conversations.agentStatus, ['working', 'awaiting-input'])
         )
       )
-      .returning(conversationContextSelection);
+      .returning(conversationContextSelection());
     if (!row) return;
 
     conversationWireEvents.emit(undefined, {

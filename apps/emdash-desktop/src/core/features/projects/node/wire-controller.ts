@@ -2,7 +2,10 @@ import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
 import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
-import type { OperationsService } from '@main/core/operations/operations-service';
+import {
+  operationsService,
+  type OperationsService,
+} from '@main/core/operations/operations-service';
 import { projectOperations } from '@main/core/projects/controller';
 import {
   createProjectFromRemote,
@@ -50,17 +53,14 @@ export function createProjectsWireController(): ProjectsWireController {
         toError: unknownToWorkspaceError,
       },
       delete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.enqueueDeleteProject(input.projectId);
       },
       retryDelete: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.retryDelete('project', input.projectId);
       },
       forgetWithoutCleanup: async (input) => {
-        const operationsService = await getOperationsService();
         await operationsService.initialize();
         return operationsService.forgetWithoutCleanup('project', input.projectId);
       },
@@ -87,7 +87,6 @@ function createProjectDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown project deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Project deletion state lease was released before ready');
-          const operationsService = await getOperationsService();
           await operationsService.initialize();
           lease ??= operationsService.acquireDeletionState('project', key.entityId);
           if (released) {
@@ -107,10 +106,6 @@ function createProjectDeletionsProvider(): LeasedLiveModelProvider<
     },
     async dispose() {},
   };
-}
-
-async function getOperationsService(): Promise<OperationsService> {
-  return (await import('@main/core/operations/operations-service')).operationsService;
 }
 
 function createCreationProvider(): LeasedLiveModelProvider<typeof projectsWireContract.creation> {

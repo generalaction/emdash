@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
+import { sqlite } from './client';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -101,17 +102,14 @@ function removeLegacyFileIndex(connection: BetterSqlite3.Database): void {
  * main.ts before any db queries run.
  *
  * Accepts an explicit connection so migration tests and fixture generators can
- * pass an in-memory database without pulling in the Electron-dependent client
- * module at import time.
+ * pass an in-memory database.
  *
  * Returns the connection that was used.
  */
 export async function initializeDatabase(
   connection?: BetterSqlite3.Database
 ): Promise<BetterSqlite3.Database> {
-  // Lazily import the app singleton only when no explicit connection is given.
-  // This keeps the module importable in non-Electron environments (Vitest).
-  const conn = connection ?? (await import('./client')).sqlite;
+  const conn = connection ?? sqlite;
   conn.pragma('foreign_keys = ON');
   runBundledMigrations(conn);
   ensureSearchIndex(conn);

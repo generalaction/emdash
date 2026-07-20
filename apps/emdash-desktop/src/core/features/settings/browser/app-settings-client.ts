@@ -1,14 +1,10 @@
-import type { AppSettings, AppSettingsKey } from '@core/primitives/app-settings/api';
+import type { AppSettings, AppSettingsKey, SettingsMeta } from '@core/services/settings/api';
 import { queryClient } from '@renderer/lib/query-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export const APP_SETTINGS_STALE_TIME_MS = 5 * 60_000;
 
-export type SettingsMeta<K extends AppSettingsKey> = {
-  value: AppSettings[K];
-  defaults: AppSettings[K];
-  overrides: Partial<AppSettings[K]>;
-};
+export type AppSettingsMeta<K extends AppSettingsKey> = SettingsMeta<AppSettings[K]>;
 
 export function appSettingsMetaQueryKey<K extends AppSettingsKey>(key: K) {
   return ['appSettings', key, 'meta'] as const;
@@ -37,13 +33,17 @@ export function mergeAppSettingsValue<K extends AppSettingsKey>(
   return partial as AppSettings[K];
 }
 
-export function requestAppSettingsMeta<K extends AppSettingsKey>(key: K): Promise<SettingsMeta<K>> {
+export function requestAppSettingsMeta<K extends AppSettingsKey>(
+  key: K
+): Promise<AppSettingsMeta<K>> {
   return getDesktopWireClient().then((client) =>
     client.appSettings.getWithMeta({ key })
-  ) as Promise<SettingsMeta<K>>;
+  ) as Promise<AppSettingsMeta<K>>;
 }
 
-export function fetchAppSettingsMeta<K extends AppSettingsKey>(key: K): Promise<SettingsMeta<K>> {
+export function fetchAppSettingsMeta<K extends AppSettingsKey>(
+  key: K
+): Promise<AppSettingsMeta<K>> {
   return queryClient.fetchQuery({
     queryKey: appSettingsMetaQueryKey(key),
     queryFn: () => requestAppSettingsMeta(key),
@@ -65,7 +65,7 @@ export function setAppSettingsValueInCache<K extends AppSettingsKey>(
   key: K,
   value: AppSettings[K]
 ): void {
-  queryClient.setQueryData<SettingsMeta<K> | undefined>(appSettingsMetaQueryKey(key), (old) =>
+  queryClient.setQueryData<AppSettingsMeta<K> | undefined>(appSettingsMetaQueryKey(key), (old) =>
     old ? { ...old, value } : old
   );
   queryClient.setQueryData<AppSettings | undefined>(appSettingsAllQueryKey, (all) =>
@@ -75,8 +75,8 @@ export function setAppSettingsValueInCache<K extends AppSettingsKey>(
 
 export function getAppSettingsMetaFromCache<K extends AppSettingsKey>(
   key: K
-): SettingsMeta<K> | undefined {
-  return queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+): AppSettingsMeta<K> | undefined {
+  return queryClient.getQueryData<AppSettingsMeta<K>>(appSettingsMetaQueryKey(key));
 }
 
 /** Synchronous read of the cached settings value. Returns undefined if not yet fetched. */
@@ -92,7 +92,7 @@ export function getAllAppSettingsFromCache(): AppSettings | undefined {
 
 export function restoreAppSettingsCache<K extends AppSettingsKey>(
   key: K,
-  meta: SettingsMeta<K> | undefined,
+  meta: AppSettingsMeta<K> | undefined,
   all: AppSettings | undefined
 ): void {
   queryClient.setQueryData(appSettingsMetaQueryKey(key), meta);

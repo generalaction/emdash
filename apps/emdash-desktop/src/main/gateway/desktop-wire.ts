@@ -8,6 +8,7 @@ import {
   type DesktopControllerContext,
 } from '@core/manifests/node/controllers';
 import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
+import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import { appScope } from '@main/bootstrap/app-scope';
 import { createRetryableReady } from './retryable-ready';
@@ -51,6 +52,7 @@ function createLazyDesktopController(
   const ready = createRetryableReady(async () => {
     const pendingScopes: ReturnType<typeof scope.child>[] = [];
     try {
+      if (import.meta.env.DEV) assertDomainKeyParity();
       const entries = await Promise.all(
         Object.entries(desktopNodeControllers).map(async ([domain, contribution]) => {
           const controllerScope = scope.child(`controller:${domain}`);
@@ -103,6 +105,27 @@ function createLazyDesktopController(
       return disposePromise;
     },
   };
+}
+
+function assertDomainKeyParity(): void {
+  const contractDomains = Object.keys(desktopDomainContracts).sort();
+  const controllerDomains = Object.keys(desktopNodeControllers).sort();
+  if (
+    contractDomains.length === controllerDomains.length &&
+    contractDomains.every((domain, index) => domain === controllerDomains[index])
+  ) {
+    return;
+  }
+
+  const contractSet = new Set(contractDomains);
+  const controllerSet = new Set(controllerDomains);
+  const missingControllers = contractDomains.filter((domain) => !controllerSet.has(domain));
+  const unknownControllers = controllerDomains.filter((domain) => !contractSet.has(domain));
+  throw new Error(
+    `Desktop Wire domain mismatch: missing controllers [${missingControllers.join(
+      ', '
+    )}], unknown controllers [${unknownControllers.join(', ')}]`
+  );
 }
 
 function route(path: string, controllers: Record<string, Controller>) {

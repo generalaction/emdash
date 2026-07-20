@@ -22,15 +22,16 @@
  * callbacks do not go stale after React re-renders.
  */
 
-import type {
-  ChatCommands,
-  ChatContext,
-  ChatState,
-  ChatView,
-  ChatViewOptions,
-  TranscriptTurn,
+import {
+  type ChatCommands,
+  type ChatContext,
+  type ChatState,
+  type ChatView,
+  type ChatViewOptions,
+  type TranscriptTurn,
 } from '@emdash/chat-ui';
 import { createElement, useEffect, useRef } from 'react';
+import { getChatUiRuntime } from './chat-ui-runtime';
 
 export type ChatTranscriptProps = Pick<
   ChatViewOptions,
@@ -75,41 +76,33 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
   useEffect(() => {
     if (!ref.current) return;
     const p = propsRef.current;
-    let disposed = false;
-    let createdView: ChatView | null = null;
-
-    void import('@emdash/chat-ui').then(({ createChatView }) => {
-      if (disposed || !ref.current) return;
-      const view = createChatView({
-        context: p.context,
-        state: p.state,
-        parent: ref.current,
-        composer: p.composer,
-        composerPlacement: p.composerPlacement,
-        contentOverlay: p.contentOverlay,
-        stickToBottom: p.stickToBottom,
-        pinUserMessages: p.pinUserMessages,
-        class: p.class,
-        contentClass: p.contentClass,
-        commands: p.commands ?? {},
-        padTop: p.padTop,
-        // Thread stable wrappers that read from propsRef at call time — never stale.
-        onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
-        onAtBottomChange: p.onAtBottomChange
-          ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
-          : undefined,
-        onActiveUserMessageVisibilityChange: p.onActiveUserMessageVisibilityChange
-          ? (v: boolean) => propsRef.current.onActiveUserMessageVisibilityChange?.(v)
-          : undefined,
-        onViewMounted: (v) => propsRef.current.onReady?.(v),
-      });
-      createdView = view;
-      viewRef.current = view;
+    const view = getChatUiRuntime().createChatView({
+      context: p.context,
+      state: p.state,
+      parent: ref.current,
+      composer: p.composer,
+      composerPlacement: p.composerPlacement,
+      contentOverlay: p.contentOverlay,
+      stickToBottom: p.stickToBottom,
+      pinUserMessages: p.pinUserMessages,
+      class: p.class,
+      contentClass: p.contentClass,
+      commands: p.commands ?? {},
+      padTop: p.padTop,
+      // Thread stable wrappers that read from propsRef at call time — never stale.
+      onReachStart: p.onReachStart ? () => propsRef.current.onReachStart?.() : undefined,
+      onAtBottomChange: p.onAtBottomChange
+        ? (b: boolean) => propsRef.current.onAtBottomChange?.(b)
+        : undefined,
+      onActiveUserMessageVisibilityChange: p.onActiveUserMessageVisibilityChange
+        ? (v: boolean) => propsRef.current.onActiveUserMessageVisibilityChange?.(v)
+        : undefined,
+      onViewMounted: (v) => propsRef.current.onReady?.(v),
     });
+    viewRef.current = view;
 
     return () => {
-      disposed = true;
-      createdView?.dispose();
+      view.dispose();
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

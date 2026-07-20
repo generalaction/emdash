@@ -1,5 +1,4 @@
 import type { ChatContext, ChatImageAttachment, ChatState, ChatView } from '@emdash/chat-ui';
-import { connectSession, createChatState, pinTopMode } from '@emdash/chat-ui';
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type {
   AttachmentMimeType,
@@ -24,6 +23,7 @@ import {
   registerConversationCommands,
   unregisterConversationCommands,
 } from '@renderer/lib/chat/advertised-command-provider';
+import { getChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -80,7 +80,9 @@ export class AcpChatStore {
     readonly taskId: string
   ) {
     this.chatContext = getSharedChatContext();
-    this.chatState = createChatState(this.chatContext, { uri: conversationId });
+    this.chatState = getChatUiRuntime().createChatState(this.chatContext, {
+      uri: conversationId,
+    });
     registerConversationCommands(conversationId, () =>
       this.commands.map((command) => command.name)
     );
@@ -286,7 +288,7 @@ export class AcpChatStore {
         attachments: attachments.map(toPendingAttachment),
       });
       this._syncMessageCount();
-      const pinMode = pinTopMode(optimisticId);
+      const pinMode = getChatUiRuntime().pinTopMode(optimisticId);
       this._view?.setScrollMode(pinMode);
       this.chatState.scroll.set(pinMode);
     }
@@ -531,7 +533,7 @@ export class AcpChatStore {
 
   private _subscribeLiveSession(session: AcpLiveSession): void {
     this._unsubs.splice(0).forEach((unsub) => unsub());
-    const disconnectChatSession = connectSession(
+    const disconnectChatSession = getChatUiRuntime().connectSession(
       this.chatState,
       {
         activeTurn: asValueSource(session.activeTurn),

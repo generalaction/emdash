@@ -237,10 +237,8 @@ export class TaskManagerStore {
       });
 
     if (!result.success) {
-      const { getProjectSshConnectionId } =
-        await import('@core/features/projects/browser/stores/project-selectors');
       const message = formatCreateTaskError(result.error, {
-        isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+        isSshProject: appState.projects.projects.get(this.projectId)?.data?.type === 'ssh',
       });
       runInAction(() => {
         const current = this.tasks.get(params.id);
@@ -280,9 +278,7 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
-    const { getProjectManagerStore } =
-      await import('@core/features/projects/browser/stores/project-selectors');
-    await getProjectManagerStore().mountProject(this.projectId);
+    await appState.projects.mountProject(this.projectId);
     await this.loadTasks();
 
     const inFlight = this._provisionPromises.get(taskId);

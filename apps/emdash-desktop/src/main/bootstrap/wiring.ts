@@ -1,6 +1,6 @@
+import { providerTokenRegistry } from '@core/features/account/node/provider-token-registry';
+import { emdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
-import { providerTokenRegistry } from '@main/core/account/provider-token-registry';
-import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
 import { GitHubAuthServerAdapter } from '@main/core/github/accounts/github-auth-server-adapter';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { taskService } from '@main/core/tasks/task-service';

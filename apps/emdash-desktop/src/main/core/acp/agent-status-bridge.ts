@@ -4,7 +4,7 @@ import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { acpWorker, getAcpRuntimeClient } from '@main/gateway/desktop-workers';
+import { getAcpRuntimeClient, getAcpWorker } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import {
   deriveAcpAgentStatusActions,
@@ -48,7 +48,7 @@ class AcpAgentStatusBridge {
     try {
       this.detach();
       const acpClient = await getAcpRuntimeClient();
-      this.workerStateUnsubscribe = acpWorker.onStateChanged((state) => {
+      this.workerStateUnsubscribe = getAcpWorker().onStateChanged((state) => {
         if (state.kind !== 'failed' && state.kind !== 'disposed') return;
         void this.resetAll().catch((error) => {
           log.warn('ACP agent status bridge failed to reset statuses on disconnect', {

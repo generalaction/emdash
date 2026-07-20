@@ -49,8 +49,11 @@ vi.mock('@main/core/tasks/task-builder', () => ({
   emitTaskProvisionProgress: mocks.emitTaskProvisionProgress,
 }));
 
-vi.mock('@core/features/workspaces/node/workspace-runtime-access', () => ({
-  acquireWorkspaceRuntime: mocks.acquireWorkspace,
+vi.mock('@core/services/workspace-runtime-access/node', () => ({
+  tryAcquireWorkspaceRuntime: async (...args: unknown[]) => ({
+    success: true,
+    data: await mocks.acquireWorkspace(...args),
+  }),
 }));
 
 vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
@@ -106,13 +109,16 @@ describe('WorkspaceBootstrapService', () => {
     });
     mocks.releaseWorkspace.mockResolvedValue(undefined);
     mocks.buildTaskFromWorkspace.mockResolvedValue({
-      taskProvider: {
-        taskId: 'task-1',
-        taskBranch: 'task/branch',
-        sourceBranch: { type: 'local', branch: 'main' },
-        taskEnvVars: {},
-        conversations: {},
-        terminals: {},
+      success: true,
+      data: {
+        taskProvider: {
+          taskId: 'task-1',
+          taskBranch: 'task/branch',
+          sourceBranch: { type: 'local', branch: 'main' },
+          taskEnvVars: {},
+          conversations: {},
+          terminals: {},
+        },
       },
     });
   });

@@ -4,6 +4,7 @@ import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { log } from '../../lib/logger';
+import { db, sqlite } from '../client';
 import * as schema from '../schema';
 import {
   copyAttachedBetaDatabaseIntoDestination,
@@ -54,7 +55,6 @@ export type RunLegacyPortOptions = {
 
 async function resolveAppTarget(appSqlite?: Database.Database): Promise<AppTarget> {
   if (!appSqlite) {
-    const { db, sqlite } = await import('../client');
     return { db, sqlite };
   }
 

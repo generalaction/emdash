@@ -1,14 +1,17 @@
 import { createController, type Controller } from '@emdash/wire/api';
 import type { TelemetryEvent } from '@core/primitives/telemetry/api/telemetry';
-import { telemetryOperations } from '@main/core/telemetry/controller';
+import { telemetryService } from '@main/lib/telemetry';
 import { telemetryContract } from '../api';
 
 export function createTelemetryWireController(): Controller {
   return createController(telemetryContract, {
-    capture: ({ event, properties }) =>
-      telemetryOperations.capture({ event: event as TelemetryEvent, properties }),
-    getStatus: () => telemetryOperations.getStatus(),
-    setEnabled: ({ enabled }) => telemetryOperations.setEnabled(enabled),
-    getFeatureFlags: () => telemetryOperations.getFeatureFlags(),
+    capture: ({ event, properties }) => {
+      telemetryService.capture(event as TelemetryEvent, properties);
+    },
+    getStatus: () => ({ status: telemetryService.getTelemetryStatus() }),
+    setEnabled: ({ enabled }) => {
+      telemetryService.setTelemetryEnabledViaUser(enabled);
+    },
+    getFeatureFlags: () => telemetryService.getFeatureFlags(),
   });
 }

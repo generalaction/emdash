@@ -80,7 +80,7 @@ function makeLocalProvider(
   );
 }
 
-vi.mock('@main/core/settings/settings-service', () => ({
+vi.mock('@core/services/settings/node', () => ({
   appSettingsService: {
     get: vi.fn().mockImplementation((key: string) => {
       if (key === 'project') return Promise.resolve({ tmuxByDefault: false });

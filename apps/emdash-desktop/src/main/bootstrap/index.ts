@@ -3,12 +3,17 @@ import { config as dotenvConfig } from 'dotenv';
 import { sql } from 'drizzle-orm';
 import { app, dialog, systemPreferences } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
+import { emdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { editorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import { githubEvents } from '@core/features/github/node';
+import { promptLibraryService } from '@core/features/library/node/prompt-library-service';
+import { searchService } from '@core/features/search/node/search-service';
+import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
+import { appSettingsContributions } from '@core/manifests/shared/settings-contributions';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import { initializeNotificationService } from '@core/services/notifications/node';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
-import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
+import { appSettingsService, configureAppSettingsService } from '@core/services/settings/node';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { appService } from '@main/core/app/service';
@@ -20,16 +25,13 @@ import { githubAccountReconciliationService } from '@main/core/github/accounts/g
 import { startLifecycleReconciler } from '@main/core/operations/lifecycle-reconciler';
 import { operationsService } from '@main/core/operations/operations-service';
 import { projectSettingsService } from '@main/core/projects/settings/project-settings-service';
-import { promptLibraryService } from '@main/core/prompt-library/service';
-import { searchService } from '@main/core/search/search-service';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { initializeDatabase } from '@main/db/initialize';
 import { projects, tasks } from '@main/db/schema';
 import { installDesktopWire } from '@main/gateway/desktop-wire';
 import {
-  acpWorker,
   agentConfigWorker,
+  ensureAcpWorkerReady,
   ensureAutomationsWorkerReady,
   ensureFileSearchWorkerReady,
   ensureFilesWorkerReady,
@@ -61,6 +63,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { resolveUserEnv } from '@main/lib/userEnv';
 import { appScope } from './app-scope';
 import { runInBackground } from './background';
+import { configureAppIdentity } from './configure-app-identity';
 import { registerQuitHandler } from './shutdown';
 import {
   createDesktopWireOptions,
@@ -71,7 +74,10 @@ import {
 let windowPhaseReady = false;
 
 export async function bootstrap(): Promise<void> {
+  configureAppIdentity();
   if (!prepareElectron()) return;
+  installAutomationTelemetry();
+  configureAppSettingsService(appSettingsContributions);
   registerQuitHandler();
 
   await app.whenReady();
@@ -214,7 +220,7 @@ function initializeGatewayPhase(): void {
     }
   );
 
-  runInBackground('acp-runtime', () => acpWorker.ready());
+  runInBackground('acp-runtime', ensureAcpWorkerReady);
   runInBackground('agent-config-runtime', () => agentConfigWorker.ready());
   runInBackground('files-runtime', ensureFilesWorkerReady);
   runInBackground('file-search-runtime', ensureFileSearchWorkerReady);

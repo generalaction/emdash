@@ -28,7 +28,6 @@ import {
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/node/lifecycle-participants';
 import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
-import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/node/workspace-runtime-access';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { Task, ProvisionWorkspaceError } from '@core/primitives/tasks/api';
 import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
@@ -36,6 +35,7 @@ import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import { compileSetupSpec } from '@core/primitives/workspaces/api';
 import type { WorkspaceType } from '@core/primitives/workspaces/api';
+import { tryAcquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';

@@ -49,7 +49,7 @@ vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(),
 }));
 
-vi.mock('@core/features/workspaces/node/workspace-runtime-access', () => ({
+vi.mock('@core/services/workspace-runtime-access/node', () => ({
   acquireWorkspaceRuntime: mocks.workspaceGet,
 }));
 

@@ -6,7 +6,7 @@ import {
   isBrowsingDataKind,
   type BrowserDataClearKind,
 } from '@core/primitives/browser/api';
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { appSettingsService } from '@core/services/settings/node';
 import { configureBrowserProfileSession } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { isBrowserPartition } from '@main/host/browser/webview-security';

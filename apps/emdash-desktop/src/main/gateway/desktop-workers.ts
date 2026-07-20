@@ -35,12 +35,12 @@ import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
+import { appSettingsService } from '@core/services/settings/node';
 import { appScope } from '@main/bootstrap/app-scope';
 import { automationRuntimePaths } from '@main/core/automations/runtime-paths';
 import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-interactive-git-env';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { workspaceRuntimePaths } from '@main/core/workspaces/runtime/workspace-runtime-paths';
 import { desktopKeyValueStore } from '@main/db/kv';
@@ -108,22 +108,27 @@ const hostDependencies = hostDependenciesComponent.create({
 
 export const hostDependenciesClient: HostDependenciesClient = hostDependencies.client;
 
-export const acpWorker = host.create(acpComponent, {
-  name: 'acp',
-  executable: desktopWorkerPath('acp'),
-  env: process.env,
-  dependencies: {
-    hostDependencies: hostDependencies.client.resolver,
-  },
-  config: {
-    attachmentsDir: join(app?.getPath?.('userData') ?? process.cwd(), 'acp-attachments'),
-    intentsFilePath: sessionIntentFilePaths().acp,
-    lifecycle: {
-      session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-      connectionIdleTtlMs: 120_000,
+let acpWorker: WireWorker<AcpApiContract> | undefined;
+
+export function getAcpWorker(): WireWorker<AcpApiContract> {
+  acpWorker ??= host.create(acpComponent, {
+    name: 'acp',
+    executable: desktopWorkerPath('acp'),
+    env: process.env,
+    dependencies: {
+      hostDependencies: hostDependencies.client.resolver,
     },
-  },
-});
+    config: {
+      attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
+      intentsFilePath: sessionIntentFilePaths().acp,
+      lifecycle: {
+        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+        connectionIdleTtlMs: 120_000,
+      },
+    },
+  });
+  return acpWorker;
+}
 
 let acpClientPromise: Promise<AcpRuntimeClient> | undefined;
 
@@ -166,6 +171,10 @@ let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
 let workspaceWorker: WireWorker<WorkspaceContract> | undefined;
 let workspaceClientPromise: Promise<WorkspaceRuntimeClient> | undefined;
 
+export async function ensureAcpWorkerReady(): Promise<void> {
+  await getAcpRuntimeClient();
+}
+
 export async function ensureFilesWorkerReady(): Promise<void> {
   await getFilesRuntimeClient();
 }
@@ -203,7 +212,7 @@ export async function ensurePullRequestsWorkerReady(): Promise<void> {
 }
 
 export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  acpClientPromise ??= acpWorker.ready();
+  acpClientPromise ??= getAcpWorker().ready();
   return acpClientPromise;
 }
 

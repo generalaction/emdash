@@ -1,4 +1,4 @@
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { appSettingsService } from '@core/services/settings/node';
 import { db } from '@main/db/client';
 import { isAppFocused } from '@main/host/window';
 import { log } from '@main/lib/logger';

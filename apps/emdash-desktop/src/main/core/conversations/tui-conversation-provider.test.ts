@@ -10,11 +10,11 @@ vi.mock('@main/core/agents/workspace-trust', () => ({
   workspaceTrustService: { maybeAutoTrust: vi.fn(() => Promise.resolve()) },
 }));
 
-vi.mock('@main/core/settings/provider-settings-service', () => ({
+vi.mock('@core/services/settings/node/provider-settings-service', () => ({
   providerOverrideSettings: { getItem: vi.fn(() => Promise.resolve(null)) },
 }));
 
-vi.mock('@main/core/settings/settings-service', () => ({
+vi.mock('@core/services/settings/node', () => ({
   appSettingsService: { get: vi.fn(() => Promise.resolve({ writeAgentConfigToGitIgnore: true })) },
 }));
 

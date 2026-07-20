@@ -46,7 +46,8 @@
     "typescript/no-useless-default-assignment": "off",
     "typescript/restrict-template-expressions": "off",
     "typescript/unbound-method": "off",
-    "emdash/core-module-boundaries": "error"
+    "emdash/core-module-boundaries": "error",
+    "emdash/no-dynamic-imports": "error"
   },
   "overrides": [
     {
@@ -111,9 +112,10 @@
       }
     },
     {
-      "files": ["**/*.test.{ts,tsx}"],
+      "files": ["**/*.test.{js,jsx,ts,tsx}"],
       "rules": {
         "typescript/no-explicit-any": "off",
+        "emdash/no-dynamic-imports": "off",
         "emdash/no-tooling-imports": "off"
       }
     }

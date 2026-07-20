@@ -1,4 +1,4 @@
-import type { MermaidConfig } from 'mermaid';
+import mermaid, { type MermaidConfig } from 'mermaid';
 
 let idCounter = 0;
 let renderQueue: Promise<void> = Promise.resolve();
@@ -23,7 +23,6 @@ export async function renderMermaidDiagram({
   theme,
 }: MermaidRenderRequest): Promise<string> {
   const render = async () => {
-    const mermaid = (await import('mermaid')).default;
     const config: MermaidConfig = {
       startOnLoad: false,
       htmlLabels: false,

@@ -11,7 +11,6 @@ import {
 import { browserEvents } from '@core/features/browser/node';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { buildBrowserClaims, type BrowserClaim } from '@core/manifests/shared/browser-claims';
-import type { AppSettings } from '@core/primitives/app-settings/api';
 import {
   browserProfilePartition,
   isNamedBrowserProfileId,
@@ -24,6 +23,7 @@ import {
   matchesElectronInput,
   type PlatformContext,
 } from '@core/primitives/keybindings/api';
+import type { AppSettings } from '@core/services/settings/api';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
