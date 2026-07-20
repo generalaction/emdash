@@ -88,7 +88,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/entry/preload.ts'),
-          recovery: resolve('src/entry/recovery-preload.ts'),
         },
       },
     },

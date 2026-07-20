@@ -103,103 +103,104 @@
         Emdash could not finish starting. You can check for an update, retry a normal start, or open
         the logs for more information.
       </p>
-      <div id="status" role="status">Loading recovery options…</div>
+      <div id="status" role="status"></div>
       <progress id="progress" max="100" value="0" hidden></progress>
       <div class="actions">
         <button id="update" class="primary">Check for updates</button>
-        <button id="retry">Try normal start</button>
-        <button id="restart">Restart</button>
-        <button id="logs">Open logs</button>
-        <button id="quit">Quit</button>
+        <button onclick="navigate('retry')">Try normal start</button>
+        <button onclick="navigate('restart')">Restart</button>
+        <button onclick="navigate('open-logs')">Open logs</button>
+        <button onclick="navigate('quit')">Quit</button>
       </div>
-      <details>
+      <details id="error-details">
         <summary>Error details</summary>
         <pre id="error"></pre>
       </details>
       <footer id="version"></footer>
     </main>
     <script>
-      const status = document.querySelector('#status');
-      const progress = document.querySelector('#progress');
-      const updateButton = document.querySelector('#update');
-      const error = document.querySelector('#error');
-      const version = document.querySelector('#version');
-      let state;
+      // Bootstrap state is injected synchronously by main before loadURL.
+      // The sentinel below is replaced with a JSON literal at build time by
+      // recovery-window.ts so there is no async round-trip on first render.
+      var state = "__RECOVERY_BOOTSTRAP__";
 
-      function describeState(next) {
-        state = next.update;
-        error.textContent = next.errorMessage;
-        version.textContent = `Version ${next.version}`;
-        progress.hidden = state.status !== 'downloading';
-        progress.value = state.downloadProgress?.percent ?? 0;
-        updateButton.disabled =
+      var statusEl = document.querySelector('#status');
+      var progressEl = document.querySelector('#progress');
+      var updateBtn = document.querySelector('#update');
+      var errorEl = document.querySelector('#error');
+      var errorDetails = document.querySelector('#error-details');
+      var versionEl = document.querySelector('#version');
+
+      function navigate(action) {
+        window.location.href = 'emdash-recovery://' + action;
+      }
+
+      window.renderState = function (next) {
+        state = next;
+        errorEl.textContent = next.errorMessage || '';
+        versionEl.textContent = 'Version ' + next.version;
+
+        // Auto-expand error details whenever an error message is present.
+        if (next.errorMessage) {
+          errorDetails.open = true;
+        }
+
+        progressEl.hidden = next.updateStatus !== 'downloading';
+        progressEl.value = next.downloadProgress || 0;
+
+        updateBtn.disabled =
           !next.updaterActive ||
-          state.status === 'checking' ||
-          state.status === 'downloading' ||
-          state.status === 'installing';
+          next.updateStatus === 'checking' ||
+          next.updateStatus === 'downloading' ||
+          next.updateStatus === 'installing';
 
-        switch (state.status) {
+        switch (next.updateStatus) {
           case 'available':
-            status.textContent = `Version ${state.availableVersion} is available.`;
-            updateButton.textContent = 'Download update';
+            statusEl.textContent = 'Version ' + next.availableVersion + ' is available.';
+            updateBtn.textContent = 'Download update';
             break;
           case 'downloading':
-            status.textContent = `Downloading update… ${Math.round(state.downloadProgress?.percent ?? 0)}%`;
-            updateButton.textContent = 'Downloading…';
+            statusEl.textContent =
+              'Downloading update\u2026 ' + Math.round(next.downloadProgress || 0) + '%';
+            updateBtn.textContent = 'Downloading\u2026';
             break;
           case 'downloaded':
-            status.textContent = `Version ${state.availableVersion} is ready to install.`;
-            updateButton.textContent = 'Install and restart';
+            statusEl.textContent = 'Version ' + next.availableVersion + ' is ready to install.';
+            updateBtn.textContent = 'Install and restart';
             break;
           case 'checking':
-            status.textContent = 'Checking for updates…';
-            updateButton.textContent = 'Checking…';
+            statusEl.textContent = 'Checking for updates\u2026';
+            updateBtn.textContent = 'Checking\u2026';
             break;
           case 'installing':
-            status.textContent = 'Installing update…';
-            updateButton.textContent = 'Installing…';
+            statusEl.textContent = 'Installing update\u2026';
+            updateBtn.textContent = 'Installing\u2026';
             break;
           case 'error':
-            status.textContent = state.error ?? 'The update check failed.';
-            updateButton.textContent = 'Check again';
+            statusEl.textContent = next.error || 'The update check failed.';
+            updateBtn.textContent = 'Check again';
             break;
           default:
-            status.textContent = next.updaterActive
+            statusEl.textContent = next.updaterActive
               ? 'Recovery mode is ready.'
               : 'Automatic updates are unavailable in this build.';
-            updateButton.textContent = 'Check for updates';
+            updateBtn.textContent = 'Check for updates';
         }
-      }
+      };
 
-      async function refresh() {
-        describeState(await window.recoveryAPI.getState());
-      }
+      // Update button cycles: check → download → install based on current state.
+      updateBtn.addEventListener('click', function () {
+        var action =
+          state.updateStatus === 'available'
+            ? 'download'
+            : state.updateStatus === 'downloaded'
+              ? 'install'
+              : 'check';
+        navigate(action);
+      });
 
-      updateButton.addEventListener('click', async () => {
-        updateButton.disabled = true;
-        const result =
-          state?.status === 'available'
-            ? await window.recoveryAPI.download()
-            : state?.status === 'downloaded'
-              ? await window.recoveryAPI.install()
-              : await window.recoveryAPI.check();
-        if (!result.success) status.textContent = result.error;
-        await refresh();
-      });
-      document.querySelector('#retry').addEventListener('click', () => {
-        void window.recoveryAPI.tryNormalStart();
-      });
-      document.querySelector('#restart').addEventListener('click', () => {
-        void window.recoveryAPI.restart();
-      });
-      document.querySelector('#logs').addEventListener('click', () => {
-        void window.recoveryAPI.openLogs();
-      });
-      document.querySelector('#quit').addEventListener('click', () => {
-        void window.recoveryAPI.quit();
-      });
-      window.recoveryAPI.onUpdate(() => void refresh());
-      void refresh();
+      // Render initial state synchronously from the injected bootstrap payload.
+      window.renderState(state);
     </script>
   </body>
 </html>

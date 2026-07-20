@@ -3,7 +3,6 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   appOn: vi.fn(),
   initializeFileLogger: vi.fn(),
-  initializeUpdater: vi.fn(),
   showRecoveryWindow: vi.fn(),
   showErrorBox: vi.fn(),
 }));
@@ -23,9 +22,6 @@ vi.mock('@main/host/file-logger', () => ({
 vi.mock('@main/host/recovery/recovery-window', () => ({
   showRecoveryWindow: mocks.showRecoveryWindow,
 }));
-vi.mock('@main/host/updates/update-service', () => ({
-  updateService: { initialize: mocks.initializeUpdater },
-}));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn() },
 }));
@@ -34,26 +30,42 @@ import { enterSafeMode } from './recovery';
 
 beforeEach(() => {
   mocks.initializeFileLogger.mockReset();
-  mocks.initializeUpdater.mockReset().mockResolvedValue(undefined);
   mocks.showRecoveryWindow.mockReset().mockResolvedValue(undefined);
   mocks.showErrorBox.mockReset();
+  mocks.appOn.mockReset();
 });
 
-it('initializes the updater and opens the recovery window', async () => {
+// NOTE: `safeModeQuitHandlerRegistered` is module-level state that persists
+// across tests. The first test runs when the flag is still false; subsequent
+// tests run with it already true. Tests are ordered accordingly.
+
+it('initializes the file logger, registers the quit handler, and opens the recovery window', async () => {
   await enterSafeMode(new Error('database unavailable'));
 
   expect(mocks.initializeFileLogger).toHaveBeenCalledOnce();
-  expect(mocks.initializeUpdater).toHaveBeenCalledOnce();
+  // Quit handler is registered once on the first call.
+  expect(mocks.appOn).toHaveBeenCalledOnce();
   expect(mocks.showRecoveryWindow).toHaveBeenCalledWith({
     errorMessage: 'database unavailable',
   });
 });
 
-it('still opens recovery when updater initialization fails', async () => {
-  mocks.initializeUpdater.mockRejectedValue(new Error('updater unavailable'));
+it('shows a native error dialog if the recovery window itself fails to open', async () => {
+  mocks.showRecoveryWindow.mockRejectedValue(new Error('window creation failed'));
 
   await enterSafeMode(new Error('boot failed'));
 
-  expect(mocks.showRecoveryWindow).toHaveBeenCalledWith({ errorMessage: 'boot failed' });
-  expect(mocks.showErrorBox).not.toHaveBeenCalled();
+  expect(mocks.showErrorBox).toHaveBeenCalledWith(
+    'Something went wrong',
+    expect.stringContaining('boot failed')
+  );
+});
+
+it('does not re-register the quit handler on subsequent calls', async () => {
+  // By the time this test runs, the first test has already set the module-level
+  // safeModeQuitHandlerRegistered flag to true. Calling enterSafeMode again
+  // should NOT call app.on a second time.
+  await enterSafeMode(new Error('second call'));
+
+  expect(mocks.appOn).not.toHaveBeenCalled();
 });

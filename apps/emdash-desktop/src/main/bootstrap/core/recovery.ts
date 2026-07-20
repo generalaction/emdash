@@ -1,14 +1,17 @@
 import { app, dialog } from 'electron';
 import { initializeFileLogger } from '@main/host/file-logger';
 import { showRecoveryWindow } from '@main/host/recovery/recovery-window';
-import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
 
 /*
- * Recovery is the last-resort import path after a failed application update.
- * Keep this module and its transitive imports independent from the database,
- * desktop workers, and the Wire gateway so native/runtime load failures cannot
+ * Recovery is the last-resort import path after a failed boot. Keep this module
+ * and its transitive static imports independent from the database, desktop
+ * workers, Wire gateway, and updater module graph — any failure in those would
  * prevent the recovery window from opening.
+ *
+ * The updateService is loaded dynamically inside showRecoveryWindow so that a
+ * failure in the updater module graph degrades gracefully instead of preventing
+ * the window from appearing.
  */
 
 let safeModeQuitHandlerRegistered = false;
@@ -20,11 +23,6 @@ export async function enterSafeMode(error: unknown): Promise<void> {
   registerSafeModeQuitHandler();
 
   await app.whenReady();
-  try {
-    await updateService.initialize();
-  } catch (updateError) {
-    log.warn('Auto-updater is unavailable in recovery mode', { error: updateError });
-  }
 
   try {
     await showRecoveryWindow({ errorMessage });

@@ -1,29 +1,79 @@
-import { dirname, join } from 'node:path';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { updateEvents } from '@core/features/updates/node';
+import { join } from 'node:path';
+import { app, BrowserWindow, shell } from 'electron';
 import { clearBootFailureMarker } from '@main/bootstrap/core/boot-guard';
 import { getLogFilePath } from '@main/host/file-logger';
-import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
-import recoveryHtml from './recovery.html?asset';
+import recoveryHtmlTemplate from './recovery.html?raw';
+import { injectBootstrap, type RecoveryState } from './recovery-bootstrap';
 
 export type RecoveryWindowOptions = {
   errorMessage: string;
 };
 
+// Minimal structural interface — avoids a static import of the updater module
+// graph. The real updateService satisfies this interface at runtime.
+interface RecoveryUpdateService {
+  initialize(): Promise<void>;
+  checkForUpdates(): Promise<unknown>;
+  downloadUpdate(): Promise<void>;
+  quitAndInstall(): void;
+  getState(): {
+    status: string;
+    availableVersion?: string;
+    downloadProgress?: { percent: number };
+    error?: string;
+  };
+  readonly isActive: boolean;
+}
+
+// Minimal interface for the update event stream — avoids importing @emdash/wire.
+interface RecoveryUpdateEvents {
+  resolve(key: undefined): { subscribe(cb: () => void): () => void };
+}
+
 let recoveryWindow: BrowserWindow | undefined;
-let recoveryErrorMessage = 'Unknown startup error';
-let handlersRegistered = false;
 
 export async function showRecoveryWindow(options: RecoveryWindowOptions): Promise<BrowserWindow> {
-  recoveryErrorMessage = options.errorMessage;
-  registerRecoveryHandlers();
-
   if (recoveryWindow && !recoveryWindow.isDestroyed()) {
     recoveryWindow.show();
     recoveryWindow.focus();
     return recoveryWindow;
   }
+
+  // Load the updater dynamically. If its module graph fails to evaluate (e.g.
+  // native add-on missing or asar extraction failure), the window still opens.
+  let updateSvc: RecoveryUpdateService | null = null;
+  let updateEventSource: RecoveryUpdateEvents | null = null;
+
+  try {
+    const [updaterModule, eventsModule] = await Promise.all([
+      import('@main/host/updates/update-service'),
+      import('@core/features/updates/node'),
+    ]);
+    await updaterModule.updateService.initialize();
+    updateSvc = updaterModule.updateService;
+    // Cast to the minimal interface — EventStreamHost satisfies it structurally.
+    updateEventSource = eventsModule.updateEvents as unknown as RecoveryUpdateEvents;
+  } catch (err) {
+    log.warn('Update service unavailable in recovery mode', { error: err });
+  }
+
+  function buildState(): RecoveryState {
+    const upd = updateSvc?.getState();
+    return {
+      errorMessage: options.errorMessage,
+      version: app.getVersion(),
+      updaterActive: updateSvc?.isActive ?? false,
+      updateStatus: upd?.status ?? 'idle',
+      availableVersion: upd?.availableVersion,
+      downloadProgress: upd?.downloadProgress?.percent,
+      error: upd?.error,
+    };
+  }
+
+  // Inject the initial state synchronously so the page renders immediately
+  // without any async round-trip.
+  const html = injectBootstrap(recoveryHtmlTemplate, buildState());
 
   const window = new BrowserWindow({
     width: 560,
@@ -36,87 +86,109 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
-      preload: join(__dirname, '../preload/recovery.mjs'),
+      // sandbox: true removes the need for a preload file entirely. The page
+      // communicates via emdash-recovery:// navigation URLs instead of IPC.
+      sandbox: true,
     },
   });
   recoveryWindow = window;
 
+  function pushState(): void {
+    if (window.isDestroyed()) return;
+    const json = JSON.stringify(buildState());
+    window.webContents.executeJavaScript(`window.renderState(${json})`).catch((err) => {
+      log.warn('Recovery: failed to push state update', { error: err });
+    });
+  }
+
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', (event) => event.preventDefault());
-  const unsubscribe = updateEvents.resolve(undefined).subscribe(() => {
-    if (!window.isDestroyed()) window.webContents.send('recovery:update-event');
+
+  // Actions are encoded as emdash-recovery://<action> navigation URLs set by
+  // the page. will-navigate fires before Chromium processes the URL, giving us
+  // a chance to preventDefault() and dispatch the action here in main.
+  window.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    const prefix = 'emdash-recovery://';
+    if (!url.startsWith(prefix)) return;
+    const action = url.slice(prefix.length);
+    void dispatchAction(action);
   });
+
+  async function dispatchAction(action: string): Promise<void> {
+    switch (action) {
+      case 'check':
+        try {
+          await updateSvc?.checkForUpdates();
+        } catch (err) {
+          log.warn('Recovery: update check failed', { error: err });
+        }
+        pushState();
+        break;
+
+      case 'download':
+        try {
+          await updateSvc?.downloadUpdate();
+        } catch (err) {
+          log.warn('Recovery: download failed', { error: err });
+        }
+        pushState();
+        break;
+
+      case 'install':
+        clearBootFailureMarker();
+        try {
+          updateSvc?.quitAndInstall();
+        } catch (err) {
+          log.warn('Recovery: install failed', { error: err });
+          pushState();
+        }
+        break;
+
+      case 'retry':
+        clearBootFailureMarker();
+        app.relaunch();
+        app.exit(0);
+        break;
+
+      case 'restart':
+        app.relaunch();
+        app.exit(0);
+        break;
+
+      case 'open-logs': {
+        const logFilePath = getLogFilePath();
+        if (logFilePath) {
+          shell.showItemInFolder(logFilePath);
+        } else {
+          await shell.openPath(join(app.getPath('userData'), 'logs'));
+        }
+        break;
+      }
+
+      case 'quit':
+        app.quit();
+        break;
+
+      default:
+        log.warn('Recovery: unknown action', { action });
+    }
+  }
+
+  // Subscribe to update events and push state on each change.
+  let unsubscribeUpdates: (() => void) | undefined;
+  if (updateEventSource) {
+    unsubscribeUpdates = updateEventSource.resolve(undefined).subscribe(pushState);
+  }
+
   window.on('closed', () => {
-    unsubscribe();
+    unsubscribeUpdates?.();
     if (recoveryWindow === window) recoveryWindow = undefined;
     app.quit();
   });
   window.once('ready-to-show', () => window.show());
 
-  try {
-    await window.loadFile(recoveryHtml);
-  } catch (error) {
-    log.error('Failed to load recovery window asset', { error, recoveryHtml });
-    throw error;
-  }
+  // Load as a data URL — no file on disk to mis-resolve. The full HTML is
+  // already inlined as a string by the ?raw import at build time.
+  await window.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
   return window;
-}
-
-function registerRecoveryHandlers(): void {
-  if (handlersRegistered) return;
-  handlersRegistered = true;
-
-  ipcMain.handle('recovery:get-state', () => {
-    const { updateInfo: _updateInfo, ...update } = updateService.getState();
-    return {
-      errorMessage: recoveryErrorMessage,
-      version: app.getVersion(),
-      updaterActive: updateService.isActive,
-      update,
-    };
-  });
-  ipcMain.handle('recovery:check', () =>
-    runRecoveryAction(async () => {
-      await updateService.checkForUpdates();
-    })
-  );
-  ipcMain.handle('recovery:download', () =>
-    runRecoveryAction(() => updateService.downloadUpdate())
-  );
-  ipcMain.handle('recovery:install', () =>
-    runRecoveryAction(() => {
-      clearBootFailureMarker();
-      updateService.quitAndInstall();
-    })
-  );
-  ipcMain.handle('recovery:restart', () => {
-    app.relaunch();
-    app.exit(0);
-  });
-  ipcMain.handle('recovery:try-normal-start', () => {
-    clearBootFailureMarker();
-    app.relaunch();
-    app.exit(0);
-  });
-  ipcMain.handle('recovery:open-logs', async () => {
-    const logFilePath = getLogFilePath();
-    if (logFilePath) {
-      shell.showItemInFolder(logFilePath);
-      return;
-    }
-    await shell.openPath(dirname(join(app.getPath('userData'), 'logs', 'emdash.log')));
-  });
-  ipcMain.handle('recovery:quit', () => app.quit());
-}
-
-async function runRecoveryAction(action: () => void | Promise<void>) {
-  try {
-    await action();
-    return { success: true as const };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log.warn('Recovery action failed', { error });
-    return { success: false as const, error: message };
-  }
 }

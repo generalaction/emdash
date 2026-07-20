@@ -62,7 +62,7 @@ export const servicesPhase: Phase<BootContext> = {
     browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
     setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
     await promptLibraryService.initialize();
-    await operationsService.initialize();
+    await operationsService.initialize(context.ssh.manager);
     startLifecycleReconciler(operationsService);
     registerProviderTokenHandlers();
   },

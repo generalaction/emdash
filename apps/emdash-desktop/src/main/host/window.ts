@@ -38,8 +38,9 @@ export function createMainWindow(): BrowserWindow {
       // Allow using <webview> in renderer for in‑app browser pane.
       // The webview runs in a separate process; nodeIntegration remains disabled.
       webviewTag: true,
-      // __dirname resolves to out/main/ at runtime; preload is at out/preload/index.mjs
-      preload: join(__dirname, '../preload/index.mjs'),
+      // app.getAppPath() is stable regardless of which output chunk this module
+      // lands in after code splitting. Preload is built to out/preload/index.mjs.
+      preload: join(app.getAppPath(), 'out', 'preload', 'index.mjs'),
     },
     ...(process.platform === 'darwin'
       ? {
