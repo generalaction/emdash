@@ -11,6 +11,14 @@ export class KV<TSchema extends Record<string, unknown>> {
   }
 
   async get<K extends keyof TSchema & string>(key: K): Promise<TSchema[K] | null> {
+    try {
+      return await this.getOrThrow(key);
+    } catch {
+      return null;
+    }
+  }
+
+  async getOrThrow<K extends keyof TSchema & string>(key: K): Promise<TSchema[K] | null> {
     const rows = await db
       .select({ value: kv.value })
       .from(kv)
@@ -19,12 +27,7 @@ export class KV<TSchema extends Record<string, unknown>> {
 
     const raw = rows[0]?.value;
     if (raw === undefined || raw === null) return null;
-
-    try {
-      return JSON.parse(raw) as TSchema[K];
-    } catch {
-      return null;
-    }
+    return JSON.parse(raw) as TSchema[K];
   }
 
   async set<K extends keyof TSchema & string>(key: K, value: TSchema[K]): Promise<void> {

@@ -2,7 +2,11 @@
  * Simple telemetry client for renderer process.
  * Captures events and sends them to the main process via IPC.
  */
-import type { TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
+import type {
+  TelemetryEvent,
+  TelemetryExceptionReport,
+  TelemetryProperties,
+} from '@shared/telemetry';
 import { rpc } from '../lib/ipc';
 import { focusTracker } from './focus-tracker';
 import { getTelemetryScope } from './telemetry-scope';
@@ -55,6 +59,25 @@ export function captureTelemetry<E extends TelemetryEvent>(
   }).catch(() => {
     // Telemetry failures never break the app
   });
+}
+
+export function captureException(
+  error: unknown,
+  mechanism: TelemetryExceptionReport['mechanism'],
+  componentStack?: string
+): void {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  void rpc.telemetry
+    .captureException({
+      name: normalized.name || 'Error',
+      message: normalized.message || 'Unknown error',
+      stack: normalized.stack,
+      componentStack,
+      mechanism,
+    })
+    .catch(() => {
+      // Error reporting must never break the renderer.
+    });
 }
 
 focusTracker.setTransitionEmitter((properties) => {

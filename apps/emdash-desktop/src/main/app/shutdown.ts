@@ -39,8 +39,6 @@ async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
  * - best effort phase — voided, abandoned after GRACE_WINDOW_MS
  */
 export async function runQuitCleanup(): Promise<void> {
-  telemetryService.capture('app_closed');
-
   // synchronous stops
   automationsService.stop();
   agentHookService.dispose();
@@ -51,13 +49,13 @@ export async function runQuitCleanup(): Promise<void> {
 
   // critical phase
   const criticalSteps: Array<[string, () => Promise<void>]> = [
+    ['telemetryService.dispose', () => telemetryService.dispose()],
     ['acpAgentStatusBridge.dispose', async () => acpAgentStatusBridge.dispose()],
     ['projectManager.release', () => projectManager.release()],
     ['runtimeManager.dispose', () => runtimeManager.dispose()],
     ['disposeAcpRuntimeProcess', () => disposeAcpRuntimeProcess()],
     ['disposeAgentConfigRuntimeProcess', () => disposeAgentConfigRuntimeProcess()],
     ['appScope.dispose', () => appScope.dispose()],
-    ['telemetryService.dispose', () => telemetryService.dispose()],
   ];
   await withDeadline(
     (async () => {

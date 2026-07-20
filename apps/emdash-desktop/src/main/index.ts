@@ -71,8 +71,28 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 initializeFileLogger();
-registerProcessErrorLogging(log);
+registerProcessErrorLogging(log, (error, mechanism) =>
+  telemetryService.captureExceptionImmediate(error, {
+    process_type: 'main',
+    mechanism,
+  })
+);
 registerRendererLogHandler(ipcMain);
+
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason === 'clean-exit') return;
+  telemetryService.captureException(
+    new Error(
+      `Electron ${details.type} process exited unexpectedly: ${details.reason} (${details.exitCode})`
+    ),
+    {
+      process_type: details.type,
+      reason: details.reason,
+      exit_code: details.exitCode,
+      mechanism: 'child_process_gone',
+    }
+  );
+});
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];

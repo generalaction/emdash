@@ -90,6 +90,21 @@ export function createMainWindow(): BrowserWindow {
     telemetryService.capture('app_window_unfocused');
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit') return;
+    telemetryService.captureException(
+      new Error(
+        `Electron renderer process exited unexpectedly: ${details.reason} (${details.exitCode})`
+      ),
+      {
+        process_type: 'renderer',
+        reason: details.reason,
+        exit_code: details.exitCode,
+        mechanism: 'render_process_gone',
+      }
+    );
+  });
+
   // Keep the renderer's custom window controls (Linux) in sync with the
   // actual maximize state so the maximize/restore icon stays correct.
   mainWindow.on('maximize', () => {

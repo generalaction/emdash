@@ -32,6 +32,14 @@ export interface TelemetryEnvelope {
   conversation_id?: string;
 }
 
+export type TelemetryExceptionReport = {
+  name: string;
+  message: string;
+  stack?: string;
+  componentStack?: string;
+  mechanism: 'react' | 'window_error' | 'unhandled_rejection' | 'bootstrap';
+};
+
 export interface FocusContext {
   active_view: FocusView | null;
   active_main_panel: FocusMainPanel | null;
@@ -42,7 +50,7 @@ export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifica
 
 export type TelemetryEventProperties = {
   app_started: EmptyProps;
-  app_closed: { was_crash?: boolean };
+  app_closed: { was_unclean_exit?: boolean };
   app_window_focused: EmptyProps;
   app_window_unfocused: EmptyProps;
   daily_active_user: { date: string; timezone: string };
@@ -159,21 +167,6 @@ export type TelemetryEventProperties = {
   setting_changed: { setting: SettingName };
   sidebar_toggled: { side: 'left' | 'right'; state: 'open' | 'closed' };
 
-  $exception: {
-    $exception_message: string;
-    $exception_type: string;
-    $exception_stack_trace_raw: string;
-    $exception_fingerprint?: string;
-    severity?: 'low' | 'medium' | 'high' | 'critical';
-    component?: string;
-    action?: string;
-    user_action?: string;
-    operation?: string;
-    endpoint?: string;
-    session_errors?: number;
-    error_timestamp?: string;
-    error_type?: string;
-  };
   error: { error_type: string; scope: string };
 };
 
