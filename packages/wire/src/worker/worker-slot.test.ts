@@ -9,7 +9,7 @@ import { defineWireComponent, requireContract } from '../component';
 import { FakeWorkerProcessSpawner } from '../testing';
 import { createWireWorkerHost } from './host';
 import { runWireComponentWorker } from './run-component-worker';
-import type { WorkerParentPort } from './types';
+import { WORKER_NAME_ENV_VAR, type WorkerParentPort } from './types';
 
 const api = defineContract({
   ping: procedure({ input: z.string(), output: z.string() }),
@@ -56,6 +56,34 @@ describe('WireWorkerHost and WorkerSlot', () => {
 
     await expect(firstClient.ping('one')).resolves.toBe('pong:one');
     expect(secondClient).toBe(firstClient);
+
+    await host.dispose();
+  });
+
+  it('injects the worker name into the spawned process environment', async () => {
+    const spawner = new FakeWorkerProcessSpawner();
+    const scope = createScope({ label: 'root' });
+    const host = createWireWorkerHost({ scope, processSpawner: spawner });
+    const worker = host.create(apiComponent, {
+      name: 'custom-demo',
+      executable: 'worker',
+      env: {
+        EXISTING_VALUE: 'preserved',
+        [WORKER_NAME_ENV_VAR]: 'overridden',
+      },
+      dependencies: {},
+      config: {},
+      shutdownGraceMs: 0,
+    });
+
+    const ready = worker.ready();
+    await flush();
+    expect(spawner.latest().spec.env).toEqual({
+      EXISTING_VALUE: 'preserved',
+      [WORKER_NAME_ENV_VAR]: 'custom-demo',
+    });
+    void startChild(spawner.latest());
+    await ready;
 
     await host.dispose();
   });
@@ -149,12 +177,12 @@ describe('WireWorkerHost and WorkerSlot', () => {
     await flush();
     void startChild(spawner.latest());
     await flush();
-    spawner.latest().emitStdio('stderr', '{"level":"info","msg":"child ready"}\n');
+    spawner.latest().emitStdio('stderr', '{"level":"info","proc":"demo","msg":"child ready"}\n');
 
     expect(calls).toContainEqual({
       level: 'info',
       message: 'child ready',
-      fields: { worker: 'demo', source: 'demo-runtime' },
+      fields: { worker: 'demo', source: 'demo-runtime', proc: 'demo' },
     });
     await scope.dispose();
   });

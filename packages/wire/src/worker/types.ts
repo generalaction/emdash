@@ -11,6 +11,8 @@ import type {
 } from '../component';
 import type { WireInstrumentation } from '../observability';
 
+export const WORKER_NAME_ENV_VAR = 'EMDASH_WORKER_NAME';
+
 export type WorkerStdioStream = 'stdout' | 'stderr';
 
 export type ProcessExit = {

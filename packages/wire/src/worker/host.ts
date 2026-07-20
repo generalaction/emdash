@@ -10,6 +10,7 @@ import type {
   WireWorkerHost,
   WireWorkerHostOptions,
 } from './types';
+import { WORKER_NAME_ENV_VAR } from './types';
 import { WorkerSlot } from './worker-slot';
 
 export function createWireWorkerHost(options: WireWorkerHostOptions): WireWorkerHost {
@@ -62,13 +63,18 @@ class WireWorkerHostImpl implements WireWorkerHost {
     component: WireComponentDefinition<Id, Defs, Requirements, Config>,
     options: WireComponentWorkerCreateOptions<Requirements, Config>
   ): WireWorker<Defs> {
+    const name = options.name ?? component.id;
+
     return this.defineSlot({
-      name: options.name ?? component.id,
+      name,
       contract: component.contract,
       process: () => ({
         entry: options.executable,
         args: options.args,
-        env: options.env,
+        env: {
+          ...options.env,
+          [WORKER_NAME_ENV_VAR]: name,
+        },
         cwd: options.cwd,
       }),
       setup: ({ process, scope }) => {

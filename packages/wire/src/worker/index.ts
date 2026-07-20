@@ -7,6 +7,7 @@ export {
   type WorkerSignal,
 } from './protocol';
 export { runWireComponentWorker, type RunWireComponentWorkerOptions } from './run-component-worker';
+export { WORKER_NAME_ENV_VAR } from './types';
 export { DEFAULT_WORKER_SUPERVISION } from './worker-slot';
 export type {
   ProcessExit,
