@@ -124,6 +124,9 @@ export const EditorProvider = observer(function EditorProvider({
     return () => {
       focusDisposable.dispose();
       cleanupActive();
+      // Save the active file's view state before disposal. Must run here, not in
+      // the attachment autorun's cleanup — that fires after the editor is disposed.
+      modelRegistry.detach(editor, prevBufUriRef.current);
       editor.dispose();
       container.remove();
       editorRef.current = null;
@@ -178,7 +181,9 @@ export const EditorProvider = observer(function EditorProvider({
         const newBufUri = entry ? buildMonacoModelPath(editorView.modelRootPath, entry.path) : null;
 
         if (!newBufUri) {
-          editor.setModel(null);
+          // detach saves the file's view state, so the scroll position survives
+          // switching to a non-file tab (conversation, diff, …).
+          modelRegistry.detach(editor, prevBufUriRef.current);
           prevBufUriRef.current = undefined;
           return;
         }
