@@ -110,12 +110,6 @@ export const EditorProvider = observer(function EditorProvider({
       paneLayout.setActiveGroup(paneId);
     });
 
-    // Satisfy any focus request that arrived before the editor was ready.
-    if (focusPendingRef.current && editor.getModel()) {
-      focusPendingRef.current = false;
-      editor.focus();
-    }
-
     if (hostRef.current) {
       hostRef.current.appendChild(container);
       editor.layout();
@@ -124,6 +118,9 @@ export const EditorProvider = observer(function EditorProvider({
     return () => {
       focusDisposable.dispose();
       cleanupActive();
+      // Save the active file's view state before disposal. Must run here, not in
+      // the attachment autorun's cleanup — that fires after the editor is disposed.
+      modelRegistry.detach(editor, prevBufUriRef.current);
       editor.dispose();
       container.remove();
       editorRef.current = null;
@@ -178,7 +175,9 @@ export const EditorProvider = observer(function EditorProvider({
         const newBufUri = entry ? buildMonacoModelPath(editorView.modelRootPath, entry.path) : null;
 
         if (!newBufUri) {
-          editor.setModel(null);
+          // detach saves the file's view state, so the scroll position survives
+          // switching to a non-file tab (conversation, diff, …).
+          modelRegistry.detach(editor, prevBufUriRef.current);
           prevBufUriRef.current = undefined;
           return;
         }
@@ -194,6 +193,12 @@ export const EditorProvider = observer(function EditorProvider({
 
         modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
+
+        // Satisfy any focus request that arrived while the model was still loading.
+        if (focusPendingRef.current) {
+          focusPendingRef.current = false;
+          editor.focus();
+        }
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []
