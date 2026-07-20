@@ -10,6 +10,7 @@ import {
   LiveJobFailedError,
   type LiveJobContext,
   type LiveModelHost,
+  type LiveSource,
 } from '@emdash/wire';
 import { bindMachineToLiveState } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
@@ -66,6 +67,7 @@ import { WorkspaceTopologyObserver } from './topology-observer';
 
 type WorkspaceRuntimeRecord = {
   machine: WorkspaceMachine;
+  state: LiveSource;
   binding: { dispose(): void };
   scope: Scope;
 };
@@ -429,6 +431,11 @@ export class WorkspaceRuntime {
     void this.topologyObserver.dispose();
   }
 
+  /** Ensures a workspace state exists so a fresh daemon can restore a live-topic attachment. */
+  resolveState(workspace: HostFileRef): LiveSource {
+    return this.recordFor(workspace).state;
+  }
+
   private recordFor(workspace: HostFileRef): WorkspaceRuntimeRecord {
     const key = resourceKeyFromFileRef(workspace);
     const existing = this.records.get(key);
@@ -447,6 +454,7 @@ export class WorkspaceRuntime {
     });
     const record = {
       machine,
+      state: cell.states.state,
       binding,
       scope: this.scope.child(`workspace:${key}`),
     };

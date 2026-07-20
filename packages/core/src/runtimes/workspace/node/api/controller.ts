@@ -2,6 +2,7 @@ import {
   createController,
   withValidation,
   type Controller,
+  type LiveModelProvider,
   type ValidatePolicy,
 } from '@emdash/wire';
 import { workspaceContract, type WorkspaceContract } from '@runtimes/workspace/api';
@@ -18,10 +19,16 @@ export function createWorkspaceController(
   options: WorkspaceControllerOptions = {}
 ): Controller {
   const contract = options.contract ?? workspaceContract;
+  const workspaceProvider: LiveModelProvider<typeof contract.workspace> = {
+    kind: 'liveModelProvider',
+    contract: contract.workspace,
+    resolveState: (workspace) => runtime.resolveState(workspace),
+    runMutation: (name, envelope) => runtime.host.runMutation(name, envelope),
+  };
   return withValidation(
     contract,
     createController(contract, {
-      workspace: runtime.host,
+      workspace: workspaceProvider,
       provisionFromIntent: {
         run: (input, ctx) => runtime.provisionFromIntent(input, ctx),
         toError: workspaceJobError,
