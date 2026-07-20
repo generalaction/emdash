@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { shouldSkipAutofocus } from '@renderer/lib/region-focus';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
@@ -114,6 +115,7 @@ export function BrowserToolbar({
   useEffect(() => {
     if (!autoFocusUrl) return;
     const timer = window.setTimeout(() => {
+      if (shouldSkipAutofocus(null)) return;
       urlInputRef.current?.focus();
       urlInputRef.current?.select();
     }, 0);

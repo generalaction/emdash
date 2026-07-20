@@ -56,7 +56,15 @@ const ConversationRow = observer(function ConversationRow({
   const conversation = conversations.conversations.get(conversationId);
 
   const tabKind = conversationTabKind(conversation?.data.type);
-  const { isActive, open: openConversation } = useTabSelection(tabKind, conversationId);
+  const { isActive, open: openTab } = useTabSelection(tabKind, conversationId);
+  const taskView = useWorkspaceViewModel();
+
+  // Committed opens claim the region so the composer's region-gated autofocus
+  // fires; previews (single click / arrow-key browsing) must not move focus.
+  const openConversation = (args: { conversationId: string }, config: { preview: boolean }) => {
+    openTab(args, config);
+    if (!config.preview) taskView.setFocusedRegion('main');
+  };
 
   if (!conversation) return null;
   const displayTitle = formatConversationTitleForDisplay(
@@ -229,6 +237,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
         } else {
           paneLayout.open('conversation', { conversationId }, { preview: false });
         }
+        taskView.setFocusedRegion('main');
       },
     });
   };

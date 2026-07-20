@@ -149,6 +149,7 @@ describe('createTaskCommandProvider', () => {
       isSidebarCollapsed: false,
       isTerminalDrawerOpen: false,
       openNewTerminal: vi.fn(),
+      openTerminalDrawer: vi.fn(),
       setFocusedRegion: vi.fn(),
       setSidebarCollapsed: vi.fn(),
       setSidebarTab: vi.fn(),

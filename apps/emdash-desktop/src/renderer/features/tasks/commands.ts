@@ -174,7 +174,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           description: viewTerminalsDef.description,
           group: viewTerminalsDef.group,
           execute() {
-            taskView?.setTerminalDrawerOpen(true);
+            taskView?.openTerminalDrawer();
           },
         },
 
