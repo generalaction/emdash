@@ -11,7 +11,7 @@ import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contrac
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import type { SshServiceHandle } from '@core/services/ssh/node';
-import { appScope } from '@main/bootstrap/app-scope';
+import { appScope } from '@main/bootstrap/core/app-scope';
 import { createRetryableReady } from './retryable-ready';
 import { getDesktopRuntimeBroker } from './runtime-broker';
 

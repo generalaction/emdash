@@ -98,6 +98,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['src/**/*.test.ts'],
           exclude: [
             '**/_*/**',
@@ -117,6 +118,7 @@ export default defineConfig({
         test: {
           name: 'main-db',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: [
             'src/core/features/**/*.db.test.ts',
             'src/core/services/**/*.db.test.ts',
@@ -134,6 +136,7 @@ export default defineConfig({
         test: {
           name: 'fixtures',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['tooling/generate-fixtures.ts'],
         },
       },
@@ -145,6 +148,7 @@ export default defineConfig({
         test: {
           name: 'migrations',
           environment: 'node',
+          setupFiles: [resolve(__dirname, 'tooling/vitest/setup-app-config.ts')],
           include: ['src/main/db/tests/migrations/**/*.test.ts'],
         },
       },

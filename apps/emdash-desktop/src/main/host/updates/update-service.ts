@@ -8,12 +8,6 @@ import { updateEvents } from '@core/features/updates/node';
 import { IS_CANARY, UPDATE_CHANNEL } from '@core/primitives/app-identity/api/app-identity';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { log } from '@main/lib/logger';
-import {
-  notificationService,
-  publishUpdateAvailableNotification,
-  publishUpdateDownloadedNotification,
-  publishUpdateErrorNotification,
-} from '@root/src/core/services/notifications/node';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 let autoUpdater: typeof _electronUpdater.autoUpdater | undefined;
@@ -47,6 +41,12 @@ export interface UpdateState {
   releaseNotes?: string;
 }
 
+export interface UpdateNotificationPublisher {
+  available(version: string): void;
+  downloaded(version: string): void;
+  error(message: string): void;
+}
+
 class UpdateService implements Disposable {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
@@ -55,6 +55,7 @@ class UpdateService implements Disposable {
   private active = false;
   private installRequested = false;
   private installRestartGuardTimer?: NodeJS.Timeout;
+  private notificationPublisher?: UpdateNotificationPublisher;
 
   constructor() {
     this.updateState = {
@@ -81,6 +82,10 @@ class UpdateService implements Disposable {
     });
 
     this.scheduleNextCheck(STARTUP_DELAY_MS);
+  }
+
+  setNotificationPublisher(publisher: UpdateNotificationPublisher): void {
+    this.notificationPublisher = publisher;
   }
 
   private setupAutoUpdater(): void {
@@ -113,7 +118,7 @@ class UpdateService implements Disposable {
       this.updateState.availableVersion = info.version;
       this.updateState.updateInfo = info;
       updateEvents.emit(undefined, { type: 'available', version: info.version });
-      publishUpdateAvailableNotification(notificationService, info.version);
+      this.publishNotification((publisher) => publisher.available(info.version));
     });
 
     autoUpdater.on('update-not-available', () => {
@@ -142,7 +147,7 @@ class UpdateService implements Disposable {
       }
 
       updateEvents.emit(undefined, { type: 'error', message: errorMessage });
-      publishUpdateErrorNotification(notificationService, errorMessage);
+      this.publishNotification((publisher) => publisher.error(errorMessage));
     });
 
     autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
@@ -166,7 +171,7 @@ class UpdateService implements Disposable {
       this.updateState.status = 'downloaded';
       this.updateState.rollbackVersion = this.updateState.currentVersion;
       updateEvents.emit(undefined, { type: 'downloaded', version: info.version });
-      publishUpdateDownloadedNotification(notificationService, info.version);
+      this.publishNotification((publisher) => publisher.downloaded(info.version));
     });
   }
 
@@ -244,7 +249,7 @@ class UpdateService implements Disposable {
       this.updateState.updateInfo = info;
 
       updateEvents.emit(undefined, { type: 'error', message: errorMessage });
-      publishUpdateErrorNotification(notificationService, errorMessage);
+      this.publishNotification((publisher) => publisher.error(errorMessage));
       throw error;
     }
   }
@@ -287,7 +292,9 @@ class UpdateService implements Disposable {
           type: 'downloaded',
           version: this.updateState.availableVersion,
         });
-        publishUpdateDownloadedNotification(notificationService, this.updateState.availableVersion);
+        this.publishNotification((publisher) =>
+          publisher.downloaded(this.updateState.availableVersion!)
+        );
       }
       log.error(reason);
     };
@@ -353,6 +360,19 @@ class UpdateService implements Disposable {
 
   get isInstallRequested(): boolean {
     return this.installRequested;
+  }
+
+  get isActive(): boolean {
+    return this.active;
+  }
+
+  private publishNotification(publish: (publisher: UpdateNotificationPublisher) => void): void {
+    if (!this.notificationPublisher) return;
+    try {
+      publish(this.notificationPublisher);
+    } catch (error) {
+      log.warn('Failed to publish update notification', { error });
+    }
   }
 
   dispose(): void {

@@ -5,6 +5,7 @@ import type {
   TelemetryEvent,
   TelemetryProperties,
 } from '@core/primitives/telemetry/api/telemetry';
+import { getAppConfig } from '@main/bootstrap/core/config';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
 
@@ -314,15 +315,14 @@ class TelemetryService implements Disposable {
   // ---------------------------------------------------------------------------
 
   async initialize(options?: InitOptions): Promise<void> {
+    const config = getAppConfig();
     this.appVersion = options?.appVersion ?? 'unknown';
     this.isPackaged = options?.isPackaged ?? false;
-    const enabledEnv = (appEnv.runtime.TELEMETRY_ENABLED ?? 'true').toLowerCase();
-    this.enabled =
-      !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
+    this.enabled = !isViteDevBuild && config.telemetryEnabled;
     // build value wins (prod); dev fallback used locally without VITE_ vars set
     this.apiKey = appEnv.build.VITE_POSTHOG_KEY ?? appEnv.dev.POSTHOG_PROJECT_API_KEY;
     this.host = this.normalizeHost(appEnv.build.VITE_POSTHOG_HOST ?? appEnv.dev.POSTHOG_HOST);
-    this.installSource = options?.installSource ?? appEnv.runtime.INSTALL_SOURCE;
+    this.installSource = config.installSource ?? options?.installSource;
     this.sessionId = randomUUID();
 
     // Load persisted state from SQLite KV (all reads are non-blocking best-effort)

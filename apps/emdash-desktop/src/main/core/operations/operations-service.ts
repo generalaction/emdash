@@ -12,7 +12,7 @@ import type {
 } from '@core/primitives/operations/api';
 import type { OperationPayload } from '@core/primitives/operations/api';
 import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
-import { appScope } from '@main/bootstrap/app-scope';
+import { appScope } from '@main/bootstrap/core/app-scope';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db, type DrizzleTx } from '@main/db/client';

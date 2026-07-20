@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emdash Recovery</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        background: Canvas;
+        color: CanvasText;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+      }
+      main {
+        width: min(100%, 520px);
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 24px;
+      }
+      p {
+        margin: 0 0 18px;
+        color: color-mix(in srgb, CanvasText 72%, transparent);
+        line-height: 1.5;
+      }
+      #status {
+        min-height: 24px;
+        margin-bottom: 14px;
+        font-size: 13px;
+      }
+      progress {
+        width: 100%;
+        margin: 0 0 16px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      button {
+        border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+        border-radius: 7px;
+        padding: 8px 12px;
+        background: color-mix(in srgb, Canvas 92%, CanvasText);
+        color: CanvasText;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: white;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      details {
+        margin-top: 8px;
+        font-size: 12px;
+      }
+      pre {
+        max-height: 110px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 10px;
+        border-radius: 6px;
+        background: color-mix(in srgb, CanvasText 7%, transparent);
+      }
+      footer {
+        margin-top: 16px;
+        font-size: 11px;
+        color: color-mix(in srgb, CanvasText 55%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Something went wrong</h1>
+      <p>
+        Emdash could not finish starting. You can check for an update, retry a normal start, or open
+        the logs for more information.
+      </p>
+      <div id="status" role="status">Loading recovery options…</div>
+      <progress id="progress" max="100" value="0" hidden></progress>
+      <div class="actions">
+        <button id="update" class="primary">Check for updates</button>
+        <button id="retry">Try normal start</button>
+        <button id="restart">Restart</button>
+        <button id="logs">Open logs</button>
+        <button id="quit">Quit</button>
+      </div>
+      <details>
+        <summary>Error details</summary>
+        <pre id="error"></pre>
+      </details>
+      <footer id="version"></footer>
+    </main>
+    <script>
+      const status = document.querySelector('#status');
+      const progress = document.querySelector('#progress');
+      const updateButton = document.querySelector('#update');
+      const error = document.querySelector('#error');
+      const version = document.querySelector('#version');
+      let state;
+
+      function describeState(next) {
+        state = next.update;
+        error.textContent = next.errorMessage;
+        version.textContent = `Version ${next.version}`;
+        progress.hidden = state.status !== 'downloading';
+        progress.value = state.downloadProgress?.percent ?? 0;
+        updateButton.disabled =
+          !next.updaterActive ||
+          state.status === 'checking' ||
+          state.status === 'downloading' ||
+          state.status === 'installing';
+
+        switch (state.status) {
+          case 'available':
+            status.textContent = `Version ${state.availableVersion} is available.`;
+            updateButton.textContent = 'Download update';
+            break;
+          case 'downloading':
+            status.textContent = `Downloading update… ${Math.round(state.downloadProgress?.percent ?? 0)}%`;
+            updateButton.textContent = 'Downloading…';
+            break;
+          case 'downloaded':
+            status.textContent = `Version ${state.availableVersion} is ready to install.`;
+            updateButton.textContent = 'Install and restart';
+            break;
+          case 'checking':
+            status.textContent = 'Checking for updates…';
+            updateButton.textContent = 'Checking…';
+            break;
+          case 'installing':
+            status.textContent = 'Installing update…';
+            updateButton.textContent = 'Installing…';
+            break;
+          case 'error':
+            status.textContent = state.error ?? 'The update check failed.';
+            updateButton.textContent = 'Check again';
+            break;
+          default:
+            status.textContent = next.updaterActive
+              ? 'Recovery mode is ready.'
+              : 'Automatic updates are unavailable in this build.';
+            updateButton.textContent = 'Check for updates';
+        }
+      }
+
+      async function refresh() {
+        describeState(await window.recoveryAPI.getState());
+      }
+
+      updateButton.addEventListener('click', async () => {
+        updateButton.disabled = true;
+        const result =
+          state?.status === 'available'
+            ? await window.recoveryAPI.download()
+            : state?.status === 'downloaded'
+              ? await window.recoveryAPI.install()
+              : await window.recoveryAPI.check();
+        if (!result.success) status.textContent = result.error;
+        await refresh();
+      });
+      document.querySelector('#retry').addEventListener('click', () => {
+        void window.recoveryAPI.tryNormalStart();
+      });
+      document.querySelector('#restart').addEventListener('click', () => {
+        void window.recoveryAPI.restart();
+      });
+      document.querySelector('#logs').addEventListener('click', () => {
+        void window.recoveryAPI.openLogs();
+      });
+      document.querySelector('#quit').addEventListener('click', () => {
+        void window.recoveryAPI.quit();
+      });
+      window.recoveryAPI.onUpdate(() => void refresh());
+      void refresh();
+    </script>
+  </body>
+</html>

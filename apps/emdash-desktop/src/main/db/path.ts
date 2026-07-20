@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { app } from 'electron';
-import { assertUserDataConfigured } from '@main/bootstrap/app-paths-guard';
+import { assertUserDataConfigured, getAppConfig } from '@main/bootstrap/core/config';
 import { resolveDefaultDatabasePath } from './database-file';
 import { CURRENT_DB_FILENAME, PREVIOUS_DB_FILENAME } from './default-path';
 
@@ -9,7 +9,7 @@ export interface ResolveDatabasePathOptions {
 }
 
 export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): string {
-  const explicitDbFile = process.env.EMDASH_DB_FILE?.trim();
+  const explicitDbFile = getAppConfig().dbFile;
   if (explicitDbFile) {
     return resolve(explicitDbFile);
   }

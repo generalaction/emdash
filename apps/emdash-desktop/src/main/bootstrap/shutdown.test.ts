@@ -59,13 +59,16 @@ vi.mock('@main/lib/logger', () => ({
 vi.mock('@main/lib/telemetry', () => ({
   telemetryService: { capture: vi.fn(), dispose: vi.fn() },
 }));
-vi.mock('@root/src/core/services/notifications/node', () => ({
+vi.mock('@core/services/notifications/node', () => ({
   disposeNotificationService: vi.fn(),
 }));
-vi.mock('./active-session-summary', () => ({
+vi.mock('@main/host/sessions/active-session-summary', () => ({
   getActiveSessionSummary: vi.fn(),
 }));
-vi.mock('./app-scope', () => ({
+vi.mock('./core/boot-guard', () => ({
+  markBootSuccessful: vi.fn(),
+}));
+vi.mock('./core/app-scope', () => ({
   appScope: { dispose: vi.fn() },
 }));
 

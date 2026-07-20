@@ -4,7 +4,7 @@ import {
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
-import { appScope } from '@main/bootstrap/app-scope';
+import { appScope } from '@main/bootstrap/core/app-scope';
 import {
   createDevServerBridge,
   type DevServerBridge,

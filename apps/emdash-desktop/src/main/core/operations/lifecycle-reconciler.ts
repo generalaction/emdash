@@ -8,7 +8,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { eq, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
-import { appScope } from '@main/bootstrap/app-scope';
+import { appScope } from '@main/bootstrap/core/app-scope';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
