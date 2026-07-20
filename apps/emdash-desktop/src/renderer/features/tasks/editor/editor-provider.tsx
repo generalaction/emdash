@@ -110,12 +110,6 @@ export const EditorProvider = observer(function EditorProvider({
       paneLayout.setActiveGroup(paneId);
     });
 
-    // Satisfy any focus request that arrived before the editor was ready.
-    if (focusPendingRef.current && editor.getModel()) {
-      focusPendingRef.current = false;
-      editor.focus();
-    }
-
     if (hostRef.current) {
       hostRef.current.appendChild(container);
       editor.layout();
@@ -199,6 +193,12 @@ export const EditorProvider = observer(function EditorProvider({
 
         modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
+
+        // Satisfy any focus request that arrived while the model was still loading.
+        if (focusPendingRef.current) {
+          focusPendingRef.current = false;
+          editor.focus();
+        }
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []
