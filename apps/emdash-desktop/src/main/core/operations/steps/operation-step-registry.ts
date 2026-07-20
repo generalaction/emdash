@@ -6,11 +6,17 @@ import {
   hostFileRefFromNativePath,
   hostPathFromNative,
 } from '@core/primitives/desktop-runtime/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import {
+  projects,
+  tasks,
+  workspaces,
+  type LifecycleOperationRow,
+} from '@core/services/app-db/node/schema';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import { db } from '@main/db/client';
-import { projects, tasks, workspaces, type LifecycleOperationRow } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -182,7 +188,7 @@ async function resolveDeactivateConsumers(
 }
 
 async function teardownWorkspace(operation: LifecycleOperationRow): Promise<OperationStepResult> {
-  if (operation.workspaceId && !(await workspaceIsUnused(db, operation.workspaceId))) {
+  if (operation.workspaceId && !(await workspaceIsUnused(getAppDb(), operation.workspaceId))) {
     if (operation.kind === 'delete-task') return ok();
     if (operation.kind === 'delete-workspace') {
       return err(workspaceInUseStepError());
@@ -241,11 +247,11 @@ async function purgeTaskRows(operation: LifecycleOperationRow): Promise<Operatio
   const purgeWorkspace =
     !!operation.workspaceId &&
     operation.payload.deleteWorktree !== false &&
-    (await workspaceIsUnused(db, operation.workspaceId));
+    (await workspaceIsUnused(getAppDb(), operation.workspaceId));
   if (purgeWorkspace && context.workspacePath) {
     await unregisterFileSearchRoot(hostPathFromNative(context.workspacePath));
   }
-  db.transaction((tx) => {
+  getAppDb().transaction((tx) => {
     tx.delete(tasks).where(eq(tasks.id, operation.taskId!)).run();
     if (operation.workspaceId && purgeWorkspace) {
       tx.delete(workspaces)
@@ -268,11 +274,11 @@ async function purgeTaskRows(operation: LifecycleOperationRow): Promise<Operatio
 async function purgeWorkspaceRow(operation: LifecycleOperationRow): Promise<OperationStepResult> {
   if (!operation.workspaceId) return ok();
   const context = await resolveOperationContext(operation);
-  if (!(await workspaceIsUnused(db, operation.workspaceId))) return ok();
+  if (!(await workspaceIsUnused(getAppDb(), operation.workspaceId))) return ok();
   if (context.workspacePath) {
     await unregisterFileSearchRoot(hostPathFromNative(context.workspacePath));
   }
-  await db
+  await getAppDb()
     .delete(workspaces)
     .where(
       and(
@@ -286,12 +292,12 @@ async function purgeWorkspaceRow(operation: LifecycleOperationRow): Promise<Oper
 async function purgeProjectRow(operation: LifecycleOperationRow): Promise<OperationStepResult> {
   if (!operation.projectId) return ok();
   await purgeProjectLocalState(operation.projectId, async () => {
-    await db.delete(projects).where(eq(projects.id, operation.projectId!));
+    await getAppDb().delete(projects).where(eq(projects.id, operation.projectId!));
   });
   return ok();
 }
 
-async function workspaceIsUnused(tx: typeof db, workspaceId: string): Promise<boolean> {
+async function workspaceIsUnused(tx: AppDb, workspaceId: string): Promise<boolean> {
   const [row] = await tx
     .select({ id: tasks.id })
     .from(tasks)
@@ -306,7 +312,7 @@ async function workspaceDeletePreconditionError(
   if (
     operation.kind === 'delete-workspace' &&
     operation.workspaceId &&
-    !(await workspaceIsUnused(db, operation.workspaceId))
+    !(await workspaceIsUnused(getAppDb(), operation.workspaceId))
   ) {
     return workspaceInUseStepError();
   }

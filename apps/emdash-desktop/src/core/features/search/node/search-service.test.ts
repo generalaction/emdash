@@ -1,17 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import { searchService } from './search-service';
+import { createSearchService } from './search-service';
 
 const mocks = vi.hoisted(() => ({
   fileSearch: vi.fn(),
   prepare: vi.fn(),
   workspaceGet: vi.fn(),
   warn: vi.fn(),
-}));
-
-vi.mock('@main/db/client', () => ({
-  db: {},
-  sqlite: { prepare: mocks.prepare },
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -30,16 +25,17 @@ vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { on: vi.fn() },
 }));
 
-vi.mock('@core/services/workspace-runtime-access/node', () => ({
-  acquireWorkspaceRuntime: mocks.workspaceGet,
-}));
-
 vi.mock('@main/core/file-search/runtime-client', () => ({
   searchFileSearchRoot: mocks.fileSearch,
 }));
 
 describe('SearchService runtime file search', () => {
   const root = hostPathFromNative('/repo');
+  const searchService = createSearchService({
+    db: {} as never,
+    sqlite: { prepare: mocks.prepare } as never,
+    acquireWorkspaceRuntime: mocks.workspaceGet,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();

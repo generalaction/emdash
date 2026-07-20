@@ -4,8 +4,11 @@ import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import { appSettingsService } from '@core/services/settings/node';
-import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
+import { conversations } from '@core/services/app-db/node/schema';
+import {
+  getAppSettingsService,
+  getProviderOverrideSettings,
+} from '@main/bootstrap/core/service-instances';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import {
   spillLargePrompt,
@@ -17,8 +20,7 @@ import type {
   EnsureConversationSessionResult,
 } from '@main/core/conversations/types';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getTuiAgentsRuntimeClient } from '@main/gateway/accessors';
 
 const DEFAULT_COLS = 80;
@@ -100,7 +102,7 @@ export class TuiConversationProvider implements ConversationProvider {
   }
 
   async destroyAll(): Promise<void> {
-    const rows = await db
+    const rows = await getAppDb()
       .select({ id: conversations.id })
       .from(conversations)
       .where(and(eq(conversations.taskId, this.taskId), eq(conversations.type, 'pty')));
@@ -123,8 +125,8 @@ export class TuiConversationProvider implements ConversationProvider {
       host: { kind: 'local', homedir: homedir() },
       force: conversation.autoApprove === true,
     });
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const localProjectSettings = await appSettingsService.get('localProject');
+    const providerConfig = await getProviderOverrideSettings().getItem(conversation.providerId);
+    const localProjectSettings = await getAppSettingsService().get('localProject');
     const agentSession = resolveAgentSession(conversation, mode);
     const effectiveInitialPrompt = await this.effectiveInitialPrompt(
       conversation.id,

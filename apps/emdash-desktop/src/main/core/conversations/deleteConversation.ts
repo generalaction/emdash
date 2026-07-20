@@ -1,9 +1,9 @@
 import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import { makePtySessionId } from '@core/primitives/pty/api';
+import { conversations } from '@core/services/app-db/node/schema';
 import { projectManager } from '@main/core/projects/project-manager';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
@@ -13,7 +13,7 @@ export async function deleteConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  const [convRow] = await db
+  const [convRow] = await getAppDb()
     .select({ type: conversations.type })
     .from(conversations)
     .where(
@@ -25,7 +25,7 @@ export async function deleteConversation(
     )
     .limit(1);
 
-  await db
+  await getAppDb()
     .delete(conversations)
     .where(
       and(

@@ -1,5 +1,6 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TaskRow } from '@main/db/schema';
+import type { TaskRow } from '@core/services/app-db/node/schema';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -9,12 +10,7 @@ const mocks = vi.hoisted(() => ({
   waitForConflictingCleanup: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    transaction: mocks.transaction,
-    select: mocks.select,
-  },
-}));
+installAppDbTestInstance(() => ({ transaction: mocks.transaction, select: mocks.select }) as never);
 
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: {

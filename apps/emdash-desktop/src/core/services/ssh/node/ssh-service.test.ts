@@ -3,7 +3,7 @@ import { EventEmitter, once } from 'node:events';
 import { Server, type Client, type ConnectConfig } from 'ssh2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import type { AppDb } from '@main/db/client';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { SshConnectResult } from './connect/resolve-ssh-connect-config';
 import { SshConnectionManager } from './lifecycle/ssh-connection-manager';
 import { SshService, type SshServiceDeps } from './ssh-service';

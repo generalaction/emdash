@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3';
 import { and, eq, isNull } from 'drizzle-orm';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
@@ -9,13 +10,13 @@ import type {
   WorkspaceFileHit,
 } from '@core/primitives/search/api';
 import type { Task } from '@core/primitives/tasks/api';
-import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import type { WorkspaceRuntimeAccess } from '@core/services/workspace-runtime-access/node';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { searchFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { projectEvents } from '@main/core/projects/project-events';
 import { taskService } from '@main/core/tasks/task-service';
-import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
 type FtsRow = {
@@ -40,7 +41,15 @@ type RecentConversationRow = {
   task_id: string;
 };
 
-class SearchService {
+export type SearchServiceDeps = {
+  db: AppDb;
+  sqlite: Database.Database;
+  acquireWorkspaceRuntime(workspaceId: string): Promise<WorkspaceRuntimeAccess | null>;
+};
+
+export class SearchService {
+  constructor(private readonly deps: SearchServiceDeps) {}
+
   initialize(): void {
     taskService.on('task:created', (task) => void this.upsertTaskWithBranch(task));
     taskService.on('task:updated', (task) => void this.upsertTaskWithBranch(task));
@@ -69,7 +78,7 @@ class SearchService {
     query: string,
     limit?: number
   ): Promise<WorkspaceFileHit[]> {
-    const workspace = await acquireWorkspaceRuntime(workspaceId);
+    const workspace = await this.deps.acquireWorkspaceRuntime(workspaceId);
     if (!workspace) return [];
     try {
       return await searchFileSearchRoot(workspace.files.root, query, limit);
@@ -99,7 +108,7 @@ class SearchService {
     let rows: FtsRow[] = [];
     try {
       if (context?.taskId) {
-        rows = sqlite
+        rows = this.deps.sqlite
           .prepare(
             `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
              FROM search_index
@@ -110,7 +119,7 @@ class SearchService {
           )
           .all(ftsQuery, context.taskId) as FtsRow[];
       } else {
-        rows = sqlite
+        rows = this.deps.sqlite
           .prepare(
             `SELECT item_type, item_id, project_id, task_id, title, bm25(search_index) AS rank
              FROM search_index
@@ -153,14 +162,14 @@ class SearchService {
 
   private recents(context?: CommandPaletteQuery['context']): SearchItem[] {
     const taskStmt = context?.projectId
-      ? sqlite.prepare(
+      ? this.deps.sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
            FROM tasks t
            WHERE t.archived_at IS NULL AND t.deleted_at IS NULL AND t.project_id = ?
            ORDER BY t.last_interacted_at DESC
            LIMIT 10`
         )
-      : sqlite.prepare(
+      : this.deps.sqlite.prepare(
           `SELECT t.id, t.name, t.project_id
            FROM tasks t
            WHERE t.archived_at IS NULL AND t.deleted_at IS NULL
@@ -183,7 +192,7 @@ class SearchService {
     }));
 
     if (context?.taskId) {
-      const conversationRows = sqlite
+      const conversationRows = this.deps.sqlite
         .prepare(
           `SELECT c.id, c.title, c.project_id, c.task_id
            FROM conversations c
@@ -212,7 +221,7 @@ class SearchService {
   private async upsertTaskWithBranch(task: Task): Promise<void> {
     let branchName: string | undefined;
     if (task.workspaceId) {
-      const [ws] = await db
+      const [ws] = await this.deps.db
         .select({ branchName: workspaces.branchName })
         .from(workspaces)
         .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
@@ -228,7 +237,7 @@ class SearchService {
       .join(' ');
 
     try {
-      sqlite
+      this.deps.sqlite
         .prepare(
           `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('task', ?, ?, NULL, ?, ?)`
@@ -241,7 +250,7 @@ class SearchService {
 
   private upsertProject(project: Project): void {
     try {
-      sqlite
+      this.deps.sqlite
         .prepare(
           `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('project', ?, NULL, NULL, ?, ?)`
@@ -257,7 +266,7 @@ class SearchService {
 
   private upsertConversation(conversation: Conversation): void {
     try {
-      sqlite
+      this.deps.sqlite
         .prepare(
           `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('conversation', ?, ?, ?, ?, '')`
@@ -278,7 +287,7 @@ class SearchService {
     title: string
   ): void {
     try {
-      sqlite
+      this.deps.sqlite
         .prepare(
           `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('conversation', ?, ?, ?, ?, '')`
@@ -294,7 +303,7 @@ class SearchService {
 
   private removeByType(itemType: string, itemId: string): void {
     try {
-      sqlite
+      this.deps.sqlite
         .prepare(`DELETE FROM search_index WHERE item_id = ? AND item_type = ?`)
         .run(itemId, itemType);
     } catch (e) {
@@ -304,9 +313,9 @@ class SearchService {
 
   private seedCommands(): void {
     try {
-      sqlite.transaction(() => {
-        sqlite.prepare(`DELETE FROM search_index WHERE item_type = 'command'`).run();
-        const stmt = sqlite.prepare(
+      this.deps.sqlite.transaction(() => {
+        this.deps.sqlite.prepare(`DELETE FROM search_index WHERE item_type = 'command'`).run();
+        const stmt = this.deps.sqlite.prepare(
           `INSERT INTO search_index (item_type, item_id, project_id, task_id, title, keywords)
            VALUES ('command', ?, NULL, NULL, ?, ?)`
         );
@@ -330,12 +339,12 @@ class SearchService {
   private backfill(): void {
     try {
       const count = (
-        sqlite.prepare(`SELECT count(*) as n FROM search_index`).get() as { n: number }
+        this.deps.sqlite.prepare(`SELECT count(*) as n FROM search_index`).get() as { n: number }
       ).n;
 
       if (count > 0) return;
 
-      const allTasks = db
+      const allTasks = this.deps.db
         .select({
           id: tasks.id,
           projectId: tasks.projectId,
@@ -350,15 +359,19 @@ class SearchService {
         )
         .where(isNull(tasks.deletedAt))
         .all();
-      const allProjects = db.select().from(projects).where(isNull(projects.deletedAt)).all();
-      const allConversations = db.select().from(conversations).all();
+      const allProjects = this.deps.db
+        .select()
+        .from(projects)
+        .where(isNull(projects.deletedAt))
+        .all();
+      const allConversations = this.deps.db.select().from(conversations).all();
 
-      const upsertStmt = sqlite.prepare(
+      const upsertStmt = this.deps.sqlite.prepare(
         `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
          VALUES (?, ?, ?, ?, ?, ?)`
       );
 
-      sqlite.transaction(() => {
+      this.deps.sqlite.transaction(() => {
         for (const t of allTasks) {
           if (t.archivedAt) continue;
           upsertStmt.run('task', t.id, t.projectId, null, t.name, t.branchName ?? '');
@@ -382,4 +395,6 @@ class SearchService {
   }
 }
 
-export const searchService = new SearchService();
+export function createSearchService(deps: SearchServiceDeps): SearchService {
+  return new SearchService(deps);
+}

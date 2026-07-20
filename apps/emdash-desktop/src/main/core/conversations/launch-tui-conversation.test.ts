@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ConversationRow } from '@main/db/schema';
+import type { ConversationRow } from '@core/services/app-db/node/schema';
 import { launchTuiConversation } from './launch-tui-conversation';
 
 const resolveTask = vi.hoisted(() => vi.fn());
@@ -7,8 +7,9 @@ const emit = vi.hoisted(() => vi.fn());
 const capture = vi.hoisted(() => vi.fn());
 
 vi.mock('../projects/utils', () => ({ resolveTask }));
-vi.mock('@main/db/client', () => ({ db: {} }));
-vi.mock('@main/host/events', () => ({ events: { emit } }));
+vi.mock('@core/features/conversations/node', () => ({
+  conversationWireEvents: { emit },
+}));
 vi.mock('@main/lib/telemetry', () => ({ telemetryService: { capture } }));
 vi.mock('@main/lib/logger', () => ({ log: { debug: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
 
@@ -46,7 +47,7 @@ describe('launchTuiConversation', () => {
     expect(row.sessionId).toBe('conversation-1');
     expect(result.conversation.sessionId).toBe('conversation-1');
     expect(emit).toHaveBeenCalledWith(
-      expect.anything(),
+      undefined,
       expect.objectContaining({
         conversationId: 'conversation-1',
         changes: { sessionId: 'conversation-1' },

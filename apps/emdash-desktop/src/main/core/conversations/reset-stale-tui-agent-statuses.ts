@@ -1,11 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 
 export async function resetStaleTuiAgentStatuses(): Promise<void> {
   try {
-    await db
+    await getAppDb()
       .update(conversations)
       .set({ agentStatus: 'idle', agentStatusSeen: 1 })
       .where(

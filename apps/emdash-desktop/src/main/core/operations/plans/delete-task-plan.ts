@@ -1,4 +1,4 @@
-import type { LifecycleOperationRow } from '@main/db/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type { ExecutableOperationPlan, OperationPlanStep } from '../operation-plan';
 import type { TaskOperationProbe } from './probe-task-state';
 import { compileSessionKillSteps } from './session-kill-steps';

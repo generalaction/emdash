@@ -4,13 +4,18 @@ import type {
   ActiveSessionSummary,
   DesktopHostEvent,
 } from '@core/features/workbench/api/host-contract';
+import * as databaseInstance from '@main/db/instance';
 import {
   createShutdownCoordinator,
+  runQuitCleanup,
   shouldAllowWindowClose,
   type ShutdownCoordinatorDependencies,
 } from './shutdown';
 
 const mocks = vi.hoisted(() => ({
+  appScopeDispose: vi.fn(),
+  closeAppDb: vi.fn(),
+  telemetryDispose: vi.fn(),
   updateService: {
     isInstallRequested: false as boolean,
     dispose: vi.fn(),
@@ -47,6 +52,7 @@ vi.mock('@main/core/projects/project-manager', () => ({
 vi.mock('@main/gateway/desktop-workers', () => ({
   disposeDesktopWireWorkers: vi.fn(),
 }));
+vi.spyOn(databaseInstance, 'closeAppDb').mockImplementation(mocks.closeAppDb);
 vi.mock('@main/host/updates/update-service', () => ({
   updateService: mocks.updateService,
 }));
@@ -54,12 +60,12 @@ vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(() => null),
 }));
 vi.mock('@main/lib/logger', () => ({
-  log: { error: vi.fn(), warn: vi.fn() },
+  log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: { capture: vi.fn(), dispose: vi.fn() },
+  telemetryService: { capture: vi.fn(), dispose: mocks.telemetryDispose },
 }));
-vi.mock('@core/services/notifications/node', () => ({
+vi.mock('./core/service-instances', () => ({
   disposeNotificationService: vi.fn(),
 }));
 vi.mock('@main/host/sessions/active-session-summary', () => ({
@@ -69,7 +75,7 @@ vi.mock('./core/boot-guard', () => ({
   markBootSuccessful: vi.fn(),
 }));
 vi.mock('./core/app-scope', () => ({
-  appScope: { dispose: vi.fn() },
+  appScope: { dispose: mocks.appScopeDispose },
 }));
 
 const emptySummary: ActiveSessionSummary = {
@@ -83,6 +89,20 @@ const emptySummary: ActiveSessionSummary = {
 afterEach(() => {
   vi.useRealTimers();
   mocks.updateService.isInstallRequested = false;
+});
+
+describe('quit cleanup phases', () => {
+  it('closes the database after app scope and before telemetry', async () => {
+    await runQuitCleanup();
+
+    expect(mocks.closeAppDb).toHaveBeenCalledOnce();
+    expect(mocks.appScopeDispose.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.closeAppDb.mock.invocationCallOrder[0]!
+    );
+    expect(mocks.closeAppDb.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.telemetryDispose.mock.invocationCallOrder[0]!
+    );
+  });
 });
 
 describe('shutdown coordinator', () => {

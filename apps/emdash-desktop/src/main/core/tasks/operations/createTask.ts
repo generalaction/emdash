@@ -10,12 +10,13 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
+import type { DrizzleTx } from '@core/services/app-db/node/db';
+import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import type { ConversationRow, TaskRow } from '@core/services/app-db/node/schema';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { operationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
-import { db, type DrizzleTx } from '@main/db/client';
-import { conversations, projects, tasks, workspaces } from '@main/db/schema';
-import type { ConversationRow, TaskRow } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -80,7 +81,7 @@ export async function prepareCreateTask(
       };
     } else {
       // 'new-worktree' — derive location from the project.
-      const [projectRow] = await db
+      const [projectRow] = await getAppDb()
         .select({
           workspaceProvider: projects.workspaceProvider,
           sshConnectionId: projects.sshConnectionId,
@@ -214,7 +215,7 @@ export async function createTask(
 
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
-  db.transaction((tx) => {
+  getAppDb().transaction((tx) => {
     ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
   });
 

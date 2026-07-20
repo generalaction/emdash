@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { tasks, type LifecycleOperationRow } from '@main/db/schema';
+import { tasks, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { resolveOperationContext, type OperationContext } from '../operation-context';
 import { resolveSessionTargets, type SessionTargets } from '../session-targets';
 
@@ -16,7 +16,7 @@ export async function probeTaskState(
   const [sessionTargets, otherTaskRows] = await Promise.all([
     resolveSessionTargets(operation, context),
     context.task?.workspaceId
-      ? db
+      ? getAppDb()
           .select({ id: tasks.id })
           .from(tasks)
           .where(

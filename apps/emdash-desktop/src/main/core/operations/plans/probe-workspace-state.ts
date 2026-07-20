@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { tasks, type LifecycleOperationRow } from '@main/db/schema';
+import { tasks, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { resolveOperationContext, type OperationContext } from '../operation-context';
 import { resolveSessionTargets, type SessionTargets } from '../session-targets';
 
@@ -17,7 +17,7 @@ export async function probeWorkspaceState(
   const sessionTargets = await resolveSessionTargets(operation, context);
   const workspaceId = operation.workspaceId ?? context.workspace?.id;
   const [liveTask] = workspaceId
-    ? await db
+    ? await getAppDb()
         .select({ id: tasks.id })
         .from(tasks)
         .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))

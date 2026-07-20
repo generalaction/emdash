@@ -1,10 +1,10 @@
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { inArray, sql } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { automationRuns, type AutomationRunRow } from '@main/db/schema';
+import { automationRuns, type AutomationRunRow } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export async function upsertRunProjection(run: AutomationRun): Promise<void> {
-  await db
+  await getAppDb()
     .insert(automationRuns)
     .values({
       id: run.id,
@@ -36,5 +36,5 @@ export async function getRunProjectionsByRunIds(
 ): Promise<AutomationRunRow[]> {
   const uniqueRunIds = [...new Set(runIds)];
   if (uniqueRunIds.length === 0) return [];
-  return db.select().from(automationRuns).where(inArray(automationRuns.id, uniqueRunIds));
+  return getAppDb().select().from(automationRuns).where(inArray(automationRuns.id, uniqueRunIds));
 }

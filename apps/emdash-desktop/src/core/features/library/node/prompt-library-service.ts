@@ -5,28 +5,35 @@ import {
   promptLibrarySchema,
   type PromptLibraryPrompt,
 } from '@core/primitives/prompt-library/api';
-import { db } from '@main/db/client';
-import { KV } from '@main/db/kv';
-import { appSettings } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { appSettings } from '@core/services/app-db/node/schema';
 
-type PromptLibraryKV = {
+export type PromptLibraryKV = {
   prompts: PromptLibraryPrompt[];
   seedVersion: number;
 };
 
-const promptLibraryKV = new KV<PromptLibraryKV>('prompt-library');
+export type PromptLibraryKeyValueStore = {
+  get<K extends keyof PromptLibraryKV>(key: K): Promise<PromptLibraryKV[K] | null>;
+  set<K extends keyof PromptLibraryKV>(key: K, value: PromptLibraryKV[K]): Promise<void>;
+};
 
 export class PromptLibraryService {
   private seedPromise: Promise<void> | null = null;
 
+  constructor(
+    private readonly db: AppDb,
+    private readonly keyValueStore: PromptLibraryKeyValueStore
+  ) {}
+
   private async readPrompts(): Promise<PromptLibraryPrompt[]> {
-    const prompts = await promptLibraryKV.get('prompts');
+    const prompts = await this.keyValueStore.get('prompts');
     const parsed = promptLibrarySchema.safeParse(prompts ?? []);
     return parsed.success ? parsed.data : [];
   }
 
   private async readLegacyAppSetting(key: string): Promise<unknown | null> {
-    const rows = await db
+    const rows = await this.db
       .select({ value: appSettings.value })
       .from(appSettings)
       .where(eq(appSettings.key, key))
@@ -42,16 +49,16 @@ export class PromptLibraryService {
   }
 
   private async deleteLegacyPromptSettings(): Promise<void> {
-    await db.delete(appSettings).where(eq(appSettings.key, 'promptLibrary'));
-    await db.delete(appSettings).where(eq(appSettings.key, 'promptLibrarySeedVersion'));
-    await db.delete(appSettings).where(eq(appSettings.key, 'reviewPrompt'));
+    await this.db.delete(appSettings).where(eq(appSettings.key, 'promptLibrary'));
+    await this.db.delete(appSettings).where(eq(appSettings.key, 'promptLibrarySeedVersion'));
+    await this.db.delete(appSettings).where(eq(appSettings.key, 'reviewPrompt'));
   }
 
   private async seedIfNeeded(): Promise<void> {
     if (this.seedPromise) return this.seedPromise;
 
     this.seedPromise = (async () => {
-      const seedVersion = await promptLibraryKV.get('seedVersion');
+      const seedVersion = await this.keyValueStore.get('seedVersion');
       if ((seedVersion ?? 0) >= PROMPT_LIBRARY_SEED_VERSION) {
         await this.deleteLegacyPromptSettings();
         return;
@@ -81,9 +88,9 @@ export class PromptLibraryService {
       const nextPrompts = [...missingSeedPrompts, ...prompts];
 
       if (nextPrompts.length > 0) {
-        await promptLibraryKV.set('prompts', nextPrompts);
+        await this.keyValueStore.set('prompts', nextPrompts);
       }
-      await promptLibraryKV.set('seedVersion', PROMPT_LIBRARY_SEED_VERSION);
+      await this.keyValueStore.set('seedVersion', PROMPT_LIBRARY_SEED_VERSION);
       await this.deleteLegacyPromptSettings();
     })().finally(() => {
       this.seedPromise = null;
@@ -103,7 +110,7 @@ export class PromptLibraryService {
 
   async updatePrompts(prompts: PromptLibraryPrompt[]): Promise<void> {
     const validated = promptLibrarySchema.parse(prompts);
-    await promptLibraryKV.set('prompts', validated);
+    await this.keyValueStore.set('prompts', validated);
   }
 
   async upsertReviewPrompt(prompt: string): Promise<void> {
@@ -122,8 +129,13 @@ export class PromptLibraryService {
       ? prompts.map((item) => (item.id === reviewPrompt.id ? reviewPrompt : item))
       : [reviewPrompt, ...prompts];
 
-    await promptLibraryKV.set('prompts', nextPrompts);
+    await this.keyValueStore.set('prompts', nextPrompts);
   }
 }
 
-export const promptLibraryService = new PromptLibraryService();
+export function createPromptLibraryService(options: {
+  db: AppDb;
+  keyValueStore: PromptLibraryKeyValueStore;
+}): PromptLibraryService {
+  return new PromptLibraryService(options.db, options.keyValueStore);
+}

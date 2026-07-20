@@ -1,19 +1,19 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import type {
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
-import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
-import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
-import { db } from '@main/db/client';
 import {
   projects as projectsTable,
   tasks as tasksTable,
   workspaces as workspacesTable,
-} from '@main/db/schema';
+} from '@core/services/app-db/node/schema';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
+import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
+import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
+import { getAppDb } from '@main/db/instance';
 import type { ProjectProvider } from '../../project-provider';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
@@ -58,7 +58,7 @@ async function resolveTaskTarget(
   let configPath: string | null = null;
 
   if (task.workspaceId) {
-    const identity = await workspaceIdentityService.resolve(task.workspaceId);
+    const identity = await getWorkspaceIdentityService().resolve(task.workspaceId);
     if (identity) {
       targetPath = identity.path;
       files = filesClientScope(project.files.client, identity.path);
@@ -91,7 +91,7 @@ async function resolveTaskTarget(
 export async function resolveAllProjectSettingsTargets(
   project: ProjectProvider
 ): Promise<ProjectSettingsResolvedTarget[]> {
-  const [projectRow] = await db
+  const [projectRow] = await getAppDb()
     .select({ name: projectsTable.name })
     .from(projectsTable)
     .where(and(eq(projectsTable.id, project.projectId), isNull(projectsTable.deletedAt)))
@@ -106,7 +106,7 @@ export async function resolveAllProjectSettingsTargets(
   };
   if (!projectRow) return [projectTarget];
 
-  const taskRows = await db
+  const taskRows = await getAppDb()
     .select({
       id: tasksTable.id,
       name: tasksTable.name,
@@ -146,7 +146,7 @@ export async function resolveProjectSettingsTarget(
   if (target) return target;
 
   if (request.target.type === 'workspace') {
-    const workspace = await workspaceIdentityService.resolve(request.target.workspaceId);
+    const workspace = await getWorkspaceIdentityService().resolve(request.target.workspaceId);
     if (!workspace || workspace.projectId !== project.projectId) return null;
     return {
       type: 'workspace',

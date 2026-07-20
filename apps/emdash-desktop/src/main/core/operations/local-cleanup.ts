@@ -1,11 +1,11 @@
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { tasks } from '@core/services/app-db/node/schema';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { automationsService } from '@main/core/automations/automations-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getMementosRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -37,7 +37,7 @@ export async function purgeProjectLocalState(
   await automationsService.removeProjectDeployments(projectId);
   await purgeDatabaseRows();
   const client = await getMementosRuntimeClient();
-  const taskRows = await db.select({ id: tasks.id }).from(tasks);
+  const taskRows = await getAppDb().select({ id: tasks.id }).from(tasks);
   const [projectResult, taskResult] = await Promise.all([
     client.deleteBySubject(projectSubject({ projectId })),
     client.deleteOrphans({ kind: taskSubject.kind, validKeys: taskRows.map(({ id }) => id) }),

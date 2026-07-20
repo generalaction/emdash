@@ -1,10 +1,10 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@core/primitives/tasks/api';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import { checkoutSelector } from '@main/core/git/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 
 async function getTaskPreflight(
@@ -18,14 +18,14 @@ async function getTaskPreflight(
     hasDeletableBranch: false,
   };
 
-  const [task] = await db
+  const [task] = await getAppDb()
     .select()
     .from(tasks)
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   if (!task?.workspaceId) return noWorktreeResult;
 
-  const [ws] = await db
+  const [ws] = await getAppDb()
     .select()
     .from(workspaces)
     .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
@@ -35,7 +35,7 @@ async function getTaskPreflight(
   const provisionedBranch = getProvisionedWorkspaceBranch(ws);
   if (!provisionedBranch) return noWorktreeResult;
 
-  const siblings = await db
+  const siblings = await getAppDb()
     .select({ id: tasks.id })
     .from(tasks)
     .where(and(eq(tasks.workspaceId, ws.id), ne(tasks.id, taskId), isNull(tasks.deletedAt)))

@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AccountSessionStore } from './account-session-store';
 import { EmdashAccountService } from './emdash-account-service';
 
 const mockCredGet = vi.fn();
@@ -15,19 +16,6 @@ vi.mock('./credential-store', () => ({
 
 const mockKvGet = vi.fn();
 const mockKvSet = vi.fn();
-vi.mock('@main/db/kv', () => ({
-  KV: class {
-    get(...args: unknown[]) {
-      return mockKvGet(...args);
-    }
-    set(...args: unknown[]) {
-      return mockKvSet(...args);
-    }
-    setOrThrow(...args: unknown[]) {
-      return mockKvSet(...args);
-    }
-  },
-}));
 
 const mockExecuteOAuthFlow = vi.fn();
 vi.mock('@main/core/shared/oauth-flow', () => ({
@@ -79,7 +67,12 @@ describe('EmdashAccountService', () => {
     mockFetch.mockReset();
     mockExecuteOAuthFlow.mockReset();
     mockDispatch.mockResolvedValue(undefined);
-    service = new EmdashAccountService();
+    service = new EmdashAccountService(
+      new AccountSessionStore({
+        get: (...args) => mockKvGet(...args),
+        setOrThrow: (...args) => mockKvSet(...args),
+      })
+    );
   });
 
   describe('getSession()', () => {

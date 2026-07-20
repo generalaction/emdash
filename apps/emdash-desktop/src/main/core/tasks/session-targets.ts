@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations, terminals } from '@main/db/schema';
+import { conversations, terminals } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export type TaskSessionLeafIds = {
   conversationIds: string[];
@@ -12,11 +12,11 @@ export async function getTaskSessionLeafIds(
   taskId: string
 ): Promise<TaskSessionLeafIds> {
   const [conversationRows, terminalRows] = await Promise.all([
-    db
+    getAppDb()
       .select({ id: conversations.id })
       .from(conversations)
       .where(and(eq(conversations.projectId, projectId), eq(conversations.taskId, taskId))),
-    db
+    getAppDb()
       .select({ id: terminals.id })
       .from(terminals)
       .where(and(eq(terminals.projectId, projectId), eq(terminals.taskId, taskId))),
@@ -37,11 +37,14 @@ export async function getTaskSessionLeafIds(
  */
 export async function getProjectSessionLeafIds(projectId: string): Promise<TaskSessionLeafIds> {
   const [conversationRows, terminalRows] = await Promise.all([
-    db
+    getAppDb()
       .select({ id: conversations.id })
       .from(conversations)
       .where(eq(conversations.projectId, projectId)),
-    db.select({ id: terminals.id }).from(terminals).where(eq(terminals.projectId, projectId)),
+    getAppDb()
+      .select({ id: terminals.id })
+      .from(terminals)
+      .where(eq(terminals.projectId, projectId)),
   ]);
 
   return {

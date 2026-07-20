@@ -1,55 +1,43 @@
 import type { SettingsContributionMap } from '@core/primitives/settings/api';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { AppSettings, AppSettingsKey } from '../api';
 import { SettingsStore } from './settings-store';
 
-class AppSettingsService {
-  private store: SettingsStore | undefined;
-
-  configure(contributions: SettingsContributionMap<AppSettings>): void {
-    if (this.store) return;
-    this.store = new SettingsStore(contributions);
-  }
-
-  private requireStore(): SettingsStore {
-    if (!this.store) {
-      throw new Error('App settings service has not been configured');
-    }
-    return this.store;
-  }
+export class AppSettingsService {
+  constructor(private readonly store: SettingsStore) {}
 
   get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]> {
-    return this.requireStore().get(key);
+    return this.store.get(key);
   }
 
   getAll(): Promise<AppSettings> {
-    return this.requireStore().getAll();
+    return this.store.getAll();
   }
 
   getWithMeta<K extends AppSettingsKey>(key: K) {
-    return this.requireStore().getWithMeta(key);
+    return this.store.getWithMeta(key);
   }
 
   update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void> {
-    return this.requireStore().update(key, value);
+    return this.store.update(key, value);
   }
 
   reset<K extends AppSettingsKey>(key: K): Promise<void> {
-    return this.requireStore().reset(key);
+    return this.store.reset(key);
   }
 
   resetField<K extends AppSettingsKey>(key: K, field: keyof AppSettings[K]): Promise<void> {
-    return this.requireStore().resetField(key, field);
+    return this.store.resetField(key, field);
   }
 
   initialize(): Promise<void> {
-    return this.requireStore().initialize();
+    return this.store.initialize();
   }
 }
 
-export const appSettingsService = new AppSettingsService();
-
-export function configureAppSettingsService(
-  contributions: SettingsContributionMap<AppSettings>
-): void {
-  appSettingsService.configure(contributions);
+export function createAppSettingsService(options: {
+  db: AppDb;
+  contributions: SettingsContributionMap<AppSettings>;
+}): AppSettingsService {
+  return new AppSettingsService(new SettingsStore(options.db, options.contributions));
 }

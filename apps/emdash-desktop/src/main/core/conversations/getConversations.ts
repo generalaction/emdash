@@ -1,10 +1,10 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations, tasks } from '@main/db/schema';
+import { conversations, tasks } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { mapConversationRowToConversation } from './utils';
 
 export async function getConversations() {
-  const rows = await db
+  const rows = await getAppDb()
     .select({ conversation: conversations })
     .from(conversations)
     .innerJoin(tasks, eq(conversations.taskId, tasks.id))

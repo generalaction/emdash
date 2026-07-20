@@ -413,7 +413,7 @@ pnpm run test
 - Versioned JSON column schemas use `defineVersionedSchema()` from
   `@emdash/core/primitives/versioned-schema/api`
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle
- `versionedJsonColumn()` from `src/main/db/versioned-column.ts`.
+ `versionedJsonColumn()` from `src/core/services/app-db/node/versioned-column.ts`.
 
 ## Further Reading
 

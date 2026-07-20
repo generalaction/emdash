@@ -6,20 +6,21 @@ import {
   type Conversation,
   type CreateConversationParams,
 } from '@core/primitives/conversations/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations } from '@core/services/app-db/node/schema';
 import { withCompensation } from '@main/core/utils/compensation';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { conversationEvents } from './conversation-events';
 import { launchTuiConversation } from './launch-tui-conversation';
 import { mapConversationRowToConversation } from './utils';
 
-type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select' | 'update'>;
+type ConversationCreateDb = Pick<AppDb, 'delete' | 'insert' | 'select' | 'update'>;
 
 export async function createConversation(
   params: CreateConversationParams,
-  database: ConversationCreateDb = db
+  database: ConversationCreateDb = getAppDb()
 ): Promise<Conversation> {
   const id = params.id ?? randomUUID();
   const [existingConversation] = await database

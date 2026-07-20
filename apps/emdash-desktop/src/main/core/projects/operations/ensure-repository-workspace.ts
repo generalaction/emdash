@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import { projects, workspaces } from '@core/services/app-db/node/schema';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
-import { db } from '@main/db/client';
-import { projects, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 
 /**
@@ -18,7 +18,7 @@ import { log } from '@main/lib/logger';
  * already carries the ID) and from `openProject` (for pre-migration rows).
  */
 export function ensureRepositoryWorkspace(project: LocalProject | SshProject): string {
-  const [row] = db
+  const [row] = getAppDb()
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
     .from(projects)
     .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
@@ -35,7 +35,7 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
   const legacyType = project.type === 'ssh' ? 'project-ssh' : 'local';
   const key = computeWorkspaceKey(legacyType, project.path, sshConnectionId ?? undefined);
 
-  return db.transaction((tx) => {
+  return getAppDb().transaction((tx) => {
     // Re-check inside the transaction to avoid races.
     const [current] = tx
       .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })

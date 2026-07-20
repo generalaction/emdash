@@ -35,7 +35,9 @@ import { terminalsRuntimeContract } from '@core/features/terminals/api/runtime-a
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { type Terminal, type TerminalShellId } from '@core/primitives/terminals/api';
-import { appSettingsService } from '@core/services/settings/node';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { tasks, terminals } from '@core/services/app-db/node/schema';
+import type { AppSettingsService } from '@core/services/settings/node';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
@@ -45,13 +47,13 @@ import {
   resolveTerminalShellWithSystemFallback,
 } from '@main/core/terminal-shell/resolver';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
-import { db } from '@main/db/client';
-import { tasks, terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
 type CreateTerminalsWireControllerOptions = Readonly<{
+  db: AppDb;
   runtimes: TerminalsRuntimeBroker;
+  settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;
 }>;
 
@@ -71,10 +73,10 @@ export function createTerminalsWireController(
   options: CreateTerminalsWireControllerOptions
 ): Controller {
   return createController(terminalsContract, {
-    list: (input) => listTerminals(input),
+    list: (input) => listTerminals(options, input),
     create: (input) => createTerminal(options, input),
     delete: (input) => deleteTerminal(options, input),
-    rename: (input) => renameTerminal(input),
+    rename: (input) => renameTerminal(options, input),
     hydrate: (input) => hydrateTerminal(options, input),
     getShellAvailability: () => getShellAvailability(),
     runScriptWorkflow: {
@@ -109,14 +111,17 @@ export function createTerminalsWireController(
   });
 }
 
-async function listTerminals({
-  projectId,
-  taskId,
-}: {
-  projectId: string;
-  taskId: string;
-}): Promise<Result<Terminal[], TerminalControllerError>> {
-  const rows = await db
+async function listTerminals(
+  options: CreateTerminalsWireControllerOptions,
+  {
+    projectId,
+    taskId,
+  }: {
+    projectId: string;
+    taskId: string;
+  }
+): Promise<Result<Terminal[], TerminalControllerError>> {
+  const rows = await options.db
     .select()
     .from(terminals)
     .where(and(eq(terminals.projectId, projectId), eq(terminals.taskId, taskId)));
@@ -134,8 +139,8 @@ async function createTerminal(
     initialSize?: { cols: number; rows: number };
   }
 ): Promise<Result<TerminalCreateResult, TerminalControllerError>> {
-  const shell = input.shell ?? (await appSettingsService.get('terminal')).defaultShell;
-  const [row] = await db
+  const shell = input.shell ?? (await options.settings.get('terminal')).defaultShell;
+  const [row] = await options.db
     .insert(terminals)
     .values({
       id: input.id,
@@ -151,7 +156,7 @@ async function createTerminal(
   const terminal = mapTerminalRowToTerminal(row);
   const hydrated = await startRuntimeTerminal(options, terminal, input.initialSize);
   if (!hydrated.success) {
-    await db.delete(terminals).where(eq(terminals.id, input.id)).execute();
+    await options.db.delete(terminals).where(eq(terminals.id, input.id)).execute();
     return hydrated;
   }
 
@@ -175,8 +180,8 @@ async function deleteTerminal(
     terminalId: string;
   }
 ): Promise<Result<void, TerminalControllerError>> {
-  const workspaceId = await resolveWorkspaceIdForTask(projectId, taskId);
-  await db
+  const workspaceId = await resolveWorkspaceIdForTask(options.db, projectId, taskId);
+  await options.db
     .delete(terminals)
     .where(
       and(
@@ -205,11 +210,14 @@ async function deleteTerminal(
   return ok(undefined);
 }
 
-async function renameTerminal(input: {
-  terminalId: string;
-  name: string;
-}): Promise<Result<void, TerminalControllerError>> {
-  await db
+async function renameTerminal(
+  options: CreateTerminalsWireControllerOptions,
+  input: {
+    terminalId: string;
+    name: string;
+  }
+): Promise<Result<void, TerminalControllerError>> {
+  await options.db
     .update(terminals)
     .set({ name: input.name, updatedAt: sql`CURRENT_TIMESTAMP` })
     .where(eq(terminals.id, input.terminalId));
@@ -225,7 +233,7 @@ async function hydrateTerminal(
     initialSize?: { cols: number; rows: number };
   }
 ): Promise<Result<TerminalHydrateResult, TerminalControllerError>> {
-  const [row] = await db
+  const [row] = await options.db
     .select()
     .from(terminals)
     .where(
@@ -298,7 +306,7 @@ async function resolveTerminalContext(
   options: CreateTerminalsWireControllerOptions,
   terminal: Terminal
 ): Promise<Result<TerminalContext, TerminalControllerError>> {
-  const [taskRow] = await db
+  const [taskRow] = await options.db
     .select()
     .from(tasks)
     .where(
@@ -360,7 +368,7 @@ async function runScriptWorkflow(
   input: RunTerminalScriptWorkflowInput,
   context: LiveJobContext<ScriptWorkflowProgress>
 ): Promise<Result<ScriptWorkflowResult, TerminalControllerError>> {
-  const [taskRow] = await db
+  const [taskRow] = await options.db
     .select()
     .from(tasks)
     .where(
@@ -550,6 +558,7 @@ function leasedLiveSource(acquire: () => PendingLease<LiveSource>): LiveSource {
 }
 
 async function resolveWorkspaceIdForTask(
+  db: AppDb,
   projectId: string,
   taskId: string
 ): Promise<string | null> {

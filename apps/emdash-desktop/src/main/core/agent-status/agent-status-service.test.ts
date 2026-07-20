@@ -1,3 +1,4 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentStatusSignal } from '@core/primitives/agents/api';
 import { AgentStatusService } from './agent-status-service';
@@ -20,37 +21,37 @@ const mocks = vi.hoisted(() => ({
   updateResolvers: [] as Array<() => void>,
 }));
 
-vi.mock('@main/db/client', () => {
-  mocks.select.mockImplementation(() => ({
-    from: () => ({
+mocks.select.mockImplementation(() => ({
+  from: () => ({
+    where: () => ({
+      limit: async () => {
+        const row = mocks.selectRows.shift();
+        return row ? [row] : [];
+      },
+    }),
+  }),
+}));
+mocks.update.mockImplementation(() => ({
+  set: (values: Record<string, unknown>) => {
+    mocks.updateCalls.push(values);
+    return {
       where: () => ({
-        limit: async () => {
-          const row = mocks.selectRows.shift();
+        returning: async () => {
+          const row = mocks.updateRows.shift();
+          if (mocks.blockUpdates) {
+            await new Promise<void>((resolve) => mocks.updateResolvers.push(resolve));
+          }
           return row ? [row] : [];
         },
       }),
-    }),
-  }));
-  mocks.update.mockImplementation(() => ({
-    set: (values: Record<string, unknown>) => {
-      mocks.updateCalls.push(values);
-      return {
-        where: () => ({
-          returning: async () => {
-            const row = mocks.updateRows.shift();
-            if (mocks.blockUpdates) {
-              await new Promise<void>((resolve) => mocks.updateResolvers.push(resolve));
-            }
-            return row ? [row] : [];
-          },
-        }),
-      };
-    },
-  }));
-  return { db: { select: mocks.select, update: mocks.update } };
-});
+    };
+  },
+}));
+installAppDbTestInstance(() => ({ select: mocks.select, update: mocks.update }) as never);
 
-vi.mock('@main/host/events', () => ({ events: { emit: mocks.emit } }));
+vi.mock('@core/features/conversations/node', () => ({
+  conversationWireEvents: { emit: mocks.emit },
+}));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn() } }));
 
 function row(overrides: Partial<TestConversationRow> = {}): TestConversationRow {
@@ -174,7 +175,7 @@ describe('AgentStatusService', () => {
     expect(handler).not.toHaveBeenCalled();
     expect(mocks.updateCalls).toEqual([{ agentStatus: 'completed' }]);
     expect(mocks.emit).toHaveBeenCalledWith(
-      expect.anything(),
+      undefined,
       expect.objectContaining({ status: 'completed', seen: true })
     );
   });

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
-import { sqlite } from './client';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -97,9 +96,8 @@ function removeLegacyFileIndex(connection: BetterSqlite3.Database): void {
 }
 
 /**
- * Runs all pending migrations against the provided SQLite connection (or the
- * app's shared singleton when called without arguments). Call this once in
- * main.ts before any db queries run.
+ * Runs all pending migrations against the provided SQLite connection. Call this
+ * once during boot before publishing the shared app database.
  *
  * Accepts an explicit connection so migration tests and fixture generators can
  * pass an in-memory database.
@@ -107,12 +105,11 @@ function removeLegacyFileIndex(connection: BetterSqlite3.Database): void {
  * Returns the connection that was used.
  */
 export async function initializeDatabase(
-  connection?: BetterSqlite3.Database
+  connection: BetterSqlite3.Database
 ): Promise<BetterSqlite3.Database> {
-  const conn = connection ?? sqlite;
-  conn.pragma('foreign_keys = ON');
-  runBundledMigrations(conn);
-  ensureSearchIndex(conn);
-  removeLegacyFileIndex(conn);
-  return conn;
+  connection.pragma('foreign_keys = ON');
+  runBundledMigrations(connection);
+  ensureSearchIndex(connection);
+  removeLegacyFileIndex(connection);
+  return connection;
 }

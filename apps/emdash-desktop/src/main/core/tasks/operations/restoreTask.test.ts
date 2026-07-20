@@ -1,3 +1,4 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { restoreTask } from './restoreTask';
 
@@ -7,13 +8,14 @@ const mocks = vi.hoisted(() => ({
   updateWhere: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    update: () => ({
-      set: mocks.updateSet,
-    }),
-  },
-}));
+installAppDbTestInstance(
+  () =>
+    ({
+      update: () => ({
+        set: mocks.updateSet,
+      }),
+    }) as never
+);
 
 describe('restoreTask', () => {
   beforeEach(() => {

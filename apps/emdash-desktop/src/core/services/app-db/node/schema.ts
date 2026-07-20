@@ -22,9 +22,9 @@ import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import type { TerminalShellId } from '@core/primitives/terminals/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
 import { workspaceProviderData } from '@core/primitives/workspaces/api';
-import type { StoredBranch } from '@main/core/tasks/stored-branch';
-import { versionedJsonColumn } from '@main/db/versioned-column';
 import { notificationPayload } from '@root/src/core/services/notifications/api';
+import type { StoredBranch } from './stored-branch';
+import { versionedJsonColumn } from './versioned-column';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',

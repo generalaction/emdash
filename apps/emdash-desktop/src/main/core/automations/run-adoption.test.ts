@@ -1,6 +1,7 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok } from '@emdash/shared';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adoptRun } from './run-adoption';
 
@@ -14,9 +15,7 @@ const mocks = vi.hoisted(() => ({
   upsertRunProjection: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: { select: mocks.dbSelect },
-}));
+installAppDbTestInstance(() => ({ select: mocks.dbSelect }) as never);
 
 vi.mock('@core/primitives/automations/api', async () => ({
   ...(await import('@core/primitives/automations/api/config')),

@@ -37,6 +37,8 @@ import {
   type WorkspacesRuntimeResolveError as RuntimeResolveError,
 } from '@core/features/workspaces/api/runtime-adapter';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import {
   operationsService,
   type OperationsService,
@@ -46,8 +48,6 @@ import {
   runCloneRepositoryProvision,
   type CloneRepositoryProvisionInput,
 } from '@main/core/workspaces/workspace-bootstrap-service';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
 
 type BootstrapKey = { workspaceId: string };
 type BootstrapState = LiveState<WorkspaceBootstrapState>;
@@ -63,6 +63,7 @@ export type WorkspacesWireTaskReadySubscription = (
 ) => () => void;
 
 export type CreateWorkspacesWireControllerOptions = {
+  db: AppDb;
   provisionTask: WorkspacesWireTaskProvisioner;
   onTaskWorkspaceReady: WorkspacesWireTaskReadySubscription;
   runtimes: WorkspacesRuntimeBroker;
@@ -86,20 +87,20 @@ export function createWorkspacesWireController(
   options: CreateWorkspacesWireControllerOptions
 ): WorkspacesWireController {
   const unsubscribeProgress = taskProvisionEvents.on('progress', (progress) => {
-    void publishTaskProgress(progress.taskId, {
+    void publishTaskProgress(options.db, progress.taskId, {
       step: progress.step,
       message: progress.message,
       operation: progress.operation,
     });
   });
   const unsubscribeReady = options.onTaskWorkspaceReady((taskId, result) => {
-    void publishTaskReady(taskId, result);
+    void publishTaskReady(options.db, taskId, result);
   });
 
   return {
     impl: {
       runtime: createWorkspaceRuntimeProvider(options),
-      bootstrap: createBootstrapProvider(),
+      bootstrap: createBootstrapProvider(options.db),
       provision: {
         run: (input, ctx) => runProvisionJob(options, input, ctx),
         toError: unknownToWorkspaceError,
@@ -420,9 +421,9 @@ function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
   };
 }
 
-function createBootstrapProvider(): LeasedLiveModelProvider<
-  typeof workspacesWireContract.bootstrap
-> {
+function createBootstrapProvider(
+  db: AppDb
+): LeasedLiveModelProvider<typeof workspacesWireContract.bootstrap> {
   return {
     kind: 'leasedLiveModelProvider',
     contract: workspacesWireContract.bootstrap,
@@ -430,7 +431,7 @@ function createBootstrapProvider(): LeasedLiveModelProvider<
       return {
         ready: async () => {
           if (name !== 'state') throw new Error(`Unknown bootstrap state '${String(name)}'`);
-          return await ensureBootstrapState(key);
+          return await ensureBootstrapState(db, key);
         },
         release: async () => {},
       };
@@ -449,7 +450,7 @@ async function runProvisionJob(
   input: { workspaceId: string; taskId?: string },
   ctx: LiveJobContext<WorkspaceBootstrapProgress>
 ): Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>> {
-  const taskId = input.taskId ?? (await resolveTaskIdForWorkspace(input.workspaceId));
+  const taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
   if (!taskId) {
     const error = workspaceError(
       'missing-task',
@@ -492,34 +493,42 @@ async function runProvisionCloneJob(
 }
 
 async function publishTaskProgress(
+  db: AppDb,
   taskId: string,
   progress: WorkspaceBootstrapProgress
 ): Promise<void> {
   const active = activeProvisionJobs.get(taskId);
-  const workspaceId = active?.workspaceId ?? (await resolveWorkspaceIdForTask(taskId));
+  const workspaceId = active?.workspaceId ?? (await resolveWorkspaceIdForTask(db, taskId));
   if (!workspaceId) return;
   active?.progress(progress);
   publishBootstrapState(workspaceId, { status: 'provisioning', progress });
 }
 
-async function publishTaskReady(taskId: string, result: WorkspaceProvisionResult): Promise<void> {
-  const workspaceId = result.workspaceId || (await resolveWorkspaceIdForTask(taskId));
+async function publishTaskReady(
+  db: AppDb,
+  taskId: string,
+  result: WorkspaceProvisionResult
+): Promise<void> {
+  const workspaceId = result.workspaceId || (await resolveWorkspaceIdForTask(db, taskId));
   if (!workspaceId) return;
   publishBootstrapState(workspaceId, { status: 'ready', result });
 }
 
-async function ensureBootstrapState(key: BootstrapKey): Promise<BootstrapState> {
+async function ensureBootstrapState(db: AppDb, key: BootstrapKey): Promise<BootstrapState> {
   const existing = bootstrapStates.get(key.workspaceId);
   if (existing) return existing;
 
   const state = new LiveState<WorkspaceBootstrapState>(
-    await hydrateBootstrapState(key.workspaceId)
+    await hydrateBootstrapState(db, key.workspaceId)
   );
   bootstrapStates.set(key.workspaceId, state);
   return state;
 }
 
-async function hydrateBootstrapState(workspaceId: string): Promise<WorkspaceBootstrapState> {
+async function hydrateBootstrapState(
+  db: AppDb,
+  workspaceId: string
+): Promise<WorkspaceBootstrapState> {
   const [workspace] = await db
     .select({ id: workspaces.id })
     .from(workspaces)
@@ -537,7 +546,10 @@ function publishBootstrapState(workspaceId: string, next: WorkspaceBootstrapStat
   bootstrapStates.set(workspaceId, new LiveState(next));
 }
 
-async function resolveTaskIdForWorkspace(workspaceId: string): Promise<string | undefined> {
+async function resolveTaskIdForWorkspace(
+  db: AppDb,
+  workspaceId: string
+): Promise<string | undefined> {
   const [row] = await db
     .select({ id: tasks.id })
     .from(tasks)
@@ -546,7 +558,7 @@ async function resolveTaskIdForWorkspace(workspaceId: string): Promise<string | 
   return row?.id;
 }
 
-async function resolveWorkspaceIdForTask(taskId: string): Promise<string | undefined> {
+async function resolveWorkspaceIdForTask(db: AppDb, taskId: string): Promise<string | undefined> {
   const [row] = await db
     .select({ workspaceId: tasks.workspaceId })
     .from(tasks)

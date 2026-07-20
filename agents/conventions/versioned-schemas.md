@@ -33,7 +33,7 @@ a serialized non-JSON value), a versioned schema is not necessary.
 | File | Purpose |
 |------|---------|
 | `packages/core/src/primitives/versioned-schema/api/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` (imported as `@emdash/core/primitives/versioned-schema/api`) |
-| `src/main/db/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
+| `src/core/services/app-db/node/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
 
 ## Defining a versioned schema
 
@@ -110,10 +110,11 @@ not available in the stored data. `safeParse()` will return `{ status: 'needs-co
 
 ## Wiring the Drizzle column
 
-In `src/main/db/schema.ts`, replace `text('col_name')` with `versionedJsonColumn`:
+In `src/core/services/app-db/node/schema.ts`, replace `text('col_name')` with
+`versionedJsonColumn`:
 
 ```ts
-import { versionedJsonColumn } from '@main/db/versioned-column';
+import { versionedJsonColumn } from '@core/services/app-db/node/versioned-column';
 import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 export const myTable = sqliteTable('my_table', {
@@ -216,7 +217,7 @@ it('round-trips through serialize/parseJson', () => {
 ```
 
 For Drizzle column helpers, use the exported `parseVersionedColumn` and
-`serializeVersionedColumn` functions from `src/main/db/versioned-column.ts`.
+`serializeVersionedColumn` functions from `src/core/services/app-db/node/versioned-column.ts`.
 
 ## All migrated columns
 

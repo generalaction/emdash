@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { projectSettings as projectSettingsTable } from '@main/db/schema';
+import { projectSettings as projectSettingsTable } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export type StoredProjectSettings = {
   baseProjectSettingsJson: string;
@@ -16,7 +16,7 @@ export interface ProjectSettingsStorage {
 
 export class ProjectSettingsRepository implements ProjectSettingsStorage {
   async get(projectId: string): Promise<StoredProjectSettings | undefined> {
-    const row = db
+    const row = getAppDb()
       .select()
       .from(projectSettingsTable)
       .where(eq(projectSettingsTable.projectId, projectId))
@@ -30,7 +30,7 @@ export class ProjectSettingsRepository implements ProjectSettingsStorage {
   }
 
   async insertIfMissing(projectId: string, settings: StoredProjectSettings): Promise<void> {
-    await db
+    await getAppDb()
       .insert(projectSettingsTable)
       .values({
         projectId,
@@ -43,7 +43,7 @@ export class ProjectSettingsRepository implements ProjectSettingsStorage {
   }
 
   async update(projectId: string, settings: Partial<StoredProjectSettings>): Promise<void> {
-    await db
+    await getAppDb()
       .update(projectSettingsTable)
       .set({
         ...settings,

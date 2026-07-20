@@ -44,6 +44,7 @@ export class NotificationService {
   private readonly routingPolicy: RoutingPolicy;
   private readonly feed: LiveModelHost<typeof notificationsContract.feed>;
   private readonly delivery: EventStreamHost<typeof notificationsContract.delivery>;
+  private readonly disposers = new Set<() => void>();
   private readonly sinks = new Map<string, NotificationSink>();
   private readonly pendingBatches = new Map<string, PendingBatch>();
   private readonly seenDedupeKeys = new Map<string, string>();
@@ -111,6 +112,11 @@ export class NotificationService {
     return () => this.sinks.delete(sink.id);
   }
 
+  registerDisposer(disposer: () => void): () => void {
+    this.disposers.add(disposer);
+    return () => this.disposers.delete(disposer);
+  }
+
   publish(input: PublishNotification): string {
     const deduped = input.dedupeKey ? this.seenDedupeKeys.get(input.dedupeKey) : undefined;
     if (deduped) return deduped;
@@ -155,6 +161,8 @@ export class NotificationService {
   }
 
   dispose(): void {
+    for (const disposer of this.disposers) disposer();
+    this.disposers.clear();
     for (const pending of this.pendingBatches.values()) this.clock.clearTimeout(pending.timer);
     this.pendingBatches.clear();
     this.sinks.clear();

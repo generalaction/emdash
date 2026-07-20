@@ -1,4 +1,5 @@
 import { err, ok } from '@emdash/shared';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { ShareableProjectSettings } from '@core/primitives/project-settings/api';
@@ -15,17 +16,11 @@ const mocks = vi.hoisted(() => ({
   workspaceGet: vi.fn(),
 }));
 
-vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
-  workspaceIdentityService: {
-    resolve: mocks.workspaceGet,
-  },
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getWorkspaceIdentityService: () => ({ resolve: mocks.workspaceGet }),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: mocks.select,
-  },
-}));
+installAppDbTestInstance(() => ({ select: mocks.select }) as never);
 
 vi.mock('../utils', () => ({
   resolveWorkspace: vi.fn().mockReturnValue(null),

@@ -1,5 +1,5 @@
-import { db } from '@main/db/client';
-import { projectSettings as projectSettingsTable } from '@main/db/schema';
+import { projectSettings as projectSettingsTable } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { parseJsonObject } from './project-settings-json';
 
 function readPinnedGithubAccountId(raw: string): string | undefined {
@@ -18,7 +18,7 @@ export async function countProjectsUsingGithubAccount(accountId: string): Promis
   const targetAccountId = accountId.trim();
   if (!targetAccountId) return 0;
 
-  const rows = db
+  const rows = getAppDb()
     .select({ baseProjectSettingsJson: projectSettingsTable.baseProjectSettingsJson })
     .from(projectSettingsTable)
     .all();

@@ -1,14 +1,18 @@
 import { keyValueIoError, type KeyValueStore } from '@emdash/core/primitives/kv/api';
 import { ok, type Serializable } from '@emdash/shared';
 import { eq, like } from 'drizzle-orm';
+import { kv } from '@core/services/app-db/node/schema';
 import { log } from '@main/lib/logger';
-import { db } from './client';
-import { kv } from './schema';
+import { getAppDb } from './instance';
 
 export const desktopKeyValueStore: KeyValueStore = {
   async get(key) {
     try {
-      const rows = await db.select({ value: kv.value }).from(kv).where(eq(kv.key, key)).limit(1);
+      const rows = await getAppDb()
+        .select({ value: kv.value })
+        .from(kv)
+        .where(eq(kv.key, key))
+        .limit(1);
       const raw = rows[0]?.value;
       if (raw === undefined || raw === null) return ok(null);
       return ok(JSON.parse(raw) as Serializable);
@@ -21,7 +25,7 @@ export const desktopKeyValueStore: KeyValueStore = {
     try {
       const serialised = JSON.stringify(value);
       const now = Date.now();
-      await db
+      await getAppDb()
         .insert(kv)
         .values({ key, value: serialised, updatedAt: now })
         .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
@@ -33,7 +37,7 @@ export const desktopKeyValueStore: KeyValueStore = {
 
   async delete(key) {
     try {
-      await db.delete(kv).where(eq(kv.key, key));
+      await getAppDb().delete(kv).where(eq(kv.key, key));
       return ok();
     } catch (error) {
       return { success: false, error: keyValueIoError(error, 'Failed to delete KV entry', key) };
@@ -42,7 +46,7 @@ export const desktopKeyValueStore: KeyValueStore = {
 
   async getAll() {
     try {
-      const rows = await db.select().from(kv);
+      const rows = await getAppDb().select().from(kv);
       const result: Record<string, Serializable> = {};
       for (const row of rows) {
         try {
@@ -93,14 +97,16 @@ export class KV<TSchema extends Record<string, unknown>> {
 
   async clear(): Promise<void> {
     try {
-      await db.delete(kv).where(like(kv.key, `${this.namespace}:%`));
+      await getAppDb()
+        .delete(kv)
+        .where(like(kv.key, `${this.namespace}:%`));
     } catch (e) {
       log.error('Failed to clear KV', { namespace: this.namespace, error: e });
     }
   }
 
   async getAll(): Promise<Partial<TSchema>> {
-    const rows = await db
+    const rows = await getAppDb()
       .select()
       .from(kv)
       .where(like(kv.key, `${this.namespace}:%`));

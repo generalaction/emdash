@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LifecycleOperationRow } from '@main/db/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import { compileDeleteWorkspacePlan } from './delete-workspace-plan';
 import type { WorkspaceOperationProbe } from './probe-workspace-state';
 

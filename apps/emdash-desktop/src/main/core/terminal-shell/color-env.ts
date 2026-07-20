@@ -1,6 +1,6 @@
 import { nativeTheme } from 'electron';
 import type { Theme } from '@core/primitives/app-settings/api';
-import { appSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { log } from '@main/lib/logger';
 
 type EffectiveTheme = 'emlight' | 'emdark';
@@ -12,7 +12,7 @@ export function resolveEffectiveTheme(theme: Theme, shouldUseDarkColors: boolean
 
 export async function getTerminalColorEnv(): Promise<Record<string, string>> {
   try {
-    const appTheme = await appSettingsService.get('theme');
+    const appTheme = await getAppSettingsService().get('theme');
     const effective = resolveEffectiveTheme(appTheme, nativeTheme.shouldUseDarkColors);
     return { COLORFGBG: effective === 'emlight' ? '0;15' : '15;0' };
   } catch (error) {

@@ -1,5 +1,6 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
@@ -16,9 +17,7 @@ vi.mock('@main/core/projects/operations/getProjects', () => ({
   getProjectById: mocks.getProjectById,
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: { select: mocks.select },
-}));
+installAppDbTestInstance(() => ({ select: mocks.select }) as never);
 
 vi.mock('@main/core/workspaces/placement/workspace-placement-resolver', () => ({
   workspacePlacementResolver: { resolveWorktreePool: mocks.resolveWorktreePool },

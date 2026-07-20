@@ -12,7 +12,7 @@ import {
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { appSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { fileKey, type FilesClientScope } from '@main/core/files/runtime-client';
 import { log } from '@main/lib/logger';
 import {
@@ -54,7 +54,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
 
   protected async initialBaseProjectSettings(): Promise<BaseProjectSettings> {
     const defaultBranch = this.defaultBranchFallback.trim() || 'main';
-    const projectDefaults = await appSettingsService.get('project');
+    const projectDefaults = await getAppSettingsService().get('project');
     return {
       defaultBranch,
       baseRemote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',

@@ -1,4 +1,4 @@
-import type { LifecycleOperationRow } from '@main/db/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import { resolveOperationContext } from '../operation-context';
 import type { OperationPlan } from '../operation-plan';
 import { resolveSessionTargets } from '../session-targets';

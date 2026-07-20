@@ -1,11 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Task } from '@core/primitives/tasks/api';
+import { tasks } from '@core/services/app-db/node/schema';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 
 export async function restoreTask(id: string): Promise<Task | undefined> {
-  const [updatedRow] = await db
+  const [updatedRow] = await getAppDb()
     .update(tasks)
     .set({
       archivedAt: null,

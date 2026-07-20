@@ -25,10 +25,12 @@ import {
   type BaseProjectSettings,
 } from '@core/primitives/project-settings/api';
 import type { Project, ProjectPlacementError } from '@core/primitives/projects/api';
-import { appSettingsService, type SettingsStore } from '@core/services/settings/node';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { projectSettings } from '@core/services/app-db/node/schema';
+import type { AppSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { getProjectByPath } from '@main/core/projects/operations/getProjects';
-import { db, type AppDb } from '@main/db/client';
-import { projectSettings } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { log } from '@main/lib/logger';
 
@@ -40,7 +42,7 @@ type RuntimeBrokerLike = {
 
 type PlacementResolverDependencies = {
   broker: RuntimeBrokerLike;
-  settings: Pick<SettingsStore, 'getWithMeta'>;
+  getSettings: () => Pick<AppSettingsService, 'getWithMeta'>;
   findProjectByPath: typeof getProjectByPath;
   loadProjectWorktreeDirectory: (projectId: string) => Promise<string | undefined>;
 };
@@ -161,7 +163,7 @@ export class WorkspacePlacementResolver {
   private async getExplicitAppRoot(
     field: 'defaultProjectsDirectory' | 'defaultWorktreeDirectory'
   ): Promise<string | undefined> {
-    const { overrides } = await this.dependencies.settings.getWithMeta('localProject');
+    const { overrides } = await this.dependencies.getSettings().getWithMeta('localProject');
     return Object.hasOwn(overrides, field) ? overrides[field] : undefined;
   }
 }
@@ -228,9 +230,9 @@ function fsErrorMessage(error: { type: string; message?: string; path?: string }
 
 export const workspacePlacementResolver = new WorkspacePlacementResolver({
   broker: getDesktopRuntimeBroker() as RuntimeBroker,
-  settings: appSettingsService,
+  getSettings: getAppSettingsService,
   findProjectByPath: (...args) => getProjectByPath(...args),
-  loadProjectWorktreeDirectory: (projectId) => loadProjectWorktreeDirectory(db, projectId),
+  loadProjectWorktreeDirectory: (projectId) => loadProjectWorktreeDirectory(getAppDb(), projectId),
 });
 
 export const __workspacePlacementTestUtils = {

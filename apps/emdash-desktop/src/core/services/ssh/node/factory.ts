@@ -1,6 +1,6 @@
 import type { Scope } from '@emdash/shared/concurrency';
 import { MachinesService } from '@core/features/machines/node/machines-service';
-import type { AppDb } from '@main/db/client';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { Logger } from '@main/lib/logger';
 import { resolveSshConfig } from './config/resolve-ssh-config';
 import { parseSshConfigFile } from './config/sshConfigParser';

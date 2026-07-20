@@ -8,13 +8,11 @@ import { editorContract } from '../api';
 import type { EditorRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
 import { createEditorWireController } from './wire-controller';
 
-vi.mock('./editor-buffer-service', () => ({
-  editorBufferService: {
-    saveBuffer: vi.fn(),
-    clearBuffer: vi.fn(),
-    listBuffers: vi.fn(async () => []),
-  },
-}));
+const editorBuffer = {
+  saveBuffer: vi.fn(),
+  clearBuffer: vi.fn(),
+  listBuffers: vi.fn(async () => []),
+} as never;
 
 const identity = {
   projectId: 'project-1',
@@ -33,6 +31,7 @@ describe('createEditorWireController', () => {
     }));
     const resolve = vi.fn(async () => identity);
     const controller = createEditorWireController({
+      editorBuffer,
       runtimes: { session } as never,
       workspaceIdentity: { resolve },
     });
@@ -74,6 +73,7 @@ describe('createEditorWireController', () => {
       release,
     }));
     const controller = createEditorWireController({
+      editorBuffer,
       runtimes: { session } as never,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
@@ -116,6 +116,7 @@ describe('createEditorWireController', () => {
     );
     const release = vi.fn(async () => {});
     const controller = createEditorWireController({
+      editorBuffer,
       runtimes: {
         session: () => ({
           ready: async () => ok({ files: { fs: { readBytes } } }),
@@ -147,6 +148,7 @@ describe('createEditorWireController', () => {
     };
     const release = vi.fn(async () => {});
     const controller = createEditorWireController({
+      editorBuffer,
       runtimes: {
         session: () => ({
           ready: async () => err(resolveError),

@@ -1,15 +1,18 @@
 import { isDeepEqual } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import type { SettingsContribution, SettingsContributionMap } from '@core/primitives/settings/api';
-import { db } from '@main/db/client';
-import { appSettings } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { appSettings } from '@core/services/app-db/node/schema';
 import type { AppSettings, AppSettingsKey, SettingsMeta, SettingsOverrides } from '../api';
 import { computeDelta, isPlainObject, mergeDeep } from './utils';
 
 export class SettingsStore {
   private readonly cache: Partial<AppSettings> = {};
 
-  constructor(private readonly contributions: SettingsContributionMap<AppSettings>) {}
+  constructor(
+    private readonly db: AppDb,
+    private readonly contributions: SettingsContributionMap<AppSettings>
+  ) {}
 
   private contribution<K extends AppSettingsKey>(key: K): SettingsContribution<K, AppSettings[K]> {
     return this.contributions[key];
@@ -21,7 +24,11 @@ export class SettingsStore {
   }
 
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
-    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).execute();
+    const [row] = await this.db
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, key))
+      .execute();
     if (!row) return null;
     try {
       return JSON.parse(row.value);
@@ -32,7 +39,7 @@ export class SettingsStore {
 
   private async storeRaw(key: AppSettingsKey, value: unknown): Promise<void> {
     const serialized = JSON.stringify(value);
-    await db
+    await this.db
       .insert(appSettings)
       .values({ key, value: serialized })
       .onConflictDoUpdate({ target: appSettings.key, set: { value: serialized } })
@@ -40,7 +47,7 @@ export class SettingsStore {
   }
 
   private async deleteRow(key: AppSettingsKey): Promise<void> {
-    await db.delete(appSettings).where(eq(appSettings.key, key)).execute();
+    await this.db.delete(appSettings).where(eq(appSettings.key, key)).execute();
   }
 
   private effectiveValue<T>(defaults: T, overrides: unknown): T {

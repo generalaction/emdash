@@ -7,40 +7,38 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((column, value) => ({ column, value })),
 }));
 
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   appSettings: { key: 'key', value: 'value' },
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn((predicate: { value: string }) => ({
-          execute: vi.fn(async () => {
-            const value = store.get(predicate.value);
-            return value === undefined ? [] : [{ key: predicate.value, value }];
-          }),
-        })),
-      })),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn((row: { key: string; value: string }) => ({
-        onConflictDoUpdate: vi.fn(() => ({
-          execute: vi.fn(async () => {
-            store.set(row.key, row.value);
-          }),
-        })),
-      })),
-    })),
-    delete: vi.fn(() => ({
+const db = {
+  select: vi.fn(() => ({
+    from: vi.fn(() => ({
       where: vi.fn((predicate: { value: string }) => ({
         execute: vi.fn(async () => {
-          store.delete(predicate.value);
+          const value = store.get(predicate.value);
+          return value === undefined ? [] : [{ key: predicate.value, value }];
         }),
       })),
     })),
-  },
-}));
+  })),
+  insert: vi.fn(() => ({
+    values: vi.fn((row: { key: string; value: string }) => ({
+      onConflictDoUpdate: vi.fn(() => ({
+        execute: vi.fn(async () => {
+          store.set(row.key, row.value);
+        }),
+      })),
+    })),
+  })),
+  delete: vi.fn(() => ({
+    where: vi.fn((predicate: { value: string }) => ({
+      execute: vi.fn(async () => {
+        store.delete(predicate.value);
+      }),
+    })),
+  })),
+} as never;
 
 const { OverrideSettings } = await import('./override-settings');
 
@@ -48,6 +46,7 @@ describe('OverrideSettings', () => {
   it('returns metadata for items that have overrides but no defaults entry', async () => {
     store.clear();
     const settings = new OverrideSettings(
+      db,
       'providerConfigs',
       () => ({}),
       z.object({ extraArgs: z.string().optional() })
@@ -65,6 +64,7 @@ describe('OverrideSettings', () => {
   it('returns empty metadata for items with neither defaults nor overrides', async () => {
     store.clear();
     const settings = new OverrideSettings(
+      db,
       'providerConfigs',
       () => ({}),
       z.object({ extraArgs: z.string().optional() })

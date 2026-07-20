@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   hostPathFromNative,
@@ -33,20 +34,21 @@ vi.mock('@main/gateway/accessors', () => ({
   getGitRuntimeClient: async () => clients.git,
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: mocks.selectLimit,
+installAppDbTestInstance(
+  () =>
+    ({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: mocks.selectLimit,
+          }),
         }),
       }),
-    }),
-    delete: () => ({
-      where: mocks.deleteWhere,
-    }),
-  },
-}));
+      delete: () => ({
+        where: mocks.deleteWhere,
+      }),
+    }) as never
+);
 
 vi.mock('@main/core/file-search/runtime-client', () => ({
   unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,

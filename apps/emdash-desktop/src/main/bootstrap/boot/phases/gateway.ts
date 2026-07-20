@@ -1,4 +1,3 @@
-import { emdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { installDesktopWire } from '@main/gateway/desktop-wire';
@@ -30,7 +29,7 @@ export const gatewayPhase: Phase<BootContext> = {
     if (!context.ssh) {
       throw new Error('SSH service was not initialized before the gateway phase');
     }
-    installDesktopWire(createDesktopWireOptions(), context.ssh);
+    installDesktopWire(createDesktopWireOptions(context), context.ssh);
     runInBackground(
       'dev-server-bridge',
       () => withRetry(installDevServerBridge, { signal: appScope.signal }),
@@ -55,7 +54,10 @@ export const gatewayPhase: Phase<BootContext> = {
     tuiAgentStatusBridge.initialize();
 
     runInBackground('account-session', async () => {
-      const result = await emdashAccountService.initialize();
+      if (!context.accountService) {
+        throw new Error('Account service was not initialized before the gateway phase');
+      }
+      const result = await context.accountService.initialize();
       if (!result.success) {
         log.warn('Failed to load account session token:', result.error);
       }

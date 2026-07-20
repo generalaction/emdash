@@ -1,12 +1,14 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export async function touchConversation(
   conversationId: string,
-  lastInteractedAt: string
+  lastInteractedAt: string,
+  database: AppDb = getAppDb()
 ): Promise<void> {
-  await db
+  await database
     .update(conversations)
     .set({ lastInteractedAt })
     .where(eq(conversations.id, conversationId));

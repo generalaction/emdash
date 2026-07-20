@@ -6,7 +6,7 @@ import type {
   LegacyProjectConflict,
   SourceProjectInfo,
 } from '@core/primitives/legacy-port/api/legacy-port';
-import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
+import { projectRemotes, projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 import {
   legacyTableExists,
   readLegacyRows,

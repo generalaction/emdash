@@ -144,7 +144,7 @@ describe('round-trip', () => {
 
 describe('logging', () => {
   it('logs a warning for future-version data', async () => {
-    const loggerModule = await import('@main/lib/logger');
+    const loggerModule = await import('@emdash/shared/logger');
     const warnSpy = vi.spyOn(loggerModule.log, 'warn').mockImplementation(() => {});
 
     try {
@@ -162,7 +162,7 @@ describe('logging', () => {
   });
 
   it('logs a warning for corrupt non-JSON data', async () => {
-    const loggerModule = await import('@main/lib/logger');
+    const loggerModule = await import('@emdash/shared/logger');
     const warnSpy = vi.spyOn(loggerModule.log, 'warn').mockImplementation(() => {});
 
     try {
@@ -174,7 +174,7 @@ describe('logging', () => {
   });
 
   it('logs a warning for invalid data (dev mode validation failure)', async () => {
-    const loggerModule = await import('@main/lib/logger');
+    const loggerModule = await import('@emdash/shared/logger');
     const warnSpy = vi.spyOn(loggerModule.log, 'warn').mockImplementation(() => {});
 
     try {

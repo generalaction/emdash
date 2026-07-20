@@ -10,11 +10,11 @@ import type {
   ProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { repositorySelector, gitErrorMessage } from '@main/core/git/runtime-client';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
-import { db } from '@main/db/client';
-import { projects, tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
 
 const MEASURE_CONCURRENCY = 4;
@@ -215,7 +215,7 @@ async function buildCandidateRow(
 export async function getProjectWorkspaceProject(
   projectId: string
 ): Promise<ProjectWorkspaceProjectRow> {
-  const [project] = await db
+  const [project] = await getAppDb()
     .select({
       id: projects.id,
       path: projects.path,
@@ -230,7 +230,7 @@ export async function getProjectWorkspaceProject(
 }
 
 async function getWorkspaceRows(): Promise<WorkspaceRow[]> {
-  return (await db
+  return (await getAppDb()
     .select({
       id: workspaces.id,
       type: workspaces.type,
@@ -245,7 +245,7 @@ async function getWorkspaceRows(): Promise<WorkspaceRow[]> {
 }
 
 async function getTaskRows(projectId: string): Promise<TaskRow[]> {
-  return await db
+  return await getAppDb()
     .select({
       taskId: tasks.id,
       name: tasks.name,

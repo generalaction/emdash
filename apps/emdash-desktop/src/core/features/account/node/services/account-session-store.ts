@@ -1,6 +1,5 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import { Result as ResultUtil } from '@emdash/shared/result';
-import { KV } from '@main/db/kv';
 import {
   type AccountNotSignedInError,
   type AccountSessionPersistenceError,
@@ -9,21 +8,26 @@ import {
 import type { AccountUser, CachedProfile, SessionSnapshot, SessionState } from '../account-types';
 import { accountCredentialStore } from './credential-store';
 
-interface AccountKVSchema extends Record<string, unknown> {
+export interface AccountKVSchema extends Record<string, unknown> {
   profile: CachedProfile;
 }
 
-const accountKV = new KV<AccountKVSchema>('account');
+export type AccountProfileKeyValueStore = {
+  get(key: 'profile'): Promise<CachedProfile | null>;
+  setOrThrow(key: 'profile', value: CachedProfile): Promise<void>;
+};
 
 export class AccountSessionStore {
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
 
+  constructor(private readonly accountKV: AccountProfileKeyValueStore) {}
+
   async load(): Promise<Result<SessionSnapshot, AccountSessionPersistenceError>> {
     try {
       const [sessionToken, profile] = await Promise.all([
         accountCredentialStore.get(),
-        accountKV.get('profile'),
+        this.accountKV.get('profile'),
       ]);
       if (!sessionToken.success) return sessionToken;
 
@@ -37,7 +41,7 @@ export class AccountSessionStore {
 
   async getSession(): Promise<Result<SessionState, AccountSessionPersistenceError>> {
     try {
-      this.cachedProfile = await accountKV.get('profile');
+      this.cachedProfile = await this.accountKV.get('profile');
       return ok(this.toSessionState());
     } catch (error) {
       return err(toSessionPersistenceError(error, 'Failed to read account session'));
@@ -96,7 +100,7 @@ export class AccountSessionStore {
     return await ResultUtil.fromAsync(accountCredentialStore.set(sessionToken)).andThen(
       async () => {
         try {
-          await accountKV.setOrThrow('profile', profile);
+          await this.accountKV.setOrThrow('profile', profile);
           this.sessionToken = sessionToken;
           this.cachedProfile = profile;
           return ok();
@@ -114,7 +118,7 @@ export class AccountSessionStore {
 
     try {
       this.cachedProfile = { ...this.cachedProfile, lastValidated };
-      await accountKV.setOrThrow('profile', this.cachedProfile);
+      await this.accountKV.setOrThrow('profile', this.cachedProfile);
       return ok();
     } catch (error) {
       return err(toSessionPersistenceError(error, 'Failed to update account session'));
@@ -127,11 +131,11 @@ export class AccountSessionStore {
     this.sessionToken = null;
 
     try {
-      const profile = this.cachedProfile ?? (await accountKV.get('profile'));
+      const profile = this.cachedProfile ?? (await this.accountKV.get('profile'));
       if (!profile) return ok();
 
       this.cachedProfile = { ...profile, hasAccount: true };
-      await accountKV.setOrThrow('profile', this.cachedProfile);
+      await this.accountKV.setOrThrow('profile', this.cachedProfile);
       return ok();
     } catch (error) {
       return err(toSessionPersistenceError(error, 'Failed to clear account session'));

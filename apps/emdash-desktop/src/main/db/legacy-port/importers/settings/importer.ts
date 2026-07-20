@@ -1,11 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
-import { promptLibraryService } from '@core/features/library/node/prompt-library-service';
 import { getDefaultForKey } from '@core/manifests/shared/settings-contributions';
 import type { AppSettings, AppSettingsKey } from '@core/services/settings/api';
-import { appSettingsService } from '@core/services/settings/node/app-settings-service';
 import { isPlainObject, mergeDeep } from '@core/services/settings/node/utils';
+import {
+  getAppSettingsService,
+  getPromptLibraryService,
+} from '@main/bootstrap/core/service-instances';
 import { isValidProviderId } from '@main/core/agents/plugin-registry';
 import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
@@ -113,8 +115,8 @@ export async function portLegacySettings(
     return summary;
   }
 
-  const settingsStore = options.settingsStore ?? appSettingsService;
-  const promptLibraryStore = options.promptLibraryStore ?? promptLibraryService;
+  const settingsStore = options.settingsStore ?? getAppSettingsService();
+  const promptLibraryStore = options.promptLibraryStore ?? getPromptLibraryService();
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};

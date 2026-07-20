@@ -1,5 +1,6 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TaskRow } from '@main/db/schema';
+import type { TaskRow } from '@core/services/app-db/node/schema';
 import { renameTask } from './renameTask';
 
 const mocks = vi.hoisted(() => ({
@@ -7,12 +8,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: mocks.select,
-    update: mocks.update,
-  },
-}));
+installAppDbTestInstance(() => ({ select: mocks.select, update: mocks.update }) as never);
 
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
   return {

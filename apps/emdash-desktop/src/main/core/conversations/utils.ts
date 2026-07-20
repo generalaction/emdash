@@ -5,7 +5,7 @@ import {
   type ConversationType,
   type InitialQueuePrompt,
 } from '@core/primitives/conversations/api';
-import { type ConversationRow } from '@main/db/schema';
+import { type ConversationRow } from '@core/services/app-db/node/schema';
 
 function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undefined {
   if (row.sessionId !== null) return undefined;

@@ -1,6 +1,6 @@
 import type { ITrustBehavior } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { appSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { log } from '@main/lib/logger';
 import { getPlugin } from './plugin-registry';
 import { resolveTrustTarget, type WorkspaceTrustHost } from './workspace-trust-target';
@@ -72,6 +72,6 @@ export class WorkspaceTrustService {
 }
 
 export const workspaceTrustService = new WorkspaceTrustService({
-  getTaskSettings: () => appSettingsService.get('tasks'),
+  getTaskSettings: () => getAppSettingsService().get('tasks'),
   getTrustBehavior: (providerId) => getPlugin(providerId).behavior.trust,
 });

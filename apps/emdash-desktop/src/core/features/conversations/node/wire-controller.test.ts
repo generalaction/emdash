@@ -7,7 +7,6 @@ import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
 import { createConversationsWireController } from './wire-controller';
 
-vi.mock('@main/db/client', () => ({ db: {} }));
 vi.mock('@main/core/conversations/controller', () => ({
   conversationOperations: {
     getConversations: vi.fn(),
@@ -223,6 +222,7 @@ function setupController(options: {
     ...options.hooks,
   };
   return createConversationsWireController({
+    db: {} as never,
     runtimes: {
       session: () => ({
         ready: async () => (options.runtimeError ? err(options.runtimeError) : ok(options.client)),

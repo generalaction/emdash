@@ -1,19 +1,8 @@
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppDb } from '@main/db/client';
-import { projectSettings, projects } from '@main/db/schema';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { projectSettings, projects } from '@core/services/app-db/node/schema';
+import { resetAppDbForTests, setAppDb } from '@main/db/instance';
 import { countProjectsUsingGithubAccount } from './count-projects-using-github-account';
-
-const mocks = vi.hoisted(() => ({
-  db: undefined as AppDb | undefined,
-}));
-
-vi.mock('@main/db/client', () => ({
-  get db() {
-    if (!mocks.db) throw new Error('Test database not initialized');
-    return mocks.db;
-  },
-}));
 
 const TARGET_ACCOUNT_ID = 'github.com:42';
 const OTHER_ACCOUNT_ID = 'github.com:99';
@@ -34,12 +23,12 @@ describe('countProjectsUsingGithubAccount', () => {
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
-    mocks.db = fixture.db;
+    setAppDb(fixture);
   });
 
   afterEach(() => {
+    resetAppDbForTests();
     fixture.close();
-    mocks.db = undefined;
   });
 
   it('counts only persisted projects pinned to the target account', async () => {

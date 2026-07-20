@@ -2,7 +2,6 @@ import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { compose } from '@emdash/shared/requests';
 import { exposeWireToWindows, validation, type Controller } from '@emdash/wire/api';
 import { ipcMain, MessageChannelMain } from 'electron';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import {
   desktopNodeControllers,
   type DesktopControllerContext,
@@ -15,7 +14,10 @@ import { appScope } from '@main/bootstrap/core/app-scope';
 import { createRetryableReady } from './retryable-ready';
 import { getDesktopRuntimeBroker } from './runtime-broker';
 
-export type InstallDesktopWireOptions = DesktopControllerContext['workspaces'];
+export type InstallDesktopWireOptions = Omit<
+  DesktopControllerContext,
+  'runtimes' | 'scope' | 'ssh'
+>;
 
 const scope = appScope.child('desktop-wire');
 let installed = false;
@@ -46,7 +48,7 @@ function createMessageChannel() {
 }
 
 function createLazyDesktopController(
-  workspaces: InstallDesktopWireOptions,
+  options: InstallDesktopWireOptions,
   runtimes: RuntimeBroker,
   ssh: SshServiceHandle
 ): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
@@ -63,11 +65,10 @@ function createLazyDesktopController(
           const controllerScope = scope.child(`controller:${domain}`);
           pendingScopes.push(controllerScope);
           const controller = await contribution.create({
+            ...options,
             scope: controllerScope,
             runtimes,
             ssh,
-            workspaceIdentity: workspaceIdentityService,
-            workspaces,
           });
           return [domain, controller] as const;
         })

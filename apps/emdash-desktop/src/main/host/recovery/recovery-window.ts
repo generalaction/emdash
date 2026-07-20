@@ -3,8 +3,8 @@ import { app, BrowserWindow, shell } from 'electron';
 import { clearBootFailureMarker } from '@main/bootstrap/core/boot-guard';
 import { getLogFilePath } from '@main/host/file-logger';
 import { log } from '@main/lib/logger';
-import recoveryHtmlTemplate from './recovery.html?raw';
 import { injectBootstrap, type RecoveryState } from './recovery-bootstrap';
+import recoveryHtmlTemplate from './recovery.html?raw';
 
 export type RecoveryWindowOptions = {
   errorMessage: string;

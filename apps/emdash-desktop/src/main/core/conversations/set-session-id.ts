@@ -1,10 +1,11 @@
 import { err, ok, type BaseError, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export type SetSessionIdError = BaseError<'empty-session-id' | 'conversation-not-found'>;
-type SessionIdDb = Pick<typeof db, 'select' | 'update'>;
+type SessionIdDb = Pick<AppDb, 'select' | 'update'>;
 
 /**
  * Writes the agent-facing session id directly to the conversations.session_id column.
@@ -15,12 +16,13 @@ type SessionIdDb = Pick<typeof db, 'select' | 'update'>;
  */
 export async function setSessionId(
   conversationId: string,
-  sessionId: string
+  sessionId: string,
+  database: SessionIdDb = getAppDb()
 ): Promise<Result<{ projectId: string; taskId: string }, SetSessionIdError>> {
   const trimmed = sessionId.trim();
   if (!trimmed) return err({ type: 'empty-session-id' });
 
-  const [context] = await db
+  const [context] = await database
     .update(conversations)
     .set({ sessionId: trimmed, updatedAt: new Date().toISOString() })
     .where(eq(conversations.id, conversationId))
@@ -36,7 +38,7 @@ export async function setSessionId(
 export async function setSessionIdIfUnset(
   conversationId: string,
   sessionId: string,
-  database: SessionIdDb = db
+  database: SessionIdDb = getAppDb()
 ): Promise<Result<{ updated: boolean; sessionId: string }, SetSessionIdError>> {
   const trimmed = sessionId.trim();
   if (!trimmed) return err({ type: 'empty-session-id' });

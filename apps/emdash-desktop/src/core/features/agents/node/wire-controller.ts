@@ -3,7 +3,7 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
-import { agentOperations } from '@main/core/agents/controller';
+import type { AgentOperations } from '@main/core/agents/controller';
 import { agentsContract } from '../api';
 import {
   throwAgentsRuntimeResolveError,
@@ -14,10 +14,12 @@ import {
 } from '../api/runtime-adapter';
 
 export type CreateAgentsWireControllerOptions = Readonly<{
+  operations: AgentOperations;
   runtimes: AgentsRuntimeBroker;
 }>;
 
 export function createAgentsWireController(options: CreateAgentsWireControllerOptions): Controller {
+  const agentOperations = options.operations;
   return createController(agentsContract, {
     list: ({ host }) =>
       withHostRuntime(options.runtimes, host, (runtime) =>

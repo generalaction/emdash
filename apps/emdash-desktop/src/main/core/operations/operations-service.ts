@@ -12,19 +12,20 @@ import type {
 } from '@core/primitives/operations/api';
 import type { OperationPayload } from '@core/primitives/operations/api';
 import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
-import { appScope } from '@main/bootstrap/core/app-scope';
-import { checkoutSelector } from '@main/core/git/runtime-client';
-import { projectManager } from '@main/core/projects/project-manager';
-import { db, type DrizzleTx } from '@main/db/client';
+import type { DrizzleTx } from '@core/services/app-db/node/db';
 import {
   lifecycleOperations,
   projects,
   tasks,
   workspaces,
   type LifecycleOperationRow,
-} from '@main/db/schema';
+} from '@core/services/app-db/node/schema';
+import { appScope } from '@main/bootstrap/core/app-scope';
+import { getNotificationService } from '@main/bootstrap/core/service-instances';
+import { checkoutSelector } from '@main/core/git/runtime-client';
+import { projectManager } from '@main/core/projects/project-manager';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
-import { notificationService } from '@root/src/core/services/notifications/node';
 import { purgeProjectLocalState, purgeTaskLocalState } from './local-cleanup';
 import { resolveOperationContext, type OperationContext } from './operation-context';
 import { workspaceInUseError } from './operation-errors';
@@ -170,7 +171,7 @@ export class OperationsService {
     }
     this.sshManager = configuredSshManager;
     this.initialized = true;
-    await db
+    await getAppDb()
       .update(lifecycleOperations)
       .set({ status: 'pending', error: null })
       .where(eq(lifecycleOperations.status, 'running'));
@@ -183,7 +184,7 @@ export class OperationsService {
       configuredSshManager.off('connection-event', onConnection);
     });
     this.scope.add(async () => {
-      await db
+      await getAppDb()
         .update(lifecycleOperations)
         .set({ status: 'pending' })
         .where(eq(lifecycleOperations.status, 'running'));
@@ -193,7 +194,7 @@ export class OperationsService {
   }
 
   async enqueueDeleteTask(input: DeleteTaskInput): Promise<OperationMutationResult> {
-    const [task] = await db
+    const [task] = await getAppDb()
       .select()
       .from(tasks)
       .where(and(eq(tasks.id, input.taskId), isNull(tasks.deletedAt)))
@@ -206,9 +207,13 @@ export class OperationsService {
     }
 
     const [workspace] = task.workspaceId
-      ? await db.select().from(workspaces).where(eq(workspaces.id, task.workspaceId)).limit(1)
+      ? await getAppDb()
+          .select()
+          .from(workspaces)
+          .where(eq(workspaces.id, task.workspaceId))
+          .limit(1)
       : [];
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(eq(projects.id, task.projectId))
@@ -237,7 +242,7 @@ export class OperationsService {
       createdAt,
     });
 
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: nonTerminalOperationStatuses,
         tombstone: (transaction) =>
@@ -259,7 +264,7 @@ export class OperationsService {
   }
 
   async enqueueDeleteWorkspace(workspaceId: string): Promise<OperationMutationResult> {
-    const [workspace] = await db
+    const [workspace] = await getAppDb()
       .select()
       .from(workspaces)
       .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
@@ -270,9 +275,13 @@ export class OperationsService {
         ? ok({ operationId: existing.id })
         : err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
     }
-    const [task] = await db.select().from(tasks).where(eq(tasks.workspaceId, workspaceId)).limit(1);
+    const [task] = await getAppDb()
+      .select()
+      .from(tasks)
+      .where(eq(tasks.workspaceId, workspaceId))
+      .limit(1);
     const [project] = task
-      ? await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+      ? await getAppDb().select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
       : [];
     const operationId = randomUUID();
     const createdAt = this.clock.now();
@@ -294,7 +303,7 @@ export class OperationsService {
       },
       createdAt,
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: nonTerminalOperationStatuses,
         precondition: (transaction) =>
@@ -324,7 +333,7 @@ export class OperationsService {
     workspacePath: string;
     branchName?: string;
   }): Promise<OperationMutationResult> {
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(eq(projects.id, input.projectId))
@@ -358,7 +367,7 @@ export class OperationsService {
       },
       createdAt,
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: nonTerminalOperationStatuses,
         precondition: input.workspaceId
@@ -387,7 +396,7 @@ export class OperationsService {
   }
 
   async enqueueArchiveWorkspace(input: ArchiveWorkspaceInput): Promise<OperationMutationResult> {
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(and(eq(projects.id, input.projectId), isNull(projects.deletedAt)))
@@ -400,7 +409,7 @@ export class OperationsService {
     }
 
     const [workspace] = input.workspaceId
-      ? await db
+      ? await getAppDb()
           .select()
           .from(workspaces)
           .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.deletedAt)))
@@ -430,7 +439,7 @@ export class OperationsService {
         hostLabel: project.name,
       },
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, { dedupeStatuses: nonTerminalOperationStatuses })
     );
     if (insertion.outcome === 'precondition-failed') return err(insertion.error);
@@ -445,12 +454,16 @@ export class OperationsService {
 
   async proposeReconcilerTaskCleanup(taskId: string): Promise<void> {
     if (await this.latestOperation('task', taskId)) return;
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    const [task] = await getAppDb().select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!task) return;
     const [workspace] = task.workspaceId
-      ? await db.select().from(workspaces).where(eq(workspaces.id, task.workspaceId)).limit(1)
+      ? await getAppDb()
+          .select()
+          .from(workspaces)
+          .where(eq(workspaces.id, task.workspaceId))
+          .limit(1)
       : [];
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(eq(projects.id, task.projectId))
@@ -479,7 +492,7 @@ export class OperationsService {
       payload,
       createdAt,
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: (transaction) => {
@@ -518,7 +531,7 @@ export class OperationsService {
         tmuxSessionNames: input.tmuxSessionNames,
       },
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, { dedupeStatuses: reconcilerDedupeStatuses })
     );
     if (insertion.outcome !== 'inserted') return;
@@ -529,7 +542,7 @@ export class OperationsService {
   async proposeReconcilerWorkspaceCleanup(input: ReconcilerWorkspaceCleanupInput): Promise<void> {
     const entityId = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
     if (await this.latestOperation('workspace', entityId)) return;
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(eq(projects.id, input.projectId))
@@ -559,7 +572,7 @@ export class OperationsService {
       payload,
       createdAt,
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, {
         dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: input.workspaceId
@@ -581,7 +594,11 @@ export class OperationsService {
 
   async proposeReconcilerProjectCleanup(projectId: string): Promise<void> {
     if (await this.latestOperation('project', projectId)) return;
-    const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+    const [project] = await getAppDb()
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
     if (!project?.deletedAt) return;
     const operationId = randomUUID();
     const payload: OperationPayload = {
@@ -599,7 +616,7 @@ export class OperationsService {
       hostRef: 'local',
       payload,
     });
-    const insertion = db.transaction((tx) =>
+    const insertion = getAppDb().transaction((tx) =>
       this.insertOperation(tx, draft, { dedupeStatuses: reconcilerDedupeStatuses })
     );
     if (insertion.outcome !== 'inserted') return;
@@ -608,7 +625,7 @@ export class OperationsService {
   }
 
   async enqueueDeleteProject(projectId: string): Promise<OperationMutationResult> {
-    const [project] = await db
+    const [project] = await getAppDb()
       .select()
       .from(projects)
       .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
@@ -619,7 +636,7 @@ export class OperationsService {
         ? ok({ operationId: existing.id })
         : err({ type: 'project-not-found', message: `Project ${projectId} was not found` });
     }
-    const taskRows = await db
+    const taskRows = await getAppDb()
       .select()
       .from(tasks)
       .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
@@ -628,7 +645,7 @@ export class OperationsService {
       .filter((id): id is string => !!id);
     const workspaceRows =
       workspaceIds.length > 0
-        ? await db.select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
+        ? await getAppDb().select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
         : [];
     const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
     const createdAt = this.clock.now();
@@ -671,7 +688,7 @@ export class OperationsService {
       },
       createdAt,
     });
-    const insertion = db.transaction((tx) => {
+    const insertion = getAppDb().transaction((tx) => {
       const projectInsertion = this.insertOperation(tx, projectDraft, {
         tombstone: (transaction) =>
           transaction
@@ -710,7 +727,7 @@ export class OperationsService {
     }
     const operations =
       kind === 'project'
-        ? await db
+        ? await getAppDb()
             .select()
             .from(lifecycleOperations)
             .where(
@@ -721,7 +738,7 @@ export class OperationsService {
             )
         : [operation];
     const confirmedAt = this.clock.now();
-    db.transaction((tx) => {
+    getAppDb().transaction((tx) => {
       for (const item of operations) {
         tx.update(lifecycleOperations)
           .set({
@@ -752,7 +769,7 @@ export class OperationsService {
       return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
     }
     const purgeDatabaseRows = async (): Promise<void> => {
-      db.transaction((tx) => {
+      getAppDb().transaction((tx) => {
         const operationWhere =
           kind === 'project'
             ? and(
@@ -848,7 +865,7 @@ export class OperationsService {
   }): Promise<boolean> {
     await this.initialize();
 
-    const operations = await db
+    const operations = await getAppDb()
       .select()
       .from(lifecycleOperations)
       .where(
@@ -872,7 +889,7 @@ export class OperationsService {
 
   async dispose(): Promise<void> {
     await this.scope.dispose(new Error('Application shutdown'));
-    await db
+    await getAppDb()
       .update(lifecycleOperations)
       .set({ status: 'pending' })
       .where(eq(lifecycleOperations.status, 'running'));
@@ -882,7 +899,7 @@ export class OperationsService {
     let madeProgress = true;
     while (madeProgress && !signal.aborted) {
       madeProgress = false;
-      const operations = await db
+      const operations = await getAppDb()
         .select()
         .from(lifecycleOperations)
         .where(inArray(lifecycleOperations.status, ['pending', 'running']))
@@ -895,7 +912,7 @@ export class OperationsService {
         if (!this.hostIsOnline(operation.hostRef)) continue;
         const plan = await compileOperationPlan(operation);
         if (plan.preconditionFailure) {
-          await db
+          await getAppDb()
             .update(lifecycleOperations)
             .set({
               status: 'failed',
@@ -935,7 +952,7 @@ export class OperationsService {
     plan: ExecutableOperationPlan,
     signal: AbortSignal
   ): Promise<void> {
-    await db
+    await getAppDb()
       .update(lifecycleOperations)
       .set({
         status: 'running',
@@ -959,12 +976,12 @@ export class OperationsService {
     });
     this.progress.delete(operation.id);
     if (result.success) {
-      await db
+      await getAppDb()
         .update(lifecycleOperations)
         .set({ status: 'succeeded', finishedAt: this.clock.now(), error: null })
         .where(eq(lifecycleOperations.id, operation.id));
     } else if (!signal.aborted) {
-      await db
+      await getAppDb()
         .update(lifecycleOperations)
         .set({ status: 'failed', error: result.error.message })
         .where(eq(lifecycleOperations.id, operation.id));
@@ -976,7 +993,7 @@ export class OperationsService {
     operation: LifecycleOperationRow,
     reason: 'stale' | 'workspace-modified' | 'reconciler-proposed'
   ): Promise<void> {
-    await db
+    await getAppDb()
       .update(lifecycleOperations)
       .set({
         status: 'awaiting-confirmation',
@@ -1040,7 +1057,7 @@ export class OperationsService {
 
   private async hasPendingChildren(operation: LifecycleOperationRow): Promise<boolean> {
     if (!operation.projectId) return false;
-    const [child] = await db
+    const [child] = await getAppDb()
       .select({ id: lifecycleOperations.id })
       .from(lifecycleOperations)
       .where(
@@ -1125,7 +1142,7 @@ export class OperationsService {
     kind: DeletionEntityKind,
     entityId: string
   ): Promise<LifecycleOperationRow | undefined> {
-    const [operation] = await db
+    const [operation] = await getAppDb()
       .select()
       .from(lifecycleOperations)
       .where(
@@ -1150,7 +1167,7 @@ export class OperationsService {
     kind: DeletionEntityKind,
     entityId?: string
   ): Promise<DeletionList> {
-    const rows = await db
+    const rows = await getAppDb()
       .select()
       .from(lifecycleOperations)
       .where(
@@ -1276,7 +1293,7 @@ function publishPendingCleanupNotification(
   hostRef: string,
   reason: 'stale' | 'workspace-modified' | 'reconciler-proposed'
 ): void {
-  notificationService.publish({
+  getNotificationService().publish({
     kind: 'pending-cleanup',
     groupKey: `pending-cleanup:${hostRef}`,
     dedupeKey: `pending-cleanup:${operationId}:${reason}`,

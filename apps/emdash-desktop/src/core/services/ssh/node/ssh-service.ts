@@ -6,8 +6,11 @@ import type {
   SshConfigHost,
   SshConfig,
 } from '@core/primitives/ssh/api';
-import type { AppDb } from '@main/db/client';
-import { sshConnections as sshConnectionsTable, type SshConnectionRow } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import {
+  sshConnections as sshConnectionsTable,
+  type SshConnectionRow,
+} from '@core/services/app-db/node/schema';
 import type { ResolvedSshConfig } from './config/resolve-ssh-config';
 import type { SshConnectInput, SshConnectResult } from './connect/resolve-ssh-connect-config';
 import type { SshConnectionsModel } from './connections-model';

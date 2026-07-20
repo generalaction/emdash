@@ -1,19 +1,19 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import { tasks } from '@core/services/app-db/node/schema';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
 export async function archiveTask(projectId: string, taskId: string): Promise<void> {
-  const [task] = await db
+  const [task] = await getAppDb()
     .select()
     .from(tasks)
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   if (!task) return;
 
-  await db
+  await getAppDb()
     .update(tasks)
     .set({
       archivedAt: sql`CURRENT_TIMESTAMP`,

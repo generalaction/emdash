@@ -10,10 +10,10 @@ import {
   legacyBaseProjectSettingsSchema,
   shareableProjectSettingsSchema,
 } from '@core/primitives/project-settings/api';
+import { projectSettings, workspaces } from '@core/services/app-db/node/schema';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { workspacePlacementResolver } from '@main/core/workspaces/placement/workspace-placement-resolver';
-import { db } from '@main/db/client';
-import { projectSettings, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 
 type DeploymentProjectSettings = {
   baseRemote: string;
@@ -73,7 +73,7 @@ export async function buildAutomationDeployment(
     }
 
     if (taskWorkspace.workspace.kind === 'repository-instance') {
-      const [workspaceRow] = await db
+      const [workspaceRow] = await getAppDb()
         .select({ location: workspaces.location, path: workspaces.path, type: workspaces.type })
         .from(workspaces)
         .where(
@@ -136,7 +136,7 @@ export async function buildAutomationDeployment(
 async function loadDeploymentProjectSettings(
   projectId: string
 ): Promise<DeploymentProjectSettings> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select({
       base: projectSettings.baseProjectSettingsJson,
       shareable: projectSettings.shareableProjectSettingsJson,

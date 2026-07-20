@@ -2,22 +2,11 @@ import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { AutomationRun, AutomationRunStatus } from '@emdash/core/runtimes/automations/api';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppDb } from '@main/db/client';
-import { automationRuns, automations } from '@main/db/schema';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { automationRuns, automations } from '@core/services/app-db/node/schema';
+import { resetAppDbForTests, setAppDb } from '@main/db/instance';
 import { deleteAutomationDefinition } from './repo';
 import { getRunProjectionsByRunIds, upsertRunProjection } from './run-projection';
-
-const mocks = vi.hoisted(() => ({
-  db: undefined as AppDb | undefined,
-}));
-
-vi.mock('@main/db/client', () => ({
-  get db() {
-    if (!mocks.db) throw new Error('Test database not initialized');
-    return mocks.db;
-  },
-}));
 
 function runFixture({
   id = 'run-1',
@@ -92,12 +81,12 @@ describe('automation run projection', () => {
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
-    mocks.db = fixture.db;
+    setAppDb(fixture);
   });
 
   afterEach(() => {
+    resetAppDbForTests();
     fixture.close();
-    mocks.db = undefined;
   });
 
   it('inserts a projection using the snapshotted automation name', async () => {

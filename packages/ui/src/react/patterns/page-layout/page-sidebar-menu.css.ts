@@ -76,9 +76,6 @@ export type NavItemVariants = NonNullable<RecipeVariants<typeof navItem>>;
 // ── Icon + external-link icon ─────────────────────────────────────────────────
 
 export const navItemIcon = style({
-  flexShrink: 0,
-  width: '1rem',
-  height: '1rem',
   color: 'inherit',
 });
 
@@ -91,9 +88,6 @@ export const navItemLabel = style({
 });
 
 export const externalIcon = style({
-  flexShrink: 0,
-  width: '0.75rem',
-  height: '0.75rem',
   color: vars.foregroundMuted,
   marginLeft: 'auto',
 });

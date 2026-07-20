@@ -1,5 +1,5 @@
 import type { AutomationRunMeta, Task, TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import type { AutomationRunRow, TaskRow } from '@main/db/schema';
+import type { AutomationRunRow, TaskRow } from '@core/services/app-db/node/schema';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 export function mapAutomationRunRowToMeta(row: AutomationRunRow): AutomationRunMeta {

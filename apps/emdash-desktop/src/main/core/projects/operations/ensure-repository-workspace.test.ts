@@ -1,3 +1,4 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
@@ -39,12 +40,13 @@ function makeUpdateChain() {
   };
 }
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: () => makeSelectChain(mocks.selectAll()),
-    transaction: mocks.transaction,
-  },
-}));
+installAppDbTestInstance(
+  () =>
+    ({
+      select: () => makeSelectChain(mocks.selectAll()),
+      transaction: mocks.transaction,
+    }) as never
+);
 
 vi.mock('@main/lib/logger', () => ({
   log: { info: vi.fn(), warn: vi.fn() },

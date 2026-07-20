@@ -22,7 +22,7 @@ import {
 } from './account-auth-response-parser';
 import { AccountAuthServerClient } from './account-auth-server-client';
 import { AccountOAuthClient } from './account-oauth-client';
-import { AccountSessionStore } from './account-session-store';
+import { AccountSessionStore, type AccountProfileKeyValueStore } from './account-session-store';
 import { ProviderTokenDispatcher } from './provider-token-dispatcher';
 
 type AccountServiceHooks = {
@@ -36,7 +36,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   );
 
   constructor(
-    private readonly sessionStore = new AccountSessionStore(),
+    private readonly sessionStore: AccountSessionStore,
     private readonly authServerClient = new AccountAuthServerClient(),
     private readonly oauthClient = new AccountOAuthClient(),
     private readonly providerTokenDispatcher = new ProviderTokenDispatcher()
@@ -183,4 +183,8 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   }
 }
 
-export const emdashAccountService = new EmdashAccountService();
+export function createEmdashAccountService(options: {
+  keyValueStore: AccountProfileKeyValueStore;
+}): EmdashAccountService {
+  return new EmdashAccountService(new AccountSessionStore(options.keyValueStore));
+}

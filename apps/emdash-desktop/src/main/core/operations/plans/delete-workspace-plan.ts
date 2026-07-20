@@ -1,4 +1,4 @@
-import type { LifecycleOperationRow } from '@main/db/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import { workspaceInUseError } from '../operation-errors';
 import type { OperationPlan } from '../operation-plan';
 import type { WorkspaceOperationProbe } from './probe-workspace-state';

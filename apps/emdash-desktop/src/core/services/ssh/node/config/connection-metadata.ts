@@ -2,7 +2,7 @@ import type { HostDependencySelection } from '@emdash/core/services/host-depende
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionMetadata } from '@core/primitives/ssh/api';
 // DB metadata column helpers for SSH connections.
-import type { SshConnectionRow } from '@main/db/schema';
+import type { SshConnectionRow } from '@core/services/app-db/node/schema';
 
 export type { SshConnectionMetadata };
 

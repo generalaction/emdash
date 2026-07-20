@@ -15,8 +15,8 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 
-vi.mock('@core/services/settings/node', () => ({
-  appSettingsService: { get: vi.fn() },
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getAppSettingsService: () => ({ get: vi.fn() }),
 }));
 
 vi.mock('./plugin-registry', () => ({

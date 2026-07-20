@@ -1,11 +1,11 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { tasks } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { telemetryService } from '@main/lib/telemetry';
 
 export async function updateTaskStatus(taskId: string, status: TaskLifecycleStatus): Promise<void> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select()
     .from(tasks)
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
@@ -13,7 +13,7 @@ export async function updateTaskStatus(taskId: string, status: TaskLifecycleStat
   if (!row) throw new Error(`Task not found: ${taskId}`);
   if (row.status === status) return;
 
-  await db
+  await getAppDb()
     .update(tasks)
     .set({
       status,

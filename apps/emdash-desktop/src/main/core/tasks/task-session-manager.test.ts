@@ -24,15 +24,15 @@ vi.mock('@emdash/wire', async (importOriginal) => {
   };
 });
 
-vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
-  workspaceIdentityService: {
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getWorkspaceIdentityService: () => ({
     resolve: vi.fn(async () => ({
       workspaceId: 'workspace-1',
       projectId: 'project-1',
       host: LOCAL_HOST_REF,
       path: '/repo/task',
     })),
-  },
+  }),
 }));
 
 vi.mock('@core/features/workspaces/node/lifecycle-participants', () => ({

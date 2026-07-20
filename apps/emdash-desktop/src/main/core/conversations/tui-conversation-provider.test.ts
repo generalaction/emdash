@@ -1,4 +1,5 @@
 import { ok } from '@emdash/shared';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { TuiConversationProvider } from './tui-conversation-provider';
@@ -10,12 +11,11 @@ vi.mock('@main/core/agents/workspace-trust', () => ({
   workspaceTrustService: { maybeAutoTrust: vi.fn(() => Promise.resolve()) },
 }));
 
-vi.mock('@core/services/settings/node/provider-settings-service', () => ({
-  providerOverrideSettings: { getItem: vi.fn(() => Promise.resolve(null)) },
-}));
-
-vi.mock('@core/services/settings/node', () => ({
-  appSettingsService: { get: vi.fn(() => Promise.resolve({ writeAgentConfigToGitIgnore: true })) },
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getProviderOverrideSettings: () => ({ getItem: vi.fn(() => Promise.resolve(null)) }),
+  getAppSettingsService: () => ({
+    get: vi.fn(() => Promise.resolve({ writeAgentConfigToGitIgnore: true })),
+  }),
 }));
 
 vi.mock('@main/core/terminal-shell/color-env', () => ({
@@ -31,11 +31,7 @@ vi.mock('@main/gateway/accessors', () => ({
   ),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: vi.fn(),
-  },
-}));
+installAppDbTestInstance(() => ({ select: vi.fn() }) as never);
 
 describe('TuiConversationProvider', () => {
   beforeEach(() => {

@@ -27,23 +27,45 @@ served by
 
 ## Service Pattern
 
-For stateful concerns, use singleton classes:
+Construct stateful services explicitly at the bootstrap composition root:
 
 ```ts
+export type AppServiceDeps = {
+  db: AppDb;
+};
+
 export class AppService {
+  constructor(private readonly deps: AppServiceDeps) {}
+
   private cache = new Map();
 
   async initialize() { /* ... */ }
   async doSomething(id: string) { /* ... */ }
 }
 
-export const appService = new AppService();
+export function createAppService(deps: AppServiceDeps): AppService {
+  return new AppService(deps);
+}
 ```
 
 **Rules:**
-- Module-level singleton export
-- Initialization method called from `src/main/index.ts`
+- Factories receive explicit dependencies; lifecycle-owning services also receive a parent `Scope`.
+- Construct services in `src/main/bootstrap/boot/phases/` and pass them through controller context.
+- Do not export constructed service instances from Core modules.
+- Main-only free-function code may use a throwing instance holder as a temporary migration bridge.
+- Initialization is called after construction in the owning boot phase; disposal belongs to the
+  service scope or shutdown coordinator.
 - Services hold long-lived state (caches, subscriptions, connections)
+
+## Database Access
+
+Portable schema and database types live in `src/core/services/app-db/node/`. Main constructs the
+native Drizzle client during the database boot phase.
+
+- Core Node services receive `AppDb` through their factory or controller options.
+- Main free-function code resolves the initialized database through `@main/db/instance` at call
+  time; never call `getAppDb()` at module scope.
+- Tests inject a fixture database directly or install it through the test instance helper.
 
 ## Provider Pattern
 

@@ -1,23 +1,23 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { Task } from '@core/primitives/tasks/api';
+import { tasks } from '@core/services/app-db/node/schema';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { telemetryService } from '@main/lib/telemetry';
 
 export async function updateLinkedIssue(
   taskId: string,
   issue?: LinkedIssue
 ): Promise<Task | undefined> {
-  const [existingRow] = await db
+  const [existingRow] = await getAppDb()
     .select({ id: tasks.id, projectId: tasks.projectId })
     .from(tasks)
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   if (!existingRow) return undefined;
 
-  const [updatedRow] = await db
+  const [updatedRow] = await getAppDb()
     .update(tasks)
     .set({
       linkedIssue: issue ?? null,

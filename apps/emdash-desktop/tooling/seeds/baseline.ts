@@ -1,7 +1,13 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { toStoredBranch } from '@main/core/tasks/stored-branch';
-import type { AppDb } from '@main/db/client';
-import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import {
+  conversations,
+  projectRemotes,
+  projects,
+  projectSettings,
+  tasks,
+} from '@core/services/app-db/node/schema';
+import { toStoredBranch } from '@core/services/app-db/node/stored-branch';
 
 const mainBranch: GitBranchRef = { type: 'local', branch: 'main' };
 

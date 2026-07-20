@@ -5,7 +5,7 @@ import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeletionList } from '@core/primitives/operations/api';
 import { nonTerminalOperationStatuses, operationStatuses } from '@core/primitives/operations/api';
-import type { AppDb } from '@main/db/client';
+import type { AppDb } from '@core/services/app-db/node/db';
 import {
   conversations,
   lifecycleOperations,
@@ -15,7 +15,8 @@ import {
   terminals,
   workspaces,
   type LifecycleOperationRow,
-} from '@main/db/schema';
+} from '@core/services/app-db/node/schema';
+import type * as ServiceInstances from '@main/bootstrap/core/service-instances';
 import type { OperationsSshManager } from './operations-service';
 
 const mocks = vi.hoisted(() => ({
@@ -66,13 +67,6 @@ const sshManager: OperationsSshManager = {
   },
 };
 
-vi.mock('@main/db/client', () => ({
-  get db() {
-    if (!mocks.db) throw new Error('Test database not initialized');
-    return mocks.db;
-  },
-}));
-
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: {
     getProject: () => mocks.projectProvider,
@@ -103,8 +97,12 @@ vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
   workspaceBootstrapService: { resolveLegacyAutomation: vi.fn(async () => undefined) },
 }));
 
-vi.mock('@root/src/core/services/notifications/node', () => ({
-  notificationService: { publish: mocks.publishNotification },
+vi.mock('@main/bootstrap/core/service-instances', async (importOriginal) => ({
+  ...(await importOriginal<typeof ServiceInstances>()),
+  getAppSettingsService: () => ({
+    getWithMeta: vi.fn(async () => ({ value: {}, defaults: {}, overrides: {} })),
+  }),
+  getNotificationService: () => ({ publish: mocks.publishNotification }),
 }));
 
 vi.mock('./plans/compile-operation-plan', () => ({
@@ -206,6 +204,8 @@ describe('OperationsService crash recovery', () => {
     vi.resetModules();
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
+    const { setAppDb } = await import('@main/db/instance');
+    setAppDb(fixture);
     mocks.runMode = 'pause';
     mocks.runnerStarted = undefined;
     mocks.hostConnected = true;
@@ -276,6 +276,8 @@ describe('OperationsService crash recovery', () => {
 
   afterEach(async () => {
     if (mocks.db) await assertLifecycleInvariants(mocks.db);
+    const { resetAppDbForTests } = await import('@main/db/instance');
+    resetAppDbForTests();
     fixture.close();
     mocks.db = undefined;
   });
@@ -301,7 +303,11 @@ describe('OperationsService crash recovery', () => {
 
     mocks.runMode = 'complete';
     mocks.runnerStarted = undefined;
+    const { resetAppDbForTests } = await import('@main/db/instance');
+    resetAppDbForTests();
     vi.resetModules();
+    const { setAppDb } = await import('@main/db/instance');
+    setAppDb(fixture);
     const restartedDriver = (await import('./operations-service')).operationsService;
     await restartedDriver.initialize(sshManager);
     await restartedDriver.waitForIdle();

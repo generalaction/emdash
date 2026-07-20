@@ -2,7 +2,7 @@
 
 ## Main Files
 
-- `src/main/db/schema.ts`
+- `src/core/services/app-db/node/schema.ts`
 - `src/main/db/initialize.ts`
 - `drizzle/`
 
@@ -15,9 +15,14 @@
 
 ## Current Behavior
 
+- portable schema, row types, and Drizzle helpers live in `src/core/services/app-db/node/`
 - database path is resolved by main-process db path helpers
 - `EMDASH_DB_FILE` overrides the default location
-- database initialization happens in `src/main/db/initialize.ts`
+- the main bootstrap creates one native Drizzle client and passes its SQLite connection to
+  `src/main/db/initialize.ts`
+- Core Node services receive `AppDb` through constructor/factory injection
+- main free-function code uses the throwing `@main/db/instance` accessor at call time
+- shutdown closes and clears the initialized database after scoped services are disposed
 
 ## Development Workflow
 
@@ -78,7 +83,7 @@ installed under `tooling/node-deps/` (compiled for system Node). The app's
    ```
    Commit this snapshot. It is the starting state your migration test will run against.
 
-3. **Write the migration**: edit `src/main/db/schema.ts`, then generate the SQL:
+3. **Write the migration**: edit `src/core/services/app-db/node/schema.ts`, then generate the SQL:
    ```bash
    pnpm run db:generate
    ```
@@ -108,7 +113,7 @@ These columns use `versionedJsonColumn()` — a Drizzle `customType` that
 transparently handles version detection, upgrade chains, and serialization.
 
 ```ts
-import { versionedJsonColumn } from '@main/db/versioned-column';
+import { versionedJsonColumn } from '@core/services/app-db/node/versioned-column';
 import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 export const myTable = sqliteTable('my_table', {

@@ -1,25 +1,29 @@
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { type Task } from '@core/primitives/tasks/api';
+import { conversations, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { getRunProjectionsByRunIds } from '@main/core/automations/run-projection';
-import { db } from '@main/db/client';
-import { conversations, tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { mapAutomationRunRowToMeta, mapTaskRowToTask } from '../utils/utils';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {
   const rows = projectId
-    ? await db
+    ? await getAppDb()
         .select()
         .from(tasks)
         .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)))
         .orderBy(desc(tasks.updatedAt))
-    : await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.updatedAt));
+    : await getAppDb()
+        .select()
+        .from(tasks)
+        .where(isNull(tasks.deletedAt))
+        .orderBy(desc(tasks.updatedAt));
 
   if (rows.length === 0) return [];
 
   const taskIds = rows.map((r) => r.id);
   const runIds = rows.flatMap((row) => (row.automationRunId ? [row.automationRunId] : []));
 
-  const convRows = await db
+  const convRows = await getAppDb()
     .select({
       taskId: conversations.taskId,
       provider: conversations.provider,
@@ -38,7 +42,7 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
 
   const wsIds = rows.map((r) => r.workspaceId).filter((id): id is string => id != null);
   const wsRows = wsIds.length
-    ? await db
+    ? await getAppDb()
         .select({
           id: workspaces.id,
           linesAdded: workspaces.linesAdded,

@@ -5,11 +5,7 @@ vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
   runCloneRepositoryProvision: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {},
-}));
-
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},
 }));

@@ -1,4 +1,3 @@
-import { disposeNotificationService } from '@core/services/notifications/node';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
@@ -6,12 +5,14 @@ import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-b
 import { automationsService } from '@main/core/automations/automations-service';
 import { operationsService } from '@main/core/operations/operations-service';
 import { projectManager } from '@main/core/projects/project-manager';
+import { closeAppDb } from '@main/db/instance';
 import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
 import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { appScope } from '../core/app-scope';
 import { runPhase, type Phase } from '../core/phase';
+import { disposeNotificationService } from '../core/service-instances';
 
 const CRITICAL_DEADLINE_MS = 5_000;
 const GRACE_WINDOW_MS = 400;
@@ -51,6 +52,11 @@ const criticalPhases: Phase<void>[] = [
     name: 'app-scope',
     critical: true,
     run: () => appScope.dispose(),
+  },
+  {
+    name: 'database',
+    critical: true,
+    run: () => closeAppDb(),
   },
   {
     name: 'telemetry-service',

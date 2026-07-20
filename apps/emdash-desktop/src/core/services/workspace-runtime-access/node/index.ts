@@ -5,7 +5,6 @@ import {
   type WorkspacesRuntimeResolveError as RuntimeResolveError,
 } from '@core/features/workspaces/api/runtime-adapter';
 import type { WorkspaceIdentity } from '@core/features/workspaces/node/workspace-identity-service';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { filesClientScope, type FilesClientScope } from '@main/core/files/runtime-client';
 import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 
@@ -16,18 +15,24 @@ export type WorkspaceRuntimeAccess = Readonly<{
   release(): Promise<void>;
 }>;
 
+export type WorkspaceRuntimeIdentityResolver = {
+  resolve(workspaceId: string): Promise<WorkspaceIdentity | null>;
+};
+
 export async function acquireWorkspaceRuntime(
+  workspaceIdentity: WorkspaceRuntimeIdentityResolver,
   workspaceId: string
 ): Promise<WorkspaceRuntimeAccess | null> {
-  const result = await tryAcquireWorkspaceRuntime(workspaceId);
+  const result = await tryAcquireWorkspaceRuntime(workspaceIdentity, workspaceId);
   if (!result.success) throwWorkspacesRuntimeResolveError(result.error);
   return result.data;
 }
 
 export async function tryAcquireWorkspaceRuntime(
+  workspaceIdentity: WorkspaceRuntimeIdentityResolver,
   workspaceId: string
 ): Promise<Result<WorkspaceRuntimeAccess | null, RuntimeResolveError>> {
-  const identity = await workspaceIdentityService.resolve(workspaceId);
+  const identity = await workspaceIdentity.resolve(workspaceId);
   if (!identity) return ok(null);
 
   const lease = getDesktopRuntimeBroker().session(identity.host);
@@ -50,10 +55,11 @@ export async function tryAcquireWorkspaceRuntime(
 }
 
 export async function withWorkspaceRuntime<T>(
+  workspaceIdentity: WorkspaceRuntimeIdentityResolver,
   workspaceId: string,
   work: (access: WorkspaceRuntimeAccess) => Promise<T>
 ): Promise<T | null> {
-  const access = await acquireWorkspaceRuntime(workspaceId);
+  const access = await acquireWorkspaceRuntime(workspaceIdentity, workspaceId);
   if (!access) return null;
   try {
     return await work(access);

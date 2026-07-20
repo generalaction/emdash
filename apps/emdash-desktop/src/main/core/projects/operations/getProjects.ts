@@ -1,11 +1,11 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { LocalProject, Project, SshProject } from '@core/primitives/projects/api';
-import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
+import { projects } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
-  const rows = await db
+  const rows = await getAppDb()
     .select()
     .from(projects)
     .where(isNull(projects.deletedAt))
@@ -39,7 +39,7 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
 export async function getProjectById(
   projectId: string
 ): Promise<LocalProject | SshProject | undefined> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select()
     .from(projects)
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
@@ -71,7 +71,7 @@ export async function getProjectById(
 }
 
 export async function getProjectByPath(host: HostRef, path: string): Promise<Project | undefined> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select()
     .from(projects)
     .where(

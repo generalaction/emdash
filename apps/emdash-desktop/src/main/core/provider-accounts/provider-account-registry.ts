@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { ProviderAccountMeta } from '@core/primitives/provider-accounts/api';
-import type { AppDb, DrizzleTx } from '@main/db/client';
-import { providerAccounts, type ProviderAccountRow } from '@main/db/schema';
+import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
+import { providerAccounts, type ProviderAccountRow } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 /** Meta payload without the schema version field, which the registry supplies. */
 export type ProviderAccountMetaInput = Omit<ProviderAccountMeta, 'version'>;
@@ -72,9 +73,13 @@ function toProviderAccount(row: ProviderAccountRow): ProviderAccount {
  */
 export class ProviderAccountRegistry {
   constructor(
-    private readonly db: AppDb,
+    private readonly database: AppDb | undefined,
     private readonly secretStore: ProviderAccountSecretStore
   ) {}
+
+  private get db(): AppDb {
+    return this.database ?? getAppDb();
+  }
 
   async upsertAccount(input: ProviderAccountUpsert): Promise<ProviderAccountUpsertResult> {
     const existing = await this.findRow(input.providerId, input.accountId);

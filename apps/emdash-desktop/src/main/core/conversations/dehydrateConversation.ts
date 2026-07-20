@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { resolveTask } from '../projects/utils';
 
 export async function dehydrateConversation(
@@ -8,7 +8,7 @@ export async function dehydrateConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select({ type: conversations.type })
     .from(conversations)
     .where(

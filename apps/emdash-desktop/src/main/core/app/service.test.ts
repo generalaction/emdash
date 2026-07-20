@@ -50,14 +50,15 @@ vi.mock('@main/host/window', () => ({
 }));
 
 vi.mock('@core/services/workspace-runtime-access/node', () => ({
-  acquireWorkspaceRuntime: mocks.workspaceGet,
+  acquireWorkspaceRuntime: (_workspaceIdentity: unknown, workspaceId: string) =>
+    mocks.workspaceGet(workspaceId),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {},
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getWorkspaceIdentityService: () => ({}),
 }));
 
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   sshConnections: {},
 }));
 

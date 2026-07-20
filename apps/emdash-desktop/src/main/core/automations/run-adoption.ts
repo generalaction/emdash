@@ -5,20 +5,20 @@ import { conversationWireEvents } from '@core/features/conversations/node';
 import { isAutomationRunAdoptable } from '@core/primitives/automations/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { Task } from '@core/primitives/tasks/api';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { mapConversationRowToConversation } from '@main/core/conversations/utils';
-import { getProjectById } from '@main/core/projects/operations/getProjects';
-import { taskService } from '@main/core/tasks/task-service';
-import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
-import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
-import { db } from '@main/db/client';
 import {
   conversations,
   tasks,
   workspaces,
   type ConversationRow,
   type TaskRow,
-} from '@main/db/schema';
+} from '@core/services/app-db/node/schema';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { mapConversationRowToConversation } from '@main/core/conversations/utils';
+import { getProjectById } from '@main/core/projects/operations/getProjects';
+import { taskService } from '@main/core/tasks/task-service';
+import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
+import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
+import { getAppDb } from '@main/db/instance';
 import {
   automationRunMetaForRun,
   conversationForRun,
@@ -80,7 +80,7 @@ async function adoptRunOnce(
     const concurrentAdoption = await findAdoptedTask(runId);
     if (concurrentAdoption) return concurrentAdoption;
 
-    const [workspaceRow] = await db
+    const [workspaceRow] = await getAppDb()
       .select()
       .from(workspaces)
       .where(eq(workspaces.key, workspaceKey))
@@ -99,7 +99,7 @@ async function adoptRunOnce(
     let taskRow!: TaskRow;
     let conversationRow: ConversationRow | undefined;
     let created = false;
-    db.transaction((tx) => {
+    getAppDb().transaction((tx) => {
       const concurrentTask = tx
         .select()
         .from(tasks)
@@ -176,7 +176,7 @@ async function adoptRunOnce(
 async function findAdoptedTask(
   runId: string
 ): Promise<{ taskId: string; projectId: string } | null> {
-  const [task] = await db
+  const [task] = await getAppDb()
     .select({ taskId: tasks.id, projectId: tasks.projectId })
     .from(tasks)
     .where(and(eq(tasks.automationRunId, runId), isNull(tasks.deletedAt)))

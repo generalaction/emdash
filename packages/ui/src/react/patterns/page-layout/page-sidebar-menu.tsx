@@ -1,6 +1,6 @@
 import { cx } from '@styles/utilities/cx';
-import { ExternalLinkIcon } from 'lucide-react';
 import * as React from 'react';
+import { Icon, type IconName } from '../../primitives/icon';
 import * as styles from './page-sidebar-menu.css';
 
 type CSSExtra = { [key: string]: string };
@@ -10,8 +10,8 @@ type CSSExtra = { [key: string]: string };
 export interface PageNavItem {
   id: string;
   label: string;
-  /** Optional leading icon node. */
-  icon?: React.ReactNode;
+  /** Optional kebab-case Lucide icon name. */
+  icon?: IconName;
   /** When true an external-link icon is shown and the active state is suppressed. */
   isExternal?: boolean;
 }
@@ -73,13 +73,11 @@ function PageSidebarMenu({
               onClick={() => onSelect(item)}
               className={styles.navItem({ active: isActive })}
             >
-              {item.icon && (
-                <span className={styles.navItemIcon} aria-hidden>
-                  {item.icon}
-                </span>
-              )}
+              {item.icon && <Icon name={item.icon} size="sm" className={styles.navItemIcon} />}
               <span className={styles.navItemLabel}>{item.label}</span>
-              {item.isExternal && <ExternalLinkIcon className={styles.externalIcon} aria-hidden />}
+              {item.isExternal && (
+                <Icon name="external-link" size="xs" className={styles.externalIcon} />
+              )}
             </button>
           );
         })}

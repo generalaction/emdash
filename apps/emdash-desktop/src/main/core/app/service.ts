@@ -19,9 +19,10 @@ import {
   type PlatformConfig,
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
+import { sshConnections } from '@core/services/app-db/node/schema';
 import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
-import { db } from '@main/db/client';
-import { sshConnections } from '@main/db/schema';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
+import { getAppDb } from '@main/db/instance';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
@@ -224,7 +225,10 @@ class AppService implements Disposable {
     workspaceId: string;
     relativePath: string;
   }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
-    const workspace = await acquireWorkspaceRuntime(args.workspaceId);
+    const workspace = await acquireWorkspaceRuntime(
+      getWorkspaceIdentityService(),
+      args.workspaceId
+    );
     if (!workspace) {
       return err({
         type: 'not_found',
@@ -415,7 +419,7 @@ class AppService implements Disposable {
   }): Promise<void> {
     const { appId, appConfig, label, target, platform, sshConnectionId } = args;
 
-    const [connection] = await db
+    const [connection] = await getAppDb()
       .select()
       .from(sshConnections)
       .where(eq(sshConnections.id, sshConnectionId))

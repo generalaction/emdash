@@ -1,13 +1,14 @@
 import { eq } from 'drizzle-orm';
 import type { ZodType } from 'zod';
-import { db } from '@main/db/client';
-import { appSettings } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { appSettings } from '@core/services/app-db/node/schema';
 import { computeTrueOverrides, mergeDeep } from './utils';
 
 export class OverrideSettings<TConfig extends object> {
   private cache: Record<string, TConfig> | null = null;
 
   constructor(
+    private readonly db: AppDb,
     private readonly storageKey: string,
     private readonly getExternalDefaults: () => Record<string, TConfig>,
     private readonly itemSchema: ZodType<Partial<TConfig>>,
@@ -17,7 +18,7 @@ export class OverrideSettings<TConfig extends object> {
   ) {}
 
   private async readRawOverrides(): Promise<Record<string, Partial<TConfig>>> {
-    const [row] = await db
+    const [row] = await this.db
       .select()
       .from(appSettings)
       .where(eq(appSettings.key, this.storageKey))
@@ -34,10 +35,10 @@ export class OverrideSettings<TConfig extends object> {
 
   private async storeOverrides(overrides: Record<string, Partial<TConfig>>): Promise<void> {
     if (Object.keys(overrides).length === 0) {
-      await db.delete(appSettings).where(eq(appSettings.key, this.storageKey)).execute();
+      await this.db.delete(appSettings).where(eq(appSettings.key, this.storageKey)).execute();
     } else {
       const serialized = JSON.stringify(overrides);
-      await db
+      await this.db
         .insert(appSettings)
         .values({ key: this.storageKey, value: serialized })
         .onConflictDoUpdate({ target: appSettings.key, set: { value: serialized } })
@@ -110,12 +111,12 @@ export class OverrideSettings<TConfig extends object> {
   }
 
   async resetAll(): Promise<void> {
-    await db.delete(appSettings).where(eq(appSettings.key, this.storageKey)).execute();
+    await this.db.delete(appSettings).where(eq(appSettings.key, this.storageKey)).execute();
     this.cache = null;
   }
 
   async getRawOverrides(): Promise<Record<string, Record<string, unknown>>> {
-    const [row] = await db
+    const [row] = await this.db
       .select()
       .from(appSettings)
       .where(eq(appSettings.key, this.storageKey))

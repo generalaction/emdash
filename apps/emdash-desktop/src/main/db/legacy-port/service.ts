@@ -2,10 +2,10 @@ import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
+import * as schema from '@core/services/app-db/node/schema';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { getAppDb, getSqlite } from '@main/db/instance';
 import { log } from '../../lib/logger';
-import { db, sqlite } from '../client';
-import * as schema from '../schema';
 import {
   copyAttachedBetaDatabaseIntoDestination,
   importBetaDatabaseIntoDestination,
@@ -55,7 +55,7 @@ export type RunLegacyPortOptions = {
 
 async function resolveAppTarget(appSqlite?: Database.Database): Promise<AppTarget> {
   if (!appSqlite) {
-    return { db, sqlite };
+    return { db: getAppDb(), sqlite: getSqlite() };
   }
 
   return {

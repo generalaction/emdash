@@ -5,8 +5,8 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Task } from '@core/primitives/tasks/api';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
-import { projects, tasks, workspaces } from '@main/db/schema';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
 import { computeWorkspaceKey } from './workspace-key';
 
@@ -18,9 +18,6 @@ const mocks = vi.hoisted(() => ({
   resolveWorktreePool: vi.fn(),
   startWorkspaceJob: vi.fn(),
 }));
-
-// Prevent the module-level singleton from attempting to open the Electron app DB.
-vi.mock('@main/db/client', () => ({ db: {}, sqlite: {} }));
 
 vi.mock('@emdash/wire', async (importOriginal) => {
   const actual = await importOriginal<typeof WireModule>();
@@ -53,10 +50,10 @@ vi.mock('./placement/workspace-placement-resolver', () => ({
   workspacePlacementResolver: { resolveWorktreePool: mocks.resolveWorktreePool },
 }));
 
-vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
-  workspaceIdentityService: {
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getWorkspaceIdentityService: () => ({
     invalidate: vi.fn(),
-  },
+  }),
 }));
 
 vi.mock('@core/features/workspaces/node/lifecycle-participants', () => ({

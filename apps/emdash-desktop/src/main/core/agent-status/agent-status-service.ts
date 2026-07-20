@@ -6,8 +6,8 @@ import {
   type AgentStatus,
   type AgentStatusSignal,
 } from '@core/primitives/agents/api';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 
@@ -81,7 +81,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
 
     if (status) {
       const derivedSeen = status === 'working' ? 1 : 0;
-      const [row] = await db
+      const [row] = await getAppDb()
         .update(conversations)
         .set(
           options.preserveSeen
@@ -105,7 +105,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
         seen: (row.agentStatusSeen ?? derivedSeen) === 1,
       });
     } else {
-      const [row] = await db
+      const [row] = await getAppDb()
         .select(conversationContextSelection())
         .from(conversations)
         .where(eq(conversations.id, signal.conversationId))
@@ -125,7 +125,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
   }
 
   private async resetToIdleQueued(conversationId: string): Promise<void> {
-    const [row] = await db
+    const [row] = await getAppDb()
       .update(conversations)
       .set({ agentStatus: 'idle', agentStatusSeen: 1 })
       .where(

@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { launchTuiConversation } from './launch-tui-conversation';
 
 export async function hydrateConversation(
@@ -8,7 +8,7 @@ export async function hydrateConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select()
     .from(conversations)
     .where(

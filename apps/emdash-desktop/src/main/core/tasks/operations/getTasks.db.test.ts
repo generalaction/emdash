@@ -1,26 +1,15 @@
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppDb } from '@main/db/client';
-import { automationRuns, tasks } from '@main/db/schema';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { automationRuns, tasks } from '@core/services/app-db/node/schema';
+import { resetAppDbForTests, setAppDb } from '@main/db/instance';
 import { getTasks } from './getTasks';
-
-const mocks = vi.hoisted(() => ({
-  db: undefined as AppDb | undefined,
-}));
-
-vi.mock('@main/db/client', () => ({
-  get db() {
-    if (!mocks.db) throw new Error('Test database not initialized');
-    return mocks.db;
-  },
-}));
 
 describe('getTasks', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
-    mocks.db = fixture.db;
+    setAppDb(fixture);
 
     fixture.sqlite
       .prepare(
@@ -31,8 +20,8 @@ describe('getTasks', () => {
   });
 
   afterEach(() => {
+    resetAppDbForTests();
     fixture.close();
-    mocks.db = undefined;
   });
 
   it('loads tasks from the database', async () => {

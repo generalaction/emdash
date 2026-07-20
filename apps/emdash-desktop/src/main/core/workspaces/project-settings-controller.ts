@@ -1,11 +1,12 @@
 import { err, ok } from '@emdash/shared';
 import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
 import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 
 async function getSettings(workspaceId: string): Promise<ProjectSettingsLoadResult> {
-  const workspace = await acquireWorkspaceRuntime(workspaceId);
+  const workspace = await acquireWorkspaceRuntime(getWorkspaceIdentityService(), workspaceId);
   if (!workspace) {
     return err({ type: 'not_found', entity: 'workspace', workspaceId });
   }

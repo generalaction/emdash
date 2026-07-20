@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { LifecycleOperationRow, ProjectRow, TaskRow, WorkspaceRow } from '@main/db/schema';
+import type {
+  LifecycleOperationRow,
+  ProjectRow,
+  TaskRow,
+  WorkspaceRow,
+} from '@core/services/app-db/node/schema';
 import type { SessionTargets } from '../session-targets';
 import { compileDeleteTaskPlan } from './delete-task-plan';
 import type { TaskOperationProbe } from './probe-task-state';

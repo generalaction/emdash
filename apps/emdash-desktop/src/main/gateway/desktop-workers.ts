@@ -35,8 +35,8 @@ import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
 import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
-import { appSettingsService } from '@core/services/settings/node';
 import { appScope } from '@main/bootstrap/core/app-scope';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { automationRuntimePaths } from '@main/core/automations/runtime-paths';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
@@ -371,7 +371,7 @@ async function createPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeCli
 }
 
 async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
-  const localProjectSettings = await appSettingsService.get('localProject');
+  const localProjectSettings = await getAppSettingsService().get('localProject');
   tuiAgentsWorker ??= host.create(tuiAgentsComponent, {
     name: 'tui-agents',
     executable: desktopWorkerPath('tui-agents'),

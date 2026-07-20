@@ -1,7 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Automation } from '@core/primitives/automations/api';
-import { db } from '@main/db/client';
-import { automations, projects, type AutomationRow } from '@main/db/schema';
+import { automations, projects, type AutomationRow } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 function mapAutomationRow(row: AutomationRow): Automation {
   return {
@@ -20,16 +20,16 @@ function mapAutomationRow(row: AutomationRow): Automation {
 
 export async function listAutomations(projectId?: string): Promise<Automation[]> {
   const rows = projectId
-    ? await db
+    ? await getAppDb()
         .select()
         .from(automations)
         .where(and(eq(automations.projectId, projectId), isNull(automations.deletedAt)))
-    : await db.select().from(automations).where(isNull(automations.deletedAt));
+    : await getAppDb().select().from(automations).where(isNull(automations.deletedAt));
   return rows.map(mapAutomationRow);
 }
 
 export async function getAutomation(id: string): Promise<Automation | null> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select()
     .from(automations)
     .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
@@ -38,7 +38,7 @@ export async function getAutomation(id: string): Promise<Automation | null> {
 }
 
 export async function projectExists(projectId: string): Promise<boolean> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .select({ id: projects.id })
     .from(projects)
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
@@ -47,7 +47,7 @@ export async function projectExists(projectId: string): Promise<boolean> {
 }
 
 export async function insertAutomation(automation: Automation): Promise<Automation> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .insert(automations)
     .values({
       id: automation.id,
@@ -66,7 +66,7 @@ export async function insertAutomation(automation: Automation): Promise<Automati
 }
 
 export async function replaceAutomation(automation: Automation): Promise<Automation | null> {
-  const [row] = await db
+  const [row] = await getAppDb()
     .update(automations)
     .set({
       name: automation.name,
@@ -90,7 +90,7 @@ export async function replaceAutomation(automation: Automation): Promise<Automat
 }
 
 export async function setAutomationRevision(id: string, revision: number): Promise<boolean> {
-  const rows = await db
+  const rows = await getAppDb()
     .update(automations)
     .set({ revision })
     .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
@@ -99,7 +99,7 @@ export async function setAutomationRevision(id: string, revision: number): Promi
 }
 
 export async function deleteAutomationDefinition(id: string): Promise<boolean> {
-  const rows = await db
+  const rows = await getAppDb()
     .update(automations)
     .set({ deletedAt: Date.now(), updatedAt: Date.now() })
     .where(and(eq(automations.id, id), isNull(automations.deletedAt)))

@@ -16,11 +16,7 @@ vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
   runCloneRepositoryProvision: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {},
-}));
-
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},
 }));
@@ -41,6 +37,7 @@ describe('createWorkspacesWireController', () => {
       path: '/repo/worktree',
     }));
     const controller = createWorkspacesWireController({
+      db: {} as never,
       provisionTask: vi.fn(),
       onTaskWorkspaceReady: () => () => {},
       runtimes: { session } as unknown as WorkspacesRuntimeBroker,
@@ -76,6 +73,7 @@ describe('createWorkspacesWireController', () => {
     };
     const release = vi.fn(async () => {});
     const controller = createWorkspacesWireController({
+      db: {} as never,
       provisionTask: vi.fn(),
       onTaskWorkspaceReady: () => () => {},
       runtimes: {

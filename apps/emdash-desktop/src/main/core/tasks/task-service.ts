@@ -1,7 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { taskEvents } from '@core/features/tasks/node';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
   CreateTaskError,
@@ -14,14 +13,15 @@ import type {
   RenameTaskSuccess,
   Task,
 } from '@core/primitives/tasks/api';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
   startWorkspacePostActivationScripts,
   workspaceBootstrapService,
   type WorkspaceBootstrapResult,
 } from '@main/core/workspaces/workspace-bootstrap-service';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { archiveTask } from './operations/archiveTask';
@@ -82,7 +82,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async provisionWorkspace(
     taskId: string
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
-    const [row] = await db
+    const [row] = await getAppDb()
       .select()
       .from(tasks)
       .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
@@ -95,7 +95,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     if (existingTask) {
       const pd = taskSessionManager.getPersistData(taskId);
       const wsId = pd?.workspaceId ?? '';
-      const identity = wsId ? await workspaceIdentityService.resolve(wsId) : null;
+      const identity = wsId ? await getWorkspaceIdentityService().resolve(wsId) : null;
       const provisionResult: ProvisionResult = {
         path: identity?.path ?? '',
         workspaceId: wsId,
@@ -133,7 +133,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   private async _registerAndPersist(taskId: string, data: WorkspaceBootstrapResult): Promise<void> {
-    const [row] = await db
+    const [row] = await getAppDb()
       .select()
       .from(tasks)
       .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
@@ -146,7 +146,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
     await taskSessionManager.registerTask(taskId, data, task.projectId, project.ctx);
 
-    await db
+    await getAppDb()
       .update(tasks)
       .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.workspaceId })
       .where(eq(tasks.id, taskId));
@@ -154,7 +154,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     // BYOI: persist the provider data (remote workspace ID, connection details) returned by
     // the provision script so it can be reused on the next session.
     if (data.workspaceProviderData) {
-      await db
+      await getAppDb()
         .update(workspaces)
         .set({
           data: data.workspaceProviderData,
@@ -230,7 +230,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   async convertAutomationTask(taskId: string): Promise<Task | null> {
-    const [row] = await db
+    const [row] = await getAppDb()
       .update(tasks)
       .set({ type: 'task', updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(tasks.id, taskId))

@@ -10,8 +10,6 @@ const legacyOperations = vi.hoisted(() => ({
   list: vi.fn(async () => []),
 }));
 
-vi.mock('@main/core/agents/controller', () => ({ agentOperations: legacyOperations }));
-
 const remoteHost = hostRef('remote', 'ssh-1');
 
 describe('createAgentsWireController', () => {
@@ -22,7 +20,10 @@ describe('createAgentsWireController', () => {
       ready: async () => ok({ hostDependencies }),
       release,
     }));
-    const controller = createAgentsWireController({ runtimes: { session } as never });
+    const controller = createAgentsWireController({
+      operations: legacyOperations as never,
+      runtimes: { session } as never,
+    });
 
     await expect(controller.call('list', { host: remoteHost })).resolves.toEqual(ok([]));
 
@@ -39,7 +40,10 @@ describe('createAgentsWireController', () => {
       ready: async () => ok({ agentConfig: { refreshAuthStatus, startLogin } }),
       release,
     }));
-    const controller = createAgentsWireController({ runtimes: { session } as never });
+    const controller = createAgentsWireController({
+      operations: legacyOperations as never,
+      runtimes: { session } as never,
+    });
 
     await expect(
       controller.call('refreshAuthStatus', { host: remoteHost, providerId: 'claude' })
@@ -67,6 +71,7 @@ describe('createAgentsWireController', () => {
     };
     const release = vi.fn(async () => {});
     const controller = createAgentsWireController({
+      operations: legacyOperations as never,
       runtimes: {
         session: () => ({
           ready: async () => err(resolveError),
@@ -93,6 +98,7 @@ describe('createAgentsWireController', () => {
     };
     const release = vi.fn(async () => {});
     const controller = createAgentsWireController({
+      operations: legacyOperations as never,
       runtimes: {
         session: () => ({
           ready: async () => err(resolveError),
@@ -122,7 +128,10 @@ describe('createAgentsWireController', () => {
       ready: async () => ok({ agentConfig: { loginOutput: { handle } } }),
       release,
     }));
-    const controller = createAgentsWireController({ runtimes: { session } as never });
+    const controller = createAgentsWireController({
+      operations: legacyOperations as never,
+      runtimes: { session } as never,
+    });
     const key = { host: remoteHost, providerId: 'claude' };
     const lease = controller.acquireLive(encodeTopic(agentsContract.loginOutput.id, key));
 

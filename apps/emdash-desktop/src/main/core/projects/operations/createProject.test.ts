@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok, type Result } from '@emdash/shared';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   hostPathFromNative,
@@ -39,11 +40,7 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    insert: mocks.insertMock,
-  },
-}));
+installAppDbTestInstance(() => ({ insert: mocks.insertMock }) as never);
 
 function expectOk<T, E>(result: Result<T, E>): T {
   expect(result.success).toBe(true);

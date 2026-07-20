@@ -6,7 +6,7 @@ import {
   isBrowsingDataKind,
   type BrowserDataClearKind,
 } from '@core/primitives/browser/api';
-import { appSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { configureBrowserProfileSession } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { isBrowserPartition } from '@main/host/browser/webview-security';
@@ -72,7 +72,7 @@ export const browserOperations = {
 // Every persistent profile partition (default + named) plus any partitions with
 // live sessions, so clearing browsing data covers isolated-per-task tabs too.
 async function collectBrowserPartitions(): Promise<string[]> {
-  const browserSettings = await appSettingsService.get('browser');
+  const browserSettings = await getAppSettingsService().get('browser');
   const partitions = new Set<string>([browserProfilePartition(DEFAULT_BROWSER_PROFILE_ID)]);
   for (const profile of browserSettings.profiles) {
     partitions.add(browserProfilePartition(profile.id));

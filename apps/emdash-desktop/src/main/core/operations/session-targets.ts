@@ -2,10 +2,10 @@ import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
+import { conversations, tasks, terminals } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import { db } from '@main/db/client';
-import { conversations, tasks, terminals } from '@main/db/schema';
-import type { LifecycleOperationRow } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getTerminalsRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import type { OperationContext } from './operation-context';
@@ -32,7 +32,7 @@ export async function resolveSessionTargets(
   const taskIds = await taskIdsForOperation(operation, context);
   if (taskIds.length > 0) {
     const [acpRows, tuiRows, terminalRows] = await Promise.all([
-      db
+      getAppDb()
         .select({
           id: conversations.id,
           taskId: conversations.taskId,
@@ -40,7 +40,7 @@ export async function resolveSessionTargets(
         })
         .from(conversations)
         .where(and(inArray(conversations.taskId, taskIds), eq(conversations.type, 'acp'))),
-      db
+      getAppDb()
         .select({
           id: conversations.id,
           taskId: conversations.taskId,
@@ -53,7 +53,7 @@ export async function resolveSessionTargets(
             or(ne(conversations.type, 'acp'), isNull(conversations.type))
           )
         ),
-      db
+      getAppDb()
         .select({ id: terminals.id, taskId: terminals.taskId, projectId: terminals.projectId })
         .from(terminals)
         .where(inArray(terminals.taskId, taskIds)),
@@ -94,7 +94,7 @@ async function taskIdsForOperation(
   const workspaceId = operation.workspaceId ?? context.workspace?.id;
   if (!workspaceId) return [];
   // Include tombstoned tasks: their orphaned sessions still need to be stopped.
-  const rows = await db
+  const rows = await getAppDb()
     .select({ id: tasks.id })
     .from(tasks)
     .where(eq(tasks.workspaceId, workspaceId));

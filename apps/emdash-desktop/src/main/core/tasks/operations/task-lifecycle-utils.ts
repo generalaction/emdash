@@ -4,6 +4,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceKind, WorkspaceType } from '@core/primitives/workspaces/api';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import { unregisterFileSearchRoot } from '@main/core/file-search/runtime-client';
 import {
   fileKey,
@@ -15,8 +16,7 @@ import {
 import { mutationResult, repositorySelector } from '@main/core/git/runtime-client';
 import { resolveWorkspaceKind } from '@main/core/workspaces/resolve-workspace-kind';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
@@ -66,7 +66,7 @@ async function workspaceHasRemainingTasks(
     ? and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt), isNull(tasks.deletedAt))
     : and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt));
 
-  const siblings = await db.select({ id: tasks.id }).from(tasks).where(where).limit(1);
+  const siblings = await getAppDb().select({ id: tasks.id }).from(tasks).where(where).limit(1);
   return siblings.length > 0;
 }
 
@@ -207,7 +207,7 @@ export async function deleteWorkspaceIfUnused(
   workspaceId: string,
   excludeTaskId: string
 ): Promise<void> {
-  const [wsRow] = await db
+  const [wsRow] = await getAppDb()
     .select({
       id: workspaces.id,
       kind: workspaces.kind,
@@ -222,7 +222,7 @@ export async function deleteWorkspaceIfUnused(
   // project-root workspaces outlive any individual task — never delete them.
   if (wsRow?.kind === 'project-root') return;
 
-  const [sibling] = await db
+  const [sibling] = await getAppDb()
     .select({ id: tasks.id })
     .from(tasks)
     .where(
@@ -235,7 +235,7 @@ export async function deleteWorkspaceIfUnused(
     if (wsRow?.path && isLocalWorkspace(wsRow)) {
       await unregisterFileSearchRoot(hostPathFromNative(path.resolve(wsRow.path)));
     }
-    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+    await getAppDb().delete(workspaces).where(eq(workspaces.id, workspaceId));
   } catch (e) {
     log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
       workspaceId,

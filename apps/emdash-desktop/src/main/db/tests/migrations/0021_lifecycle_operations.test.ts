@@ -1,6 +1,11 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { lifecycleOperations, projects, tasks, workspaces } from '@main/db/schema';
+import {
+  lifecycleOperations,
+  projects,
+  tasks,
+  workspaces,
+} from '@core/services/app-db/node/schema';
 
 describe('0021_lifecycle_operations', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;

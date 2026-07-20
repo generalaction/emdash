@@ -6,7 +6,6 @@ import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop
 import type { LocalProject } from '@core/primitives/projects/api';
 import { WorkspacePlacementResolver } from './workspace-placement-resolver';
 
-vi.mock('@main/db/client', () => ({ db: {} }));
 vi.mock('@main/gateway/runtime-broker', () => ({
   getDesktopRuntimeBroker: () => ({ session: vi.fn() }),
 }));
@@ -45,13 +44,13 @@ function makeResolver(options: {
   };
   const resolver = new WorkspacePlacementResolver({
     broker: broker as never,
-    settings: {
+    getSettings: () => ({
       getWithMeta: vi.fn(async () => ({
         value: {},
         defaults: {},
         overrides: options.appOverrides ?? {},
       })) as never,
-    },
+    }),
     findProjectByPath: vi.fn(async (_host, candidate) =>
       registeredPaths.has(candidate) ? project : undefined
     ),
@@ -124,7 +123,7 @@ describe('WorkspacePlacementResolver', () => {
       broker: {
         session: () => ({ ready: async () => err(runtimeFailure), release: vi.fn() }),
       } as never,
-      settings: { getWithMeta: vi.fn() } as never,
+      getSettings: () => ({ getWithMeta: vi.fn() }) as never,
       findProjectByPath: vi.fn(),
       loadProjectWorktreeDirectory: vi.fn(),
     });

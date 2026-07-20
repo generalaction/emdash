@@ -1,10 +1,10 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull } from 'drizzle-orm';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
-import { db } from '@main/db/client';
-import { projects, tasks, workspaces } from '@main/db/schema';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
+import { getAppDb } from '@main/db/instance';
 import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { resolveWorkspaceKind } from '../../workspaces/resolve-workspace-kind';
 
@@ -18,7 +18,7 @@ import { resolveWorkspaceKind } from '../../workspaces/resolve-workspace-kind';
  */
 export async function getProjectWorkspaces(projectId: string): Promise<ProjectWorkspace[]> {
   // 1. Resolve the repository workspace ID for this project.
-  const [projectRow] = await db
+  const [projectRow] = await getAppDb()
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
     .from(projects)
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
@@ -28,7 +28,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
 
   // 2. Load all workspaces linked through non-archived tasks for this project,
   //    joining task name for display purposes.
-  const taskWsRows = await db
+  const taskWsRows = await getAppDb()
     .select({
       wsId: workspaces.id,
       wsKind: workspaces.kind,
@@ -56,7 +56,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
   //    even when no task points to it yet.
   let repoWsRow: typeof workspaces.$inferSelect | undefined;
   if (repositoryWorkspaceId) {
-    const [row] = await db
+    const [row] = await getAppDb()
       .select()
       .from(workspaces)
       .where(and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.deletedAt)))
@@ -125,7 +125,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
 }
 
 async function workspaceHasConsumers(workspaceId: string): Promise<boolean> {
-  const identity = await workspaceIdentityService.resolve(workspaceId);
+  const identity = await getWorkspaceIdentityService().resolve(workspaceId);
   if (!identity) return false;
   const lease = getDesktopRuntimeBroker().session(identity.host);
   try {

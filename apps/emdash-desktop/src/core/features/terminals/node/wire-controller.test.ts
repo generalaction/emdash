@@ -12,22 +12,16 @@ vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
 }));
 
-vi.mock('@core/services/settings/node', () => ({
-  appSettingsService: {
-    get: vi.fn(async () => ({ defaultShell: 'default' })),
-  },
-}));
-
-vi.mock('@main/db/client', () => ({
-  db: {},
-}));
-
 const identity = {
   projectId: 'project-1',
   workspaceId: 'workspace-1',
   host: LOCAL_HOST_REF,
   path: '/repo/worktree',
 } as const;
+const controllerDeps = {
+  db: {} as never,
+  settings: { get: vi.fn(async () => ({ defaultShell: 'default' })) } as never,
+};
 
 describe('createTerminalsWireController', () => {
   it('translates terminal ids and releases procedure leases', async () => {
@@ -38,6 +32,7 @@ describe('createTerminalsWireController', () => {
       release,
     }));
     const controller = createTerminalsWireController({
+      ...controllerDeps,
       runtimes: { session } as unknown as TerminalsRuntimeBroker,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
@@ -73,6 +68,7 @@ describe('createTerminalsWireController', () => {
     };
     const release = vi.fn(async () => {});
     const controller = createTerminalsWireController({
+      ...controllerDeps,
       runtimes: {
         session: () => ({
           ready: async () => err(resolveError),
@@ -99,6 +95,7 @@ describe('createTerminalsWireController', () => {
     const handle = vi.fn(() => ({ asLiveSource: () => source }));
     const release = vi.fn(async () => {});
     const controller = createTerminalsWireController({
+      ...controllerDeps,
       runtimes: {
         session: () => ({
           ready: async () => ok({ terminals: { output: { handle } } }),

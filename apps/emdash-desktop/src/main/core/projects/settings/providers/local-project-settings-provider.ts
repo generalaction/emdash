@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { appSettingsService } from '@core/services/settings/node';
+import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import type { FilesClientScope } from '@main/core/files/runtime-client';
 import {
   normalizeWorktreeDirectory,
@@ -15,7 +15,7 @@ import {
 } from './db-project-settings-provider';
 
 async function getLocalDefaultWorktreeDirectory(): Promise<string> {
-  return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
+  return (await getAppSettingsService().get('localProject')).defaultWorktreeDirectory;
 }
 
 const localPathPlatform = process.platform === 'win32' ? 'win32' : 'posix';

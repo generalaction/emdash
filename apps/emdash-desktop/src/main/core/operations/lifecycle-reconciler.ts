@@ -8,13 +8,19 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { eq, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
+import {
+  conversations,
+  projects,
+  tasks,
+  terminals,
+  workspaces,
+} from '@core/services/app-db/node/schema';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { listProjectWorkspaces } from '@main/core/workspaces/operations/list-project-workspaces';
-import { db } from '@main/db/client';
-import { conversations, projects, tasks, terminals, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -231,7 +237,7 @@ function sessionCandidate(
 }
 
 async function loadTaskOwners(): Promise<TaskOwner[]> {
-  return db
+  return getAppDb()
     .select({
       taskId: tasks.id,
       projectId: tasks.projectId,
@@ -254,7 +260,7 @@ async function loadTaskOwners(): Promise<TaskOwner[]> {
 }
 
 async function loadConversationOwners() {
-  return db
+  return getAppDb()
     .select({
       conversationId: conversations.id,
       taskId: tasks.id,
@@ -279,7 +285,7 @@ async function loadConversationOwners() {
 }
 
 async function loadTerminalOwners() {
-  return db
+  return getAppDb()
     .select({
       terminalId: terminals.id,
       taskId: tasks.id,
@@ -308,7 +314,7 @@ async function loadTerminalOwners() {
 async function loadActiveProjects(): Promise<
   Array<{ id: string; path: string; sshConnectionId: string | null }>
 > {
-  return db
+  return getAppDb()
     .select({
       id: projects.id,
       path: projects.path,
@@ -319,7 +325,7 @@ async function loadActiveProjects(): Promise<
 }
 
 async function loadTombstonedProjectIds(): Promise<string[]> {
-  const rows = await db
+  const rows = await getAppDb()
     .select({ id: projects.id })
     .from(projects)
     .where(isNotNull(projects.deletedAt));

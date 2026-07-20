@@ -5,7 +5,7 @@ import type {
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
-import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
+import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import {
   ensureAgentDependenciesProbed,
   getDependencyManager,
@@ -18,115 +18,122 @@ import {
   toAgentInstallationStatus,
 } from './agent-payload-builder';
 
-export const agentOperations = {
-  // ── Metadata ────────────────────────────────────────────────────────────────
+export function createAgentOperations(providerOverrideSettings: ProviderOverrideSettings) {
+  return {
+    // ── Metadata ────────────────────────────────────────────────────────────────
 
-  list: async (connectionId?: string, manager?: HostDependenciesClient) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    const snapshot = await snapshotFor(mgr);
-    return buildAgentPayloads(snapshot, connectionId);
-  },
+    list: async (connectionId?: string, manager?: HostDependenciesClient) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      const snapshot = await snapshotFor(mgr);
+      return buildAgentPayloads(providerOverrideSettings, snapshot, connectionId);
+    },
 
-  get: async (id: string, connectionId?: string, manager?: HostDependenciesClient) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    const snapshot = await snapshotFor(mgr);
-    return buildAgentPayload(id, snapshot, connectionId);
-  },
+    get: async (id: string, connectionId?: string, manager?: HostDependenciesClient) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      const snapshot = await snapshotFor(mgr);
+      return buildAgentPayload(providerOverrideSettings, id, snapshot, connectionId);
+    },
 
-  // ── Installation status ──────────────────────────────────────────────────────
+    // ── Installation status ──────────────────────────────────────────────────────
 
-  listAgentInstallationStatus: async (connectionId?: string, manager?: HostDependenciesClient) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    const snapshot = await snapshotFor(mgr);
-    return Object.values(snapshot.dependencies)
-      .filter((view) => view.definition.category === 'agent')
-      .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
-  },
+    listAgentInstallationStatus: async (
+      connectionId?: string,
+      manager?: HostDependenciesClient
+    ) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      const snapshot = await snapshotFor(mgr);
+      return Object.values(snapshot.dependencies)
+        .filter((view) => view.definition.category === 'agent')
+        .map((view) => toAgentInstallationStatus(view.definition.id, connectionId, view));
+    },
 
-  getAgentInstallationStatus: async (
-    id: string,
-    connectionId?: string,
-    manager?: HostDependenciesClient
-  ) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    const snapshot = await snapshotFor(mgr);
-    return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
-  },
+    getAgentInstallationStatus: async (
+      id: string,
+      connectionId?: string,
+      manager?: HostDependenciesClient
+    ) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      const snapshot = await snapshotFor(mgr);
+      return toAgentInstallationStatus(id, connectionId, snapshot.dependencies[id]);
+    },
 
-  // ── Install / update ─────────────────────────────────────────────────────────
+    // ── Install / update ─────────────────────────────────────────────────────────
 
-  update: async (_id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
-    success: false as const,
-    error: { type: 'no-update-command' as const, id: _id },
-  }),
+    update: async (_id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+      success: false as const,
+      error: { type: 'no-update-command' as const, id: _id },
+    }),
 
-  install: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
-    success: false as const,
-    error: { type: 'no-install-command' as const, id },
-  }),
+    install: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+      success: false as const,
+      error: { type: 'no-install-command' as const, id },
+    }),
 
-  uninstall: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
-    success: false as const,
-    error: { type: 'no-uninstall-strategy' as const, id },
-  }),
+    uninstall: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+      success: false as const,
+      error: { type: 'no-uninstall-strategy' as const, id },
+    }),
 
-  // ── Settings ─────────────────────────────────────────────────────────────────
+    // ── Settings ─────────────────────────────────────────────────────────────────
 
-  getDefaultSettings: async (id: string): Promise<ProviderCustomConfig> => {
-    const meta = await providerOverrideSettings.getItemWithMeta(id);
-    return meta.defaults;
-  },
+    getDefaultSettings: async (id: string): Promise<ProviderCustomConfig> => {
+      const meta = await providerOverrideSettings.getItemWithMeta(id);
+      return meta.defaults;
+    },
 
-  getSettings: async (id: string) => {
-    return providerOverrideSettings.getItemWithMeta(id);
-  },
+    getSettings: async (id: string) => {
+      return providerOverrideSettings.getItemWithMeta(id);
+    },
 
-  updateSettings: (id: string, config: Partial<ProviderCustomConfig>): Promise<void> =>
-    providerOverrideSettings.updateItem(id, config),
+    updateSettings: (id: string, config: Partial<ProviderCustomConfig>): Promise<void> =>
+      providerOverrideSettings.updateItem(id, config),
 
-  // ── Selection + probe ────────────────────────────────────────────────────────
+    // ── Selection + probe ────────────────────────────────────────────────────────
 
-  setUsedInstallation: async (
-    id: DependencyId,
-    connectionId?: string,
-    selection?: unknown,
-    manager?: HostDependenciesClient
-  ): Promise<void> => {
-    // undefined = no-op; null = explicit auto (clear override)
-    if (selection === undefined) return;
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    await mgr.snapshot.mutate('setSelection', {
-      key: undefined,
-      input: { id, selection: normalizeSelection(selection) },
-    });
-  },
+    setUsedInstallation: async (
+      id: DependencyId,
+      connectionId?: string,
+      selection?: unknown,
+      manager?: HostDependenciesClient
+    ): Promise<void> => {
+      // undefined = no-op; null = explicit auto (clear override)
+      if (selection === undefined) return;
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      await mgr.snapshot.mutate('setSelection', {
+        key: undefined,
+        input: { id, selection: normalizeSelection(selection) },
+      });
+    },
 
-  probe: async (id: DependencyId, connectionId?: string, manager?: HostDependenciesClient) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    const result = await mgr.snapshot.mutate('refresh', {
-      key: undefined,
-      input: { id },
-    });
-    return result.success ? result.data.data.dependencies[id] : result;
-  },
+    probe: async (id: DependencyId, connectionId?: string, manager?: HostDependenciesClient) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      const result = await mgr.snapshot.mutate('refresh', {
+        key: undefined,
+        input: { id },
+      });
+      return result.success ? result.data.data.dependencies[id] : result;
+    },
 
-  probeOverride: async (
-    _id: DependencyId,
-    _selection: { path?: string; cli?: string },
-    _connectionId?: string
-  ) => null,
+    probeOverride: async (
+      _id: DependencyId,
+      _selection: { path?: string; cli?: string },
+      _connectionId?: string
+    ) => null,
 
-  refreshLatestVersion: async (_id: DependencyId, _connectionId?: string): Promise<void> => {},
+    refreshLatestVersion: async (_id: DependencyId, _connectionId?: string): Promise<void> => {},
 
-  probeAll: async (connectionId?: string, manager?: HostDependenciesClient) => {
-    const mgr = await resolveDependencyManager(connectionId, manager);
-    await ensureAgentDependenciesProbed(mgr);
-  },
+    probeAll: async (connectionId?: string, manager?: HostDependenciesClient) => {
+      const mgr = await resolveDependencyManager(connectionId, manager);
+      await ensureAgentDependenciesProbed(mgr);
+    },
 
-  listMetadata: async () => {
-    return buildAgentMetadataList();
-  },
-};
+    listMetadata: async () => {
+      return buildAgentMetadataList();
+    },
+  };
+}
+
+export type AgentOperations = ReturnType<typeof createAgentOperations>;
 
 async function resolveDependencyManager(
   connectionId?: string,

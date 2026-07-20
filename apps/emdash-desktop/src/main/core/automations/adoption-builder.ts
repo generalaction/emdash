@@ -2,7 +2,7 @@ import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { AutomationRunMeta, CreateTaskParams } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
-import type { conversations } from '@main/db/schema';
+import type { conversations } from '@core/services/app-db/node/schema';
 
 function workspaceGitForRun(runtimeRun: AutomationRun): WorkspaceConfig['git'] {
   const workspace = runtimeRun.configSnapshot.workspace;

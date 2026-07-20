@@ -12,9 +12,10 @@ import {
   type EditorWorkspaceIdentity as WorkspaceIdentity,
   type EditorWorkspaceIdentityResolver,
 } from '../api/runtime-adapter';
-import { editorBufferService } from './editor-buffer-service';
+import type { EditorBufferService } from './editor-buffer-service';
 
 export type CreateEditorWireControllerOptions = Readonly<{
+  editorBuffer: EditorBufferService;
   runtimes: EditorRuntimeBroker;
   workspaceIdentity: EditorWorkspaceIdentityResolver;
 }>;
@@ -89,11 +90,11 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
         ),
     },
     saveBuffer: ({ projectId, workspaceId, filePath, content }) =>
-      editorBufferService.saveBuffer(projectId, workspaceId, filePath, content),
+      options.editorBuffer.saveBuffer(projectId, workspaceId, filePath, content),
     clearBuffer: ({ projectId, workspaceId, filePath }) =>
-      editorBufferService.clearBuffer(projectId, workspaceId, filePath),
+      options.editorBuffer.clearBuffer(projectId, workspaceId, filePath),
     listBuffers: ({ projectId, workspaceId }) =>
-      editorBufferService.listBuffers(projectId, workspaceId),
+      options.editorBuffer.listBuffers(projectId, workspaceId),
   });
 }
 

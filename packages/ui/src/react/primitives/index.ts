@@ -1,6 +1,7 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
 export { Box } from './box';
 export { Button, type ButtonProps } from './button';
+export { Icon, type IconName, type IconProps, type IconSize } from './icon';
 export { Input, type InputProps } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Switch, type SwitchProps } from './switch';

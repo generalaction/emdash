@@ -11,7 +11,7 @@ import {
   TimeoutError,
   type Clock,
 } from '@emdash/shared/scheduling';
-import type { LifecycleOperationRow } from '@main/db/schema';
+import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type {
   ExecutableOperationPlan,
   OperationProgress,

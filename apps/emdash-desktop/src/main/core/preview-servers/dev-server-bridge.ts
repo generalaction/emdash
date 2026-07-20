@@ -1,10 +1,10 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { DirectPreviewServer } from '@core/primitives/preview-servers/api';
 import { parsePtySessionId } from '@core/primitives/pty/api';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import type { DetectedPreviewUrl, StopTerminalServerHandler } from './preview-server-service';
@@ -114,7 +114,7 @@ async function resolveServerContext(server: TerminalDevServer): Promise<
   | undefined
 > {
   const workspacePath = nativePathFromHost(server.key.workspace.path);
-  const workspace = await workspaceIdentityService.findByPath(
+  const workspace = await getWorkspaceIdentityService().findByPath(
     workspacePath,
     server.key.workspace.host
   );

@@ -1,11 +1,11 @@
 import { createController, type Controller } from '@emdash/wire/api';
 import { searchContract } from '../api';
-import { searchService } from './search-service';
+import type { SearchService } from './search-service';
 
-export function createSearchWireController(): Controller {
+export function createSearchWireController(service: SearchService): Controller {
   return createController(searchContract, {
-    commandPalette: (input) => searchService.search(input),
+    commandPalette: (input) => service.search(input),
     searchWorkspaceFiles: ({ workspaceId, query, limit }) =>
-      searchService.searchFiles(workspaceId, query, limit),
+      service.searchFiles(workspaceId, query, limit),
   });
 }

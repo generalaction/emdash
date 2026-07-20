@@ -1,6 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppDb } from '@main/db/client';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { Logger } from '@main/lib/logger';
 import type { SshCredentialService } from './credentials/ssh-credential-service';
 import { createSshService } from './factory';

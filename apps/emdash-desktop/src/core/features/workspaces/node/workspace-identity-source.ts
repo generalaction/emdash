@@ -1,6 +1,6 @@
 import { and, eq, isNull, type SQL } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { projects, tasks, workspaces } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import {
   isRemoteWorkspaceRow,
   WorkspaceIdentityService,
@@ -8,28 +8,31 @@ import {
   type WorkspaceIdentitySource,
 } from './workspace-identity-service';
 
-const drizzleWorkspaceIdentitySource: WorkspaceIdentitySource = {
-  async findById(workspaceId) {
-    const rows = await loadWorkspaceRows(eq(workspaces.id, workspaceId));
-    return rows[0] ?? null;
-  },
-  async findRepositoryForProject(projectId) {
-    const rows = await db
-      .select({ workspaceId: projects.repositoryWorkspaceId })
-      .from(projects)
-      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-      .limit(1);
-    const workspaceId = rows[0]?.workspaceId;
-    if (!workspaceId) return null;
-    const identities = await loadWorkspaceRows(eq(workspaces.id, workspaceId));
-    return identities[0] ?? null;
-  },
-  async findByPath(path) {
-    return loadWorkspaceRows(eq(workspaces.path, path));
-  },
-};
+export function createWorkspaceIdentityService(options: { db: AppDb }): WorkspaceIdentityService {
+  const source: WorkspaceIdentitySource = {
+    async findById(workspaceId) {
+      const rows = await loadWorkspaceRows(options.db, eq(workspaces.id, workspaceId));
+      return rows[0] ?? null;
+    },
+    async findRepositoryForProject(projectId) {
+      const rows = await options.db
+        .select({ workspaceId: projects.repositoryWorkspaceId })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+        .limit(1);
+      const workspaceId = rows[0]?.workspaceId;
+      if (!workspaceId) return null;
+      const identities = await loadWorkspaceRows(options.db, eq(workspaces.id, workspaceId));
+      return identities[0] ?? null;
+    },
+    async findByPath(path) {
+      return loadWorkspaceRows(options.db, eq(workspaces.path, path));
+    },
+  };
+  return new WorkspaceIdentityService(source);
+}
 
-async function loadWorkspaceRows(predicate: SQL): Promise<WorkspaceIdentityRow[]> {
+async function loadWorkspaceRows(db: AppDb, predicate: SQL): Promise<WorkspaceIdentityRow[]> {
   const rows = await db
     .select({
       workspaceId: workspaces.id,
@@ -44,18 +47,18 @@ async function loadWorkspaceRows(predicate: SQL): Promise<WorkspaceIdentityRow[]
   const resolved = await Promise.all(
     rows.map(async (row): Promise<WorkspaceIdentityRow | null> => {
       if (!row.path) return null;
-      const projectId = await resolveWorkspaceProjectId(row.workspaceId);
+      const projectId = await resolveWorkspaceProjectId(db, row.workspaceId);
       if (!projectId) return null;
       const sshConnectionId =
         row.sshConnectionId ??
-        (isRemoteWorkspaceRow(row) ? await resolveProjectSshConnectionId(projectId) : null);
+        (isRemoteWorkspaceRow(row) ? await resolveProjectSshConnectionId(db, projectId) : null);
       return { ...row, path: row.path, projectId, sshConnectionId };
     })
   );
   return resolved.filter((row): row is WorkspaceIdentityRow => row !== null);
 }
 
-async function resolveWorkspaceProjectId(workspaceId: string): Promise<string | null> {
+async function resolveWorkspaceProjectId(db: AppDb, workspaceId: string): Promise<string | null> {
   const taskRows = await db
     .select({ projectId: tasks.projectId })
     .from(tasks)
@@ -71,7 +74,7 @@ async function resolveWorkspaceProjectId(workspaceId: string): Promise<string | 
   return projectRows[0]?.projectId ?? null;
 }
 
-async function resolveProjectSshConnectionId(projectId: string): Promise<string | null> {
+async function resolveProjectSshConnectionId(db: AppDb, projectId: string): Promise<string | null> {
   const rows = await db
     .select({ sshConnectionId: projects.sshConnectionId })
     .from(projects)
@@ -79,7 +82,3 @@ async function resolveProjectSshConnectionId(projectId: string): Promise<string 
     .limit(1);
   return rows[0]?.sshConnectionId ?? null;
 }
-
-export const workspaceIdentityService = new WorkspaceIdentityService(
-  drizzleWorkspaceIdentitySource
-);

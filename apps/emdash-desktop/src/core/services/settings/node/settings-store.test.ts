@@ -18,45 +18,43 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((column, value) => ({ column, value })),
 }));
 
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   appSettings: { key: 'key', value: 'value' },
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn((predicate: { value: string }) => ({
-          execute: vi.fn(async () => {
-            const value = rows.get(predicate.value);
-            return value === undefined ? [] : [{ key: predicate.value, value }];
-          }),
-        })),
-      })),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn((row: { key: string; value: string }) => ({
-        onConflictDoUpdate: vi.fn(() => ({
-          execute: vi.fn(async () => {
-            rows.set(row.key, row.value);
-          }),
-        })),
-      })),
-    })),
-    delete: vi.fn(() => ({
+const db = {
+  select: vi.fn(() => ({
+    from: vi.fn(() => ({
       where: vi.fn((predicate: { value: string }) => ({
         execute: vi.fn(async () => {
-          rows.delete(predicate.value);
+          const value = rows.get(predicate.value);
+          return value === undefined ? [] : [{ key: predicate.value, value }];
         }),
       })),
     })),
-  },
-}));
+  })),
+  insert: vi.fn(() => ({
+    values: vi.fn((row: { key: string; value: string }) => ({
+      onConflictDoUpdate: vi.fn(() => ({
+        execute: vi.fn(async () => {
+          rows.set(row.key, row.value);
+        }),
+      })),
+    })),
+  })),
+  delete: vi.fn(() => ({
+    where: vi.fn((predicate: { value: string }) => ({
+      execute: vi.fn(async () => {
+        rows.delete(predicate.value);
+      }),
+    })),
+  })),
+} as never;
 
 const { SettingsStore } = await import('./settings-store');
 
 async function roundTripDefault<K extends AppSettingsKey>(key: K): Promise<void> {
-  const settings = new SettingsStore(appSettingsContributions);
+  const settings = new SettingsStore(db, appSettingsContributions);
   const value = getDefaultForKey(key);
   await settings.update(key, value);
   expect(await settings.get(key)).toEqual(value);
@@ -72,7 +70,7 @@ describe('SettingsStore contributions', () => {
 
   it('adopts legacy object deltas and preserves unversioned delta writes', async () => {
     rows.set('tasks', JSON.stringify({ autoGenerateName: false }));
-    const settings = new SettingsStore(appSettingsContributions);
+    const settings = new SettingsStore(db, appSettingsContributions);
 
     expect(await settings.get('tasks')).toEqual({
       ...getDefaultForKey('tasks'),
@@ -89,7 +87,7 @@ describe('SettingsStore contributions', () => {
 
   it('adopts legacy scalar values', async () => {
     rows.set('theme', JSON.stringify('emdark'));
-    const settings = new SettingsStore(appSettingsContributions);
+    const settings = new SettingsStore(db, appSettingsContributions);
     await expect(settings.get('theme')).resolves.toBe('emdark');
   });
 
@@ -105,14 +103,14 @@ describe('SettingsStore contributions', () => {
     } as unknown as SettingsContributionMap<AppSettings>;
     rows.set('browserPreview', JSON.stringify({ value: 'custom' }));
 
-    const settings = new SettingsStore(contributions);
+    const settings = new SettingsStore(db, contributions);
 
     await expect(settings.get('browserPreview')).resolves.toEqual({ value: 'custom' });
   });
 
   it('reports scalar overrides without returning the scalar as an overrides object', async () => {
     rows.set('theme', JSON.stringify('emdark'));
-    const settings = new SettingsStore(appSettingsContributions);
+    const settings = new SettingsStore(db, appSettingsContributions);
 
     await expect(settings.getWithMeta('theme')).resolves.toEqual({
       value: 'emdark',

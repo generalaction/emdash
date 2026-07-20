@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { workspaces } from '@main/db/schema';
+import { workspaces } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 
 export type WorkspaceCurrentBranchCacheRefresh =
@@ -16,7 +16,7 @@ export async function refreshWorkspaceCurrentBranchCache(
 ): Promise<WorkspaceCurrentBranchCacheRefresh> {
   try {
     const branchName = await readCurrentBranch();
-    const [workspace] = await db
+    const [workspace] = await getAppDb()
       .select({
         branchName: workspaces.branchName,
         config: workspaces.config,
@@ -41,7 +41,7 @@ export async function refreshWorkspaceCurrentBranchCache(
       return { branchName, changed: false };
     }
 
-    await db
+    await getAppDb()
       .update(workspaces)
       .set({ branchName })
       .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));

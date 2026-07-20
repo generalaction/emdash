@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as databasePath from '@main/db/path';
 import { workspaceRuntimePaths } from './workspace-runtime-paths';
 
-vi.mock('@main/db/path', () => ({
-  resolveDatabasePath: () => '/tmp/emdash-scratch.db',
-}));
+vi.spyOn(databasePath, 'resolveDatabasePath').mockReturnValue('/tmp/emdash-scratch.db');
 
 describe('workspaceRuntimePaths', () => {
   it('keeps workspace runtime state isolated with the selected desktop database', () => {

@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { describe, expect, it, vi } from 'vitest';
 
 const select = vi.fn();
@@ -12,11 +13,9 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(() => 'isNull'),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: { select },
-}));
+installAppDbTestInstance(() => ({ select }) as never);
 
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   projects: {
     id: 'projects.id',
     path: 'projects.path',

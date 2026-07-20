@@ -14,7 +14,7 @@ import type {
   Installation,
   SelectedSource,
 } from '@core/primitives/agents/api';
-import { providerOverrideSettings } from '@core/services/settings/node/provider-settings-service';
+import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
 
 function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
@@ -73,6 +73,7 @@ function buildAuthDescriptor(provider: CLIAgentPluginProvider): AgentAuthDescrip
 }
 
 async function buildOne(
+  providerSettings: ProviderOverrideSettings,
   id: AgentProviderId,
   snapshot?: HostDependencySnapshot,
   connectionId?: string
@@ -80,7 +81,7 @@ async function buildOne(
   const provider = getPlugin(id);
   if (!provider) return null;
 
-  const settingsMeta = await providerOverrideSettings.getItemWithMeta(id);
+  const settingsMeta = await providerSettings.getItemWithMeta(id);
   const view = snapshot?.dependencies[id];
   const used: SelectedSource = view?.selection ?? { kind: 'auto' };
 
@@ -101,20 +102,22 @@ async function buildOne(
 }
 
 export async function buildAgentPayload(
+  providerSettings: ProviderOverrideSettings,
   id: string,
   snapshot?: HostDependencySnapshot,
   connectionId?: string
 ): Promise<AgentPayload | null> {
-  return buildOne(id as AgentProviderId, snapshot, connectionId);
+  return buildOne(providerSettings, id as AgentProviderId, snapshot, connectionId);
 }
 
 export async function buildAgentPayloads(
+  providerSettings: ProviderOverrideSettings,
   snapshot?: HostDependencySnapshot,
   connectionId?: string
 ): Promise<AgentPayload[]> {
   const results = await Promise.all(
     listPlugins().map((provider) =>
-      buildOne(provider.metadata.id as AgentProviderId, snapshot, connectionId)
+      buildOne(providerSettings, provider.metadata.id as AgentProviderId, snapshot, connectionId)
     )
   );
   return results.filter((r): r is AgentPayload => r !== null);

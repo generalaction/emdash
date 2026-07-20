@@ -27,7 +27,6 @@ import {
   activateWorkspaceParticipants,
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/node/lifecycle-participants';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import {
   hostFileRefFromNativePath,
   hostPathFromNative,
@@ -37,15 +36,17 @@ import type { GitSetup, WorkspaceLocation } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type { WorkspaceType } from '@core/primitives/workspaces/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import { tryAcquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import { filesClientScope } from '@main/core/files/runtime-client';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
-import { db as appDb, type AppDb } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getWorkspaceRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
@@ -84,7 +85,11 @@ export type CloneRepositoryProvisionInput = {
 };
 
 export class WorkspaceBootstrapService {
-  constructor(private readonly db: AppDb) {}
+  constructor(private readonly database?: AppDb) {}
+
+  private get db(): AppDb {
+    return this.database ?? getAppDb();
+  }
 
   /**
    * Ensures the workspace for a task is fully set up on disk, acquires the
@@ -341,7 +346,7 @@ export class WorkspaceBootstrapService {
       .update(workspaces)
       .set({ path, key, branchName: branchName ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
-    workspaceIdentityService.invalidate(workspaceId);
+    getWorkspaceIdentityService().invalidate(workspaceId);
     return workspaceId;
   }
 
@@ -470,8 +475,9 @@ export class WorkspaceBootstrapService {
       });
     }
 
-    workspaceIdentityService.invalidate(workspaceId);
-    const accessResult = await tryAcquireWorkspaceRuntime(workspaceId);
+    const workspaceIdentity = getWorkspaceIdentityService();
+    workspaceIdentity.invalidate(workspaceId);
+    const accessResult = await tryAcquireWorkspaceRuntime(workspaceIdentity, workspaceId);
     if (!accessResult.success) {
       await runWorkspaceDeactivateJob(task, project, runtimePlan.workspace, automation).catch(
         () => {}
@@ -826,4 +832,4 @@ function liveJobErrorToWorkspaceError(error: unknown): WorkspaceError {
   };
 }
 
-export const workspaceBootstrapService = new WorkspaceBootstrapService(appDb);
+export const workspaceBootstrapService = new WorkspaceBootstrapService();

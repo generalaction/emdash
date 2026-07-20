@@ -12,11 +12,11 @@ import {
 import { runWithTimeout } from '@emdash/shared/scheduling';
 import { createLiveJobReplica } from '@emdash/wire';
 import { deactivateWorkspaceParticipants } from '@core/features/workspaces/node/lifecycle-participants';
-import { workspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
 import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
@@ -138,7 +138,7 @@ async function deactivateWorkspaceConsumer(
   automation?: WorkspaceBootstrapResult['postActivationAutomation'],
   runtimeWorkspace?: HostFileRef
 ): Promise<void> {
-  const identity = await workspaceIdentityService.resolve(workspaceId);
+  const identity = await getWorkspaceIdentityService().resolve(workspaceId);
   const workspace =
     identity && hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
   const target = workspace ?? runtimeWorkspace;

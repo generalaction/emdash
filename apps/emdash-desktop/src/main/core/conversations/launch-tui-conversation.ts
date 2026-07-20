@@ -2,8 +2,9 @@ import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
 import { and, eq } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/node';
 import type { Conversation } from '@core/primitives/conversations/api';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
@@ -11,7 +12,7 @@ import { setSessionIdIfUnset } from './set-session-id';
 import type { EnsureConversationSessionOutcome } from './types';
 import { mapConversationRowToConversation } from './utils';
 
-type LaunchTuiConversationDb = Pick<typeof db, 'select' | 'update'>;
+type LaunchTuiConversationDb = Pick<AppDb, 'select' | 'update'>;
 
 export type LaunchTuiConversationInput = {
   projectId: string;
@@ -33,7 +34,7 @@ export async function launchTuiConversation({
   taskId,
   conversationId,
   initialSize,
-  database = db,
+  database = getAppDb(),
 }: LaunchTuiConversationInput): Promise<LaunchTuiConversationResult> {
   return launchMutex.runExclusive(conversationId, async () => {
     const [row] = await database

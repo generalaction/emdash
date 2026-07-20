@@ -4,11 +4,11 @@ import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { CreateProjectResult, ProjectPathStatus } from '@core/primitives/projects/api';
+import { projects } from '@core/services/app-db/node/schema';
 import { fileKey, filesClientScope, fsErrorMessage } from '@main/core/files/runtime-client';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
+import { getAppDb } from '@main/db/instance';
 import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { getGitRuntimeClient } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
@@ -50,7 +50,7 @@ export async function createLocalProject(
   if (!repositoryResult.success) return repositoryResult;
   const gitInfo = repositoryResult.data;
 
-  const [row] = await db
+  const [row] = await getAppDb()
     .insert(projects)
     .values({
       id: params.id ?? randomUUID(),

@@ -1,6 +1,6 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { notifications } from '@main/db/schema';
+import { notifications } from '@core/services/app-db/node/schema';
 
 describe('0020_notifications', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;

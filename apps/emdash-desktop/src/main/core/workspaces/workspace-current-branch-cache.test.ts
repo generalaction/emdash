@@ -1,3 +1,4 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dbMocks = vi.hoisted(() => ({
@@ -5,14 +6,9 @@ const dbMocks = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: dbMocks.select,
-    update: dbMocks.update,
-  },
-}));
+installAppDbTestInstance(() => ({ select: dbMocks.select, update: dbMocks.update }) as never);
 
-vi.mock('@main/db/schema', () => ({
+vi.mock('@core/services/app-db/node/schema', () => ({
   workspaces: { id: 'id', branchName: 'branch_name', config: 'config', kind: 'kind' },
 }));
 

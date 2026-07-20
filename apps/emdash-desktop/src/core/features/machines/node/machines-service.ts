@@ -1,17 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import {
+  projects,
+  sshConnections as sshConnectionsTable,
+  type SshConnectionInsert,
+} from '@core/services/app-db/node/schema';
 import {
   mergeSshConnectionMetadata,
   type SshConnectionMetadata,
   sshConfigFromRow,
 } from '@core/services/ssh/node/config/connection-metadata';
-import type { AppDb } from '@main/db/client';
-import {
-  projects,
-  sshConnections as sshConnectionsTable,
-  type SshConnectionInsert,
-} from '@main/db/schema';
 import type { SaveMachineInput } from '../api';
 
 type MachinesCredentials = {

@@ -80,19 +80,15 @@ function makeLocalProvider(
   );
 }
 
-vi.mock('@core/services/settings/node', () => ({
-  appSettingsService: {
+vi.mock('@main/bootstrap/core/service-instances', () => ({
+  getAppSettingsService: () => ({
     get: vi.fn().mockImplementation((key: string) => {
       if (key === 'project') return Promise.resolve({ tmuxByDefault: false });
       return Promise.resolve({
         defaultWorktreeDirectory: '/tmp/emdash/worktrees',
       });
     }),
-  },
-}));
-
-vi.mock('@main/db/client', () => ({
-  db: {},
+  }),
 }));
 
 vi.mock('./project-settings-storage', () => ({

@@ -1,7 +1,7 @@
 import { err, ok, type BaseError, type Result } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export type SetModeIdError = BaseError<
   'empty-mode-id' | 'conversation-not-found' | 'not-acp-conversation'
@@ -17,7 +17,7 @@ export type SetModeIdError = BaseError<
 export async function setConversationModeId(
   conversationId: string,
   modeId: string,
-  database = db
+  database = getAppDb()
 ): Promise<Result<{ projectId: string; taskId: string }, SetModeIdError>> {
   const trimmed = modeId.trim();
   if (!trimmed) return err({ type: 'empty-mode-id' });

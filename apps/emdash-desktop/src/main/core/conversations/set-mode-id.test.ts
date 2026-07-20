@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import { setConversationModeId } from './set-mode-id';
-
-vi.mock('@main/db/client', () => ({ db: {} }));
 
 type FakeRow = {
   config: ConversationConfig | null;

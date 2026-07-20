@@ -1,14 +1,19 @@
 import { eq } from 'drizzle-orm';
 import { safeStorage } from 'electron';
-import { db as appDb } from '@main/db/client';
-import { appSecrets } from '@main/db/schema';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { appSecrets } from '@core/services/app-db/node/schema';
+import { getAppDb } from '@main/db/instance';
 
 export class EncryptedAppSecretsStore {
   constructor(
-    private readonly db = appDb,
+    private readonly database?: AppDb,
     private readonly safeStorageApi = safeStorage,
     private readonly platform: NodeJS.Platform = process.platform
   ) {}
+
+  private get db(): AppDb {
+    return this.database ?? getAppDb();
+  }
 
   async getSecret(key: string): Promise<string | null> {
     const rows = await this.db

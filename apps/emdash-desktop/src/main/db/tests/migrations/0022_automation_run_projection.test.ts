@@ -1,6 +1,6 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it } from 'vitest';
-import { automationRuns } from '@main/db/schema';
+import { automationRuns } from '@core/services/app-db/node/schema';
 
 describe('0022_automation_run_projection', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;

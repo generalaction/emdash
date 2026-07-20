@@ -8,12 +8,12 @@ import {
   type LiveModelDef,
 } from '@emdash/wire/api';
 import { and, eq } from 'drizzle-orm';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { conversations, tasks } from '@core/services/app-db/node/schema';
 import { conversationOperations } from '@main/core/conversations/controller';
 import { setConversationModeId } from '@main/core/conversations/set-mode-id';
 import { setSessionId } from '@main/core/conversations/set-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
-import { db } from '@main/db/client';
-import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { conversationsContract } from '../api';
@@ -49,6 +49,7 @@ type ConversationRuntimeHooks = Readonly<{
 }>;
 
 export type CreateConversationsWireControllerOptions = Readonly<{
+  db: AppDb;
   runtimes: ConversationsRuntimeBroker;
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
@@ -61,8 +62,8 @@ export function createConversationsWireController(
   const resolveTarget =
     options.resolveTarget ??
     ((conversationId) =>
-      resolveConversationRuntimeTarget(conversationId, options.workspaceIdentity));
-  const hooks = options.hooks ?? defaultRuntimeHooks;
+      resolveConversationRuntimeTarget(conversationId, options.workspaceIdentity, options.db));
+  const hooks = options.hooks ?? createDefaultRuntimeHooks(options.db);
   const target = (conversationId: string) => resolveTarget(conversationId);
   const run = <T, E>(
     conversationId: string,
@@ -271,67 +272,70 @@ export function createConversationsWireController(
   });
 }
 
-const defaultRuntimeHooks: ConversationRuntimeHooks = {
-  async persistAcpSessionId(target, sessionId) {
-    const result = await setSessionId(target.conversationId, sessionId);
-    if (!result.success) {
-      log.warn('ACP runtime failed to persist returned session id', {
+function createDefaultRuntimeHooks(db: AppDb): ConversationRuntimeHooks {
+  return {
+    async persistAcpSessionId(target, sessionId) {
+      const result = await setSessionId(target.conversationId, sessionId, db);
+      if (!result.success) {
+        log.warn('ACP runtime failed to persist returned session id', {
+          conversationId: target.conversationId,
+          error: result.error,
+        });
+        return;
+      }
+      if (target.sessionId === sessionId) return;
+      conversationWireEvents.emit(undefined, {
+        type: 'changed',
         conversationId: target.conversationId,
-        error: result.error,
+        taskId: result.data.taskId,
+        projectId: result.data.projectId,
+        changes: { sessionId },
       });
-      return;
-    }
-    if (target.sessionId === sessionId) return;
-    conversationWireEvents.emit(undefined, {
-      type: 'changed',
-      conversationId: target.conversationId,
-      taskId: result.data.taskId,
-      projectId: result.data.projectId,
-      changes: { sessionId },
-    });
-  },
-  async persistAcpMode(target, modeId) {
-    const result = await setConversationModeId(target.conversationId, modeId);
-    if (!result.success) {
-      log.warn('ACP runtime failed to persist selected mode id', {
+    },
+    async persistAcpMode(target, modeId) {
+      const result = await setConversationModeId(target.conversationId, modeId, db);
+      if (!result.success) {
+        log.warn('ACP runtime failed to persist selected mode id', {
+          conversationId: target.conversationId,
+          error: result.error,
+        });
+        return;
+      }
+      if (target.modeId === modeId) return;
+      conversationWireEvents.emit(undefined, {
+        type: 'changed',
         conversationId: target.conversationId,
-        error: result.error,
+        taskId: result.data.taskId,
+        projectId: result.data.projectId,
+        changes: { modeId },
       });
-      return;
-    }
-    if (target.modeId === modeId) return;
-    conversationWireEvents.emit(undefined, {
-      type: 'changed',
-      conversationId: target.conversationId,
-      taskId: result.data.taskId,
-      projectId: result.data.projectId,
-      changes: { modeId },
-    });
-  },
-  async recordTuiInput(target) {
-    if (target.providerId) {
-      telemetryService.capture('agent_run_started', {
-        provider: target.providerId,
-        project_id: target.projectId,
-        task_id: target.taskId,
-        conversation_id: target.conversationId,
+    },
+    async recordTuiInput(target) {
+      if (target.providerId) {
+        telemetryService.capture('agent_run_started', {
+          provider: target.providerId,
+          project_id: target.projectId,
+          task_id: target.taskId,
+          conversation_id: target.conversationId,
+        });
+      }
+      const lastInteractedAt = new Date().toISOString();
+      await touchConversation(target.conversationId, lastInteractedAt, db);
+      conversationWireEvents.emit(undefined, {
+        type: 'changed',
+        conversationId: target.conversationId,
+        taskId: target.taskId,
+        projectId: target.projectId,
+        changes: { lastInteractedAt },
       });
-    }
-    const lastInteractedAt = new Date().toISOString();
-    await touchConversation(target.conversationId, lastInteractedAt);
-    conversationWireEvents.emit(undefined, {
-      type: 'changed',
-      conversationId: target.conversationId,
-      taskId: target.taskId,
-      projectId: target.projectId,
-      changes: { lastInteractedAt },
-    });
-  },
-};
+    },
+  };
+}
 
 async function resolveConversationRuntimeTarget(
   conversationId: string,
-  workspaceIdentity: WorkspaceIdentityResolver
+  workspaceIdentity: WorkspaceIdentityResolver,
+  db: AppDb
 ): Promise<ConversationRuntimeTarget> {
   const [row] = await db
     .select({

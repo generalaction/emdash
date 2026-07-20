@@ -1,20 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import {
-  BookOpenIcon,
-  BotIcon,
-  ExternalLinkIcon,
-  GlobeIcon,
-  PlusIcon,
-  SettingsIcon,
-  TerminalIcon,
-  UserIcon,
-  WrenchIcon,
-  ZapIcon,
-} from 'lucide-react';
+import { PlusIcon, WrenchIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
 import { SearchInput } from '../../primitives/search-input';
-import { PageLayout } from './index';
+import { PageLayout, type PageNavItem } from './index';
 
 const meta: Meta = {
   title: 'Patterns/PageLayout',
@@ -70,10 +59,10 @@ function PlaceholderList({ count = 5 }: { count?: number }) {
 // ── 1. Library style — sidebar + content (max-w-3xl) ─────────────────────────
 
 const LIBRARY_ITEMS = [
-  { id: 'prompts', label: 'Prompts', icon: <BookOpenIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'skills', label: 'Skills', icon: <WrenchIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'mcp', label: 'MCP', icon: <TerminalIcon style={{ width: 14, height: 14 }} /> },
-];
+  { id: 'prompts', label: 'Prompts', icon: 'book-open' },
+  { id: 'skills', label: 'Skills', icon: 'wrench' },
+  { id: 'mcp', label: 'MCP', icon: 'terminal' },
+] satisfies PageNavItem[];
 
 function LibraryDemo() {
   const [tab, setTab] = React.useState('prompts');
@@ -135,22 +124,22 @@ export const LibraryStyle: Story = {
 // ── 2. Settings style — sidebar + content (default max-w-4xl) ────────────────
 
 const SETTINGS_ITEMS = [
-  { id: 'general', label: 'General', icon: <SettingsIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'account', label: 'Account', icon: <UserIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'agents', label: 'Agents', icon: <BotIcon style={{ width: 14, height: 14 }} /> },
+  { id: 'general', label: 'General', icon: 'settings' },
+  { id: 'account', label: 'Account', icon: 'user' },
+  { id: 'agents', label: 'Agents', icon: 'bot' },
   {
     id: 'integrations',
     label: 'Integrations',
-    icon: <GlobeIcon style={{ width: 14, height: 14 }} />,
+    icon: 'globe',
   },
-  { id: 'connections', label: 'Connections', icon: <ZapIcon style={{ width: 14, height: 14 }} /> },
+  { id: 'connections', label: 'Connections', icon: 'zap' },
   {
     id: 'docs',
     label: 'Docs',
-    icon: <ExternalLinkIcon style={{ width: 14, height: 14 }} />,
+    icon: 'external-link',
     isExternal: true,
   },
-];
+] satisfies PageNavItem[];
 
 function SettingsDemo() {
   const [tab, setTab] = React.useState('general');

@@ -1,43 +1,34 @@
-import { appSettingsService } from '@core/services/settings/node';
-import { db } from '@main/db/client';
-import { isAppFocused } from '@main/host/window';
-import { log } from '@main/lib/logger';
-import { NotificationService } from './notification-service';
+import type { AppDb } from '@core/services/app-db/node/db';
+import type { AppSettingsService } from '@core/services/settings/node';
+import { NotificationService, type NotificationServiceDeps } from './notification-service';
 import { installAgentStatusNotificationProducer } from './producers';
 import { createSoundNotificationSink, createSystemNotificationSink } from './sinks';
 import { SqliteNotificationStore } from './sqlite-store';
 
-export const notificationService = new NotificationService({
-  store: new SqliteNotificationStore(db),
-  logger: log,
-  async routingContext() {
-    return {
-      appFocused: isAppFocused(),
-      settings: await appSettingsService.get('notifications'),
-    };
-  },
-});
+export type CreateNotificationServiceDeps = {
+  db: AppDb;
+  settings: Pick<AppSettingsService, 'get'>;
+  isAppFocused(): boolean;
+  logger?: NotificationServiceDeps['logger'];
+};
 
-let initialized = false;
-let disposeProducer: (() => void) | null = null;
+export function createNotificationService(
+  deps: CreateNotificationServiceDeps
+): NotificationService {
+  const service = new NotificationService({
+    store: new SqliteNotificationStore(deps.db),
+    logger: deps.logger,
+    async routingContext() {
+      return {
+        appFocused: deps.isAppFocused(),
+        settings: await deps.settings.get('notifications'),
+      };
+    },
+  });
 
-export async function initializeNotificationService(): Promise<void> {
-  if (initialized) return;
-  initialized = true;
+  service.registerSink(createSystemNotificationSink((event) => service.emitDelivery(event)));
+  service.registerSink(createSoundNotificationSink((event) => service.emitDelivery(event)));
+  service.registerDisposer(installAgentStatusNotificationProducer(service, { db: deps.db }));
 
-  notificationService.registerSink(
-    createSystemNotificationSink((event) => notificationService.emitDelivery(event))
-  );
-  notificationService.registerSink(
-    createSoundNotificationSink((event) => notificationService.emitDelivery(event))
-  );
-  disposeProducer = installAgentStatusNotificationProducer(notificationService);
-  await notificationService.initialize();
-}
-
-export function disposeNotificationService(): void {
-  disposeProducer?.();
-  disposeProducer = null;
-  initialized = false;
-  notificationService.dispose();
+  return service;
 }

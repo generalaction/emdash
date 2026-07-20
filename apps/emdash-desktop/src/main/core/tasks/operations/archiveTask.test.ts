@@ -1,3 +1,4 @@
+import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { archiveTask } from './archiveTask';
 
@@ -10,20 +11,21 @@ const mocks = vi.hoisted(() => ({
   updateWhere: vi.fn(),
 }));
 
-vi.mock('@main/db/client', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: mocks.selectLimit,
+installAppDbTestInstance(
+  () =>
+    ({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: mocks.selectLimit,
+          }),
         }),
       }),
-    }),
-    update: () => ({
-      set: mocks.updateSet,
-    }),
-  },
-}));
+      update: () => ({
+        set: mocks.updateSet,
+      }),
+    }) as never
+);
 
 vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: {

@@ -3,7 +3,7 @@ import { runBootPreflight } from './boot/preflight';
 import { isBootAborted, type BootContext } from './boot/types';
 import { loadAppConfig, setAppConfig } from './core/config';
 
-const CRASH_LOOP_THRESHOLD = 3;
+const CRASH_LOOP_THRESHOLD = 2;
 
 export async function main(): Promise<void> {
   if (import.meta.env.DEV) {
@@ -12,7 +12,21 @@ export async function main(): Promise<void> {
 
   const config = loadAppConfig();
   setAppConfig(config);
-  const context: BootContext = { config, windowPhaseReady: false, ssh: undefined };
+  const context: BootContext = {
+    config,
+    accountService: undefined,
+    appSettingsService: undefined,
+    db: undefined,
+    editorBufferService: undefined,
+    notificationService: undefined,
+    promptLibraryService: undefined,
+    providerOverrideSettings: undefined,
+    searchService: undefined,
+    sqlite: undefined,
+    ssh: undefined,
+    windowPhaseReady: false,
+    workspaceIdentity: undefined,
+  };
 
   try {
     const previousFailures = await runBootPreflight(context);
