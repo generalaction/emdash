@@ -4,6 +4,7 @@ import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -198,6 +199,8 @@ export function InitialConversationField({
   textareaClassName,
   showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
+  const autoApproveSwitchId = useId();
+  const chatUiSwitchId = useId();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
@@ -319,18 +322,23 @@ export function InitialConversationField({
         {showAutoApproveToggle && canToggleAutoApprove ? (
           <div className="flex items-center gap-2">
             <Switch
+              id={autoApproveSwitchId}
               checked={state.autoApprove}
               onCheckedChange={state.setAutoApprove}
               disabled={!state.provider}
             />
-            <FieldLabel>Auto-approve permissions</FieldLabel>
+            <FieldLabel htmlFor={autoApproveSwitchId}>Auto-approve permissions</FieldLabel>
           </div>
         ) : null}
 
         {canToggleChatUi ? (
           <div className="flex items-center gap-2">
-            <Switch checked={state.useChatUi} onCheckedChange={state.setUseChatUi} />
-            <FieldLabel>Use chat UI</FieldLabel>
+            <Switch
+              id={chatUiSwitchId}
+              checked={state.useChatUi}
+              onCheckedChange={state.setUseChatUi}
+            />
+            <FieldLabel htmlFor={chatUiSwitchId}>Use chat UI</FieldLabel>
           </div>
         ) : null}
 
