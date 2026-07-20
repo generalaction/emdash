@@ -70,7 +70,6 @@ export async function createWorkspaceServerRuntimeHost(
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
     mkdir(paths.attachmentsDirectory, { recursive: true }),
-    mkdir(paths.worktreePoolDirectory, { recursive: true }),
   ]);
 
   const workerHost = createWireWorkerHost({
@@ -189,12 +188,7 @@ export async function createWorkspaceServerRuntimeHost(
     executable: workspaceWorkerPath('workspace'),
     env,
     dependencies: { terminals, watcher },
-    config: {
-      provisioning: {
-        worktreePoolPath: paths.worktreePoolDirectory,
-        baseRemote: 'origin',
-      },
-    },
+    config: {},
   });
 
   const [files, fileSearch, git, workspace] = await Promise.all([

@@ -80,14 +80,14 @@ describe('negotiateProtocol', () => {
       expect(result.compatible).toBe(true);
     });
 
-    it('requires 3.0 clients to upgrade for the TUI agents contract break', () => {
+    it('requires older major clients to upgrade for breaking contract changes', () => {
       const result = negotiateProtocol('3.0.0');
 
       expect(result).toEqual({
         compatible: false,
         action: 'upgrade-client',
         clientProtocolVersion: '3.0.0',
-        serverProtocolVersion: '4.1.0',
+        serverProtocolVersion: '5.0.0',
       });
     });
   });

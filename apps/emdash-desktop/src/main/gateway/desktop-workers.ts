@@ -42,7 +42,6 @@ import { NON_INTERACTIVE_GIT_ENV } from '@main/core/execution-context/non-intera
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { getGitExecutable } from '@main/core/utils/exec';
-import { workspaceRuntimePaths } from '@main/core/workspaces/runtime/workspace-runtime-paths';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { log } from '@main/lib/logger';
 import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
@@ -411,8 +410,6 @@ async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
 }
 
 async function createWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
-  const { worktreePoolPath } = workspaceRuntimePaths();
-  mkdirSync(worktreePoolPath, { recursive: true });
   const [terminals, watcher] = await Promise.all([
     getTerminalsRuntimeClient(),
     fsWatchWorker.ready(),
@@ -425,12 +422,7 @@ async function createWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
       terminals,
       watcher,
     },
-    config: {
-      provisioning: {
-        worktreePoolPath,
-        baseRemote: 'origin',
-      },
-    },
+    config: {},
     // Consumer leases and active operation ownership are currently process-local.
     supervision: { restart: 'never' },
   });

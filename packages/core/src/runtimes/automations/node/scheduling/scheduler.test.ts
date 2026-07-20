@@ -34,6 +34,11 @@ function deployment(overrides: Partial<AutomationDeployment> = {}): AutomationDe
         host: LOCAL_HOST_REF,
         path: { root: { kind: 'posix' }, segments: ['repo'] },
       },
+      worktreePoolPath: {
+        root: { kind: 'posix' },
+        segments: ['worktrees', 'repo-12345678'],
+      },
+      baseRemote: 'origin',
       preservePatterns: ['.env*'],
       git: {
         kind: 'create-branch',

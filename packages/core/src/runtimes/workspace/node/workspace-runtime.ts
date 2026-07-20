@@ -13,7 +13,7 @@ import {
 } from '@emdash/wire';
 import { bindMachineToLiveState } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+import { formatAbsolute, resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
   type ActivateWorkspaceInput,
   type CleanWorkspaceArtifactsInput,
@@ -76,10 +76,6 @@ export type WorkspaceRuntimeOptions = {
   terminals?: ContractClient<ScriptWorkflowsContract>;
   activityProviders?: WorkspaceActivityProvider[];
   watcher?: IWatchService;
-  provisioning?: {
-    worktreePoolPath?: string;
-    baseRemote?: string;
-  };
   scope?: Scope;
   now?: () => number;
   onError?: (context: string, error: unknown) => void;
@@ -91,7 +87,6 @@ export class WorkspaceRuntime {
   private readonly lifecycle: WorkspaceLifecycleManager;
   private readonly provisioner: WorkspaceProvisioner;
   private readonly terminals: ContractClient<ScriptWorkflowsContract> | undefined;
-  private readonly provisioning: NonNullable<WorkspaceRuntimeOptions['provisioning']>;
   private readonly scope: Scope;
   private readonly now: () => number;
   private readonly onError: (context: string, error: unknown) => void;
@@ -105,10 +100,6 @@ export class WorkspaceRuntime {
     this.lifecycle = options.lifecycle ?? new WorkspaceLifecycleManager();
     this.provisioner = options.provisioner ?? new NodeWorkspaceProvisioner();
     this.terminals = options.terminals;
-    this.provisioning = {
-      worktreePoolPath: options.provisioning?.worktreePoolPath,
-      baseRemote: options.provisioning?.baseRemote ?? 'origin',
-    };
     this.scope = options.scope ?? createScope({ label: 'workspace-runtime' });
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
@@ -135,19 +126,14 @@ export class WorkspaceRuntime {
       return ok({ workspace: provisioned.data.workspace, branchName: null });
     }
 
-    const worktreePoolPath = this.provisioning.worktreePoolPath;
-    if (!worktreePoolPath) {
-      return err({
-        type: 'configuration',
-        message: 'Workspace worktree provisioning is not configured on this host',
-      });
-    }
-
     const repositoryPath = nativePathFromWorkspace(input.workspace.repository);
+    const worktreePoolPath = formatAbsolute(input.workspace.worktreePoolPath, {
+      separator: input.workspace.worktreePoolPath.root.kind === 'posix' ? '/' : '\\',
+    });
     const intent = toBootstrapGitIntent(input.workspace, input.generatedName);
     const compiled = compileBootstrapPlan(intent, {
       worktreePoolPath,
-      baseRemote: this.provisioning.baseRemote ?? 'origin',
+      baseRemote: input.workspace.baseRemote,
     });
     const branchName =
       input.workspace.git.kind === 'create-branch'
@@ -170,6 +156,7 @@ export class WorkspaceRuntime {
           context: {
             repoPath: repositoryPath,
             preservePatterns: input.workspace.preservePatterns,
+            worktreePoolPath,
           },
           setupPlan: compiled.plan,
         },

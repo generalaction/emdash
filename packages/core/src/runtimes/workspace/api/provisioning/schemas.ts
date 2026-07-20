@@ -9,6 +9,7 @@ export { bootstrapStepSchema };
 export const bootstrapContextSchema = z.object({
   repoPath: z.string().min(1),
   preservePatterns: z.array(z.string()).default([]),
+  worktreePoolPath: z.string().min(1).optional(),
 });
 
 export const bootstrapStepStatusSchema = z.enum([

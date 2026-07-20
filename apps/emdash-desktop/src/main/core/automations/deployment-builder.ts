@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Automation } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
@@ -10,10 +11,12 @@ import {
   shareableProjectSettingsSchema,
 } from '@core/primitives/project-settings/api';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
+import { workspacePlacementResolver } from '@main/core/workspaces/placement/workspace-placement-resolver';
 import { db } from '@main/db/client';
 import { projectSettings, workspaces } from '@main/db/schema';
 
 type DeploymentProjectSettings = {
+  baseRemote: string;
   preservePatterns: string[];
   pushRemote: string;
 };
@@ -38,12 +41,16 @@ export async function buildAutomationDeployment(
 
   const taskWorkspace = automation.taskConfig.workspaceConfig;
   const settings = await loadDeploymentProjectSettings(project.id);
+  const pool = await workspacePlacementResolver.resolveWorktreePool(project);
+  if (!pool.success) throw new Error(pool.error.message);
   const workspace: AutomationDeployment['workspace'] = await (async () => {
     if (taskWorkspace.workspace.kind === 'new-worktree') {
       if (taskWorkspace.git.kind === 'create-branch') {
         return {
           kind: 'worktree',
           repository: hostFileRefFromNativePath(project.path),
+          worktreePoolPath: hostPathFromNative(pool.data),
+          baseRemote: settings.baseRemote,
           preservePatterns: settings.preservePatterns,
           git: {
             kind: 'create-branch',
@@ -56,6 +63,8 @@ export async function buildAutomationDeployment(
         return {
           kind: 'worktree',
           repository: hostFileRefFromNativePath(project.path),
+          worktreePoolPath: hostPathFromNative(pool.data),
+          baseRemote: settings.baseRemote,
           preservePatterns: settings.preservePatterns,
           git: { kind: 'use-branch', branchName: taskWorkspace.git.branchName },
         };
@@ -137,7 +146,11 @@ async function loadDeploymentProjectSettings(
     .limit(1);
 
   if (!row) {
-    return { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS], pushRemote: 'origin' };
+    return {
+      baseRemote: 'origin',
+      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+      pushRemote: 'origin',
+    };
   }
 
   try {
@@ -149,10 +162,15 @@ async function loadDeploymentProjectSettings(
     });
     const shareable = shareableProjectSettingsSchema.parse(JSON.parse(row.shareable));
     return {
+      baseRemote: base.baseRemote ?? 'origin',
       preservePatterns: shareable.preservePatterns ?? [...DEFAULT_PRESERVE_PATTERNS],
       pushRemote: base.pushRemote ?? base.baseRemote ?? 'origin',
     };
   } catch {
-    return { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS], pushRemote: 'origin' };
+    return {
+      baseRemote: 'origin',
+      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+      pushRemote: 'origin',
+    };
   }
 }

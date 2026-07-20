@@ -1,4 +1,4 @@
-import { hostFileRefSchema } from '@primitives/path/api';
+import { hostAbsolutePathSchema, hostFileRefSchema } from '@primitives/path/api';
 import { z } from 'zod';
 
 const nonBlankStringSchema = z.string().trim().min(1);
@@ -24,6 +24,8 @@ export const workspaceProvisioningGitBranchRefSchema = z.discriminatedUnion('typ
 export const worktreeProvisioningConfigSchema = z.object({
   kind: z.literal('worktree'),
   repository: hostFileRefSchema,
+  worktreePoolPath: hostAbsolutePathSchema,
+  baseRemote: nonBlankStringSchema,
   preservePatterns: z.array(nonBlankStringSchema),
   git: z.discriminatedUnion('kind', [
     z.object({

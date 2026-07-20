@@ -29,6 +29,11 @@ function deployment(): AutomationDeployment {
         host: LOCAL_HOST_REF,
         path: { root: { kind: 'posix' }, segments: ['repo'] },
       },
+      worktreePoolPath: {
+        root: { kind: 'posix' },
+        segments: ['worktrees', 'repo-12345678'],
+      },
+      baseRemote: 'origin',
       preservePatterns: ['.env*'],
       git: {
         kind: 'create-branch',
@@ -96,6 +101,33 @@ describe('stored automation payloads', () => {
     expect(() => parseDeploymentPayload(JSON.stringify({ ...deployment(), version: '2' }))).toThrow(
       /future-version '2'/
     );
+  });
+
+  it('requires resolved placement fields in v1 worktree payloads', () => {
+    const invalidDeployment = deployment();
+    if (invalidDeployment.workspace.kind !== 'worktree') throw new Error('Expected worktree');
+    const {
+      worktreePoolPath: _worktreePoolPath,
+      baseRemote: _baseRemote,
+      ...invalidWorkspace
+    } = invalidDeployment.workspace;
+
+    expect(() =>
+      parseDeploymentPayload(
+        JSON.stringify({ ...invalidDeployment, workspace: invalidWorkspace, version: '1' })
+      )
+    ).toThrow(/Validation failed for version '1'/);
+
+    const invalidRun = run();
+    expect(() =>
+      parseRunPayload(
+        JSON.stringify({
+          ...invalidRun,
+          configSnapshot: { ...invalidRun.configSnapshot, workspace: invalidWorkspace },
+          version: '1',
+        })
+      )
+    ).toThrow(/Validation failed for version '1'/);
   });
 
   it('reports malformed JSON explicitly', () => {

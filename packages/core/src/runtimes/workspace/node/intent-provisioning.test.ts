@@ -11,9 +11,7 @@ const repository = absolute('/srv/repository');
 
 describe('WorkspaceRuntime.provisionFromIntent', () => {
   it('compiles a worktree intent and delegates to low-level provisioning', async () => {
-    const runtime = new WorkspaceRuntime({
-      provisioning: { worktreePoolPath: '/srv/worktrees', baseRemote: 'upstream' },
-    });
+    const runtime = new WorkspaceRuntime();
     const provision = vi.spyOn(runtime, 'provision').mockImplementation(async (input) =>
       ok({
         workspace: input.workspace,
@@ -27,6 +25,8 @@ describe('WorkspaceRuntime.provisionFromIntent', () => {
           workspace: {
             kind: 'worktree',
             repository,
+            worktreePoolPath: absolutePath('/srv/worktrees'),
+            baseRemote: 'upstream',
             preservePatterns: ['.env*'],
             git: {
               kind: 'create-branch',
@@ -55,6 +55,7 @@ describe('WorkspaceRuntime.provisionFromIntent', () => {
             context: {
               repoPath: '/srv/repository',
               preservePatterns: ['.env*'],
+              worktreePoolPath: '/srv/worktrees',
             },
             setupPlan: expect.objectContaining({
               steps: expect.arrayContaining([
@@ -79,7 +80,7 @@ describe('WorkspaceRuntime.provisionFromIntent', () => {
     }
   });
 
-  it('requires worktree pool configuration only for worktree provisioning', async () => {
+  it('provisions fixed directories without worktree placement inputs', async () => {
     const runtime = new WorkspaceRuntime();
     const provision = vi.spyOn(runtime, 'provision').mockImplementation(async (input) =>
       ok({
@@ -89,27 +90,6 @@ describe('WorkspaceRuntime.provisionFromIntent', () => {
     );
 
     try {
-      await expect(
-        runtime.provisionFromIntent(
-          {
-            workspace: {
-              kind: 'worktree',
-              repository,
-              preservePatterns: [],
-              git: { kind: 'use-branch', branchName: 'main' },
-            },
-            generatedName: 'automation-2',
-          },
-          jobContext()
-        )
-      ).resolves.toEqual({
-        success: false,
-        error: {
-          type: 'configuration',
-          message: 'Workspace worktree provisioning is not configured on this host',
-        },
-      });
-
       const directory = absolute('/srv/fixed');
       await expect(
         runtime.provisionFromIntent(
@@ -130,6 +110,10 @@ function jobContext(): LiveJobContext<WorkspaceProvisioningProgress> {
     signal: new AbortController().signal,
     progress: vi.fn(),
   };
+}
+
+function absolutePath(input: string) {
+  return absolute(input).path;
 }
 
 function absolute(input: string) {

@@ -60,6 +60,11 @@ function runFixture({
           host: LOCAL_HOST_REF,
           path: { root: { kind: 'posix' }, segments: ['repo'] },
         },
+        worktreePoolPath: {
+          root: { kind: 'posix' },
+          segments: ['worktrees', 'repo-12345678'],
+        },
+        baseRemote: 'origin',
         preservePatterns: [],
         git: {
           kind: 'create-branch',

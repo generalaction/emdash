@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
   select: vi.fn(),
   rows: [] as unknown[][],
+  resolveWorktreePool: vi.fn(),
 }));
 
 vi.mock('@main/core/projects/operations/getProjects', () => ({
@@ -17,6 +18,10 @@ vi.mock('@main/core/projects/operations/getProjects', () => ({
 
 vi.mock('@main/db/client', () => ({
   db: { select: mocks.select },
+}));
+
+vi.mock('@main/core/workspaces/placement/workspace-placement-resolver', () => ({
+  workspacePlacementResolver: { resolveWorktreePool: mocks.resolveWorktreePool },
 }));
 
 const repositoryRef = hostFileRef(LOCAL_HOST_REF, hostPathFromNative('/repo'));
@@ -71,6 +76,10 @@ beforeEach(() => {
     path: '/repo',
     repositoryWorkspaceId: 'repository-workspace',
   });
+  mocks.resolveWorktreePool.mockResolvedValue({
+    success: true,
+    data: '/worktrees/repo-12345678',
+  });
 });
 
 describe('buildAutomationDeployment', () => {
@@ -100,6 +109,8 @@ describe('buildAutomationDeployment', () => {
       workspace: {
         kind: 'worktree',
         repository: repositoryRef,
+        worktreePoolPath: hostPathFromNative('/worktrees/repo-12345678'),
+        baseRemote: 'origin',
         preservePatterns: ['.env.local'],
         git: {
           kind: 'create-branch',

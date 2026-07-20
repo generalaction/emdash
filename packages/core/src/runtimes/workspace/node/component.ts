@@ -7,14 +7,7 @@ import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node
 import { scriptWorkflowsContract } from '@services/script-workflows/api';
 import { z } from 'zod';
 
-export const workspaceComponentConfigSchema = z.object({
-  provisioning: z
-    .object({
-      worktreePoolPath: z.string().min(1).optional(),
-      baseRemote: z.string().min(1).optional(),
-    })
-    .optional(),
-});
+export const workspaceComponentConfigSchema = z.object({});
 
 export const workspaceComponent = defineWireComponent({
   id: 'workspace',
@@ -24,7 +17,7 @@ export const workspaceComponent = defineWireComponent({
     watcher: requireContract(fsWatchContract),
   },
   configSchema: workspaceComponentConfigSchema,
-  create: ({ config, dependencies, instance, logger, scope }) => {
+  create: ({ dependencies, instance, logger, scope }) => {
     const watcher = createProcessWatchServiceFromDependency({
       client: dependencies.watcher,
       logger,
@@ -34,7 +27,6 @@ export const workspaceComponent = defineWireComponent({
       terminals: dependencies.terminals,
       watcher,
       scope,
-      provisioning: config.provisioning,
       onError: (context, error) => logger.warn(context, { error }),
     });
     scope.add(() => runtime.dispose());

@@ -16,6 +16,8 @@ const input = {
   workspace: {
     kind: 'worktree' as const,
     repository,
+    worktreePoolPath: absolute('/tmp/worktrees').path,
+    baseRemote: 'origin',
     preservePatterns: ['.env*'],
     git: {
       kind: 'create-branch' as const,

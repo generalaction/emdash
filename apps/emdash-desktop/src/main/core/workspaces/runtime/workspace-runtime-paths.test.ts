@@ -9,7 +9,6 @@ describe('workspaceRuntimePaths', () => {
   it('keeps workspace runtime state isolated with the selected desktop database', () => {
     expect(workspaceRuntimePaths()).toEqual({
       stateDirectory: '/tmp/emdash-scratch-workspaces',
-      worktreePoolPath: '/tmp/emdash-scratch-workspaces/worktrees',
     });
   });
 });
