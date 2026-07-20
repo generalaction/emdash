@@ -32,7 +32,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from '../stores/conversation-registry';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
-import { permissionModeIconKind } from './permission-mode-icon-kind';
+import { permissionModePresentation } from './permission-mode-presentation';
 
 export interface AgentAffordances {
   isWorking: boolean;
@@ -151,9 +151,8 @@ export class AcpChatStore {
       options.available.map((option) => [
         option.id,
         {
-          name: option.name,
+          ...permissionModePresentation(providerId, option.id, option.name),
           description: option.description,
-          iconKind: permissionModeIconKind(providerId, option.id),
         },
       ])
     );
