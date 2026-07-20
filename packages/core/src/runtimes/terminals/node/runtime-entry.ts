@@ -1,4 +1,6 @@
 import { runWireComponentWorker } from '@emdash/wire/worker';
+import { initWorkerProcessLogging } from '@emdash/wire/worker/node';
 import { terminalsComponent } from './component';
 
-void runWireComponentWorker(terminalsComponent);
+const logger = initWorkerProcessLogging('terminals-runtime');
+void runWireComponentWorker(terminalsComponent, { logger });
