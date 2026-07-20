@@ -1,14 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  FileText,
-  Folder,
-  FolderOpen,
-  Link,
-  Trash2,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, FileText, FolderOpen, Link, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useRef, useState } from 'react';
 import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
@@ -526,19 +517,15 @@ const FileTreeRow = observer(function FileTreeRow({
           )}
         </span>
 
-        <span className="shrink-0">
-          {isSymlink ? (
-            <Link className="text-muted-foreground h-3.5 w-3.5" />
-          ) : node.type === 'directory' ? (
-            isExpanded ? (
-              <FolderOpen className="text-muted-foreground h-3.5 w-3.5" />
+        {node.type !== 'directory' && (
+          <span className="shrink-0">
+            {isSymlink ? (
+              <Link className="text-muted-foreground h-3.5 w-3.5" />
             ) : (
-              <Folder className="text-muted-foreground h-3.5 w-3.5" />
-            )
-          ) : (
-            <FileIcon filename={node.name} size={12} />
-          )}
-        </span>
+              <FileIcon filename={node.name} size={12} />
+            )}
+          </span>
+        )}
 
         <span
           className={cn(
