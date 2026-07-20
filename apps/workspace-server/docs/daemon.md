@@ -188,10 +188,14 @@ whether the daemon is not running or unhealthy.
   socket into a wire session.
 - `src/wire/serve-stdio.ts` serves the same controller over stdin/stdout.
 - `src/api/controller.ts` builds the `workspaceWireContract` controller.
-- `src/runtime/host.ts` owns the complete required worker graph and runtime state configuration.
+- `src/gateway/workspace-workers.ts` owns the complete required worker graph and runtime state
+  configuration.
+- `src/gateway/worker-manifest.ts` selects the shared Core entries and app-local plugin entries for
+  each packaged worker executable.
+- `src/gateway/worker-paths.ts` resolves packaged worker executable paths at runtime.
+- `src/gateway/entries/` contains the ACP, agent-config, and TUI-agent entries that inject the
+  application plugin registry; all other workers reuse Core runtime entries directly.
 - `src/runtime/paths.ts` owns runtime database, intent, attachment, and worktree-pool paths.
-- `src/worker-manifest.ts` selects the Core runtime worker descriptors and configures each
-  packaged worker executable.
 
 ## Desktop Integration
 
