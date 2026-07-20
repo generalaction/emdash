@@ -28,6 +28,7 @@ export type {
   ComposerPermissionRequest,
   ComposerPermissionOption,
 } from './chat-composer/permission-band';
+export { CONTENT_FOCUS_REQUEST_EVENT } from './prompt-editor/focus-request';
 export { ConfirmationDialog, type ConfirmationDialogProps } from './confirmation-dialog';
 export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';

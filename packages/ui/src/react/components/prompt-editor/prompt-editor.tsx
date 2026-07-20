@@ -29,6 +29,7 @@ import {
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
+import { CONTENT_FOCUS_REQUEST_EVENT } from './focus-request';
 import { fileIconClass } from './mention-pill-helpers';
 import { serializeDoc, serializeNode } from './serialize';
 import type {
@@ -211,6 +212,26 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   // We capture the editor in a stable ref so the submit handler can read the doc.
   const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
+  const editorContentRef = useRef<HTMLDivElement | null>(null);
+
+  const handleContentFocusRequest = useCallback((event: Event) => {
+    const currentEditor = editorRef.current;
+    if (!currentEditor) return;
+    event.preventDefault();
+    currentEditor.commands.focus(undefined, { scrollIntoView: false });
+  }, []);
+
+  const setEditorContentRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      editorContentRef.current?.removeEventListener(
+        CONTENT_FOCUS_REQUEST_EVENT,
+        handleContentFocusRequest
+      );
+      editorContentRef.current = element;
+      element?.addEventListener(CONTENT_FOCUS_REQUEST_EVENT, handleContentFocusRequest);
+    },
+    [handleContentFocusRequest]
+  );
 
   // Stable submit callback that reads the doc from the current editor.
   const handleSubmitFromKeymap = useCallback(() => {
@@ -386,7 +407,12 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   return (
     <>
       <div className={cx(styles.editorWrapper, className)}>
-        <EditorContent editor={editor} className={styles.editorContent} aria-disabled={disabled} />
+        <EditorContent
+          ref={setEditorContentRef}
+          editor={editor}
+          className={styles.editorContent}
+          aria-disabled={disabled}
+        />
         {isEmpty && (
           <span aria-hidden className={styles.editorPlaceholder}>
             {placeholder}
