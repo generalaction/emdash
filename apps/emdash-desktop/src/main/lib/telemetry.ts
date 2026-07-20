@@ -657,7 +657,7 @@ export class TelemetryService implements IInitializable, IDisposable {
     try {
       await this.armSessionState([...pendingRecoveries.values()]);
     } catch {
-      this.enabled = false;
+      this.userOptOut = true;
       await this.client?.disable();
       await this.disarmSessionState();
       return;

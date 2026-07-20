@@ -71,12 +71,6 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 initializeFileLogger();
-registerProcessErrorLogging(log, (error, mechanism) =>
-  telemetryService.captureExceptionImmediate(error, {
-    process_type: 'main',
-    mechanism,
-  })
-);
 registerRendererLogHandler(ipcMain);
 
 app.on('child-process-gone', (_event, details) => {
@@ -130,6 +124,19 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
+
+    try {
+      await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+    } catch (e) {
+      log.warn('telemetry init failed:', e);
+    }
+    registerProcessErrorLogging(log, (error, mechanism) =>
+      telemetryService.captureExceptionImmediate(error, {
+        process_type: 'main',
+        mechanism,
+      })
+    );
+
     await resetStaleAcpAgentStatuses();
     searchService.initialize();
     workspaceFileIndexService.initialize();
@@ -148,12 +155,6 @@ void app.whenReady().then(async () => {
     );
     app.quit();
     return;
-  }
-
-  try {
-    await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
-  } catch (e) {
-    log.warn('telemetry init failed:', e);
   }
 
   emdashAccountService.on('accountChanged', (username, userId, email) => {

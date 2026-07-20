@@ -211,6 +211,25 @@ describe('TelemetryService', () => {
     expect(mocks.store.get('sessionState')).toEqual(previousState);
     expect(mocks.clients).toHaveLength(0);
     expect(service.getTelemetryStatus().enabled).toBe(false);
+
+    mocks.writeFailures.delete('sessionState');
+    await service.setTelemetryEnabledViaUser(true);
+    service.capture('app_window_focused');
+    await vi.waitFor(() => {
+      expect(
+        mocks.clients[0]?.captureImmediate.mock.calls.some(
+          ([event]) => event.event === 'app_window_focused'
+        )
+      ).toBe(true);
+    });
+
+    expect(service.getTelemetryStatus()).toMatchObject({
+      enabled: true,
+      envDisabled: false,
+      userOptOut: false,
+    });
+
+    await service.dispose();
   });
 
   it('uses PostHog exception capture with redacted error data', async () => {
