@@ -1,5 +1,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Emdash SSH Dev Container — docker-compose
+# Legacy Emdash SSH Dev Container — docker-compose
+#
+# The workspace-server remote machine is owned by apps/workspace-server/docker-compose.yaml.
+# This tool-rich image remains only for legacy remote-development workflows.
 #
 # Usage:
 #   cp .env.example .env       # fill in your API keys

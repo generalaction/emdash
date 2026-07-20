@@ -74,3 +74,6 @@ and architecture, and bundled Node version.
 Linux artifacts use the official glibc-linked Node.js distribution and native modules built on
 Debian Bookworm. They are intended for glibc-based Linux hosts. Alpine and other musl-based systems
 are not supported; a separate musl build pipeline would be required for those hosts.
+
+See `docker-remote.md` for the bare SSH container used to exercise installation and socket
+forwarding with these artifacts.

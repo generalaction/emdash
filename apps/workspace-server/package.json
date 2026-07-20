@@ -14,6 +14,7 @@
     "build": "tsdown --config-loader tsx",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "package": "node --experimental-strip-types scripts/package.ts",
+    "run:docker-remote": "docker compose up --build -d workspace-remote",
     "start": "node dist/index.mjs",
     "test": "vitest run",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/apps/workspace-server\"'",
