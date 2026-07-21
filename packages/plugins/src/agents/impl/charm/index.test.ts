@@ -16,7 +16,7 @@ describe('charm provider', () => {
     expect(provider.capabilities.autoApprove).toEqual({ kind: 'none' });
   });
 
-  it('supports Crush MCP configuration', () => {
+  it('supports Crush MCP configuration through the transports Emdash can represent', () => {
     expect(provider.capabilities.mcp).toEqual({
       kind: 'supported',
       scope: 'global',
@@ -39,6 +39,20 @@ describe('charm provider', () => {
     });
   });
 
+  it('passes a selected model to Crush run with the documented --model flag', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      initialPrompt: 'implement the task',
+      model: 'openai/gpt-5.4',
+    });
+
+    expect(command).toEqual({
+      command: 'crush',
+      args: ['run', '--model', 'openai/gpt-5.4', 'implement the task'],
+      env: {},
+    });
+  });
+
   it('starts an empty fresh session in interactive mode', () => {
     const command = provider.behavior.prompt!.buildCommand(baseContext);
 
@@ -49,7 +63,7 @@ describe('charm provider', () => {
     });
   });
 
-  it('does not pass Emdash ids as Crush session ids', () => {
+  it('continues the most recent Crush session when no native session id is stored', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       isResuming: true,
@@ -57,7 +71,21 @@ describe('charm provider', () => {
 
     expect(command).toEqual({
       command: 'crush',
-      args: [],
+      args: ['--continue'],
+      env: {},
+    });
+  });
+
+  it('resumes a stored native Crush session with --session', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      isResuming: true,
+      providerSessionId: 'b78e4cf1-27ee-4ef5-a58c-d7480a7c9a22',
+    });
+
+    expect(command).toEqual({
+      command: 'crush',
+      args: ['--session', 'b78e4cf1-27ee-4ef5-a58c-d7480a7c9a22'],
       env: {},
     });
   });

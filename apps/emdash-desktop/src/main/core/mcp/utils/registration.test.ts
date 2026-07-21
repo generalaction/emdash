@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mergeMcpServerRegistration,
   mcpServerFieldCount,
   mcpServerToRegistration,
   registrationToMcpServer,
@@ -53,5 +54,36 @@ describe('MCP registration conversion', () => {
 
     expect(mcpServerFieldCount(explicitDefault)).toBe(mcpServerFieldCount(implicitDefault));
     expect(mcpServerFieldCount(disabled)).toBeGreaterThan(mcpServerFieldCount(implicitDefault));
+  });
+
+  it('retains provider-native fields while updating canonical fields', () => {
+    const merged = mergeMcpServerRegistration(
+      {
+        name: 'remote',
+        transport: 'http',
+        url: 'https://old.example.com/mcp',
+        auth: { type: 'oauth', scopes: ['tools:read'] },
+        disabled: true,
+        startup_timeout_sec: 15,
+        envFile: '~/.continue/mcp.env',
+      },
+      {
+        name: 'remote',
+        transport: 'http',
+        url: 'https://new.example.com/mcp',
+        providers: ['mistral'],
+      }
+    );
+
+    expect(merged).toMatchObject({
+      name: 'remote',
+      transport: 'http',
+      type: 'http',
+      url: 'https://new.example.com/mcp',
+      auth: { type: 'oauth', scopes: ['tools:read'] },
+      disabled: true,
+      startup_timeout_sec: 15,
+      envFile: '~/.continue/mcp.env',
+    });
   });
 });

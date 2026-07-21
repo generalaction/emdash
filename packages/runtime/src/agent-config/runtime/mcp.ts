@@ -1,4 +1,5 @@
 import {
+  mergeMcpServerRegistration,
   mcpServerFieldCount,
   mcpServerToRegistration,
   registrationToMcpServer,
@@ -47,7 +48,7 @@ export class AgentMcpConfigManager {
           const idx = regs.findIndex((reg) => reg.name === server.name);
           if (selectedProviders.has(agentId)) {
             const next = mcpServerToRegistration(server);
-            if (idx >= 0) regs[idx] = next;
+            if (idx >= 0) regs[idx] = mergeMcpServerRegistration(regs[idx], server);
             else regs = [...regs, next];
           } else if (idx >= 0) {
             regs.splice(idx, 1);

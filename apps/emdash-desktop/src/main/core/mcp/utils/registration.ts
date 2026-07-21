@@ -1,4 +1,5 @@
 export {
+  mergeMcpServerRegistration,
   mcpServerFieldCount,
   mcpServerToRegistration,
   registrationToMcpServer,

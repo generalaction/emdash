@@ -293,7 +293,7 @@ describe('pluginRegistry', () => {
 
     expect(result).toEqual({
       command: 'vibe',
-      args: ['--agent', 'auto-approve', 'Fix the bug'],
+      args: ['--auto-approve', '--prompt', 'Fix the bug'],
       env: { VIBE_ACTIVE_MODEL: 'mistral-medium-3.5' },
     });
   });

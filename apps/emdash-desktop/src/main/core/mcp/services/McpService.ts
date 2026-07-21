@@ -6,6 +6,7 @@ import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
 import { loadCatalog } from '../utils/catalog';
 import {
+  mergeMcpServerRegistration,
   mcpServerFieldCount,
   mcpServerToRegistration,
   registrationToMcpServer,
@@ -100,7 +101,7 @@ export class McpService {
         if (selectedProviders.has(agentId)) {
           const toWrite = mcpServerToRegistration(server);
           if (idx >= 0) {
-            regs[idx] = toWrite;
+            regs[idx] = mergeMcpServerRegistration(regs[idx], server);
           } else {
             regs.push(toWrite);
           }

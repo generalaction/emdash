@@ -202,6 +202,23 @@ export function passthroughMcpAdapter(configPath: string, legacyReadPaths?: stri
 }
 
 /**
+ * Continue adapter — JSON MCP blocks are discovered from the global
+ * ~/.continue/mcpServers directory. Continue also accepts this canonical
+ * `mcpServers` JSON shape in workspace directories.
+ */
+export function continueMcpAdapter(configPath = '.continue/mcpServers/emdash.json') {
+  return passthroughMcpAdapter(configPath);
+}
+
+/**
+ * Junie adapter — global MCP configuration lives in ~/.junie/mcp/mcp.json and
+ * uses the canonical `mcpServers` JSON shape.
+ */
+export function junieMcpAdapter(configPath = '.junie/mcp/mcp.json') {
+  return passthroughMcpAdapter(configPath);
+}
+
+/**
  * Cursor adapter — HTTP servers drop `type`, but `url` stays.
  * Config: ~/.cursor/mcp.json, key: mcpServers, JSON.
  */
@@ -222,6 +239,111 @@ export function cursorMcpAdapter(configPath = '.cursor/mcp.json') {
       return { name, ...entry } as McpServerRegistration;
     },
   });
+}
+
+/**
+ * Mistral Vibe adapter — TOML with an array of `[[mcp_servers]]` tables.
+ * Config: .vibe/config.toml, key: mcp_servers.
+ *
+ * Unlike the map-shaped configs used by the other TOML adapters, Vibe keeps the
+ * server name inside each array element. Its `streamable-http` transport is
+ * represented as HTTP in Emdash while retaining the native transport value for
+ * a lossless read/write round-trip.
+ */
+export function mistralMcpAdapter(configPath = '.vibe/config.toml') {
+  function parse(content: string): Record<string, unknown> {
+    return parseTOML(content) as Record<string, unknown>;
+  }
+
+  function toNative(
+    server: McpServerRegistration,
+    existingTransport?: unknown
+  ): Record<string, unknown> {
+    const entry = deepClone(server) as Record<string, unknown>;
+    const isHttp =
+      entry.transport === 'http' ||
+      entry.type === 'http' ||
+      entry.type === 'streamable-http' ||
+      (typeof entry.url === 'string' && typeof entry.command !== 'string');
+    const httpTransport =
+      entry.type === 'streamable-http' || existingTransport === 'streamable-http'
+        ? 'streamable-http'
+        : existingTransport === 'http'
+          ? 'http'
+          : 'streamable-http';
+    const transport = isHttp ? httpTransport : (entry.transport ?? entry.type ?? 'stdio');
+
+    delete entry.type;
+    entry.transport = transport;
+    return entry;
+  }
+
+  function fromNative(raw: Record<string, unknown>): McpServerRegistration {
+    const entry = deepClone(raw) as Record<string, unknown>;
+    if (entry.transport === 'streamable-http') {
+      entry.transport = 'http';
+      entry.type = 'streamable-http';
+    }
+    return entry as McpServerRegistration;
+  }
+
+  async function readConfig(fs: PluginFs): Promise<Record<string, unknown> | null> {
+    const content = await fs.read(configPath);
+    if (!content) return null;
+    try {
+      return parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  return {
+    async readServers(fs: PluginFs): Promise<McpServerRegistration[]> {
+      const config = await readConfig(fs);
+      if (!config || !Array.isArray(config.mcp_servers)) return [];
+      return config.mcp_servers
+        .filter(
+          (server): server is Record<string, unknown> =>
+            typeof server === 'object' && server !== null && typeof server.name === 'string'
+        )
+        .map(fromNative);
+    },
+    async writeServers(fs: PluginFs, servers: McpServerRegistration[]): Promise<void> {
+      const content = await fs.read(configPath);
+      const config = content ? parse(content) : {};
+      const existingTransports = new Map<string, unknown>();
+      if (Array.isArray(config.mcp_servers)) {
+        for (const server of config.mcp_servers) {
+          if (typeof server !== 'object' || server === null) continue;
+          const { name, transport } = server as { name?: unknown; transport?: unknown };
+          if (typeof name === 'string') existingTransports.set(name, transport);
+        }
+      }
+      config.mcp_servers = servers.map((server) =>
+        toNative(server, existingTransports.get(server.name))
+      );
+      await fs.write(configPath, stringifyTOML(config));
+    },
+    async removeServer(fs: PluginFs, name: string): Promise<void> {
+      const content = await fs.read(configPath);
+      if (!content) return;
+      try {
+        const config = parse(content);
+        if (!Array.isArray(config.mcp_servers)) return;
+        const filtered = config.mcp_servers.filter(
+          (server) =>
+            typeof server !== 'object' ||
+            server === null ||
+            (server as { name?: unknown }).name !== name
+        );
+        if (filtered.length === config.mcp_servers.length) return;
+        config.mcp_servers = filtered;
+        await fs.write(configPath, stringifyTOML(config));
+      } catch {
+        // A malformed provider config must not be overwritten while removing a server.
+      }
+    },
+  };
 }
 
 /**
