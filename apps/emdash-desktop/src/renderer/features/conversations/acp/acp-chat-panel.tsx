@@ -232,8 +232,15 @@ const ComposerForStore = observer(function ComposerForStore({
 }) {
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const promptPreparationRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const attachmentsRef = useRef<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
+
+  const replaceAttachments = useCallback((next: ComposerAttachment[]) => {
+    attachmentsRef.current = next;
+    setAttachments(next);
+  }, []);
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
@@ -248,7 +255,7 @@ const ComposerForStore = observer(function ComposerForStore({
 
   const buildPromptAttachments = useCallback(
     (): AcpPromptAttachment[] =>
-      attachments
+      attachmentsRef.current
         .filter((att) => att.kind === 'image' && toAttachmentMimeTypeValue(att.mimeType ?? ''))
         .map((att) => {
           const mimeType = toAttachmentMimeTypeValue(att.mimeType ?? '') ?? 'image/png';
@@ -262,7 +269,7 @@ const ComposerForStore = observer(function ComposerForStore({
             previewUrl: att.previewUrl,
           };
         }),
-    [attachments]
+    []
   );
 
   const buildHiddenIssueContext = useCallback(
@@ -284,28 +291,53 @@ const ComposerForStore = observer(function ComposerForStore({
     [store.projectId]
   );
 
-  const handleSubmit = useCallback(
-    async (value: string) => {
-      const promptAttachments = buildPromptAttachments();
-      if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
-      store.submitPrompt(value, promptAttachments, hiddenContext);
+  const sendPreparedPrompt = useCallback(
+    async (value: string, queued: boolean) => {
+      if (promptPreparationRef.current) return false;
+      const requestedAttachments = buildPromptAttachments();
+      if (!value.trim() && requestedAttachments.length === 0) return false;
+
+      promptPreparationRef.current = true;
+      try {
+        const hiddenContext = await buildHiddenIssueContext(value);
+        const currentAttachmentIds = new Set(
+          buildPromptAttachments().map((attachment) => attachment.ref.id)
+        );
+        const promptAttachments = requestedAttachments.filter((attachment) =>
+          currentAttachmentIds.has(attachment.ref.id)
+        );
+        if (!value.trim() && promptAttachments.length === 0) return false;
+        const accepted = queued
+          ? store.queuePrompt(value, promptAttachments, hiddenContext)
+          : store.submitPrompt(value, promptAttachments, hiddenContext);
+        if (!accepted) return false;
+
+        const submittedAttachmentIds = new Set(
+          promptAttachments.map((attachment) => attachment.ref.id)
+        );
+        if (submittedAttachmentIds.size > 0) {
+          replaceAttachments(
+            attachmentsRef.current.filter(
+              (attachment) => !submittedAttachmentIds.has(attachment.id)
+            )
+          );
+        }
+        return true;
+      } finally {
+        promptPreparationRef.current = false;
+      }
     },
-    [store, buildPromptAttachments, buildHiddenIssueContext]
+    [store, buildPromptAttachments, buildHiddenIssueContext, replaceAttachments]
+  );
+
+  const handleSubmit = useCallback(
+    (value: string) => sendPreparedPrompt(value, false),
+    [sendPreparedPrompt]
   );
 
   const handleSubmitWhileWorking = useCallback(
-    async (value: string) => {
-      const promptAttachments = buildPromptAttachments();
-      if (!value.trim() && promptAttachments.length === 0) return;
-      setAttachments([]);
-      editorApiRef.current?.clear();
-      const hiddenContext = await buildHiddenIssueContext(value);
-      store.queuePrompt(value, promptAttachments, hiddenContext);
-    },
-    [store, buildPromptAttachments, buildHiddenIssueContext]
+    (value: string) => sendPreparedPrompt(value, true),
+    [sendPreparedPrompt]
   );
 
   const handleStop = useCallback(() => {
@@ -392,23 +424,23 @@ const ComposerForStore = observer(function ComposerForStore({
       const next = await Promise.all(supportedFiles.map((file) => uploadImageFile(store, file)));
       const uploaded = next.filter((att): att is ComposerAttachment => att !== null);
       if (uploaded.length > 0) {
-        setAttachments((prev) => [...prev, ...uploaded]);
+        replaceAttachments([...attachmentsRef.current, ...uploaded]);
       }
     },
-    [store]
+    [store, replaceAttachments]
   );
 
   const handleAttachmentsChange = useCallback(
     (next: ComposerAttachment[]) => {
       const nextIds = new Set(next.map((attachment) => attachment.id));
-      for (const attachment of attachments) {
+      for (const attachment of attachmentsRef.current) {
         if (attachment.kind === 'image' && !nextIds.has(attachment.id)) {
           void store.deleteAttachment(attachment.id);
         }
       }
-      setAttachments(next);
+      replaceAttachments(next);
     },
-    [attachments, store]
+    [store, replaceAttachments]
   );
 
   const handleFileInputChange = useCallback(
@@ -599,6 +631,7 @@ const ComposerForStore = observer(function ComposerForStore({
         editorApiRef={editorApiRef}
         modelOptions={store.modelOptions}
         selectedModel={store.model ?? undefined}
+        isModelChanging={store.isModelChanging}
         onModelChange={handleModelChange}
         effortOptions={store.effortOptions}
         selectedEffort={store.effort ?? undefined}

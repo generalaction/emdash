@@ -175,6 +175,19 @@ describe('pluginRegistry', () => {
       releaseSource: { kind: 'npm', package: '@xai-official/grok' },
       update: { kind: 'package-manager' },
     });
+    expect(grok.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'grok-4.5': {
+          name: 'Grok 4.5',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        'grok-composer-2.5-fast': {
+          name: 'Composer 2.5',
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
+      },
+    });
 
     const result = grok.behavior.prompt!.buildCommand({
       cli: 'grok',

@@ -1,6 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import { buildStandardCommand, grokMcpAdapter } from '@emdash/core/agents/plugins/helpers';
-import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
+import { connectGrokAcp } from './acp';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -89,6 +89,21 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'grok-4.5': {
+          name: 'Grok 4.5',
+          description: "SpaceXAI's frontier coding model.",
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        'grok-composer-2.5-fast': {
+          name: 'Composer 2.5',
+          description: "Cursor's fast coding model available through Grok Build.",
+          modelFeatures: { intelligence: 4, speed: 5 },
+        },
+      },
+    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -101,9 +116,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
-  acp: createNativeAcpBehavior(() => ({
-    args: ['agent', 'stdio'],
-  })),
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: ctx.cli,
+      args: ['agent', 'stdio'],
+    }),
+    connect: connectGrokAcp,
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
