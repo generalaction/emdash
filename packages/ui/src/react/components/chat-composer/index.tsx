@@ -169,6 +169,8 @@ export interface ComposerAgentOption {
 export interface ChatComposerProps {
   disabled?: boolean;
   isWorking?: boolean;
+  /** Initial serialized editor text, applied when this composer instance mounts. */
+  initialValue?: string;
   /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
@@ -523,6 +525,7 @@ function ComposerAgentSelector({
 export function ChatComposer({
   disabled = false,
   isWorking = false,
+  initialValue = '',
   canSubmit = true,
   showSubmitButton = true,
   placeholder,
@@ -818,6 +821,7 @@ export function ChatComposer({
               }
             }}
             placeholder={resolvedPlaceholder}
+            initialValue={initialValue}
             disabled={disabled}
             onChange={onInputChange}
             onSubmit={shouldHandleSubmitAttempt ? handleSubmit : undefined}
