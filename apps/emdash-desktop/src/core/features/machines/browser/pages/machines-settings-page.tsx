@@ -60,6 +60,18 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
     void openMachineModal({ dismissControl: 'close', initialConfig: machine });
   };
 
+  const connectMachine = async (machine: SshConfig) => {
+    try {
+      await machinesStore.connect(machine.id);
+    } catch (error) {
+      toast({
+        title: 'Failed to connect to machine',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const requestDelete = async (machine: SshConfig) => {
     setDeletingId(machine.id);
     try {
@@ -170,6 +182,7 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
         machine={detailsMachine}
         deleting={deletingId === detailsMachine?.id}
         onOpenChange={setDetailsOpen}
+        onConnect={connectMachine}
         onEditConnectionSettings={editConnectionSettings}
         onDelete={requestDelete}
       />
