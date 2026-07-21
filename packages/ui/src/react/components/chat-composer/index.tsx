@@ -169,6 +169,8 @@ export interface ComposerAgentOption {
 export interface ChatComposerProps {
   disabled?: boolean;
   isWorking?: boolean;
+  /** Font size for the editable message text and placeholder. */
+  fontSize?: number;
   /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
   /** Hide the submit/stop control for draft-only composer surfaces. */
@@ -523,6 +525,7 @@ function ComposerAgentSelector({
 export function ChatComposer({
   disabled = false,
   isWorking = false,
+  fontSize,
   canSubmit = true,
   showSubmitButton = true,
   placeholder,
@@ -731,9 +734,11 @@ export function ChatComposer({
     : isWorking
       ? 'Add a follow-up'
       : (placeholder ?? 'Send a message, tag @files or use /commands');
+  const composerStyle: (React.CSSProperties & { '--chat-composer-font-size': string }) | undefined =
+    fontSize === undefined ? undefined : { '--chat-composer-font-size': `${fontSize}px` };
 
   return (
-    <div className={cx(styles.composerRoot, className)}>
+    <div className={cx(styles.composerRoot, className)} style={composerStyle}>
       {canShowQueuedPrompts && (
         <QueuedPromptsBand
           prompts={queuedPrompts}

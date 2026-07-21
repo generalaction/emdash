@@ -1,7 +1,10 @@
 import { detectPlatform } from '@tanstack/react-hotkeys';
-import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
-import React, { useCallback, useMemo, useState } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus, RotateCcw } from 'lucide-react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  getAppSettingValueSnapshot,
+  useAppSettingsKey,
+} from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
 import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
 import {
@@ -30,6 +33,11 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import {
+  CHAT_FONT_SIZE_DEFAULT,
+  CHAT_FONT_SIZE_MAX,
+  CHAT_FONT_SIZE_MIN,
+} from '@shared/core/chat-settings';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
@@ -70,6 +78,9 @@ const DEFAULT_OPTION: FontOption = {
 const clampFontSize = (size: number) =>
   Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
 
+const clampChatFontSize = (size: number) =>
+  Math.min(CHAT_FONT_SIZE_MAX, Math.max(CHAT_FONT_SIZE_MIN, size));
+
 const isMac = detectPlatform() === 'mac';
 
 const TerminalSettingsCard: React.FC = () => {
@@ -79,6 +90,12 @@ const TerminalSettingsCard: React.FC = () => {
     isLoading: loading,
     isSaving: saving,
   } = useAppSettingsKey('terminal');
+  const {
+    value: interfaceSettings,
+    updateAsync: updateInterfaceAsync,
+    isLoading: interfaceLoading,
+    isSaving: interfaceSaving,
+  } = useAppSettingsKey('interface');
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
   const { fonts: installedFonts, isLoading: loadingFonts } = useInstalledFonts();
@@ -87,6 +104,10 @@ const TerminalSettingsCard: React.FC = () => {
 
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
+  const chatFontSize = interfaceSettings?.chatFontSize ?? CHAT_FONT_SIZE_DEFAULT;
+  const pendingChatFontSizeRef = useRef<number | null>(null);
+  const chatFontSizeUpdateVersionRef = useRef(0);
+  const chatFontSizeUpdateQueueRef = useRef(Promise.resolve());
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
   const macOptionIsMeta = terminal?.macOptionIsMeta ?? false;
   const defaultShell = terminal?.defaultShell ?? 'system';
@@ -165,6 +186,34 @@ const TerminalSettingsCard: React.FC = () => {
       );
     },
     [update]
+  );
+
+  const applyChatFontSize = useCallback(
+    (next: number) => {
+      const normalized = clampChatFontSize(next);
+      const updateVersion = ++chatFontSizeUpdateVersionRef.current;
+      pendingChatFontSizeRef.current = normalized;
+      chatFontSizeUpdateQueueRef.current = chatFontSizeUpdateQueueRef.current
+        .then(() => updateInterfaceAsync({ chatFontSize: normalized }))
+        .finally(() => {
+          if (updateVersion === chatFontSizeUpdateVersionRef.current) {
+            pendingChatFontSizeRef.current = null;
+          }
+        })
+        .catch(() => undefined);
+    },
+    [updateInterfaceAsync]
+  );
+
+  const adjustChatFontSize = useCallback(
+    (delta: number) => {
+      const latest =
+        pendingChatFontSizeRef.current ??
+        getAppSettingValueSnapshot('interface')?.chatFontSize ??
+        CHAT_FONT_SIZE_DEFAULT;
+      applyChatFontSize(latest + delta);
+    },
+    [applyChatFontSize]
   );
 
   const toggleAutoCopy = useCallback(
@@ -315,7 +364,7 @@ const TerminalSettingsCard: React.FC = () => {
         title="Terminal font size"
         description="Adjust the font size used by terminal sessions and CLI agents."
         control={
-          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs select-none">
             <Button
               type="button"
               variant="ghost"
@@ -339,6 +388,50 @@ const TerminalSettingsCard: React.FC = () => {
               aria-label="Increase terminal font size"
             >
               <Plus />
+            </Button>
+          </div>
+        }
+      />
+      <SettingRow
+        title="Chat font size"
+        description="Zoom chat messages and the composer text in or out."
+        control={
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs select-none">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={interfaceLoading || interfaceSaving || chatFontSize <= CHAT_FONT_SIZE_MIN}
+              onClick={() => adjustChatFontSize(-1)}
+              aria-label="Zoom chat text out"
+            >
+              <Minus />
+            </Button>
+            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm text-foreground tabular-nums">
+              <span>{chatFontSize}</span>
+              <span className="text-muted-foreground text-xs">px</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={interfaceLoading || interfaceSaving || chatFontSize >= CHAT_FONT_SIZE_MAX}
+              onClick={() => adjustChatFontSize(1)}
+              aria-label="Zoom chat text in"
+            >
+              <Plus />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={
+                interfaceLoading || interfaceSaving || chatFontSize === CHAT_FONT_SIZE_DEFAULT
+              }
+              onClick={() => applyChatFontSize(CHAT_FONT_SIZE_DEFAULT)}
+              aria-label={`Reset chat font size to ${CHAT_FONT_SIZE_DEFAULT} px`}
+            >
+              <RotateCcw />
             </Button>
           </div>
         }
