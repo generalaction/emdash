@@ -13,7 +13,7 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
-import { updateRun } from '../repo';
+import { getRun, updateRun } from '../repo';
 import type { OnStepCompleted } from '../run-transitions';
 import {
   markRunCreatingConversation,
@@ -22,7 +22,8 @@ import {
 } from '../run-transitions';
 import { executeTaskCreate } from './taskCreate';
 
-const { mockAcpStartSession } = vi.hoisted(() => ({
+const { mockAcpCancelTurn, mockAcpStartSession } = vi.hoisted(() => ({
+  mockAcpCancelTurn: vi.fn(),
   mockAcpStartSession: vi.fn(),
 }));
 
@@ -59,19 +60,21 @@ vi.mock('@main/core/tasks/operations/createTask', () => ({
   finalizeCreateTask: vi.fn(),
 }));
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
+  taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn(), teardown: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), child: vi.fn(() => ({ debug: vi.fn() })) },
 }));
 vi.mock('@main/core/acp/controller', () => ({
-  getAcpRuntimeClient: vi.fn(() => Promise.resolve({ startSession: mockAcpStartSession })),
+  getAcpRuntimeClient: vi.fn(() =>
+    Promise.resolve({ cancelTurn: mockAcpCancelTurn, startSession: mockAcpStartSession })
+  ),
 }));
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },
 }));
-vi.mock('../repo', () => ({ updateRun: vi.fn() }));
+vi.mock('../repo', () => ({ getRun: vi.fn(), updateRun: vi.fn() }));
 vi.mock('../run-transitions', () => ({
   markRunLaunchingTask: vi.fn(),
   markRunCreatingConversation: vi.fn(),
@@ -150,7 +153,9 @@ describe('executeTaskCreate', () => {
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
+    vi.mocked(taskService.teardown).mockResolvedValue({ success: true, data: undefined });
     vi.mocked(createConversation).mockResolvedValue({} as never);
+    mockAcpCancelTurn.mockResolvedValue({ success: true, data: undefined });
     mockAcpStartSession.mockResolvedValue({
       success: true,
       data: { sessionId: 'acp-session' },
@@ -159,6 +164,7 @@ describe('executeTaskCreate', () => {
       success: false,
       error: { type: 'generic', message: 'not found' },
     });
+    vi.mocked(getRun).mockResolvedValue(run);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
     vi.mocked(markRunLaunchingTask).mockResolvedValue({
       ...run,
@@ -227,6 +233,68 @@ describe('executeTaskCreate', () => {
     expect(taskService.launch).toHaveBeenCalled();
   });
 
+  it('does not launch a task when stopping wins the launching transition', async () => {
+    vi.mocked(markRunLaunchingTask).mockResolvedValue(null);
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(taskService.launch).not.toHaveBeenCalled();
+  });
+
+  it('does not commit a task when the run is stopped during preparation', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...run,
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+    });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(commitCreateTask).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
+  });
+
+  it('tears down a launched task when the run stops during launch', async () => {
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce({
+        ...run,
+        status: 'skipped',
+        error: { step: 'queue', code: 'manually_stopped' },
+      });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(taskService.teardown).toHaveBeenCalledWith(expect.any(String));
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  it('marks the run failed when launched task teardown fails', async () => {
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce({
+        ...run,
+        status: 'skipped',
+        error: { step: 'queue', code: 'manually_stopped' },
+      });
+    vi.mocked(taskService.teardown).mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'teardown failed' },
+    });
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'teardown_failed' });
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'launch_task',
+      code: 'teardown_failed',
+      message: 'teardown failed',
+    });
+  });
+
   it('marks run failed when launch fails', async () => {
     vi.mocked(taskService.launch).mockResolvedValue({
       success: false,
@@ -255,6 +323,15 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     expect(markRunCreatingConversation).toHaveBeenCalledWith(run.id, expect.any(Number));
     expect(createConversation).toHaveBeenCalled();
+  });
+
+  it('does not create a conversation when stopping wins the creating transition', async () => {
+    vi.mocked(markRunCreatingConversation).mockResolvedValue(null);
+
+    const result = await executeTaskCreate(automation, run, noopStep);
+
+    expect(result).toEqual({ success: false, error: 'manually_stopped' });
+    expect(createConversation).not.toHaveBeenCalled();
   });
 
   it('marks run failed when conversation creation throws', async () => {
@@ -366,6 +443,44 @@ describe('executeTaskCreate', () => {
         model: 'sonnet',
         initialQueue: [{ text: 'Check things' }],
       }),
+    });
+  });
+
+  it('marks the run failed when ACP cancellation fails after a stop', async () => {
+    const stoppedRun: AutomationRun = {
+      ...run,
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+    };
+    vi.mocked(getRun)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(stoppedRun);
+    mockAcpCancelTurn.mockResolvedValue({
+      success: false,
+      error: { type: 'cancel_failed', message: 'cancel failed' },
+    });
+
+    const result = await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: {
+          prompt: 'Check things',
+          provider: 'claude',
+          autoApprove: false,
+          type: 'acp',
+        },
+      },
+      run,
+      noopStep
+    );
+
+    expect(result).toEqual({ success: false, error: 'stop_conversation_failed' });
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'create_conversation',
+      code: 'stop_conversation_failed',
+      message: 'cancel failed',
     });
   });
 

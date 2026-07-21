@@ -7,6 +7,7 @@ import { createConversation } from '@main/core/conversations/createConversation'
 import { issueController } from '@main/core/issues/controller';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
+import { resolveTask } from '@main/core/projects/utils';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
@@ -28,12 +29,18 @@ import {
 } from '@shared/core/issues/issue-context';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { getRun } from '../repo';
 import {
   markRunCreatingConversation,
   markRunFailed,
   markRunLaunchingTask,
   type OnStepCompleted,
 } from '../run-transitions';
+
+async function wasManuallyStopped(runId: string): Promise<boolean> {
+  const current = await getRun(runId);
+  return current?.status === 'skipped' && current.error?.code === 'manually_stopped';
+}
 
 async function ensureProjectOpen(projectId: string) {
   let project = projectManager.getProject(projectId);
@@ -209,6 +216,8 @@ export async function executeTaskCreate(
       return err(error.type);
     }
 
+    if (await wasManuallyStopped(run.id)) return err('manually_stopped');
+
     let taskRow!: TaskRow;
     let convRow: ConversationRow | undefined;
     db.transaction((tx) => {
@@ -219,10 +228,24 @@ export async function executeTaskCreate(
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
 
     const launching = await markRunLaunchingTask(run.id, Date.now());
+    if (!launching) return err('manually_stopped');
     onStepCompleted(launching);
 
     try {
       const provision = await taskService.launch(taskId);
+      if (await wasManuallyStopped(run.id)) {
+        const teardown = await taskService.teardown(taskId);
+        if (!teardown.success) {
+          const failed = await markRunFailed(run.id, {
+            step: 'launch_task',
+            code: 'teardown_failed',
+            message: teardown.error.message,
+          });
+          onStepCompleted(failed);
+          return err('teardown_failed');
+        }
+        return err('manually_stopped');
+      }
       if (!provision.success) {
         const msg = provision.error.type === 'setup-failed' ? provision.error.message : undefined;
         const failed = await markRunFailed(run.id, {
@@ -235,6 +258,7 @@ export async function executeTaskCreate(
       }
 
       const creatingConv = await markRunCreatingConversation(run.id, Date.now());
+      if (!creatingConv) return err('manually_stopped');
       onStepCompleted(creatingConv);
 
       await createConversation({
@@ -252,6 +276,12 @@ export async function executeTaskCreate(
         isInitialConversation: true,
         type: conversationType,
       });
+      if (await wasManuallyStopped(run.id)) {
+        if (conversationType === 'pty') {
+          await resolveTask(projectId, taskId)?.conversations.stopSession(conversationId);
+        }
+        return err('manually_stopped');
+      }
       if (conversationType === 'acp') {
         const acpClient = await getAcpRuntimeClient();
         const startResult = await acpClient.startSession({
@@ -269,6 +299,19 @@ export async function executeTaskCreate(
         });
         if (!startResult.success) {
           throw new Error(startResult.error.message ?? startResult.error.type);
+        }
+        if (await wasManuallyStopped(run.id)) {
+          const cancelResult = await acpClient.cancelTurn({ conversationId });
+          if (!cancelResult.success) {
+            const failed = await markRunFailed(run.id, {
+              step: 'create_conversation',
+              code: 'stop_conversation_failed',
+              message: cancelResult.error.message ?? cancelResult.error.type,
+            });
+            onStepCompleted(failed);
+            return err('stop_conversation_failed');
+          }
+          return err('manually_stopped');
         }
       }
     } catch (error) {
