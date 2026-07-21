@@ -868,7 +868,7 @@ function sessionInfoUpdate(title: string): SessionUpdate {
 describe('AcpTranscriptParser – session slices', () => {
   // ── Config derivation ──────────────────────────────────────────────────────
 
-  it('config_option_update populates modelOptions, efforts, modeOptions', () => {
+  it('config_option_update populates modelOptions, efforts, fastMode, modeOptions', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(
       configOptionUpdate([
@@ -893,6 +893,16 @@ describe('AcpTranscriptParser – session slices', () => {
           ],
         },
         {
+          id: 'fast-mode',
+          category: 'fast-mode',
+          type: 'select',
+          currentValue: 'on',
+          options: [
+            { value: 'off', name: 'Off' },
+            { value: 'on', name: 'On' },
+          ],
+        },
+        {
           id: 'mode',
           category: 'mode',
           type: 'select',
@@ -905,7 +915,7 @@ describe('AcpTranscriptParser – session slices', () => {
       ])
     );
 
-    const { modelOptions, efforts, modeOptions } = p.config;
+    const { modelOptions, efforts, fastMode, modeOptions } = p.config;
 
     expect(modelOptions?.configId).toBe('model');
     expect(modelOptions?.selected).toBe('opus');
@@ -916,6 +926,13 @@ describe('AcpTranscriptParser – session slices', () => {
     expect(efforts?.selected).toBe('high');
     expect(efforts?.available).toHaveLength(2);
     expect(efforts?.available[1]).toEqual({ id: 'high', name: 'High' });
+
+    expect(fastMode?.configId).toBe('fast-mode');
+    expect(fastMode?.selected).toBe('on');
+    expect(fastMode?.available).toEqual([
+      { id: 'off', name: 'Off' },
+      { id: 'on', name: 'On' },
+    ]);
 
     expect(modeOptions?.configId).toBe('mode');
     expect(modeOptions?.selected).toBe('default');
@@ -939,7 +956,7 @@ describe('AcpTranscriptParser – session slices', () => {
     expect(p.config.modelOptions?.available[0].description).toBe('Most capable');
   });
 
-  it('unknown category (model_config) is ignored', () => {
+  it('config_option_update populates fastMode from Claude model_config', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(
       configOptionUpdate([
@@ -955,10 +972,77 @@ describe('AcpTranscriptParser – session slices', () => {
         },
       ])
     );
-    // No crash; all groups remain null since no recognized category was present
+    expect(p.config.fastMode).toEqual({
+      configId: 'fast',
+      selected: 'off',
+      available: [
+        { id: 'on', name: 'On' },
+        { id: 'off', name: 'Off' },
+      ],
+    });
     expect(p.config.modelOptions).toBeNull();
     expect(p.config.efforts).toBeNull();
     expect(p.config.modeOptions).toBeNull();
+  });
+
+  it('config_option_update preserves groups omitted from partial updates', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'model',
+          category: 'model',
+          type: 'select',
+          currentValue: 'opus',
+          options: [{ value: 'opus', name: 'Opus' }],
+        },
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          type: 'select',
+          currentValue: 'high',
+          options: [{ value: 'high', name: 'High' }],
+        },
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'default',
+          options: [{ value: 'default', name: 'Default' }],
+        },
+      ])
+    );
+
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'fast',
+          category: 'model_config',
+          type: 'select',
+          currentValue: 'on',
+          options: [{ value: 'on', name: 'On' }],
+        },
+      ])
+    );
+
+    expect(p.config.modelOptions?.selected).toBe('opus');
+    expect(p.config.efforts?.selected).toBe('high');
+    expect(p.config.modeOptions?.selected).toBe('default');
+
+    p.push(
+      configOptionUpdate([
+        {
+          id: 'mode',
+          category: 'mode',
+          type: 'select',
+          currentValue: 'plan',
+          options: [{ value: 'plan', name: 'Plan' }],
+        },
+      ])
+    );
+
+    expect(p.config.fastMode?.configId).toBe('fast');
+    expect(p.config.fastMode?.selected).toBe('on');
   });
 
   // ── current_mode_update ────────────────────────────────────────────────────

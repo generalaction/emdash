@@ -321,7 +321,7 @@ export class SessionManager implements InboundRouter {
 
   async setConfigOption(
     conversationId: string,
-    dimension: 'model' | 'effort',
+    dimension: 'model' | 'effort' | 'fastMode',
     value: string
   ): Promise<Result<void, AcpSetModelOptionError>> {
     const record = this.cells.get(conversationId);

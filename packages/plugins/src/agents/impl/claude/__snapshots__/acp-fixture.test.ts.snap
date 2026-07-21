@@ -211,6 +211,20 @@ SKIP only when another provider is being worked on (overrides all triggers): Ope
     "configId": "effort",
     "selected": "default",
   },
+  "fastMode": {
+    "available": [
+      {
+        "id": "on",
+        "name": "On",
+      },
+      {
+        "id": "off",
+        "name": "Off",
+      },
+    ],
+    "configId": "fast",
+    "selected": "off",
+  },
   "modeOptions": {
     "available": [
       {

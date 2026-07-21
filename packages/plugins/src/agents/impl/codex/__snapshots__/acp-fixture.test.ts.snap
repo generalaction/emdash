@@ -141,6 +141,7 @@ exports[`Codex ACP fixture parsing > config 1`] = `
     "configId": "reasoning_effort",
     "selected": "low",
   },
+  "fastMode": null,
   "modeOptions": {
     "available": [
       {
