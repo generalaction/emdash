@@ -12,7 +12,7 @@ const RETAINED_LOG_FILES = 5;
 const LOG_FILE_NAME = 'emdash.log';
 const DIAGNOSTIC_ATTACHMENT_FILENAME = 'emdash-diagnostics.log';
 const RENDERER_LOG_PAYLOAD_LIMIT = 64 * 1024;
-const PROCESS_EXIT_FLUSH_TIMEOUT_MS = 1000;
+const PROCESS_EXIT_FLUSH_TIMEOUT_MS = 2_500;
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 let logFilePath: string | undefined;
@@ -85,21 +85,43 @@ export async function getDiagnosticLogAttachment() {
   };
 }
 
-export function registerProcessErrorLogging(logger: { error(...input: unknown[]): void }) {
+type FatalErrorReporter = (
+  error: unknown,
+  mechanism: 'uncaught_exception' | 'unhandled_rejection'
+) => void | Promise<void>;
+
+export function registerProcessErrorLogging(
+  logger: { error(...input: unknown[]): void },
+  reportFatalError?: FatalErrorReporter
+) {
   process.on('uncaughtException', (error) => {
     logger.error('Uncaught exception', error);
-    flushAndExit();
+    handleFatalError(error, 'uncaught_exception', reportFatalError);
   });
 
   process.on('unhandledRejection', (reason) => {
     logger.error('Unhandled rejection', reason);
-    flushAndExit();
+    handleFatalError(reason, 'unhandled_rejection', reportFatalError);
   });
 }
 
-function flushAndExit() {
+let fatalExitStarted = false;
+
+function handleFatalError(
+  error: unknown,
+  mechanism: 'uncaught_exception' | 'unhandled_rejection',
+  reportFatalError?: FatalErrorReporter
+) {
+  if (fatalExitStarted) return;
+  fatalExitStarted = true;
+  let reportPromise: void | Promise<void>;
+  try {
+    reportPromise = reportFatalError?.(error, mechanism);
+  } catch {
+    reportPromise = undefined;
+  }
   const flush = Promise.race([
-    flushLogWrites(),
+    Promise.allSettled([flushLogWrites(), Promise.resolve(reportPromise)]),
     new Promise<void>((resolve) => setTimeout(resolve, PROCESS_EXIT_FLUSH_TIMEOUT_MS)),
   ]);
   void flush.finally(() => process.exit(1));
