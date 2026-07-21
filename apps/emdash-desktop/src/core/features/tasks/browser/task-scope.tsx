@@ -106,6 +106,16 @@ const taskScopeImplementation = {
       taskView?.setSidebarCollapsed(false);
     },
   }),
+  'task.fileContentSearch': (params) => ({
+    availability: () => taskAvailability(params),
+    execute: () => {
+      const taskView = getTaskComposition(params.projectId, params.taskId);
+      if (!taskView) return;
+      taskView.setSidebarTab('files');
+      taskView.setSidebarCollapsed(false);
+      taskView.editorView.requestFileSearchFocus();
+    },
+  }),
   'task.viewTerminals': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => getTaskComposition(params.projectId, params.taskId)?.setTerminalDrawerOpen(true),

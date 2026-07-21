@@ -1,3 +1,4 @@
+import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   portableRelativePathBasename,
   type HostAbsolutePath,
@@ -7,54 +8,82 @@ import {
   PATH_SEARCH_MAX_LIMIT,
   type PathSearchError,
 } from '@emdash/core/runtimes/file-search/api';
+import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import type { WorkspaceFileHit } from '@core/primitives/search/api';
-import { getFileSearchRuntimeClient } from '@main/gateway/accessors';
+import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { log } from '@main/lib/logger';
 
-export async function registerFileSearchRoot(root: HostAbsolutePath): Promise<void> {
+type FileSearchRuntimeClient = HostRuntimesClient['fileSearch'];
+
+export async function registerFileSearchRoot(
+  root: HostAbsolutePath,
+  host: HostRef = LOCAL_HOST_REF
+): Promise<void> {
+  const lease = getDesktopRuntimeBroker().session(host);
   try {
-    const result = await (await getFileSearchRuntimeClient()).registerRoot({ root });
+    const runtime = await lease.ready();
+    if (!runtime.success) {
+      log.warn('Failed to resolve file-search runtime', { host, root, error: runtime.error });
+      return;
+    }
+    const result = await runtime.data.fileSearch.registerRoot({ root });
     if (!result.success) {
       log.warn('Failed to register file-search root', {
+        host,
         root: nativePathFromHost(root),
         error: result.error,
       });
     }
   } catch (error) {
     log.warn('File-search root registration threw unexpectedly', {
+      host,
       root: nativePathFromHost(root),
       error: String(error),
     });
+  } finally {
+    await lease.release();
   }
 }
 
-export async function unregisterFileSearchRoot(root: HostAbsolutePath): Promise<void> {
+export async function unregisterFileSearchRoot(
+  root: HostAbsolutePath,
+  host: HostRef = LOCAL_HOST_REF
+): Promise<void> {
+  const lease = getDesktopRuntimeBroker().session(host);
   try {
-    const result = await (await getFileSearchRuntimeClient()).unregisterRoot({ root });
+    const runtime = await lease.ready();
+    if (!runtime.success) {
+      log.warn('Failed to resolve file-search runtime', { host, root, error: runtime.error });
+      return;
+    }
+    const result = await runtime.data.fileSearch.unregisterRoot({ root });
     if (!result.success) {
       log.warn('Failed to unregister file-search root', {
+        host,
         root: nativePathFromHost(root),
         error: result.error,
       });
     }
   } catch (error) {
     log.warn('File-search root unregistration threw unexpectedly', {
+      host,
       root: nativePathFromHost(root),
       error: String(error),
     });
+  } finally {
+    await lease.release();
   }
 }
 
 export async function searchFileSearchRoot(
+  client: FileSearchRuntimeClient,
   root: HostAbsolutePath,
   query: string,
   limit?: number
 ): Promise<WorkspaceFileHit[]> {
   try {
-    const result = await (
-      await getFileSearchRuntimeClient()
-    ).searchPaths({
+    const result = await client.searchPaths({
       root,
       query,
       kinds: ['file'],

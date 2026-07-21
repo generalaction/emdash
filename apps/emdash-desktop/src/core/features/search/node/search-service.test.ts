@@ -1,5 +1,11 @@
+import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
+import { createController } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { portablePath } from '@core/primitives/desktop-runtime/api';
+import { contentSearchRuntimeContract } from '../api';
 import { createSearchService } from './search-service';
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +45,11 @@ describe('SearchService runtime file search', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.workspaceGet.mockReturnValue({ files: { root }, release: vi.fn() });
+    mocks.workspaceGet.mockReturnValue({
+      client: { fileSearch: { searchPaths: vi.fn() } },
+      files: { root },
+      release: vi.fn(),
+    });
     mocks.fileSearch.mockResolvedValue([{ path: '/repo/src/index.ts', filename: 'index.ts' }]);
   });
 
@@ -82,7 +92,12 @@ describe('SearchService runtime file search', () => {
         score: 0,
       },
     ]);
-    expect(mocks.fileSearch).toHaveBeenCalledWith(root, 'index', undefined);
+    expect(mocks.fileSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ searchPaths: expect.any(Function) }),
+      root,
+      'index',
+      undefined
+    );
   });
 
   it('preserves runtime file hits when the app search index fails', async () => {
@@ -107,5 +122,68 @@ describe('SearchService runtime file search', () => {
       },
     ]);
     expect(mocks.warn).toHaveBeenCalledOnce();
+  });
+
+  it('relays progressive content search through the acquired workspace runtime', async () => {
+    const progressGate = deferred<void>();
+    let didStartSearch = false;
+    const files = [
+      {
+        path: portablePath('src/index.ts'),
+        matches: [
+          {
+            lineNumber: 4,
+            previewText: 'const test = true;',
+            locations: [
+              {
+                sourceRange: { startColumn: 7, endColumn: 11 },
+                previewRange: { startColumn: 7, endColumn: 11 },
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const upstream = createTestWire(
+      contentSearchRuntimeContract,
+      createController(contentSearchRuntimeContract, {
+        searchContent: {
+          run: async (input, context) => {
+            didStartSearch = true;
+            expect(input).toEqual({ root, query: 'test', limit: 25 });
+            await progressGate.promise;
+            context.progress({ files });
+            return ok({ files, complete: true });
+          },
+        },
+      }),
+      { validate: 'full' }
+    );
+    const release = vi.fn(async () => {});
+    mocks.workspaceGet.mockResolvedValue({
+      client: { fileSearch: upstream.client },
+      files: { root },
+      release,
+    });
+    const progress: unknown[] = [];
+
+    try {
+      const result = searchService.searchContent(
+        { workspaceId: 'workspace-1', query: 'test', limit: 25 },
+        {
+          jobId: 'desktop-search-1',
+          signal: new AbortController().signal,
+          progress: (update) => progress.push(update),
+        }
+      );
+      await vi.waitFor(() => expect(didStartSearch).toBe(true));
+      progressGate.resolve();
+
+      await expect(result).resolves.toEqual(ok({ files, complete: true }));
+      expect(progress).toEqual([{ files }]);
+      expect(release).toHaveBeenCalledOnce();
+    } finally {
+      await upstream.dispose();
+    }
   });
 });

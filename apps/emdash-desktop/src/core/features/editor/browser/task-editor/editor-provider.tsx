@@ -192,6 +192,21 @@ export const EditorProvider = observer(function EditorProvider({
 
         modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
+
+        const selectionRequest = entry?.selectionRequest;
+        if (selectionRequest) {
+          const { lineNumber, startColumn, endColumn } = selectionRequest.selection;
+          const selection = {
+            startLineNumber: lineNumber,
+            startColumn,
+            endLineNumber: lineNumber,
+            endColumn,
+          };
+          editor.setSelection(selection);
+          editor.revealRangeInCenter(selection);
+          editor.focus();
+          entry?.consumeSelectionRequest(selectionRequest.id);
+        }
       }),
     // oxlint-disable-next-line react/exhaustive-deps
     []

@@ -20,6 +20,17 @@ export interface FilePayload {
   isExternal?: boolean;
 }
 
+export type FileSelection = Readonly<{
+  lineNumber: number;
+  startColumn: number;
+  endColumn: number;
+}>;
+
+export type FileSelectionRequest = Readonly<{
+  id: number;
+  selection: FileSelection;
+}>;
+
 /**
  * Domain resource for a single open file tab.
  *
@@ -39,6 +50,9 @@ export class FileTabResource implements TabResource {
   isLoading: boolean;
   totalSize: number | null;
   externalError: string | undefined;
+  selectionRequest: FileSelectionRequest | null = null;
+
+  private nextSelectionRequestId = 1;
 
   private readonly _modelManager: FileModelManager | null;
   private readonly _modelCtx: FileModelContext | null;
@@ -73,6 +87,7 @@ export class FileTabResource implements TabResource {
       isLoading: observable,
       totalSize: observable,
       externalError: observable,
+      selectionRequest: observable.ref,
       setContentType: action,
       setViewMode: action,
       setImageContent: action,
@@ -80,6 +95,8 @@ export class FileTabResource implements TabResource {
       markExternalLoading: action,
       setExternalContent: action,
       setExternalError: action,
+      requestSelection: action,
+      consumeSelectionRequest: action,
     });
 
     // Retain Monaco models for this file. Not done for external files.
@@ -149,5 +166,18 @@ export class FileTabResource implements TabResource {
     this.content = '';
     this.isLoading = false;
     this.externalError = error;
+  }
+
+  requestSelection(selection: FileSelection): void {
+    this.viewMode = 'source';
+    this.selectionRequest = {
+      id: this.nextSelectionRequestId,
+      selection,
+    };
+    this.nextSelectionRequestId += 1;
+  }
+
+  consumeSelectionRequest(id: number): void {
+    if (this.selectionRequest?.id === id) this.selectionRequest = null;
   }
 }

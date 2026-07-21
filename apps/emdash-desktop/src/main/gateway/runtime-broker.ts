@@ -19,6 +19,7 @@ import { appScope } from '@main/bootstrap/core/app-scope';
 import {
   getAcpRuntimeClient,
   getAgentConfigRuntimeClient,
+  getFileSearchRuntimeClient,
   getFilesRuntimeClient,
   getGitRuntimeClient,
   getTerminalsRuntimeClient,
@@ -93,18 +94,21 @@ async function resolveDesktopRuntimeSession(
     );
   }
 
-  const [git, files, acp, tuiAgents, agentConfig, terminals, workspace] = await Promise.all([
-    getGitRuntimeClient(),
-    getFilesRuntimeClient(),
-    getAcpRuntimeClient(),
-    getTuiAgentsRuntimeClient(),
-    getAgentConfigRuntimeClient(),
-    getTerminalsRuntimeClient(),
-    getWorkspaceRuntimeClient(),
-  ]);
+  const [git, fileSearch, files, acp, tuiAgents, agentConfig, terminals, workspace] =
+    await Promise.all([
+      getGitRuntimeClient(),
+      getFileSearchRuntimeClient(),
+      getFilesRuntimeClient(),
+      getAcpRuntimeClient(),
+      getTuiAgentsRuntimeClient(),
+      getAgentConfigRuntimeClient(),
+      getTerminalsRuntimeClient(),
+      getWorkspaceRuntimeClient(),
+    ]);
 
   return ok({
     git,
+    fileSearch,
     files,
     acp,
     tuiAgents,

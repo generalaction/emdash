@@ -20,7 +20,8 @@ export const workspaceLifecycleParticipants: readonly WorkspaceLifecycleParticip
     id: 'file-search',
     activate: ({ identity }) =>
       registerFileSearchRoot(
-        hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path
+        hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path,
+        identity.host
       ),
   },
   {

@@ -1,6 +1,7 @@
 import { defineContract } from '@emdash/wire';
 import { acpApiContract } from '../../../runtimes/acp/api';
 import { agentConfigContract } from '../../../runtimes/agent-config/api';
+import { fileSearchContract } from '../../../runtimes/file-search/api';
 import { filesContract } from '../../../runtimes/files/api';
 import { gitContract } from '../../../runtimes/git/api';
 import { terminalsContract } from '../../../runtimes/terminals/api';
@@ -14,6 +15,7 @@ import { hostDependenciesContract } from '../../host-dependencies/api';
  */
 export const hostRuntimesDefinitions = {
   git: gitContract,
+  fileSearch: fileSearchContract,
   files: filesContract,
   acp: acpApiContract,
   tuiAgents: tuiAgentsContract,

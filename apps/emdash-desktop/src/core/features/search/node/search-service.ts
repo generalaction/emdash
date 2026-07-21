@@ -1,3 +1,14 @@
+import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
+import {
+  createLiveJobReplica,
+  LiveJobFailedError,
+  type JobError,
+  type JobInput,
+  type JobProgress,
+  type JobResult,
+  type LiveJobContext,
+} from '@emdash/wire';
 import type Database from 'better-sqlite3';
 import { and, eq, isNull } from 'drizzle-orm';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
@@ -18,6 +29,7 @@ import { searchFileSearchRoot } from '@main/core/file-search/runtime-client';
 import { projectEvents } from '@main/core/projects/project-events';
 import { taskService } from '@main/core/tasks/task-service';
 import { log } from '@main/lib/logger';
+import { contentSearchRuntimeContract, type searchContract } from '../api';
 
 type FtsRow = {
   item_type: string;
@@ -81,8 +93,68 @@ export class SearchService {
     const workspace = await this.deps.acquireWorkspaceRuntime(workspaceId);
     if (!workspace) return [];
     try {
-      return await searchFileSearchRoot(workspace.files.root, query, limit);
+      return await searchFileSearchRoot(
+        workspace.client.fileSearch,
+        workspace.files.root,
+        query,
+        limit
+      );
     } finally {
+      await workspace.release();
+    }
+  }
+
+  async searchContent(
+    input: JobInput<typeof searchContract.searchWorkspaceContent>,
+    context: LiveJobContext<JobProgress<typeof searchContract.searchWorkspaceContent>>
+  ): Promise<
+    Result<
+      JobResult<typeof searchContract.searchWorkspaceContent>,
+      JobError<typeof searchContract.searchWorkspaceContent>
+    >
+  > {
+    let workspace: WorkspaceRuntimeAccess | null;
+    try {
+      workspace = await this.deps.acquireWorkspaceRuntime(input.workspaceId);
+    } catch (error) {
+      if (isRuntimeResolveError(error)) return err(error);
+      throw error;
+    }
+    if (!workspace) {
+      return err({
+        type: 'workspace-not-found',
+        workspaceId: input.workspaceId,
+        message: `Workspace was not found: ${input.workspaceId}`,
+      });
+    }
+
+    const jobs = createLiveJobReplica(
+      contentSearchRuntimeContract.searchContent,
+      workspace.client.fileSearch.searchContent
+    );
+    const { workspaceId: _, ...searchInput } = input;
+    try {
+      const lease = await jobs.start({ ...searchInput, root: workspace.files.root });
+      try {
+        const job = await lease.ready();
+        const unsubscribe = job.onProgress(context.progress);
+        const cancel = () => void job.cancel();
+        context.signal.addEventListener('abort', cancel, { once: true });
+        if (context.signal.aborted) cancel();
+        try {
+          return ok(await job.result);
+        } catch (error) {
+          if (error instanceof LiveJobFailedError) return err(error.error);
+          throw error;
+        } finally {
+          context.signal.removeEventListener('abort', cancel);
+          unsubscribe();
+        }
+      } finally {
+        await lease.release();
+      }
+    } finally {
+      await jobs.dispose();
       await workspace.release();
     }
   }

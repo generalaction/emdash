@@ -1,6 +1,5 @@
 import { defineContract, fallible, procedure } from '@emdash/wire';
 import { automationsContract } from '@runtimes/automations/api';
-import { fileSearchContract } from '@runtimes/file-search/api';
 import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
 import { portForwardsContract } from '../port-forwards/contract';
@@ -19,7 +18,6 @@ export const workspaceWireContract = defineContract({
     error: wireProtocolIncompatibleSchema,
   }),
   ...hostRuntimesDefinitions,
-  fileSearch: fileSearchContract,
   automations: automationsContract,
   portForwards: portForwardsContract,
 });

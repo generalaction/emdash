@@ -1,3 +1,4 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
@@ -8,15 +9,16 @@ import {
 } from './runtime-client';
 
 const mocks = vi.hoisted(() => ({
-  getClient: vi.fn(),
+  release: vi.fn(),
   registerRoot: vi.fn(),
   searchPaths: vi.fn(),
+  session: vi.fn(),
   unregisterRoot: vi.fn(),
   warn: vi.fn(),
 }));
 
-vi.mock('@main/gateway/accessors', () => ({
-  getFileSearchRuntimeClient: mocks.getClient,
+vi.mock('@main/gateway/runtime-broker', () => ({
+  getDesktopRuntimeBroker: () => ({ session: mocks.session }),
 }));
 
 vi.mock('@main/lib/logger', () => ({
@@ -26,13 +28,20 @@ vi.mock('@main/lib/logger', () => ({
 describe('file-search runtime client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getClient.mockResolvedValue({
-      registerRoot: mocks.registerRoot,
-      searchPaths: mocks.searchPaths,
-      unregisterRoot: mocks.unregisterRoot,
+    mocks.session.mockReturnValue({
+      ready: async () =>
+        ok({
+          fileSearch: {
+            registerRoot: mocks.registerRoot,
+            searchPaths: mocks.searchPaths,
+            unregisterRoot: mocks.unregisterRoot,
+          },
+        }),
+      release: mocks.release,
     });
     mocks.registerRoot.mockResolvedValue(ok());
     mocks.unregisterRoot.mockResolvedValue(ok());
+    mocks.release.mockResolvedValue(undefined);
   });
 
   it('registers and unregisters structured workspace roots', async () => {
@@ -43,6 +52,21 @@ describe('file-search runtime client', () => {
 
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.session).toHaveBeenCalledTimes(2);
+    expect(mocks.session).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
+    expect(mocks.session).toHaveBeenNthCalledWith(2, LOCAL_HOST_REF);
+    expect(mocks.release).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes registration through the workspace host session', async () => {
+    const root = hostPathFromNative('/repo');
+    const remoteHost = hostRef('remote', 'machine-1');
+
+    await registerFileSearchRoot(root, remoteHost);
+
+    expect(mocks.session).toHaveBeenCalledWith(remoteHost);
+    expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.release).toHaveBeenCalledOnce();
   });
 
   it('searches only files and preserves absolute desktop file identities', async () => {
@@ -51,7 +75,8 @@ describe('file-search runtime client', () => {
       ok({ hits: [{ path: portablePath('src/index.ts'), kind: 'file' as const }] })
     );
 
-    await expect(searchFileSearchRoot(root, 'index', 500)).resolves.toEqual([
+    const client = { searchPaths: mocks.searchPaths } as never;
+    await expect(searchFileSearchRoot(client, root, 'index', 500)).resolves.toEqual([
       { path: '/repo/src/index.ts', filename: 'index.ts' },
     ]);
     expect(mocks.searchPaths).toHaveBeenCalledWith({
@@ -68,7 +93,9 @@ describe('file-search runtime client', () => {
       err({ type: 'index-not-ready', root, message: 'still building' })
     );
 
-    await expect(searchFileSearchRoot(root, 'index')).resolves.toEqual([]);
+    await expect(
+      searchFileSearchRoot({ searchPaths: mocks.searchPaths } as never, root, 'index')
+    ).resolves.toEqual([]);
     expect(mocks.warn).not.toHaveBeenCalled();
   });
 
@@ -76,7 +103,9 @@ describe('file-search runtime client', () => {
     const root = hostPathFromNative('/repo');
     mocks.searchPaths.mockResolvedValue(err({ type: 'io', root, message: 'database failed' }));
 
-    await expect(searchFileSearchRoot(root, 'index')).resolves.toEqual([]);
+    await expect(
+      searchFileSearchRoot({ searchPaths: mocks.searchPaths } as never, root, 'index')
+    ).resolves.toEqual([]);
     expect(mocks.warn).toHaveBeenCalledOnce();
   });
 });

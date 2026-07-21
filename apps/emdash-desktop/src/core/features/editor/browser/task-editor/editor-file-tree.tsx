@@ -1,7 +1,18 @@
+import { FILE_SEARCH_MAX_QUERY_LENGTH } from '@emdash/core/runtimes/file-search/api';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, Copy, FileText, FolderOpen, Link, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileText,
+  FolderOpen,
+  Link,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
 import {
   useTaskComposition,
@@ -27,6 +38,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
 import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '../../api';
 import { getEditorClient } from '../client';
@@ -40,6 +52,7 @@ import {
 import { editorFilePath } from '../files';
 import { FileIcon } from '../renderers/file-icon';
 import { CompactedPathLabel } from './compacted-path-label';
+import { FileContentSearchResults } from './file-content-search';
 import type { FileTabResource } from './stores/file-tab-resource';
 import type { FilesStore } from './stores/files-store';
 
@@ -577,6 +590,20 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const editorView = taskView.editorView;
   const files = editorView.files;
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const focusRequest = editorView.fileSearchFocusRequest;
+  // A new request gives this ref callback a new identity, so React invokes it after the
+  // sidebar's visibility commit and the input can be focused without an effect.
+  const setSearchInputRef = useCallback(
+    (input: HTMLInputElement | null) => {
+      searchInputRef.current = input;
+      if (!input || focusRequest === 0) return;
+      input.focus();
+      input.select();
+    },
+    [focusRequest]
+  );
 
   const visibleRows = files
     ? buildFileTreeVisibleRows(
@@ -625,27 +652,26 @@ export const EditorFileTree = observer(function EditorFileTree() {
     setIsDragOverRoot(false);
   };
 
-  if (files?.isLoading) {
-    return (
-      <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+  let content: React.ReactNode;
+  if (searchQuery) {
+    content = <FileContentSearchResults workspaceId={workspaceId} query={searchQuery} />;
+  } else if (files?.isLoading) {
+    content = (
+      <div className="text-muted-foreground flex flex-1 items-center justify-center text-xs">
         Loading...
       </div>
     );
-  }
-
-  if (files?.error) {
-    return (
-      <div className="text-destructive flex h-full items-center justify-center text-xs">
+  } else if (files?.error) {
+    content = (
+      <div className="text-destructive flex flex-1 items-center justify-center text-xs">
         {files.error}
       </div>
     );
-  }
-
-  if (visibleRows.length === 0) {
-    return (
+  } else if (visibleRows.length === 0) {
+    content = (
       <div
         className={cn(
-          'flex h-full items-center justify-center text-xs text-muted-foreground',
+          'flex flex-1 items-center justify-center text-xs text-muted-foreground',
           isDragOverRoot && 'bg-background-1'
         )}
         onDragOver={handleRootDragOver}
@@ -655,15 +681,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
         No files
       </div>
     );
-  }
-
-  return (
-    <div
-      className={cn('flex h-full flex-col overflow-hidden', isDragOverRoot && 'bg-background-1')}
-      onDragOver={handleRootDragOver}
-      onDragLeave={handleRootDragLeave}
-      onDrop={handleRootDrop}
-    >
+  } else {
+    content = (
       <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
@@ -684,6 +703,49 @@ export const EditorFileTree = observer(function EditorFileTree() {
           })}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn('flex h-full flex-col overflow-hidden', isDragOverRoot && 'bg-background-1')}
+      onDragOver={searchQuery ? undefined : handleRootDragOver}
+      onDragLeave={searchQuery ? undefined : handleRootDragLeave}
+      onDrop={searchQuery ? undefined : handleRootDrop}
+    >
+      <div className="shrink-0 px-2 pt-1.5">
+        <div className="relative">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
+          <Input
+            ref={setSearchInputRef}
+            value={searchQuery}
+            maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
+            aria-label="Search"
+            placeholder="Search"
+            className="h-7 border-0 bg-transparent pr-7 pl-7 text-xs shadow-none hover:bg-background-1 focus-visible:bg-background-1 focus-visible:ring-1"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              if (searchQuery) setSearchQuery('');
+              else event.currentTarget.blur();
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear file content search"
+              className="text-muted-foreground absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm hover:text-foreground"
+              onClick={() => {
+                setSearchQuery('');
+                searchInputRef.current?.focus();
+              }}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {content}
     </div>
   );
 });

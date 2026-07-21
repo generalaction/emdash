@@ -1,4 +1,4 @@
-import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
 import type { PaneLayoutStore } from '@core/features/workbench/browser/tabs/pane-layout-store';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
@@ -27,6 +27,9 @@ export class EditorViewStore {
    */
   pendingConflictUri: string | null = null;
 
+  /** Monotonic signal used by the task-level search command to focus the sidebar input. */
+  fileSearchFocusRequest = 0;
+
   /**
    * Per-view file-tree projection store. Created when the task session starts (`startFiles`) and
    * torn down on suspend (`disposeFiles`), so projection state lives with this view's expansion
@@ -52,14 +55,20 @@ export class EditorViewStore {
     makeObservable<EditorViewStore, 'treeHandle'>(this, {
       isSaving: observable,
       pendingConflictUri: observable,
+      fileSearchFocusRequest: observable,
       files: observable.ref,
       expandedPaths: computed.struct,
+      requestFileSearchFocus: action,
       treeHandle: false,
     });
   }
 
   get expandedPaths(): Set<string> {
     return new Set(this.treeHandle.value.expandedPaths);
+  }
+
+  requestFileSearchFocus(): void {
+    this.fileSearchFocusRequest += 1;
   }
 
   /** Opens the per-view file-tree projection. Idempotent. */

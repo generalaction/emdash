@@ -46,6 +46,17 @@ export const sidebarFilesCommand = defineCommand({
   keybinding: keybinding.settings('sidebarFiles', 'Mod+Shift+2'),
 });
 
+export const fileContentSearchCommand = defineCommand({
+  id: 'task.fileContentSearch',
+  title: 'Search File Contents',
+  description: 'Focus file content search in the right sidebar',
+  category: 'Search',
+  icon: 'search',
+  keybinding: keybinding.settings('fileContentSearch', 'Mod+Shift+F', {
+    allowWhenTerminalFocused: true,
+  }),
+});
+
 export const viewTerminalsCommand = defineCommand({
   id: 'task.viewTerminals',
   title: 'View Terminals',
@@ -228,6 +239,7 @@ export const TASK_COMMAND_DEFS = [
   sidebarChangesCommand,
   sidebarConversationsCommand,
   sidebarFilesCommand,
+  fileContentSearchCommand,
   viewTerminalsCommand,
   toggleTerminalDrawerCommand,
   toggleRightSidebarCommand,
