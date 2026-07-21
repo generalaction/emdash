@@ -1,12 +1,11 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import {
   createLiveJobReplica,
   LiveJobFailedError,
-  type LeasedLiveModelProvider,
+  type LiveModelProvider,
   type LiveJobContext,
   type LiveSource,
 } from '@emdash/wire';
@@ -110,11 +109,9 @@ export function createTerminalsWireController(
       toError: unknownToTerminalError,
     },
     workflows: createWorkflowsProvider(options),
-    output: (key) =>
-      deferredLiveSource(() =>
-        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-          client.terminals.output.handle(toTerminalKey(identity, key.terminalId)).asLiveSource()
-        )
+    output: async (key) =>
+      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+        client.terminals.output.handle(toTerminalKey(identity, key.terminalId)).asLiveSource()
       ),
     sendInput: (input, meta) =>
       withTerminalRuntime(options, input, (client, key) =>
@@ -455,23 +452,17 @@ async function runScriptWorkflow(
 
 function createWorkflowsProvider(
   options: CreateTerminalsWireControllerOptions
-): LeasedLiveModelProvider<typeof terminalsContract.workflows> {
+): LiveModelProvider<typeof terminalsContract.workflows> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: terminalsContract.workflows,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-          client.terminals.workflows
-            .state({ workspace: workspaceRef(identity) }, name)
-            .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+        client.terminals.workflows.state({ workspace: workspaceRef(identity) }, name).asLiveSource()
+      ),
     async runMutation() {
       throw new Error('Terminal workflows model has no mutations');
     },
-    async dispose() {},
   };
 }
 

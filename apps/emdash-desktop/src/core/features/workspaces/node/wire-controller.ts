@@ -11,6 +11,7 @@ import {
   type JobProgress,
   type JobResult,
   type LeasedLiveModelProvider,
+  type LiveModelProvider,
   type LiveJobClientHandle,
   type LiveJobContext,
   type LiveJobEndpointDef,
@@ -234,21 +235,17 @@ export function createWorkspacesWireController(
 
 function createWorkspaceRuntimeProvider(
   options: CreateWorkspacesWireControllerOptions
-): LeasedLiveModelProvider<typeof workspacesWireContract.runtime> {
+): LiveModelProvider<typeof workspacesWireContract.runtime> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: workspacesWireContract.runtime,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-          client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+        client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
+      ),
     async runMutation() {
       throw new Error('Workspace runtime model has no mutations');
     },
-    async dispose() {},
   };
 }
 
@@ -404,24 +401,16 @@ function createWorkspaceDeletionsProvider(
 
 function createBootstrapProvider(
   db: AppDb
-): LeasedLiveModelProvider<typeof workspacesWireContract.bootstrap> {
+): LiveModelProvider<typeof workspacesWireContract.bootstrap> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: workspacesWireContract.bootstrap,
-    acquireState(key, name) {
-      return {
-        ready: async () => {
-          if (name !== 'state') throw new Error(`Unknown bootstrap state '${String(name)}'`);
-          return await ensureBootstrapState(db, key);
-        },
-        release: async () => {},
-      };
+    async resolveState(key, name) {
+      if (name !== 'state') throw new Error(`Unknown bootstrap state '${String(name)}'`);
+      return await ensureBootstrapState(db, key);
     },
     async runMutation() {
       throw new Error('Workspace bootstrap model does not expose mutations');
-    },
-    async dispose() {
-      bootstrapStates.clear();
     },
   };
 }

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
+import type { LiveSource } from '../live/protocol';
 import { createController, encodeTopic, splitTopic } from './controller';
-import { defineContract, liveModel, liveState, liveLog, procedure } from './define';
+import { defineContract, eventStream, liveModel, liveState, liveLog, procedure } from './define';
 import { withValidation } from './with-validation';
 
 const keySchema = z.object({ id: z.string() });
@@ -15,6 +16,13 @@ function makeContract() {
     state: liveModel({ key: keySchema, states: { state: liveState({ data: stateSchema }) } }),
     output: liveLog({ key: keySchema }),
   });
+}
+
+function stubSource(data: unknown): LiveSource {
+  return {
+    snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data }),
+    subscribe: vi.fn(() => vi.fn()),
+  };
 }
 
 describe('createController', () => {
@@ -101,5 +109,80 @@ describe('createController', () => {
         .resolveLive(encodeTopic(contract.child.state.states.state.id, { id: 'known' }))
         ?.snapshot()
     ).toMatchObject({ data: { count: 3 } });
+  });
+
+  it('supports async resolveState in a LiveModelProvider', async () => {
+    const contract = makeContract();
+    const source = stubSource({ count: 42 });
+    const controller = createController(contract, {
+      echo: (input) => ({ value: input.value }),
+      state: {
+        kind: 'liveModelProvider' as const,
+        contract: contract.state,
+        resolveState: async () => source,
+        runMutation: async () => ({ success: true as const, data: { data: {}, cursors: [] } }),
+      },
+      output: () => null,
+    });
+
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'x' });
+    const resolved = controller.resolveLive(topic);
+    expect(resolved).not.toBeNull();
+    await expect(resolved!.snapshot()).resolves.toMatchObject({ data: { count: 42 } });
+
+    const lease = controller.acquireLive(topic);
+    expect(lease).not.toBeNull();
+    const leased = await lease!.ready();
+    expect(leased.snapshot()).toMatchObject({ data: { count: 42 } });
+    await lease!.release();
+  });
+
+  it('handles async-null resolveState as a missing live source', async () => {
+    const contract = makeContract();
+    const controller = createController(contract, {
+      echo: (input) => ({ value: input.value }),
+      state: {
+        kind: 'liveModelProvider' as const,
+        contract: contract.state,
+        resolveState: async () => null,
+        runMutation: async () => ({ success: true as const, data: { data: {}, cursors: [] } }),
+      },
+      output: () => null,
+    });
+
+    const topic = encodeTopic(contract.state.states.state.id, { id: 'x' });
+    const resolved = controller.resolveLive(topic);
+    expect(resolved).not.toBeNull();
+    await expect(resolved!.snapshot()).rejects.toThrow(/Unknown live topic/);
+  });
+
+  it('supports async event stream resolver', async () => {
+    const eventsContract = defineContract({
+      events: eventStream({ key: keySchema, event: z.object({ msg: z.string() }) }),
+    });
+    const source = stubSource({ msg: 'hello' });
+    const controller = createController(eventsContract, {
+      events: async () => source,
+    });
+
+    const topic = encodeTopic(eventsContract.events.id, { id: 'a' });
+    const resolved = controller.resolveLive(topic);
+    expect(resolved).not.toBeNull();
+    await expect(resolved!.snapshot()).resolves.toMatchObject({ data: { msg: 'hello' } });
+  });
+
+  it('supports async live log resolver', async () => {
+    const contract = makeContract();
+    const source = stubSource({ line: 'output' });
+    const controller = createController(contract, {
+      echo: (input) => ({ value: input.value }),
+      state: createLiveModelHost(contract.state),
+      output: async () => source,
+    });
+
+    const topic = encodeTopic(contract.output.id, { id: 'b' });
+    const resolved = controller.resolveLive(topic);
+    expect(resolved).not.toBeNull();
+    await expect(resolved!.snapshot()).resolves.toMatchObject({ data: { line: 'output' } });
   });
 });

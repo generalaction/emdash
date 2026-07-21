@@ -7,7 +7,7 @@ import {
   type JobProgress,
   type JobResult,
   type GroupMutationEnvelope,
-  type LeasedLiveModelProvider,
+  type LiveModelProvider,
   type LiveJobClientHandle,
   type LiveJobContext,
   type LiveJobEndpointDef,
@@ -173,31 +173,27 @@ export function createSourceControlWireController(
 function createRepositoryModelProvider({
   runtimes,
   workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LeasedLiveModelProvider<
+}: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.repository.model
 > {
   const contract = sourceControlContract.repository.model;
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(
-          runtimes,
-          workspaceIdentity.resolveProject(key.projectId),
-          (client, id) =>
-            client.git.repository.model
-              .state({ repository: hostPathFromNative(id.path) }, name)
-              .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(
+        runtimes,
+        workspaceIdentity.resolveProject(key.projectId),
+        (client, id) =>
+          client.git.repository.model
+            .state({ repository: hostPathFromNative(id.path) }, name)
+            .asLiveSource()
+      ),
     async runMutation(name, envelope) {
       return withIdentityRuntime(
         runtimes,
         workspaceIdentity.resolveProject(envelope.key.projectId),
         async (client, identity) => {
-          // The facade changes only the error schema; mutation inputs remain identical.
           const result = await client.git.repository.model.mutate(name, {
             ...envelope,
             key: { repository: hostPathFromNative(identity.path) },
@@ -209,40 +205,35 @@ function createRepositoryModelProvider({
             envelope.key
           );
         }
-      ) as ReturnType<LeasedLiveModelProvider<typeof contract>['runMutation']>;
+      ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
-    async dispose() {},
   };
 }
 
 function createCheckoutModelProvider({
   runtimes,
   workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LeasedLiveModelProvider<
+}: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.checkout.model
 > {
   const contract = sourceControlContract.checkout.model;
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(
-          runtimes,
-          workspaceIdentity.resolve(key.workspaceId),
-          (client, identity) =>
-            client.git.checkout.model
-              .state({ checkout: hostPathFromNative(identity.path) }, name)
-              .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(
+        runtimes,
+        workspaceIdentity.resolve(key.workspaceId),
+        (client, identity) =>
+          client.git.checkout.model
+            .state({ checkout: hostPathFromNative(identity.path) }, name)
+            .asLiveSource()
+      ),
     async runMutation(name, envelope) {
       return withIdentityRuntime(
         runtimes,
         workspaceIdentity.resolve(envelope.key.workspaceId),
         async (client, identity) => {
-          // The facade changes only the error schema; mutation inputs remain identical.
           const result = await client.git.checkout.model.mutate(name, {
             ...envelope,
             key: { checkout: hostPathFromNative(identity.path) },
@@ -254,79 +245,70 @@ function createCheckoutModelProvider({
             envelope.key
           );
         }
-      ) as ReturnType<LeasedLiveModelProvider<typeof contract>['runMutation']>;
+      ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
-    async dispose() {},
   };
 }
 
 function createFileDiffModelProvider({
   runtimes,
   workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LeasedLiveModelProvider<
+}: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.checkout.fileDiff
 > {
   const contract = sourceControlContract.checkout.fileDiff;
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(
-          runtimes,
-          workspaceIdentity.resolve(key.workspaceId),
-          (client, identity) =>
-            client.git.checkout.fileDiff
-              .state(
-                {
-                  ...withoutWorkspaceId(key),
-                  checkout: hostPathFromNative(identity.path),
-                },
-                name
-              )
-              .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(
+        runtimes,
+        workspaceIdentity.resolve(key.workspaceId),
+        (client, identity) =>
+          client.git.checkout.fileDiff
+            .state(
+              {
+                ...withoutWorkspaceId(key),
+                checkout: hostPathFromNative(identity.path),
+              },
+              name
+            )
+            .asLiveSource()
+      ),
     async runMutation() {
       throw new Error(`Live model '${contract.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 
 function createContentModelProvider({
   runtimes,
   workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LeasedLiveModelProvider<
+}: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.checkout.content
 > {
   const contract = sourceControlContract.checkout.content;
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(
-          runtimes,
-          workspaceIdentity.resolve(key.workspaceId),
-          (client, identity) =>
-            client.git.checkout.content
-              .state(
-                {
-                  ...withoutWorkspaceId(key),
-                  checkout: hostPathFromNative(identity.path),
-                },
-                name
-              )
-              .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(
+        runtimes,
+        workspaceIdentity.resolve(key.workspaceId),
+        (client, identity) =>
+          client.git.checkout.content
+            .state(
+              {
+                ...withoutWorkspaceId(key),
+                checkout: hostPathFromNative(identity.path),
+              },
+              name
+            )
+            .asLiveSource()
+      ),
     async runMutation() {
       throw new Error(`Live model '${contract.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 

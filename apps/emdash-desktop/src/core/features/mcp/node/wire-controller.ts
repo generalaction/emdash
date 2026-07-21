@@ -1,6 +1,6 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
-import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { mcpContract } from '../api';
 import {
@@ -38,21 +38,17 @@ export function createMcpWireController(options: CreateMcpWireControllerOptions)
 
 function createServersModelProvider(
   runtimes: McpRuntimeBroker
-): LeasedLiveModelProvider<typeof mcpContract.servers> {
+): LiveModelProvider<typeof mcpContract.servers> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: mcpContract.servers,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(runtimes, key.host, (runtime) =>
-          runtime.agentConfig.mcpServers.state(undefined, name).asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(runtimes, key.host, (runtime) =>
+        runtime.agentConfig.mcpServers.state(undefined, name).asLiveSource()
+      ),
     async runMutation() {
       throw new Error(`Live model '${mcpContract.servers.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 

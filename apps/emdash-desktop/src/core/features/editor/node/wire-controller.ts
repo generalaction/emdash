@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { GroupMutationEnvelope, LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { GroupMutationEnvelope, LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { editorContract } from '../api';
@@ -89,29 +89,25 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
 
 function createTreeModelProvider(
   options: CreateEditorWireControllerOptions
-): LeasedLiveModelProvider<typeof editorContract.tree.model> {
+): LiveModelProvider<typeof editorContract.tree.model> {
   const contract = editorContract.tree.model;
   return {
-    kind: 'leasedLiveModelProvider' as const,
+    kind: 'liveModelProvider' as const,
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-          client.files.tree.model
-            .state(
-              {
-                root: hostPathFromNative(identity.path),
-                sessionId: key.sessionId,
-              },
-              name
-            )
-            .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+        client.files.tree.model
+          .state(
+            {
+              root: hostPathFromNative(identity.path),
+              sessionId: key.sessionId,
+            },
+            name
+          )
+          .asLiveSource()
+      ),
     async runMutation(name, envelope) {
       return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
-        // The facade changes only the error schema; mutation inputs remain identical.
         const result = await client.files.tree.model.mutate(name, {
           ...envelope,
           key: {
@@ -125,37 +121,32 @@ function createTreeModelProvider(
           editorContract.tree.model,
           envelope.key
         );
-      }) as ReturnType<LeasedLiveModelProvider<typeof contract>['runMutation']>;
+      }) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
-    async dispose() {},
   };
 }
 
 function createContentModelProvider(
   options: CreateEditorWireControllerOptions
-): LeasedLiveModelProvider<typeof editorContract.content> {
+): LiveModelProvider<typeof editorContract.content> {
   const contract = editorContract.content;
   return {
-    kind: 'leasedLiveModelProvider' as const,
+    kind: 'liveModelProvider' as const,
     contract,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-          client.files.content
-            .state(
-              {
-                root: hostPathFromNative(identity.path),
-                relative: key.relative,
-              },
-              name
-            )
-            .asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+        client.files.content
+          .state(
+            {
+              root: hostPathFromNative(identity.path),
+              relative: key.relative,
+            },
+            name
+          )
+          .asLiveSource()
+      ),
     async runMutation(name, envelope) {
       return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
-        // The facade changes only the error schema; mutation inputs remain identical.
         const result = await client.files.content.mutate(name, {
           ...envelope,
           key: {
@@ -169,9 +160,8 @@ function createContentModelProvider(
           editorContract.content,
           envelope.key
         );
-      }) as ReturnType<LeasedLiveModelProvider<typeof contract>['runMutation']>;
+      }) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
-    async dispose() {},
   };
 }
 

@@ -1,8 +1,7 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import {
   createController,
   type CallMeta,
@@ -89,27 +88,21 @@ export function createConversationsWireController(
     ) => Promise<Result<T, E>>
   ) => withConversationRuntime(options.runtimes, target(conversationId), work);
 
-  const acpSessions = leasedModelProvider(conversationsContract.acp.sessions, (key, name) => ({
-    ready: () =>
-      resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-        client.acp.sessions.state(key, name).asLiveSource()
-      ),
-    release: async () => {},
-  }));
-  const acpSession = leasedModelProvider(conversationsContract.acp.session, (key, name) => ({
-    ready: () =>
-      resolveConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
-        client.acp.session.state(key, name).asLiveSource()
-      ),
-    release: async () => {},
-  }));
-  const tuiSessions = leasedModelProvider(conversationsContract.tui.sessions, (key, name) => ({
-    ready: () =>
-      resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-        client.tuiAgents.sessions.state(key, name).asLiveSource()
-      ),
-    release: async () => {},
-  }));
+  const acpSessions = modelProvider(conversationsContract.acp.sessions, (key, name) =>
+    resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
+      client.acp.sessions.state(key, name).asLiveSource()
+    )
+  );
+  const acpSession = modelProvider(conversationsContract.acp.session, (key, name) =>
+    resolveConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
+      client.acp.session.state(key, name).asLiveSource()
+    )
+  );
+  const tuiSessions = modelProvider(conversationsContract.tui.sessions, (key, name) =>
+    resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
+      client.tuiAgents.sessions.state(key, name).asLiveSource()
+    )
+  );
 
   return createController(conversationsContract, {
     getConversations: () => conversationOperations.getConversations(),
@@ -235,11 +228,9 @@ export function createConversationsWireController(
         run(input.conversationId, (client) => client.acp.getHistory(input, callOptions(meta))),
       sessions: acpSessions,
       session: acpSession,
-      terminalOutput: ({ conversationId, terminalId }) =>
-        deferredLiveSource(() =>
-          resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
-            client.acp.terminalOutput.handle({ terminalId }).asLiveSource()
-          )
+      terminalOutput: async ({ conversationId, terminalId }) =>
+        resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+          client.acp.terminalOutput.handle({ terminalId }).asLiveSource()
         ),
     },
     tui: {
@@ -283,11 +274,9 @@ export function createConversationsWireController(
       },
       resize: (input, meta) =>
         run(input.conversationId, (client) => client.tuiAgents.resize(input, callOptions(meta))),
-      output: ({ conversationId }) =>
-        deferredLiveSource(() =>
-          resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
-            client.tuiAgents.output.handle({ conversationId }).asLiveSource()
-          )
+      output: async ({ conversationId }) =>
+        resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+          client.tuiAgents.output.handle({ conversationId }).asLiveSource()
         ),
       sessions: tuiSessions,
     },
@@ -436,18 +425,17 @@ function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
 }
 
-function leasedModelProvider<Group extends LiveModelDef>(
+function modelProvider<Group extends LiveModelDef>(
   contract: Group,
-  acquireState: LeasedLiveModelProvider<Group>['acquireState']
-): LeasedLiveModelProvider<Group> {
+  resolveState: LiveModelProvider<Group>['resolveState']
+): LiveModelProvider<Group> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract,
-    acquireState,
+    resolveState,
     async runMutation() {
       throw new Error(`Live model '${contract.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 

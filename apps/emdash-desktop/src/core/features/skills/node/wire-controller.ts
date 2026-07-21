@@ -1,6 +1,6 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
-import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { skillsContract } from '../api';
 import {
@@ -34,21 +34,17 @@ export function createSkillsWireController(options: CreateSkillsWireControllerOp
 
 function createInstalledModelProvider(
   runtimes: SkillsRuntimeBroker
-): LeasedLiveModelProvider<typeof skillsContract.installed> {
+): LiveModelProvider<typeof skillsContract.installed> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: skillsContract.installed,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(runtimes, key.host, (runtime) =>
-          runtime.agentConfig.skills.state(undefined, name).asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(runtimes, key.host, (runtime) =>
+        runtime.agentConfig.skills.state(undefined, name).asLiveSource()
+      ),
     async runMutation() {
       throw new Error(`Live model '${skillsContract.installed.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 

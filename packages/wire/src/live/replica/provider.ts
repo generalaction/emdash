@@ -24,7 +24,7 @@ export type LiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {
   resolveState<Name extends Extract<keyof Group['states'], string>>(
     key: LiveModelKey<Group>,
     name: Name
-  ): LiveSource | null | undefined;
+  ): LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
   runMutation<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
     name: Name,
     envelope: GroupMutationEnvelope<Group, Name>

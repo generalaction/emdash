@@ -1,5 +1,10 @@
 import { LiveState } from '@emdash/wire';
-import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
+import type {
+  Contract,
+  ContractImpl,
+  LeasedLiveModelProvider,
+  LiveModelProvider,
+} from '@emdash/wire';
 import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
 import type { OperationsEngine } from '@core/services/operations/node';
@@ -103,24 +108,16 @@ function createProjectDeletionsProvider(
   };
 }
 
-function createCreationProvider(): LeasedLiveModelProvider<typeof projectsWireContract.creation> {
+function createCreationProvider(): LiveModelProvider<typeof projectsWireContract.creation> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: projectsWireContract.creation,
-    acquireState(key, name) {
-      return {
-        ready: async () => {
-          if (name !== 'state') throw new Error(`Unknown project creation state '${String(name)}'`);
-          return ensureCreationState(key);
-        },
-        release: async () => {},
-      };
+    resolveState(key, name) {
+      if (name !== 'state') throw new Error(`Unknown project creation state '${String(name)}'`);
+      return ensureCreationState(key);
     },
     async runMutation() {
       throw new Error('Project creation model does not expose mutations');
-    },
-    async dispose() {
-      creationStates.clear();
     },
   };
 }

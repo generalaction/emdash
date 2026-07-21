@@ -1,6 +1,6 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { describe, expect, it, vi } from 'vitest';
 import type { workspacesWireContract } from '../api';
 import type { WorkspacesIdentityResolver, WorkspacesRuntimeBroker } from '../api/runtime-adapter';
@@ -47,17 +47,16 @@ describe('createWorkspacesWireController', () => {
       } as WorkspacesIdentityResolver,
     });
 
-    const runtime = controller.impl.runtime as LeasedLiveModelProvider<
+    const runtime = controller.impl.runtime as LiveModelProvider<
       typeof workspacesWireContract.runtime
     >;
-    const lease = runtime.acquireState({ workspaceId: 'workspace-1' }, 'state');
+    const resolved = runtime.resolveState({ workspaceId: 'workspace-1' }, 'state');
 
-    await expect(lease.ready()).resolves.toBe(source);
+    await expect(resolved).resolves.toBe(source);
     expect(resolve).toHaveBeenCalledWith('workspace-1');
     expect(client).toHaveBeenCalledWith(LOCAL_HOST_REF);
     expect(state).toHaveBeenCalledOnce();
 
-    await lease.release();
     await controller.dispose();
   });
 

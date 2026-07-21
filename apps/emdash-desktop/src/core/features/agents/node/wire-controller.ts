@@ -1,8 +1,7 @@
 import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
-import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type Result } from '@emdash/shared';
-import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import type { AgentOperations } from '@core/features/agents/node/controller';
 import { agentsContract } from '../api';
@@ -106,32 +105,26 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.refreshAuthStatus(withoutHost(input), callOptions(meta))
       ),
-    loginOutput: ({ host, providerId }) =>
-      deferredLiveSource(() =>
-        resolveRuntimeSource(options.runtimes, host, (runtime) =>
-          runtime.agentConfig.loginOutput.handle({ providerId }).asLiveSource()
-        )
+    loginOutput: async ({ host, providerId }) =>
+      resolveRuntimeSource(options.runtimes, host, (runtime) =>
+        runtime.agentConfig.loginOutput.handle({ providerId }).asLiveSource()
       ),
   });
 }
 
 function createAuthModelProvider(
   runtimes: AgentsRuntimeBroker
-): LeasedLiveModelProvider<typeof agentsContract.auth> {
+): LiveModelProvider<typeof agentsContract.auth> {
   return {
-    kind: 'leasedLiveModelProvider',
+    kind: 'liveModelProvider',
     contract: agentsContract.auth,
-    acquireState: (key, name) => ({
-      ready: () =>
-        resolveRuntimeSource(runtimes, key.host, (runtime) =>
-          runtime.agentConfig.agents.state(undefined, name).asLiveSource()
-        ),
-      release: async () => {},
-    }),
+    resolveState: (key, name) =>
+      resolveRuntimeSource(runtimes, key.host, (runtime) =>
+        runtime.agentConfig.agents.state(undefined, name).asLiveSource()
+      ),
     async runMutation() {
       throw new Error(`Live model '${agentsContract.auth.id}' has no mutations`);
     },
-    async dispose() {},
   };
 }
 

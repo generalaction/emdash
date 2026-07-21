@@ -1,4 +1,3 @@
-import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
 import { createController, type Controller } from '@emdash/wire';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { adoptRun } from '@core/features/automations/node/run-adoption';
@@ -40,11 +39,9 @@ export function createAutomationsWireController(options: {
       (await resolveClient(projectId)).automations.listChangedRuns(input),
     getRunOverview: async ({ projectId, ...input }) =>
       (await resolveClient(projectId)).automations.getRunOverview(input),
-    runEvents: ({ projectId, automationId }) =>
-      deferredLiveSource(async () =>
-        (await resolveClient(projectId)).automations.runEvents
-          .handle({ automationId })
-          .asLiveSource()
-      ),
+    runEvents: async ({ projectId, automationId }) =>
+      (await resolveClient(projectId)).automations.runEvents
+        .handle({ automationId })
+        .asLiveSource(),
   });
 }

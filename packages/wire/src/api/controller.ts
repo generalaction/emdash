@@ -113,9 +113,9 @@ type UploadFileImpl<Def extends UploadFileEndpointDef> = (
   | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
   | Result<UploadFileResult<Def>, UploadFileError<Def>>;
 
-type LiveLogImpl<Def extends LiveLogEndpointDef> = (
-  key: LiveLogKey<Def>
-) => LiveSource | null | undefined;
+type MaybeAsyncLiveSource = LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
+
+type LiveLogImpl<Def extends LiveLogEndpointDef> = (key: LiveLogKey<Def>) => MaybeAsyncLiveSource;
 
 type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
   | LiveLogImpl<Def>
@@ -124,7 +124,7 @@ type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
 
 type EventStreamImpl<Def extends EventStreamEndpointDef> = (
   key: EventStreamKey<Def>
-) => LiveSource | null | undefined;
+) => MaybeAsyncLiveSource;
 
 type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
   | EventStreamImpl<Def>
@@ -170,7 +170,7 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
 };
 
 type LiveEntry = {
-  resolve?(key: unknown): LiveSource | null | undefined;
+  resolve?(key: unknown): MaybeAsyncLiveSource;
   acquire?(key: unknown): PendingLease<LiveSource>;
 };
 
@@ -435,15 +435,27 @@ export function createController<Defs extends ContractDefinitions>(
       const { refId, rawKey } = splitTopic(topic);
       const entry = liveEntries.get(refId);
       if (!entry?.resolve) return null;
-      return entry.resolve(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+      const result = entry.resolve(rawKey);
+      if (result == null) return missingLiveSource(`Unknown live topic '${topic}'`);
+      if (isPromiseLike(result)) return awaitedLiveSource(result, `Unknown live topic '${topic}'`);
+      return result;
     },
     acquireLive(topic) {
       const { refId, rawKey } = splitTopic(topic);
       const entry = liveEntries.get(refId);
       if (!entry) return null;
       if (entry.acquire) return entry.acquire(rawKey);
-      const source = entry.resolve?.(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
-      return immediateLiveSourceLease(source);
+      const result = entry.resolve?.(rawKey);
+      if (result == null)
+        return immediateLiveSourceLease(missingLiveSource(`Unknown live topic '${topic}'`));
+      if (isPromiseLike(result)) {
+        const resolved = result.then(
+          (s) => s ?? missingLiveSource(`Unknown live topic '${topic}'`)
+        );
+        resolved.catch(() => {});
+        return { ready: async () => await resolved, release: async () => {} };
+      }
+      return immediateLiveSourceLease(result);
     },
     async dispose() {
       await Promise.all(jobServers.map((server) => server.dispose()));
@@ -523,16 +535,16 @@ export { encodeTopic, splitTopic } from './topics';
 
 function createLiveLogResolver(
   impl: LiveLogEntryImpl<LiveLogEndpointDef>
-): (key: unknown) => LiveSource | null | undefined {
+): (key: unknown) => MaybeAsyncLiveSource {
   if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
   if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
-  return impl as (key: unknown) => LiveSource | null | undefined;
+  return impl as (key: unknown) => MaybeAsyncLiveSource;
 }
 
 function createEventStreamResolver(
   def: EventStreamEndpointDef,
   impl: EventStreamEntryImpl<EventStreamEndpointDef>
-): (key: unknown) => LiveSource | null | undefined {
+): (key: unknown) => MaybeAsyncLiveSource {
   if (isEventStreamHost(impl)) {
     if (impl.def.id !== def.id) {
       throw new WireError(
@@ -551,7 +563,7 @@ function createEventStreamResolver(
     }
     return (key) => impl.handle(key as never).asLiveSource();
   }
-  return impl as (key: unknown) => LiveSource | null | undefined;
+  return impl as (key: unknown) => MaybeAsyncLiveSource;
 }
 
 function createLiveJob(
@@ -593,6 +605,26 @@ function missingLiveSource(message: string): LiveSource {
       throw new WireError('NOT_FOUND', message);
     },
   };
+}
+
+function awaitedLiveSource(
+  pending: Promise<LiveSource | null | undefined>,
+  missingMessage: string
+): LiveSource {
+  const resolved = pending.then((s) => s ?? missingLiveSource(missingMessage));
+  resolved.catch(() => {});
+  return {
+    async snapshot() {
+      return await (await resolved).snapshot();
+    },
+    async subscribe(callback, options) {
+      return await (await resolved).subscribe(callback, options);
+    },
+  };
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<LiveSource | null | undefined> {
+  return typeof (value as PromiseLike<unknown>)?.then === 'function';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
