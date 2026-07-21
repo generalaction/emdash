@@ -1,4 +1,6 @@
 import type { Client, ClientChannel } from 'ssh2';
+import { execOnClient, type SshExecOptions, type SshExecResult } from '../operations/exec';
+import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
 
 /**
  * Stable reference to an ssh2 Client that survives reconnects.
@@ -44,48 +46,11 @@ export class SshClientProxy {
 
   /** Opens an OpenSSH streamlocal channel through the current live connection. */
   forwardOutStreamLocal(socketPath: string): Promise<ClientChannel> {
-    const client = this.client;
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const cleanup = () => {
-        client.off('close', handleClose);
-        client.off('end', handleClose);
-        client.off('error', handleError);
-      };
-      const fail = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
-      };
-      const handleClose = () => {
-        fail(new Error('SSH connection closed while opening streamlocal channel'));
-      };
-      const handleError = (error: Error) => {
-        fail(error);
-      };
+    return forwardOutStreamLocalOnClient(this.client, socketPath);
+  }
 
-      client.once('close', handleClose);
-      client.once('end', handleClose);
-      client.once('error', handleError);
-
-      try {
-        client.openssh_forwardOutStreamLocal(socketPath, (error, channel) => {
-          if (settled) {
-            channel?.destroy();
-            return;
-          }
-          settled = true;
-          cleanup();
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve(channel);
-        });
-      } catch (error) {
-        fail(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
+  /** Runs a command through the current live connection with bounded resources. */
+  exec(command: string, options?: SshExecOptions): Promise<SshExecResult> {
+    return execOnClient(this.client, command, options);
   }
 }
