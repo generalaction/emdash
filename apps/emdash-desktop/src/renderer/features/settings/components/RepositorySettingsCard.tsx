@@ -27,6 +27,7 @@ const RepositorySettingsCard: React.FC = () => {
   const branchPrefix = project?.branchPrefix ?? '';
   const appendRandomBranchSuffix = project?.appendRandomBranchSuffix ?? true;
   const pushOnCreate = project?.pushOnCreate ?? true;
+  const injectAgentNotificationHooks = localProject?.injectAgentNotificationHooks ?? true;
   const writeAgentConfigToGitIgnore = localProject?.writeAgentConfigToGitIgnore ?? true;
   const projectBusy = projectLoading || projectSaving;
   const localProjectBusy = localProjectLoading || localProjectSaving;
@@ -97,6 +98,29 @@ const RepositorySettingsCard: React.FC = () => {
               onCheckedChange={(checked) => updateProject({ pushOnCreate: checked })}
               disabled={projectBusy}
               aria-label="Enable automatic push on create"
+            />
+          </>
+        }
+      />
+      <SettingRow
+        title="Agent notification hooks"
+        description="Allow Emdash to install and inject notification hooks when starting a local task."
+        control={
+          <>
+            <ResetToDefaultButton
+              visible={isLocalProjectFieldOverridden('injectAgentNotificationHooks')}
+              defaultLabel="on"
+              ariaLabel="Reset agent notification hooks to default"
+              onReset={() => resetLocalProjectField('injectAgentNotificationHooks')}
+              disabled={localProjectBusy}
+            />
+            <Switch
+              checked={injectAgentNotificationHooks}
+              onCheckedChange={(checked) =>
+                updateLocalProject({ injectAgentNotificationHooks: checked })
+              }
+              disabled={localProjectBusy}
+              aria-label="Enable automatic agent notification hook injection"
             />
           </>
         }
