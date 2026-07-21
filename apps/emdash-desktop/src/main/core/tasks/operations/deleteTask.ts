@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskSessionManager } from '@main/core/tasks/task-session-manager';
+import { clearTaskResourceTeardown } from '@main/core/tasks/task-resource-teardown-state';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
@@ -15,6 +15,7 @@ import {
   removeOwnedLocalWorktreeDirectoryIfUnused,
   removeWorktreeIfUnused,
 } from './task-lifecycle-utils';
+import { teardownTaskResources } from './teardownTaskResources';
 
 export async function deleteTask(
   projectId: string,
@@ -28,15 +29,10 @@ export async function deleteTask(
 
   const project = projectManager.getProject(projectId);
 
-  if (project) {
-    const teardownResult = await taskSessionManager.teardownTask(taskId, 'terminate').catch((e) => {
-      log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
-      return null;
-    });
-
-    if (teardownResult && !teardownResult.success) {
-      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
-    }
+  const teardownResult = await teardownTaskResources(task, 'terminate');
+  if (!teardownResult.success) {
+    log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
+    throw new Error(`Failed to delete task resources: ${teardownResult.error.message}`);
   }
 
   // Load workspace row before deleting it (we may need workspace metadata for cleanup).
@@ -62,6 +58,7 @@ export async function deleteTask(
   }
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
+  clearTaskResourceTeardown(taskId);
   void viewStateService.del(`task:${taskId}`);
   void viewStateService.del(`task:${taskId}:tabs`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });

@@ -129,6 +129,8 @@ export const tasks = sqliteTable(
     taskBranch: text('task_branch'), // @deprecated — use workspaces.config for provisioned branch identity
     linkedIssue: versionedJsonColumn(linkedIssue)('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
+    lifecycleTeardownAt: text('lifecycle_teardown_at'),
+    providerDestroyAt: text('provider_destroy_at'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
