@@ -32,7 +32,6 @@ const WEIGHT_TOKENS = [
   { name: '--font-weight-normal', value: 400, label: 'Normal 400' },
   { name: '--font-weight-medium', value: 500, label: 'Medium 500' },
   { name: '--font-weight-semibold', value: 600, label: 'Semibold 600' },
-  { name: '--font-weight-bold', value: 700, label: 'Bold 700' },
 ];
 
 /** Primitive type size scale — each --text-* token. */

@@ -33,7 +33,6 @@ export const tokenVars = createGlobalThemeContract(
     fontWeightNormal: 'font-weight-normal',
     fontWeightMedium: 'font-weight-medium',
     fontWeightSemibold: 'font-weight-semibold',
-    fontWeightBold: 'font-weight-bold',
 
     // Primitive type size scale
     textMicro: 'text-micro',
@@ -103,7 +102,6 @@ globalStyle(':root', {
     [tokenVars.fontWeightNormal]: '400',
     [tokenVars.fontWeightMedium]: '500',
     [tokenVars.fontWeightSemibold]: '600',
-    [tokenVars.fontWeightBold]: '700',
 
     // Primitive type size scale
     [tokenVars.textMicro]: '10px',
