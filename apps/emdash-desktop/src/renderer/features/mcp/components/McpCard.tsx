@@ -26,7 +26,9 @@ function getTransport(server?: McpServer, entry?: McpCatalogEntry): 'stdio' | 'h
 }
 
 export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, onAdd }) => {
-  const name = server?.name ?? catalogEntry?.name ?? 'Unknown';
+  // Prefer the catalog display name (e.g. "Emdash", "Linear") over the raw
+  // config key an installed server is stored under, matching the description.
+  const name = catalogEntry?.name ?? server?.name ?? 'Unknown';
   const description = catalogEntry?.description ?? (server ? `${server.transport} server` : '');
   const isInstalled = !!server;
   const transport = getTransport(server, catalogEntry);

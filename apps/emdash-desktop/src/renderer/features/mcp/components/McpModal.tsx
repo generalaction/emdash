@@ -35,6 +35,63 @@ interface McpModalProps extends BaseModalProps {
   onRemove?: (serverName: string) => void;
 }
 
+/**
+ * Main flags managed entries itself (see {@link McpCatalogEntry.managed}): on
+ * catalog entries directly, on installed servers as a load-time annotation.
+ */
+function isManaged(mode: McpModalMode): boolean {
+  if (mode.type === 'add-catalog') return mode.entry.managed === true;
+  return mode.type === 'edit' && mode.server.managed === true;
+}
+
+type FieldAccess = 'editable' | 'readonly' | 'hidden';
+
+interface FieldPolicy {
+  name: FieldAccess;
+  transport: FieldAccess;
+  /** Covers the command and arguments fields. */
+  command: FieldAccess;
+  url: FieldAccess;
+  env: FieldAccess;
+  headers: FieldAccess;
+}
+
+/**
+ * What each form field allows in each mode — the single place that decides
+ * it; the JSX below renders uniformly from this. Managed servers keep their
+ * connection details in the main process, so only agent selection is open.
+ */
+function getFieldPolicy(mode: McpModalMode): FieldPolicy {
+  if (isManaged(mode)) {
+    return {
+      name: 'readonly',
+      transport: 'hidden',
+      command: 'hidden',
+      url: 'readonly',
+      env: 'hidden',
+      headers: 'hidden',
+    };
+  }
+  if (mode.type === 'add-catalog') {
+    return {
+      name: 'readonly',
+      transport: 'hidden',
+      command: 'readonly',
+      url: 'readonly',
+      env: 'editable',
+      headers: 'editable',
+    };
+  }
+  return {
+    name: mode.type === 'edit' ? 'readonly' : 'editable',
+    transport: 'editable',
+    command: 'editable',
+    url: 'editable',
+    env: 'editable',
+    headers: 'editable',
+  };
+}
+
 export const McpModal: React.FC<McpModalProps> = ({
   mode,
   providers,
@@ -44,6 +101,7 @@ export const McpModal: React.FC<McpModalProps> = ({
 }) => {
   const isEdit = mode.type === 'edit';
   const isCatalog = mode.type === 'add-catalog';
+  const policy = getFieldPolicy(mode);
   const credentialKeys = isCatalog
     ? new Map(mode.entry.credentialKeys.map((c) => [c.key, c.required]))
     : new Map<string, boolean>();
@@ -127,7 +185,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                 <Input
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
-                  disabled={isCatalog || isEdit}
+                  disabled={policy.name === 'readonly'}
                   placeholder="my-server"
                 />
               </Field>
@@ -135,7 +193,7 @@ export const McpModal: React.FC<McpModalProps> = ({
           </form.Field>
 
           {/* Transport */}
-          {!isCatalog && (
+          {policy.transport !== 'hidden' && (
             <form.Field name="transport">
               {(field) => (
                 <Field>
@@ -172,7 +230,7 @@ export const McpModal: React.FC<McpModalProps> = ({
           <form.Subscribe selector={(state) => state.values.transport}>
             {(transport) => (
               <>
-                {transport === 'stdio' && (
+                {transport === 'stdio' && policy.command !== 'hidden' && (
                   <>
                     <form.Field name="command">
                       {(field) => (
@@ -181,7 +239,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                           <Input
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
-                            disabled={isCatalog}
+                            disabled={policy.command === 'readonly'}
                             placeholder="npx"
                           />
                         </Field>
@@ -194,7 +252,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                           <textarea
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
-                            disabled={isCatalog}
+                            disabled={policy.command === 'readonly'}
                             placeholder={'-y\nmy-mcp-server'}
                             rows={3}
                             className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -205,7 +263,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                   </>
                 )}
 
-                {transport === 'http' && (
+                {transport === 'http' && policy.url !== 'hidden' && (
                   <form.Field name="url">
                     {(field) => (
                       <Field>
@@ -213,7 +271,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                         <Input
                           value={field.state.value}
                           onChange={(e) => field.handleChange(e.target.value)}
-                          disabled={isCatalog}
+                          disabled={policy.url === 'readonly'}
                           placeholder="https://mcp.example.com"
                         />
                       </Field>
@@ -225,24 +283,27 @@ export const McpModal: React.FC<McpModalProps> = ({
           </form.Subscribe>
 
           {/* Env vars — both transports */}
-          <form.Field name="envEntries">
-            {(field) => (
-              <KeyValueSection
-                label="Environment Variables"
-                entries={field.state.value}
-                onChange={(entries) => field.handleChange(entries)}
-                addLabel="+ Add env var"
-                makeId={makeId}
-                credentialKeys={credentialKeys}
-                splitEnvPaste
-              />
-            )}
-          </form.Field>
+          {policy.env !== 'hidden' && (
+            <form.Field name="envEntries">
+              {(field) => (
+                <KeyValueSection
+                  label="Environment Variables"
+                  entries={field.state.value}
+                  onChange={(entries) => field.handleChange(entries)}
+                  addLabel="+ Add env var"
+                  makeId={makeId}
+                  credentialKeys={credentialKeys}
+                  splitEnvPaste
+                />
+              )}
+            </form.Field>
+          )}
 
           {/* Headers — http only */}
           <form.Subscribe selector={(state) => state.values.transport}>
             {(transport) =>
-              transport === 'http' && (
+              transport === 'http' &&
+              policy.headers !== 'hidden' && (
                 <form.Field name="headerEntries">
                   {(field) => (
                     <KeyValueSection
