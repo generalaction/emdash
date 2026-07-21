@@ -161,6 +161,7 @@ export type AgentHostDependencyInfo = {
 
 export type AgentModelOption = {
   name: string;
+  aliases?: string[];
   description?: string;
   modelFeatures?: {
     contextWindowSize?: number;

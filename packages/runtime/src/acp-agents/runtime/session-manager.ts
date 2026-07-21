@@ -67,6 +67,7 @@ import {
   type SessionLiveModels,
   type SessionsListModel,
 } from '../state/live-models';
+import { resolveInitialModelOption } from './resolve-initial-model-option';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
 interface SessionRecord {
@@ -163,16 +164,7 @@ export class SessionManager implements InboundRouter {
             modes: response.modes,
             configOptions: response.configOptions,
           });
-          if (input.model) {
-            const modelResult = await record.cell.setConfigOption('model', input.model);
-            if (!modelResult.success) {
-              this.deps.logger.warn('SessionManager: failed to apply initial model', {
-                conversationId: input.conversationId,
-                providerId: input.providerId,
-                error: modelResult.error,
-              });
-            }
-          }
+          await this.applyInitialModel(record);
           const queueResult = this.queueInitialPrompts(record);
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
@@ -208,16 +200,7 @@ export class SessionManager implements InboundRouter {
           modes: response.modes,
           configOptions: response.configOptions,
         });
-        if (input.model) {
-          const modelResult = await record.cell.setConfigOption('model', input.model);
-          if (!modelResult.success) {
-            this.deps.logger.warn('SessionManager: failed to apply initial model', {
-              conversationId: input.conversationId,
-              providerId: input.providerId,
-              error: modelResult.error,
-            });
-          }
-        }
+        await this.applyInitialModel(record);
         const queueResult = this.queueInitialPrompts(record);
         if (!queueResult.success) return queueResult;
         record.cell.applySessionReady();
@@ -512,6 +495,39 @@ export class SessionManager implements InboundRouter {
       if (!result.success) return result;
     }
     return ok();
+  }
+
+  private async applyInitialModel(record: SessionRecord): Promise<void> {
+    const requestedModel = record.input.model;
+    if (!requestedModel) return;
+
+    const availableModels =
+      record.cell.config.modelOptions?.available.map((model) => model.id) ?? [];
+    const modelsCapability = this.deps.agentHost.get(record.input.providerId)?.capabilities.models;
+    const catalog =
+      modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : undefined;
+    const resolvedModel = resolveInitialModelOption(requestedModel, availableModels, catalog);
+
+    if (!resolvedModel) {
+      this.deps.logger.warn('SessionManager: initial model is not available', {
+        conversationId: record.input.conversationId,
+        providerId: record.input.providerId,
+        requestedModel,
+        availableModels,
+      });
+      return;
+    }
+
+    const modelResult = await record.cell.setConfigOption('model', resolvedModel);
+    if (!modelResult.success) {
+      this.deps.logger.warn('SessionManager: failed to apply initial model', {
+        conversationId: record.input.conversationId,
+        providerId: record.input.providerId,
+        requestedModel,
+        resolvedModel,
+        error: modelResult.error,
+      });
+    }
   }
 
   private syncRecord(record: SessionRecord): void {

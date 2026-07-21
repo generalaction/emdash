@@ -25,17 +25,17 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
   'claude-opus-4': {
     name: 'Claude Opus 4',
     description: 'Most capable model for complex reasoning and nuanced tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1 },
+    modelFeatures: { contextWindowSize: 200_000, speed: 2, intelligence: 5 },
   },
   'claude-sonnet-4-5': {
     name: 'Claude Sonnet 4.5',
     description: 'Excellent balance of speed and intelligence for everyday tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
+    modelFeatures: { contextWindowSize: 200_000, speed: 4, intelligence: 4 },
   },
   'gpt-4o': {
     name: 'GPT-4o',
     description: 'OpenAI flagship multimodal model.',
-    modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
+    modelFeatures: { contextWindowSize: 128_000, speed: 4, intelligence: 5 },
   },
 };
 

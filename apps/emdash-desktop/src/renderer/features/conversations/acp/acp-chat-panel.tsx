@@ -52,6 +52,7 @@ import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-is
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
+import { mergeComposerModelOptions } from './acp-model-options';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -538,6 +539,14 @@ const ComposerForStore = observer(function ComposerForStore({
   const providerId =
     conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)?.data
       .providerId ?? null;
+  const availableModelOptions = store.modelOptions;
+  const catalogModels = agents?.find((agent) => agent.id === providerId)?.capabilities.models;
+  const catalogModelOptions =
+    catalogModels?.kind === 'selectable' ? catalogModels.modelOptions : null;
+  const modelOptions = useMemo(
+    () => mergeComposerModelOptions(availableModelOptions, catalogModelOptions),
+    [availableModelOptions, catalogModelOptions]
+  );
   const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
     if (kind !== 'issue') return null;
     const target = parseIssueMentionToken(id);
@@ -597,7 +606,7 @@ const ComposerForStore = observer(function ComposerForStore({
         onReorderQueuedPrompts={(ids) => store.reorderQueuedPrompts(ids)}
         onSendQueuedPromptNow={handleSendQueuedPromptNow}
         editorApiRef={editorApiRef}
-        modelOptions={store.modelOptions}
+        modelOptions={modelOptions}
         selectedModel={store.model ?? undefined}
         onModelChange={handleModelChange}
         effortOptions={store.effortOptions}
