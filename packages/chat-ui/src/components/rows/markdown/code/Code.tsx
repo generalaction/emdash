@@ -24,7 +24,7 @@ import { CopyButton } from '@components/primitives/CopyButton';
 import { applyTokenLines } from '@core/highlight/apply-tokens';
 import type { CodeLaidOut } from '@core/layout/layout-types';
 import type { CodeBlock } from '@core/markdown/document';
-import { For, createEffect, createMemo, onCleanup } from 'solid-js';
+import { Index, createEffect, createMemo, onCleanup } from 'solid-js';
 import { codeLine, codeWrapper } from './code.css';
 import { codeGroup } from '@components/primitives/copy-button.css';
 
@@ -131,20 +131,20 @@ export function Code(props: CodeProps) {
         }}
         class={codeWrapper}
       >
-        <For each={props.block.lines}>
+        <Index each={props.block.lines}>
           {(line, i) => (
             <div
               ref={(el) => {
-                lineElsMap.set(i(), el);
-                onCleanup(() => lineElsMap.delete(i()));
+                lineElsMap.set(i, el);
+                onCleanup(() => lineElsMap.delete(i));
               }}
               class={codeLine}
-              style={{ top: `${line.top}px` }}
+              style={{ top: `${line().top}px` }}
             >
-              {line.text}
+              {line().text}
             </div>
           )}
-        </For>
+        </Index>
       </div>
     </BlockFrame>
   );

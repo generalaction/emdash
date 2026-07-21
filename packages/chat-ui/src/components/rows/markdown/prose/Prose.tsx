@@ -16,7 +16,7 @@ import type {
 } from '@core/layout/layout-types';
 import { mentionDisplayText } from '@core/markdown/document';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
-import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
+import { Index, Match, Show, Switch, createEffect, createMemo } from 'solid-js';
 import {
   bulletColor,
   commandChip,
@@ -70,14 +70,18 @@ function fragVisualClass(run: InlineRun, variant: string): string {
 /**
  * Split a fragment's text into alternating word/space runs, preserving
  * `white-space: pre` semantics (no trimming, no merging of spaces).
- * Returns [text, isWord] pairs.
+ * Carries a stable word index so existing word nodes can survive streaming updates.
  */
-function splitFragmentWords(text: string): Array<[string, boolean]> {
+function splitFragmentWords(
+  text: string
+): Array<{ text: string; isWord: boolean; wordIndex: number }> {
   const parts = text.split(/(\s+)/);
-  const result: Array<[string, boolean]> = [];
+  const result: Array<{ text: string; isWord: boolean; wordIndex: number }> = [];
+  let wordIndex = 0;
   for (const p of parts) {
     if (p.length === 0) continue;
-    result.push([p, /\S/.test(p)]);
+    const isWord = /\S/.test(p);
+    result.push({ text: p, isWord, wordIndex: isWord ? wordIndex++ : -1 });
   }
   return result;
 }
@@ -98,155 +102,162 @@ function ProseFragment(props: {
 }) {
   const commands = useCommands();
   const chips = useTheme()().chips;
-  const key = fragKey(props.run, props.variant);
-  const moduleCls = [pf, pfVariants[key]].filter(Boolean).join(' ');
-  const visualCls = fragVisualClass(props.run, props.variant);
-  const cls = visualCls ? `${moduleCls} ${visualCls}` : moduleCls;
-  const fragmentStyle = {
+  const cls = () => {
+    const key = fragKey(props.run, props.variant);
+    const moduleCls = [pf, pfVariants[key]].filter(Boolean).join(' ');
+    const visualCls = fragVisualClass(props.run, props.variant);
+    return visualCls ? `${moduleCls} ${visualCls}` : moduleCls;
+  };
+  const fragmentStyle = () => ({
     'margin-left': `${props.frag.gapBefore}px`,
     width: `${props.frag.occupiedWidth}px`,
+  });
+  const linkHref = () => (props.run.kind === 'text' ? props.run.href : undefined);
+  const mention = () => {
+    if (props.run.kind !== 'mention' || !props.run.mentionKind) return undefined;
+    return props.run as InlineMention;
   };
-
-  if (props.run.kind === 'text' && props.run.href) {
-    const href = props.run.href;
-    const classification = () => commands().classifyLink?.(href);
-
-    const handleClick = (e: MouseEvent) => {
-      const result = classification();
-      if (result?.kind === 'workspace-file') {
-        e.preventDefault();
-        commands().onOpenFile?.({
-          path: result.path,
-          itemId: props.blockId,
-          source: 'prose-link',
-        });
-      }
-      // else: browser follows the <a> normally (new tab via target="_blank")
-    };
-
-    // Links are not word-animated (href spans are not appended incrementally).
-    return (
-      <a
-        class={cls}
-        style={fragmentStyle}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={handleClick}
-      >
-        {props.frag.text}
-      </a>
-    );
-  }
-
-  if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
-    const mention = props.run as InlineMention;
-    // Mentions are not split; fade as a single unit when streaming.
-    const isNew =
-      props.wordOffset !== undefined &&
-      props.frontier !== undefined &&
-      props.wordOffset >= props.frontier;
-
-    const handleMentionClick = () => {
-      if (!mention.mentionKind) return;
-      commands().onClickMention?.({
-        id: mention.id ?? mention.label,
-        label: mention.label,
-        kind: mention.mentionKind,
-        itemId: props.blockId,
-        source: 'prose-mention',
-      });
-    };
-    const isClickable = () => !!commands().onClickMention;
-
-    return (
-      <span
-        classList={{ [cls]: true, [streamWord]: isNew }}
-        onClick={handleMentionClick}
-        style={{
-          cursor: isClickable() ? 'pointer' : undefined,
-          ...fragmentStyle,
-          display: 'inline-flex',
-          'align-items': 'center',
-          gap: `${chips.mentionIconGap}px`,
-        }}
-      >
-        <span
-          style={{
-            display: 'flex',
-            width: `${chips.mentionIconW}px`,
-            height: `${chips.mentionIconW}px`,
-            'flex-shrink': '0',
-            'align-items': 'center',
-            'justify-content': 'center',
-            overflow: 'hidden',
-          }}
-        >
-          <Show
-            when={mention.iconUrl}
-            fallback={
-              <Show
-                when={mention.iconClass}
-                fallback={
-                  <Switch fallback={<MentionAtIcon />}>
-                    <Match when={mention.mentionKind === 'file'}>
-                      <MentionFileIcon />
-                    </Match>
-                    <Match when={mention.mentionKind === 'issue'}>
-                      <MentionIssueIcon />
-                    </Match>
-                    <Match when={mention.mentionKind === 'symbol'}>
-                      <MentionSymbolIcon />
-                    </Match>
-                  </Switch>
-                }
-              >
-                {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
-              </Show>
-            }
-          >
-            {(url) => (
-              <img
-                src={url()}
-                alt=""
-                style={{ width: '100%', height: '100%', 'object-fit': 'contain' }}
-              />
-            )}
-          </Show>
-        </span>
-        <span>{mentionDisplayText(mention)}</span>
-      </span>
-    );
-  }
-
-  // Plain text (body / bold / italic / code chip / plain mention).
-  // When streaming, split into per-word spans and animate the new tail.
-  const isStreaming =
+  const isStreamingText = () =>
+    props.run.kind === 'text' &&
+    !/^\s+$/.test(props.frag.text) &&
     props.wordOffset !== undefined &&
     props.frontier !== undefined &&
     props.totalWords !== undefined;
+  const wordPairs = createMemo(() => splitFragmentWords(props.frag.text));
 
-  if (isStreaming && props.run.kind === 'text' && !/^\s+$/.test(props.frag.text)) {
-    const wordPairs = splitFragmentWords(props.frag.text);
-    let localIdx = props.wordOffset!;
-    return (
-      <span class={cls} style={fragmentStyle}>
-        <For each={wordPairs}>
-          {([chunk, isWord]) => {
-            if (!isWord) return <>{chunk}</>;
-            const idx = localIdx++;
-            const isNew = idx >= props.frontier!;
-            return isNew ? <span class={streamWord}>{chunk}</span> : <>{chunk}</>;
-          }}
-        </For>
-      </span>
-    );
-  }
+  const handleLinkClick = (e: MouseEvent) => {
+    const href = linkHref();
+    if (!href) return;
+    const result = commands().classifyLink?.(href);
+    if (result?.kind === 'workspace-file') {
+      e.preventDefault();
+      commands().onOpenFile?.({
+        path: result.path,
+        itemId: props.blockId,
+        source: 'prose-link',
+      });
+    }
+  };
+
+  const handleMentionClick = () => {
+    const value = mention();
+    if (!value?.mentionKind) return;
+    commands().onClickMention?.({
+      id: value.id ?? value.label,
+      label: value.label,
+      kind: value.mentionKind,
+      itemId: props.blockId,
+      source: 'prose-mention',
+    });
+  };
+
+  const isNewMention = () =>
+    props.wordOffset !== undefined &&
+    props.frontier !== undefined &&
+    props.wordOffset >= props.frontier;
+  const isMentionClickable = () => !!commands().onClickMention;
 
   return (
-    <span class={cls} style={fragmentStyle}>
-      {props.frag.text}
-    </span>
+    <Switch
+      fallback={
+        <span class={cls()} style={fragmentStyle()}>
+          {props.frag.text}
+        </span>
+      }
+    >
+      <Match when={linkHref()}>
+        {(href) => (
+          <a
+            class={cls()}
+            style={fragmentStyle()}
+            href={href()}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleLinkClick}
+          >
+            {props.frag.text}
+          </a>
+        )}
+      </Match>
+      <Match when={mention()}>
+        {(value) => (
+          <span
+            class={cls()}
+            classList={{ [streamWord]: isNewMention() }}
+            onClick={handleMentionClick}
+            style={{
+              cursor: isMentionClickable() ? 'pointer' : undefined,
+              ...fragmentStyle(),
+              display: 'inline-flex',
+              'align-items': 'center',
+              gap: `${chips.mentionIconGap}px`,
+            }}
+          >
+            <span
+              style={{
+                display: 'flex',
+                width: `${chips.mentionIconW}px`,
+                height: `${chips.mentionIconW}px`,
+                'flex-shrink': '0',
+                'align-items': 'center',
+                'justify-content': 'center',
+                overflow: 'hidden',
+              }}
+            >
+              <Show
+                when={value().iconUrl}
+                fallback={
+                  <Show
+                    when={value().iconClass}
+                    fallback={
+                      <Switch fallback={<MentionAtIcon />}>
+                        <Match when={value().mentionKind === 'file'}>
+                          <MentionFileIcon />
+                        </Match>
+                        <Match when={value().mentionKind === 'issue'}>
+                          <MentionIssueIcon />
+                        </Match>
+                        <Match when={value().mentionKind === 'symbol'}>
+                          <MentionSymbolIcon />
+                        </Match>
+                      </Switch>
+                    }
+                  >
+                    {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
+                  </Show>
+                }
+              >
+                {(url) => (
+                  <img
+                    src={url()}
+                    alt=""
+                    style={{ width: '100%', height: '100%', 'object-fit': 'contain' }}
+                  />
+                )}
+              </Show>
+            </span>
+            <span>{mentionDisplayText(value())}</span>
+          </span>
+        )}
+      </Match>
+      <Match when={isStreamingText()}>
+        <span class={cls()} style={fragmentStyle()}>
+          <Index each={wordPairs()}>
+            {(pair) => (
+              <Show when={pair().isWord} fallback={<>{pair().text}</>}>
+                <span
+                  classList={{
+                    [streamWord]: props.wordOffset! + pair().wordIndex >= props.frontier!,
+                  }}
+                >
+                  {pair().text}
+                </span>
+              </Show>
+            )}
+          </Index>
+        </span>
+      </Match>
+    </Switch>
   );
 }
 
@@ -273,22 +284,25 @@ function ProseLine(props: {
         height: `${props.lineHeight}px`,
       }}
     >
-      <For each={props.line.fragments}>
+      <Index each={props.line.fragments}>
         {(frag, i) => {
-          const run = props.runs[frag.runIndex];
-          return run ? (
-            <ProseFragment
-              run={run}
-              frag={frag}
-              variant={props.variant}
-              blockId={props.blockId}
-              wordOffset={props.fragWordOffsets?.[i()]}
-              totalWords={props.totalWords}
-              frontier={props.frontier}
-            />
-          ) : null;
+          return (
+            <Show when={props.runs[frag().runIndex]}>
+              {(run) => (
+                <ProseFragment
+                  run={run()}
+                  frag={frag()}
+                  variant={props.variant}
+                  blockId={props.blockId}
+                  wordOffset={props.fragWordOffsets?.[i]}
+                  totalWords={props.totalWords}
+                  frontier={props.frontier}
+                />
+              )}
+            </Show>
+          );
         }}
-      </For>
+      </Index>
     </div>
   );
 }
@@ -369,7 +383,7 @@ export function Prose(props: ProseProps) {
 
   // After rendering, advance the frontier so the next chunk only animates
   // words appended after this render.
-  onMount(() => {
+  createEffect(() => {
     if (!streamAnim) return;
     const d = fragData();
     if (d) streamAnim.frontier.set(props.block.id, d.totalWords);
@@ -381,30 +395,36 @@ export function Prose(props: ProseProps) {
         <ProseQuoteRail left={(props.block.lines[0]?.left ?? 18) - 10} />
       </Show>
       <Show when={props.block.bullet}>{(bullet) => <ProseBullet bullet={bullet()} />}</Show>
-      <For each={props.block.lines}>
+      <Index each={props.block.lines}>
         {(line, lineIdx) => {
-          const d = fragData();
-          // Build per-fragment offset array for this line using O(1) prefix lookup.
-          const lineFragOffsets = d
-            ? line.fragments.map((_, fi) => d.fragWordOffsets[d.lineBaseFlat[lineIdx()] + fi] ?? 0)
-            : undefined;
-          const previous = props.block.lines[lineIdx() - 1];
-          const previousBottom = previous ? previous.top + props.block.lineHeight : 0;
+          const lineFragOffsets = () => {
+            const d = fragData();
+            return d
+              ? line().fragments.map(
+                  (_, fi) => d.fragWordOffsets[d.lineBaseFlat[lineIdx] + fi] ?? 0
+                )
+              : undefined;
+          };
+          const previous = () => props.block.lines[lineIdx - 1];
+          const previousBottom = () => {
+            const value = previous();
+            return value ? value.top + props.block.lineHeight : 0;
+          };
           return (
             <ProseLine
-              line={line}
-              gapBefore={line.top - previousBottom}
+              line={line()}
+              gapBefore={line().top - previousBottom()}
               lineHeight={props.block.lineHeight}
               runs={props.runs}
               variant={props.variant}
               blockId={props.block.id}
-              fragWordOffsets={lineFragOffsets}
-              totalWords={d?.totalWords}
-              frontier={d?.frontier}
+              fragWordOffsets={lineFragOffsets()}
+              totalWords={fragData()?.totalWords}
+              frontier={fragData()?.frontier}
             />
           );
         }}
-      </For>
+      </Index>
     </BlockFrame>
   );
 }

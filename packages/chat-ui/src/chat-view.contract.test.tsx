@@ -200,6 +200,140 @@ describe('createChatView', () => {
     state.dispose();
     document.body.removeChild(host);
   });
+
+  it('preserves an active text selection across streaming updates', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    const activeTurn = (text: string) => ({
+      id: 'active-turn',
+      seq: 0,
+      initiator: 'agent' as const,
+      items: [
+        {
+          kind: 'message' as const,
+          id: 'streaming-message',
+          seq: 0,
+          role: 'assistant' as const,
+          text,
+        },
+      ],
+    });
+    state.transcript.activeTurn.set(activeTurn('Stable selected text'), 'generating');
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const selectedWord = renderedText(host, 'Stable');
+    const range = document.createRange();
+    range.selectNodeContents(selectedWord.textNode);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    state.transcript.activeTurn.set(
+      activeTurn('Stable selected text with appended streaming content'),
+      'generating'
+    );
+    await nextPaint();
+
+    expect(selection?.toString()).toBe('Stable');
+    selection?.removeAllRanges();
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
+  it('updates retained prose fragments when streamed Markdown becomes a link', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    const activeTurn = (text: string) => ({
+      id: 'active-link-turn',
+      seq: 0,
+      initiator: 'agent' as const,
+      items: [
+        {
+          kind: 'message' as const,
+          id: 'streaming-link-message',
+          seq: 0,
+          role: 'assistant' as const,
+          text,
+        },
+      ],
+    });
+    state.transcript.activeTurn.set(activeTurn('[OpenAI](https://example.com'), 'generating');
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+    expect(
+      Array.from(host.querySelectorAll('a')).some((link) => link.textContent === 'OpenAI')
+    ).toBe(false);
+
+    state.transcript.activeTurn.set(activeTurn('[OpenAI](https://example.com)'), 'generating');
+    await nextPaint();
+
+    const link = Array.from(host.querySelectorAll('a')).find(
+      (candidate) => candidate.textContent === 'OpenAI'
+    );
+    expect(link?.href).toBe('https://example.com/');
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
+  it('does not treat selecting text in a user card as an expand click', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed([
+      {
+        id: 'user-turn',
+        seq: 0,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: 'user-message',
+            seq: 0,
+            role: 'user',
+            text: 'Selectable user message',
+          },
+        ],
+      },
+    ]);
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const selectedText = renderedText(host, 'Selectable user message');
+    const range = document.createRange();
+    range.selectNodeContents(selectedText.textNode);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    selectedText.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await nextPaint();
+
+    expect(selection?.toString()).toBe('Selectable user message');
+    selection?.removeAllRanges();
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
 });
 
 describe('ChatView.setModel', () => {

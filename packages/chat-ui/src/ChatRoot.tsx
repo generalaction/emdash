@@ -1553,6 +1553,8 @@ export function ChatRoot(props: ChatRootProps) {
 
     const onClick = (e: Event) => {
       const t = e.target as HTMLElement;
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return;
 
       const userCard = t.closest('[data-user-card]') as HTMLElement | null;
       if (userCard?.dataset.userCard) {
