@@ -50,11 +50,11 @@ describe('workspace-server installer command', () => {
   });
 
   it('checks glibc and executes the checksum-backed install command through the SSH proxy', async () => {
-    const exec = vi
+    const execScript = vi
       .fn()
       .mockResolvedValueOnce({ stdout: 'glibc 2.36\n', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
-    const ensureProxy = vi.fn(async () => ({ exec }) as never);
+    const ensureProxy = vi.fn(async () => ({ execScript }) as never);
     const artifacts = {
       resolve: vi.fn(async () => ({
         url: 'file:///opt/emdash-artifacts/server.tar.gz',
@@ -79,7 +79,7 @@ describe('workspace-server installer command', () => {
       },
       { signal: undefined }
     );
-    expect(exec).toHaveBeenNthCalledWith(
+    expect(execScript).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('sha256sum -c -'),
       expect.objectContaining({ timeoutMs: 300_000 })

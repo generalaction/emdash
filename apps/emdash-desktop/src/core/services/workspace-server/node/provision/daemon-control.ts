@@ -1,4 +1,3 @@
-import { escapeShellArg } from '@core/services/ssh/node/shell-quoting';
 import type { WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 
@@ -37,18 +36,18 @@ export class RemoteWorkspaceServerDaemon {
     signal?: AbortSignal
   ): Promise<void> {
     const proxy = await this.ssh.ensureProxy(connectionId);
-    const command = [
-      escapeShellArg(layout.currentLauncher),
-      action,
-      '--socket',
-      escapeShellArg(layout.socketPath),
-    ].join(' ');
-    const result = await proxy.exec(command, {
-      signal,
-      timeoutMs: 30_000,
-      maxStdoutBytes: 64 * 1_024,
-      maxStderrBytes: 64 * 1_024,
-    });
+    const result = await proxy.exec(
+      {
+        command: layout.currentLauncher,
+        args: [action, '--socket', layout.socketPath],
+      },
+      {
+        signal,
+        timeoutMs: 30_000,
+        maxStdoutBytes: 64 * 1_024,
+        maxStderrBytes: 64 * 1_024,
+      }
+    );
     if (result.exitCode !== 0) {
       throw new WorkspaceServerDaemonError(
         `Workspace-server ${action} failed: ${result.stderr.trim() || `exit ${result.exitCode}`}`

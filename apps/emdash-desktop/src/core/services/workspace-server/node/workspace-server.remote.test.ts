@@ -1,11 +1,11 @@
 import { resolve } from 'node:path';
+import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
-import { escapeShellArg } from '@core/services/ssh/node/shell-quoting';
 import { createDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { createWorkspaceServerService } from './factory';
 import { workspaceServerLayout } from './layout';
@@ -110,20 +110,20 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 });
 
 type ExecProxy = {
-  exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  exec(command: Command): Promise<{ stdout: string; stderr: string; exitCode: number }>;
 };
 
 async function resetManagedRoot(
   proxy: ExecProxy,
   layout: ReturnType<typeof workspaceServerLayout>
 ): Promise<void> {
-  const command = [
-    `if [ -x ${escapeShellArg(layout.currentLauncher)} ]; then`,
-    `${escapeShellArg(layout.currentLauncher)} stop --socket ${escapeShellArg(layout.socketPath)} || true;`,
-    'fi;',
-    `rm -rf -- ${escapeShellArg(layout.root)}`,
-  ].join(' ');
-  const result = await proxy.exec(command);
+  await proxy
+    .exec({
+      command: layout.currentLauncher,
+      args: ['stop', '--socket', layout.socketPath],
+    })
+    .catch(() => undefined);
+  const result = await proxy.exec({ command: 'rm', args: ['-rf', '--', layout.root] });
   if (result.exitCode !== 0) {
     throw new Error(`Could not reset Docker workspace-server root: ${result.stderr}`);
   }
@@ -133,8 +133,9 @@ async function stopDaemon(
   proxy: ExecProxy,
   layout: ReturnType<typeof workspaceServerLayout>
 ): Promise<void> {
-  const result = await proxy.exec(
-    `${escapeShellArg(layout.currentLauncher)} stop --socket ${escapeShellArg(layout.socketPath)}`
-  );
+  const result = await proxy.exec({
+    command: layout.currentLauncher,
+    args: ['stop', '--socket', layout.socketPath],
+  });
   if (result.exitCode !== 0) throw new Error(result.stderr);
 }

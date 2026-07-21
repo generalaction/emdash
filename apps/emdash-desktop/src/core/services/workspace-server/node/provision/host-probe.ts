@@ -29,7 +29,7 @@ export class RemoteHostProbe {
 
   private async probeUncached(connectionId: string, signal?: AbortSignal): Promise<RemoteHostInfo> {
     const proxy = await this.ssh.ensureProxy(connectionId);
-    const result = await proxy.exec(`printf '%s\\n' "$HOME"; uname -s; uname -m`, {
+    const result = await proxy.execScript(`printf '%s\\n' "$HOME"; uname -s; uname -m`, {
       signal,
       timeoutMs: 10_000,
       maxStdoutBytes: 4_096,

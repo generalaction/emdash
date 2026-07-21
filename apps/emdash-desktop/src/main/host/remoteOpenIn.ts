@@ -1,4 +1,4 @@
-import { quoteShellArg } from '@main/lib/shellEscape';
+import { formatCommandLine, quoteArg } from '@emdash/core/primitives/exec/api';
 
 type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor' | 'zed';
 
@@ -89,7 +89,7 @@ type RemoteTerminalExecInput = {
  * - keep session alive even when SHELL is unset/invalid by chaining shell fallbacks
  */
 export function buildRemoteTerminalShellCommand(targetPath: string): string {
-  return `cd ${quoteShellArg(targetPath)} && (if command -v infocmp >/dev/null 2>&1 && [ -n "\${TERM:-}" ] && infocmp "\${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && (exec "\${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)`;
+  return `cd ${quoteArg(targetPath, 'posix')} && (if command -v infocmp >/dev/null 2>&1 && [ -n "\${TERM:-}" ] && infocmp "\${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && (exec "\${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)`;
 }
 
 /**
@@ -101,7 +101,23 @@ export function buildRemoteTerminalShellCommand(targetPath: string): string {
 export function buildRemoteSshCommand(input: RemoteTerminalExecInput): string {
   const sshAuthority = buildRemoteSshAuthority(input.host, input.username);
   const remoteCommand = buildRemoteTerminalShellCommand(input.targetPath);
-  return `ssh ${quoteShellArg(sshAuthority)} -o ${quoteShellArg('ControlMaster=no')} -o ${quoteShellArg('ControlPath=none')} -p ${quoteShellArg(String(input.port))} -t ${quoteShellArg(remoteCommand)}`;
+  return formatCommandLine(
+    {
+      command: 'ssh',
+      args: [
+        sshAuthority,
+        '-o',
+        'ControlMaster=no',
+        '-o',
+        'ControlPath=none',
+        '-p',
+        String(input.port),
+        '-t',
+        remoteCommand,
+      ],
+    },
+    'posix'
+  );
 }
 
 /**

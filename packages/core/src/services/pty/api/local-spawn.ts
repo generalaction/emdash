@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { formatCommandLine, quoteArg } from '@primitives/exec/api';
 import { buildTmuxShellLine } from './tmux';
 
 export type ResolvedPtyShellProfile = {
@@ -81,37 +82,9 @@ function getSetupWrapperArgs(intent: PtySpawnIntent): string[] {
   }
 }
 
-function shellArgQuoter(intent: PtySpawnIntent): (input: string) => string {
-  return intent.shellProfile?.family === 'csh' ? quoteCshArg : quotePosixArg;
-}
-
-function quotePosixArg(input: string): string {
-  if (input.length === 0) return "''";
-  if (!/[\s'"\\$`\n\r\t;&|<>(){}[\]*?!]/.test(input)) return input;
-  return `'${input.replace(/'/g, "'\\''")}'`;
-}
-
-function quoteCshArg(input: string): string {
-  return quotePosixArg(input).replace(/!/g, '\\!');
-}
-
 function argvToPosixShellLine(intent: PtySpawnIntent, command: string, args: string[]): string {
-  return [command, ...args].map(shellArgQuoter(intent)).join(' ');
-}
-
-function quoteForCmdExe(input: string): string {
-  if (input.length === 0) return '""';
-  if (!/[\s"^&|<>()%!]/.test(input)) return input;
-  return `"${input
-    .replace(/%/g, '%%')
-    .replace(/!/g, '^!')
-    .replace(/(["^&|<>()])/g, '^$1')}"`;
-}
-
-function quoteForPowerShell(input: string): string {
-  if (input.length === 0) return "''";
-  if (!/[\s'`"$;&|<>(){}[\],]/.test(input)) return input;
-  return `'${input.replace(/'/g, "''")}'`;
+  const family = intent.shellProfile?.family === 'csh' ? 'csh' : 'posix';
+  return formatCommandLine({ command, args }, family);
 }
 
 function wrapCmdExeCommandLine(commandLine: string): string {
@@ -308,7 +281,7 @@ function resolveWindowsSpawn(
   if (ext === '.cmd' || ext === '.bat') {
     if (intent.shellProfile?.family === 'powershell') {
       return windowsShellLineSpawn({
-        commandLine: `& ${[resolvedCommand, ...args].map(quoteForPowerShell).join(' ')}`,
+        commandLine: formatCommandLine({ command: resolvedCommand, args }, 'powershell'),
         cwd: intent.cwd,
         env,
         shellProfile: intent.shellProfile,
@@ -316,7 +289,7 @@ function resolveWindowsSpawn(
       });
     }
     return cmdShellLineSpawn({
-      commandLine: [resolvedCommand, ...args].map(quoteForCmdExe).join(' '),
+      commandLine: formatCommandLine({ command: resolvedCommand, args }, 'windows-cmd'),
       cwd: intent.cwd,
       env,
       warnings,
@@ -337,7 +310,7 @@ function resolveWindowsSpawn(
   if (!ext) {
     if (intent.shellProfile?.family === 'powershell') {
       return windowsShellLineSpawn({
-        commandLine: `& ${[command, ...args].map(quoteForPowerShell).join(' ')}`,
+        commandLine: formatCommandLine({ command, args }, 'powershell'),
         cwd: intent.cwd,
         env,
         shellProfile: intent.shellProfile,
@@ -345,7 +318,7 @@ function resolveWindowsSpawn(
       });
     }
     return cmdShellLineSpawn({
-      commandLine: [command, ...args].map(quoteForCmdExe).join(' '),
+      commandLine: formatCommandLine({ command, args }, 'windows-cmd'),
       cwd: intent.cwd,
       env,
       warnings,
@@ -364,8 +337,8 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
   if (intent.kind === 'interactive-shell') {
     if (intent.tmuxSessionName) {
       const commandLine = intent.shellSetup
-        ? `${intent.shellSetup} && exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`
-        : `exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`;
+        ? `${intent.shellSetup} && exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`
+        : `exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`;
       return {
         command: shell,
         args: [
@@ -382,7 +355,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
         command: shell,
         args: [
           ...setupWrapperArgs,
-          `${intent.shellSetup} && exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`,
+          `${intent.shellSetup} && exec ${quoteArg(shell, 'posix')} ${interactiveArgs.join(' ')}`,
         ],
         cwd: intent.cwd,
         warnings: [],

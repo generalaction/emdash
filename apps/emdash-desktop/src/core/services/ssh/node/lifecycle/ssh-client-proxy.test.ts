@@ -105,4 +105,43 @@ describe('SshClientProxy', () => {
 
     expect(channel.destroy).toHaveBeenCalledOnce();
   });
+
+  it('formats structured commands for the remote POSIX shell', async () => {
+    const channel = Object.assign(new PassThrough(), { stderr: new PassThrough() });
+    const exec = vi.fn(
+      (_command: string, callback: (error: Error | undefined, value: ClientChannel) => void) =>
+        callback(undefined, channel as unknown as ClientChannel)
+    );
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(Object.assign(new EventEmitter(), { exec }) as unknown as Client);
+
+    const pending = proxy.exec({
+      command: '/opt/Emdash Server/bin/emdash',
+      args: ['start', '--socket', '/tmp/emdash socket'],
+    });
+    channel.emit('close', 0);
+
+    await expect(pending).resolves.toMatchObject({ exitCode: 0 });
+    expect(exec).toHaveBeenCalledWith(
+      "'/opt/Emdash Server/bin/emdash' start --socket '/tmp/emdash socket'",
+      expect.any(Function)
+    );
+  });
+
+  it('passes explicit scripts to the remote shell unchanged', async () => {
+    const channel = Object.assign(new PassThrough(), { stderr: new PassThrough() });
+    const exec = vi.fn(
+      (_command: string, callback: (error: Error | undefined, value: ClientChannel) => void) =>
+        callback(undefined, channel as unknown as ClientChannel)
+    );
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(Object.assign(new EventEmitter(), { exec }) as unknown as Client);
+
+    const script = 'printf \'%s\\n\' "$HOME"; uname -s';
+    const pending = proxy.execScript(script);
+    channel.emit('close', 0);
+
+    await expect(pending).resolves.toMatchObject({ exitCode: 0 });
+    expect(exec).toHaveBeenCalledWith(script, expect.any(Function));
+  });
 });

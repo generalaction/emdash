@@ -1,6 +1,6 @@
 import path from 'node:path';
+import { quoteArg } from '@emdash/core/primitives/exec/api';
 import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
-import { escapeShellArg } from '@core/services/ssh/node/shell-quoting';
 import { validateWorkspaceServerVersion, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 import type { WorkspaceServerArtifact, WorkspaceServerArtifactSource } from './artifact-source';
@@ -36,12 +36,15 @@ export class WorkspaceServerInstaller {
     signal?: AbortSignal
   ): Promise<string | undefined> {
     const proxy = await this.ssh.ensureProxy(connectionId);
-    const result = await proxy.exec(`readlink -- ${escapeShellArg(layout.currentLink)}`, {
-      signal,
-      timeoutMs: 10_000,
-      maxStdoutBytes: 4_096,
-      maxStderrBytes: 4_096,
-    });
+    const result = await proxy.exec(
+      { command: 'readlink', args: ['--', layout.currentLink] },
+      {
+        signal,
+        timeoutMs: 10_000,
+        maxStdoutBytes: 4_096,
+        maxStderrBytes: 4_096,
+      }
+    );
     if (result.exitCode !== 0) return undefined;
 
     const linkTarget = result.stdout.trim();
@@ -119,7 +122,7 @@ export class WorkspaceServerInstaller {
       url: artifact.url,
       sha256: artifact.sha256.toLowerCase(),
     });
-    const result = await proxy.exec(command, {
+    const result = await proxy.execScript(command, {
       signal,
       timeoutMs: 5 * 60_000,
       maxStdoutBytes: 256 * 1_024,
@@ -145,7 +148,7 @@ export class WorkspaceServerInstaller {
         `Workspace-server installation is not supported on ${host.os}-${host.arch}`
       );
     }
-    const libc = await proxy.exec('getconf GNU_LIBC_VERSION 2>/dev/null || true', {
+    const libc = await proxy.execScript('getconf GNU_LIBC_VERSION 2>/dev/null || true', {
       signal,
       timeoutMs: 10_000,
       maxStdoutBytes: 4_096,
@@ -216,7 +219,7 @@ export function renderWorkspaceServerInstallPrelude(
   variables: WorkspaceServerInstallScriptVariables
 ): string {
   return workspaceServerInstallVariableNames
-    .map((name) => `${name}=${escapeShellArg(variables[name])}`)
+    .map((name) => `${name}=${quoteArg(variables[name], 'posix')}`)
     .join('\n');
 }
 

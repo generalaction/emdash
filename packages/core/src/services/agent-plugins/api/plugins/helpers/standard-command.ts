@@ -1,19 +1,13 @@
+import { formatCommandLine, quoteArg } from '@primitives/exec/api';
 import type {
   AgentCommand,
   CommandContext,
 } from '@services/agent-plugins/api/plugins/capabilities/prompt';
 
-/** Quote a single shell argument safely for POSIX shells. */
-export function quoteShellArg(arg: string): string {
-  if (arg === '') return "''";
-  if (!/[^a-zA-Z0-9.,_:/@=+-]/u.test(arg)) return arg;
-  return `'${arg.replaceAll("'", "'\\''")}'`;
-}
-
 /** Wrap a command with stdin pipe delivery for an initial prompt. */
 export function wrapWithStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {
-  const agentLine = [cmd.command, ...cmd.args].map(quoteShellArg).join(' ');
-  const shellLine = `printf '%s\n' ${quoteShellArg(prompt)} | ${agentLine}`;
+  const agentLine = formatCommandLine(cmd, 'posix');
+  const shellLine = `printf '%s\n' ${quoteArg(prompt, 'posix')} | ${agentLine}`;
   return { command: 'bash', args: ['-c', shellLine], env: cmd.env };
 }
 

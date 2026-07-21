@@ -1,3 +1,4 @@
+import { formatCommandLine, type Command } from '@emdash/core/primitives/exec/api';
 import type { Client, ClientChannel } from 'ssh2';
 import { execOnClient, type SshExecOptions, type SshExecResult } from '../operations/exec';
 import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
@@ -49,8 +50,13 @@ export class SshClientProxy {
     return forwardOutStreamLocalOnClient(this.client, socketPath);
   }
 
-  /** Runs a command through the current live connection with bounded resources. */
-  exec(command: string, options?: SshExecOptions): Promise<SshExecResult> {
-    return execOnClient(this.client, command, options);
+  /** Runs a structured command through the current live connection with bounded resources. */
+  exec(command: Command, options?: SshExecOptions): Promise<SshExecResult> {
+    return execOnClient(this.client, formatCommandLine(command, 'posix'), options);
+  }
+
+  /** Runs an explicit POSIX shell script through the current live connection. */
+  execScript(script: string, options?: SshExecOptions): Promise<SshExecResult> {
+    return execOnClient(this.client, script, options);
   }
 }

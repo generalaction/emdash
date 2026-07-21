@@ -92,7 +92,7 @@ import {
   createAppSettingsWireController,
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
-import { createSshWireController } from '@core/services/ssh/node/wire-controller';
+import { createSshWireController } from '@core/services/ssh/node/controller';
 import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { createWorkspaceServerWireController } from '@core/services/workspace-server/node/wire-controller';
 

@@ -1,5 +1,6 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
 import { LiveLog, type LiveSource } from '@emdash/wire';
+import { formatCommandLine } from '@primitives/exec/api';
 import {
   compileIdlePolicy,
   createIdleSweeper,
@@ -35,7 +36,6 @@ import {
   type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
 import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
-import { quoteShellArg } from '@services/agent-plugins/api/plugins/helpers/standard-command';
 import {
   buildTmuxShellLine,
   killTmuxSession,
@@ -820,7 +820,7 @@ export class TuiAgentsRuntime {
       return { command: command.command, args: command.args };
     }
 
-    const commandLine = [command.command, ...command.args].map(quoteShellArg).join(' ');
+    const commandLine = formatCommandLine(command, 'posix');
     const fullCommandLine = input.shellSetup
       ? `${input.shellSetup} && ${commandLine}`
       : commandLine;
