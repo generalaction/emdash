@@ -12,6 +12,7 @@ type NavigatorWithUserAgentData = Navigator & {
 
 export class ActivationModifierTracker {
   private hoveredDecorations: LinkDecorations | null = null;
+  private hoveredRefresh: (() => void) | null = null;
   private pressed = false;
 
   constructor(private readonly isMac = isMacPlatform()) {}
@@ -24,8 +25,14 @@ export class ActivationModifierTracker {
   }
 
   update(event: ActivationModifierEvent): boolean {
-    this.pressed = this.isPressed(event);
+    const next = this.isPressed(event);
+    const changed = next !== this.pressed;
+    this.pressed = next;
     this.syncHoveredDecorations();
+    // xterm only re-reads link decorations on pointer events, so toggling the
+    // modifier while the pointer sits still needs an explicit repaint to
+    // show/hide the underline on the already-hovered link.
+    if (changed) this.hoveredRefresh?.();
     return this.pressed;
   }
 
@@ -33,14 +40,16 @@ export class ActivationModifierTracker {
     return isActivationModifierPressed(event, this.isMac);
   }
 
-  hover(decorations: LinkDecorations, event: ActivationModifierEvent): void {
+  hover(decorations: LinkDecorations, event: ActivationModifierEvent, refresh?: () => void): void {
     this.hoveredDecorations = decorations;
+    this.hoveredRefresh = refresh ?? null;
     this.update(event);
   }
 
   leave(decorations: LinkDecorations): void {
     if (this.hoveredDecorations === decorations) {
       this.hoveredDecorations = null;
+      this.hoveredRefresh = null;
     }
     setDecorations(decorations, false);
   }
@@ -48,6 +57,7 @@ export class ActivationModifierTracker {
   reset(): void {
     this.pressed = false;
     this.syncHoveredDecorations();
+    this.hoveredRefresh?.();
   }
 
   private syncHoveredDecorations(): void {
@@ -75,6 +85,10 @@ export class FileLinkProvider implements ILinkProvider {
     callback(links.length > 0 ? links : undefined);
   }
 
+  private refreshViewport(): void {
+    this.terminal.refresh(0, this.terminal.rows - 1);
+  }
+
   private toXtermLink(match: FileLinkMatch): ILink {
     const decorations = this.tracker.decorations();
     const link: ILink = {
@@ -82,7 +96,7 @@ export class FileLinkProvider implements ILinkProvider {
       text: match.text,
       decorations,
       hover: (event) => {
-        this.tracker.hover(link.decorations ?? decorations, event);
+        this.tracker.hover(link.decorations ?? decorations, event, () => this.refreshViewport());
       },
       leave: () => {
         this.tracker.leave(link.decorations ?? decorations);

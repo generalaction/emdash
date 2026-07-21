@@ -1,9 +1,23 @@
 import type { ILink } from '@xterm/xterm';
 
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
+// Matches pathful references (`src/foo.ts`) and bare filenames (`Notes.md`).
+// Bare filenames require a stem of at least two characters so sentence
+// abbreviations like `e.g` or `i.e` never linkify.
 const FILE_PATH_PATTERN =
-  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+  '(?<![\\w\\-./@:])(?:(?:~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+|[\\w\\-@][\\w\\-.@]+)\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+const COMMON_NON_FILE_BARE_NAMES = new Set([
+  'Angular.js',
+  'Express.js',
+  'Next.js',
+  'Node.js',
+  'Nuxt.js',
+  'React.jsx',
+  'Remix.js',
+  'Svelte.js',
+  'Vue.js',
+]);
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
 export type BufferLineLike = {
@@ -30,7 +44,7 @@ type LogicalLine = {
 
 export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): FileLinkMatch[] {
   const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('/') === -1) {
+  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('.') === -1) {
     return [];
   }
 
@@ -41,6 +55,7 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
   while ((match = regex.exec(logicalLine.text)) !== null) {
     const matched = match[0];
     const startOffset = match.index;
+    if (isCommonNonFileBareName(matched)) continue;
     if (isEmbeddedInUrl(logicalLine.text, startOffset)) continue;
     const endOffset = startOffset + matched.length;
     const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
@@ -58,6 +73,10 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     }
   }
   return links;
+}
+
+function isCommonNonFileBareName(value: string): boolean {
+  return !value.includes('/') && !value.includes('\\') && COMMON_NON_FILE_BARE_NAMES.has(value);
 }
 
 function isEmbeddedInUrl(text: string, startCol: number): boolean {

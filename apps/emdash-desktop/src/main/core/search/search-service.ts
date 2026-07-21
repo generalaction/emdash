@@ -67,6 +67,10 @@ class SearchService {
     return workspaceFileIndexService.searchFiles(workspaceId, query, limit);
   }
 
+  findFilesByName(workspaceId: string, filename: string): WorkspaceFileHit[] {
+    return workspaceFileIndexService.findFilesByName(workspaceId, filename);
+  }
+
   search({ query, context }: CommandPaletteQuery): SearchItem[] {
     if (!query.trim()) return this.recents(context);
 

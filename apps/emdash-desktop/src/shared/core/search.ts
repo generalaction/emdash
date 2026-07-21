@@ -25,6 +25,11 @@ export interface WorkspaceFileSearchQuery {
   limit?: number;
 }
 
+export interface WorkspaceFileNameQuery {
+  workspaceId: string;
+  filename: string;
+}
+
 export interface WorkspaceFileHit {
   path: string;
   filename: string;
