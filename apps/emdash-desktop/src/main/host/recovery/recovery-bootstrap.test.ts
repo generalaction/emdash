@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { injectBootstrap, type RecoveryState } from './recovery-bootstrap';
+import recoveryHtmlTemplate from './recovery.html?raw';
 
 const base: RecoveryState = {
   errorMessage: 'Test error',
@@ -11,7 +12,7 @@ const base: RecoveryState = {
   error: undefined,
 };
 
-const SENTINEL = '"__RECOVERY_BOOTSTRAP__"';
+const SENTINEL = '__RECOVERY_BOOTSTRAP__';
 
 describe('injectBootstrap', () => {
   it('replaces the sentinel with serialised JSON', () => {
@@ -21,6 +22,19 @@ describe('injectBootstrap', () => {
     expect(result).toContain('"version":"1.2.3"');
     expect(result).toContain('"updaterActive":false');
     expect(result).toContain('"updateStatus":"idle"');
+  });
+
+  it('injects the payload into the real recovery HTML template', () => {
+    const result = injectBootstrap(recoveryHtmlTemplate, base);
+
+    expect(result).not.toContain(SENTINEL);
+    expect(result).toContain('"errorMessage":"Test error"');
+  });
+
+  it('fails closed when the template has no sentinel', () => {
+    expect(() => injectBootstrap('<html></html>', base)).toThrow(
+      'Recovery HTML is missing its bootstrap sentinel'
+    );
   });
 
   it('serialises undefined values as null so the JS literal is valid', () => {

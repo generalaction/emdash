@@ -241,7 +241,12 @@ export function serve(
     if (attachment.disposed) return;
     attachment.disposed = true;
     attachment.unsubscribe?.();
-    void attachment.release();
+    // Release is fire-and-forget; a rejection here must never escape as an
+    // unhandled rejection (fatal in the Electron main process).
+    void attachment.release().catch((error: unknown) => {
+      const logger = options.logger ?? getCurrentLogger();
+      logger.warn('Wire attachment release failed', error);
+    });
   }
 
   function closeAllBlobChannels(): void {

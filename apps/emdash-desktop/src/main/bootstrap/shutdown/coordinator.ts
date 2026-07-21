@@ -19,7 +19,6 @@ interface ConfirmationResolution {
 export interface ShutdownCoordinatorDependencies {
   emit(event: DesktopHostEvent): void;
   getActiveSessionSummary(): Promise<ActiveSessionSummary>;
-  getWindow(): BrowserWindow | null;
   isInstallRequested(): boolean;
   runCleanup(): Promise<void>;
   exit(code: number): void;
@@ -39,6 +38,7 @@ export function createShutdownCoordinator(
   dependencies: ShutdownCoordinatorDependencies
 ): ShutdownCoordinator {
   let state: QuitState = 'idle';
+  let activeWindow: BrowserWindow | null = null;
   let capableWebContentsId: number | null = null;
   let pendingConfirmation:
     | {
@@ -55,7 +55,7 @@ export function createShutdownCoordinator(
     | undefined;
 
   const isRendererShutdownCapable = (): boolean => {
-    const window = dependencies.getWindow();
+    const window = activeWindow;
     return (
       window !== null &&
       !window.isDestroyed() &&
@@ -88,7 +88,7 @@ export function createShutdownCoordinator(
   };
 
   const requestConfirmation = async (): Promise<boolean> => {
-    const window = dependencies.getWindow();
+    const window = activeWindow;
     if (!window || window.isDestroyed()) return false;
     if (window.isMinimized()) window.restore();
     window.show();
@@ -190,15 +190,19 @@ export function createShutdownCoordinator(
       settleFlush();
     },
     markShutdownReady() {
-      const window = dependencies.getWindow();
+      const window = activeWindow;
       if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return;
       capableWebContentsId = window.webContents.id;
     },
     watchWindow(window) {
+      activeWindow = window;
       const webContentsId = window.webContents.id;
       window.webContents.on('did-start-loading', () => invalidateRenderer(webContentsId));
       window.webContents.on('render-process-gone', () => invalidateRenderer(webContentsId));
-      window.on('closed', () => invalidateRenderer(webContentsId));
+      window.on('closed', () => {
+        invalidateRenderer(webContentsId);
+        if (activeWindow === window) activeWindow = null;
+      });
     },
     isShutdownInProgress() {
       return state !== 'idle';

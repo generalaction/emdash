@@ -1,6 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
 import { runBootPreflight } from './boot/preflight';
 import { isBootAborted, type BootContext } from './boot/types';
+import { observePreviousBoot } from './core/boot-guard';
 import { loadAppConfig, setAppConfig } from './core/config';
 
 const CRASH_LOOP_THRESHOLD = 2;
@@ -29,7 +30,8 @@ export async function main(): Promise<void> {
   };
 
   try {
-    const previousFailures = await runBootPreflight(context);
+    await runBootPreflight(context);
+    const { failures: previousFailures } = observePreviousBoot(context.config);
     if (previousFailures >= CRASH_LOOP_THRESHOLD) {
       const { enterSafeMode } = await import('./core/recovery');
       await enterSafeMode(

@@ -100,15 +100,14 @@
     <main>
       <h1>Something went wrong</h1>
       <p>
-        Emdash could not finish starting. You can check for an update, retry a normal start, or open
-        the logs for more information.
+        Emdash could not finish starting. You can check for an update, restart Emdash, or open the
+        logs for more information.
       </p>
       <div id="status" role="status"></div>
       <progress id="progress" max="100" value="0" hidden></progress>
       <div class="actions">
         <button id="update" class="primary">Check for updates</button>
-        <button onclick="navigate('retry')">Try normal start</button>
-        <button onclick="navigate('restart')">Restart</button>
+        <button onclick="navigate('restart')">Restart Emdash</button>
         <button onclick="navigate('open-logs')">Open logs</button>
         <button onclick="navigate('quit')">Quit</button>
       </div>
@@ -122,7 +121,7 @@
       // Bootstrap state is injected synchronously by main before loadURL.
       // The sentinel below is replaced with a JSON literal at build time by
       // recovery-window.ts so there is no async round-trip on first render.
-      var state = '__RECOVERY_BOOTSTRAP__';
+      var state = __RECOVERY_BOOTSTRAP__;
 
       var statusEl = document.querySelector('#status');
       var progressEl = document.querySelector('#progress');

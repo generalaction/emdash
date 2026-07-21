@@ -3,6 +3,7 @@ import { app, BrowserWindow } from 'electron';
 import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
+import { markBootSuccessful } from '@main/bootstrap/core/boot-guard';
 import {
   isShutdownInProgress,
   shouldAllowWindowClose,
@@ -57,6 +58,7 @@ export function createMainWindow(): BrowserWindow {
     show: false,
   });
   watchWindow(mainWindow);
+  mainWindow.webContents.once('did-finish-load', markBootSuccessful);
 
   if (process.platform !== 'darwin') {
     mainWindow.setMenuBarVisibility(false);

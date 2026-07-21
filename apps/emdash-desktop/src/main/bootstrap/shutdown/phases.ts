@@ -20,47 +20,38 @@ const GRACE_WINDOW_MS = 400;
 const criticalPhases: Phase<void>[] = [
   {
     name: 'acp-agent-status-bridge',
-    critical: true,
     run: async () => acpAgentStatusBridge.dispose(),
   },
   {
     name: 'tui-agent-status-bridge',
-    critical: true,
     run: async () => tuiAgentStatusBridge.dispose(),
   },
   {
     name: 'agent-status-service',
-    critical: true,
     run: async () => agentStatusService.dispose(),
   },
   {
     name: 'operations-engine',
-    critical: true,
     run: () => disposeOperationsEngine(),
   },
   {
     name: 'project-manager-release',
-    critical: true,
     run: () => projectManager.release(),
   },
   {
     name: 'desktop-wire-workers',
-    critical: true,
     run: () => disposeDesktopWireWorkers(),
   },
   {
     name: 'app-scope',
-    critical: true,
     run: () => appScope.dispose(),
   },
   {
     name: 'database',
-    critical: true,
     run: () => closeAppDb(),
   },
   {
     name: 'telemetry-service',
-    critical: true,
     run: () => telemetryService.dispose(),
   },
 ];

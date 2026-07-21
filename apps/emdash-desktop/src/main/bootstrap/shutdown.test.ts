@@ -56,9 +56,6 @@ vi.spyOn(databaseInstance, 'closeAppDb').mockImplementation(mocks.closeAppDb);
 vi.mock('@main/host/updates/update-service', () => ({
   updateService: mocks.updateService,
 }));
-vi.mock('@main/host/window', () => ({
-  getMainWindow: vi.fn(() => null),
-}));
 vi.mock('@main/lib/logger', () => ({
   log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
@@ -70,9 +67,6 @@ vi.mock('./core/service-instances', () => ({
 }));
 vi.mock('@main/host/sessions/active-session-summary', () => ({
   getActiveSessionSummary: vi.fn(),
-}));
-vi.mock('./core/boot-guard', () => ({
-  markBootSuccessful: vi.fn(),
 }));
 vi.mock('./core/app-scope', () => ({
   appScope: { dispose: mocks.appScopeDispose },
@@ -196,12 +190,8 @@ describe('shutdown coordinator', () => {
   it('does not reuse a registration from an old window', async () => {
     const first = createFakeWindow(1);
     const second = createFakeWindow(2);
-    let current = first.window;
-    const harness = createHarness({
-      window: first,
-      getWindow: () => current,
-    });
-    current = second.window;
+    const harness = createHarness({ window: first });
+    harness.coordinator.watchWindow(second.window);
 
     await harness.coordinator.handleQuitRequested();
 
@@ -355,7 +345,6 @@ function createHarness(
     installRequested?: boolean;
     markReady?: boolean;
     window?: FakeWindow;
-    getWindow?: () => BrowserWindow | null;
     runCleanup?: () => Promise<void>;
   } = {}
 ) {
@@ -367,7 +356,6 @@ function createHarness(
   const dependencies: ShutdownCoordinatorDependencies = {
     emit: (event) => events.push(event),
     getActiveSessionSummary: async () => emptySummary,
-    getWindow: options.getWindow ?? (() => fakeWindow.window),
     isInstallRequested: () => installRequested,
     runCleanup,
     exit,

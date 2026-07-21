@@ -2,15 +2,12 @@ import { app, type BrowserWindow } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { getActiveSessionSummary } from '@main/host/sessions/active-session-summary';
 import { updateService } from '@main/host/updates/update-service';
-import { getMainWindow } from '@main/host/window';
-import { markBootSuccessful } from '../core/boot-guard';
 import { createShutdownCoordinator } from './coordinator';
 import { runQuitCleanup } from './phases';
 
 const shutdownCoordinator = createShutdownCoordinator({
   emit: (event) => desktopHostEvents.emit(undefined, event),
   getActiveSessionSummary,
-  getWindow: () => getMainWindow(),
   isInstallRequested: () => updateService.isInstallRequested,
   runCleanup: runQuitCleanup,
   exit: (code) => app.exit(code),
@@ -37,7 +34,6 @@ export function ackShutdownFlush(): void {
 
 export function markShutdownReady(): void {
   shutdownCoordinator.markShutdownReady();
-  markBootSuccessful();
 }
 
 export function watchWindow(window: BrowserWindow): void {

@@ -347,8 +347,10 @@ function acquireRuntimeSource(
       return source(runtime.data, identity);
     },
     async release() {
-      const { lease } = await acquired;
-      await lease.release();
+      // If acquisition failed there is no lease to release; the failure already
+      // surfaced through ready() and must not reject again here.
+      const runtime = await acquired.catch(() => null);
+      if (runtime) await runtime.lease.release();
     },
   };
 }

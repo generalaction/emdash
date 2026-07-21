@@ -9,6 +9,7 @@ import type { BootContext } from '../types';
 
 export const backgroundPhase: Phase<BootContext> = {
   name: 'background-tasks',
+  critical: false,
   run() {
     runInBackground('dependency-probe', async () => {
       await localDependencyManager.snapshot.mutate('refresh', { key: undefined, input: {} });

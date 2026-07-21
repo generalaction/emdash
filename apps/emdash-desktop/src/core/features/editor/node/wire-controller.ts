@@ -264,8 +264,11 @@ function acquireRuntimeSource(
       return source(runtime.client, runtime.identity);
     },
     async release() {
-      const runtime = await acquired;
-      await runtime.release();
+      // If acquisition failed there is nothing to release; the failure already
+      // surfaced through ready() and must not reject again here (an unhandled
+      // rejection in the main process is fatal).
+      const runtime = await acquired.catch(() => null);
+      if (runtime) await runtime.release();
     },
   };
 }

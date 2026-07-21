@@ -50,6 +50,8 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
       import('@main/host/updates/update-service'),
       import('@core/features/updates/node'),
     ]);
+    // initialize() is idempotent, so recovery can safely call it even if the
+    // normal updater phase completed before a later boot phase failed.
     await updaterModule.updateService.initialize();
     updateSvc = updaterModule.updateService;
     // Cast to the minimal interface — EventStreamHost satisfies it structurally.
@@ -96,6 +98,9 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
   function pushState(): void {
     if (window.isDestroyed()) return;
     const json = JSON.stringify(buildState());
+    // An event can arrive before the data URL defines renderState. That is
+    // harmless: the initial state is embedded in the HTML, and later events
+    // retry this push.
     window.webContents.executeJavaScript(`window.renderState(${json})`).catch((err) => {
       log.warn('Recovery: failed to push state update', { error: err });
     });
@@ -104,8 +109,8 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   // Actions are encoded as emdash-recovery://<action> navigation URLs set by
-  // the page. will-navigate fires before Chromium processes the URL, giving us
-  // a chance to preventDefault() and dispatch the action here in main.
+  // the page. The scheme is intentionally unregistered: will-navigate fires
+  // before Chromium resolves it, and preventDefault() keeps the page in place.
   window.webContents.on('will-navigate', (event, url) => {
     event.preventDefault();
     const prefix = 'emdash-recovery://';
@@ -144,13 +149,8 @@ export async function showRecoveryWindow(options: RecoveryWindowOptions): Promis
         }
         break;
 
-      case 'retry':
-        clearBootFailureMarker();
-        app.relaunch();
-        app.exit(0);
-        break;
-
       case 'restart':
+        clearBootFailureMarker();
         app.relaunch();
         app.exit(0);
         break;

@@ -14,13 +14,17 @@ export type RecoveryState = {
 };
 
 /**
- * Replace the `"__RECOVERY_BOOTSTRAP__"` sentinel in the HTML template with the
+ * Replace the `__RECOVERY_BOOTSTRAP__` sentinel in the HTML template with the
  * serialised bootstrap payload. The `</script>` sequence is escaped so that a
  * crafted error message cannot close the inline script block early.
  */
 export function injectBootstrap(html: string, bootstrap: RecoveryState): string {
+  const sentinel = '__RECOVERY_BOOTSTRAP__';
+  if (!html.includes(sentinel)) {
+    throw new Error('Recovery HTML is missing its bootstrap sentinel');
+  }
   const json = JSON.stringify(bootstrap, (_key, value: unknown) =>
     value === undefined ? null : value
   ).replace(/<\/script>/gi, '<\\/script>');
-  return html.replace('"__RECOVERY_BOOTSTRAP__"', json);
+  return html.replace(sentinel, json);
 }
