@@ -309,6 +309,20 @@ describe('createChatView', () => {
           },
         ],
       },
+      {
+        id: 'other-user-turn',
+        seq: 1,
+        initiator: 'user',
+        items: [
+          {
+            kind: 'message',
+            id: 'other-user-message',
+            seq: 0,
+            role: 'user',
+            text: Array.from({ length: 30 }, (_, i) => `Other message line ${i}`).join('\n\n'),
+          },
+        ],
+      },
     ]);
 
     const host = document.createElement('div');
@@ -328,6 +342,16 @@ describe('createChatView', () => {
     await nextPaint();
 
     expect(selection?.toString()).toBe('Selectable user message');
+
+    const otherCard = host.querySelector(
+      '[data-user-card="other-user-message"]'
+    ) as HTMLElement | null;
+    expect(otherCard).not.toBeNull();
+    const collapsedHeight = otherCard!.getBoundingClientRect().height;
+    otherCard!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await nextPaint();
+
+    expect(otherCard!.getBoundingClientRect().height).toBeGreaterThan(collapsedHeight);
     selection?.removeAllRanges();
     view.dispose();
     ctx.dispose();
