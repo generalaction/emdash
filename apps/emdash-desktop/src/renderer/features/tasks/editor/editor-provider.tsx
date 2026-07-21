@@ -15,6 +15,7 @@ import {
 } from '@renderer/lib/monaco/monaco-config';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { shouldSkipAutofocus } from '@renderer/lib/region-focus';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { useTaskViewContext } from '../task-view-context';
 import {
@@ -106,7 +107,8 @@ export const EditorProvider = observer(function EditorProvider({
     });
 
     const focusDisposable = editor.onDidFocusEditorWidget(() => {
-      taskView.setFocusedRegion('main');
+      // Region tracking is owned by the main-content panel in TaskMainColumn;
+      // Monaco's focusin bubbles to it, so only the pane group needs updating.
       paneLayout.setActiveGroup(paneId);
     });
 
@@ -244,6 +246,7 @@ export const EditorProvider = observer(function EditorProvider({
     if (!isActive || focusedRegion !== 'main') return;
     // Only the focused pane should attempt to focus.
     if (paneLayout.activePaneId !== paneId) return;
+    if (shouldSkipAutofocus(containerRef.current)) return;
     const editor = editorRef.current;
     if (editor?.getModel()) {
       editor.focus();

@@ -17,6 +17,7 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import type { PtySession } from '@renderer/lib/pty/pty-session';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { terminalRegistry } from '../stores/terminal-registry';
@@ -128,6 +129,7 @@ const TerminalTabBarItemDragPreview = observer(function TerminalTabBarItemDragPr
 
 const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: TabContentProps) {
   const taskCtx = ctx as TaskTabContext;
+  const taskView = useWorkspaceViewModel();
   const terminalManager = terminalRegistry.get(taskCtx.taskId);
   const terminalTabs = host.resolvedTabs.filter(
     (tab): tab is ResolvedTab<TerminalTabResourceView> => tab.kind === 'terminal'
@@ -145,7 +147,13 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
       className="h-full"
       activeSession={activeSession}
       allSessionIds={allSessionIds}
-      autoFocus={activeTerminal !== null && host.resolvedActiveTabId === activeTab?.tabId}
+      // Gated on the region so a restored main-pane terminal doesn't race the
+      // drawer terminal for focus when the user left off in the drawer.
+      autoFocus={
+        activeTerminal !== null &&
+        host.resolvedActiveTabId === activeTab?.tabId &&
+        taskView.focusedRegion === 'main'
+      }
       emptyState={
         <EmptyState
           icon={<Terminal className="text-muted-foreground h-5 w-5" />}

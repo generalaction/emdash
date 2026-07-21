@@ -9,6 +9,7 @@ import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
+import { shouldSkipAutofocus } from '@renderer/lib/region-focus';
 import { cssVar } from '@renderer/utils/cssVars';
 import { cn } from '@renderer/utils/utils';
 
@@ -64,6 +65,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   // Fire when autoFocus becomes true or the active session changes.
   useEffect(() => {
     if (!autoFocus) return;
+    if (shouldSkipAutofocus(containerRef.current)) return;
     if (terminalRef.current) {
       terminalRef.current.focus();
       focusPendingRef.current = false;

@@ -188,8 +188,11 @@ export class WorkspaceViewModel implements ILifecycle {
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
-    this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
+    // 'bottom' is only meaningful while the drawer is open; a stale snapshot
+    // with {drawer closed, region 'bottom'} would gate off every autofocus.
+    this.focusedRegion =
+      savedSnapshot.focusedRegion === 'bottom' && this.isTerminalDrawerOpen ? 'bottom' : 'main';
     this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
 
     // Pass the aggregate blob as fallback so the persistor can migrate legacy
@@ -391,15 +394,28 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   setFocusedRegion(region: 'main' | 'bottom'): void {
-    if (this.focusedRegion !== region) {
-      focusTracker.transition({ focusedRegion: region }, 'region_switch');
-    }
+    if (this.focusedRegion === region) return;
+    focusTracker.transition({ focusedRegion: region }, 'region_switch');
     this.focusedRegion = region;
   }
 
   setTerminalDrawerOpen(open: boolean): void {
+    // TaskMainColumn's drawer onResize echoes programmatic expand/collapse back
+    // here; only real transitions may move focusedRegion, or the echo clobbers
+    // the remembered region on every task switch.
+    if (this.isTerminalDrawerOpen === open) return;
     this.isTerminalDrawerOpen = open;
     this.setFocusedRegion(open ? 'bottom' : 'main');
+  }
+
+  /**
+   * Opens the terminal drawer and claims the bottom region so the drawer
+   * terminal autofocuses. A no-op when the drawer is already open with the
+   * region already 'bottom'.
+   */
+  openTerminalDrawer(): void {
+    this.isTerminalDrawerOpen = true;
+    this.setFocusedRegion('bottom');
   }
 
   setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
@@ -408,8 +424,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
-    this.isTerminalDrawerOpen = true;
-    this.setFocusedRegion('bottom');
+    this.openTerminalDrawer();
 
     const terminalId = await this._createDefaultTerminal(shell);
     if (!terminalId) return undefined;

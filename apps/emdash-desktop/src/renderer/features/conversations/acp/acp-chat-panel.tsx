@@ -34,6 +34,8 @@ import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
+// TODO(conversations-extraction): Pass task focus state into ACP chat instead of importing task hooks.
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import {
   issueMentionToken,
   parseIssueMentionToken,
@@ -45,6 +47,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
+import { shouldSkipAutofocus } from '@renderer/lib/region-focus';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
@@ -234,11 +237,24 @@ const ComposerForStore = observer(function ComposerForStore({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
+  const taskView = useWorkspaceViewModel();
 
-  // Autofocus when the slot becomes available.
+  // Autofocus the composer when the slot becomes available, only while the main
+  // region owns focus. One focus() call is not enough: Tiptap's focus() no-ops
+  // until EditorContent mounts the view DOM, and the chat view re-parents the
+  // slot during placement, blurring a just-focused editor — hence the retry.
   useEffect(() => {
-    editorApiRef.current?.focus();
-  }, []);
+    if (taskView.focusedRegion !== 'main') return;
+    let attempts = 0;
+    let timer = setTimeout(function tryFocus() {
+      if (taskView.focusedRegion !== 'main') return;
+      if (shouldSkipAutofocus(composerSlot)) return;
+      editorApiRef.current?.focus();
+      if (composerSlot.contains(document.activeElement)) return;
+      if (++attempts < 10) timer = setTimeout(tryFocus, 50);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [taskView, composerSlot]);
 
   useEffect(() => {
     const editor = editorApiRef.current;

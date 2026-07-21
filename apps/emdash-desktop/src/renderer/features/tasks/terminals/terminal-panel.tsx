@@ -149,8 +149,15 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       orientation="horizontal"
       id="terminal-drawer-inner"
       className="h-full"
-      onFocus={() => {
+      onFocus={(e) => {
+        // Skip popups portaled to document.body (e.g. the shell picker menu);
+        // their React onFocus bubbles here but shouldn't move the region.
+        if (!e.currentTarget.contains(e.target as Node)) return;
         setIsPanelFocused(true);
+        // Focus can land here while the drawer is collapsed (e.g. the resize
+        // handle restores focus after a drag-collapse); 'bottom' is only a
+        // meaningful region while the drawer is open.
+        if (!taskView.isTerminalDrawerOpen) return;
         taskView.setFocusedRegion('bottom');
       }}
       onBlur={(e) => {
