@@ -182,6 +182,10 @@ export class PreviewServerService {
     );
   }
 
+  listAll(): PreviewServer[] {
+    return Array.from(this.servers.values());
+  }
+
   async handleTerminalSourceClosed(input: TerminalSourceClosedInput): Promise<void> {
     if (input.transport === 'local') {
       await this.stopForTerminal(input);
@@ -367,6 +371,11 @@ export class PreviewServerService {
     const ids = Array.from(this.servers.values())
       .filter((server) => server.projectId === projectId)
       .map((server) => server.id);
+    await Promise.all(ids.map((id) => this.stop(id)));
+  }
+
+  async stopAll(): Promise<void> {
+    const ids = Array.from(this.servers.keys());
     await Promise.all(ids.map((id) => this.stop(id)));
   }
 

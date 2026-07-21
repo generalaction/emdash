@@ -114,6 +114,14 @@ export class PreviewServerStore implements IDisposable {
     this.serversResource.setValue(next);
   }
 
+  async stopAll(): Promise<void> {
+    await rpc.previewServers.stopForWorkspace({
+      projectId: this.projectId,
+      workspaceId: this.workspaceId,
+    });
+    this.serversResource.setValue(new Map());
+  }
+
   dispose(): void {
     this.serversResource.dispose();
   }

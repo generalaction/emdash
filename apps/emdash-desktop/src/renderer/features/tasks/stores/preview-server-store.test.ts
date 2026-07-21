@@ -14,6 +14,7 @@ const rpcMocks = vi.hoisted(() => ({
   forwardManual: vi.fn(),
   restart: vi.fn(),
   stop: vi.fn(),
+  stopForWorkspace: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -70,6 +71,7 @@ describe('PreviewServerStore', () => {
     rpcMocks.forwardManual.mockReset();
     rpcMocks.restart.mockReset();
     rpcMocks.stop.mockReset();
+    rpcMocks.stopForWorkspace.mockReset();
   });
 
   it('loads preview servers for a workspace and exposes addressable URLs', async () => {
@@ -178,6 +180,31 @@ describe('PreviewServerStore', () => {
     });
 
     expect(rpcMocks.forwardManual).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('stops all servers for the workspace and clears local state', async () => {
+    rpcMocks.listForWorkspace.mockResolvedValueOnce([
+      directServer(),
+      forwardedServer({ id: 'forwarded-1' }),
+    ]);
+    rpcMocks.stopForWorkspace.mockResolvedValueOnce(undefined);
+
+    const store = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    await store.serversResource.load();
+    expect(store.servers).toHaveLength(2);
+
+    await store.stopAll();
+
+    expect(rpcMocks.stopForWorkspace).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(store.servers).toEqual([]);
+
     store.dispose();
   });
 

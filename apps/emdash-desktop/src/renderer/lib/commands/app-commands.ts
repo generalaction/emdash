@@ -1,5 +1,6 @@
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -87,6 +88,29 @@ function createAppCommandProvider(): CommandProvider {
         group: giveFeedbackDef.group,
         execute() {
           showModal('feedbackModal', {});
+        },
+      });
+
+      const stopAllPreviewServersDef = appDef('app.stopAllPreviewServers');
+      commands.push({
+        id: stopAllPreviewServersDef.id,
+        label: stopAllPreviewServersDef.label,
+        description: stopAllPreviewServersDef.description,
+        shortcutKey: stopAllPreviewServersDef.shortcutKey,
+        group: stopAllPreviewServersDef.group,
+        execute() {
+          void rpc.previewServers
+            .stopAll()
+            .then(() => {
+              toast({ title: 'Stopped all preview servers' });
+            })
+            .catch((error: unknown) => {
+              toast({
+                title: 'Failed to stop preview servers',
+                description: String(error),
+                variant: 'destructive',
+              });
+            });
         },
       });
 
