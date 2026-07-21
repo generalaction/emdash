@@ -159,22 +159,22 @@ globalStyle(':root', {
 
   [nsName('type-h1-font-family')]: tokenVars.fontSans,
   [nsName('type-h1-font-size')]: tokenVars.textXl,
-  [nsName('type-h1-font-weight')]: tokenVars.fontWeightSemibold,
+  [nsName('type-h1-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-h1-line-height')]: '28px',
 
   [nsName('type-h2-font-family')]: tokenVars.fontSans,
   [nsName('type-h2-font-size')]: tokenVars.textLg,
-  [nsName('type-h2-font-weight')]: tokenVars.fontWeightSemibold,
+  [nsName('type-h2-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-h2-line-height')]: '25px',
 
   [nsName('type-h3-font-family')]: tokenVars.fontSans,
   [nsName('type-h3-font-size')]: tokenVars.textBase,
-  [nsName('type-h3-font-weight')]: tokenVars.fontWeightSemibold,
+  [nsName('type-h3-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-h3-line-height')]: '22px',
 
   [nsName('type-section-font-family')]: tokenVars.fontSans,
   [nsName('type-section-font-size')]: tokenVars.textSm,
-  [nsName('type-section-font-weight')]: tokenVars.fontWeightSemibold,
+  [nsName('type-section-font-weight')]: tokenVars.fontWeightNormal,
   [nsName('type-section-line-height')]: '18px',
 
   [nsName('type-caption-font-family')]: tokenVars.fontSans,

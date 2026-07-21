@@ -27,7 +27,7 @@ function Card({ title, rows = 3 }: { title: string; rows?: number }) {
       }}
     >
       <div
-        style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+        style={{ fontSize: 'var(--em-text-sm)', fontWeight: 400, color: 'var(--em-foreground)' }}
       >
         {title}
       </div>
@@ -266,7 +266,7 @@ function CustomSidebarDemo() {
               <p
                 style={{
                   fontSize: 'var(--em-text-xs)',
-                  fontWeight: 600,
+                  fontWeight: 400,
                   color: 'var(--em-foreground-muted)',
                   paddingLeft: '0.75rem',
                   paddingBottom: '0.25rem',

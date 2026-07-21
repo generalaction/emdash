@@ -4,7 +4,6 @@ import { Text } from './Text';
 
 const variants = [
   'body',
-  'bodyBold',
   'bodyItalic',
   'bodyLink',
   'h1',

@@ -85,7 +85,7 @@ export const Sizes: Story = {
             style={{
               display: 'block',
               fontSize: 'var(--em-text-xs)',
-              fontWeight: 500,
+              fontWeight: 400,
               color: 'var(--em-foreground-muted)',
               marginBottom: '0.75rem',
               fontFamily: 'var(--em-font-mono)',

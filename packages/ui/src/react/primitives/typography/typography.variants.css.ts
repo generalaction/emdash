@@ -20,12 +20,6 @@ export const textVariants = recipe({
         fontWeight: nsVar('type-body-font-weight'),
         lineHeight: nsVar('type-body-line-height'),
       },
-      bodyBold: {
-        fontFamily: nsVar('type-body-bold-font-family'),
-        fontSize: nsVar('type-body-bold-font-size'),
-        fontWeight: nsVar('type-body-bold-font-weight'),
-        lineHeight: nsVar('type-body-bold-line-height'),
-      },
       bodyItalic: {
         fontFamily: nsVar('type-body-italic-font-family'),
         fontSize: nsVar('type-body-italic-font-size'),

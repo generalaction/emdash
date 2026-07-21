@@ -136,8 +136,6 @@ const typographyProps = defineProperties({
     },
     fontWeight: {
       normal: tokenVars.fontWeightNormal,
-      medium: tokenVars.fontWeightMedium,
-      semibold: tokenVars.fontWeightSemibold,
     },
     lineHeight: {
       none: 1,

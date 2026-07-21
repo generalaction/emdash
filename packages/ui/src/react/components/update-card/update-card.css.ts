@@ -34,7 +34,7 @@ export const rowTitle = style({
   alignItems: 'center',
   gap: '0.5rem',
   fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

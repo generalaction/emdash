@@ -97,7 +97,7 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
           className={cx(s.size4, sx({ flexShrink: 0 }))}
           style={{ color: 'var(--em-foreground-muted)' }}
         />
-        <p className={cx(sx({ lineHeight: 'tight', fontWeight: 'medium' }))}>{item.name}</p>
+        <p className={cx(sx({ lineHeight: 'tight' }))}>{item.name}</p>
       </Box>
       <p
         className={cx(sx({ marginTop: '1.5', fontSize: 'xs', lineHeight: 'snug' }))}

@@ -83,7 +83,7 @@ export const Sizes: Story = {
               marginBottom: '0.75rem',
               fontFamily: 'var(--em-font-mono)',
               fontSize: 'var(--em-text-xs)',
-              fontWeight: 500,
+              fontWeight: 400,
               color: 'var(--em-foreground-muted)',
             }}
           >

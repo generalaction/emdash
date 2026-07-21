@@ -67,7 +67,7 @@ export const sectionHeader = style({
 
 export const sectionHeaderLabel = style({
   fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

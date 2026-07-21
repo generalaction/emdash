@@ -72,7 +72,7 @@ function ItemRow({
         <div
           style={{
             fontSize: 'var(--em-text-sm)',
-            fontWeight: 500,
+            fontWeight: 400,
             color: 'var(--em-foreground)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -537,7 +537,7 @@ function AgentRow({ agent, isLast }: { agent: AgentItem; isLast: boolean }) {
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
-          style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+          style={{ fontSize: 'var(--em-text-sm)', fontWeight: 400, color: 'var(--em-foreground)' }}
         >
           {agent.name}
         </div>

@@ -50,7 +50,7 @@ export const menuLabel = style({
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foregroundMuted,
   selectors: {
     '&[data-inset]': { paddingLeft: '2rem' },

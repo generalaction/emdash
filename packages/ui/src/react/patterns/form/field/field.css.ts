@@ -55,7 +55,7 @@ export const fieldControlSlot = style({
 
 export const fieldLabel = style({
   fontSize: tokenVars.textSm,
-  fontWeight: 500,
+  fontWeight: 400,
   lineHeight: 1,
   color: vars.foreground,
   selectors: {

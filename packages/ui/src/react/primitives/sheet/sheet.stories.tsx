@@ -126,7 +126,7 @@ export const WithoutFooter: Story = {
             fontSize="xs"
             style={{ color: 'var(--em-foreground-muted)' }}
           >
-            <p className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Component</p>
+            <p className={cx(sx({ color: 'foreground' }))}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>
           </Box>
         </Sheet.Body>

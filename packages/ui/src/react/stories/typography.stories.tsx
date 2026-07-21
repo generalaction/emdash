@@ -28,20 +28,14 @@ const SIZE_TOKENS = [
   { name: '--text-2xl', size: '24px', lh: '1.3' },
 ];
 
-const WEIGHT_TOKENS = [
-  { name: '--font-weight-normal', value: 400, label: 'Normal 400' },
-  { name: '--font-weight-medium', value: 500, label: 'Medium 500' },
-  { name: '--font-weight-semibold', value: 600, label: 'Semibold 600' },
-];
+const WEIGHT_TOKENS = [{ name: '--font-weight-normal', value: 400, label: 'Normal 400' }];
 
 /** Primitive type size scale — each --text-* token. */
 export const TypeScale: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="2" padding="4">
       <Box marginBottom="4">
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Type size scale
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Type size scale</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Primitive <code className={cx(sx({ fontFamily: 'mono' }))}>--text-*</code> tokens.
           Semantic{' '}
@@ -84,9 +78,7 @@ export const Weights: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="4" padding="4">
       <Box marginBottom="2">
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
-          Font weight scale
-        </h2>
+        <h2 className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>Font weight scale</h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Primitive <code className={cx(sx({ fontFamily: 'mono' }))}>--font-weight-*</code> tokens.
         </p>
@@ -120,20 +112,19 @@ export const Weights: Story = {
 };
 
 const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: string }> = [
-  { label: 'h1 — 20px / 600', variant: 'h1', as: 'p' },
-  { label: 'h2 — 17px / 600', variant: 'h2', as: 'p' },
-  { label: 'h3 — 14px / 600', variant: 'h3', as: 'p' },
-  { label: 'section — 13px / 600', variant: 'section', as: 'p' },
+  { label: 'h1 — 20px / 400', variant: 'h1', as: 'p' },
+  { label: 'h2 — 17px / 400', variant: 'h2', as: 'p' },
+  { label: 'h3 — 14px / 400', variant: 'h3', as: 'p' },
+  { label: 'section — 13px / 400', variant: 'section', as: 'p' },
   { label: 'body — 14px / 400', variant: 'body', as: 'p' },
-  { label: 'bodyBold — 14px / 600', variant: 'bodyBold', as: 'p' },
   { label: 'bodyItalic — 14px / 400 italic', variant: 'bodyItalic', as: 'p' },
   { label: 'bodyLink — 14px / 400', variant: 'bodyLink', as: 'p' },
-  { label: 'caption — 12px / 500', variant: 'caption', as: 'p' },
+  { label: 'caption — 12px / 400', variant: 'caption', as: 'p' },
   { label: 'description — 13px / 400', variant: 'description', as: 'p' },
   { label: 'inlineCode — 12px / 400 mono', variant: 'inlineCode', as: 'p' },
   { label: 'code — 13px / 400 mono', variant: 'code', as: 'p' },
-  { label: 'codeLang — 11px / 500 sans', variant: 'codeLang', as: 'p' },
-  { label: 'mention — 14px / 600', variant: 'mention', as: 'p' },
+  { label: 'codeLang — 11px / 400 sans', variant: 'codeLang', as: 'p' },
+  { label: 'mention — 14px / 400', variant: 'mention', as: 'p' },
 ];
 
 /** Every typography role applied to a sample sentence. */
@@ -163,10 +154,10 @@ export const AllRoles: Story = {
 export const Headings: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3">
-      <Heading level={1}>Heading level 1 — 20px / 600</Heading>
-      <Heading level={2}>Heading level 2 — 17px / 600</Heading>
-      <Heading level={3}>Heading level 3 — 14px / 600</Heading>
-      <Heading level={4}>Heading level 4 — 13px / 600</Heading>
+      <Heading level={1}>Heading level 1 — 20px / 400</Heading>
+      <Heading level={2}>Heading level 2 — 17px / 400</Heading>
+      <Heading level={3}>Heading level 3 — 14px / 400</Heading>
+      <Heading level={4}>Heading level 4 — 13px / 400</Heading>
     </Box>
   ),
 };

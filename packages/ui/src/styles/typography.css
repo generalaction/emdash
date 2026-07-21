@@ -21,13 +21,6 @@
   line-height: var(--em-type-body-line-height);
 }
 
-.text-role-body-bold {
-  font-family: var(--em-type-body-bold-font-family);
-  font-size: var(--em-type-body-bold-font-size);
-  font-weight: var(--em-type-body-bold-font-weight);
-  line-height: var(--em-type-body-bold-line-height);
-}
-
 .text-role-body-italic {
   font-family: var(--em-type-body-italic-font-family);
   font-size: var(--em-type-body-italic-font-size);

@@ -296,7 +296,7 @@ export const modelDetailCard = style({
 
 export const modelDetailName = style({
   lineHeight: 1.25,
-  fontWeight: 500,
+  fontWeight: 400,
 });
 
 export const modelDetailDesc = style({
@@ -374,7 +374,7 @@ export const usageStatsRow = style({
 });
 
 export const usagePercent = style({
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foreground,
 });
 

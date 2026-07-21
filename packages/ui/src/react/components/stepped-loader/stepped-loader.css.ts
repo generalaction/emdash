@@ -14,7 +14,7 @@ export const root = style({
 
 export const label = style({
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foregroundMuted,
 });
 

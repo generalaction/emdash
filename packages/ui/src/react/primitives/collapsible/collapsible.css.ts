@@ -14,7 +14,7 @@ export const trigger = style([
     gap: '0.5rem',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
-    fontWeight: 500,
+    fontWeight: 400,
     color: vars.foreground,
     selectors: {
       '&:hover': { color: vars.foreground },
