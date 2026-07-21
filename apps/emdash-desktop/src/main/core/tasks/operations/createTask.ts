@@ -14,7 +14,7 @@ import type { DrizzleTx } from '@core/services/app-db/node/db';
 import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { ConversationRow, TaskRow } from '@core/services/app-db/node/schema';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
-import { operationsService } from '@main/core/operations/operations-service';
+import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getAppDb } from '@main/db/instance';
 import { mapTaskRowToTask } from '../utils/utils';
@@ -54,7 +54,7 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const cleanupReady = await operationsService.waitForConflictingCleanup({
+  const cleanupReady = await getOperationsEngine().waitForConflictingCleanup({
     projectId: params.projectId,
     workspaceId: wsTarget.kind === 'repository-instance' ? wsTarget.workspaceId : undefined,
     branchName,

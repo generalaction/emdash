@@ -43,8 +43,8 @@ vi.mock('@main/core/agent-status/tui-agent-status-bridge', () => ({
 vi.mock('@main/core/automations/automations-service', () => ({
   automationsService: { stop: vi.fn() },
 }));
-vi.mock('@main/core/operations/operations-service', () => ({
-  operationsService: { dispose: vi.fn() },
+vi.mock('@main/core/operations/operations-engine-instance', () => ({
+  disposeOperationsEngine: vi.fn(),
 }));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { release: vi.fn(), dispose: vi.fn() },

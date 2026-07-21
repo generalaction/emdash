@@ -1,44 +1,57 @@
-import {
-  createIdleSweeper,
-  type IdleSweeper,
-  type IoActivitySnapshot,
-} from '@emdash/core/primitives/io-activity/api';
 import { decodeTmuxSessionName, listTmuxSessionActivity } from '@emdash/core/services/pty/api';
-import type { Scope } from '@emdash/shared/concurrency';
-import { eq, isNotNull, isNull } from 'drizzle-orm';
+import { ok } from '@emdash/shared';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
+import type { AppDb } from '@core/services/app-db/node/db';
 import {
+  lifecycleOperations,
   conversations,
   projects,
   tasks,
   terminals,
   workspaces,
 } from '@core/services/app-db/node/schema';
-import { appScope } from '@main/bootstrap/core/app-scope';
+import {
+  runOperationActions,
+  type OperationDefinition,
+  type OperationReconcileContext,
+  type OperationSubmit,
+} from '@core/services/operations/node';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
+import { submitReconcilerProjectCleanup } from '@main/core/projects/operations/delete-project-definition';
 import { projectManager } from '@main/core/projects/project-manager';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
+import { submitReconcilerTaskCleanup } from '@main/core/tasks/operations/delete-task-definition';
+import { resolveLifecycleOperationContext } from '@main/core/workspaces/operations/lifecycle-operation-context';
 import { listProjectWorkspaces } from '@main/core/workspaces/operations/list-project-workspaces';
-import { getAppDb } from '@main/db/instance';
+import { submitReconcilerWorkspaceCleanup } from '@main/core/workspaces/operations/workspace-lifecycle-definitions';
+import { shouldProposeWorkspaceCleanup } from '@main/core/workspaces/operations/workspace-reconciliation-policy';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
   getTuiAgentsRuntimeClient,
 } from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
-import type { OperationsService, ReconcilerSessionCleanupInput } from './operations-service';
-import { shouldProposeWorkspaceCleanup } from './reconciliation-policy';
+import {
+  killLifecycleAcpSessions,
+  killLifecycleTerminalSessions,
+  resolveLifecycleSessionTargets,
+} from './session-cleanup';
 
-const RECONCILE_INTERVAL_MS = 10 * 60_000;
-const SWEEP_ENTRY = 'lifecycle-drift';
-const SWEEP_SNAPSHOT: IoActivitySnapshot = {
-  running: false,
-  busy: false,
-  attachedClients: 0,
-  detachedAt: null,
-  lastInputAt: null,
-  lastOutputAt: null,
+const SESSION_TIMEOUT_MS = 30_000;
+const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
+
+export type ReconcilerSessionCleanupInput = {
+  entityId: string;
+  projectId?: string;
+  workspacePath?: string;
+  hostRef?: string;
+  acpConversationIds?: string[];
+  tuiConversationIds?: string[];
+  terminalSessionIds?: string[];
+  tmuxSessionNames?: string[];
 };
 
 type TaskOwner = {
@@ -58,31 +71,52 @@ type SessionCandidate = ReconcilerSessionCleanupInput & {
   tmuxSessionNames: string[];
 };
 
-let reconciler: IdleSweeper | undefined;
-
-export function startLifecycleReconciler(
-  operations: OperationsService,
-  scope: Scope = appScope
-): IdleSweeper {
-  if (reconciler) return reconciler;
-  reconciler = createIdleSweeper({
-    scope,
-    intervalMs: RECONCILE_INTERVAL_MS,
-    entries: () => [SWEEP_ENTRY],
-    snapshot: () => SWEEP_SNAPSHOT,
-    policy: () => () => ({ action: 'deactivate', reason: 'reconcile' }),
-    deactivate: () => sweepLifecycleDrift(operations),
-    onError: (error) => log.warn('lifecycle reconciler sweep failed', { error: String(error) }),
-  });
-  void reconciler.sweepNow();
-  return reconciler;
+export function createCleanupSessionsOperationDefinition(): OperationDefinition {
+  return {
+    kind: 'cleanup-sessions',
+    entityKind: 'task',
+    async describe({ operation }) {
+      return {
+        entityName: operation.payload.entityName ?? 'Orphaned session',
+        workspacePath: operation.payload.workspacePath,
+        branchName: operation.payload.branchName,
+      };
+    },
+    async run(runContext) {
+      const { db, operation } = runContext;
+      const context = await resolveLifecycleOperationContext(db, operation);
+      const targets = await resolveLifecycleSessionTargets(db, operation, context);
+      const actions = [];
+      if (targets.acpConversationIds.length > 0) {
+        actions.push({
+          id: 'kill-acp-sessions',
+          timeoutMs: SESSION_TIMEOUT_MS,
+          run: async () => killLifecycleAcpSessions(db, operation, targets),
+        });
+      }
+      if (
+        targets.tuiConversationIds.length > 0 ||
+        targets.terminalSessionIds.length > 0 ||
+        targets.tmuxSessionNames.length > 0
+      ) {
+        actions.push({
+          id: 'kill-tui-sessions',
+          timeoutMs: SESSION_TIMEOUT_MS,
+          run: async () => killLifecycleTerminalSessions(db, operation, context, targets),
+        });
+      }
+      return runOperationActions(runContext, actions);
+    },
+    reconcile: sweepLifecycleDrift,
+  };
 }
 
-export async function sweepLifecycleDrift(operations: OperationsService): Promise<void> {
+export async function sweepLifecycleDrift(context: OperationReconcileContext): Promise<void> {
+  const { db, submit } = context;
   const [taskOwners, conversationOwners, terminalOwners] = await Promise.all([
-    loadTaskOwners(),
-    loadConversationOwners(),
-    loadTerminalOwners(),
+    loadTaskOwners(db),
+    loadConversationOwners(db),
+    loadTerminalOwners(db),
   ]);
   const ownerByTaskId = new Map(taskOwners.map((owner) => [owner.taskId, owner]));
   const ownerByWorkspacePath = new Map(
@@ -105,10 +139,10 @@ export async function sweepLifecycleDrift(operations: OperationsService): Promis
     taskOwners.filter((owner) => !isOwnerActive(owner)).map((owner) => owner.taskId)
   );
   for (const taskId of invalidTaskIds) {
-    await operations.proposeReconcilerTaskCleanup(taskId);
+    await submitReconcilerTaskCleanup(submit, taskId);
   }
-  for (const projectId of await loadTombstonedProjectIds()) {
-    await operations.proposeReconcilerProjectCleanup(projectId);
+  for (const projectId of await loadTombstonedProjectIds(db)) {
+    await submitReconcilerProjectCleanup(submit, projectId);
   }
 
   const intentContext = await loadAndPruneSessionIntents(validConversationIds);
@@ -166,7 +200,7 @@ export async function sweepLifecycleDrift(operations: OperationsService): Promis
       .map((owner) => makePtySessionId(owner.projectId, owner.taskId, owner.conversationId)),
     ...validTerminalSessionIds,
   ]);
-  for (const project of await loadActiveProjects()) {
+  for (const project of await loadActiveProjects(db)) {
     const provider = projectManager.getProject(project.id);
     if (!provider) continue;
     try {
@@ -189,17 +223,16 @@ export async function sweepLifecycleDrift(operations: OperationsService): Promis
       });
     }
   }
-
   for (const candidate of candidates.values()) {
-    await operations.proposeReconcilerSessionCleanup(candidate);
+    await submitReconcilerSessionCleanup(submit, candidate);
   }
 
-  for (const project of await loadActiveProjects()) {
+  for (const project of await loadActiveProjects(db)) {
     try {
       const result = await listProjectWorkspaces(project.id);
       for (const row of result.rows) {
         if (!shouldProposeWorkspaceCleanup(row, project.path)) continue;
-        await operations.proposeReconcilerWorkspaceCleanup({
+        await submitReconcilerWorkspaceCleanup(submit, {
           projectId: project.id,
           workspaceId: row.workspaceId ?? undefined,
           workspacePath: row.path,
@@ -213,6 +246,46 @@ export async function sweepLifecycleDrift(operations: OperationsService): Promis
       });
     }
   }
+}
+
+async function submitReconcilerSessionCleanup(
+  submit: OperationSubmit,
+  input: ReconcilerSessionCleanupInput
+): Promise<void> {
+  await submit(async ({ db }) => {
+    const [existing] = await db
+      .select({ id: lifecycleOperations.id })
+      .from(lifecycleOperations)
+      .where(
+        and(
+          eq(lifecycleOperations.entityKey, input.entityId),
+          inArray(lifecycleOperations.kind, ['delete-task', 'cleanup-sessions']),
+          inArray(lifecycleOperations.status, [...reconcilerDedupeStatuses])
+        )
+      )
+      .limit(1);
+    if (existing) return ok({ outcome: 'existing' as const, operationId: existing.id });
+    return ok({
+      outcome: 'enqueue' as const,
+      draft: {
+        kind: 'cleanup-sessions' as const,
+        projectId: input.projectId,
+        entityKey: input.entityId,
+        hostRef: input.hostRef ?? 'local',
+        payload: {
+          version: '1' as const,
+          source: 'reconciler' as const,
+          entityName: 'Orphaned session',
+          workspacePath: input.workspacePath,
+          acpConversationIds: input.acpConversationIds,
+          tuiConversationIds: input.tuiConversationIds,
+          terminalSessionIds: input.terminalSessionIds,
+          tmuxSessionNames: input.tmuxSessionNames,
+        },
+      },
+      options: { dedupeStatuses: reconcilerDedupeStatuses },
+    });
+  });
 }
 
 function sessionCandidate(
@@ -236,8 +309,8 @@ function sessionCandidate(
   return candidate;
 }
 
-async function loadTaskOwners(): Promise<TaskOwner[]> {
-  return getAppDb()
+async function loadTaskOwners(db: AppDb): Promise<TaskOwner[]> {
+  return db
     .select({
       taskId: tasks.id,
       projectId: tasks.projectId,
@@ -259,8 +332,8 @@ async function loadTaskOwners(): Promise<TaskOwner[]> {
     );
 }
 
-async function loadConversationOwners() {
-  return getAppDb()
+async function loadConversationOwners(db: AppDb) {
+  return db
     .select({
       conversationId: conversations.id,
       taskId: tasks.id,
@@ -284,8 +357,8 @@ async function loadConversationOwners() {
     );
 }
 
-async function loadTerminalOwners() {
-  return getAppDb()
+async function loadTerminalOwners(db: AppDb) {
+  return db
     .select({
       terminalId: terminals.id,
       taskId: tasks.id,
@@ -311,10 +384,10 @@ async function loadTerminalOwners() {
     );
 }
 
-async function loadActiveProjects(): Promise<
-  Array<{ id: string; path: string; sshConnectionId: string | null }>
-> {
-  return getAppDb()
+async function loadActiveProjects(
+  db: AppDb
+): Promise<Array<{ id: string; path: string; sshConnectionId: string | null }>> {
+  return db
     .select({
       id: projects.id,
       path: projects.path,
@@ -324,8 +397,8 @@ async function loadActiveProjects(): Promise<
     .where(isNull(projects.deletedAt));
 }
 
-async function loadTombstonedProjectIds(): Promise<string[]> {
-  const rows = await getAppDb()
+async function loadTombstonedProjectIds(db: AppDb): Promise<string[]> {
+  const rows = await db
     .select({ id: projects.id })
     .from(projects)
     .where(isNotNull(projects.deletedAt));

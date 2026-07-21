@@ -3,7 +3,7 @@ import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { automationsService } from '@main/core/automations/automations-service';
-import { operationsService } from '@main/core/operations/operations-service';
+import { disposeOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { projectManager } from '@main/core/projects/project-manager';
 import { closeAppDb } from '@main/db/instance';
 import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
@@ -34,9 +34,9 @@ const criticalPhases: Phase<void>[] = [
     run: async () => agentStatusService.dispose(),
   },
   {
-    name: 'operations-service',
+    name: 'operations-engine',
     critical: true,
-    run: () => operationsService.dispose(),
+    run: () => disposeOperationsEngine(),
   },
   {
     name: 'project-manager-release',

@@ -1,8 +1,7 @@
-import { operationsService } from '@main/core/operations/operations-service';
+import { enqueueDeleteProject } from './delete-project-definition';
 
 export async function deleteProject(id: string): Promise<void> {
-  await operationsService.initialize();
-  const result = await operationsService.enqueueDeleteProject(id);
+  const result = await enqueueDeleteProject(id);
   if (!result.success && result.error.type !== 'project-not-found') {
     throw new Error(result.error.message);
   }

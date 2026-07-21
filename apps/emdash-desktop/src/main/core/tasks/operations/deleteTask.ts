@@ -1,5 +1,5 @@
 import type { DeleteTaskOptions } from '@core/primitives/tasks/api';
-import { operationsService } from '@main/core/operations/operations-service';
+import { enqueueDeleteTask } from './delete-task-definition';
 
 export async function deleteTask(
   projectId: string,
@@ -7,8 +7,7 @@ export async function deleteTask(
   options: DeleteTaskOptions = {}
 ): Promise<void> {
   void projectId;
-  await operationsService.initialize();
-  const result = await operationsService.enqueueDeleteTask({
+  const result = await enqueueDeleteTask({
     taskId,
     deleteWorktree: options.deleteWorktree,
     deleteBranch: options.deleteBranch,

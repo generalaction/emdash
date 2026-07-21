@@ -1,11 +1,10 @@
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
 import { tasksWireContract } from '@core/features/tasks/api';
 import { taskEvents } from '@core/features/tasks/node';
-import {
-  operationsService,
-  type OperationsService,
-} from '@main/core/operations/operations-service';
+import type { OperationsEngine } from '@core/services/operations/node';
+import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { taskOperations } from '@main/core/tasks/controller';
+import { enqueueDeleteTask } from '@main/core/tasks/operations/delete-task-definition';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type TasksWireImpl = ContractImpl<ContractDefinitionsOf<typeof tasksWireContract>>;
@@ -38,18 +37,10 @@ export function createTasksWireController(): TasksWireController {
       teardownTask: ({ projectId, taskId }) => taskOperations.teardownTask(projectId, taskId),
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       events: taskEvents,
-      delete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.enqueueDeleteTask(input);
-      },
-      retryDelete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.retryDelete('task', input.taskId);
-      },
-      forgetWithoutCleanup: async (input) => {
-        await operationsService.initialize();
-        return operationsService.forgetWithoutCleanup('task', input.taskId);
-      },
+      delete: (input) => enqueueDeleteTask(input),
+      retryDelete: (input) => getOperationsEngine().retryDelete('task', input.taskId),
+      forgetWithoutCleanup: (input) =>
+        getOperationsEngine().forgetWithoutCleanup('task', input.taskId),
       deletions: createTaskDeletionsProvider(),
     },
     async dispose() {},
@@ -63,14 +54,13 @@ function createTaskDeletionsProvider(): LeasedLiveModelProvider<
     kind: 'leasedLiveModelProvider',
     contract: tasksWireContract.deletions,
     acquireState(key, name) {
-      let lease: ReturnType<OperationsService['acquireDeletionState']> | undefined;
+      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
       let released = false;
       return {
         ready: async () => {
           if (name !== 'list') throw new Error(`Unknown task deletion state '${String(name)}'`);
           if (released) throw new Error('Task deletion state lease was released before ready');
-          await operationsService.initialize();
-          lease ??= operationsService.acquireDeletionState('task', key.entityId);
+          lease ??= getOperationsEngine().acquireDeletionState('task', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Task deletion state lease was released before ready');

@@ -6,7 +6,7 @@ export const root = style({
   minHeight: 0,
   width: '100%',
   flexDirection: 'column',
-  paddingBottom: tokenVars.space4,
+  paddingBlock: tokenVars.space4,
 });
 
 export const body = style({

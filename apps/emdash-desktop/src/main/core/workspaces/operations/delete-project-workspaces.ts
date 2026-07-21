@@ -3,9 +3,9 @@ import type {
   ProjectWorkspaceActionSummary,
   ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
-import { operationsService } from '@main/core/operations/operations-service';
 import { taskService } from '@main/core/tasks/task-service';
 import { getProjectWorkspaceProject, listProjectWorkspaces } from './list-project-workspaces';
+import { enqueueDeleteWorkspacePath } from './workspace-lifecycle-definitions';
 
 export async function deleteProjectWorkspaces(input: {
   projectId: string;
@@ -68,7 +68,6 @@ async function deleteProjectWorkspaceRow(
   }
 
   try {
-    await operationsService.initialize();
     if (row.tasks.length > 0) {
       for (const task of row.tasks) {
         await taskService.deleteTask(projectId, task.taskId, {
@@ -83,7 +82,7 @@ async function deleteProjectWorkspaceRow(
       return success(row);
     }
 
-    const result = await operationsService.enqueueDeleteWorkspacePath({
+    const result = await enqueueDeleteWorkspacePath({
       projectId,
       workspaceId: row.workspaceId ?? undefined,
       workspacePath: row.path,

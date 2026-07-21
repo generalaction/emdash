@@ -39,11 +39,13 @@ import {
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
-import {
-  operationsService,
-  type OperationsService,
-} from '@main/core/operations/operations-service';
+import type { OperationsEngine } from '@core/services/operations/node';
+import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
+import {
+  enqueueArchiveWorkspace,
+  enqueueDeleteWorkspace,
+} from '@main/core/workspaces/operations/workspace-lifecycle-definitions';
 import {
   runCloneRepositoryProvision,
   type CloneRepositoryProvisionInput,
@@ -208,22 +210,11 @@ export function createWorkspacesWireController(
           );
           return result.success ? ok({ ...result.data, workspaceId: input.workspaceId }) : result;
         }),
-      delete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.enqueueDeleteWorkspace(input.workspaceId);
-      },
-      archive: async (input) => {
-        await operationsService.initialize();
-        return operationsService.enqueueArchiveWorkspace(input);
-      },
-      retryDelete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.retryDelete('workspace', input.workspaceId);
-      },
-      forgetWithoutCleanup: async (input) => {
-        await operationsService.initialize();
-        return operationsService.forgetWithoutCleanup('workspace', input.workspaceId);
-      },
+      delete: (input) => enqueueDeleteWorkspace(input.workspaceId),
+      archive: (input) => enqueueArchiveWorkspace(input),
+      retryDelete: (input) => getOperationsEngine().retryDelete('workspace', input.workspaceId),
+      forgetWithoutCleanup: (input) =>
+        getOperationsEngine().forgetWithoutCleanup('workspace', input.workspaceId),
       deletions: createWorkspaceDeletionsProvider(),
     },
     async dispose() {
@@ -392,7 +383,7 @@ function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
     kind: 'leasedLiveModelProvider',
     contract: workspacesWireContract.deletions,
     acquireState(key, name) {
-      let lease: ReturnType<OperationsService['acquireDeletionState']> | undefined;
+      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
       let released = false;
       return {
         ready: async () => {
@@ -400,8 +391,7 @@ function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown workspace deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Workspace deletion state lease was released before ready');
-          await operationsService.initialize();
-          lease ??= operationsService.acquireDeletionState('workspace', key.entityId);
+          lease ??= getOperationsEngine().acquireDeletionState('workspace', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Workspace deletion state lease was released before ready');

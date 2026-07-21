@@ -2,18 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteProject } from './deleteProject';
 
 const mocks = vi.hoisted(() => ({
-  initialize: vi.fn(),
   enqueueDeleteProject: vi.fn(),
 }));
 
-vi.mock('@main/core/operations/operations-service', () => ({
-  operationsService: mocks,
+vi.mock('./delete-project-definition', () => ({
+  enqueueDeleteProject: mocks.enqueueDeleteProject,
 }));
 
 describe('deleteProject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.initialize.mockResolvedValue(undefined);
     mocks.enqueueDeleteProject.mockResolvedValue({
       success: true,
       data: { operationId: 'operation-1' },
@@ -23,7 +21,6 @@ describe('deleteProject', () => {
   it('enqueues the project and its task cleanups', async () => {
     await deleteProject('project-1');
 
-    expect(mocks.initialize).toHaveBeenCalledTimes(1);
     expect(mocks.enqueueDeleteProject).toHaveBeenCalledWith('project-1');
   });
 

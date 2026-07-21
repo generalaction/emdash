@@ -61,6 +61,17 @@ type FlatRow<T> =
   | { kind: 'item'; item: T; itemIndex: number; sectionKey?: string }
   | { kind: 'header'; section: ListViewSection<T> };
 
+function getFlatRowKey<T>(
+  row: FlatRow<T> | undefined,
+  index: number,
+  getItemKey: (item: T, index: number) => string
+): string | number {
+  if (!row) return index;
+  return row.kind === 'header'
+    ? `__section__${row.section.key}`
+    : `__item__${getItemKey(row.item, row.itemIndex)}`;
+}
+
 function buildFlatRows<T>(
   items: T[] | undefined,
   sections: ListViewSection<T>[] | undefined
@@ -112,10 +123,15 @@ function VirtualListInner<T>(
   );
 
   const itemCount = flatRows.length;
+  const getVirtualItemKey = React.useCallback(
+    (index: number) => getFlatRowKey(flatRows[index], index, getItemKey),
+    [flatRows, getItemKey]
+  );
 
   const virtualizer = useVirtualizer({
     count: itemCount,
     getScrollElement: () => parentRef.current,
+    getItemKey: getVirtualItemKey,
     estimateSize: (i) => (flatRows[i]?.kind === 'header' ? estimateHeaderSize : estimateSize),
     overscan,
     measureElement: measure ? (el) => el.getBoundingClientRect().height : undefined,
@@ -182,11 +198,7 @@ function VirtualListInner<T>(
 
           return (
             <div
-              key={
-                row.kind === 'header'
-                  ? `__header__${row.section.key}`
-                  : getItemKey(row.item, row.itemIndex)
-              }
+              key={getFlatRowKey(row, vItem.index, getItemKey)}
               data-index={vItem.index}
               ref={measure ? virtualizer.measureElement : undefined}
               className={styles.virtualRow}

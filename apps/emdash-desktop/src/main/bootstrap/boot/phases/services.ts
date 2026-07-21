@@ -9,6 +9,7 @@ import { installAutomationTelemetry } from '@core/features/telemetry/node/automa
 import { appSettingsContributions } from '@core/manifests/shared/settings-contributions';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
+import { createOperationsEngine } from '@core/services/operations/node';
 import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { createAppSettingsService } from '@core/services/settings/node';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
@@ -16,9 +17,15 @@ import { createSshService } from '@core/services/ssh/node';
 import { sshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { appService } from '@main/core/app/service';
 import { automationsService } from '@main/core/automations/automations-service';
-import { startLifecycleReconciler } from '@main/core/operations/lifecycle-reconciler';
-import { operationsService } from '@main/core/operations/operations-service';
+import { setOperationsEngine } from '@main/core/operations/operations-engine-instance';
+import { createDeleteProjectOperationDefinition } from '@main/core/projects/operations/delete-project-definition';
 import { projectSettingsService } from '@main/core/projects/settings/project-settings-service';
+import { createCleanupSessionsOperationDefinition } from '@main/core/runtime/operations/cleanup-sessions-definition';
+import { createDeleteTaskOperationDefinition } from '@main/core/tasks/operations/delete-task-definition';
+import {
+  createArchiveWorkspaceOperationDefinition,
+  createDeleteWorkspaceOperationDefinition,
+} from '@main/core/workspaces/operations/workspace-lifecycle-definitions';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { installUpdateNotifications } from '@main/host/updates/update-notifications';
@@ -103,8 +110,33 @@ export const servicesPhase: Phase<BootContext> = {
     browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
     setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
     await promptLibraryService.initialize();
-    await operationsService.initialize(context.ssh.manager);
-    startLifecycleReconciler(operationsService);
+    const operations = await createOperationsEngine({
+      scope: appScope,
+      db,
+      sshManager: context.ssh.manager,
+      notifications: {
+        publishPendingCleanup({ operationId, payload, hostRef, reason }) {
+          notificationService.publish({
+            kind: 'pending-cleanup',
+            groupKey: `pending-cleanup:${hostRef}`,
+            dedupeKey: `pending-cleanup:${operationId}:${reason}`,
+            title: 'Pending cleanup needs review',
+            body: `${payload.entityName ?? 'A workspace'} is waiting for cleanup review.`,
+            sound: 'needs_attention',
+            target: { kind: 'none' },
+            source: { kind: 'app' },
+          });
+        },
+      },
+      definitions: [
+        createDeleteTaskOperationDefinition(),
+        createDeleteWorkspaceOperationDefinition(),
+        createArchiveWorkspaceOperationDefinition(),
+        createDeleteProjectOperationDefinition(),
+        createCleanupSessionsOperationDefinition(),
+      ],
+    });
+    setOperationsEngine(operations);
     registerProviderTokenHandlers();
   },
 };

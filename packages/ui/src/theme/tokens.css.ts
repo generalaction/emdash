@@ -174,6 +174,21 @@ globalStyle(':root', {
   [nsName('type-h3-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
   [nsName('type-h3-line-height')]: '22px',
 
+  [nsName('type-section-font-family')]: `var(${tokenVars.fontSans})`,
+  [nsName('type-section-font-size')]: `var(${tokenVars.textSm})`,
+  [nsName('type-section-font-weight')]: `var(${tokenVars.fontWeightSemibold})`,
+  [nsName('type-section-line-height')]: '18px',
+
+  [nsName('type-caption-font-family')]: `var(${tokenVars.fontSans})`,
+  [nsName('type-caption-font-size')]: `var(${tokenVars.textXs})`,
+  [nsName('type-caption-font-weight')]: `var(${tokenVars.fontWeightMedium})`,
+  [nsName('type-caption-line-height')]: '16px',
+
+  [nsName('type-description-font-family')]: `var(${tokenVars.fontSans})`,
+  [nsName('type-description-font-size')]: `var(${tokenVars.textSm})`,
+  [nsName('type-description-font-weight')]: `var(${tokenVars.fontWeightNormal})`,
+  [nsName('type-description-line-height')]: '18px',
+
   [nsName('type-inline-code-font-family')]: `var(${tokenVars.fontMono})`,
   [nsName('type-inline-code-font-size')]: `var(${tokenVars.textXs})`,
   [nsName('type-inline-code-font-weight')]: `var(${tokenVars.fontWeightNormal})`,

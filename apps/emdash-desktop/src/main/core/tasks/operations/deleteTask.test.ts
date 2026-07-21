@@ -2,18 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteTask } from './deleteTask';
 
 const mocks = vi.hoisted(() => ({
-  initialize: vi.fn(),
   enqueueDeleteTask: vi.fn(),
 }));
 
-vi.mock('@main/core/operations/operations-service', () => ({
-  operationsService: mocks,
+vi.mock('./delete-task-definition', () => ({
+  enqueueDeleteTask: mocks.enqueueDeleteTask,
 }));
 
 describe('deleteTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.initialize.mockResolvedValue(undefined);
     mocks.enqueueDeleteTask.mockResolvedValue({
       success: true,
       data: { operationId: 'operation-1' },
@@ -26,7 +24,6 @@ describe('deleteTask', () => {
       deleteBranch: true,
     });
 
-    expect(mocks.initialize).toHaveBeenCalledTimes(1);
     expect(mocks.enqueueDeleteTask).toHaveBeenCalledWith({
       taskId: 'task-1',
       deleteWorktree: false,

@@ -1,6 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { tokenVars } from '@theme/tokens.css';
 
 type CSSExtra = { [key: string]: string };
 
@@ -27,18 +26,6 @@ export const titleBlock = style({
   flexDirection: 'column',
   gap: '0.25rem',
   ...({ WebkitAppRegion: 'drag' } as CSSExtra),
-});
-
-export const title = style({
-  fontSize: '1.25rem',
-  lineHeight: '1.75rem',
-  fontWeight: 600,
-  color: vars.foreground,
-});
-
-export const description = style({
-  fontSize: tokenVars.textSm,
-  color: vars.foregroundMuted,
 });
 
 // ── Actions slot ──────────────────────────────────────────────────────────────

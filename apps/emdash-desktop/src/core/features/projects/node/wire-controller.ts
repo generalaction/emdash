@@ -2,15 +2,14 @@ import { LiveState } from '@emdash/wire';
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
 import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
-import {
-  operationsService,
-  type OperationsService,
-} from '@main/core/operations/operations-service';
+import type { OperationsEngine } from '@core/services/operations/node';
+import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { projectOperations } from '@main/core/projects/controller';
 import {
   createProjectFromRemote,
   unknownToWorkspaceError,
 } from '@main/core/projects/operations/create-project-from-remote';
+import { enqueueDeleteProject } from '@main/core/projects/operations/delete-project-definition';
 
 type CreationKey = { projectId: string };
 type CreationState = LiveState<ProjectCreationState>;
@@ -54,18 +53,10 @@ export function createProjectsWireController(): ProjectsWireController {
         run: (input, ctx) => createProjectFromRemote(input, ctx, publishCreationState),
         toError: unknownToWorkspaceError,
       },
-      delete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.enqueueDeleteProject(input.projectId);
-      },
-      retryDelete: async (input) => {
-        await operationsService.initialize();
-        return operationsService.retryDelete('project', input.projectId);
-      },
-      forgetWithoutCleanup: async (input) => {
-        await operationsService.initialize();
-        return operationsService.forgetWithoutCleanup('project', input.projectId);
-      },
+      delete: (input) => enqueueDeleteProject(input.projectId),
+      retryDelete: (input) => getOperationsEngine().retryDelete('project', input.projectId),
+      forgetWithoutCleanup: (input) =>
+        getOperationsEngine().forgetWithoutCleanup('project', input.projectId),
       deletions: createProjectDeletionsProvider(),
     },
     async dispose() {
@@ -81,7 +72,7 @@ function createProjectDeletionsProvider(): LeasedLiveModelProvider<
     kind: 'leasedLiveModelProvider',
     contract: projectsWireContract.deletions,
     acquireState(key, name) {
-      let lease: ReturnType<OperationsService['acquireDeletionState']> | undefined;
+      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
       let released = false;
       return {
         ready: async () => {
@@ -89,8 +80,7 @@ function createProjectDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown project deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Project deletion state lease was released before ready');
-          await operationsService.initialize();
-          lease ??= operationsService.acquireDeletionState('project', key.entityId);
+          lease ??= getOperationsEngine().acquireDeletionState('project', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Project deletion state lease was released before ready');

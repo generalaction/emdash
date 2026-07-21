@@ -12,9 +12,6 @@ export const sectionHeader = style({
   gap: tokenVars.space1,
   paddingBlock: tokenVars.space2,
   paddingInline: tokenVars.space3,
-  color: vars.foregroundMuted,
-  fontSize: tokenVars.textSm,
-  fontWeight: tokenVars.fontWeightNormal,
   letterSpacing: '-0.01em',
   lineHeight: 1,
 });

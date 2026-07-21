@@ -121,17 +121,20 @@ export const Weights: Story = {
 };
 
 const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: string }> = [
-  { label: 'h1 — 20px / 700', variant: 'h1', as: 'p' },
-  { label: 'h2 — 17px / 700', variant: 'h2', as: 'p' },
+  { label: 'h1 — 20px / 600', variant: 'h1', as: 'p' },
+  { label: 'h2 — 17px / 600', variant: 'h2', as: 'p' },
   { label: 'h3 — 14px / 600', variant: 'h3', as: 'p' },
+  { label: 'section — 13px / 600', variant: 'section', as: 'p' },
   { label: 'body — 14px / 400', variant: 'body', as: 'p' },
-  { label: 'bodyBold — 14px / 700', variant: 'bodyBold', as: 'p' },
+  { label: 'bodyBold — 14px / 600', variant: 'bodyBold', as: 'p' },
   { label: 'bodyItalic — 14px / 400 italic', variant: 'bodyItalic', as: 'p' },
-  { label: 'bodyLink — 14px / 500', variant: 'bodyLink', as: 'p' },
-  { label: 'inlineCode — 12px / 600 mono', variant: 'inlineCode', as: 'p' },
-  { label: 'code — 12px / 400 mono', variant: 'code', as: 'p' },
+  { label: 'bodyLink — 14px / 400', variant: 'bodyLink', as: 'p' },
+  { label: 'caption — 12px / 500', variant: 'caption', as: 'p' },
+  { label: 'description — 13px / 400', variant: 'description', as: 'p' },
+  { label: 'inlineCode — 12px / 400 mono', variant: 'inlineCode', as: 'p' },
+  { label: 'code — 13px / 400 mono', variant: 'code', as: 'p' },
   { label: 'codeLang — 11px / 500 sans', variant: 'codeLang', as: 'p' },
-  { label: 'mention — 12px / 700', variant: 'mention', as: 'p' },
+  { label: 'mention — 14px / 600', variant: 'mention', as: 'p' },
 ];
 
 /** Every typography role applied to a sample sentence. */
@@ -157,13 +160,14 @@ export const AllRoles: Story = {
   ),
 };
 
-/** Heading component: levels 1–3. */
+/** Heading component: levels 1–4. */
 export const Headings: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3">
-      <Heading level={1}>Heading level 1 — 20px / 700</Heading>
-      <Heading level={2}>Heading level 2 — 17px / 700</Heading>
+      <Heading level={1}>Heading level 1 — 20px / 600</Heading>
+      <Heading level={2}>Heading level 2 — 17px / 600</Heading>
       <Heading level={3}>Heading level 3 — 14px / 600</Heading>
+      <Heading level={4}>Heading level 4 — 13px / 600</Heading>
     </Box>
   ),
 };

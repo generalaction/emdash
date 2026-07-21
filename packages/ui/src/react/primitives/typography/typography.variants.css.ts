@@ -57,6 +57,24 @@ export const textVariants = recipe({
         fontWeight: nsVar('type-h3-font-weight'),
         lineHeight: nsVar('type-h3-line-height'),
       },
+      section: {
+        fontFamily: nsVar('type-section-font-family'),
+        fontSize: nsVar('type-section-font-size'),
+        fontWeight: nsVar('type-section-font-weight'),
+        lineHeight: nsVar('type-section-line-height'),
+      },
+      caption: {
+        fontFamily: nsVar('type-caption-font-family'),
+        fontSize: nsVar('type-caption-font-size'),
+        fontWeight: nsVar('type-caption-font-weight'),
+        lineHeight: nsVar('type-caption-line-height'),
+      },
+      description: {
+        fontFamily: nsVar('type-description-font-family'),
+        fontSize: nsVar('type-description-font-size'),
+        fontWeight: nsVar('type-description-font-weight'),
+        lineHeight: nsVar('type-description-line-height'),
+      },
       inlineCode: {
         fontFamily: nsVar('type-inline-code-font-family'),
         fontSize: nsVar('type-inline-code-font-size'),

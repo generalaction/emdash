@@ -18,10 +18,10 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('@main/core/operations/operations-service', () => ({
-  operationsService: {
+vi.mock('@main/core/operations/operations-engine-instance', () => ({
+  getOperationsEngine: () => ({
     waitForConflictingCleanup: mocks.waitForConflictingCleanup,
-  },
+  }),
 }));
 
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {

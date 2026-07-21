@@ -1,5 +1,6 @@
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+import { Text } from '../../primitives/typography/Text';
 import * as styles from './list-page-section.css';
 
 export type ListPageSectionProps = React.HTMLAttributes<HTMLDivElement>;
@@ -24,8 +25,14 @@ function SectionHeader({ label, count, className, ...props }: ListPageSectionHea
       className={cx(styles.sectionHeader, className)}
       {...props}
     >
-      <span>{label}</span>
-      {count !== undefined && <span>({count})</span>}
+      <Text variant="description" tone="muted">
+        {label}
+      </Text>
+      {count !== undefined && (
+        <Text variant="description" tone="muted">
+          ({count})
+        </Text>
+      )}
     </div>
   );
 }
