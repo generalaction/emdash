@@ -89,7 +89,7 @@ describe('LocalTerminalProvider', () => {
     expect(ptySessionRegistry.register).toHaveBeenCalledWith(
       sessionId,
       expect.anything(),
-      expect.objectContaining({ metadata: { title: terminal.name } })
+      expect.objectContaining({ metadata: expect.objectContaining({ title: terminal.name }) })
     );
   });
 
