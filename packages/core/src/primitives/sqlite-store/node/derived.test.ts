@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { nodeSqliteDriver } from './node-sqlite-driver';
+import { betterSqlite3Driver } from './better-sqlite3-driver';
 import { defineDerivedSqliteStore } from './store';
 
 function tempPath(): string {
@@ -22,7 +22,7 @@ describe('derived SQLite stores', () => {
     });
     const store = defineDerivedSqliteStore({
       name: 'derived-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       version: 2,
       createSchema,
     });
@@ -43,7 +43,7 @@ describe('derived SQLite stores', () => {
     { label: 'newer', version: 3 },
   ])('rebuilds $label schema versions', ({ version }) => {
     const path = tempPath();
-    const setup = nodeSqliteDriver.open(path);
+    const setup = betterSqlite3Driver.open(path);
     setup.exec(`
       CREATE TABLE stale_cache (value TEXT);
       INSERT INTO stale_cache (value) VALUES ('discard me');
@@ -53,7 +53,7 @@ describe('derived SQLite stores', () => {
 
     const store = defineDerivedSqliteStore({
       name: 'derived-rebuild-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       version: 2,
       createSchema(connection) {
         connection.exec('CREATE TABLE current_cache (value TEXT)');

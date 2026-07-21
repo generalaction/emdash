@@ -1,12 +1,15 @@
 import type { PortableRelativePath } from '@primitives/path/api';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { relativePath as relative } from '../testing/paths';
 import { SqliteFileSearchStore } from './sqlite-file-search-store';
+import { fileSearchStore, type FileSearchDb } from './store';
 
-const stores: SqliteFileSearchStore[] = [];
+const handles: Array<StoreHandle<FileSearchDb, Database.Database>> = [];
 
 afterEach(() => {
-  for (const store of stores.splice(0)) store.close();
+  for (const handle of handles.splice(0)) handle.close();
 });
 
 describe('SqliteFileSearchStore', () => {
@@ -128,12 +131,6 @@ describe('SqliteFileSearchStore', () => {
     expect(() => store.searchPaths('root-key', 'core*', ['file'], 20)).not.toThrow();
   });
 
-  it('rejects relative database paths', () => {
-    expect(() => new SqliteFileSearchStore({ databasePath: 'file-search.db' })).toThrow(
-      'must be absolute'
-    );
-  });
-
   it('escapes wildcard characters when deleting a subtree', () => {
     const store = createStore();
     const root = store.upsertRoot({ rootKey: 'root-key', rootPath: '/workspace' }).root;
@@ -156,9 +153,9 @@ describe('SqliteFileSearchStore', () => {
 });
 
 function createStore(): SqliteFileSearchStore {
-  const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
-  stores.push(store);
-  return store;
+  const handle = fileSearchStore.open(':memory:');
+  handles.push(handle);
+  return new SqliteFileSearchStore(handle);
 }
 
 function publish(

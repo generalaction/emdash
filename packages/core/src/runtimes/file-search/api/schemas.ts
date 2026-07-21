@@ -1,5 +1,6 @@
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { pathEntryKinds } from './path-entry-kind';
 
 export const PATH_SEARCH_MAX_LIMIT = 200;
 export const PATH_SEARCH_DEFAULT_LIMIT = 20;
@@ -12,7 +13,7 @@ export const fileSearchRootInputSchema = z.object({
   root: hostAbsolutePathSchema,
 });
 
-export const pathEntryKindSchema = z.enum(['file', 'directory']);
+export const pathEntryKindSchema = z.enum(pathEntryKinds);
 
 export const pathSearchInputSchema = fileSearchRootInputSchema.extend({
   query: z.string().max(FILE_SEARCH_MAX_QUERY_LENGTH),

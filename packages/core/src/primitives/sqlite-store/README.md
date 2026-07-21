@@ -60,7 +60,7 @@ skip invariants so full database scans do not become a startup cost.
 import {
   defineDerivedSqliteStore,
   fingerprintDerivedSchema,
-  nodeSqliteDriver,
+  betterSqlite3Driver,
 } from '@emdash/core/primitives/sqlite-store/node';
 
 const schemaSql = `
@@ -72,7 +72,7 @@ const schemaSql = `
 
 export const searchStore = defineDerivedSqliteStore({
   name: 'file-search',
-  driver: nodeSqliteDriver,
+  driver: betterSqlite3Driver,
   version: fingerprintDerivedSchema(schemaSql),
   createSchema(connection) {
     connection.exec(schemaSql);

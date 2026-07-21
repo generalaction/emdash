@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { BundledMigration, SqliteConnection } from '../api';
-import { nodeSqliteDriver } from './node-sqlite-driver';
+import { betterSqlite3Driver } from './better-sqlite3-driver';
 import { defineDerivedSqliteStore, defineDurableSqliteStore } from './store';
 
 const migrations: BundledMigration[] = [
@@ -36,7 +36,7 @@ describe('SQLite store lifecycle', () => {
   it('awaits asynchronous temporary-database seeds', async () => {
     const store = defineDurableSqliteStore({
       name: 'temp-seed-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
     const handle = await store.openTemp(async ({ connection }) => {
@@ -56,7 +56,7 @@ describe('SQLite store lifecycle', () => {
   it('opens a pre-migration state and migrates it to latest', () => {
     const store = defineDurableSqliteStore({
       name: 'migration-boundary-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
     const handle = store.openAtMigration(1);
@@ -87,7 +87,7 @@ describe('SQLite store lifecycle', () => {
   it('cleans up temporary databases when a seed fails', async () => {
     const store = defineDerivedSqliteStore({
       name: 'temp-cleanup-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       version: 1,
       createSchema(connection) {
         connection.exec('CREATE TABLE cache (value TEXT)');
@@ -104,7 +104,7 @@ describe('SQLite store lifecycle', () => {
   it('rejects invalid migration boundaries', () => {
     const store = defineDurableSqliteStore({
       name: 'invalid-boundary-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
     expect(() => store.openAtMigration(3)).toThrow('Migration boundary');
@@ -119,7 +119,7 @@ describe('SQLite store lifecycle', () => {
     };
     const store = defineDurableSqliteStore({
       name: 'foreign-key-state-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
       postMigrate: [observeForeignKeys],
       invariants: [observeForeignKeys],
@@ -155,7 +155,7 @@ describe('SQLite store lifecycle', () => {
   it('opens the zero-migration boundary and migrates it to latest', () => {
     const store = defineDurableSqliteStore({
       name: 'zero-boundary-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
     const handle = store.openAtMigration(0);
@@ -187,7 +187,7 @@ describe('SQLite store lifecycle', () => {
     const path = tempPath();
     const store = defineDurableSqliteStore({
       name: 'invalid-busy-timeout-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
       busyTimeoutMs: -1,
     });
@@ -205,7 +205,7 @@ describe('SQLite store lifecycle', () => {
     const invariant = vi.fn();
     const store = defineDurableSqliteStore({
       name: 'invariant-gating-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
       postMigrate: [postMigrate],
       invariants: [invariant],

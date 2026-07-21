@@ -11,6 +11,7 @@ export {
   type FileSearchUnregisterRootError,
   type PathSearchError,
 } from './errors';
+export { pathEntryKinds } from './path-entry-kind';
 export {
   CONTENT_SEARCH_DEFAULT_LIMIT,
   CONTENT_SEARCH_MAX_LIMIT,

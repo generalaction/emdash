@@ -1,5 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type {
   ContentSearchError,
   ContentSearchInput,
@@ -12,6 +13,7 @@ import type {
   PathSearchResult,
 } from '@runtimes/file-search/api';
 import type { IWatchService } from '@services/fs-watch/api';
+import type Database from 'better-sqlite3';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';
@@ -22,12 +24,13 @@ import { createRegisteredRoot } from './root/registered-root';
 import { NodeFileSearchRootResolver } from './root/root-identity';
 import { FileSearchRootRegistry } from './root/root-registry';
 import { SqliteFileSearchStore } from './storage/sqlite-file-search-store';
+import type { FileSearchDb } from './storage/store';
 
 const DEFAULT_MAX_CONCURRENT_SCANS = 2;
 const DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES = 4;
 
 export type FileSearchRuntimeOptions = Readonly<{
-  databasePath: string;
+  handle: StoreHandle<FileSearchDb, Database.Database>;
   watcher: IWatchService;
   ripgrepPath?: string;
   env?: NodeJS.ProcessEnv;
@@ -51,13 +54,7 @@ export class FileSearchRuntime {
       label: 'file-search-runtime',
       onCleanupError: (error) => onError('file-search cleanup failed', error),
     });
-    try {
-      this.store = new SqliteFileSearchStore({ databasePath: options.databasePath });
-      this.scope.add(() => this.store.close());
-    } catch (error) {
-      void this.scope.dispose(error);
-      throw error;
-    }
+    this.store = new SqliteFileSearchStore(options.handle);
 
     try {
       const exclusions = new DefaultFileSearchExclusions();
@@ -91,17 +88,8 @@ export class FileSearchRuntime {
         onError,
       });
     } catch (error) {
-      let constructionError = error;
-      try {
-        this.store.close();
-      } catch (closeError) {
-        constructionError = new AggregateError(
-          [error, closeError],
-          'File-search construction cleanup failed'
-        );
-      }
-      void this.scope.dispose(constructionError);
-      throw constructionError;
+      void this.scope.dispose(error);
+      throw error;
     }
   }
 

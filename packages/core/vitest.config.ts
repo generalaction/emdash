@@ -8,6 +8,10 @@ export default defineConfig({
       '@services': resolve(__dirname, 'src/services'),
       '@primitives': resolve(__dirname, 'src/primitives'),
       '@workspace-server': resolve(__dirname, 'src/workspace-server'),
+      'better-sqlite3': resolve(
+        __dirname,
+        '../../apps/emdash-desktop/tooling/node-deps/node_modules/better-sqlite3'
+      ),
       '@emdash/shared/requests': resolve(__dirname, '../shared/src/requests/index.ts'),
       '@emdash/shared/scheduling': resolve(__dirname, '../shared/src/scheduling/index.ts'),
       '@emdash/shared/concurrency': resolve(__dirname, '../shared/src/concurrency/index.ts'),

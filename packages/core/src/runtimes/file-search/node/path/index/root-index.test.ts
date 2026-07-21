@@ -9,6 +9,7 @@ import type { IWatchService, WatchEvent, WatchHandle, WatchOptions } from '@serv
 import { afterEach, describe, expect, it } from 'vitest';
 import { DefaultFileSearchExclusions } from '../../exclusions';
 import { SqliteFileSearchStore } from '../../storage/sqlite-file-search-store';
+import { fileSearchStore } from '../../storage/store';
 import type {
   PathIndexBuild,
   PathIndexEntry,
@@ -553,8 +554,9 @@ class FakeWatchService implements IWatchService {
 }
 
 function createStore(): SqliteFileSearchStore {
-  const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
-  cleanups.push(() => store.close());
+  const handle = fileSearchStore.open(':memory:');
+  const store = new SqliteFileSearchStore(handle);
+  cleanups.push(() => handle.close());
   return store;
 }
 

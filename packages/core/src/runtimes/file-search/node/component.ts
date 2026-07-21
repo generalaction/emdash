@@ -6,6 +6,7 @@ import { FileSearchRuntime } from '@runtimes/file-search/node/file-search-runtim
 import { fsWatchContract } from '@services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
 import { z } from 'zod';
+import { fileSearchStore } from './storage/store';
 
 export const fileSearchComponentConfigSchema = z.object({
   databasePath: z
@@ -29,13 +30,16 @@ export const fileSearchComponent = defineWireComponent({
   },
   configSchema: fileSearchComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
+    const handle = fileSearchStore.open(config.databasePath);
+    scope.add(() => handle.close());
+
     const watcher = createProcessWatchServiceFromDependency({
       client: dependencies.watcher,
       logger,
       scope,
     });
     const runtime = new FileSearchRuntime({
-      databasePath: config.databasePath,
+      handle,
       watcher,
       ripgrepPath: config.ripgrepPath,
       maxConcurrentScans: config.maxConcurrentScans,

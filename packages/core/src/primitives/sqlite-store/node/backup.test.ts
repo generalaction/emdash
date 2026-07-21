@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BundledMigration } from '../api';
 import { listBackups } from './backup';
-import { nodeSqliteDriver } from './node-sqlite-driver';
+import { betterSqlite3Driver } from './better-sqlite3-driver';
 import { defineDurableSqliteStore } from './store';
 
 const firstMigration: BundledMigration = {
@@ -36,13 +36,13 @@ describe('SQLite store backups', () => {
     const path = join(directory, "data 'file.db");
     const v1 = defineDurableSqliteStore({
       name: 'backup-v1',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration],
       backup: { retain: 1 },
     });
     const v2 = defineDurableSqliteStore({
       name: 'backup-v2',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration, secondMigration],
       backup: { retain: 1 },
     });
@@ -55,7 +55,7 @@ describe('SQLite store backups', () => {
     };
     const v3 = defineDurableSqliteStore({
       name: 'backup-v3',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration, secondMigration, thirdMigration],
       backup: { retain: 1 },
     });
@@ -94,7 +94,7 @@ describe('SQLite store backups', () => {
   it('does not create backups for temporary handles', async () => {
     const store = defineDurableSqliteStore({
       name: 'temporary-backup-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration],
       backup: { retain: 1 },
     });
@@ -112,12 +112,12 @@ describe('SQLite store backups', () => {
     const path = join(directory, 'restore.db');
     const v1 = defineDurableSqliteStore({
       name: 'restore-v1',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration],
     });
     const v2 = defineDurableSqliteStore({
       name: 'restore-v2',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [firstMigration, secondMigration],
       backup: { retain: 2 },
     });

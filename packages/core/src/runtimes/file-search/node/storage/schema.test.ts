@@ -1,15 +1,20 @@
-import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
-import { FILE_SEARCH_SCHEMA_VERSION, initializeFileSearchSchema } from './schema';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type Database from 'better-sqlite3';
+import { eq } from 'drizzle-orm';
+import { afterEach, describe, expect, it } from 'vitest';
+import { pathEntries, registeredRoots } from './schema';
+import { fileSearchStore, type FileSearchDb } from './store';
 
-describe('initializeFileSearchSchema', () => {
-  it('creates the schema idempotently', () => {
-    using database = createDatabase();
+const handles: Array<StoreHandle<FileSearchDb, Database.Database>> = [];
 
-    initializeFileSearchSchema(database);
-    initializeFileSearchSchema(database);
+afterEach(() => {
+  for (const handle of handles.splice(0)) handle.close();
+});
 
-    const objects = database
+describe('fileSearchStore schema', () => {
+  it('creates the Drizzle tables and native FTS objects together', () => {
+    const handle = createDatabase();
+    const objects = handle.connection.native
       .prepare(
         `SELECT name
          FROM sqlite_schema
@@ -34,13 +39,12 @@ describe('initializeFileSearchSchema', () => {
       'registered_roots',
     ]);
 
-    const rootColumns = database.prepare('PRAGMA table_info(registered_roots)').all() as Array<{
-      name: string;
-    }>;
-    const entryColumns = database.prepare('PRAGMA table_info(path_entries)').all() as Array<{
-      name: string;
-    }>;
-    const version = database.prepare('PRAGMA user_version').get() as { user_version: number };
+    const rootColumns = handle.connection.native
+      .prepare('PRAGMA table_info(registered_roots)')
+      .all() as Array<{ name: string }>;
+    const entryColumns = handle.connection.native
+      .prepare('PRAGMA table_info(path_entries)')
+      .all() as Array<{ name: string }>;
 
     expect(rootColumns.map(({ name }) => name)).toEqual([
       'id',
@@ -56,59 +60,69 @@ describe('initializeFileSearchSchema', () => {
       'name',
       'kind',
     ]);
-    expect(version.user_version).toBe(FILE_SEARCH_SCHEMA_VERSION);
   });
 
-  it('keeps the FTS index synchronized with file and directory path changes', () => {
-    using database = createDatabase();
-    initializeFileSearchSchema(database);
-    const rootId = insertRoot(database);
+  it('keeps the FTS index synchronized with Drizzle writes', () => {
+    const handle = createDatabase();
+    const rootId = insertRoot(handle);
+    const inserted = handle.db
+      .insert(pathEntries)
+      .values({
+        rootId,
+        generation: 1,
+        relativePath: 'src/index.ts',
+        name: 'index.ts',
+        kind: 'file',
+      })
+      .returning({ id: pathEntries.id })
+      .get();
+    handle.db
+      .insert(pathEntries)
+      .values({
+        rootId,
+        generation: 1,
+        relativePath: 'src/components',
+        name: 'components',
+        kind: 'directory',
+      })
+      .run();
 
-    const inserted = database
-      .prepare(
-        `INSERT INTO path_entries (root_id, generation, relative_path, name, kind)
-         VALUES (?, 1, ?, ?, ?)`
-      )
-      .run(rootId, 'src/index.ts', 'index.ts', 'file');
-    database
-      .prepare(
-        `INSERT INTO path_entries (root_id, generation, relative_path, name, kind)
-         VALUES (?, 1, ?, ?, ?)`
-      )
-      .run(rootId, 'src/components', 'components', 'directory');
+    expect(search(handle, 'index')).toEqual([{ path: 'src/index.ts', kind: 'file' }]);
+    expect(search(handle, 'components')).toEqual([{ path: 'src/components', kind: 'directory' }]);
 
-    expect(search(database, 'index')).toEqual([{ path: 'src/index.ts', kind: 'file' }]);
-    expect(search(database, 'components')).toEqual([{ path: 'src/components', kind: 'directory' }]);
+    handle.db
+      .update(pathEntries)
+      .set({ relativePath: 'src/main.ts', name: 'main.ts' })
+      .where(eq(pathEntries.id, inserted.id))
+      .run();
 
-    database
-      .prepare(`UPDATE path_entries SET relative_path = ?, name = ? WHERE id = ?`)
-      .run('src/main.ts', 'main.ts', inserted.lastInsertRowid);
+    expect(search(handle, 'index')).toEqual([]);
+    expect(search(handle, 'main')).toEqual([{ path: 'src/main.ts', kind: 'file' }]);
 
-    expect(search(database, 'index')).toEqual([]);
-    expect(search(database, 'main')).toEqual([{ path: 'src/main.ts', kind: 'file' }]);
+    handle.db.delete(pathEntries).where(eq(pathEntries.id, inserted.id)).run();
+    expect(search(handle, 'main')).toEqual([]);
 
-    database.prepare('DELETE FROM path_entries WHERE id = ?').run(inserted.lastInsertRowid);
+    handle.db
+      .insert(pathEntries)
+      .values({
+        rootId,
+        generation: 1,
+        relativePath: 'src/worker.ts',
+        name: 'worker.ts',
+        kind: 'file',
+      })
+      .run();
+    handle.db.delete(registeredRoots).where(eq(registeredRoots.id, rootId)).run();
 
-    expect(search(database, 'main')).toEqual([]);
-
-    database
-      .prepare(
-        `INSERT INTO path_entries (root_id, generation, relative_path, name, kind)
-         VALUES (?, 1, ?, ?, ?)`
-      )
-      .run(rootId, 'src/worker.ts', 'worker.ts', 'file');
-    database.prepare('DELETE FROM registered_roots WHERE id = ?').run(rootId);
-
-    expect(search(database, 'worker')).toEqual([]);
+    expect(search(handle, 'worker')).toEqual([]);
   });
 
-  it('rejects unsupported path-entry kinds', () => {
-    using database = createDatabase();
-    initializeFileSearchSchema(database);
-    const rootId = insertRoot(database);
+  it('enforces path-entry constraints for native writes', () => {
+    const handle = createDatabase();
+    const rootId = insertRoot(handle);
 
     expect(() =>
-      database
+      handle.connection.native
         .prepare(
           `INSERT INTO path_entries (root_id, generation, relative_path, name, kind)
            VALUES (?, 1, ?, ?, ?)`
@@ -116,65 +130,30 @@ describe('initializeFileSearchSchema', () => {
         .run(rootId, 'src/link', 'link', 'symlink')
     ).toThrow();
   });
-
-  it('rebuilds version-one file indexes without losing registered roots', () => {
-    using database = createDatabase();
-    createVersionOneSchema(database);
-
-    initializeFileSearchSchema(database);
-
-    const root = database
-      .prepare(`SELECT root_key, root_path, current_generation FROM registered_roots`)
-      .get() as {
-      root_key: string;
-      root_path: string;
-      current_generation: number | null;
-    };
-    const version = database.prepare('PRAGMA user_version').get() as { user_version: number };
-    const entryCount = database.prepare('SELECT count(*) AS count FROM path_entries').get() as {
-      count: number;
-    };
-    const legacyTable = database
-      .prepare(`SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'file_paths'`)
-      .get();
-
-    expect(root).toMatchObject({
-      root_key: '/workspace',
-      root_path: '/workspace',
-      current_generation: null,
-    });
-    expect(version.user_version).toBe(FILE_SEARCH_SCHEMA_VERSION);
-    expect(entryCount.count).toBe(0);
-    expect(legacyTable).toBeUndefined();
-  });
-
-  it('rejects a database created by a newer schema version', () => {
-    using database = createDatabase();
-    database.exec(`PRAGMA user_version = ${FILE_SEARCH_SCHEMA_VERSION + 1}`);
-
-    expect(() => initializeFileSearchSchema(database)).toThrow('newer than supported');
-  });
 });
 
-function createDatabase(): DatabaseSync {
-  const database = new DatabaseSync(':memory:');
-  database.exec('PRAGMA foreign_keys = ON');
-  return database;
+function createDatabase(): StoreHandle<FileSearchDb, Database.Database> {
+  const handle = fileSearchStore.open(':memory:');
+  handles.push(handle);
+  return handle;
 }
 
-function insertRoot(database: DatabaseSync, currentGeneration: number | null = null): number {
-  const result = database
-    .prepare(
-      `INSERT INTO registered_roots (root_key, root_path, current_generation)
-       VALUES (?, ?, ?)`
-    )
-    .run('/workspace', '/workspace', currentGeneration);
-
-  return Number(result.lastInsertRowid);
+function insertRoot(
+  handle: StoreHandle<FileSearchDb, Database.Database>,
+  currentGeneration: number | null = null
+): number {
+  return handle.db
+    .insert(registeredRoots)
+    .values({ rootKey: '/workspace', rootPath: '/workspace', currentGeneration })
+    .returning({ id: registeredRoots.id })
+    .get().id;
 }
 
-function search(database: DatabaseSync, query: string): Array<{ path: string; kind: string }> {
-  const rows = database
+function search(
+  handle: StoreHandle<FileSearchDb, Database.Database>,
+  query: string
+): Array<{ path: string; kind: string }> {
+  const rows = handle.connection.native
     .prepare(
       `SELECT relative_path, kind
        FROM path_entries_fts
@@ -184,42 +163,4 @@ function search(database: DatabaseSync, query: string): Array<{ path: string; ki
     .all(query) as Array<{ relative_path: string; kind: string }>;
 
   return rows.map(({ relative_path, kind }) => ({ path: relative_path, kind }));
-}
-
-function createVersionOneSchema(database: DatabaseSync): void {
-  database.exec(`
-    CREATE TABLE registered_roots (
-      id INTEGER PRIMARY KEY,
-      root_key TEXT NOT NULL UNIQUE,
-      root_path TEXT NOT NULL,
-      current_generation INTEGER
-    ) STRICT;
-
-    CREATE TABLE file_paths (
-      id INTEGER PRIMARY KEY,
-      root_id INTEGER NOT NULL,
-      generation INTEGER NOT NULL,
-      relative_path TEXT NOT NULL,
-      filename TEXT NOT NULL,
-      FOREIGN KEY (root_id) REFERENCES registered_roots(id) ON DELETE CASCADE
-    ) STRICT;
-
-    CREATE VIRTUAL TABLE file_paths_fts USING fts5(
-      root_id UNINDEXED,
-      generation UNINDEXED,
-      relative_path,
-      filename,
-      content = 'file_paths',
-      content_rowid = 'id',
-      tokenize = 'trigram case_sensitive 0'
-    );
-
-    INSERT INTO registered_roots (id, root_key, root_path, current_generation)
-    VALUES (1, '/workspace', '/workspace', 1);
-
-    INSERT INTO file_paths (root_id, generation, relative_path, filename)
-    VALUES (1, 1, 'src/index.ts', 'index.ts');
-
-    PRAGMA user_version = 1;
-  `);
 }

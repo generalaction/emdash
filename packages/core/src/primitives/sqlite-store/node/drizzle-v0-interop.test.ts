@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BundledMigration } from '../api';
+import { betterSqlite3Driver } from './better-sqlite3-driver';
 import { drizzleV0Interop } from './drizzle-v0-interop';
-import { nodeSqliteDriver } from './node-sqlite-driver';
 import { defineDurableSqliteStore } from './store';
 
 const migration: BundledMigration = {
@@ -25,7 +25,7 @@ function cleanup(path: string): void {
 }
 
 function createLegacyDatabase(path: string, hash: string, when: number): void {
-  const connection = nodeSqliteDriver.open(path);
+  const connection = betterSqlite3Driver.open(path);
   connection.exec(`
     CREATE TABLE __drizzle_migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +44,7 @@ describe('drizzle v0 migration interop', () => {
     createLegacyDatabase(path, migration.hash, migration.when);
     const store = defineDurableSqliteStore({
       name: 'legacy-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration],
       interop: drizzleV0Interop,
     });
@@ -65,7 +65,7 @@ describe('drizzle v0 migration interop', () => {
     createLegacyDatabase(path, 'legacy-hash', migration.when);
     const store = defineDurableSqliteStore({
       name: 'legacy-canonical-hash-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration],
       interop: drizzleV0Interop,
     });
@@ -92,7 +92,7 @@ describe('drizzle v0 migration interop', () => {
     createLegacyDatabase(path, migration.hash, 9999);
     const store = defineDurableSqliteStore({
       name: 'legacy-hash-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration],
       interop: drizzleV0Interop,
     });
@@ -119,7 +119,7 @@ describe('drizzle v0 migration interop', () => {
     };
     const store = defineDurableSqliteStore({
       name: 'legacy-ambiguous-hash-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration, duplicateHashMigration],
       interop: drizzleV0Interop,
     });
@@ -136,7 +136,7 @@ describe('drizzle v0 migration interop', () => {
     createLegacyDatabase(path, 'unknown-hash', 9999);
     const store = defineDurableSqliteStore({
       name: 'legacy-invalid-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration],
       interop: drizzleV0Interop,
     });
@@ -151,7 +151,7 @@ describe('drizzle v0 migration interop', () => {
   it('dual-writes new migrations in temporary databases', async () => {
     const store = defineDurableSqliteStore({
       name: 'legacy-dual-write-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migration],
       interop: drizzleV0Interop,
     });

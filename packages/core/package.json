@@ -251,7 +251,8 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json",
-    "db:generate:automations": "drizzle-kit generate --config drizzle-automations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/automations/node/persistence/migrations"
+    "db:generate:automations": "drizzle-kit generate --config drizzle-automations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/automations/node/persistence/migrations",
+    "db:generate:file-search": "drizzle-kit generate --config drizzle-file-search.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/file-search/node/storage/migrations"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",

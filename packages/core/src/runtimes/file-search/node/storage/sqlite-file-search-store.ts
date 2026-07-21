@@ -1,12 +1,12 @@
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import {
   parsePortableRelativePath,
   portableRelativePathBasename,
   type PortableRelativePath,
 } from '@primitives/path/api';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
+import type Database from 'better-sqlite3';
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import type {
   PathIndexBuild,
   PathIndexEntry,
@@ -16,101 +16,56 @@ import type {
 } from '../path/index/path-index-store';
 import type { StoredFileSearchRoot } from '../root/registered-root';
 import type { FileSearchRootUpsertResult, RootCatalogStore } from '../root/root-registry';
-import { initializeFileSearchSchema } from './schema';
+import { pathEntries, registeredRoots } from './schema';
+import type { FileSearchDb } from './store';
 
-type RootRow = {
-  id: number;
-  root_key: string;
-  root_path: string;
-  current_generation: number | null;
-};
+type RootRow = typeof registeredRoots.$inferSelect;
 
 type PathRow = {
-  relative_path: string;
+  relativePath: string;
   kind: string;
 };
 
-type SqliteFileSearchStoreOptions = Readonly<{
-  databasePath: string;
-}>;
-
-/** Synchronous by design: this Adapter runs inside the dedicated file-search worker. */
+/** Synchronous by design: this adapter runs inside the dedicated file-search worker. */
 export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
-  private readonly database: DatabaseSync;
+  private readonly database: Database.Database;
   private readonly activeBuildRootIds = new Set<number>();
-  private closed = false;
 
-  constructor(options: SqliteFileSearchStoreOptions) {
-    if (options.databasePath !== ':memory:') {
-      if (!path.isAbsolute(options.databasePath)) {
-        throw new Error('File-search database path must be absolute or :memory:');
-      }
-      mkdirSync(path.dirname(options.databasePath), { recursive: true });
-    }
-
-    this.database = new DatabaseSync(options.databasePath);
-    try {
-      this.database.exec(`
-        PRAGMA foreign_keys = ON;
-        PRAGMA busy_timeout = 5000;
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-      `);
-      initializeFileSearchSchema(this.database);
-    } catch (error) {
-      try {
-        this.database.close();
-      } catch (closeError) {
-        throw new AggregateError(
-          [error, closeError],
-          'File-search database initialization cleanup failed'
-        );
-      }
-      throw error;
-    }
+  constructor(private readonly handle: StoreHandle<FileSearchDb, Database.Database>) {
+    this.database = handle.connection.native;
   }
 
   listRoots(): StoredFileSearchRoot[] {
-    this.assertOpen();
-    const rows = this.database
-      .prepare(
-        `SELECT id, root_key, root_path, current_generation
-         FROM registered_roots
-         ORDER BY id`
-      )
-      .all() as RootRow[];
-    return rows.map(toStoredRoot);
+    return this.handle.db
+      .select()
+      .from(registeredRoots)
+      .orderBy(registeredRoots.id)
+      .all()
+      .map(toStoredRoot);
   }
 
   upsertRoot(input: { rootKey: string; rootPath: string }): FileSearchRootUpsertResult {
-    this.assertOpen();
     const existing = this.rootByKey(input.rootKey);
     if (!existing) {
-      const result = this.database
-        .prepare(
-          `INSERT INTO registered_roots (root_key, root_path, current_generation)
-           VALUES (?, ?, NULL)`
-        )
-        .run(input.rootKey, input.rootPath);
-      return {
-        kind: 'created',
-        root: { id: Number(result.lastInsertRowid), ...input },
-      };
+      const created = this.handle.db
+        .insert(registeredRoots)
+        .values({ rootKey: input.rootKey, rootPath: input.rootPath })
+        .returning({ id: registeredRoots.id })
+        .get();
+      return { kind: 'created', root: { id: created.id, ...input } };
     }
 
-    if (existing.root_path === input.rootPath) {
+    if (existing.rootPath === input.rootPath) {
       return { kind: 'unchanged', root: toStoredRoot(existing) };
     }
     throw new Error(`Corrupt file-search root identity: ${input.rootKey}`);
   }
 
   deleteRoot(rootKey: string): void {
-    this.assertOpen();
-    this.database.prepare(`DELETE FROM registered_roots WHERE root_key = ?`).run(rootKey);
+    this.handle.db.delete(registeredRoots).where(eq(registeredRoots.rootKey, rootKey)).run();
   }
 
   beginBuild(rootId: number): PathIndexBuild {
-    this.assertOpen();
     if (this.activeBuildRootIds.has(rootId)) {
       throw new Error(`File-search root already has an active build: ${rootId}`);
     }
@@ -118,14 +73,19 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     if (!root) throw new Error(`Cannot build an unknown file-search root: ${rootId}`);
     this.activeBuildRootIds.add(rootId);
 
-    const generation = (root.current_generation ?? 0) + 1;
+    const generation = (root.currentGeneration ?? 0) + 1;
     try {
-      this.database
-        .prepare(
-          `DELETE FROM path_entries
-           WHERE root_id = ? AND (? IS NULL OR generation <> ?)`
+      this.handle.db
+        .delete(pathEntries)
+        .where(
+          root.currentGeneration === null
+            ? eq(pathEntries.rootId, rootId)
+            : and(
+                eq(pathEntries.rootId, rootId),
+                ne(pathEntries.generation, root.currentGeneration)
+              )
         )
-        .run(rootId, root.current_generation, root.current_generation);
+        .run();
     } catch (error) {
       this.activeBuildRootIds.delete(rootId);
       throw error;
@@ -134,42 +94,40 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     let state: 'open' | 'published' | 'discarded' = 'open';
     const assertBuildOpen = (): void => {
       if (state !== 'open') throw new Error(`Path-index build is already ${state}`);
-      this.assertOpen();
     };
 
     return {
       append: (entries) => {
         assertBuildOpen();
-        this.transaction(() => this.insertEntries(rootId, generation, entries));
+        this.handle.transaction(() => this.insertEntries(rootId, generation, entries));
       },
       publish: (finalPatches) => {
         assertBuildOpen();
-        this.transaction(() => {
+        this.handle.transaction(() => {
           this.applyPatches(rootId, generation, finalPatches);
-          const updated = this.database
-            .prepare(
-              `UPDATE registered_roots
-               SET current_generation = ?
-               WHERE id = ?`
-            )
-            .run(generation, rootId);
-          if (updated.changes !== 1) {
+          const updated = this.handle.db
+            .update(registeredRoots)
+            .set({ currentGeneration: generation })
+            .where(eq(registeredRoots.id, rootId))
+            .run();
+          if (changesAsNumber(updated.changes) !== 1) {
             throw new Error(`File-search root disappeared during build: ${rootId}`);
           }
-          this.database
-            .prepare(`DELETE FROM path_entries WHERE root_id = ? AND generation <> ?`)
-            .run(rootId, generation);
+          this.handle.db
+            .delete(pathEntries)
+            .where(and(eq(pathEntries.rootId, rootId), ne(pathEntries.generation, generation)))
+            .run();
         });
         state = 'published';
         this.activeBuildRootIds.delete(rootId);
       },
       discard: () => {
         if (state !== 'open') return;
-        this.assertOpen();
         try {
-          this.database
-            .prepare(`DELETE FROM path_entries WHERE root_id = ? AND generation = ?`)
-            .run(rootId, generation);
+          this.handle.db
+            .delete(pathEntries)
+            .where(and(eq(pathEntries.rootId, rootId), eq(pathEntries.generation, generation)))
+            .run();
         } finally {
           state = 'discarded';
           this.activeBuildRootIds.delete(rootId);
@@ -179,14 +137,13 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
   }
 
   applyPublishedPatches(rootId: number, patches: readonly PathIndexPatch[]): void {
-    this.assertOpen();
     if (patches.length === 0) return;
     const root = this.rootById(rootId);
     if (!root) throw new Error(`Cannot patch an unknown file-search root: ${rootId}`);
-    if (root.current_generation === null) {
+    if (root.currentGeneration === null) {
       throw new Error(`Cannot patch file-search root ${rootId} before its first generation`);
     }
-    this.transaction(() => this.applyPatches(rootId, root.current_generation!, patches));
+    this.handle.transaction(() => this.applyPatches(rootId, root.currentGeneration!, patches));
   }
 
   searchPaths(
@@ -195,9 +152,9 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     kinds: readonly PathEntryKind[],
     limit: number
   ): PathIndexStoreSearchResult {
-    this.assertOpen();
+    assertPathKinds(kinds);
     const root = this.rootByKey(rootKey);
-    if (!root || root.current_generation === null) return { kind: 'not-ready' };
+    if (!root || root.currentGeneration === null) return { kind: 'not-ready' };
 
     const normalizedQuery = query.trim();
     const rows = normalizedQuery
@@ -206,23 +163,20 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     return { kind: 'ready', hits: rows.map(toPathSearchHit) };
   }
 
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.database.close();
-  }
-
   private listPaths(root: RootRow, kinds: readonly PathEntryKind[], limit: number): PathRow[] {
-    const kindClause = placeholders(kinds.length);
-    return this.database
-      .prepare(
-        `SELECT relative_path, kind
-         FROM path_entries
-         WHERE root_id = ? AND generation = ? AND kind IN (${kindClause})
-         ORDER BY relative_path COLLATE NOCASE, relative_path
-         LIMIT ?`
+    return this.handle.db
+      .select({ relativePath: pathEntries.relativePath, kind: pathEntries.kind })
+      .from(pathEntries)
+      .where(
+        and(
+          eq(pathEntries.rootId, root.id),
+          eq(pathEntries.generation, root.currentGeneration!),
+          inArray(pathEntries.kind, [...kinds])
+        )
       )
-      .all(root.id, root.current_generation, ...kinds, limit) as PathRow[];
+      .orderBy(sql`${pathEntries.relativePath} COLLATE NOCASE`, pathEntries.relativePath)
+      .limit(limit)
+      .all();
   }
 
   private searchMatchingPaths(
@@ -241,7 +195,7 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     const matchExpression = terms.map(quoteFtsTerm).join(' AND ');
     return this.database
       .prepare(
-        `SELECT relative_path, kind
+        `SELECT relative_path AS relativePath, kind
          FROM path_entries_fts
          WHERE path_entries_fts MATCH ?
            AND root_id = ?
@@ -250,7 +204,7 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
          ORDER BY bm25(path_entries_fts, 0, 0, 0, 1, 2), relative_path COLLATE NOCASE
          LIMIT ?`
       )
-      .all(matchExpression, root.id, root.current_generation, ...kinds, limit) as PathRow[];
+      .all(matchExpression, root.id, root.currentGeneration, ...kinds, limit) as PathRow[];
   }
 
   private searchPathsBySubstring(
@@ -259,23 +213,30 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     kinds: readonly PathEntryKind[],
     limit: number
   ): PathRow[] {
-    const kindClause = placeholders(kinds.length);
-    const termClause = terms
-      .map(() => '(instr(lower(name), lower(?)) > 0 OR instr(lower(relative_path), lower(?)) > 0)')
-      .join(' AND ');
-    const termParameters = terms.flatMap((term) => [term, term]);
-    return this.database
-      .prepare(
-        `SELECT relative_path, kind
-         FROM path_entries
-         WHERE root_id = ?
-           AND generation = ?
-           AND kind IN (${kindClause})
-           AND ${termClause}
-         ORDER BY length(name), relative_path COLLATE NOCASE, relative_path
-         LIMIT ?`
+    const termConditions = terms.map((term) =>
+      or(
+        sql<boolean>`instr(lower(${pathEntries.name}), lower(${term})) > 0`,
+        sql<boolean>`instr(lower(${pathEntries.relativePath}), lower(${term})) > 0`
       )
-      .all(root.id, root.current_generation, ...kinds, ...termParameters, limit) as PathRow[];
+    );
+    return this.handle.db
+      .select({ relativePath: pathEntries.relativePath, kind: pathEntries.kind })
+      .from(pathEntries)
+      .where(
+        and(
+          eq(pathEntries.rootId, root.id),
+          eq(pathEntries.generation, root.currentGeneration!),
+          inArray(pathEntries.kind, [...kinds]),
+          ...termConditions
+        )
+      )
+      .orderBy(
+        sql`length(${pathEntries.name})`,
+        sql`${pathEntries.relativePath} COLLATE NOCASE`,
+        pathEntries.relativePath
+      )
+      .limit(limit)
+      .all();
   }
 
   private applyPatches(
@@ -306,39 +267,38 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
     entries: readonly PathIndexEntry[]
   ): void {
     if (entries.length === 0) return;
-    const statement = this.database.prepare(
-      `INSERT INTO path_entries (root_id, generation, relative_path, name, kind)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (root_id, generation, relative_path) DO UPDATE SET
-         name = excluded.name,
-         kind = excluded.kind`
-    );
-    for (const entry of entries) {
-      statement.run(
-        rootId,
-        generation,
-        entry.path,
-        portableRelativePathBasename(entry.path),
-        entry.kind
-      );
-    }
+    this.handle.db
+      .insert(pathEntries)
+      .values(
+        entries.map((entry) => ({
+          rootId,
+          generation,
+          relativePath: entry.path,
+          name: portableRelativePathBasename(entry.path),
+          kind: entry.kind,
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [pathEntries.rootId, pathEntries.generation, pathEntries.relativePath],
+        set: { name: sql`excluded.name`, kind: sql`excluded.kind` },
+      })
+      .run();
   }
 
   private deleteSubtree(rootId: number, generation: number, subtree: PortableRelativePath): void {
-    if (subtree === '') {
-      this.database
-        .prepare(`DELETE FROM path_entries WHERE root_id = ? AND generation = ?`)
-        .run(rootId, generation);
-      return;
-    }
-    this.database
-      .prepare(
-        `DELETE FROM path_entries
-         WHERE root_id = ?
-           AND generation = ?
-           AND (relative_path = ? OR relative_path LIKE ? ESCAPE '\\')`
+    const pathCondition =
+      subtree === ''
+        ? undefined
+        : or(
+            eq(pathEntries.relativePath, subtree),
+            sql<boolean>`${pathEntries.relativePath} LIKE ${`${escapeLike(subtree)}/%`} ESCAPE '\\'`
+          );
+    this.handle.db
+      .delete(pathEntries)
+      .where(
+        and(eq(pathEntries.rootId, rootId), eq(pathEntries.generation, generation), pathCondition)
       )
-      .run(rootId, generation, subtree, `${escapeLike(subtree)}/%`);
+      .run();
   }
 
   private assertReplacementEntries(
@@ -353,54 +313,30 @@ export class SqliteFileSearchStore implements RootCatalogStore, PathIndexStore {
   }
 
   private rootByKey(rootKey: string): RootRow | undefined {
-    return this.database
-      .prepare(
-        `SELECT id, root_key, root_path, current_generation
-         FROM registered_roots
-         WHERE root_key = ?`
-      )
-      .get(rootKey) as RootRow | undefined;
+    return this.handle.db
+      .select()
+      .from(registeredRoots)
+      .where(eq(registeredRoots.rootKey, rootKey))
+      .get();
   }
 
   private rootById(rootId: number): RootRow | undefined {
-    return this.database
-      .prepare(
-        `SELECT id, root_key, root_path, current_generation
-         FROM registered_roots
-         WHERE id = ?`
-      )
-      .get(rootId) as RootRow | undefined;
-  }
-
-  private transaction<T>(operation: () => T): T {
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
-      const value = operation();
-      this.database.exec('COMMIT');
-      return value;
-    } catch (error) {
-      try {
-        this.database.exec('ROLLBACK');
-      } catch (rollbackError) {
-        throw new AggregateError([error, rollbackError], 'File-search database rollback failed');
-      }
-      throw error;
-    }
-  }
-
-  private assertOpen(): void {
-    if (this.closed) throw new Error('File-search database is closed');
+    return this.handle.db
+      .select()
+      .from(registeredRoots)
+      .where(eq(registeredRoots.id, rootId))
+      .get();
   }
 }
 
 function toStoredRoot(row: RootRow): StoredFileSearchRoot {
-  return { id: Number(row.id), rootKey: row.root_key, rootPath: row.root_path };
+  return { id: row.id, rootKey: row.rootKey, rootPath: row.rootPath };
 }
 
 function toPathSearchHit(row: PathRow): PathSearchHit {
-  const parsed = parsePortableRelativePath(row.relative_path);
+  const parsed = parsePortableRelativePath(row.relativePath);
   if (!parsed.success || (row.kind !== 'file' && row.kind !== 'directory')) {
-    throw new Error(`Corrupt path-index row: ${row.relative_path}`);
+    throw new Error(`Corrupt path-index row: ${row.relativePath}`);
   }
   return { path: parsed.data, kind: row.kind };
 }
@@ -417,10 +353,17 @@ function quoteFtsTerm(term: string): string {
 }
 
 function placeholders(count: number): string {
-  if (count < 1) throw new Error('At least one path kind is required');
   return Array.from({ length: count }, () => '?').join(', ');
+}
+
+function assertPathKinds(kinds: readonly PathEntryKind[]): void {
+  if (kinds.length < 1) throw new Error('At least one path kind is required');
 }
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function changesAsNumber(changes: number | bigint): number {
+  return typeof changes === 'bigint' ? Number(changes) : changes;
 }

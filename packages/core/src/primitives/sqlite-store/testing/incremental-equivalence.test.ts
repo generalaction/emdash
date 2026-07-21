@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BundledMigration } from '../api';
-import { nodeSqliteDriver } from '../node/node-sqlite-driver';
+import { betterSqlite3Driver } from '../node/better-sqlite3-driver';
 import { defineDurableSqliteStore } from '../node/store';
 import { assertIncrementalMigrationEquivalence } from './incremental-equivalence';
 
@@ -42,7 +42,7 @@ describe('incremental migration equivalence', () => {
   it('matches one-shot schema creation from every migration boundary', async () => {
     const store = defineDurableSqliteStore({
       name: 'incremental-equivalence-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
 

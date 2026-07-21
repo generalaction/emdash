@@ -2,16 +2,23 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RootWatchError } from '../path/index/errors';
 import type { RootIndex } from '../path/index/root-index';
 import { SqliteFileSearchStore } from '../storage/sqlite-file-search-store';
+import { fileSearchStore, type FileSearchDb } from '../storage/store';
 import { hostPath as absolute } from '../testing/paths';
 import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import { NodeFileSearchRootResolver } from './root-identity';
 import { FileSearchRootRegistry } from './root-registry';
 
 const cleanups: Array<() => void | Promise<void>> = [];
+const storeHandles = new WeakMap<
+  SqliteFileSearchStore,
+  StoreHandle<FileSearchDb, Database.Database>
+>();
 
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
@@ -50,7 +57,7 @@ describe('FileSearchRootRegistry', () => {
     const resolver = new NodeFileSearchRootResolver();
     const resolved = await resolver.resolve(root);
     if (!resolved.success) throw new Error('Expected root to resolve');
-    const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
+    const store = createStore();
     store.upsertRoot(resolved.data);
     await rm(rootPath, { recursive: true, force: true });
     const { registry } = createRegistry({ store });
@@ -92,7 +99,7 @@ describe('FileSearchRootRegistry', () => {
     const rootPath = await createRoot();
     const attachmentFailure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
     const rollbackFailure = Object.assign(new Error('database busy'), { code: 'SQLITE_BUSY' });
-    const store = new SqliteFileSearchStore({ databasePath: ':memory:' });
+    const store = createStore();
     vi.spyOn(store, 'deleteRoot').mockImplementation(() => {
       throw rollbackFailure;
     });
@@ -121,7 +128,7 @@ function createRegistry(
     createRoot?: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
   } = {}
 ): { registry: FileSearchRootRegistry; store: SqliteFileSearchStore; scope: Scope } {
-  const store = options.store ?? new SqliteFileSearchStore({ databasePath: ':memory:' });
+  const store = options.store ?? createStore();
   const scope = createScope({ label: 'root-registry-test' });
   const registry = new FileSearchRootRegistry({
     catalog: store,
@@ -132,9 +139,16 @@ function createRegistry(
   cleanups.push(async () => {
     await registry.dispose();
     await scope.dispose();
-    store.close();
+    storeHandles.get(store)?.close();
   });
   return { registry, store, scope };
+}
+
+function createStore(): SqliteFileSearchStore {
+  const handle = fileSearchStore.open(':memory:');
+  const store = new SqliteFileSearchStore(handle);
+  storeHandles.set(store, handle);
+  return store;
 }
 
 function fakeRoot(record: StoredFileSearchRoot, scope: Scope): RegisteredRoot {

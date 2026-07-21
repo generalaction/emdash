@@ -1,9 +1,12 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type { IWatchService } from '@services/fs-watch/api';
+import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileSearchRuntime } from './file-search-runtime';
+import { fileSearchStore, type FileSearchDb } from './storage/store';
 import { hostPath as absolute } from './testing/paths';
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -83,11 +86,15 @@ class NoopWatchService implements IWatchService {
 }
 
 function createRuntime(databasePath = ':memory:'): FileSearchRuntime {
+  const handle: StoreHandle<FileSearchDb, Database.Database> = fileSearchStore.open(databasePath);
   const runtime = new FileSearchRuntime({
-    databasePath,
+    handle,
     watcher: new NoopWatchService(),
   });
-  cleanups.push(() => runtime.dispose());
+  cleanups.push(async () => {
+    await runtime.dispose();
+    handle.close();
+  });
   return runtime;
 }
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   defineDerivedSqliteStore,
   fingerprintDerivedSchema,
-  nodeSqliteDriver,
+  betterSqlite3Driver,
 } from '@emdash/core/primitives/sqlite-store/node';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -140,7 +140,7 @@ describe('MementoPersistenceService', () => {
       `;
       const replacementStore = defineDerivedSqliteStore({
         name: 'mementos-replacement',
-        driver: nodeSqliteDriver,
+        driver: betterSqlite3Driver,
         version: fingerprintDerivedSchema(replacementSchema),
         createSchema(connection) {
           connection.exec(replacementSchema);

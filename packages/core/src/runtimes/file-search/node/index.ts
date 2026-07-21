@@ -12,3 +12,4 @@ export {
   type FileSearchComponentConfig,
 } from './component';
 export { FileSearchRuntime, type FileSearchRuntimeOptions } from './file-search-runtime';
+export { fileSearchStore, type FileSearchDb } from './storage/store';

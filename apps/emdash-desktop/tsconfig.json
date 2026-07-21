@@ -54,8 +54,7 @@
       "@runtimes/*": ["../../packages/core/src/runtimes/*"],
       "@services/*": ["../../packages/core/src/services/*"],
       "@primitives/*": ["../../packages/core/src/primitives/*"],
-      "@workspace-server/*": ["../../packages/core/src/workspace-server/*"],
-      "node:sqlite": ["../../packages/core/src/types/node-sqlite.ts"]
+      "@workspace-server/*": ["../../packages/core/src/workspace-server/*"]
     }
   },
   "include": [

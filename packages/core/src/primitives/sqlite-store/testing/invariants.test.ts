@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nodeSqliteDriver } from '../node/node-sqlite-driver';
+import { betterSqlite3Driver } from '../node/better-sqlite3-driver';
 import {
   assertForeignKeyIntegrity,
   assertSqliteIntegrity,
@@ -8,7 +8,7 @@ import {
 
 describe('SQLite invariant helpers', () => {
   it('accepts a valid in-memory database', () => {
-    const connection = nodeSqliteDriver.open(':memory:');
+    const connection = betterSqlite3Driver.open(':memory:');
     connection.exec('PRAGMA foreign_keys = ON; CREATE TABLE values_table (id INTEGER PRIMARY KEY)');
     expect(() => assertSqliteIntegrity(connection)).not.toThrow();
     expect(() => assertForeignKeyIntegrity(connection)).not.toThrow();
@@ -17,7 +17,7 @@ describe('SQLite invariant helpers', () => {
   });
 
   it('reports foreign-key violations', () => {
-    const connection = nodeSqliteDriver.open(':memory:');
+    const connection = betterSqlite3Driver.open(':memory:');
     connection.exec(`
       PRAGMA foreign_keys = OFF;
       CREATE TABLE parent (id INTEGER PRIMARY KEY);

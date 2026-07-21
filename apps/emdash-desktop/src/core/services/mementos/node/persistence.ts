@@ -2,7 +2,7 @@ import type { SqliteConnection, StoreHandle } from '@emdash/core/primitives/sqli
 import {
   defineDerivedSqliteStore,
   fingerprintDerivedSchema,
-  nodeSqliteDriver,
+  betterSqlite3Driver,
 } from '@emdash/core/primitives/sqlite-store/node';
 import {
   DEFAULT_PERSISTED_MAX_AGE,
@@ -32,7 +32,7 @@ const schemaSql = `
 
 export const mementosSqliteStore = defineDerivedSqliteStore({
   name: 'mementos',
-  driver: nodeSqliteDriver,
+  driver: betterSqlite3Driver,
   version: fingerprintDerivedSchema(schemaSql),
   createSchema(connection) {
     connection.exec(schemaSql);

@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { noopLogger } from '../../lib/api/logger';
 import type { BundledMigration, MigrationInterop } from '../api';
+import { betterSqlite3Driver } from './better-sqlite3-driver';
 import { migrateDurable } from './durable';
-import { nodeSqliteDriver } from './node-sqlite-driver';
 import { defineDurableSqliteStore } from './store';
 
 const migrations: BundledMigration[] = [
@@ -58,7 +58,7 @@ describe('durable SQLite migrations', () => {
     const path = tempPath();
     const store = defineDurableSqliteStore({
       name: 'durable-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
 
@@ -86,7 +86,7 @@ describe('durable SQLite migrations', () => {
 
   it('commits prior migrations but rolls back a failing migration', () => {
     const path = tempPath();
-    const connection = nodeSqliteDriver.open(path);
+    const connection = betterSqlite3Driver.open(path);
     const failing: BundledMigration[] = [
       {
         idx: 0,
@@ -108,7 +108,7 @@ describe('durable SQLite migrations', () => {
       expect(() =>
         migrateDurable(
           connection,
-          { name: 'failure-test', driver: nodeSqliteDriver, migrations: failing },
+          { name: 'failure-test', driver: betterSqlite3Driver, migrations: failing },
           noopLogger
         )
       ).toThrow();
@@ -134,7 +134,7 @@ describe('durable SQLite migrations', () => {
 
     const store = defineDurableSqliteStore({
       name: 'interop-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migrations[0]],
       interop,
     });
@@ -154,7 +154,7 @@ describe('durable SQLite migrations', () => {
   it('surfaces foreign-key violations created by a migration', async () => {
     const store = defineDurableSqliteStore({
       name: 'fk-violation-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [
         {
           idx: 0,
@@ -175,12 +175,12 @@ describe('durable SQLite migrations', () => {
 
   it('rejects runner metadata written by a newer implementation', () => {
     const path = tempPath();
-    const setup = nodeSqliteDriver.open(path);
+    const setup = betterSqlite3Driver.open(path);
     setup.exec('PRAGMA user_version = 2');
     setup.close();
     const store = defineDurableSqliteStore({
       name: 'newer-runner-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
 
@@ -195,12 +195,12 @@ describe('durable SQLite migrations', () => {
     const path = tempPath();
     const latestStore = defineDurableSqliteStore({
       name: 'downgrade-latest-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations,
     });
     const olderStore = defineDurableSqliteStore({
       name: 'downgrade-older-test',
-      driver: nodeSqliteDriver,
+      driver: betterSqlite3Driver,
       migrations: [migrations[0]],
     });
 
