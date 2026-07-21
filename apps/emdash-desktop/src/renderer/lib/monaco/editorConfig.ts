@@ -1,9 +1,10 @@
 import type { editor } from 'monaco-editor';
+import { EDITOR_FONT_SIZE_DEFAULT } from '@shared/core/editor/editor-settings';
 
 /** Shared options for all DiffEditor instances in the diff viewer. */
 export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   originalEditable: false,
-  fontSize: 13,
+  fontSize: EDITOR_FONT_SIZE_DEFAULT,
   lineHeight: 20,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,

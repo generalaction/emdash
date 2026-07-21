@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { DEFAULT_BROWSER_PROFILE_ID, DEFAULT_BROWSER_PROFILES } from '@shared/browser';
 import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
+import { EDITOR_FONT_SIZE_DEFAULT } from '@shared/core/editor/editor-settings';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import type { OpenInAppId } from '@shared/openInApps';
 import { getDefaultLocalWorktreeDirectory } from './worktree-defaults';
@@ -46,6 +47,9 @@ export const SETTINGS_DEFAULTS = {
     autoCopyOnSelection: false,
     macOptionIsMeta: false,
     defaultShell: 'system' as const,
+  },
+  editor: {
+    fontSize: EDITOR_FONT_SIZE_DEFAULT,
   },
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,

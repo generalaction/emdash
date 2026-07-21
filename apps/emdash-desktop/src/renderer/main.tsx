@@ -46,6 +46,7 @@ async function bootstrap() {
     appState.projects.load(),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
+    prefetchAppSettingsKey('editor'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);

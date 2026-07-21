@@ -9,6 +9,7 @@ import { SettingsSearchProvider } from '../search/settings-search-context';
 import { SETTINGS_TABS, type SettingsPageTab } from '../settings-tabs';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
+import { EditorSettingsCard } from './EditorSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -114,6 +115,7 @@ function InterfaceSettingsPage() {
       />
       <ThemeCard />
       <TerminalSettingsCard />
+      <EditorSettingsCard />
       <SidebarMetadataSettingsCard />
       <ResourceMonitorSettingsCard />
       <InterfaceSettingsCard />
