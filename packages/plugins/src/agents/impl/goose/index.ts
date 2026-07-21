@@ -11,6 +11,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.config/goose/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

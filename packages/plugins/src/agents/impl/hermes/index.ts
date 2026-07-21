@@ -12,6 +12,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://hermes-agent.nousresearch.com/docs/',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.hermes/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

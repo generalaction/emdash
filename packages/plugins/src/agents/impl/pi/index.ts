@@ -18,6 +18,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.pi/agent/skills', isolation: 'provider' }],
+    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',

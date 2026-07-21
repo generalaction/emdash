@@ -55,7 +55,7 @@ export function createRemotePluginFs(
     },
 
     async delete(value: string): Promise<void> {
-      await ctx.exec('rm', ['-f', resolveSafe(value)]);
+      await ctx.exec('rm', ['-rf', resolveSafe(value)]);
     },
 
     async exists(value: string): Promise<boolean> {
@@ -69,6 +69,37 @@ export function createRemotePluginFs(
         return stdout.split('\n').filter(Boolean);
       } catch {
         return [];
+      }
+    },
+
+    async copyDirectory(sourceValue: string, targetValue: string): Promise<boolean> {
+      const source = resolveSafe(sourceValue);
+      const target = resolveSafe(targetValue);
+      await ctx.exec('mkdir', ['-p', path.posix.dirname(target)]);
+      try {
+        await ctx.exec('mkdir', [target]);
+      } catch (error) {
+        const exists = await remoteFs.exists(target);
+        if (exists.success && exists.data) return false;
+        throw error;
+      }
+      try {
+        await ctx.exec('cp', ['-R', '-P', `${source}/.`, target]);
+        return true;
+      } catch (error) {
+        await ctx.exec('rm', ['-rf', target]).catch(() => {});
+        throw error;
+      }
+    },
+
+    async readLink(value: string): Promise<string | null> {
+      const abs = resolveSafe(value);
+      try {
+        await ctx.exec('test', ['-L', abs]);
+        const { stdout } = await ctx.exec('readlink', [abs]);
+        return stdout.trim() || null;
+      } catch {
+        return null;
       }
     },
   };

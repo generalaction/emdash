@@ -25,6 +25,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/XiaomiMiMo/MiMo-Code',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.config/mimocode/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

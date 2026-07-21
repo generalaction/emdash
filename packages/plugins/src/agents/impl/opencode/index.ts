@@ -22,6 +22,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://opencode.ai/docs/cli/',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.config/opencode/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },
