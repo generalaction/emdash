@@ -1,3 +1,4 @@
+import { resourceUsageSampleSchema } from '@emdash/core/runtimes/resource-usage/api';
 import { defineContract, procedure } from '@emdash/wire/api';
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
@@ -12,6 +13,10 @@ export const machinesContract = defineContract({
   getMachineUsage: procedure({
     input: voidInput,
     output: z.custom<SshConnectionUsage>(),
+  }),
+  getMachineMetrics: procedure({
+    input: z.object({ machineId: z.string().min(1) }),
+    output: resourceUsageSampleSchema,
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),

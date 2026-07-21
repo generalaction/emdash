@@ -1,3 +1,8 @@
+import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type {
   MeasureProjectWorkspacesInput,
@@ -5,20 +10,18 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
   mapWithConcurrency,
+  projectWorkspaceHost,
   type ListProjectWorkspacesDependencies,
 } from './list-project-workspaces';
 
 const MEASURE_CONCURRENCY = 4;
 
 export async function measureProjectWorkspaces(
-  dependencies: ListProjectWorkspacesDependencies & {
-    getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
-  },
+  dependencies: ListProjectWorkspacesDependencies,
   input: MeasureProjectWorkspacesInput
 ): Promise<MeasureProjectWorkspacesResult> {
   if (input.paths.length === 0) {
@@ -39,7 +42,7 @@ export async function measureProjectWorkspaces(
         message: 'Workspace was not found.',
       } satisfies ProjectWorkspaceUsageResult;
     }
-    return await measureRow(dependencies, project.path, row);
+    return await measureRow(dependencies, project, row);
   });
 
   return {
@@ -50,13 +53,10 @@ export async function measureProjectWorkspaces(
 }
 
 async function measureRow(
-  dependencies: { getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> },
-  projectPath: string,
+  dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
+  project: Awaited<ReturnType<typeof getProjectWorkspaceProject>>,
   row: ProjectWorkspaceRow
 ): Promise<ProjectWorkspaceUsageResult> {
-  if (row.pathState === 'remote') {
-    return { path: row.path, success: false, message: 'Remote workspaces cannot be measured.' };
-  }
   if (row.pathState === 'missing') {
     return { path: row.path, success: false, message: 'Workspace path is missing.' };
   }
@@ -65,10 +65,13 @@ async function measureRow(
   }
 
   try {
-    const client = await dependencies.getWorkspaceRuntimeClient();
-    const usage = await client.measureUsage({
-      workspace: hostFileRefFromNativePath(row.path),
-      repoPath: hostFileRefFromNativePath(projectPath),
+    const host = projectWorkspaceHost(project);
+    const runtime = await dependencies.runtimes.client(host);
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const connectionId = sshConnectionIdOf(host);
+    const usage = await runtime.data.workspace.measureUsage({
+      workspace: hostFileRefFromNativePath(row.path, connectionId),
+      repoPath: hostFileRefFromNativePath(project.path, connectionId),
     });
     if (!usage.success) {
       return {

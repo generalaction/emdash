@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 
 const select = vi.fn();
 
@@ -17,6 +18,7 @@ vi.mock('@core/services/app-db/node/schema', () => ({
     id: 'projects.id',
     path: 'projects.path',
     workspaceProvider: 'projects.workspaceProvider',
+    sshConnectionId: 'projects.sshConnectionId',
     repositoryWorkspaceId: 'projects.repositoryWorkspaceId',
     deletedAt: 'projects.deletedAt',
   },
@@ -36,6 +38,7 @@ vi.mock('@core/services/app-db/node/schema', () => ({
     type: 'workspaces.type',
     kind: 'workspaces.kind',
     location: 'workspaces.location',
+    sshConnectionId: 'workspaces.sshConnectionId',
     path: 'workspaces.path',
     branchName: 'workspaces.branchName',
     config: 'workspaces.config',
@@ -51,14 +54,26 @@ vi.mock('@core/services/runtime-broker/node/git', () => ({
 const dependencies = {
   db: { select } as never,
   taskSessions: { getTask: vi.fn(() => undefined) },
-  getGitRuntimeClient: vi.fn(async () => ({
-    repository: {
-      listWorktrees: vi.fn(async () => ({
-        success: false,
-        error: { type: 'command-failed', message: 'not a git repository' },
-      })),
-    },
-  })) as never,
+  runtimes: {
+    client: vi.fn(async () => ({
+      success: true,
+      data: {
+        files: {
+          fs: {
+            exists: vi.fn(async () => ({ success: true, data: true })),
+          },
+        },
+        git: {
+          repository: {
+            listWorktrees: vi.fn(async () => ({
+              success: false,
+              error: { type: 'command-failed', message: 'not a git repository' },
+            })),
+          },
+        },
+      },
+    })),
+  } as never,
 };
 
 vi.mock('@core/features/workspaces/api/node/workspace-branch', () => ({
@@ -92,9 +107,75 @@ describe('listProjectWorkspaces', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('lists and inspects worktrees through the remote runtime host', async () => {
+    const remotePath = '/srv/projects/remote-repo';
+    const client = vi.fn(async () => ({
+      success: true,
+      data: {
+        files: {
+          fs: {
+            exists: vi.fn(async () => ({ success: true, data: true })),
+          },
+        },
+        git: {
+          repository: {
+            listWorktrees: vi.fn(async () => ({
+              success: true,
+              data: [
+                {
+                  worktreePath: hostPathFromNative(remotePath),
+                  isMain: true,
+                  head: { kind: 'branch', name: 'main' },
+                },
+              ],
+            })),
+          },
+        },
+      },
+    }));
+    const remoteDependencies = {
+      ...dependencies,
+      runtimes: { client } as never,
+    };
+    select
+      .mockReturnValueOnce(
+        projectQuery([
+          {
+            id: 'project-remote',
+            path: remotePath,
+            workspaceProvider: 'ssh',
+            sshConnectionId: 'ssh-1',
+          },
+        ])
+      )
+      .mockReturnValueOnce(workspaceRows([]))
+      .mockReturnValueOnce(taskRows([]));
+
+    const { listProjectWorkspaces } = await import('./list-project-workspaces');
+    const result = await listProjectWorkspaces(remoteDependencies, 'project-remote');
+
+    expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        kind: 'root',
+        path: remotePath,
+        pathState: 'measured',
+        canCleanArtifacts: false,
+        canDelete: false,
+      }),
+    ]);
+  });
 });
 
-function projectQuery(rows: Array<{ id: string; path: string }>) {
+function projectQuery(
+  rows: Array<{
+    id: string;
+    path: string;
+    workspaceProvider?: string;
+    sshConnectionId?: string | null;
+  }>
+) {
   return {
     from: () => ({
       where: () => ({
@@ -102,7 +183,8 @@ function projectQuery(rows: Array<{ id: string; path: string }>) {
           rows.map((row) => ({
             id: row.id,
             path: row.path,
-            workspaceProvider: 'local',
+            workspaceProvider: row.workspaceProvider ?? 'local',
+            sshConnectionId: row.sshConnectionId ?? null,
             repositoryWorkspaceId: null,
           })),
       }),

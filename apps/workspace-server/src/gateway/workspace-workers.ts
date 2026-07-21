@@ -12,6 +12,8 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent, NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
+import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
+import { resourceUsageComponent } from '@emdash/core/runtimes/resource-usage/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
@@ -42,6 +44,7 @@ export type WorkspaceServerRuntimeClients = {
   fileSearch: ContractClient<FileSearchContract>;
   files: ContractClient<FilesContract>;
   git: ContractClient<GitContract>;
+  resourceUsage: ContractClient<ResourceUsageContract>;
   terminals: ContractClient<TerminalsContract>;
   tuiAgents: ContractClient<TuiAgentsContract>;
   workspace: ContractClient<WorkspaceContract>;
@@ -118,6 +121,13 @@ export async function createWorkspaceServerRuntimeHost(
       },
     },
   });
+  const resourceUsagePromise = workerHost.spawn(resourceUsageComponent, {
+    name: 'resource-usage',
+    executable: workspaceWorkerPath('resource-usage'),
+    env,
+    dependencies: {},
+    config: {},
+  });
   const acpPromise = workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
     name: 'acp',
     executable: workspaceWorkerPath('acp'),
@@ -158,9 +168,10 @@ export async function createWorkspaceServerRuntimeHost(
     },
   });
 
-  const [watcher, terminals, acp, agentConfig, tuiAgents] = await Promise.all([
+  const [watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] = await Promise.all([
     watcherPromise,
     terminalsPromise,
+    resourceUsagePromise,
     acpPromise,
     agentConfigPromise,
     tuiAgentsPromise,
@@ -228,6 +239,7 @@ export async function createWorkspaceServerRuntimeHost(
       fileSearch,
       files,
       git,
+      resourceUsage,
       terminals,
       tuiAgents,
       workspace,

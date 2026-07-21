@@ -62,6 +62,8 @@ export default defineConfig({
     'runtimes-workspace-api-provisioning-placement':
       'src/runtimes/workspace/api/provisioning/placement.ts',
     'runtimes-workspace-node': 'src/runtimes/workspace/node/index.ts',
+    'runtimes-resource-usage-api': 'src/runtimes/resource-usage/api/index.ts',
+    'runtimes-resource-usage-node': 'src/runtimes/resource-usage/node/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',
     'workspace-server-wire': 'src/workspace-server/wire/index.ts',
   },

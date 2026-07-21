@@ -11,6 +11,8 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitComponent, NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
+import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
+import { resourceUsageComponent } from '@emdash/core/runtimes/resource-usage/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
@@ -55,6 +57,7 @@ export type AutomationsRuntimeClient = ContractClient<AutomationsContract>;
 export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
+export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
@@ -72,6 +75,7 @@ export type DesktopRuntimeClients = {
   readonly hostDependencies: HostDependenciesClient;
   readonly mementos: MementosRuntimeClient;
   readonly pullRequests: PullRequestsRuntimeClient;
+  readonly resourceUsage: ResourceUsageRuntimeClient;
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
   readonly workspace: WorkspaceRuntimeClient;
@@ -210,12 +214,20 @@ async function startDesktopWorkersWithHost(
       },
     },
   });
+  const resourceUsageWorker = host.create(resourceUsageComponent, {
+    name: 'resource-usage',
+    executable: desktopWorkerPath('resource-usage'),
+    env: process.env,
+    dependencies: {},
+    config: {},
+  });
 
   const watcherReady = fsWatchWorker.ready();
   const acpReady = acpWorker.ready();
   const agentConfigReady = agentConfigWorker.ready();
   const mementosReady = mementosWorker.ready();
   const pullRequestsReady = pullRequestsWorker.ready();
+  const resourceUsageReady = resourceUsageWorker.ready();
   const terminalsReady = terminalsWorker.ready();
   const filesReady = watcherReady.then(async (watcher) => {
     const worker = host.create(filesComponent, {
@@ -318,6 +330,7 @@ async function startDesktopWorkersWithHost(
     git,
     mementos,
     pullRequests,
+    resourceUsage,
     terminals,
     tuiAgentsResult,
     workspace,
@@ -330,6 +343,7 @@ async function startDesktopWorkersWithHost(
     gitReady,
     mementosReady,
     pullRequestsReady,
+    resourceUsageReady,
     terminalsReady,
     tuiAgentsReady,
     workspaceReady,
@@ -349,6 +363,7 @@ async function startDesktopWorkersWithHost(
       hostDependencies: hostDependencies.client,
       mementos,
       pullRequests,
+      resourceUsage,
       terminals,
       tuiAgents,
       workspace,

@@ -60,6 +60,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     fileSearch: forwardContractImpl(workspaceWireContract.fileSearch, deps.runtimes.fileSearch),
     files: forwardContractImpl(workspaceWireContract.files, deps.runtimes.files),
     git: forwardContractImpl(workspaceWireContract.git, deps.runtimes.git),
+    resourceUsage: forwardContractImpl(
+      workspaceWireContract.resourceUsage,
+      deps.runtimes.resourceUsage
+    ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
     workspace: forwardContractImpl(workspaceWireContract.workspace, deps.runtimes.workspace),

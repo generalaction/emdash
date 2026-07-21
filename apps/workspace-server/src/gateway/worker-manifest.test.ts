@@ -9,6 +9,7 @@ const runtimeIds = [
   'file-search',
   'files',
   'git',
+  'resource-usage',
   'terminals',
   'tui-agents',
   'workspace',

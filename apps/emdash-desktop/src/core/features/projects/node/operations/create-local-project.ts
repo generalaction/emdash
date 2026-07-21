@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import nodePath from 'node:path';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { sql } from 'drizzle-orm';
@@ -9,10 +14,7 @@ import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop
 import type { CreateProjectResult, ProjectPathStatus } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects } from '@core/services/app-db/node/schema';
-import type {
-  FilesRuntimeClient,
-  GitRuntimeClient,
-} from '@core/services/runtime-broker/api/clients';
+import type { FilesRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   fileKey,
   filesClientScope,
@@ -32,7 +34,7 @@ export type CreateLocalProjectParams = {
 export type LocalProjectOperationDependencies = {
   db: AppDb;
   getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
-  getGitRuntimeClient(): Promise<GitRuntimeClient>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   projects: Pick<ProjectSessionManager, 'openProject'>;
 };
 
@@ -56,8 +58,10 @@ export async function createLocalProject(
     });
   }
 
+  const runtime = await dependencies.runtimes.client(LOCAL_HOST_REF);
+  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
   const repositoryResult = await ensureProjectRepository(
-    await dependencies.getGitRuntimeClient(),
+    runtime.data.git,
     params.path,
     params.initGitRepository
   );
@@ -104,10 +108,7 @@ export async function createLocalProject(
 }
 
 export async function getLocalProjectPathStatus(
-  dependencies: Pick<
-    LocalProjectOperationDependencies,
-    'getFilesRuntimeClient' | 'getGitRuntimeClient'
-  >,
+  dependencies: Pick<LocalProjectOperationDependencies, 'getFilesRuntimeClient' | 'runtimes'>,
   path: string
 ): Promise<ProjectPathStatus> {
   try {
@@ -128,9 +129,9 @@ export async function getLocalProjectPathStatus(
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const inspection = await (
-      await dependencies.getGitRuntimeClient()
-    ).inspectPath({
+    const runtime = await dependencies.runtimes.client(LOCAL_HOST_REF);
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const inspection = await runtime.data.git.inspectPath({
       path: hostPathFromNative(path),
     });
     if (inspection.kind === 'inspect-failed') {

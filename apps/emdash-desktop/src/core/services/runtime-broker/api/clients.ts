@@ -4,6 +4,7 @@ import type { AutomationsContract } from '@emdash/core/runtimes/automations/api'
 import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
+import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
@@ -16,6 +17,7 @@ export type AutomationsRuntimeClient = ContractClient<AutomationsContract>;
 export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
+export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
 export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;

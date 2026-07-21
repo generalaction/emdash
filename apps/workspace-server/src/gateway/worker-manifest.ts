@@ -5,6 +5,7 @@ import { automationsWorker } from '../../../../packages/core/src/runtimes/automa
 import { fileSearchWorker } from '../../../../packages/core/src/runtimes/file-search/api/worker';
 import { filesWorker } from '../../../../packages/core/src/runtimes/files/api/worker';
 import { gitWorker } from '../../../../packages/core/src/runtimes/git/api/worker';
+import { resourceUsageWorker } from '../../../../packages/core/src/runtimes/resource-usage/api/worker';
 import { terminalsWorker } from '../../../../packages/core/src/runtimes/terminals/api/worker';
 import { tuiAgentsWorker } from '../../../../packages/core/src/runtimes/tui-agents/api/worker';
 import { workspaceWorker } from '../../../../packages/core/src/runtimes/workspace/api/worker';
@@ -46,6 +47,10 @@ export const workspaceWorkers = {
   [gitWorker.id]: workspaceRuntimeWorker(
     gitWorker,
     '../../packages/core/src/runtimes/git/node/runtime-entry.ts'
+  ),
+  [resourceUsageWorker.id]: workspaceRuntimeWorker(
+    resourceUsageWorker,
+    '../../packages/core/src/runtimes/resource-usage/node/runtime-entry.ts'
   ),
   [terminalsWorker.id]: workspaceRuntimeWorker(
     terminalsWorker,

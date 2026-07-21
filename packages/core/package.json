@@ -245,6 +245,14 @@
       "types": "./dist/runtimes-workspace-node.d.mts",
       "default": "./dist/runtimes-workspace-node.mjs"
     },
+    "./runtimes/resource-usage/api": {
+      "types": "./dist/runtimes-resource-usage-api.d.mts",
+      "default": "./dist/runtimes-resource-usage-api.mjs"
+    },
+    "./runtimes/resource-usage/node": {
+      "types": "./dist/runtimes-resource-usage-node.d.mts",
+      "default": "./dist/runtimes-resource-usage-node.mjs"
+    },
     "./workspace-server": {
       "types": "./dist/workspace-server.d.mts",
       "default": "./dist/workspace-server.mjs"

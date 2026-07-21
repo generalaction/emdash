@@ -81,7 +81,6 @@ import type { OperationsEngine } from '@core/services/operations/node';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type {
   FilesRuntimeClient,
-  GitRuntimeClient,
   MementosRuntimeClient,
   WorkspaceRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
@@ -120,7 +119,6 @@ export type DesktopControllerContext = {
   readonly providerSettings: ProviderOverrideSettings;
   readonly runtimeClients: {
     getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
-    getGitRuntimeClient(): Promise<GitRuntimeClient>;
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
     getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
     getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
@@ -186,19 +184,18 @@ export const desktopNodeControllers = {
     create: ({ legacyPortOperations }) => createLegacyPortWireController(legacyPortOperations),
   },
   machines: {
-    create: ({ ssh }) => createMachinesWireController(ssh.machines),
+    create: ({ runtimes, ssh }) => createMachinesWireController(ssh.machines, runtimes),
   },
   projectSettings: {
     create: ({ projects, runtimes, workspaceIdentity }) =>
       createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, operations, runtimeClients, taskService, taskSessions }) =>
+    create: ({ db, operations, runtimes, taskService, taskSessions }) =>
       createProjectWorkspacesWireController({
         db,
-        getGitRuntimeClient: runtimeClients.getGitRuntimeClient,
-        getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
         operations,
+        runtimes,
         taskService,
         taskSessions,
       }),
@@ -290,6 +287,7 @@ export const desktopNodeControllers = {
       projects,
       projectSettings,
       runtimeClients,
+      runtimes,
       scope,
       workspacePlacement,
     }) =>
@@ -298,12 +296,12 @@ export const desktopNodeControllers = {
         createProjectsWireController({
           db,
           getFilesRuntimeClient: runtimeClients.getFilesRuntimeClient,
-          getGitRuntimeClient: runtimeClients.getGitRuntimeClient,
           getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
           operations,
           placement: workspacePlacement,
           projects,
           projectSettings,
+          runtimes,
         }),
         scope
       ),

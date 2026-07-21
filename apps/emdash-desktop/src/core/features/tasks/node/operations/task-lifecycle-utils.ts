@@ -1,5 +1,10 @@
 import path from 'node:path';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, ne } from 'drizzle-orm';
@@ -11,10 +16,7 @@ import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceKind, WorkspaceType } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
-import type {
-  FilesRuntimeClient,
-  GitRuntimeClient,
-} from '@core/services/runtime-broker/api/clients';
+import type { FilesRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   fileKey,
   fileMutationKey,
@@ -35,7 +37,7 @@ export type LocalWorkspaceCleanupTarget = {
 export type TaskLifecycleDependencies = {
   db: AppDb;
   getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
-  getGitRuntimeClient(): Promise<GitRuntimeClient>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   unregisterFileSearchRoot(path: HostAbsolutePath): Promise<void> | void;
 };
 
@@ -87,13 +89,14 @@ async function workspaceHasRemainingTasks(
 }
 
 async function pruneGitWorktrees(
-  dependencies: Pick<TaskLifecycleDependencies, 'getGitRuntimeClient'>,
+  dependencies: Pick<TaskLifecycleDependencies, 'runtimes'>,
   projectPath: string
 ): Promise<void> {
   try {
-    const git = await dependencies.getGitRuntimeClient();
+    const runtime = await dependencies.runtimes.client(LOCAL_HOST_REF);
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
     const result = await mutationResult(
-      git.repository.model.mutate('pruneWorktrees', {
+      runtime.data.git.repository.model.mutate('pruneWorktrees', {
         key: repositorySelector(projectPath),
         input: {},
       })
@@ -120,7 +123,7 @@ export type OwnedWorktreeCleanupError =
  * workspace is not an owned local worktree (nothing to do).
  */
 export async function removeOwnedLocalWorktreeDirectory(
-  dependencies: Pick<TaskLifecycleDependencies, 'getFilesRuntimeClient' | 'getGitRuntimeClient'>,
+  dependencies: Pick<TaskLifecycleDependencies, 'getFilesRuntimeClient' | 'runtimes'>,
   workspace: LocalWorkspaceCleanupTarget,
   projectPath: string
 ): Promise<Result<boolean, OwnedWorktreeCleanupError>> {
@@ -168,10 +171,7 @@ export async function removeOwnedLocalWorktreeDirectory(
 }
 
 export async function removeOwnedLocalWorktreeDirectoryIfUnused(
-  dependencies: Pick<
-    TaskLifecycleDependencies,
-    'db' | 'getFilesRuntimeClient' | 'getGitRuntimeClient'
-  >,
+  dependencies: Pick<TaskLifecycleDependencies, 'db' | 'getFilesRuntimeClient' | 'runtimes'>,
   workspace: LocalWorkspaceCleanupTarget & { id: string },
   projectPath: string,
   excludeArchived: boolean

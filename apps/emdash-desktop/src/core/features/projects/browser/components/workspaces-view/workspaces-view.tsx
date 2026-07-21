@@ -481,12 +481,7 @@ function SelectableCheckbox({
 }
 
 function WorkspaceUsageCell({ row }: { row: ProjectWorkspaceRow }) {
-  if (
-    !row.usage &&
-    row.pathState !== 'error' &&
-    row.pathState !== 'missing' &&
-    row.pathState !== 'remote'
-  ) {
+  if (!row.usage && row.pathState !== 'error' && row.pathState !== 'missing') {
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="h-3.5 w-16 animate-pulse rounded bg-background-2" />
@@ -778,7 +773,7 @@ function showActionResult(kind: 'archive' | 'delete', result: ProjectWorkspaceAc
 
 function unselectableReason(row: ProjectWorkspaceRow): string {
   if (row.kind === 'root' && !row.canCleanArtifacts) return 'Repository root cannot be deleted.';
-  if (row.pathState === 'remote') return 'Remote workspaces are not supported here yet.';
+  if (row.pathState === 'remote') return 'Remote workspace cleanup is not supported.';
   if (row.pathState === 'missing') return 'Workspace path is missing.';
   if (row.pathState === 'error') return 'Workspace usage scan failed.';
   return 'This workspace does not support cleanup or deletion.';

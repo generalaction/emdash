@@ -1,10 +1,14 @@
-import { access } from 'node:fs/promises';
-import path from 'node:path';
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
   ProjectWorkspaceRow,
@@ -14,7 +18,6 @@ import type {
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
-import type { GitRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { repositorySelector, gitErrorMessage } from '@core/services/runtime-broker/node/git';
 
 const MEASURE_CONCURRENCY = 4;
@@ -23,12 +26,13 @@ export type ProjectWorkspaceProjectRow = {
   id: string;
   path: string;
   workspaceProvider: string;
+  sshConnectionId: string | null;
   repositoryWorkspaceId: string | null;
 };
 
 export type ListProjectWorkspacesDependencies = {
   db: AppDb;
-  getGitRuntimeClient(): Promise<GitRuntimeClient>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
 };
 
@@ -37,6 +41,7 @@ type WorkspaceRow = {
   type: 'local' | 'project-ssh' | 'byoi';
   kind: 'worktree' | 'project-root' | 'byoi' | null;
   location: 'local' | 'remote' | null;
+  sshConnectionId: string | null;
   path: string | null;
   branchName: string | null;
   config: WorkspaceConfig | null;
@@ -67,6 +72,7 @@ export async function listProjectWorkspaces(
   projectId: string
 ): Promise<ProjectWorkspacesResult> {
   const project = await getProjectWorkspaceProject(dependencies.db, projectId);
+  const projectHost = projectWorkspaceHost(project);
   const [workspaceRows, taskRows, worktreesResult] = await Promise.all([
     getWorkspaceRows(dependencies.db),
     getTaskRows(dependencies.db, projectId),
@@ -79,16 +85,20 @@ export async function listProjectWorkspaces(
   const workspacesByPath = new Map(
     workspaceRows
       .filter((workspace): workspace is WorkspaceRow & { path: string } => !!workspace.path)
-      .map((workspace) => [pathKey(workspace.path), workspace])
+      .map((workspace) => [
+        pathKeyFor(workspaceHost(workspace, projectHost), workspace.path),
+        workspace,
+      ])
   );
   const tasksByWorkspaceId = groupTasks(taskRows);
   const candidates = new Map<string, RowCandidate>();
 
   for (const worktree of worktreeEntries) {
     const nativePath = nativePathFromHost(worktree.worktreePath);
-    const workspace = workspacesByPath.get(pathKey(nativePath));
+    const key = pathKeyFor(projectHost, nativePath);
+    const workspace = workspacesByPath.get(key);
     const branch = worktree.head.kind === 'branch' ? worktree.head.name : undefined;
-    candidates.set(pathKey(nativePath), {
+    candidates.set(key, {
       kind: worktree.isMain ? 'root' : workspace ? 'workspace' : 'candidate',
       path: nativePath,
       branch: branch ?? workspaceBranch(workspace),
@@ -102,7 +112,7 @@ export async function listProjectWorkspaces(
   for (const taskRow of taskRows) {
     const workspace = taskRow.workspaceId ? workspacesById.get(taskRow.workspaceId) : undefined;
     if (!workspace?.path) continue;
-    const key = pathKey(workspace.path);
+    const key = pathKeyFor(workspaceHost(workspace, projectHost), workspace.path);
     if (candidates.has(key)) continue;
     candidates.set(key, {
       kind: workspace.id === project.repositoryWorkspaceId ? 'root' : 'workspace',
@@ -115,7 +125,7 @@ export async function listProjectWorkspaces(
     });
   }
 
-  const rootKey = pathKey(project.path);
+  const rootKey = pathKeyFor(projectHost, project.path);
   if (!candidates.has(rootKey)) {
     const rootWorkspace = project.repositoryWorkspaceId
       ? workspacesById.get(project.repositoryWorkspaceId)
@@ -175,14 +185,14 @@ export async function mapWithConcurrency<T, U>(
 }
 
 async function buildCandidateRow(
-  dependencies: Pick<ListProjectWorkspacesDependencies, 'taskSessions'>,
+  dependencies: Pick<ListProjectWorkspacesDependencies, 'runtimes' | 'taskSessions'>,
   project: ProjectWorkspaceProjectRow,
   candidate: RowCandidate
 ): Promise<ProjectWorkspaceRow> {
   const projectIsLocal = project.workspaceProvider !== 'ssh';
   const remote = !projectIsLocal || candidate.workspace?.location === 'remote';
   const byoi = candidate.workspace?.type === 'byoi' || candidate.workspace?.kind === 'byoi';
-  const exists = await pathExists(candidate.path);
+  const exists = await pathExists(dependencies, projectWorkspaceHost(project), candidate.path);
   const hasActiveSessions = candidate.tasks.some(
     (task) => !!dependencies.taskSessions.getTask(task.taskId)
   );
@@ -206,19 +216,18 @@ async function buildCandidateRow(
     errors: [],
   };
 
-  if (remote) return { ...base, pathState: 'remote', canDelete: false };
   if (!exists || candidate.prunable) {
     return {
       ...base,
       pathState: 'missing',
-      canDelete: candidate.kind !== 'root' && !byoi,
+      canDelete: candidate.kind !== 'root' && !remote && !byoi,
     };
   }
 
   return {
     ...base,
     pathState: 'measured',
-    canCleanArtifacts: !byoi,
+    canCleanArtifacts: !remote && !byoi,
   };
 }
 
@@ -231,6 +240,7 @@ export async function getProjectWorkspaceProject(
       id: projects.id,
       path: projects.path,
       workspaceProvider: projects.workspaceProvider,
+      sshConnectionId: projects.sshConnectionId,
       repositoryWorkspaceId: projects.repositoryWorkspaceId,
     })
     .from(projects)
@@ -247,6 +257,7 @@ async function getWorkspaceRows(db: AppDb): Promise<WorkspaceRow[]> {
       type: workspaces.type,
       kind: workspaces.kind,
       location: workspaces.location,
+      sshConnectionId: workspaces.sshConnectionId,
       path: workspaces.path,
       branchName: workspaces.branchName,
       config: workspaces.config,
@@ -271,18 +282,18 @@ async function getTaskRows(db: AppDb, projectId: string): Promise<TaskRow[]> {
 }
 
 async function listGitWorktrees(
-  dependencies: Pick<ListProjectWorkspacesDependencies, 'getGitRuntimeClient'>,
+  dependencies: Pick<ListProjectWorkspacesDependencies, 'runtimes'>,
   project: ProjectWorkspaceProjectRow
 ): Promise<GitWorktreesState> {
-  if (project.workspaceProvider === 'ssh') return [];
-  const git = await dependencies.getGitRuntimeClient();
-  const result = await git.repository.listWorktrees(repositorySelector(project.path));
+  const runtime = await dependencies.runtimes.client(projectWorkspaceHost(project));
+  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+  const result = await runtime.data.git.repository.listWorktrees(repositorySelector(project.path));
   if (!result.success) throw new Error(gitErrorMessage(result.error));
   return result.data;
 }
 
 async function listGitWorktreesSafe(
-  dependencies: Pick<ListProjectWorkspacesDependencies, 'getGitRuntimeClient'>,
+  dependencies: Pick<ListProjectWorkspacesDependencies, 'runtimes'>,
   project: ProjectWorkspaceProjectRow
 ): Promise<{ worktrees: GitWorktreesState; warning?: string }> {
   try {
@@ -324,13 +335,18 @@ function workspaceBranch(workspace: WorkspaceRow | undefined): string | undefine
   );
 }
 
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
+async function pathExists(
+  dependencies: Pick<ListProjectWorkspacesDependencies, 'runtimes'>,
+  host: HostRef,
+  targetPath: string
+): Promise<boolean> {
+  const runtime = await dependencies.runtimes.client(host);
+  if (!runtime.success) return false;
+  const result = await runtime.data.files.fs.exists({
+    root: hostPathFromNative(targetPath),
+    relative: ROOT_RELATIVE_PATH,
+  });
+  return result.success && result.data;
 }
 
 function latest(values: Array<string | undefined>): string | undefined {
@@ -340,6 +356,17 @@ function latest(values: Array<string | undefined>): string | undefined {
     .at(-1);
 }
 
-function pathKey(value: string): string {
-  return path.resolve(value);
+function pathKeyFor(host: HostRef, value: string): string {
+  return JSON.stringify([host.type, host.id, hostPathFromNative(value)]);
+}
+
+function workspaceHost(workspace: WorkspaceRow, fallback: HostRef): HostRef {
+  if (workspace.sshConnectionId) return hostRef('remote', workspace.sshConnectionId);
+  return workspace.location === 'remote' ? fallback : LOCAL_HOST_REF;
+}
+
+export function projectWorkspaceHost(project: ProjectWorkspaceProjectRow): HostRef {
+  if (project.workspaceProvider !== 'ssh') return LOCAL_HOST_REF;
+  if (!project.sshConnectionId) throw new Error('Remote project has no SSH connection.');
+  return hostRef('remote', project.sshConnectionId);
 }

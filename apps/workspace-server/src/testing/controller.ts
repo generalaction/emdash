@@ -4,6 +4,7 @@ import { automationsContract } from '@emdash/core/runtimes/automations/api';
 import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
+import { resourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
@@ -38,6 +39,7 @@ export function createTestRuntimeClients(
     fileSearch: createDisconnectedClient(fileSearchContract),
     files: createDisconnectedClient(filesContract),
     git: createDisconnectedClient(gitContract),
+    resourceUsage: createDisconnectedClient(resourceUsageContract),
     terminals: createDisconnectedClient(terminalsContract),
     tuiAgents: createDisconnectedClient(tuiAgentsContract),
     workspace: createDisconnectedClient(workspaceContract),

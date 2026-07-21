@@ -1,7 +1,8 @@
 import { Collapsible } from '@emdash/ui/react/primitives';
 import { FolderGit2Icon, GitBranchIcon } from 'lucide-react';
-import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
+import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
 import type { MachineProjectWorkspaces } from '../use-machine-workspaces';
+import { formatBytes } from './machine-resources';
 
 export function MachineWorkspacesByProject({
   groups,
@@ -41,7 +42,10 @@ export function MachineWorkspacesByProject({
                       <p className="py-2 text-xs text-foreground-passive">No workspaces</p>
                     ) : (
                       workspaces.map((workspace) => (
-                        <WorkspaceRow key={workspace.id} workspace={workspace} />
+                        <WorkspaceRow
+                          key={workspace.workspaceId ?? workspace.path}
+                          workspace={workspace}
+                        />
                       ))
                     )}
                   </div>
@@ -55,8 +59,8 @@ export function MachineWorkspacesByProject({
   );
 }
 
-function WorkspaceRow({ workspace }: { workspace: ProjectWorkspace }) {
-  const root = workspace.kind === 'project-root';
+function WorkspaceRow({ workspace }: { workspace: ProjectWorkspaceRow }) {
+  const root = workspace.kind === 'root';
   const label = workspaceLabel(workspace);
 
   return (
@@ -66,10 +70,18 @@ function WorkspaceRow({ workspace }: { workspace: ProjectWorkspace }) {
       ) : (
         <GitBranchIcon className="mt-0.5 size-3.5 shrink-0 text-foreground-muted" />
       )}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-foreground">{label}</div>
-        {workspace.path && (
-          <div className="truncate text-xs text-foreground-passive">{workspace.path}</div>
+        <div className="truncate text-xs text-foreground-passive">{workspace.path}</div>
+      </div>
+      <div className="shrink-0 text-right tabular-nums">
+        <div className="text-xs text-foreground-muted">
+          {workspace.usage ? formatBytes(workspace.usage.totalBytes) : '—'}
+        </div>
+        {workspace.usage && workspace.usage.artifactBytes > 0 && (
+          <div className="text-[11px] text-foreground-passive">
+            {formatBytes(workspace.usage.artifactBytes)} pruneable
+          </div>
         )}
       </div>
     </div>
@@ -84,9 +96,9 @@ function EmptyMessage({ children }: { children: string }) {
   );
 }
 
-function workspaceLabel(workspace: ProjectWorkspace): string {
-  if (workspace.kind === 'project-root') return 'Repository root';
-  if (workspace.taskName) return workspace.taskName;
-  if (workspace.branchName) return workspace.branchName;
-  return workspace.path?.split(/[\\/]/).filter(Boolean).at(-1) ?? workspace.id;
+function workspaceLabel(workspace: ProjectWorkspaceRow): string {
+  if (workspace.kind === 'root') return 'Repository root';
+  if (workspace.tasks[0]?.name) return workspace.tasks[0].name;
+  if (workspace.branch) return workspace.branch;
+  return workspace.path.split(/[\\/]/).filter(Boolean).at(-1) ?? workspace.path;
 }

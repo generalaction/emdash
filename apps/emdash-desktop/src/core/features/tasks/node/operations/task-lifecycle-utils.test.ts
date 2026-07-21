@@ -43,7 +43,9 @@ const db = {
 const dependencies = {
   db,
   getFilesRuntimeClient: async () => clients.files as never,
-  getGitRuntimeClient: async () => clients.git as never,
+  runtimes: {
+    client: async () => ok({ git: clients.git } as never),
+  },
   unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,
 };
 

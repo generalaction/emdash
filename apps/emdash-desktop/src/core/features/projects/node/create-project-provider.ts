@@ -1,6 +1,11 @@
 import path from 'node:path';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
-import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+  type RuntimeResolveError,
+} from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import {
@@ -56,7 +61,7 @@ export type CreateProjectProviderDependencies = {
     options?: { recursive?: boolean }
   ): Promise<Result<void, FsError>>;
   getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
-  getGitRuntimeClient(): Promise<GitRuntimeClient>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   getLocalProjectDefaults(): Promise<{
     defaultWorktreeDirectory: string;
     tmuxByDefault: boolean;
@@ -83,11 +88,13 @@ async function createLocalProvider(
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
   try {
     const ctx = dependencies.createExecutionContext(project.path);
-    const [git, filesClient, workspace] = await Promise.all([
-      dependencies.getGitRuntimeClient(),
+    const [runtime, filesClient, workspace] = await Promise.all([
+      dependencies.runtimes.client(LOCAL_HOST_REF),
       dependencies.getFilesRuntimeClient(),
       dependencies.getWorkspaceRuntimeClient(),
     ]);
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const git = runtime.data.git;
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);

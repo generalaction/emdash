@@ -4,6 +4,7 @@ import { automationsWorker } from '../../../../../../packages/core/src/runtimes/
 import { fileSearchWorker } from '../../../../../../packages/core/src/runtimes/file-search/api/worker';
 import { filesWorker } from '../../../../../../packages/core/src/runtimes/files/api/worker';
 import { gitWorker } from '../../../../../../packages/core/src/runtimes/git/api/worker';
+import { resourceUsageWorker } from '../../../../../../packages/core/src/runtimes/resource-usage/api/worker';
 import { terminalsWorker } from '../../../../../../packages/core/src/runtimes/terminals/api/worker';
 import { tuiAgentsWorker } from '../../../../../../packages/core/src/runtimes/tui-agents/api/worker';
 import { workspaceWorker } from '../../../../../../packages/core/src/runtimes/workspace/api/worker';
@@ -50,6 +51,10 @@ export const desktopWorkers = {
   ),
   [mementosWorker.id]: mementosWorker,
   [pullRequestsWorker.id]: pullRequestsWorker,
+  [resourceUsageWorker.id]: desktopRuntimeWorker(
+    resourceUsageWorker,
+    '../../packages/core/src/runtimes/resource-usage/node/runtime-entry.ts'
+  ),
   [terminalsWorker.id]: desktopRuntimeWorker(
     terminalsWorker,
     '../../packages/core/src/runtimes/terminals/node/runtime-entry.ts'

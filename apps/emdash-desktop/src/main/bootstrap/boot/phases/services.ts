@@ -173,7 +173,6 @@ export async function bootServices(
   const { appSettings: appSettingsService, db, sqlite, workspaceIdentity } = database;
   const { clients, broker: runtimes } = desktopRuntimes;
   const getFilesRuntimeClient = async () => clients.files;
-  const getGitRuntimeClient = async () => clients.git;
   const getMementosRuntimeClient = async () => clients.mementos;
   const getPullRequestsRuntimeClient = async () => clients.pullRequests;
   const getTerminalsRuntimeClient = async () => clients.terminals;
@@ -223,7 +222,7 @@ export async function bootServices(
       new GitRepositoryFetchService(client, repository, getBaseRemote),
     ensureAbsoluteDir: filesHelpers.ensureAbsoluteDir,
     getFilesRuntimeClient,
-    getGitRuntimeClient,
+    runtimes,
     getWorkspaceRuntimeClient,
     getLocalProjectDefaults: async () => {
       const [localProject, project] = await Promise.all([
@@ -569,7 +568,7 @@ export async function bootServices(
           listProjectWorkspaces(
             {
               db,
-              getGitRuntimeClient,
+              runtimes,
               taskSessions: taskSessionManager,
             },
             projectId

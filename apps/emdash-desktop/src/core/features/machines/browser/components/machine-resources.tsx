@@ -1,7 +1,7 @@
+import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
 import { Surface } from '@emdash/ui/react/primitives';
-import type { MachineMetricsSample } from '../machine-metrics';
 
-export function MachineResources({ metrics }: { metrics: MachineMetricsSample | null }) {
+export function MachineResources({ metrics }: { metrics: ResourceUsageSample | null }) {
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-sm font-medium text-foreground">Resources</h3>
@@ -58,7 +58,7 @@ function formatPercent(value: number): string {
   return `${Math.round(value)}%`;
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let unitIndex = 0;
