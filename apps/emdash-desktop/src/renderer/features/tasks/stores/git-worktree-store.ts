@@ -242,6 +242,12 @@ export class GitWorktreeStore {
     return head.kind === 'detached' ? head.shortHash : head.name;
   }
 
+  currentHeadOid(): string | null {
+    const head = this.head.value;
+    if (!head || head.kind === 'unborn') return null;
+    return head.oid;
+  }
+
   get isBranchPublished(): boolean {
     const name = this.branchName;
     return name ? this.gitRepositoryStore.isBranchOnRemote(name) : false;

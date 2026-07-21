@@ -9,7 +9,7 @@ import { DiffTabManager, getDiffTabManager, releaseDiffTabManager } from './diff
 function makeFakeResource(
   opts: Partial<{
     path: string;
-    diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+    diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
     prNumber: number;
     tabId: string;
   }> = {}
@@ -144,6 +144,26 @@ describe('DiffTabManager: staleness reconcile', () => {
 
     runInAction(() => {
       (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([]);
+    });
+
+    expect(resource.closeSelf).not.toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('does not close branch-group resources when working-tree lists change', () => {
+    // Branch tabs are read-only views of defaultBranch...HEAD. They have no
+    // counterpart in the staged/unstaged lists, so the staleness sweep would
+    // close them on every working-tree event if not excluded.
+    const resource = makeFakeResource({ path: 'src/branch.ts', diffGroup: 'branch' });
+    manager.acquire(resource as never);
+
+    const session = makeFakeSession(['src/other.ts'], []);
+    manager.bindSession(session as never);
+
+    runInAction(() => {
+      (session.gitWorktree.unstagedFileChanges as ReturnType<typeof observable.array>).replace([
+        { path: 'src/different.ts', status: 'M' },
+      ]);
     });
 
     expect(resource.closeSelf).not.toHaveBeenCalled();

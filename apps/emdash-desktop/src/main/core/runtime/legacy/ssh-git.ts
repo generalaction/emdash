@@ -35,7 +35,7 @@ import type {
   SubscribedSnapshot,
 } from '@emdash/core/git';
 import type { ImageReadResult } from '@emdash/core/git';
-import type { DiffTarget } from '@emdash/core/git';
+import type { DiffTarget, GitObjectRef } from '@emdash/core/git';
 import type { CommitFile, GitLogResult } from '@emdash/core/git';
 import type { GitRefsModel, GitRemote, GitRemotesModel } from '@emdash/core/git';
 import type { GitHeadModel } from '@emdash/core/git';
@@ -509,6 +509,10 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
     return (await this.git.getChangedFiles(base)).map((change) => this.toAbsChange(change));
+  }
+
+  getMergeBase(base: GitObjectRef, head: GitObjectRef): Promise<string | null> {
+    return this.git.getMergeBase(base, head) as Promise<string | null>;
   }
 
   getFileAtRef(filePath: string, ref: string): Promise<string | null> {

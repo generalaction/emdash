@@ -88,7 +88,10 @@ export class DiffTabManager {
 
   private _reconcile(session: DiffSession, validKeys: Set<string>): void {
     const stale = [...this._resources].filter(
-      (r) => r.diffGroup !== 'git' && !validKeys.has(`${r.diffGroup}:${r.path}`)
+      (r) =>
+        r.diffGroup !== 'git' &&
+        r.diffGroup !== 'branch' &&
+        !validKeys.has(`${r.diffGroup}:${r.path}`)
     );
 
     for (const resource of stale) {
