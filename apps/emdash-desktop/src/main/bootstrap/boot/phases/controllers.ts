@@ -32,10 +32,10 @@ export async function bootControllers(
         const controllerScope = scope.child(`controller:${domain}`);
         const context: DesktopControllerContext = {
           ...options,
+          remoteMachine: infrastructure.remoteMachine,
           runtimes: runtimes.broker,
           scope: controllerScope,
           ssh: infrastructure.ssh,
-          workspaceServer: infrastructure.workspaceServer,
         };
         const controller = await contribution.create(context);
         if (controller.dispose) controllerScope.add(() => controller.dispose?.());

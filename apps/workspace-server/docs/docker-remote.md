@@ -45,6 +45,8 @@ natively:
 
 ```bash
 pnpm run package --target linux-arm64
+node -p "require('./package.json').version" > dist-artifacts/latest.txt
+cp install.sh dist-artifacts/install.sh
 ```
 
 Set `WORKSPACE_SERVER_PREINSTALL=1` to install the newest matching artifact mounted from
@@ -82,8 +84,11 @@ pnpm --dir ../emdash-desktop run test:workspace-server-remote
 ```
 
 The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
-resets the desktop-managed root, installs from the mounted artifact and checksum, exercises a
-runtime call and SSH reconnection, then stops the daemon and removes its temporary workspace.
+resets the desktop-managed root, invokes the mounted `install.sh` against
+`file:///opt/emdash-artifacts`, installs from the mounted artifact and checksum, exercises a runtime
+call and SSH reconnection, then stops the daemon and removes its temporary workspace. When testing
+the desktop app interactively, launch it with
+`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts`.
 
 ## Logs And Socket Forwarding
 

@@ -1,18 +1,8 @@
 export {
-  createR2WorkspaceServerArtifactSource,
-  createRemoteFileWorkspaceServerArtifactSource,
-  type WorkspaceServerArtifactSource,
-} from './provision/artifact-source';
-export {
-  createWorkspaceServerClientSource,
-  type WorkspaceServerClientSource,
+  createWireConnectionManager,
+  type WireConnectionManager,
   type WorkspaceServerConnection,
-} from './connect/client-source';
-export {
-  createWorkspaceServerService,
-  type CreateWorkspaceServerServiceDeps,
-  type WorkspaceServerServiceHandle,
-} from './factory';
+} from './connect/wire-connection-manager';
 export {
   WorkspaceServerProvisionError,
   type WorkspaceServerProvisionErrorCode,

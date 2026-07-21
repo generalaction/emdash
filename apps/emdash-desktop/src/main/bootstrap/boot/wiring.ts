@@ -45,7 +45,7 @@ export function registerProviderTokenHandlers(): void {
 
 export type DesktopControllerOptions = Omit<
   DesktopControllerContext,
-  'runtimes' | 'scope' | 'ssh' | 'workspaceServer'
+  'remoteMachine' | 'runtimes' | 'scope' | 'ssh'
 >;
 
 export function createDesktopWireOptions(

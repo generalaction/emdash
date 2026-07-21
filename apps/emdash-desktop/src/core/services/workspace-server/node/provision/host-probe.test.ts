@@ -3,19 +3,15 @@ import { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-pro
 import { RemoteHostProbe } from './host-probe';
 
 describe('RemoteHostProbe', () => {
-  it('normalizes and caches host metadata until explicitly dropped', async () => {
+  it('reads and caches the remote home directory until explicitly dropped', async () => {
     const proxy = new SshClientProxy('ssh-1');
     const execScript = vi
       .spyOn(proxy, 'execScript')
-      .mockResolvedValue({ stdout: '/home/devuser\nLinux\naarch64\n', stderr: '', exitCode: 0 });
+      .mockResolvedValue({ stdout: '/home/devuser\n', stderr: '', exitCode: 0 });
     const ensureProxy = vi.fn(async () => proxy);
     const probe = new RemoteHostProbe({ ensureProxy });
 
-    await expect(probe.probe('ssh-1')).resolves.toEqual({
-      home: '/home/devuser',
-      os: 'linux',
-      arch: 'arm64',
-    });
+    await expect(probe.probe('ssh-1')).resolves.toEqual({ home: '/home/devuser' });
     await probe.probe('ssh-1');
     expect(execScript).toHaveBeenCalledOnce();
 

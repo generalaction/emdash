@@ -1,89 +1,55 @@
-import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { workspaceServerLayout } from '../layout';
-import {
-  buildWorkspaceServerInstallCommand,
-  renderWorkspaceServerInstallPrelude,
-  workspaceServerInstallVariableNames,
-  WorkspaceServerInstaller,
-  type WorkspaceServerInstallScriptVariables,
-} from './installer';
+import { buildWorkspaceServerInstallCommand, WorkspaceServerInstaller } from './installer';
 
 describe('workspace-server installer command', () => {
-  it('uses the managed layout, verifies before extraction, and swaps current atomically', () => {
-    const command = buildWorkspaceServerInstallCommand({
-      layout: workspaceServerLayout('/home/dev user'),
-      version: '1.2.3',
-      url: "file:///opt/artifact's/server.tar.gz",
-      sha256: 'a'.repeat(64),
-    });
-
-    expect(command).toContain("'/home/dev user/.emdash/workspace-server/versions/1.2.3'");
-    expect(command.indexOf('mkdir -p -- "$root"')).toBeLessThan(
-      command.indexOf('while ! mkdir "$lock"')
+  it('downloads the hosted script to a temporary file before executing it', () => {
+    const command = buildWorkspaceServerInstallCommand(
+      "file:///opt/emdash artifact's/$(printf injected)"
     );
-    expect(command).toContain('sha256sum -c -');
-    expect(command.indexOf('sha256sum -c -')).toBeLessThan(command.indexOf('tar --extract'));
-    expect(command).toContain('--strip-components=1');
-    expect(command).toContain('mv -Tf');
-    expect(command).toContain("'file:///opt/artifact'\\''s/server.tar.gz'");
+
+    expect(command).toContain(
+      "curl -fsSL --output \"$install_script\" -- 'file:///opt/emdash%20artifact'\\''s/$(printf%20injected)/install.sh'"
+    );
+    expect(command).toContain(
+      "sh \"$install_script\" --base-url 'file:///opt/emdash%20artifact'\\''s/$(printf%20injected)'"
+    );
+    expect(command).toContain('if ! curl');
+    expect(command).toContain('exit 41');
   });
 
-  it('quotes every injected install-script variable without evaluating shell syntax', () => {
-    const variables = Object.fromEntries(
-      workspaceServerInstallVariableNames.map((name) => [
-        name,
-        `${name}: ' " $HOME $(printf injected) \`printf injected\`\n spaced`,
-      ])
-    ) as WorkspaceServerInstallScriptVariables;
-    const prelude = renderWorkspaceServerInstallPrelude(variables);
-    const printVariables = workspaceServerInstallVariableNames
-      .map((name) => `"$${name}"`)
-      .join(' ');
-    const result = spawnSync('sh', ['-c', `${prelude}\nprintf '%s\\0' ${printVariables}`]);
-
-    expect(result.status).toBe(0);
-    expect(result.stderr.toString()).toBe('');
-    expect(result.stdout.toString().split('\0').slice(0, -1)).toEqual(
-      workspaceServerInstallVariableNames.map((name) => variables[name])
+  it('rejects unsupported install base URL protocols', () => {
+    expect(() => buildWorkspaceServerInstallCommand('ftp://releases.example.test')).toThrow(
+      expect.objectContaining({ code: 'artifact-download-failed' })
     );
   });
 
-  it('checks glibc and executes the checksum-backed install command through the SSH proxy', async () => {
-    const execScript = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: 'glibc 2.36\n', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+  it('executes the hosted installer through the SSH proxy', async () => {
+    const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     const ensureProxy = vi.fn(async () => ({ execScript }) as never);
-    const artifacts = {
-      resolve: vi.fn(async () => ({
-        url: 'file:///opt/emdash-artifacts/server.tar.gz',
-        sha256: 'a'.repeat(64),
-      })),
-    };
-    const installer = new WorkspaceServerInstaller({ ensureProxy }, artifacts);
+    const installer = new WorkspaceServerInstaller({ ensureProxy }, 'file:///opt/emdash-artifacts');
 
-    await installer.install(
-      'ssh-1',
-      { home: '/home/devuser', os: 'linux', arch: 'arm64' },
-      workspaceServerLayout('/home/devuser'),
-      '1.2.3'
-    );
+    await installer.install('ssh-1');
 
     expect(ensureProxy).toHaveBeenCalledWith('ssh-1');
-    expect(artifacts.resolve).toHaveBeenCalledWith(
-      {
-        os: 'linux',
-        arch: 'arm64',
-        version: '1.2.3',
-      },
-      { signal: undefined }
-    );
-    expect(execScript).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('sha256sum -c -'),
+    expect(execScript).toHaveBeenCalledWith(
+      expect.stringContaining('file:///opt/emdash-artifacts/install.sh'),
       expect.objectContaining({ timeoutMs: 300_000 })
     );
+  });
+
+  it.each([
+    [40, 'unsupported-platform'],
+    [41, 'artifact-download-failed'],
+    [42, 'install-failed'],
+  ] as const)('maps installer exit %i to %s', async (exitCode, code) => {
+    const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: 'failed', exitCode });
+    const installer = new WorkspaceServerInstaller(
+      { ensureProxy: vi.fn(async () => ({ execScript }) as never) },
+      'https://releases.example.test/workspace-server'
+    );
+
+    await expect(installer.install('ssh-1')).rejects.toMatchObject({ code });
   });
 
   it('rejects a current link that points outside the managed versions directory', async () => {
@@ -92,10 +58,9 @@ describe('workspace-server installer command', () => {
       stderr: '',
       exitCode: 0,
     }));
-    const installer = new WorkspaceServerInstaller(
-      { ensureProxy: vi.fn(async () => ({ exec }) as never) },
-      { resolve: vi.fn() }
-    );
+    const installer = new WorkspaceServerInstaller({
+      ensureProxy: vi.fn(async () => ({ exec }) as never),
+    });
 
     await expect(
       installer.installedVersion('ssh-1', workspaceServerLayout('/home/devuser'))

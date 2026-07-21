@@ -1,17 +1,17 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
+import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
 describe('desktop runtime broker remote sessions', () => {
-  it('routes remote client resolution through the workspace-server service', async () => {
+  it('routes remote client resolution through the remote-machine service', async () => {
     const runtimeClient = { files: { getHomeDir: vi.fn() } } as unknown as HostRuntimesClient;
     const client = vi.fn(async () => ({ client: runtimeClient }));
-    const workspaceServer = {
+    const remoteMachine = {
       client,
-    } as unknown as WorkspaceServerServiceHandle;
-    const broker = createDesktopRuntimeBroker({} as never, workspaceServer);
+    } as unknown as RemoteMachineService;
+    const broker = createDesktopRuntimeBroker({} as never, remoteMachine);
     const host = hostRef('remote', 'ssh-1');
 
     const [firstResult, secondResult] = await Promise.all([

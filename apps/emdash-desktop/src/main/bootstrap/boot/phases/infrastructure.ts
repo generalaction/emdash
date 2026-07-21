@@ -1,13 +1,9 @@
-import { resolve } from 'node:path';
-import { app } from 'electron';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
-import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import {
-  createR2WorkspaceServerArtifactSource,
-  createRemoteFileWorkspaceServerArtifactSource,
-  createWorkspaceServerService,
-  type WorkspaceServerServiceHandle,
-} from '@core/services/workspace-server/node';
+  createRemoteMachineService,
+  type RemoteMachineService,
+} from '@core/services/remote-machine/node';
+import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
@@ -17,7 +13,7 @@ import type { DatabaseBundle } from './database';
 
 export type InfrastructureBundle = {
   readonly ssh: SshServiceHandle;
-  readonly workspaceServer: WorkspaceServerServiceHandle;
+  readonly remoteMachine: RemoteMachineService;
 };
 
 export function bootInfrastructure(database: DatabaseBundle): InfrastructureBundle {
@@ -28,20 +24,11 @@ export function bootInfrastructure(database: DatabaseBundle): InfrastructureBund
     logger: log,
     telemetry: telemetryService,
   });
-  const artifactUrlOverride = process.env['EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL'];
-  const artifacts =
-    app.isPackaged || artifactUrlOverride
-      ? createR2WorkspaceServerArtifactSource(artifactUrlOverride)
-      : createRemoteFileWorkspaceServerArtifactSource({
-          localDirectory: resolve(app.getAppPath(), '../workspace-server/dist-artifacts'),
-          remoteDirectory:
-            process.env['EMDASH_WORKSPACE_SERVER_REMOTE_ARTIFACTS_DIR'] ?? '/opt/emdash-artifacts',
-        });
-  const workspaceServer = createWorkspaceServerService({
+  const remoteMachine = createRemoteMachineService({
     scope: appScope,
-    ssh,
-    artifacts,
+    ssh: { manager: ssh.manager, connect: ssh.ssh },
+    machineEvents: ssh.machines,
     logger: log,
   });
-  return { ssh, workspaceServer };
+  return { ssh, remoteMachine };
 }

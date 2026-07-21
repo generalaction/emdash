@@ -4,16 +4,22 @@ The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a 
 
 The desktop client and managed installation flow live in
 `apps/emdash-desktop/src/core/services/workspace-server/`. For an SSH host, the runtime broker asks
-the service for a runtime client. The service ensures the pinned artifact is installed and running,
-then privately pins one reconnecting Wire connection per target until lifecycle invalidation or
-shutdown. The broker only resolves clients and does not own connection lifetime. Ordinary SSH
-disconnects preserve the pinned connection; terminal client failures, exhausted SSH reconnects, and
-machine edits invalidate it.
+`RemoteMachineService` (`core/services/remote-machine/`) for a runtime client. It coordinates the
+existing `SshConnectionManager`, workspace-server provisioning, and `WireConnectionManager`.
+`WireConnectionManager` owns dial/initialize, reconnecting transports, and one pinned Wire client
+per target until lifecycle invalidation or shutdown. The broker only resolves clients and does not
+own connection lifetime. Ordinary SSH disconnects preserve the pinned connection; terminal Wire
+failures, exhausted SSH reconnects, and machine edits invalidate it.
 
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
-`run/`. Artifacts are pulled by the remote, verified against their SHA-256 sidecars, and extracted
-before `current` changes.
+`run/`. When the daemon is absent or negotiation reports `upgrade-server`, the desktop downloads
+and executes the hosted `apps/workspace-server/install.sh` on the remote. The script resolves the
+latest published version, detects Linux architecture and glibc support, pulls the matching artifact,
+verifies its SHA-256 sidecar, and extracts it before `current` changes. There is no desktop-pinned
+server version: compatible same-major daemons remain installed until a future explicit update.
+`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
+development.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
@@ -195,4 +201,6 @@ if (session.agreedMinor >= 1) {
 | [`apps/workspace-server/src/gateway/worker-paths.ts`](../../apps/workspace-server/src/gateway/worker-paths.ts) | packaged worker executable path resolution |
 | [`apps/workspace-server/src/gateway/entries/`](../../apps/workspace-server/src/gateway/entries/) | plugin-injecting ACP, agent config, and TUI-agent worker entries |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |
-| [`apps/emdash-desktop/src/core/services/workspace-server/`](../../apps/emdash-desktop/src/core/services/workspace-server/) | Desktop client, installer, provisioner, and lifecycle policy |
+| [`apps/emdash-desktop/src/core/services/remote-machine/`](../../apps/emdash-desktop/src/core/services/remote-machine/) | Desktop orchestration and lifecycle policy for remote machines |
+| [`apps/emdash-desktop/src/core/services/workspace-server/`](../../apps/emdash-desktop/src/core/services/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
+| [`apps/workspace-server/install.sh`](../../apps/workspace-server/install.sh) | Remote platform detection and atomic latest-artifact installation |

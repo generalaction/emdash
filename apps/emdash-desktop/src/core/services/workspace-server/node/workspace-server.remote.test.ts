@@ -1,3 +1,4 @@
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
@@ -5,12 +6,10 @@ import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
+import { createRemoteMachineService } from '@core/services/remote-machine/node';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import { createDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
-import { createWorkspaceServerService } from './factory';
 import { workspaceServerLayout } from './layout';
-import { createRemoteFileWorkspaceServerArtifactSource } from './provision/artifact-source';
-import { DESIRED_WORKSPACE_SERVER_VERSION } from './provision/desired-version';
 
 const remoteTestEnabled = process.env['EMDASH_TEST_REMOTE_WSS'] === '1';
 
@@ -36,30 +35,47 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       }));
       return manager.getConnectionState(connectionId);
     };
-    const workspaceServer = createWorkspaceServerService({
+    const latestPointer = resolve(
+      __dirname,
+      '../../../../../../workspace-server/dist-artifacts/latest.txt'
+    );
+    const installScriptTarget = resolve(
+      __dirname,
+      '../../../../../../workspace-server/dist-artifacts/install.sh'
+    );
+    const [previousLatest, previousInstallScript, installScript] = await Promise.all([
+      readOptionalFile(latestPointer),
+      readOptionalFile(installScriptTarget),
+      readFile(resolve(__dirname, '../../../../../../workspace-server/install.sh'), 'utf8'),
+    ]);
+    const packageMetadata = JSON.parse(
+      await readFile(resolve(__dirname, '../../../../../../workspace-server/package.json'), 'utf8')
+    ) as { version: string };
+    await Promise.all([
+      writeFile(latestPointer, `${packageMetadata.version}\n`, 'utf8'),
+      writeFile(installScriptTarget, installScript, 'utf8'),
+    ]);
+    const remoteMachine = createRemoteMachineService({
       scope,
       ssh: {
         manager,
-        ssh: { connect },
-        machines: { on: () => () => {} },
+        connect: { connect },
       },
-      artifacts: createRemoteFileWorkspaceServerArtifactSource({
-        localDirectory: resolve(__dirname, '../../../../../../workspace-server/dist-artifacts'),
-        remoteDirectory: '/opt/emdash-artifacts',
-      }),
+      machineEvents: { on: () => () => {} },
+      installBaseUrl: 'file:///opt/emdash-artifacts',
     });
-    const broker = createDesktopRuntimeBroker({} as never, workspaceServer);
+    const broker = createDesktopRuntimeBroker({} as never, remoteMachine);
     const layout = workspaceServerLayout('/home/devuser');
     const invalidations: unknown[] = [];
-    workspaceServer.onInvalidate((event) => invalidations.push(event));
-
-    await connect();
-    const bootstrapProxy = manager.getProxy(connectionId);
-    if (!bootstrapProxy) throw new Error('Docker SSH proxy did not connect');
-    await resetManagedRoot(bootstrapProxy, layout);
+    remoteMachine.onInvalidate((event) => invalidations.push(event));
 
     const host = hostRef('remote', connectionId);
     try {
+      await connect();
+      const bootstrapProxy = manager.getProxy(connectionId);
+      if (!bootstrapProxy) throw new Error('Docker SSH proxy did not connect');
+      await resetManagedRoot(bootstrapProxy, layout);
+
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
       await expect(resolved.data.files.getHomeDir(undefined)).resolves.toMatchObject({
@@ -67,11 +83,9 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         segments: ['home', 'devuser'],
       });
 
-      const connection = await workspaceServer.client(connectionId);
+      const connection = await remoteMachine.client(connectionId);
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });
-      expect(connection.currentHandshake()?.server.appVersion).toBe(
-        DESIRED_WORKSPACE_SERVER_VERSION
-      );
+      expect(connection.currentHandshake()?.server.appVersion).toBe(packageMetadata.version);
       const disconnected = deferred<void>();
       const stopWatchingDisconnect = connection.connection.onDisconnect(() =>
         disconnected.resolve()
@@ -96,9 +110,13 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         }))
         .catch(() => undefined);
       if (proxy) await stopDaemon(proxy, layout).catch(() => {});
-      await workspaceServer.dispose();
+      await remoteMachine.dispose();
       await manager.disconnectAll();
       await scope.dispose();
+      await Promise.all([
+        restoreOptionalFile(latestPointer, previousLatest),
+        restoreOptionalFile(installScriptTarget, previousInstallScript),
+      ]);
     }
   }, 120_000);
 });
@@ -132,4 +150,21 @@ async function stopDaemon(
     args: ['stop', '--socket', layout.socketPath],
   });
   if (result.exitCode !== 0) throw new Error(result.stderr);
+}
+
+async function readOptionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+async function restoreOptionalFile(path: string, contents: string | undefined): Promise<void> {
+  if (contents === undefined) {
+    await rm(path, { force: true });
+    return;
+  }
+  await writeFile(path, contents, 'utf8');
 }

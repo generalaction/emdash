@@ -20,7 +20,7 @@ export async function bootRuntimes(
       scope,
       getLocalProjectSettings: () => database.appSettings.get('localProject'),
     });
-    const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.workspaceServer);
+    const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.remoteMachine);
     runMementosOrphanPruning(database, workers.clients.mementos);
     return desktopRuntimes(workers, broker, scope);
   } catch (error) {

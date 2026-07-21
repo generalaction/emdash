@@ -1,6 +1,13 @@
 import { workspaceWireContract, type WireInitializeResult } from '@emdash/core/workspace-server';
-import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
-import { retrySchedules, type Clock, type RetrySchedule } from '@emdash/shared/scheduling';
+import type { PendingLease } from '@emdash/shared';
+import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  retrySchedules,
+  runWithTimeout,
+  waitWithSignal,
+  type Clock,
+  type RetrySchedule,
+} from '@emdash/shared/scheduling';
 import {
   client as createClient,
   connect,
@@ -24,15 +31,18 @@ export type WorkspaceServerConnection = {
   currentHandshake(): WireInitializeResult | undefined;
 };
 
-export interface WorkspaceServerClientSource extends ResourceCache<
-  WorkspaceServerTarget,
-  WorkspaceServerConnection
-> {
+export interface WireConnectionManager {
+  client(target: WorkspaceServerTarget): Promise<WorkspaceServerConnection>;
+  dialOnce(
+    target: WorkspaceServerTarget,
+    options?: { signal?: AbortSignal; timeoutMs?: number }
+  ): Promise<WireInitializeResult>;
   invalidateConnection(connectionId: string): Promise<void>;
-  onTerminalError(listener: (error: unknown, target: WorkspaceServerTarget) => void): () => void;
+  onConnectionLost(listener: (target: WorkspaceServerTarget, error: unknown) => void): () => void;
+  dispose(): Promise<void>;
 }
 
-export type CreateWorkspaceServerClientSourceOptions = {
+export type CreateWireConnectionManagerOptions = {
   scope?: Scope;
   clock?: Clock;
   idleTtlMs?: number;
@@ -46,6 +56,11 @@ export type OpenWorkspaceServerTransportOptions = {
   ssh?: WorkspaceServerSshPort;
 };
 
+type PinnedConnection = {
+  target: WorkspaceServerTarget;
+  lease: PendingLease<WorkspaceServerConnection>;
+};
+
 export class WorkspaceServerConfigurationError extends Error {
   readonly name = 'WorkspaceServerConfigurationError';
 }
@@ -54,39 +69,63 @@ export const workspaceServerReconnectSchedule = retrySchedules.sequence([
   500, 1_000, 2_000, 5_000, 10_000, 15_000, 20_000, 30_000, 30_000,
 ]);
 
-export function createWorkspaceServerClientSource(
-  options: CreateWorkspaceServerClientSourceOptions = {}
-): WorkspaceServerClientSource {
+const DEFAULT_DIAL_TIMEOUT_MS = 5_000;
+
+export function createWireConnectionManager(
+  options: CreateWireConnectionManagerOptions = {}
+): WireConnectionManager {
+  const scope = options.scope
+    ? options.scope.child('wire-connection-manager')
+    : createScope({ label: 'wire-connection-manager', clock: options.clock });
   const targetsByKey = new Map<string, WorkspaceServerTarget>();
   const targetKeysByConnection = new Map<string, Set<string>>();
-  const terminalErrorListeners = new Set<(error: unknown, target: WorkspaceServerTarget) => void>();
+  const pinnedConnections = new Map<string, PinnedConnection>();
+  const connectionLostListeners = new Set<
+    (target: WorkspaceServerTarget, error: unknown) => void
+  >();
   const cache = createResourceCache<WorkspaceServerTarget, WorkspaceServerConnection>({
     key: workspaceServerTargetKey,
-    scope: options.scope,
+    scope,
     label: 'workspace-server-clients',
     clock: options.clock,
     idleTtlMs: options.idleTtlMs ?? 30_000,
-    create: (target, scope) => {
-      trackTarget(target, scope);
-      return createWorkspaceServerConnection(
-        target,
-        scope,
-        options,
-        (error) => {
-          if (scope.disposed) return;
-          notifyTerminalError(error, target);
-          void cache.invalidate(target).catch(() => {});
-        },
-        (error) => notifyTerminalError(error, target)
-      );
+    create: (target, connectionScope) => {
+      trackTarget(target, connectionScope);
+      return createWorkspaceServerConnection(target, connectionScope, options, (error) => {
+        if (connectionScope.disposed) return;
+        void handleConnectionLost(target, error).catch(() => {});
+      });
     },
   });
 
+  scope.add(() => releasePinnedConnections());
+  scope.add(() => {
+    targetsByKey.clear();
+    targetKeysByConnection.clear();
+    connectionLostListeners.clear();
+  });
+
+  let disposePromise: Promise<void> | undefined;
   return {
-    acquire: (target) => cache.acquire(target),
-    peek: (target) => cache.peek(target),
-    invalidate: (target) => cache.invalidate(target),
+    async client(target) {
+      const key = workspaceServerTargetKey(target);
+      let pinned = pinnedConnections.get(key);
+      if (!pinned) {
+        pinned = { target, lease: cache.acquire(target) };
+        pinnedConnections.set(key, pinned);
+      }
+
+      try {
+        return await pinned.lease.ready();
+      } catch (error) {
+        if (pinnedConnections.get(key) === pinned) pinnedConnections.delete(key);
+        await pinned.lease.release();
+        throw error;
+      }
+    },
+    dialOnce: (target, dialOptions = {}) => dialOnce(target, options, dialOptions),
     async invalidateConnection(connectionId) {
+      await releasePinnedConnections(connectionId);
       const targetKeys = [...(targetKeysByConnection.get(connectionId) ?? [])];
       const targets = targetKeys.flatMap((key) => {
         const target = targetsByKey.get(key);
@@ -94,28 +133,26 @@ export function createWorkspaceServerClientSource(
       });
       await Promise.all(targets.map((target) => cache.invalidate(target)));
     },
-    onTerminalError(listener) {
-      terminalErrorListeners.add(listener);
+    onConnectionLost(listener) {
+      connectionLostListeners.add(listener);
       return () => {
-        terminalErrorListeners.delete(listener);
+        connectionLostListeners.delete(listener);
       };
     },
-    async dispose() {
-      await cache.dispose();
-      targetsByKey.clear();
-      targetKeysByConnection.clear();
-      terminalErrorListeners.clear();
+    dispose() {
+      disposePromise ??= scope.dispose();
+      return disposePromise;
     },
   };
 
-  function trackTarget(target: WorkspaceServerTarget, scope: Scope): void {
+  function trackTarget(target: WorkspaceServerTarget, connectionScope: Scope): void {
     if (target.kind !== 'ssh') return;
     const key = workspaceServerTargetKey(target);
     targetsByKey.set(key, target);
     const targetKeys = targetKeysByConnection.get(target.sshConnectionId) ?? new Set<string>();
     targetKeys.add(key);
     targetKeysByConnection.set(target.sshConnectionId, targetKeys);
-    scope.add(() => pruneTarget(target));
+    connectionScope.add(() => pruneTarget(target));
   }
 
   function pruneTarget(target: WorkspaceServerTarget): void {
@@ -127,23 +164,54 @@ export function createWorkspaceServerClientSource(
     if (targetKeys?.size === 0) targetKeysByConnection.delete(target.sshConnectionId);
   }
 
-  function notifyTerminalError(error: unknown, target: WorkspaceServerTarget): void {
-    for (const listener of terminalErrorListeners) {
+  async function handleConnectionLost(
+    target: WorkspaceServerTarget,
+    error: unknown
+  ): Promise<void> {
+    try {
+      const key = workspaceServerTargetKey(target);
+      const pinned = pinnedConnections.get(key);
+      if (pinned) {
+        pinnedConnections.delete(key);
+        await pinned.lease.release();
+      }
+      await cache.invalidate(target);
+    } finally {
+      notifyConnectionLost(target, error);
+    }
+  }
+
+  function notifyConnectionLost(target: WorkspaceServerTarget, error: unknown): void {
+    for (const listener of connectionLostListeners) {
       try {
-        listener(error, target);
+        listener(target, error);
       } catch {
         // Error reporting must not interfere with connection teardown.
       }
     }
+  }
+
+  async function releasePinnedConnections(connectionId?: string): Promise<void> {
+    const releases: Promise<void>[] = [];
+    for (const [key, pinned] of pinnedConnections) {
+      if (
+        connectionId &&
+        (pinned.target.kind !== 'ssh' || pinned.target.sshConnectionId !== connectionId)
+      ) {
+        continue;
+      }
+      pinnedConnections.delete(key);
+      releases.push(pinned.lease.release());
+    }
+    await Promise.all(releases);
   }
 }
 
 async function createWorkspaceServerConnection(
   target: WorkspaceServerTarget,
   scope: Scope,
-  options: CreateWorkspaceServerClientSourceOptions,
-  onTerminalError: (error: unknown) => void,
-  onInitialError: (error: unknown) => void
+  options: CreateWireConnectionManagerOptions,
+  onConnectionLost: (error: unknown) => void
 ): Promise<WorkspaceServerConnection> {
   let handshake: WireInitializeResult | undefined;
   const openTransport =
@@ -173,7 +241,7 @@ async function createWorkspaceServerConnection(
   scope.add(() => connection.dispose());
   scope.add(
     connection.onDisconnect(() => {
-      void transport.ready().catch(onTerminalError);
+      void transport.ready().catch(onConnectionLost);
     })
   );
   const client = createClient(workspaceWireContract, connection);
@@ -181,7 +249,7 @@ async function createWorkspaceServerConnection(
   try {
     await transport.ready();
   } catch (error) {
-    onInitialError(error);
+    onConnectionLost(error);
     throw error;
   }
   requireHandshake(handshake);
@@ -209,6 +277,45 @@ export function openWorkspaceServerTransport(
         );
       }
       return openSshWorkspaceServerTransport(target, options.ssh);
+  }
+}
+
+async function dialOnce(
+  target: WorkspaceServerTarget,
+  managerOptions: CreateWireConnectionManagerOptions,
+  options: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<WireInitializeResult> {
+  const open =
+    managerOptions.openTransport ??
+    ((next: WorkspaceServerTarget) => openWorkspaceServerTransport(next, managerOptions));
+  const openPromise = Promise.resolve().then(() => open(target));
+  let transport: WireTransport | undefined;
+
+  try {
+    return await runWithTimeout(
+      async (timeoutSignal) => {
+        const candidate = await waitWithSignal(openPromise, timeoutSignal);
+        transport = candidate;
+        return await waitWithSignal(
+          initializeWorkspaceServerTransport(candidate, managerOptions.protocolVersion),
+          timeoutSignal
+        );
+      },
+      {
+        timeoutMs: options.timeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS,
+        signal: options.signal,
+        clock: managerOptions.clock,
+      }
+    );
+  } finally {
+    if (transport) {
+      transport.close?.();
+    } else {
+      void openPromise.then(
+        (lateTransport) => lateTransport.close?.(),
+        () => {}
+      );
+    }
   }
 }
 

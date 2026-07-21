@@ -79,6 +79,7 @@ import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import type {
   FilesRuntimeClient,
   MementosRuntimeClient,
@@ -91,7 +92,6 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
-import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { createWorkspaceServerWireController } from '@core/services/workspace-server/node/wire-controller';
 
 export type DesktopControllerContext = {
@@ -117,6 +117,7 @@ export type DesktopControllerContext = {
   readonly projects: ProjectSessionManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
+  readonly remoteMachine: RemoteMachineService;
   readonly runtimeClients: {
     getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
@@ -133,7 +134,6 @@ export type DesktopControllerContext = {
   readonly taskSessions: TaskSessionManager;
   readonly terminalShell: CreateTerminalsWireControllerOptions['terminalShell'];
   readonly updateOperations: UpdateOperations;
-  readonly workspaceServer: WorkspaceServerServiceHandle;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaces: Omit<
@@ -362,8 +362,8 @@ export const desktopNodeControllers = {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
   workspaceServer: {
-    create: ({ workspaceServer }) =>
-      createWorkspaceServerWireController(workspaceServer.provisioningModel),
+    create: ({ remoteMachine }) =>
+      createWorkspaceServerWireController(remoteMachine.provisioningModel),
   },
   tasks: {
     create: ({ db, operations, runtimes, scope, taskService, telemetry, workspaceIdentity }) =>

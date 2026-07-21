@@ -1,1 +1,0 @@
-declare const __EMDASH_WORKSPACE_SERVER_VERSION__: string;

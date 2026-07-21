@@ -28,7 +28,6 @@ describe('WorkspaceServerProvisioner', () => {
   it('installs and starts an absent daemon before returning a ready target', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
-    fixture.installer.installedVersion.mockResolvedValue(undefined);
 
     await expect(fixture.provisioner.ensure('ssh-1')).resolves.toMatchObject({ kind: 'ssh' });
 
@@ -62,7 +61,6 @@ describe('WorkspaceServerProvisioner', () => {
   it('publishes typed failures and keeps them observable', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
-    fixture.installer.installedVersion.mockResolvedValue(undefined);
     fixture.installer.install.mockRejectedValue(
       new WorkspaceServerInstallError('unsupported-platform', 'musl is unsupported')
     );
@@ -99,7 +97,6 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.provisioner.cancel('ssh-1');
 
     await rejected;
-    expect(fixture.installer.installedVersion).not.toHaveBeenCalled();
     expect(fixture.installer.install).not.toHaveBeenCalled();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
     await fixture.dispose();
@@ -111,7 +108,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
   const model = new WorkspaceServerProvisioningModel();
   const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
     if (!options.blockHostProbe) {
-      return Promise.resolve({ home: '/home/devuser', os: 'linux' as const, arch: 'x64' as const });
+      return Promise.resolve({ home: '/home/devuser' });
     }
     return new Promise<never>((_resolve, reject) => {
       signal?.addEventListener(
@@ -122,7 +119,6 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
     });
   });
   const installer = {
-    installedVersion: vi.fn(async () => '1.2.3' as string | undefined),
     install: vi.fn(async () => {}),
   };
   const daemon = {
@@ -151,8 +147,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
     installer: installer as never,
     daemon: daemon as never,
     model,
-    desiredVersion: '1.2.3',
-    dialOnce,
+    wire: { dialOnce },
   });
 
   return {

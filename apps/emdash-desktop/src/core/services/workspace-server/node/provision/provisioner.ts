@@ -1,4 +1,3 @@
-import type { WireInitializeResult } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import {
   retry,
@@ -7,14 +6,13 @@ import {
   throwIfAborted,
   type Clock,
 } from '@emdash/shared/scheduling';
-import { dialWorkspaceServerOnce } from '../connect/dial-once';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
+import type { WireConnectionManager } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
 import { sshWorkspaceServerTarget, type SshWorkspaceServerTarget } from '../targets';
 import type { RemoteWorkspaceServerDaemon } from './daemon-control';
-import { DESIRED_WORKSPACE_SERVER_VERSION } from './desired-version';
-import type { RemoteHostInfo, RemoteHostProbe } from './host-probe';
+import type { RemoteHostProbe } from './host-probe';
 import { WorkspaceServerInstallError, type WorkspaceServerInstaller } from './installer';
 import type { WorkspaceServerProvisioningModel } from './provisioning-model';
 
@@ -45,11 +43,7 @@ type WorkspaceServerProvisionerDeps = {
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
   model: WorkspaceServerProvisioningModel;
-  desiredVersion?: string;
-  dialOnce?: (
-    target: SshWorkspaceServerTarget,
-    options: { signal: AbortSignal }
-  ) => Promise<WireInitializeResult>;
+  wire: Pick<WireConnectionManager, 'dialOnce'>;
   clock?: Clock;
 };
 
@@ -69,16 +63,11 @@ const daemonReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 
 
 export class WorkspaceServerProvisioner {
   private readonly runs = new Map<string, EnsureRun>();
-  private readonly desiredVersion: string;
-  private readonly dialOnce: NonNullable<WorkspaceServerProvisionerDeps['dialOnce']>;
+  private readonly dialOnce: WireConnectionManager['dialOnce'];
   private readonly clock: Clock;
 
   constructor(private readonly deps: WorkspaceServerProvisionerDeps) {
-    this.desiredVersion = deps.desiredVersion ?? DESIRED_WORKSPACE_SERVER_VERSION;
-    this.dialOnce =
-      deps.dialOnce ??
-      ((target, options) =>
-        dialWorkspaceServerOnce(target, { ssh: deps.ssh, signal: options.signal }));
+    this.dialOnce = (target, options) => deps.wire.dialOnce(target, options);
     this.clock = deps.clock ?? systemClock;
   }
 
@@ -136,7 +125,7 @@ export class WorkspaceServerProvisioner {
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
-          await this.install(connectionId, host, layout, signal);
+          await this.install(connectionId, signal);
           await this.restart(connectionId, layout, signal);
           await this.waitUntilReady(target, signal);
           this.deps.model.set(connectionId, { phase: 'ready' });
@@ -145,16 +134,7 @@ export class WorkspaceServerProvisioner {
           break;
       }
 
-      let installedVersion: string | undefined;
-      try {
-        installedVersion = await this.deps.installer.installedVersion(connectionId, layout, signal);
-      } catch (error) {
-        throw provisionError('install-failed', 'Could not inspect the installed version', error);
-      }
-
-      if (installedVersion !== this.desiredVersion) {
-        await this.install(connectionId, host, layout, signal);
-      }
+      await this.install(connectionId, signal);
       await this.start(connectionId, layout, signal);
 
       await this.waitUntilReady(target, signal);
@@ -174,18 +154,13 @@ export class WorkspaceServerProvisioner {
     }
   }
 
-  private async install(
-    connectionId: string,
-    host: RemoteHostInfo,
-    layout: WorkspaceServerLayout,
-    signal: AbortSignal
-  ): Promise<void> {
+  private async install(connectionId: string, signal: AbortSignal): Promise<void> {
     this.deps.model.set(connectionId, {
       phase: 'installing',
-      detail: `Installing workspace server ${this.desiredVersion}`,
+      detail: 'Installing workspace server',
     });
     try {
-      await this.deps.installer.install(connectionId, host, layout, this.desiredVersion, signal);
+      await this.deps.installer.install(connectionId, signal);
     } catch (error) {
       if (error instanceof WorkspaceServerInstallError) {
         throw provisionError(error.code, error.message, error);

@@ -190,12 +190,12 @@
   ],
   "mainCoreToFeatures": [],
   "crossSlice": [
+    "apps/emdash-desktop/src/core/services/remote-machine/api/index.ts",
+    "apps/emdash-desktop/src/core/services/remote-machine/node/remote-machine-service.test.ts",
+    "apps/emdash-desktop/src/core/services/remote-machine/node/remote-machine-service.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/connect/ssh-streamlocal-transport.test.ts",
-    "apps/emdash-desktop/src/core/services/workspace-server/node/factory.ts",
-    "apps/emdash-desktop/src/core/services/workspace-server/node/lifecycle.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/ports.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/provision/host-probe.test.ts",
-    "apps/emdash-desktop/src/core/services/workspace-server/node/provision/installer.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/workspace-server.remote.test.ts"
   ]
 }
