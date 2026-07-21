@@ -259,6 +259,29 @@ describe('AcpTranscriptParser', () => {
     expect(messages.map((message) => message.seq)).toEqual([0, 1, 3]);
   });
 
+  it('segments reused assistant message ids around tool calls', () => {
+    const p = new AcpTranscriptParser(deps());
+    p.push(userChunk('u1', 'do it'));
+    p.push(assistantChunk('a1', 'before'));
+    p.push(toolCallUpdate('tc1', 'Run command'));
+    p.push(toolUpdateDone('tc1'));
+    p.push(assistantChunk('a1', 'summary '));
+    p.push(assistantChunk('a1', 'at the bottom'));
+
+    const messages = (p.activeTurn?.items ?? []).filter((item) => item.kind === 'message');
+    expect(messages.map((message) => message.text)).toEqual([
+      'do it',
+      'before',
+      'summary at the bottom',
+    ]);
+    expect(messages.map((message) => message.id)).toEqual([
+      makeMessageId(makeTurnId(CID, 0), 'u1', 'user'),
+      makeMessageId(makeTurnId(CID, 0), 'a1', 'assistant'),
+      makeMessageId(makeTurnId(CID, 0), 'a1:segment:1', 'assistant'),
+    ]);
+    expect(messages.map((message) => message.seq)).toEqual([0, 1, 3]);
+  });
+
   it('replay treats id-less user chunks after agent content as new turns', () => {
     const updates: SessionUpdate[] = [
       {

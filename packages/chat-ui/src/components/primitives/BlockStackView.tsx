@@ -19,7 +19,14 @@ export type BlockStackViewProps = {
 export function BlockStackView(props: BlockStackViewProps) {
   const placed = () => props.node.layout.placed;
   return (
-    <div style={{ position: 'relative', height: `${props.node.height}px`, width: '100%' }}>
+    <div
+      style={{
+        position: 'relative',
+        display: 'flow-root',
+        height: `${props.node.height}px`,
+        width: '100%',
+      }}
+    >
       {/*
        * Key by reference. stack() rebuilds placed[] with fresh wrapper objects
        * every layout pass, so <For> recreates each row on every streaming chunk.
@@ -32,19 +39,20 @@ export function BlockStackView(props: BlockStackViewProps) {
        * surrounded by blank space until the turn committed.)
        */}
       <For each={placed()}>
-        {(p) => (
-          <div
-            style={{
-              position: 'absolute',
-              top: `${p.top}px`,
-              left: 0,
-              right: 0,
-              height: `${p.child.height}px`,
-            }}
-          >
-            <BlockLeafRender node={p.child as Measured<BlockLeafLayout>} />
-          </div>
-        )}
+        {(p, index) => {
+          const previous = placed()[index() - 1];
+          const previousBottom = previous ? previous.top + previous.child.height : 0;
+          return (
+            <div
+              style={{
+                'margin-top': `${p.top - previousBottom}px`,
+                height: `${p.child.height}px`,
+              }}
+            >
+              <BlockLeafRender node={p.child as Measured<BlockLeafLayout>} />
+            </div>
+          );
+        }}
       </For>
     </div>
   );

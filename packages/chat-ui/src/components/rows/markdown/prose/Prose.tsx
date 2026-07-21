@@ -102,6 +102,10 @@ function ProseFragment(props: {
   const moduleCls = [pf, pfVariants[key]].filter(Boolean).join(' ');
   const visualCls = fragVisualClass(props.run, props.variant);
   const cls = visualCls ? `${moduleCls} ${visualCls}` : moduleCls;
+  const fragmentStyle = {
+    'margin-left': `${props.frag.gapBefore}px`,
+    width: `${props.frag.occupiedWidth}px`,
+  };
 
   if (props.run.kind === 'text' && props.run.href) {
     const href = props.run.href;
@@ -124,7 +128,7 @@ function ProseFragment(props: {
     return (
       <a
         class={cls}
-        style={{ left: `${props.frag.x}px` }}
+        style={fragmentStyle}
         href={href}
         target="_blank"
         rel="noopener noreferrer"
@@ -161,7 +165,7 @@ function ProseFragment(props: {
         onClick={handleMentionClick}
         style={{
           cursor: isClickable() ? 'pointer' : undefined,
-          left: `${props.frag.x}px`,
+          ...fragmentStyle,
           display: 'inline-flex',
           'align-items': 'center',
           gap: `${chips.mentionIconGap}px`,
@@ -226,7 +230,7 @@ function ProseFragment(props: {
     const wordPairs = splitFragmentWords(props.frag.text);
     let localIdx = props.wordOffset!;
     return (
-      <span class={cls} style={{ left: `${props.frag.x}px` }}>
+      <span class={cls} style={fragmentStyle}>
         <For each={wordPairs}>
           {([chunk, isWord]) => {
             if (!isWord) return <>{chunk}</>;
@@ -240,7 +244,7 @@ function ProseFragment(props: {
   }
 
   return (
-    <span class={cls} style={{ left: `${props.frag.x}px` }}>
+    <span class={cls} style={fragmentStyle}>
       {props.frag.text}
     </span>
   );
@@ -250,6 +254,7 @@ function ProseFragment(props: {
 
 function ProseLine(props: {
   line: LineLayout;
+  gapBefore: number;
   lineHeight: number;
   runs: InlineRun[];
   variant: string;
@@ -263,7 +268,7 @@ function ProseLine(props: {
     <div
       class={pline}
       style={{
-        top: `${props.line.top}px`,
+        'margin-top': `${props.gapBefore}px`,
         left: `${props.line.left}px`,
         height: `${props.lineHeight}px`,
       }}
@@ -383,9 +388,12 @@ export function Prose(props: ProseProps) {
           const lineFragOffsets = d
             ? line.fragments.map((_, fi) => d.fragWordOffsets[d.lineBaseFlat[lineIdx()] + fi] ?? 0)
             : undefined;
+          const previous = props.block.lines[lineIdx() - 1];
+          const previousBottom = previous ? previous.top + props.block.lineHeight : 0;
           return (
             <ProseLine
               line={line}
+              gapBefore={line.top - previousBottom}
               lineHeight={props.block.lineHeight}
               runs={props.runs}
               variant={props.variant}

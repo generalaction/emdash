@@ -28,6 +28,14 @@ async function waitFor<T>(fn: () => T | null, frames = 10): Promise<T | null> {
   return null;
 }
 
+function renderedText(host: HTMLElement, text: string) {
+  const element = Array.from(host.querySelectorAll('span')).find(
+    (candidate) => candidate.textContent === text
+  );
+  if (!element?.firstChild) throw new Error(`Unable to find rendered text: ${text}`);
+  return { element, textNode: element.firstChild };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('createChatView', () => {
@@ -107,6 +115,85 @@ describe('createChatView', () => {
     const probeRect = probe!.getBoundingClientRect();
     expect(Math.abs(pinRect.left - probeRect.left)).toBeLessThan(1);
     expect(Math.abs(pinRect.width - probeRect.width)).toBeLessThan(1);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
+  it('keeps selectable text in visual transcript order', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed([
+      {
+        id: 'turn-1',
+        seq: 0,
+        initiator: 'agent',
+        items: [
+          {
+            kind: 'thinking',
+            id: 'thinking-1',
+            seq: 0,
+            segmentId: 'thinking-1',
+            status: 'thinking',
+            text: 'Thinking body',
+            startedAt: Date.now(),
+          },
+          {
+            kind: 'message',
+            id: 'message-1',
+            seq: 1,
+            role: 'assistant',
+            text: [
+              'Text before the selection.',
+              '',
+              '- First selected line',
+              '- Second selected line',
+              '- Third selected line',
+            ].join('\n'),
+          },
+        ],
+      },
+    ]);
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const start = renderedText(host, 'First selected line');
+    const end = renderedText(host, 'Third selected line');
+    const startBlock = start.element.closest('[data-block-id]');
+    const thinkingBlock = renderedText(host, 'Thinking body').element.closest('[data-block-id]');
+    const thinkingWrapper = thinkingBlock?.parentElement;
+    const thinkingStack = thinkingWrapper?.parentElement;
+
+    expect(getComputedStyle(start.element).position).not.toBe('absolute');
+    expect(startBlock).not.toBeNull();
+    expect(getComputedStyle(startBlock!).position).not.toBe('absolute');
+    expect(getComputedStyle(startBlock!.parentElement!).position).not.toBe('absolute');
+    expect(thinkingWrapper).not.toBeNull();
+    expect(thinkingStack).not.toBeNull();
+    expect(
+      thinkingWrapper!.getBoundingClientRect().top - thinkingStack!.getBoundingClientRect().top
+    ).toBe(8);
+
+    const range = document.createRange();
+    range.setStart(start.textNode, 0);
+    range.setEnd(end.textNode, 'Third selected line'.length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const selected = selection?.toString() ?? '';
+
+    expect(selected).toContain('First selected line');
+    expect(selected).toContain('Second selected line');
+    expect(selected).toContain('Third selected line');
+    expect(selected).not.toContain('Text before the selection.');
+    selection?.removeAllRanges();
 
     view.dispose();
     ctx.dispose();
