@@ -172,7 +172,6 @@ export async function bootServices(
 ): Promise<ServicesBundle> {
   const { appSettings: appSettingsService, db, sqlite, workspaceIdentity } = database;
   const { clients, broker: runtimes } = desktopRuntimes;
-  const getAutomationsRuntimeClient = async () => clients.automations;
   const getFilesRuntimeClient = async () => clients.files;
   const getGitRuntimeClient = async () => clients.git;
   const getMementosRuntimeClient = async () => clients.mementos;
@@ -285,7 +284,7 @@ export async function bootServices(
   });
   searchService.initialize();
   const automationRuntime = {
-    getAutomationsRuntimeClient,
+    runtimes,
     getProjectById: (projectId: string) => getProjectById(db, projectId),
   };
   const automationsService = new AutomationsService({

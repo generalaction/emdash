@@ -1,10 +1,5 @@
 import path from 'node:path';
-import {
-  hostRef,
-  hostRefKey,
-  LOCAL_HOST_REF,
-  type HostRef,
-} from '@emdash/core/primitives/host/api';
+import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import {
   defaultRepositoriesRoot,
@@ -15,7 +10,7 @@ import type {
   HostRuntimesClient,
   RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { eq } from 'drizzle-orm';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
@@ -24,7 +19,11 @@ import {
   legacyBaseProjectSettingsSchema,
   type BaseProjectSettings,
 } from '@core/primitives/project-settings/api';
-import type { Project, ProjectPlacementError } from '@core/primitives/projects/api';
+import {
+  projectHostRef,
+  type Project,
+  type ProjectPlacementError,
+} from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
 import type { AppSettingsService } from '@core/services/settings/node';
@@ -32,7 +31,7 @@ import type { AppSettingsService } from '@core/services/settings/node';
 export type WorkspacePlacementError = ProjectPlacementError;
 
 type RuntimeBrokerLike = {
-  session(host: HostRef): PendingLease<Result<HostRuntimesClient, RuntimeResolveError>>;
+  client(host: HostRef): Promise<Result<HostRuntimesClient, RuntimeResolveError>>;
 };
 
 type PlacementResolverDependencies = {
@@ -86,34 +85,29 @@ export class WorkspacePlacementResolver {
       : ok(defaultRepositoriesRoot(homeResult.data));
     if (!rootResult.success) return rootResult;
 
-    const lease = this.dependencies.broker.session(host);
-    try {
-      const session = await lease.ready();
-      if (!session.success) return session;
+    const session = await this.dependencies.broker.client(host);
+    if (!session.success) return session;
 
-      const pathApi = pathApiFor(rootResult.data);
-      const baseName = safePathSegment(name, 'repository');
-      for (let suffix = 1; ; suffix += 1) {
-        const candidateName = suffix === 1 ? baseName : `${baseName}-${suffix}`;
-        const candidate = pathApi.join(rootResult.data, candidateName);
-        const [exists, registeredProject] = await Promise.all([
-          session.data.files.fs.exists({
-            root: hostPathFromNative(candidate),
-            relative: ROOT_RELATIVE_PATH,
-          }),
-          this.dependencies.findProjectByPath(host, candidate),
-        ]);
-        if (!exists.success) {
-          return err({
-            type: 'filesystem-unavailable',
-            path: candidate,
-            message: fsErrorMessage(exists.error),
-          });
-        }
-        if (!exists.data && !registeredProject) return ok(candidate);
+    const pathApi = pathApiFor(rootResult.data);
+    const baseName = safePathSegment(name, 'repository');
+    for (let suffix = 1; ; suffix += 1) {
+      const candidateName = suffix === 1 ? baseName : `${baseName}-${suffix}`;
+      const candidate = pathApi.join(rootResult.data, candidateName);
+      const [exists, registeredProject] = await Promise.all([
+        session.data.files.fs.exists({
+          root: hostPathFromNative(candidate),
+          relative: ROOT_RELATIVE_PATH,
+        }),
+        this.dependencies.findProjectByPath(host, candidate),
+      ]);
+      if (!exists.success) {
+        return err({
+          type: 'filesystem-unavailable',
+          path: candidate,
+          message: fsErrorMessage(exists.error),
+        });
       }
-    } finally {
-      await lease.release();
+      if (!exists.data && !registeredProject) return ok(candidate);
     }
   }
 
@@ -138,20 +132,15 @@ export class WorkspacePlacementResolver {
   private async queryHomeDirectory(
     host: HostRef
   ): Promise<Result<string, WorkspacePlacementError>> {
-    const lease = this.dependencies.broker.session(host);
+    const session = await this.dependencies.broker.client(host);
+    if (!session.success) return session;
     try {
-      const session = await lease.ready();
-      if (!session.success) return session;
-      try {
-        return ok(nativePathFromHost(await session.data.files.getHomeDir()));
-      } catch (error) {
-        return err({
-          type: 'host-home-unavailable',
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    } finally {
-      await lease.release();
+      return ok(nativePathFromHost(await session.data.files.getHomeDir()));
+    } catch (error) {
+      return err({
+        type: 'host-home-unavailable',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -184,10 +173,6 @@ export async function loadProjectWorktreeDirectory(
     });
     return undefined;
   }
-}
-
-function projectHostRef(project: Project): HostRef {
-  return project.type === 'ssh' ? hostRef('remote', project.connectionId) : LOCAL_HOST_REF;
 }
 
 function resolveConfiguredRoot(

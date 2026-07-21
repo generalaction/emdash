@@ -8,7 +8,7 @@ import {
 
 export { agentConfigContract as mcpConfigRuntimeContract };
 export type McpHostRuntimesClient = HostRuntimesClient;
-export type McpRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type McpRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type McpRuntimeResolveError = RuntimeResolveError;
 
 export function throwMcpRuntimeResolveError(error: RuntimeResolveError): never {

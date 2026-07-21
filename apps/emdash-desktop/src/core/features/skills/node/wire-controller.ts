@@ -1,5 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { err, type PendingLease, type Result } from '@emdash/shared';
+import { err, type Result } from '@emdash/shared';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { skillsContract } from '../api';
@@ -38,10 +38,13 @@ function createInstalledModelProvider(
   return {
     kind: 'leasedLiveModelProvider',
     contract: skillsContract.installed,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(runtimes, key.host, (runtime) =>
-        runtime.agentConfig.skills.state(undefined, name).asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(runtimes, key.host, (runtime) =>
+          runtime.agentConfig.skills.state(undefined, name).asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error(`Live model '${skillsContract.installed.id}' has no mutations`);
     },
@@ -54,31 +57,19 @@ async function withAgentConfigResult<T, E>(
   host: HostRef,
   work: (client: HostRuntimesClient['agentConfig']) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
-  const lease = runtimes.session(host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return await work(runtime.data.agentConfig);
-  } finally {
-    await lease.release();
-  }
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) return err(runtime.error);
+  return await work(runtime.data.agentConfig);
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   runtimes: SkillsRuntimeBroker,
   host: HostRef,
   source: (client: HostRuntimesClient) => LiveSource
-): PendingLease<LiveSource> {
-  const lease = runtimes.session(host);
-  const ready = lease.ready();
-  return {
-    async ready() {
-      const runtime = await ready;
-      if (!runtime.success) throwSkillsRuntimeResolveError(runtime.error);
-      return source(runtime.data);
-    },
-    release: () => lease.release(),
-  };
+): Promise<LiveSource> {
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) throwSkillsRuntimeResolveError(runtime.error);
+  return source(runtime.data);
 }
 
 function withoutHost<T extends { host: HostRef }>(input: T): Omit<T, 'host'> {

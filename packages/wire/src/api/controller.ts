@@ -38,6 +38,7 @@ import type {
   EndpointInput,
   EndpointOutput,
   LiveLogKey,
+  LiveLogEndpointDef,
   LiveJobEndpointDef,
   JobInput,
   JobProgress,
@@ -112,9 +113,11 @@ type UploadFileImpl<Def extends UploadFileEndpointDef> = (
   | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
   | Result<UploadFileResult<Def>, UploadFileError<Def>>;
 
-type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
+type LiveLogImpl<Def extends LiveLogEndpointDef> = (
+  key: LiveLogKey<Def>
+) => LiveSource | null | undefined;
 
-type LiveLogEntryImpl<Def extends EndpointDef> =
+type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
   | LiveLogImpl<Def>
   | LiveLogClientHandle
   | LiveLogReplica;
@@ -136,7 +139,7 @@ type GroupImpl<Def extends LiveModelDef> =
 
 type EndpointImpl<Def extends EndpointDef> = Def extends ProcedureDef
   ? ProcedureHandler<Def>
-  : Def extends { kind: 'liveLog' }
+  : Def extends LiveLogEndpointDef
     ? LiveLogEntryImpl<Def>
     : Def extends EventStreamEndpointDef
       ? EventStreamEntryImpl<Def>
@@ -241,7 +244,7 @@ export function createController<Defs extends ContractDefinitions>(
           break;
         }
         case 'liveLog': {
-          const impl = entryImpl as LiveLogEntryImpl<EndpointDef> | undefined;
+          const impl = entryImpl as LiveLogEntryImpl<LiveLogEndpointDef> | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
           }
@@ -519,7 +522,7 @@ function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile):
 export { encodeTopic, splitTopic } from './topics';
 
 function createLiveLogResolver(
-  impl: LiveLogEntryImpl<EndpointDef>
+  impl: LiveLogEntryImpl<LiveLogEndpointDef>
 ): (key: unknown) => LiveSource | null | undefined {
   if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
   if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();

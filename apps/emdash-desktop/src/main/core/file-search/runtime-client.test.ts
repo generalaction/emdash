@@ -5,10 +5,9 @@ import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runti
 import { createFileSearchRuntime, searchFileSearchRoot } from './runtime-client';
 
 const mocks = vi.hoisted(() => ({
-  release: vi.fn(),
+  client: vi.fn(),
   registerRoot: vi.fn(),
   searchPaths: vi.fn(),
-  session: vi.fn(),
   unregisterRoot: vi.fn(),
   warn: vi.fn(),
 }));
@@ -18,24 +17,21 @@ vi.mock('@main/lib/logger', () => ({
 }));
 
 describe('file-search runtime client', () => {
-  const runtime = createFileSearchRuntime({ session: mocks.session } as never);
+  const runtime = createFileSearchRuntime({ client: mocks.client } as never);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.session.mockReturnValue({
-      ready: async () =>
-        ok({
-          fileSearch: {
-            registerRoot: mocks.registerRoot,
-            searchPaths: mocks.searchPaths,
-            unregisterRoot: mocks.unregisterRoot,
-          },
-        }),
-      release: mocks.release,
-    });
+    mocks.client.mockResolvedValue(
+      ok({
+        fileSearch: {
+          registerRoot: mocks.registerRoot,
+          searchPaths: mocks.searchPaths,
+          unregisterRoot: mocks.unregisterRoot,
+        },
+      })
+    );
     mocks.registerRoot.mockResolvedValue(ok());
     mocks.unregisterRoot.mockResolvedValue(ok());
-    mocks.release.mockResolvedValue(undefined);
   });
 
   it('registers and unregisters structured workspace roots', async () => {
@@ -46,21 +42,19 @@ describe('file-search runtime client', () => {
 
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
-    expect(mocks.session).toHaveBeenCalledTimes(2);
-    expect(mocks.session).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
-    expect(mocks.session).toHaveBeenNthCalledWith(2, LOCAL_HOST_REF);
-    expect(mocks.release).toHaveBeenCalledTimes(2);
+    expect(mocks.client).toHaveBeenCalledTimes(2);
+    expect(mocks.client).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
+    expect(mocks.client).toHaveBeenNthCalledWith(2, LOCAL_HOST_REF);
   });
 
-  it('routes registration through the workspace host session', async () => {
+  it('routes registration through the workspace host client', async () => {
     const root = hostPathFromNative('/repo');
     const remoteHost = hostRef('remote', 'machine-1');
 
     await runtime.registerRoot(root, remoteHost);
 
-    expect(mocks.session).toHaveBeenCalledWith(remoteHost);
+    expect(mocks.client).toHaveBeenCalledWith(remoteHost);
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
-    expect(mocks.release).toHaveBeenCalledOnce();
   });
 
   it('searches only files and preserves absolute desktop file identities', async () => {

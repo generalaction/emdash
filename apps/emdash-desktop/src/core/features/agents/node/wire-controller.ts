@@ -1,6 +1,7 @@
 import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
+import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import type { AgentOperations } from '@core/features/agents/node/controller';
@@ -106,8 +107,8 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
         client.refreshAuthStatus(withoutHost(input), callOptions(meta))
       ),
     loginOutput: ({ host, providerId }) =>
-      leasedLiveSource(() =>
-        acquireRuntimeSource(options.runtimes, host, (runtime) =>
+      deferredLiveSource(() =>
+        resolveRuntimeSource(options.runtimes, host, (runtime) =>
           runtime.agentConfig.loginOutput.handle({ providerId }).asLiveSource()
         )
       ),
@@ -120,10 +121,13 @@ function createAuthModelProvider(
   return {
     kind: 'leasedLiveModelProvider',
     contract: agentsContract.auth,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(runtimes, key.host, (runtime) =>
-        runtime.agentConfig.agents.state(undefined, name).asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(runtimes, key.host, (runtime) =>
+          runtime.agentConfig.agents.state(undefined, name).asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error(`Live model '${agentsContract.auth.id}' has no mutations`);
     },
@@ -136,14 +140,9 @@ async function withHostRuntime<T>(
   host: HostRef,
   work: (client: HostRuntimesClient) => Promise<T> | T
 ): Promise<Result<T, RuntimeResolveError>> {
-  const lease = runtimes.session(host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return ok(await work(runtime.data));
-  } finally {
-    await lease.release();
-  }
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) return err(runtime.error);
+  return ok(await work(runtime.data));
 }
 
 async function withAgentConfigResult<T, E>(
@@ -151,63 +150,19 @@ async function withAgentConfigResult<T, E>(
   host: HostRef,
   work: (client: HostRuntimesClient['agentConfig']) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
-  const lease = runtimes.session(host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return await work(runtime.data.agentConfig);
-  } finally {
-    await lease.release();
-  }
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) return err(runtime.error);
+  return await work(runtime.data.agentConfig);
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   runtimes: AgentsRuntimeBroker,
   host: HostRef,
   source: (client: HostRuntimesClient) => LiveSource
-): PendingLease<LiveSource> {
-  const lease = runtimes.session(host);
-  const ready = lease.ready();
-  return {
-    async ready() {
-      const runtime = await ready;
-      if (!runtime.success) throwAgentsRuntimeResolveError(runtime.error);
-      return source(runtime.data);
-    },
-    release: () => lease.release(),
-  };
-}
-
-function leasedLiveSource(acquire: () => PendingLease<LiveSource>): LiveSource {
-  return {
-    async snapshot() {
-      const lease = acquire();
-      try {
-        return await (await lease.ready()).snapshot();
-      } finally {
-        await lease.release();
-      }
-    },
-    async subscribe(callback, options) {
-      const lease = acquire();
-      try {
-        const unsubscribe = await (await lease.ready()).subscribe(callback, options);
-        let released = false;
-        return () => {
-          if (released) return;
-          released = true;
-          try {
-            unsubscribe();
-          } finally {
-            void lease.release();
-          }
-        };
-      } catch (error) {
-        await lease.release();
-        throw error;
-      }
-    },
-  };
+): Promise<LiveSource> {
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) throwAgentsRuntimeResolveError(runtime.error);
+  return source(runtime.data);
 }
 
 function withoutHost<T extends { host: HostRef }>(input: T): Omit<T, 'host'> {

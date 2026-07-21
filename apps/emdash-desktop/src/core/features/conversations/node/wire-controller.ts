@@ -1,5 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import { err, type PendingLease, type Result } from '@emdash/shared';
+import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
+import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import {
@@ -88,21 +89,27 @@ export function createConversationsWireController(
     ) => Promise<Result<T, E>>
   ) => withConversationRuntime(options.runtimes, target(conversationId), work);
 
-  const acpSessions = leasedModelProvider(conversationsContract.acp.sessions, (key, name) =>
-    acquireRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-      client.acp.sessions.state(key, name).asLiveSource()
-    )
-  );
-  const acpSession = leasedModelProvider(conversationsContract.acp.session, (key, name) =>
-    acquireConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
-      client.acp.session.state(key, name).asLiveSource()
-    )
-  );
-  const tuiSessions = leasedModelProvider(conversationsContract.tui.sessions, (key, name) =>
-    acquireRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-      client.tuiAgents.sessions.state(key, name).asLiveSource()
-    )
-  );
+  const acpSessions = leasedModelProvider(conversationsContract.acp.sessions, (key, name) => ({
+    ready: () =>
+      resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
+        client.acp.sessions.state(key, name).asLiveSource()
+      ),
+    release: async () => {},
+  }));
+  const acpSession = leasedModelProvider(conversationsContract.acp.session, (key, name) => ({
+    ready: () =>
+      resolveConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
+        client.acp.session.state(key, name).asLiveSource()
+      ),
+    release: async () => {},
+  }));
+  const tuiSessions = leasedModelProvider(conversationsContract.tui.sessions, (key, name) => ({
+    ready: () =>
+      resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
+        client.tuiAgents.sessions.state(key, name).asLiveSource()
+      ),
+    release: async () => {},
+  }));
 
   return createController(conversationsContract, {
     getConversations: () => conversationOperations.getConversations(),
@@ -229,8 +236,8 @@ export function createConversationsWireController(
       sessions: acpSessions,
       session: acpSession,
       terminalOutput: ({ conversationId, terminalId }) =>
-        leasedLiveSource(() =>
-          acquireConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+        deferredLiveSource(() =>
+          resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
             client.acp.terminalOutput.handle({ terminalId }).asLiveSource()
           )
         ),
@@ -277,8 +284,8 @@ export function createConversationsWireController(
       resize: (input, meta) =>
         run(input.conversationId, (client) => client.tuiAgents.resize(input, callOptions(meta))),
       output: ({ conversationId }) =>
-        leasedLiveSource(() =>
-          acquireConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
+        deferredLiveSource(() =>
+          resolveConversationRuntimeSource(options.runtimes, target(conversationId), (client) =>
             client.tuiAgents.output.handle({ conversationId }).asLiveSource()
           )
         ),
@@ -420,14 +427,9 @@ async function withConversationRuntime<T, E>(
   ) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const target = await targetPromise;
-  const lease = runtimes.session(target.host);
-  try {
-    const result = await lease.ready();
-    if (!result.success) return err(result.error);
-    return await work(result.data, target);
-  } finally {
-    await lease.release();
-  }
+  const result = await runtimes.client(target.host);
+  if (!result.success) return err(result.error);
+  return await work(result.data, target);
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
@@ -449,73 +451,26 @@ function leasedModelProvider<Group extends LiveModelDef>(
   };
 }
 
-function acquireConversationRuntimeSource(
+async function resolveConversationRuntimeSource(
   runtimes: ConversationsRuntimeBroker,
   targetPromise: Promise<ConversationRuntimeTarget>,
   source: (client: ConversationsHostRuntimesClient) => LiveSource
-): PendingLease<LiveSource> {
-  return acquireRuntimeSource(
+): Promise<LiveSource> {
+  return resolveRuntimeSource(
     runtimes,
     targetPromise.then((target) => target.host),
     source
   );
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   runtimes: ConversationsRuntimeBroker,
   hostPromise: Promise<HostRef>,
   source: (client: ConversationsHostRuntimesClient) => LiveSource
-): PendingLease<LiveSource> {
-  const acquired = hostPromise.then((host) => {
-    const lease = runtimes.session(host);
-    return { lease, ready: lease.ready() };
-  });
-  return {
-    async ready() {
-      const { ready } = await acquired;
-      const result = await ready;
-      if (!result.success) throwConversationsRuntimeResolveError(result.error);
-      return source(result.data);
-    },
-    async release() {
-      // If acquisition failed there is no lease to release; the failure already
-      // surfaced through ready() and must not reject again here.
-      const runtime = await acquired.catch(() => null);
-      if (runtime) await runtime.lease.release();
-    },
-  };
-}
-
-function leasedLiveSource(acquire: () => PendingLease<LiveSource>): LiveSource {
-  return {
-    async snapshot() {
-      const lease = acquire();
-      try {
-        return await (await lease.ready()).snapshot();
-      } finally {
-        await lease.release();
-      }
-    },
-    async subscribe(callback, options) {
-      const lease = acquire();
-      try {
-        const unsubscribe = await (await lease.ready()).subscribe(callback, options);
-        let released = false;
-        return () => {
-          if (released) return;
-          released = true;
-          try {
-            unsubscribe();
-          } finally {
-            void lease.release();
-          }
-        };
-      } catch (error) {
-        await lease.release();
-        throw error;
-      }
-    },
-  };
+): Promise<LiveSource> {
+  const result = await runtimes.client(await hostPromise);
+  if (!result.success) throwConversationsRuntimeResolveError(result.error);
+  return source(result.data);
 }
 
 async function openAttachmentDownload(
@@ -525,70 +480,12 @@ async function openAttachmentDownload(
   options: { signal?: AbortSignal }
 ) {
   const target = await targetPromise;
-  const lease = runtimes.session(target.host);
-  let released = false;
-  const release = async () => {
-    if (released) return;
-    released = true;
-    await lease.release();
-  };
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) {
-      await release();
-      return err(runtime.error);
-    }
-    const result = await runtime.data.acp.downloadAttachment({ id }, options);
-    if (!result.success) {
-      await release();
-      return result;
-    }
-    return {
-      success: true as const,
-      data: {
-        meta: result.data.meta,
-        source: releaseAfter(result.data.chunks(), release),
-      },
-    };
-  } catch (error) {
-    await release();
-    throw error;
-  }
-}
-
-function releaseAfter(
-  source: AsyncIterable<Uint8Array>,
-  release: () => Promise<void>
-): AsyncIterable<Uint8Array> {
+  const runtime = await runtimes.client(target.host);
+  if (!runtime.success) return err(runtime.error);
+  const result = await runtime.data.acp.downloadAttachment({ id }, options);
+  if (!result.success) return result;
   return {
-    [Symbol.asyncIterator]() {
-      const iterator = source[Symbol.asyncIterator]();
-      let released = false;
-      const releaseOnce = async () => {
-        if (released) return;
-        released = true;
-        await release();
-      };
-      return {
-        async next() {
-          try {
-            const result = await iterator.next();
-            if (result.done) await releaseOnce();
-            return result;
-          } catch (error) {
-            await releaseOnce();
-            throw error;
-          }
-        },
-        async return() {
-          try {
-            await iterator.return?.();
-            return { done: true as const, value: undefined };
-          } finally {
-            await releaseOnce();
-          }
-        },
-      };
-    },
+    success: true as const,
+    data: { meta: result.data.meta, source: result.data.chunks() },
   };
 }

@@ -1,4 +1,3 @@
-import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
@@ -294,7 +293,6 @@ async function startDesktopWorkersWithHost(
   const automationsReady = Promise.all([workspaceReady, acpReady, tuiAgentsReady]).then(
     async ([workspace, acp, tuiAgents]) => {
       const paths = automationRuntimePaths(resolveDatabasePath());
-      mkdirSync(paths.stateDirectory, { recursive: true });
       const worker = host.create(createAutomationsComponent(), {
         name: 'automations',
         executable: desktopWorkerPath('automations'),

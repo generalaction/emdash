@@ -10,7 +10,7 @@ import {
 export const sourceControlGitRuntimeContract = gitContract;
 
 export type SourceControlHostRuntimesClient = HostRuntimesClient;
-export type SourceControlRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type SourceControlRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type SourceControlRuntimeResolveError = RuntimeResolveError;
 
 export function throwSourceControlRuntimeResolveError(error: RuntimeResolveError): never {

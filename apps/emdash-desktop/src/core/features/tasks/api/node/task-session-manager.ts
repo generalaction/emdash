@@ -158,33 +158,28 @@ async function deactivateWorkspaceConsumer(
     identity && hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
   const target = workspace ?? runtimeWorkspace;
   if (!target) return;
-  const brokerLease = dependencies.runtimes.session(target.host);
-  try {
-    const runtime = await brokerLease.ready();
-    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    await runWorkspaceDeactivateJob(runtime.data.workspace.deactivate, {
+  const runtime = await dependencies.runtimes.client(target.host);
+  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+  await runWorkspaceDeactivateJob(runtime.data.workspace.deactivate, {
+    workspace: target,
+    consumerId: taskId,
+    strategy,
+    automation: strategy === 'stop' ? automation : undefined,
+  });
+  const snapshot = await runtime.data.workspace.workspace
+    .state(target, 'state')
+    .asLiveSource()
+    .snapshot();
+  const hasConsumers =
+    ((snapshot.data as { consumers?: readonly unknown[] }).consumers?.length ?? 0) > 0;
+  if (hasConsumers) return;
+  if (identity) await dependencies.deactivateWorkspaceParticipants(identity);
+  if (teardown) {
+    await runWorkspaceTeardownJob(runtime.data.workspace.teardown, {
       workspace: target,
-      consumerId: taskId,
-      strategy,
-      automation: strategy === 'stop' ? automation : undefined,
+      force: false,
+      automation,
     });
-    const snapshot = await runtime.data.workspace.workspace
-      .state(target, 'state')
-      .asLiveSource()
-      .snapshot();
-    const hasConsumers =
-      ((snapshot.data as { consumers?: readonly unknown[] }).consumers?.length ?? 0) > 0;
-    if (hasConsumers) return;
-    if (identity) await dependencies.deactivateWorkspaceParticipants(identity);
-    if (teardown) {
-      await runWorkspaceTeardownJob(runtime.data.workspace.teardown, {
-        workspace: target,
-        force: false,
-        automation,
-      });
-    }
-  } finally {
-    await brokerLease.release();
   }
 }
 

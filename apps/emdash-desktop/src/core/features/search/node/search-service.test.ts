@@ -46,7 +46,6 @@ describe('SearchService runtime file search', () => {
     mocks.workspaceGet.mockReturnValue({
       client: { fileSearch: { searchPaths: vi.fn() } },
       files: { root },
-      release: vi.fn(),
     });
     mocks.fileSearch.mockResolvedValue([{ path: '/repo/src/index.ts', filename: 'index.ts' }]);
   });
@@ -122,7 +121,7 @@ describe('SearchService runtime file search', () => {
     expect(mocks.warn).toHaveBeenCalledOnce();
   });
 
-  it('relays progressive content search through the acquired workspace runtime', async () => {
+  it('relays progressive content search through the resolved workspace runtime', async () => {
     const progressGate = deferred<void>();
     let didStartSearch = false;
     const files = [
@@ -157,11 +156,9 @@ describe('SearchService runtime file search', () => {
       }),
       { validate: 'full' }
     );
-    const release = vi.fn(async () => {});
     mocks.workspaceGet.mockResolvedValue({
       client: { fileSearch: upstream.client },
       files: { root },
-      release,
     });
     const progress: unknown[] = [];
 
@@ -179,7 +176,6 @@ describe('SearchService runtime file search', () => {
 
       await expect(result).resolves.toEqual(ok({ files, complete: true }));
       expect(progress).toEqual([{ files }]);
-      expect(release).toHaveBeenCalledOnce();
     } finally {
       await upstream.dispose();
     }

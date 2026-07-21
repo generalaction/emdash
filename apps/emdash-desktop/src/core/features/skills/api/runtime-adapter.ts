@@ -8,7 +8,7 @@ import {
 
 export { agentConfigContract as skillsConfigRuntimeContract };
 export type SkillsHostRuntimesClient = HostRuntimesClient;
-export type SkillsRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type SkillsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type SkillsRuntimeResolveError = RuntimeResolveError;
 
 export function throwSkillsRuntimeResolveError(error: RuntimeResolveError): never {

@@ -4,11 +4,12 @@ import { useScheduledAutomationRun } from '../use-automations';
 
 interface NextRunBannerProps {
   automationId: string;
+  projectId: string | null | undefined;
   runtimeAvailable?: boolean;
 }
 
-export function NextRunBanner({ automationId, runtimeAvailable }: NextRunBannerProps) {
-  const { data } = useScheduledAutomationRun(automationId, runtimeAvailable);
+export function NextRunBanner({ automationId, projectId, runtimeAvailable }: NextRunBannerProps) {
+  const { data } = useScheduledAutomationRun(projectId!, automationId, runtimeAvailable);
   const scheduledAt = data?.scheduledAt ?? null;
 
   if (!scheduledAt) return null;

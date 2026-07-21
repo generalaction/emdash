@@ -130,7 +130,7 @@ describe('AutomationRunStore overview', () => {
       success: true,
       data: overview(initialRun, { done: 1 }),
     });
-    const store = new AutomationRunStore('automation-1');
+    const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
 
@@ -152,7 +152,7 @@ describe('AutomationRunStore overview', () => {
     mocks.listChangedRuns
       .mockResolvedValueOnce({ success: true, data: { runs: [changedRun], nextSeq: 2 } })
       .mockResolvedValueOnce({ success: true, data: { runs: [], nextSeq: 2 } });
-    const store = new AutomationRunStore('automation-1');
+    const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
 
@@ -178,7 +178,7 @@ describe('AutomationRunStore overview', () => {
         success: true,
         data: overview(completedRun, { done: 1, skipped: 1 }),
       });
-    const store = new AutomationRunStore('automation-1');
+    const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
 
@@ -198,7 +198,7 @@ describe('AutomationRunStore overview', () => {
       success: true,
       data: { ...overview(null, { scheduled: 1 }), nextScheduledRun: scheduledRun },
     });
-    const store = new AutomationRunStore('automation-1');
+    const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(store.nextScheduledRun?.id).toBe(scheduledRun.id));
 
@@ -222,7 +222,7 @@ describe('AutomationRunStore overview', () => {
     mocks.listChangedRuns
       .mockResolvedValueOnce({ success: true, data: { runs: [missedRun], nextSeq: 2 } })
       .mockResolvedValueOnce({ success: true, data: { runs: [], nextSeq: 2 } });
-    const store = new AutomationRunStore('automation-1');
+    const store = new AutomationRunStore('project-1', 'automation-1');
     const release = store.acquire();
     await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
     await store.loadInitialHistory('all', 25);

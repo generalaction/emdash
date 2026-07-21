@@ -141,18 +141,13 @@ async function workspaceHasConsumers(
 ): Promise<boolean> {
   const identity = await workspaceIdentity.resolve(workspaceId);
   if (!identity) return false;
-  const lease = runtimes.session(identity.host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return false;
-    const workspace = hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
-    const snapshot = await runtime.data.workspace.workspace
-      .state(workspace, 'state')
-      .asLiveSource()
-      .snapshot();
-    const state = snapshot.data as { consumers?: readonly unknown[] };
-    return (state.consumers?.length ?? 0) > 0;
-  } finally {
-    await lease.release();
-  }
+  const runtime = await runtimes.client(identity.host);
+  if (!runtime.success) return false;
+  const workspace = hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
+  const snapshot = await runtime.data.workspace.workspace
+    .state(workspace, 'state')
+    .asLiveSource()
+    .snapshot();
+  const state = snapshot.data as { consumers?: readonly unknown[] };
+  return (state.consumers?.length ?? 0) > 0;
 }

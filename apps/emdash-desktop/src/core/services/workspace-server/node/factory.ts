@@ -22,6 +22,7 @@ import { RemoteHostProbe } from './provision/host-probe';
 import { WorkspaceServerInstaller } from './provision/installer';
 import { WorkspaceServerProvisioner } from './provision/provisioner';
 import { WorkspaceServerProvisioningModel } from './provision/provisioning-model';
+import { workspaceServerTargetKey, type WorkspaceServerTarget } from './targets';
 
 type WorkspaceServerSshHandle = {
   manager: SshConnectionManager;
@@ -43,10 +44,15 @@ export type CreateWorkspaceServerServiceDeps = {
 
 export interface WorkspaceServerServiceHandle {
   readonly provisioningModel: WorkspaceServerProvisioningModel;
-  acquireConnection(connectionId: string): Promise<PendingLease<WorkspaceServerConnection>>;
+  client(connectionId: string): Promise<WorkspaceServerConnection>;
   onInvalidate(listener: (event: WorkspaceServerInvalidation) => void): () => void;
   dispose(): Promise<void>;
 }
+
+type PinnedConnection = {
+  target: WorkspaceServerTarget;
+  lease: PendingLease<WorkspaceServerConnection>;
+};
 
 export function createWorkspaceServerService(
   deps: CreateWorkspaceServerServiceDeps
@@ -71,9 +77,16 @@ export function createWorkspaceServerService(
     desiredVersion: deps.desiredVersion,
   });
   const lifecycle = new WorkspaceServerLifecycle({ host, connections, provisioner });
+  const pinnedConnections = new Map<string, PinnedConnection>();
   scope.add(
     connections.onTerminalError((error, target) => lifecycle.handleTerminalError(error, target))
   );
+  scope.add(
+    lifecycle.onInvalidate(({ connectionId }) => {
+      void releasePinnedConnections(connectionId);
+    })
+  );
+  scope.add(() => releasePinnedConnections());
 
   const handleSshEvent = (event: SshConnectionManagerEvent) => {
     void lifecycle.handleSshEvent(event).catch((error: unknown) => {
@@ -93,9 +106,22 @@ export function createWorkspaceServerService(
   let disposePromise: Promise<void> | undefined;
   return {
     provisioningModel,
-    async acquireConnection(connectionId) {
+    async client(connectionId) {
       const target = await provisioner.ensure(connectionId);
-      return connections.acquire(target);
+      const key = workspaceServerTargetKey(target);
+      let pinned = pinnedConnections.get(key);
+      if (!pinned) {
+        pinned = { target, lease: connections.acquire(target) };
+        pinnedConnections.set(key, pinned);
+      }
+
+      try {
+        return await pinned.lease.ready();
+      } catch (error) {
+        if (pinnedConnections.get(key) === pinned) pinnedConnections.delete(key);
+        await pinned.lease.release();
+        throw error;
+      }
     },
     onInvalidate: (listener) => lifecycle.onInvalidate(listener),
     dispose() {
@@ -103,6 +129,21 @@ export function createWorkspaceServerService(
       return disposePromise;
     },
   };
+
+  async function releasePinnedConnections(connectionId?: string): Promise<void> {
+    const releases: Promise<void>[] = [];
+    for (const [key, pinned] of pinnedConnections) {
+      if (
+        connectionId &&
+        (pinned.target.kind !== 'ssh' || pinned.target.sshConnectionId !== connectionId)
+      ) {
+        continue;
+      }
+      pinnedConnections.delete(key);
+      releases.push(pinned.lease.release());
+    }
+    await Promise.all(releases);
+  }
 }
 
 function createWorkspaceServerSshPort(ssh: WorkspaceServerSshHandle): WorkspaceServerSshPort {

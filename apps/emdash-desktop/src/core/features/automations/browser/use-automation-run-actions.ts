@@ -9,7 +9,10 @@ export function useAutomationRunActions(automationId: string, projectId: string 
   const stop = useStopAutomationRun();
   const availability = useAutomationTargetAvailability(projectId ?? undefined);
   return {
-    stopRun: (runId: string) => stop.mutate({ automationId, runId }),
+    stopRun: (runId: string) => {
+      if (!projectId) return;
+      stop.mutate({ projectId, automationId, runId });
+    },
     adoptRun: (runId: string) => adopt.mutateAsync({ automationId, runId }),
     isAdopting: adopt.isPending,
     runtimeAvailable: availability.data?.available === true,

@@ -14,7 +14,7 @@ import {
 
 type DevServerBridgeInstallerOptions = {
   readonly scope: Scope;
-  readonly runtimes: Pick<RuntimeBroker, 'session'>;
+  readonly runtimes: Pick<RuntimeBroker, 'client'>;
   readonly createBridge: (
     client: Parameters<typeof createDevServerBridge>[0]
   ) => Promise<DevServerBridge>;
@@ -35,12 +35,7 @@ export function createDevServerBridgeInstaller({
     const attemptScope = scope.child('installation');
     installing = (async () => {
       try {
-        // The bridge observes local terminal output for the app lifetime, so this lease
-        // intentionally pins the local broker session until the main scope is disposed.
-        const lease = runtimes.session(LOCAL_HOST_REF);
-        attemptScope.add(() => lease.release());
-
-        const runtime = await lease.ready();
+        const runtime = await runtimes.client(LOCAL_HOST_REF);
         if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
 
         const bridge = await createBridge(runtime.data.terminals);
@@ -63,7 +58,7 @@ export function createDevServerBridgeInstaller({
 const bridgeScope = appScope.child('dev-server-bridge');
 
 export function createDesktopDevServerBridgeInstaller(
-  runtimes: Pick<RuntimeBroker, 'session'>,
+  runtimes: Pick<RuntimeBroker, 'client'>,
   workspaceIdentity: Pick<WorkspaceIdentityService, 'findByPath'>
 ): () => Promise<void> {
   return createDevServerBridgeInstaller({

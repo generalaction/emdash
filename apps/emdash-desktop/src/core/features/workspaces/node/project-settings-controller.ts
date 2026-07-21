@@ -23,21 +23,17 @@ export function createProjectSettingsOperations(dependencies: {
       return err({ type: 'not_found', entity: 'workspace', workspaceId });
     }
 
-    try {
-      const project = dependencies.projects.getProject(workspace.identity.projectId);
-      if (!project) {
-        return err({ type: 'not_found', entity: 'workspace', workspaceId });
-      }
-      return ok(
-        await getEffectiveTaskSettings({
-          projectSettings: project.settings,
-          taskFiles: workspace.files,
-          taskConfigPath: project.configPathForDirectory(workspace.identity.path),
-        })
-      );
-    } finally {
-      await workspace.release();
+    const project = dependencies.projects.getProject(workspace.identity.projectId);
+    if (!project) {
+      return err({ type: 'not_found', entity: 'workspace', workspaceId });
     }
+    return ok(
+      await getEffectiveTaskSettings({
+        projectSettings: project.settings,
+        taskFiles: workspace.files,
+        taskConfigPath: project.configPathForDirectory(workspace.identity.path),
+      })
+    );
   }
 
   return { getSettings };

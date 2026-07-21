@@ -15,7 +15,7 @@ import {
 export { workspaceRuntimeContract };
 
 export type WorkspacesHostRuntimesClient = HostRuntimesClient;
-export type WorkspacesRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type WorkspacesRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type WorkspacesRuntimeError = WorkspaceError;
 export type WorkspacesRuntimeResolveError = RuntimeResolveError;
 export type WorkspacesRuntimeOperationResult = WorkspaceOperationResult;

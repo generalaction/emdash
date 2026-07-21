@@ -43,7 +43,10 @@ export class AutomationRunStore {
   private overviewPromise: Promise<void> | undefined;
   private overviewError: Error | null = null;
 
-  constructor(readonly automationId: string) {}
+  constructor(
+    readonly projectId: string,
+    readonly automationId: string
+  ) {}
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -131,7 +134,7 @@ export class AutomationRunStore {
     const reconnecting = this.hasConnected;
     const client = await getDesktopWireClient();
     const unsubscribe = await client.automations.runEvents.subscribe(
-      { automationId: this.automationId },
+      { projectId: this.projectId, automationId: this.automationId },
       {
         onEvent: ({ run }) => {
           const knownRun = this.runs.has(run.id);
@@ -178,6 +181,7 @@ export class AutomationRunStore {
     let sinceSeq = initialSeq;
     for (;;) {
       const result = await client.automations.listChangedRuns({
+        projectId: this.projectId,
         automationId: this.automationId,
         sinceSeq,
       });
@@ -199,7 +203,10 @@ export class AutomationRunStore {
       this.notify();
       try {
         const client = await getDesktopWireClient();
-        const result = await client.automations.getRunOverview({ automationId: this.automationId });
+        const result = await client.automations.getRunOverview({
+          projectId: this.projectId,
+          automationId: this.automationId,
+        });
         if (!result.success) throw new Error(result.error.message);
         this.overview = result.data;
         if (result.data.latestRun) this.merge(result.data.latestRun);
@@ -231,6 +238,7 @@ export class AutomationRunStore {
             .at(-1);
       const client = await getDesktopWireClient();
       const result = await client.automations.listRuns({
+        projectId: this.projectId,
         automationId: this.automationId,
         status: filter === 'all' ? undefined : filter,
         before,
@@ -302,11 +310,12 @@ export class AutomationRunStore {
 
 const stores = new Map<string, AutomationRunStore>();
 
-export function getAutomationRunStore(automationId: string): AutomationRunStore {
-  let store = stores.get(automationId);
+export function getAutomationRunStore(projectId: string, automationId: string): AutomationRunStore {
+  const key = `${projectId}:${automationId}`;
+  let store = stores.get(key);
   if (!store) {
-    store = new AutomationRunStore(automationId);
-    stores.set(automationId, store);
+    store = new AutomationRunStore(projectId, automationId);
+    stores.set(key, store);
   }
   return store;
 }

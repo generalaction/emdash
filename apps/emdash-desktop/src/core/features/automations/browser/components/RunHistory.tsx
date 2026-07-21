@@ -30,8 +30,18 @@ export function RunHistory({ automation }: RunHistoryProps) {
   const [filter, setFilter] = useState<RunHistoryFilter>('all');
   const availability = useAutomationTargetAvailability(automation.projectId);
   const runtimeAvailable = availability.data?.available === true;
-  const runs = useAutomationRunHistory(automation.id, filter, PAGE_SIZE, runtimeAvailable);
-  const counts = useAutomationRunCounts(automation.id, runtimeAvailable).data;
+  const runs = useAutomationRunHistory(
+    automation.projectId!,
+    automation.id,
+    filter,
+    PAGE_SIZE,
+    runtimeAvailable
+  );
+  const counts = useAutomationRunCounts(
+    automation.projectId!,
+    automation.id,
+    runtimeAvailable
+  ).data;
 
   return (
     <section className="flex h-full flex-col rounded-lg border">

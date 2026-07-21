@@ -80,7 +80,6 @@ import { createNotificationsWireController } from '@core/services/notifications/
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type {
-  AutomationsRuntimeClient,
   FilesRuntimeClient,
   GitRuntimeClient,
   MementosRuntimeClient,
@@ -120,7 +119,6 @@ export type DesktopControllerContext = {
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
   readonly runtimeClients: {
-    getAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient>;
     getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
     getGitRuntimeClient(): Promise<GitRuntimeClient>;
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
@@ -311,12 +309,12 @@ export const desktopNodeControllers = {
       ),
   },
   automations: {
-    create: ({ automations, db, projects, runtimeClients, taskService }) =>
+    create: ({ automations, db, projects, runtimes, taskService }) =>
       createAutomationsWireController({
         db,
         getProjectById: async (projectId) => projects.getProject(projectId)?.project,
         runtime: {
-          getAutomationsRuntimeClient: runtimeClients.getAutomationsRuntimeClient,
+          runtimes,
           getProjectById: async (projectId) => projects.getProject(projectId)?.project,
         },
         service: automations,

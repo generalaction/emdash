@@ -22,14 +22,10 @@ vi.mock('@core/services/app-db/node/schema', () => ({
 }));
 
 describe('createWorkspacesWireController', () => {
-  it('routes workspace ids through identity and holds the runtime lease', async () => {
+  it('routes workspace ids through identity to the runtime client', async () => {
     const source = liveSource();
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ workspace: { workspace: { state } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ workspace: { workspace: { state } } }));
     const resolve = vi.fn(async () => ({
       workspaceId: 'workspace-1',
       projectId: 'project-1',
@@ -43,7 +39,7 @@ describe('createWorkspacesWireController', () => {
       provisionTask: vi.fn(),
       onTaskProvisionProgress: () => () => {},
       onTaskWorkspaceReady: () => () => {},
-      runtimes: { session } as unknown as WorkspacesRuntimeBroker,
+      runtimes: { client } as unknown as WorkspacesRuntimeBroker,
       workspaceIdentity: {
         resolve,
         resolveProject: vi.fn(),
@@ -58,12 +54,10 @@ describe('createWorkspacesWireController', () => {
 
     await expect(lease.ready()).resolves.toBe(source);
     expect(resolve).toHaveBeenCalledWith('workspace-1');
-    expect(session).toHaveBeenCalledWith(LOCAL_HOST_REF);
+    expect(client).toHaveBeenCalledWith(LOCAL_HOST_REF);
     expect(state).toHaveBeenCalledOnce();
-    expect(release).not.toHaveBeenCalled();
 
     await lease.release();
-    expect(release).toHaveBeenCalledOnce();
     await controller.dispose();
   });
 
@@ -74,7 +68,6 @@ describe('createWorkspacesWireController', () => {
       host: remoteHost,
       message: 'Remote runtime sessions are not enabled',
     };
-    const release = vi.fn(async () => {});
     const controller = createWorkspacesWireController({
       db: {} as never,
       getWorkspaceRuntimeClient: vi.fn(),
@@ -83,10 +76,7 @@ describe('createWorkspacesWireController', () => {
       onTaskProvisionProgress: () => () => {},
       onTaskWorkspaceReady: () => () => {},
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as unknown as WorkspacesRuntimeBroker,
       workspaceIdentity: {
         resolve: vi.fn(async () => ({
@@ -103,7 +93,6 @@ describe('createWorkspacesWireController', () => {
     await expect(
       controller.impl.reconcile?.({ workspaceId: 'workspace-1' }, {} as never)
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledOnce();
     await controller.dispose();
   });
 });

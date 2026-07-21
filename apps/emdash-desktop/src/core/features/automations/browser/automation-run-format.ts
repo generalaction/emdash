@@ -2,6 +2,13 @@ import type {
   AutomationRunTriggerKind,
   RunError,
 } from '@core/features/automations/api/automation-run';
+import {
+  automationAdoptionErrorSchema,
+  automationDefinitionErrorSchema,
+  type AutomationAdoptionError,
+  type AutomationDefinitionError,
+  type InvalidAutomationDefinitionReason,
+} from '@core/primitives/automations/api';
 
 export function formatRunError(error: RunError | null): string {
   if (!error) return 'Unknown error';
@@ -27,24 +34,57 @@ export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): strin
   }
 }
 
-const FORM_ERROR_MESSAGES: Record<string, string> = {
+const INVALID_DEFINITION_MESSAGES: Record<InvalidAutomationDefinitionReason, string> = {
   name_required: 'Give the automation a name',
-  name_too_long: 'The name is too long',
-  actions_required: 'Add at least one action before saving',
   automation_not_configured: 'Finish configuring the automation before saving',
-  automation_deployment_stale: 'This automation changed on its runtime. Try saving again.',
-  automation_not_found: 'This automation no longer exists',
-  automation_run_not_found: 'This automation run no longer exists',
-  automation_run_workspace_not_ready: 'The automation workspace is not ready yet',
-  automation_workspace_not_found: 'The selected workspace no longer exists',
-  automation_workspace_not_supported: 'This workspace type cannot run an automation yet',
   conversation_config_prompt_required: 'Add a prompt before saving',
   cron_invalid: 'Enter a valid schedule',
-  project_not_found: 'The selected project no longer exists',
 };
 
 export function formatAutomationError(error: unknown): string {
+  const typedError = parseAutomationError(error);
+  if (typedError) return formatTypedAutomationError(typedError);
   const msg = error instanceof Error ? error.message : typeof error === 'string' ? error : null;
   if (!msg) return 'Something went wrong';
-  return FORM_ERROR_MESSAGES[msg] ?? msg;
+  return msg === 'cron_invalid' ? INVALID_DEFINITION_MESSAGES.cron_invalid : msg;
+}
+
+function parseAutomationError(
+  error: unknown
+): AutomationDefinitionError | AutomationAdoptionError | null {
+  const candidate = error instanceof Error && error.cause !== undefined ? error.cause : error;
+  const definition = automationDefinitionErrorSchema.safeParse(candidate);
+  if (definition.success) return definition.data;
+  const adoption = automationAdoptionErrorSchema.safeParse(candidate);
+  return adoption.success ? adoption.data : null;
+}
+
+function formatTypedAutomationError(
+  error: AutomationDefinitionError | AutomationAdoptionError
+): string {
+  switch (error.type) {
+    case 'invalid-definition':
+      return INVALID_DEFINITION_MESSAGES[error.reason];
+    case 'project-not-found':
+      return 'The selected project no longer exists';
+    case 'automation-not-found':
+      return 'This automation no longer exists';
+    case 'automation-conflict':
+      return 'This automation changed while it was being saved. Try again.';
+    case 'workspace-not-found':
+      return 'The selected workspace no longer exists';
+    case 'workspace-not-supported':
+      return 'This workspace type cannot run an automation yet';
+    case 'deployment-stale':
+      return 'This automation changed on its runtime. Try saving again.';
+    case 'no-project-attached':
+      return 'Attach this automation to a project before opening its runs';
+    case 'run-not-found':
+      return 'This automation run no longer exists';
+    case 'run-not-adoptable':
+      return 'The automation workspace is not ready yet';
+    case 'adoption-unavailable':
+    case 'runtime-unavailable':
+      return error.message;
+  }
 }

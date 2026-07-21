@@ -28,16 +28,12 @@ const controllerDeps = {
 };
 
 describe('createTerminalsWireController', () => {
-  it('translates terminal ids and releases procedure leases', async () => {
+  it('translates terminal ids through the resolved client', async () => {
     const sendInput = vi.fn(async () => ok(undefined));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ terminals: { sendInput } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ terminals: { sendInput } }));
     const controller = createTerminalsWireController({
       ...controllerDeps,
-      runtimes: { session } as unknown as TerminalsRuntimeBroker,
+      runtimes: { client } as unknown as TerminalsRuntimeBroker,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
 
@@ -59,8 +55,7 @@ describe('createTerminalsWireController', () => {
       },
       {}
     );
-    expect(session).toHaveBeenCalledOnce();
-    expect(release).toHaveBeenCalledOnce();
+    expect(client).toHaveBeenCalledOnce();
   });
 
   it('returns RuntimeResolveError from fallible terminal procedures', async () => {
@@ -70,14 +65,10 @@ describe('createTerminalsWireController', () => {
       host: remoteHost,
       message: 'Remote runtime sessions are not enabled',
     };
-    const release = vi.fn(async () => {});
     const controller = createTerminalsWireController({
       ...controllerDeps,
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as unknown as TerminalsRuntimeBroker,
       workspaceIdentity: {
         resolve: vi.fn(async () => ({ ...identity, host: remoteHost })),
@@ -91,20 +82,15 @@ describe('createTerminalsWireController', () => {
         data: 'echo ready\r',
       })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('holds one broker lease while output is attached', async () => {
+  it('resolves the output source for the workspace host', async () => {
     const source = liveSource();
     const handle = vi.fn(() => ({ asLiveSource: () => source }));
-    const release = vi.fn(async () => {});
     const controller = createTerminalsWireController({
       ...controllerDeps,
       runtimes: {
-        session: () => ({
-          ready: async () => ok({ terminals: { output: { handle } } }),
-          release,
-        }),
+        client: async () => ok({ terminals: { output: { handle } } }),
       } as unknown as TerminalsRuntimeBroker,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
@@ -120,10 +106,8 @@ describe('createTerminalsWireController', () => {
       workspace: hostFileRefFromNativePath(identity.path),
       id: key.terminalId,
     });
-    expect(release).not.toHaveBeenCalled();
 
     unsubscribe?.();
-    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     await lease?.release();
   });
 });

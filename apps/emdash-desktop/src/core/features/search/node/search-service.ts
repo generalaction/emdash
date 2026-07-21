@@ -102,16 +102,12 @@ export class SearchService {
   ): Promise<WorkspaceFileHit[]> {
     const workspace = await this.deps.acquireWorkspaceRuntime(workspaceId);
     if (!workspace) return [];
-    try {
-      return await this.deps.searchFileSearchRoot(
-        workspace.client.fileSearch,
-        workspace.files.root,
-        query,
-        limit
-      );
-    } finally {
-      await workspace.release();
-    }
+    return await this.deps.searchFileSearchRoot(
+      workspace.client.fileSearch,
+      workspace.files.root,
+      query,
+      limit
+    );
   }
 
   async searchContent(
@@ -165,7 +161,6 @@ export class SearchService {
       }
     } finally {
       await jobs.dispose();
-      await workspace.release();
     }
   }
 

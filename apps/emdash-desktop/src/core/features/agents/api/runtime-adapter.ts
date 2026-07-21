@@ -10,7 +10,7 @@ import {
 export { agentConfigContract as agentsConfigRuntimeContract };
 export type AgentsDependencyId = DependencyId;
 export type AgentsHostRuntimesClient = HostRuntimesClient;
-export type AgentsRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type AgentsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type AgentsRuntimeResolveError = RuntimeResolveError;
 
 export function throwAgentsRuntimeResolveError(error: RuntimeResolveError): never {

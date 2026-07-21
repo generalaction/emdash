@@ -10,7 +10,7 @@ import {
 export const editorFilesRuntimeContract = filesContract;
 
 export type EditorHostRuntimesClient = HostRuntimesClient;
-export type EditorRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type EditorRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type EditorRuntimeResolveError = RuntimeResolveError;
 
 export function throwEditorRuntimeResolveError(error: RuntimeResolveError): never {

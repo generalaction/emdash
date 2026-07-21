@@ -15,7 +15,7 @@ import { log } from '@main/lib/logger';
 
 type FileSearchRuntimeClient = HostRuntimesClient['fileSearch'];
 
-export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'session'>) {
+export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'client'>) {
   return {
     registerRoot: (root: HostAbsolutePath, host: HostRef = LOCAL_HOST_REF) =>
       registerFileSearchRoot(runtimes, root, host),
@@ -25,13 +25,12 @@ export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'session'>
 }
 
 async function registerFileSearchRoot(
-  runtimes: Pick<RuntimeBroker, 'session'>,
+  runtimes: Pick<RuntimeBroker, 'client'>,
   root: HostAbsolutePath,
   host: HostRef = LOCAL_HOST_REF
 ): Promise<void> {
-  const lease = runtimes.session(host);
   try {
-    const runtime = await lease.ready();
+    const runtime = await runtimes.client(host);
     if (!runtime.success) {
       log.warn('Failed to resolve file-search runtime', { host, root, error: runtime.error });
       return;
@@ -50,19 +49,16 @@ async function registerFileSearchRoot(
       root: nativePathFromHost(root),
       error: String(error),
     });
-  } finally {
-    await lease.release();
   }
 }
 
 async function unregisterFileSearchRoot(
-  runtimes: Pick<RuntimeBroker, 'session'>,
+  runtimes: Pick<RuntimeBroker, 'client'>,
   root: HostAbsolutePath,
   host: HostRef = LOCAL_HOST_REF
 ): Promise<void> {
-  const lease = runtimes.session(host);
   try {
-    const runtime = await lease.ready();
+    const runtime = await runtimes.client(host);
     if (!runtime.success) {
       log.warn('Failed to resolve file-search runtime', { host, root, error: runtime.error });
       return;
@@ -81,8 +77,6 @@ async function unregisterFileSearchRoot(
       root: nativePathFromHost(root),
       error: String(error),
     });
-  } finally {
-    await lease.release();
   }
 }
 

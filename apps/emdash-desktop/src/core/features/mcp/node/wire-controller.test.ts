@@ -9,14 +9,10 @@ import { createMcpWireController } from './wire-controller';
 const remoteHost = hostRef('remote', 'ssh-2');
 
 describe('createMcpWireController', () => {
-  it('forwards MCP procedures to the selected host and releases the lease', async () => {
+  it('forwards MCP procedures to the selected host', async () => {
     const saveMcpServer = vi.fn(async () => ok(undefined));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ agentConfig: { saveMcpServer } }),
-      release,
-    }));
-    const controller = createMcpWireController({ runtimes: { session } as never });
+    const client = vi.fn(async () => ok({ agentConfig: { saveMcpServer } }));
+    const controller = createMcpWireController({ runtimes: { client } as never });
     const server = {
       name: 'context7',
       transport: 'stdio' as const,
@@ -30,21 +26,16 @@ describe('createMcpWireController', () => {
       ok(undefined)
     );
 
-    expect(session).toHaveBeenCalledWith(remoteHost);
+    expect(client).toHaveBeenCalledWith(remoteHost);
     expect(saveMcpServer).toHaveBeenCalledWith({ server }, {});
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('holds the host lease while the MCP live model is attached', async () => {
+  it('resolves the host for the MCP live model', async () => {
     const source = liveSource([]);
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const release = vi.fn(async () => {});
     const controller = createMcpWireController({
       runtimes: {
-        session: () => ({
-          ready: async () => ok({ agentConfig: { mcpServers: { state } } }),
-          release,
-        }),
+        client: async () => ok({ agentConfig: { mcpServers: { state } } }),
       } as never,
     });
     const topic = encodeTopic(mcpContract.servers.states.list.id, { host: remoteHost });
@@ -52,10 +43,8 @@ describe('createMcpWireController', () => {
     const lease = controller.acquireLive(topic);
     await expect(lease?.ready()).resolves.toBe(source);
     expect(state).toHaveBeenCalledWith(undefined, 'list');
-    expect(release).not.toHaveBeenCalled();
 
     await lease?.release();
-    expect(release).toHaveBeenCalledOnce();
   });
 });
 

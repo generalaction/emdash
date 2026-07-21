@@ -5,12 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adoptRun } from './run-adoption';
 
 const mocks = vi.hoisted(() => ({
+  client: vi.fn(),
   dbSelect: vi.fn(),
   getAutomation: vi.fn(),
   getProjectById: vi.fn(),
+  getRuntimeProjectById: vi.fn(),
   getRun: vi.fn(),
   isAutomationRunAdoptable: vi.fn(),
-  resolveAutomationRuntime: vi.fn(),
   upsertRunProjection: vi.fn(),
 }));
 
@@ -27,10 +28,6 @@ vi.mock('./repo', () => ({
   getAutomation: mocks.getAutomation,
 }));
 
-vi.mock('./runtime-client-resolver', () => ({
-  resolveAutomationRuntime: mocks.resolveAutomationRuntime,
-}));
-
 vi.mock('@core/features/automations/api/node/run-projection', () => ({
   upsertRunProjection: mocks.upsertRunProjection,
 }));
@@ -39,8 +36,8 @@ const dependencies = {
   db: { select: mocks.dbSelect } as never,
   getProjectById: mocks.getProjectById,
   runtime: {
-    getAutomationsRuntimeClient: vi.fn(),
-    getProjectById: mocks.getProjectById,
+    runtimes: { client: mocks.client },
+    getProjectById: mocks.getRuntimeProjectById,
   },
   taskService: { notifyTaskCreated: vi.fn() },
 };
@@ -99,11 +96,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getAutomation.mockResolvedValue({ id: 'automation-1', projectId: 'project-1' });
   mocks.getProjectById.mockResolvedValue(null);
+  mocks.getRuntimeProjectById.mockResolvedValue({ id: 'project-1', type: 'local' });
   mocks.isAutomationRunAdoptable.mockReturnValue(false);
-  mocks.resolveAutomationRuntime.mockResolvedValue({
-    key: 'local',
-    client: { getRun: mocks.getRun },
-  });
+  mocks.client.mockResolvedValue(ok({ automations: { getRun: mocks.getRun } }));
   mocks.upsertRunProjection.mockResolvedValue(undefined);
   mocks.dbSelect.mockReturnValue({
     from: () => ({
@@ -118,9 +113,14 @@ describe('automation run adoption lookup', () => {
   it('uses the scoped point lookup', async () => {
     mocks.getRun.mockResolvedValue(ok({ run: runFixture() }));
 
-    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).rejects.toThrow(
-      'automation_run_workspace_not_ready'
-    );
+    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'run-not-adoptable',
+        runId: 'run-1',
+        message: 'The automation workspace is not ready yet.',
+      },
+    });
     expect(mocks.getRun).toHaveBeenCalledOnce();
     expect(mocks.getRun).toHaveBeenCalledWith({
       automationId: 'automation-1',
@@ -131,9 +131,14 @@ describe('automation run adoption lookup', () => {
   it('reports a missing runtime run', async () => {
     mocks.getRun.mockResolvedValue(ok({ run: null }));
 
-    await expect(adoptRun(dependencies, 'automation-1', 'missing-run')).rejects.toThrow(
-      'automation_run_not_found'
-    );
+    await expect(adoptRun(dependencies, 'automation-1', 'missing-run')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'run-not-found',
+        runId: 'missing-run',
+        message: 'This automation run no longer exists.',
+      },
+    });
     expect(mocks.dbSelect).not.toHaveBeenCalled();
   });
 
@@ -142,9 +147,13 @@ describe('automation run adoption lookup', () => {
       err({ type: 'runtime-unavailable', message: 'Automation runtime is unavailable' })
     );
 
-    await expect(adoptRun(dependencies, 'automation-1', 'unavailable-run')).rejects.toThrow(
-      'Automation runtime is unavailable'
-    );
+    await expect(adoptRun(dependencies, 'automation-1', 'unavailable-run')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'runtime-unavailable',
+        message: 'Automation runtime is unavailable',
+      },
+    });
     expect(mocks.dbSelect).not.toHaveBeenCalled();
   });
 
@@ -153,9 +162,14 @@ describe('automation run adoption lookup', () => {
     mocks.getRun.mockResolvedValue(ok({ run }));
     mocks.isAutomationRunAdoptable.mockReturnValue(true);
 
-    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).rejects.toThrow(
-      'project_not_found'
-    );
+    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'project-not-found',
+        projectId: 'project-1',
+        message: 'The selected project no longer exists.',
+      },
+    });
 
     expect(mocks.upsertRunProjection).toHaveBeenCalledOnce();
     expect(mocks.upsertRunProjection).toHaveBeenCalledWith(dependencies.db, run);
@@ -169,9 +183,10 @@ describe('automation run adoption lookup', () => {
     mocks.isAutomationRunAdoptable.mockReturnValue(true);
     mocks.upsertRunProjection.mockRejectedValue(new Error('projection_write_failed'));
 
-    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).rejects.toThrow(
-      'projection_write_failed'
-    );
+    await expect(adoptRun(dependencies, 'automation-1', 'run-1')).resolves.toEqual({
+      success: false,
+      error: { type: 'runtime-unavailable', message: 'projection_write_failed' },
+    });
 
     expect(mocks.getProjectById).not.toHaveBeenCalled();
   });

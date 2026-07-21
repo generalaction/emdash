@@ -20,7 +20,7 @@ import type {
 export { terminalsRuntimeContract };
 
 export type TerminalsHostRuntimesClient = HostRuntimesClient;
-export type TerminalsRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type TerminalsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type TerminalsRuntimeKey = TerminalKey;
 export type TerminalsRunScriptWorkflowInput = RunScriptWorkflowInput;
 export type TerminalsScriptWorkflowProgress = ScriptWorkflowProgress;

@@ -31,12 +31,8 @@ function makeResolver(options: {
     expect(relative).toBe(ROOT_RELATIVE_PATH);
     return ok(existingPaths.has(nativePathFromHost(root)));
   });
-  const release = vi.fn();
   const broker = {
-    session: vi.fn(() => ({
-      ready: async () => ok({ files: { getHomeDir, fs: { exists } } }),
-      release,
-    })),
+    client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } } })),
   };
   const resolver = new WorkspacePlacementResolver({
     broker: broker as never,
@@ -52,7 +48,7 @@ function makeResolver(options: {
     ),
     loadProjectWorktreeDirectory: vi.fn(async () => options.projectOverride),
   });
-  return { resolver, broker, exists, getHomeDir, release };
+  return { resolver, broker, exists, getHomeDir };
 }
 
 describe('WorkspacePlacementResolver', () => {
@@ -117,7 +113,7 @@ describe('WorkspacePlacementResolver', () => {
     };
     const resolver = new WorkspacePlacementResolver({
       broker: {
-        session: () => ({ ready: async () => err(runtimeFailure), release: vi.fn() }),
+        client: async () => err(runtimeFailure),
       } as never,
       getSettings: () => ({ getWithMeta: vi.fn() }) as never,
       findProjectByPath: vi.fn(),

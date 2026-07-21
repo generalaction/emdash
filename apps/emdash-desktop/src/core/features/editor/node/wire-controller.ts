@@ -1,4 +1,4 @@
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import type { GroupMutationEnvelope, LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
@@ -40,23 +40,12 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
         if (!acquiredResult.success) return acquiredResult;
         const acquired = acquiredResult.data;
         const { workspaceId: _, ...rest } = input;
-        try {
-          const result = await acquired.files.fs.readBytes(
-            { ...rest, root: hostPathFromNative(acquired.identity.path) },
-            callOptions(meta)
-          );
-          if (!result.success) {
-            await acquired.release();
-            return result;
-          }
-          return ok({
-            meta: result.data.meta,
-            source: releaseAfter(result.data.chunks(), acquired.release),
-          });
-        } catch (error) {
-          await acquired.release();
-          throw error;
-        }
+        const result = await acquired.files.fs.readBytes(
+          { ...rest, root: hostPathFromNative(acquired.identity.path) },
+          callOptions(meta)
+        );
+        if (!result.success) return result;
+        return ok({ meta: result.data.meta, source: result.data.chunks() });
       },
       upload: (input, file, meta) =>
         withFilesRuntime(options, input, (files, mapped) =>
@@ -105,18 +94,21 @@ function createTreeModelProvider(
   return {
     kind: 'leasedLiveModelProvider' as const,
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.files.tree.model
-          .state(
-            {
-              root: hostPathFromNative(identity.path),
-              sessionId: key.sessionId,
-            },
-            name
-          )
-          .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+          client.files.tree.model
+            .state(
+              {
+                root: hostPathFromNative(identity.path),
+                sessionId: key.sessionId,
+              },
+              name
+            )
+            .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation(name, envelope) {
       return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
         // The facade changes only the error schema; mutation inputs remain identical.
@@ -146,18 +138,21 @@ function createContentModelProvider(
   return {
     kind: 'leasedLiveModelProvider' as const,
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.files.content
-          .state(
-            {
-              root: hostPathFromNative(identity.path),
-              relative: key.relative,
-            },
-            name
-          )
-          .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+          client.files.content
+            .state(
+              {
+                root: hostPathFromNative(identity.path),
+                relative: key.relative,
+              },
+              name
+            )
+            .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation(name, envelope) {
       return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
         // The facade changes only the error schema; mutation inputs remain identical.
@@ -205,11 +200,7 @@ async function withWorkspaceRuntime<T, E>(
   const acquiredResult = await acquireRuntimeResult(options, workspaceId);
   if (!acquiredResult.success) return acquiredResult;
   const acquired = acquiredResult.data;
-  try {
-    return await work(acquired.client, acquired.identity);
-  } finally {
-    await acquired.release();
-  }
+  return await work(acquired.client, acquired.identity);
 }
 
 async function acquireFilesRuntime(
@@ -221,7 +212,6 @@ async function acquireFilesRuntime(
   return ok({
     identity: acquired.data.identity,
     files: acquired.data.client.files,
-    release: acquired.data.release,
   });
 }
 
@@ -230,19 +220,11 @@ async function acquireRuntimeResult(
   workspaceId: string
 ) {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const lease = options.runtimes.session(identity.host);
-  const runtime = await lease.ready().catch(async (error: unknown) => {
-    await lease.release();
-    throw error;
-  });
-  if (!runtime.success) {
-    await lease.release();
-    return err(runtime.error);
-  }
+  const runtime = await options.runtimes.client(identity.host);
+  if (!runtime.success) return err(runtime.error);
   return ok({
     identity,
     client: runtime.data,
-    release: () => lease.release(),
   });
 }
 
@@ -252,25 +234,13 @@ async function acquireRuntime(options: CreateEditorWireControllerOptions, worksp
   return result.data;
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   options: CreateEditorWireControllerOptions,
   workspaceId: string,
   source: (client: HostRuntimesClient, identity: WorkspaceIdentity) => LiveSource
-): PendingLease<LiveSource> {
-  const acquired = acquireRuntime(options, workspaceId);
-  return {
-    async ready() {
-      const runtime = await acquired;
-      return source(runtime.client, runtime.identity);
-    },
-    async release() {
-      // If acquisition failed there is nothing to release; the failure already
-      // surfaced through ready() and must not reject again here (an unhandled
-      // rejection in the main process is fatal).
-      const runtime = await acquired.catch(() => null);
-      if (runtime) await runtime.release();
-    },
-  };
+): Promise<LiveSource> {
+  const runtime = await acquireRuntime(options, workspaceId);
+  return source(runtime.client, runtime.identity);
 }
 
 async function requireIdentity(
@@ -279,17 +249,6 @@ async function requireIdentity(
   const identity = await identityPromise;
   if (!identity) throw new Error('Editor workspace identity was not found');
   return identity;
-}
-
-async function* releaseAfter(
-  source: AsyncIterable<Uint8Array>,
-  release: () => Promise<void>
-): AsyncIterable<Uint8Array> {
-  try {
-    yield* source;
-  } finally {
-    await release();
-  }
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {

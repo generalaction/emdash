@@ -1,4 +1,5 @@
 export { hostRuntimesContract, hostRuntimesDefinitions } from './contract';
+export { deferredLiveSource } from './deferred-live-source';
 export {
   isRuntimeResolveError,
   runtimeHostNotConfigured,

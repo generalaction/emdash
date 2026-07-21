@@ -48,7 +48,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         remoteDirectory: '/opt/emdash-artifacts',
       }),
     });
-    const broker = createDesktopRuntimeBroker(scope, {} as never, workspaceServer);
+    const broker = createDesktopRuntimeBroker({} as never, workspaceServer);
     const layout = workspaceServerLayout('/home/devuser');
     const invalidations: unknown[] = [];
     workspaceServer.onInvalidate((event) => invalidations.push(event));
@@ -59,18 +59,15 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
     await resetManagedRoot(bootstrapProxy, layout);
 
     const host = hostRef('remote', connectionId);
-    const lease = broker.session(host);
-    let directLease: Awaited<ReturnType<typeof workspaceServer.acquireConnection>> | undefined;
     try {
-      const resolved = await lease.ready();
+      const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
       await expect(resolved.data.files.getHomeDir(undefined)).resolves.toMatchObject({
         root: { kind: 'posix' },
         segments: ['home', 'devuser'],
       });
 
-      directLease = await workspaceServer.acquireConnection(connectionId);
-      const connection = await directLease.ready();
+      const connection = await workspaceServer.client(connectionId);
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });
       expect(connection.currentHandshake()?.server.appVersion).toBe(
         DESIRED_WORKSPACE_SERVER_VERSION
@@ -91,8 +88,6 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       });
       expect(invalidations).toEqual([]);
     } finally {
-      await directLease?.release();
-      await lease.release();
       const proxy = await manager
         .createConnection(connectionId, async () => ({
           config: connectConfig,
@@ -101,7 +96,6 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         }))
         .catch(() => undefined);
       if (proxy) await stopDaemon(proxy, layout).catch(() => {});
-      await broker.dispose();
       await workspaceServer.dispose();
       await manager.disconnectAll();
       await scope.dispose();

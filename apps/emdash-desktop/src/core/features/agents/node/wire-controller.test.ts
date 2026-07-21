@@ -15,34 +15,25 @@ const remoteHost = hostRef('remote', 'ssh-1');
 describe('createAgentsWireController', () => {
   it('maps a remote HostRef to the existing SSH connection identity', async () => {
     const hostDependencies = {};
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ hostDependencies }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ hostDependencies }));
     const controller = createAgentsWireController({
       operations: legacyOperations as never,
-      runtimes: { session } as never,
+      runtimes: { client } as never,
     });
 
     await expect(controller.call('list', { host: remoteHost })).resolves.toEqual(ok([]));
 
-    expect(session).toHaveBeenCalledWith(remoteHost);
+    expect(client).toHaveBeenCalledWith(remoteHost);
     expect(legacyOperations.list).toHaveBeenCalledWith('ssh-1', hostDependencies);
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('routes login procedures by HostRef and releases each call lease', async () => {
+  it('routes login procedures by HostRef', async () => {
     const refreshAuthStatus = vi.fn(async () => ok({ kind: 'unknown' as const }));
     const startLogin = vi.fn(async () => ok(undefined));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ agentConfig: { refreshAuthStatus, startLogin } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ agentConfig: { refreshAuthStatus, startLogin } }));
     const controller = createAgentsWireController({
       operations: legacyOperations as never,
-      runtimes: { session } as never,
+      runtimes: { client } as never,
     });
 
     await expect(
@@ -56,11 +47,10 @@ describe('createAgentsWireController', () => {
       })
     ).resolves.toEqual(ok(undefined));
 
-    expect(session).toHaveBeenNthCalledWith(1, remoteHost);
-    expect(session).toHaveBeenNthCalledWith(2, remoteHost);
+    expect(client).toHaveBeenNthCalledWith(1, remoteHost);
+    expect(client).toHaveBeenNthCalledWith(2, remoteHost);
     expect(refreshAuthStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
     expect(startLogin).toHaveBeenCalledWith({ providerId: 'claude', methodId: 'browser' }, {});
-    expect(release).toHaveBeenCalledTimes(2);
   });
 
   it('returns RuntimeResolveError from fallible login procedures', async () => {
@@ -69,14 +59,10 @@ describe('createAgentsWireController', () => {
       host: remoteHost,
       message: 'Remote runtime sessions are not enabled',
     };
-    const release = vi.fn(async () => {});
     const controller = createAgentsWireController({
       operations: legacyOperations as never,
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as never,
     });
 
@@ -87,7 +73,6 @@ describe('createAgentsWireController', () => {
         methodId: 'browser',
       })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledOnce();
   });
 
   it('returns RuntimeResolveError from installation status procedures', async () => {
@@ -96,24 +81,19 @@ describe('createAgentsWireController', () => {
       host: remoteHost,
       message: 'Remote runtime sessions are not enabled',
     };
-    const release = vi.fn(async () => {});
     const controller = createAgentsWireController({
       operations: legacyOperations as never,
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as never,
     });
 
     await expect(
       controller.call('listAgentInstallationStatus', { host: remoteHost })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('forwards login output without copying and holds its lease through attachment', async () => {
+  it('forwards login output without copying', async () => {
     const update = {
       generation: 1,
       sequence: 1,
@@ -123,14 +103,10 @@ describe('createAgentsWireController', () => {
     const source = loginSource(update);
     const asLiveSource = vi.fn(() => source);
     const handle = vi.fn(() => ({ asLiveSource }));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ agentConfig: { loginOutput: { handle } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ agentConfig: { loginOutput: { handle } } }));
     const controller = createAgentsWireController({
       operations: legacyOperations as never,
-      runtimes: { session } as never,
+      runtimes: { client } as never,
     });
     const key = { host: remoteHost, providerId: 'claude' };
     const lease = controller.acquireLive(encodeTopic(agentsContract.loginOutput.id, key));
@@ -139,14 +115,12 @@ describe('createAgentsWireController', () => {
     const received: unknown[] = [];
     const unsubscribe = await output?.subscribe((next) => received.push(next));
 
-    expect(session).toHaveBeenCalledWith(remoteHost);
+    expect(client).toHaveBeenCalledWith(remoteHost);
     expect(handle).toHaveBeenCalledWith({ providerId: 'claude' });
     expect(asLiveSource).toHaveBeenCalledOnce();
     expect(received[0]).toBe(update);
-    expect(release).not.toHaveBeenCalled();
 
     unsubscribe?.();
-    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     await lease?.release();
   });
 });

@@ -41,11 +41,8 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
-  it('awaits ACP session persistence before releasing the broker lease', async () => {
+  it('awaits ACP session persistence after the runtime call', async () => {
     const order: string[] = [];
-    const release = vi.fn(async () => {
-      order.push('release');
-    });
     const startSession = vi.fn(async () => {
       order.push('runtime');
       return ok({ sessionId: 'session-1' });
@@ -55,7 +52,6 @@ describe('createConversationsWireController', () => {
     });
     const controller = setupController({
       client: { acp: { startSession } },
-      release,
       hooks: { persistAcpSessionId },
     });
 
@@ -65,7 +61,7 @@ describe('createConversationsWireController', () => {
 
     expect(startSession).toHaveBeenCalledWith({ input: target.acpInput }, {});
     expect(persistAcpSessionId).toHaveBeenCalledWith(target, 'session-1');
-    expect(order).toEqual(['runtime', 'persist', 'release']);
+    expect(order).toEqual(['runtime', 'persist']);
   });
 
   it('records submitted TUI input only after a successful carriage return', async () => {
@@ -90,8 +86,7 @@ describe('createConversationsWireController', () => {
     expect(recordTuiInput).toHaveBeenCalledWith(target);
   });
 
-  it('passes uploads through and retains download leases until streaming ends', async () => {
-    const release = vi.fn(async () => {});
+  it('passes uploads and downloads through the resolved client', async () => {
     const uploadAttachment = vi.fn(async () =>
       ok({ id: 'attachment-1', name: 'image.png', mimeType: 'image/png' as const })
     );
@@ -105,7 +100,6 @@ describe('createConversationsWireController', () => {
     );
     const controller = setupController({
       client: { acp: { uploadAttachment, downloadAttachment } },
-      release,
     });
     const file = fakeWireFile();
 
@@ -116,23 +110,18 @@ describe('createConversationsWireController', () => {
     );
     expect(uploadAttachment).toHaveBeenCalledWith({ originalPath: '/tmp/image.png' }, file, {});
 
-    release.mockClear();
     const result = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
       id: 'attachment-1',
     });
     expect(isDownloadFileOpenResult(result)).toBe(true);
     if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download result');
-    expect(release).not.toHaveBeenCalled();
-
     const chunks: Uint8Array[] = [];
     for await (const chunk of result.data.source as AsyncIterable<Uint8Array>) {
       chunks.push(chunk);
     }
     expect(chunks).toEqual([new Uint8Array([1, 2, 3])]);
-    expect(release).toHaveBeenCalledOnce();
 
-    release.mockClear();
     const cancelled = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
       id: 'attachment-1',
@@ -140,11 +129,9 @@ describe('createConversationsWireController', () => {
     if (!isDownloadFileOpenResult(cancelled)) throw new Error('Expected a download result');
     const iterator = (cancelled.data.source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
     await iterator.return?.();
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('holds a broker lease for each attached ACP session state', async () => {
-    const release = vi.fn(async () => {});
+  it('resolves the client for each attached ACP session state', async () => {
     const source: LiveSource = {
       snapshot: async () => ({
         generation: 1,
@@ -157,7 +144,6 @@ describe('createConversationsWireController', () => {
     const state = vi.fn(() => ({ asLiveSource: () => source }));
     const controller = setupController({
       client: { acp: { session: { state } } },
-      release,
     });
     const topic = encodeTopic(conversationsContract.acp.session.states.state.id, {
       conversationId: target.conversationId,
@@ -166,10 +152,8 @@ describe('createConversationsWireController', () => {
     const lease = controller.acquireLive(topic);
     expect(lease).not.toBeNull();
     await expect(lease?.ready()).resolves.toBe(source);
-    expect(release).not.toHaveBeenCalled();
 
     await lease?.release();
-    expect(release).toHaveBeenCalledOnce();
   });
 
   it('returns RuntimeResolveError from fallible conversation procedures and downloads', async () => {
@@ -178,10 +162,8 @@ describe('createConversationsWireController', () => {
       host: LOCAL_HOST_REF,
       message: 'Runtime unavailable',
     };
-    const release = vi.fn(async () => {});
     const controller = setupController({
       client: {},
-      release,
       runtimeError: resolveError,
     });
 
@@ -194,13 +176,11 @@ describe('createConversationsWireController', () => {
         id: 'attachment-1',
       })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledTimes(2);
   });
 });
 
 function setupController(options: {
   client: object;
-  release?: () => Promise<void>;
   runtimeError?: RuntimeResolveError;
   hooks?: Partial<{
     persistAcpSessionId: (target: TestRuntimeTarget, sessionId: string) => Promise<void>;
@@ -218,10 +198,7 @@ function setupController(options: {
     db: {} as never,
     logger: { warn: vi.fn() } as never,
     runtimes: {
-      session: () => ({
-        ready: async () => (options.runtimeError ? err(options.runtimeError) : ok(options.client)),
-        release: options.release ?? (async () => {}),
-      }),
+      client: async () => (options.runtimeError ? err(options.runtimeError) : ok(options.client)),
     } as never,
     workspaceIdentity: {} as never,
     telemetry: { capture: vi.fn() } as never,

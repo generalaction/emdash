@@ -1,7 +1,11 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
+
+export function projectHostRef(project: Project): HostRef {
+  return project.type === 'ssh' ? hostRef('remote', project.connectionId) : LOCAL_HOST_REF;
+}
 
 export type ProjectPathStatus = {
   isDirectory: boolean;

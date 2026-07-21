@@ -12,6 +12,7 @@ import {
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { formatAutomationError } from '../automation-run-format';
 import { useAutomationRun } from '../use-automations';
 import { RunMetaLine } from './RunMetaLine';
 import { TaskDataLine } from './TaskDataLine';
@@ -31,7 +32,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   run: runProp,
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
-  const fetchedRun = useAutomationRun(automationId, runId);
+  const fetchedRun = useAutomationRun(projectId!, automationId, runId);
   const run = runProp ?? fetchedRun;
   const { adoptRun, isAdopting, runtimeAvailable } = useAutomationRunActions(
     automationId,
@@ -58,7 +59,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       navigate(taskViewDef(adopted));
     } catch (error) {
       toast.error('Could not open automation run', {
-        description: error instanceof Error ? error.message : String(error),
+        description: formatAutomationError(error),
       });
     }
   }

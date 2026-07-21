@@ -1,6 +1,7 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { deferredLiveSource } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import {
   createLiveJobReplica,
@@ -110,8 +111,8 @@ export function createTerminalsWireController(
     },
     workflows: createWorkflowsProvider(options),
     output: (key) =>
-      leasedLiveSource(() =>
-        acquireRuntimeSource(options, key.workspaceId, (client, identity) =>
+      deferredLiveSource(() =>
+        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
           client.terminals.output.handle(toTerminalKey(identity, key.terminalId)).asLiveSource()
         )
       ),
@@ -458,10 +459,15 @@ function createWorkflowsProvider(
   return {
     kind: 'leasedLiveModelProvider',
     contract: terminalsContract.workflows,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.terminals.workflows.state({ workspace: workspaceRef(identity) }, name).asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+          client.terminals.workflows
+            .state({ workspace: workspaceRef(identity) }, name)
+            .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error('Terminal workflows model has no mutations');
     },
@@ -516,72 +522,20 @@ async function withWorkspaceRuntime<T, E>(
   work: (client: HostRuntimesClient, identity: WorkspaceIdentity) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const lease = options.runtimes.session(identity.host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return await work(runtime.data, identity);
-  } finally {
-    await lease.release();
-  }
+  const runtime = await options.runtimes.client(identity.host);
+  if (!runtime.success) return err(runtime.error);
+  return await work(runtime.data, identity);
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   options: CreateTerminalsWireControllerOptions,
   workspaceId: string,
   source: (client: HostRuntimesClient, identity: WorkspaceIdentity) => LiveSource
-): PendingLease<LiveSource> {
-  const acquired = (async () => {
-    const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
-    const lease = options.runtimes.session(identity.host);
-    return { identity, lease, ready: lease.ready() };
-  })();
-  return {
-    async ready() {
-      const { identity, ready } = await acquired;
-      const runtime = await ready;
-      if (!runtime.success) throwTerminalsRuntimeResolveError(runtime.error);
-      return source(runtime.data, identity);
-    },
-    async release() {
-      // If acquisition failed there is no lease to release; the failure already
-      // surfaced through ready() and must not reject again here.
-      const runtime = await acquired.catch(() => null);
-      if (runtime) await runtime.lease.release();
-    },
-  };
-}
-
-function leasedLiveSource(acquire: () => PendingLease<LiveSource>): LiveSource {
-  return {
-    async snapshot() {
-      const lease = acquire();
-      try {
-        return await (await lease.ready()).snapshot();
-      } finally {
-        await lease.release();
-      }
-    },
-    async subscribe(callback, options) {
-      const lease = acquire();
-      try {
-        const unsubscribe = await (await lease.ready()).subscribe(callback, options);
-        let released = false;
-        return () => {
-          if (released) return;
-          released = true;
-          try {
-            unsubscribe();
-          } finally {
-            void lease.release();
-          }
-        };
-      } catch (error) {
-        await lease.release();
-        throw error;
-      }
-    },
-  };
+): Promise<LiveSource> {
+  const identity = await requireIdentity(options.workspaceIdentity.resolve(workspaceId));
+  const runtime = await options.runtimes.client(identity.host);
+  if (!runtime.success) throwTerminalsRuntimeResolveError(runtime.error);
+  return source(runtime.data, identity);
 }
 
 async function resolveWorkspaceIdForTask(

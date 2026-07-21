@@ -22,17 +22,13 @@ const identity = {
 } as const;
 
 describe('createEditorWireController', () => {
-  it('acquires and releases a broker lease for each file procedure call', async () => {
+  it('resolves a client for each file procedure call', async () => {
     const exists = vi.fn(async () => ok(true));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ files: { fs: { exists } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ files: { fs: { exists } } }));
     const resolve = vi.fn(async () => identity);
     const controller = createEditorWireController({
       editorBuffer,
-      runtimes: { session } as never,
+      runtimes: { client } as never,
       workspaceIdentity: { resolve },
     });
     const input = {
@@ -44,8 +40,7 @@ describe('createEditorWireController', () => {
     await expect(controller.call('fs.exists', input)).resolves.toEqual(ok(true));
 
     expect(resolve).toHaveBeenCalledTimes(2);
-    expect(session).toHaveBeenCalledTimes(2);
-    expect(release).toHaveBeenCalledTimes(2);
+    expect(client).toHaveBeenCalledTimes(2);
     expect(exists).toHaveBeenCalledWith(
       {
         root: hostPathFromNative(identity.path),
@@ -55,7 +50,7 @@ describe('createEditorWireController', () => {
     );
   });
 
-  it('holds a broker lease for each attached content state', async () => {
+  it('resolves a client for each attached content state', async () => {
     const source = liveSource({
       kind: 'text',
       path: portablePath('README.md'),
@@ -67,14 +62,10 @@ describe('createEditorWireController', () => {
       truncated: false,
     });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ files: { content: { state } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ files: { content: { state } } }));
     const controller = createEditorWireController({
       editorBuffer,
-      runtimes: { session } as never,
+      runtimes: { client } as never,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
     const key = {
@@ -92,13 +83,11 @@ describe('createEditorWireController', () => {
       },
       'content'
     );
-    expect(release).not.toHaveBeenCalled();
 
     await lease?.release();
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('holds the read lease until the downloaded byte stream closes', async () => {
+  it('passes the downloaded byte stream through', async () => {
     const chunks = async function* () {
       yield new Uint8Array([1, 2, 3]);
     };
@@ -114,14 +103,10 @@ describe('createEditorWireController', () => {
         chunks,
       })
     );
-    const release = vi.fn(async () => {});
     const controller = createEditorWireController({
       editorBuffer,
       runtimes: {
-        session: () => ({
-          ready: async () => ok({ files: { fs: { readBytes } } }),
-          release,
-        }),
+        client: async () => ok({ files: { fs: { readBytes } } }),
       } as never,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
@@ -132,12 +117,10 @@ describe('createEditorWireController', () => {
     });
 
     expect(isDownloadFileOpenResult(result)).toBe(true);
-    expect(release).not.toHaveBeenCalled();
     if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download source');
     for await (const _chunk of result.data.source as AsyncIterable<Uint8Array>) {
-      // Consume the source so its runtime lease can close.
+      // Consume the source.
     }
-    expect(release).toHaveBeenCalledOnce();
   });
 
   it('returns RuntimeResolveError from fallible file procedures and mutations', async () => {
@@ -146,14 +129,10 @@ describe('createEditorWireController', () => {
       host: LOCAL_HOST_REF,
       message: 'Runtime unavailable',
     };
-    const release = vi.fn(async () => {});
     const controller = createEditorWireController({
       editorBuffer,
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as never,
       workspaceIdentity: { resolve: vi.fn(async () => identity) },
     });
@@ -171,7 +150,6 @@ describe('createEditorWireController', () => {
         mutationId: 'mutation-1',
       })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledTimes(3);
   });
 });
 

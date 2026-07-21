@@ -1,5 +1,4 @@
 import {
-  hostRef,
   hostRefEquals,
   LOCAL_HOST_REF,
   sshConnectionIdOf,
@@ -13,32 +12,20 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
 import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import type { DesktopRuntimeClients } from './desktop-workers';
 
 export function createDesktopRuntimeBroker(
-  scope: Scope,
   clients: DesktopRuntimeClients,
   remoteRuntimes: WorkspaceServerServiceHandle
 ): RuntimeBroker {
-  const broker = new RuntimeBroker({
-    scope,
-    idleTtlMs: 30_000,
-    resolve: (host, sessionScope) =>
-      resolveDesktopRuntimeSession(host, sessionScope, clients, remoteRuntimes),
+  return new RuntimeBroker({
+    resolve: (host) => resolveDesktopRuntimeClient(host, clients, remoteRuntimes),
   });
-  scope.add(
-    remoteRuntimes.onInvalidate(({ connectionId }) => {
-      void broker.invalidate(hostRef('remote', connectionId));
-    })
-  );
-  return broker;
 }
 
-async function resolveDesktopRuntimeSession(
+async function resolveDesktopRuntimeClient(
   host: HostRef,
-  scope: Scope,
   clients: DesktopRuntimeClients,
   remoteRuntimes: WorkspaceServerServiceHandle
 ): Promise<Result<HostRuntimesClient, RuntimeResolveError>> {
@@ -46,9 +33,7 @@ async function resolveDesktopRuntimeSession(
     const connectionId = sshConnectionIdOf(host);
     if (connectionId) {
       try {
-        const lease = await remoteRuntimes.acquireConnection(connectionId);
-        scope.add(() => lease.release());
-        const connection = await lease.ready();
+        const connection = await remoteRuntimes.client(connectionId);
         return ok(connection.client);
       } catch (error) {
         return err(
@@ -71,6 +56,7 @@ async function resolveDesktopRuntimeSession(
     fileSearch: clients.fileSearch,
     files: clients.files,
     acp: clients.acp,
+    automations: clients.automations,
     tuiAgents: clients.tuiAgents,
     agentConfig: clients.agentConfig,
     terminals: clients.terminals,

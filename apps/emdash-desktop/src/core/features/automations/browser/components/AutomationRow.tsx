@@ -58,8 +58,16 @@ export const AutomationRow = observer(function AutomationRow({
 }: AutomationRowProps) {
   const availability = useAutomationTargetAvailability(automation.projectId);
   const runtimeAvailable = availability.data?.available === true;
-  const latestRunQuery = useLatestAutomationRun(automation.id, runtimeAvailable);
-  const scheduledRunQuery = useScheduledAutomationRun(automation.id, runtimeAvailable);
+  const latestRunQuery = useLatestAutomationRun(
+    automation.projectId!,
+    automation.id,
+    runtimeAvailable
+  );
+  const scheduledRunQuery = useScheduledAutomationRun(
+    automation.projectId!,
+    automation.id,
+    runtimeAvailable
+  );
 
   const run = latestRunQuery.data ?? null;
   const scheduledAt = runtimeAvailable ? (scheduledRunQuery.data?.scheduledAt ?? null) : null;

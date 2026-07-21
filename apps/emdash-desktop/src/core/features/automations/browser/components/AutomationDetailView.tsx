@@ -113,7 +113,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             {runtimeAvailability.reason}
           </p>
         )}
-        <NextRunBanner automationId={automation.id} runtimeAvailable={canEdit} />
+        <NextRunBanner
+          automationId={automation.id}
+          projectId={automation.projectId}
+          runtimeAvailable={canEdit}
+        />
         <div className="flex items-center gap-2 py-2">
           <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
           {activeTab === 'runs' && (
@@ -125,7 +129,12 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                       variant="ghost"
                       size="icon-md"
                       disabled={!canRunNow}
-                      onClick={() => void runNow.mutateAsync(automation.id)}
+                      onClick={() =>
+                        void runNow.mutateAsync({
+                          projectId: automation.projectId!,
+                          automationId: automation.id,
+                        })
+                      }
                     />
                   }
                 >

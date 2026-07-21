@@ -86,30 +86,33 @@ describe('buildAutomationDeployment', () => {
     ]);
 
     await expect(buildAutomationDeployment(dependencies, automationFixture())).resolves.toEqual({
-      automationId: 'automation-1',
-      enabled: true,
-      name: 'Review changes',
-      revision: 1,
-      schedule: { expr: '0 9 * * 1', tz: 'America/Los_Angeles' },
-      agent: {
-        type: 'acp',
-        title: 'Review changes',
-        start: {
-          providerId: 'claude',
-          model: 'sonnet',
-          initialQueue: [{ text: 'Review the latest changes' }],
+      success: true,
+      data: {
+        automationId: 'automation-1',
+        enabled: true,
+        name: 'Review changes',
+        revision: 1,
+        schedule: { expr: '0 9 * * 1', tz: 'America/Los_Angeles' },
+        agent: {
+          type: 'acp',
+          title: 'Review changes',
+          start: {
+            providerId: 'claude',
+            model: 'sonnet',
+            initialQueue: [{ text: 'Review the latest changes' }],
+          },
         },
-      },
-      workspace: {
-        kind: 'worktree',
-        repository: repositoryRef,
-        worktreePoolPath: hostPathFromNative('/worktrees/repo-12345678'),
-        baseRemote: 'origin',
-        preservePatterns: ['.env.local'],
-        git: {
-          kind: 'create-branch',
-          fromBranch: { type: 'local', branch: 'main' },
-          pushRemote: 'fork',
+        workspace: {
+          kind: 'worktree',
+          repository: repositoryRef,
+          worktreePoolPath: hostPathFromNative('/worktrees/repo-12345678'),
+          baseRemote: 'origin',
+          preservePatterns: ['.env.local'],
+          git: {
+            kind: 'create-branch',
+            fromBranch: { type: 'local', branch: 'main' },
+            pushRemote: 'fork',
+          },
         },
       },
     });
@@ -123,9 +126,13 @@ describe('buildAutomationDeployment', () => {
       connectionId: 'ssh-1',
     });
 
-    await expect(buildAutomationDeployment(dependencies, automationFixture())).rejects.toThrow(
-      'The remote automation runtime cannot be reached'
-    );
+    await expect(buildAutomationDeployment(dependencies, automationFixture())).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'runtime-unavailable',
+        message: 'The remote automation runtime cannot be reached.',
+      },
+    });
     expect(mocks.select).not.toHaveBeenCalled();
   });
 });

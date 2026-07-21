@@ -599,7 +599,6 @@ export class WorkspaceBootstrapService {
         message: String(e),
       });
     } finally {
-      await access.release();
       if (!buildSucceeded) {
         await deactivateWorkspaceParticipants(
           this.dependencies.lifecycleParticipants,

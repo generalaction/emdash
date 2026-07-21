@@ -26,24 +26,20 @@ const checkoutIdentity = {
 } as const;
 
 describe('createSourceControlWireController', () => {
-  it('resolves repository ids and holds one broker lease per attached state', async () => {
+  it('resolves repository ids and clients for attached state', async () => {
     const source = liveSource({ kind: 'ready', branches: [], tags: [] });
     const state = vi.fn(() => ({ asLiveSource: () => source }));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ git: { repository: { model: { state } } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ git: { repository: { model: { state } } } }));
     const resolveProject = vi.fn(async () => projectIdentity);
     const controller = createSourceControlWireController({
-      runtimes: { session } as never,
+      runtimes: { client } as never,
       workspaceIdentity: {
         resolve: vi.fn(async () => checkoutIdentity),
         resolveProject,
       },
     });
 
-    expect(session).not.toHaveBeenCalled();
+    expect(client).not.toHaveBeenCalled();
     const topic = encodeTopic(sourceControlContract.repository.model.states.refs.id, {
       projectId: projectIdentity.projectId,
     });
@@ -51,27 +47,21 @@ describe('createSourceControlWireController', () => {
     await expect(lease?.ready()).resolves.toBe(source);
 
     expect(resolveProject).toHaveBeenCalledWith(projectIdentity.projectId);
-    expect(session).toHaveBeenCalledOnce();
+    expect(client).toHaveBeenCalledOnce();
     expect(state).toHaveBeenCalledWith(
       { repository: hostPathFromNative(projectIdentity.path) },
       'refs'
     );
-    expect(release).not.toHaveBeenCalled();
 
     await lease?.release();
-    expect(release).toHaveBeenCalledOnce();
   });
 
-  it('acquires and releases a runtime session for each checkout procedure call', async () => {
+  it('resolves a runtime client for each checkout procedure call', async () => {
     const getLog = vi.fn(async () => ok({ commits: [], totalCount: 0 }));
-    const release = vi.fn(async () => {});
-    const session = vi.fn(() => ({
-      ready: async () => ok({ git: { checkout: { getLog } } }),
-      release,
-    }));
+    const client = vi.fn(async () => ok({ git: { checkout: { getLog } } }));
     const resolve = vi.fn(async () => checkoutIdentity);
     const controller = createSourceControlWireController({
-      runtimes: { session } as never,
+      runtimes: { client } as never,
       workspaceIdentity: { resolve, resolveProject: vi.fn(async () => projectIdentity) },
     });
 
@@ -79,8 +69,7 @@ describe('createSourceControlWireController', () => {
     await controller.call('checkout.getLog', { workspaceId: checkoutIdentity.workspaceId });
 
     expect(resolve).toHaveBeenCalledTimes(2);
-    expect(session).toHaveBeenCalledTimes(2);
-    expect(release).toHaveBeenCalledTimes(2);
+    expect(client).toHaveBeenCalledTimes(2);
     expect(getLog).toHaveBeenCalledWith(
       { checkout: hostPathFromNative(checkoutIdentity.path) },
       {}
@@ -100,13 +89,9 @@ describe('createSourceControlWireController', () => {
         ],
       })
     );
-    const release = vi.fn(async () => {});
     const controller = createSourceControlWireController({
       runtimes: {
-        session: () => ({
-          ready: async () => ok({ git: { repository: { model: { mutate } } } }),
-          release,
-        }),
+        client: async () => ok({ git: { repository: { model: { mutate } } } }),
       } as never,
       workspaceIdentity: {
         resolve: vi.fn(async () => checkoutIdentity),
@@ -138,7 +123,6 @@ describe('createSourceControlWireController', () => {
         ],
       })
     );
-    expect(release).toHaveBeenCalledOnce();
   });
 
   it('returns RuntimeResolveError from fallible procedures and mutations', async () => {
@@ -147,13 +131,9 @@ describe('createSourceControlWireController', () => {
       host: LOCAL_HOST_REF,
       message: 'Runtime unavailable',
     };
-    const release = vi.fn(async () => {});
     const controller = createSourceControlWireController({
       runtimes: {
-        session: () => ({
-          ready: async () => err(resolveError),
-          release,
-        }),
+        client: async () => err(resolveError),
       } as never,
       workspaceIdentity: {
         resolve: vi.fn(async () => checkoutIdentity),
@@ -171,7 +151,6 @@ describe('createSourceControlWireController', () => {
         mutationId: 'mutation-1',
       })
     ).resolves.toEqual(err(resolveError));
-    expect(release).toHaveBeenCalledTimes(2);
   });
 });
 

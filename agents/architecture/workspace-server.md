@@ -4,9 +4,11 @@ The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a 
 
 The desktop client and managed installation flow live in
 `apps/emdash-desktop/src/core/services/workspace-server/`. For an SSH host, the runtime broker asks
-the provisioner to ensure the pinned artifact is installed and running, then holds one reconnecting
-Wire client lease for the broker session. Ordinary SSH disconnects preserve that lease; terminal
-client failures, exhausted SSH reconnects, and machine edits invalidate it.
+the service for a runtime client. The service ensures the pinned artifact is installed and running,
+then privately pins one reconnecting Wire connection per target until lifecycle invalidation or
+shutdown. The broker only resolves clients and does not own connection lifetime. Ordinary SSH
+disconnects preserve the pinned connection; terminal client failures, exhausted SSH reconnects, and
+machine edits invalidate it.
 
 Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
 an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under

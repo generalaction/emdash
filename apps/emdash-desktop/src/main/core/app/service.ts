@@ -250,7 +250,6 @@ class AppService implements Disposable {
       });
     }
     if (workspace.identity.host.type !== 'local') {
-      await workspace.release();
       return err({
         type: 'unsupported_host',
         host: workspace.identity.host,
@@ -262,7 +261,6 @@ class AppService implements Disposable {
       unicodeNormalization: 'preserve',
     });
     if (!relativePath.success) {
-      await workspace.release();
       return err({
         type: 'invalid-path',
         path: args.relativePath,
@@ -270,18 +268,14 @@ class AppService implements Disposable {
       });
     }
 
-    try {
-      const resolved = await workspace.files.client.fs.realPath({
-        root: workspace.files.root,
-        relative: relativePath.data,
-      });
-      if (!resolved.success) return resolved;
+    const resolved = await workspace.files.client.fs.realPath({
+      root: workspace.files.root,
+      relative: relativePath.data,
+    });
+    if (!resolved.success) return resolved;
 
-      shell.showItemInFolder(nativePathFromHost(resolved.data));
-      return ok();
-    } finally {
-      await workspace.release();
-    }
+    shell.showItemInFolder(nativePathFromHost(resolved.data));
+    return ok();
   }
 
   /**

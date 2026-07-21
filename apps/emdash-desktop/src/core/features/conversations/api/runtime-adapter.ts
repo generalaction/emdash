@@ -8,7 +8,7 @@ import {
 
 export type ConversationsAcpStartInput = StartSessionInput;
 export type ConversationsHostRuntimesClient = HostRuntimesClient;
-export type ConversationsRuntimeBroker = Pick<RuntimeBroker, 'session'>;
+export type ConversationsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type ConversationsRuntimeResolveError = RuntimeResolveError;
 
 export function throwConversationsRuntimeResolveError(error: RuntimeResolveError): never {

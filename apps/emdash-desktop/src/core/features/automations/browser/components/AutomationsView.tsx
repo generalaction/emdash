@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
 import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
 import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
 import { useAutomations, useDeleteAutomation, useUpdateAutomation } from '../use-automations';
@@ -71,9 +73,12 @@ export function AutomationsView() {
       confirmLabel: 'Delete',
     }).then((outcome) => {
       if (outcome.success) {
-        void destroy
-          .mutateAsync(automation.id)
-          .catch(() => setParams({ automationId: automation.id }));
+        void destroy.mutateAsync(automation.id).catch((error) => {
+          setParams({ automationId: automation.id });
+          toast.error('Could not delete automation', {
+            description: formatAutomationError(error),
+          });
+        });
       } else if (outcome.error.reason === 'explicit') {
         setParams({ automationId: automation.id });
       }

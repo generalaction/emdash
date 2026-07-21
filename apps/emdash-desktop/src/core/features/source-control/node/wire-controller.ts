@@ -1,4 +1,4 @@
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveJobReplica,
   LiveJobFailedError,
@@ -180,15 +180,18 @@ function createRepositoryModelProvider({
   return {
     kind: 'leasedLiveModelProvider',
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolveProject(key.projectId),
-        (client, id) =>
-          client.git.repository.model
-            .state({ repository: hostPathFromNative(id.path) }, name)
-            .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(
+          runtimes,
+          workspaceIdentity.resolveProject(key.projectId),
+          (client, id) =>
+            client.git.repository.model
+              .state({ repository: hostPathFromNative(id.path) }, name)
+              .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation(name, envelope) {
       return withIdentityRuntime(
         runtimes,
@@ -222,15 +225,18 @@ function createCheckoutModelProvider({
   return {
     kind: 'leasedLiveModelProvider',
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolve(key.workspaceId),
-        (client, identity) =>
-          client.git.checkout.model
-            .state({ checkout: hostPathFromNative(identity.path) }, name)
-            .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(
+          runtimes,
+          workspaceIdentity.resolve(key.workspaceId),
+          (client, identity) =>
+            client.git.checkout.model
+              .state({ checkout: hostPathFromNative(identity.path) }, name)
+              .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation(name, envelope) {
       return withIdentityRuntime(
         runtimes,
@@ -264,21 +270,24 @@ function createFileDiffModelProvider({
   return {
     kind: 'leasedLiveModelProvider',
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolve(key.workspaceId),
-        (client, identity) =>
-          client.git.checkout.fileDiff
-            .state(
-              {
-                ...withoutWorkspaceId(key),
-                checkout: hostPathFromNative(identity.path),
-              },
-              name
-            )
-            .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(
+          runtimes,
+          workspaceIdentity.resolve(key.workspaceId),
+          (client, identity) =>
+            client.git.checkout.fileDiff
+              .state(
+                {
+                  ...withoutWorkspaceId(key),
+                  checkout: hostPathFromNative(identity.path),
+                },
+                name
+              )
+              .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error(`Live model '${contract.id}' has no mutations`);
     },
@@ -296,21 +305,24 @@ function createContentModelProvider({
   return {
     kind: 'leasedLiveModelProvider',
     contract,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolve(key.workspaceId),
-        (client, identity) =>
-          client.git.checkout.content
-            .state(
-              {
-                ...withoutWorkspaceId(key),
-                checkout: hostPathFromNative(identity.path),
-              },
-              name
-            )
-            .asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(
+          runtimes,
+          workspaceIdentity.resolve(key.workspaceId),
+          (client, identity) =>
+            client.git.checkout.content
+              .state(
+                {
+                  ...withoutWorkspaceId(key),
+                  checkout: hostPathFromNative(identity.path),
+                },
+                name
+              )
+              .asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error(`Live model '${contract.id}' has no mutations`);
     },
@@ -364,39 +376,20 @@ async function withIdentityRuntime<T, E>(
   work: (client: HostRuntimesClient, identity: WorkspaceIdentity) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const identity = await requireIdentity(identityPromise);
-  const lease = runtimes.session(identity.host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return await work(runtime.data, identity);
-  } finally {
-    await lease.release();
-  }
+  const runtime = await runtimes.client(identity.host);
+  if (!runtime.success) return err(runtime.error);
+  return await work(runtime.data, identity);
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   runtimes: SourceControlRuntimeBroker,
   identityPromise: Promise<WorkspaceIdentity | null>,
   source: (client: HostRuntimesClient, identity: WorkspaceIdentity) => LiveSource
-): PendingLease<LiveSource> {
-  const acquired = requireIdentity(identityPromise).then((identity) => {
-    const lease = runtimes.session(identity.host);
-    return { identity, lease, ready: lease.ready() };
-  });
-  return {
-    async ready() {
-      const { identity, ready } = await acquired;
-      const runtime = await ready;
-      if (!runtime.success) throwSourceControlRuntimeResolveError(runtime.error);
-      return source(runtime.data, identity);
-    },
-    async release() {
-      // If acquisition failed there is no lease to release; the failure already
-      // surfaced through ready() and must not reject again here.
-      const runtime = await acquired.catch(() => null);
-      if (runtime) await runtime.lease.release();
-    },
-  };
+): Promise<LiveSource> {
+  const identity = await requireIdentity(identityPromise);
+  const runtime = await runtimes.client(identity.host);
+  if (!runtime.success) throwSourceControlRuntimeResolveError(runtime.error);
+  return source(runtime.data, identity);
 }
 
 async function requireIdentity(

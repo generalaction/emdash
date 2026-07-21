@@ -12,7 +12,6 @@ export type WorkspaceRuntimeAccess = Readonly<{
   identity: WorkspaceIdentity;
   client: WorkspacesHostRuntimesClient;
   files: FilesClientScope;
-  release(): Promise<void>;
 }>;
 
 export type WorkspaceRuntimeIdentityResolver = {
@@ -37,23 +36,13 @@ export async function tryAcquireWorkspaceRuntime(
   const identity = await workspaceIdentity.resolve(workspaceId);
   if (!identity) return ok(null);
 
-  const lease = runtimes.session(identity.host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) {
-      await lease.release();
-      return err(runtime.error);
-    }
-    return ok({
-      identity,
-      client: runtime.data,
-      files: filesClientScope(runtime.data.files, identity.path),
-      release: () => lease.release(),
-    });
-  } catch (error) {
-    await lease.release();
-    throw error;
-  }
+  const runtime = await runtimes.client(identity.host);
+  if (!runtime.success) return err(runtime.error);
+  return ok({
+    identity,
+    client: runtime.data,
+    files: filesClientScope(runtime.data.files, identity.path),
+  });
 }
 
 export async function withWorkspaceRuntime<T>(
@@ -64,9 +53,5 @@ export async function withWorkspaceRuntime<T>(
 ): Promise<T | null> {
   const access = await acquireWorkspaceRuntime(runtimes, workspaceIdentity, workspaceId);
   if (!access) return null;
-  try {
-    return await work(access);
-  } finally {
-    await access.release();
-  }
+  return await work(access);
 }

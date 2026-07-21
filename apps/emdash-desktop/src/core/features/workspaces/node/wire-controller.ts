@@ -1,5 +1,5 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveJobReplica,
   LiveJobFailedError,
@@ -238,10 +238,13 @@ function createWorkspaceRuntimeProvider(
   return {
     kind: 'leasedLiveModelProvider',
     contract: workspacesWireContract.runtime,
-    acquireState: (key, name) =>
-      acquireRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
-      ),
+    acquireState: (key, name) => ({
+      ready: () =>
+        resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+          client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
+        ),
+      release: async () => {},
+    }),
     async runMutation() {
       throw new Error('Workspace runtime model has no mutations');
     },
@@ -322,43 +325,23 @@ async function withWorkspaceRuntime<T, E>(
   ) => Promise<Result<T, E>>
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const identity = await requireWorkspaceIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const lease = options.runtimes.session(identity.host);
-  try {
-    const runtime = await lease.ready();
-    if (!runtime.success) return err(runtime.error);
-    return await work(runtime.data, identity);
-  } finally {
-    await lease.release();
-  }
+  const runtime = await options.runtimes.client(identity.host);
+  if (!runtime.success) return err(runtime.error);
+  return await work(runtime.data, identity);
 }
 
-function acquireRuntimeSource(
+async function resolveRuntimeSource(
   options: CreateWorkspacesWireControllerOptions,
   workspaceId: string,
   source: (
     client: WorkspacesHostRuntimesClient,
     identity: NonNullable<Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>>>
   ) => LiveSource
-): PendingLease<LiveSource> {
-  const acquired = (async () => {
-    const identity = await requireWorkspaceIdentity(options.workspaceIdentity.resolve(workspaceId));
-    const lease = options.runtimes.session(identity.host);
-    return { identity, lease, ready: lease.ready() };
-  })();
-  return {
-    async ready() {
-      const { identity, ready } = await acquired;
-      const runtime = await ready;
-      if (!runtime.success) throwWorkspacesRuntimeResolveError(runtime.error);
-      return source(runtime.data, identity);
-    },
-    async release() {
-      // If acquisition failed there is no lease to release; the failure already
-      // surfaced through ready() and must not reject again here.
-      const runtime = await acquired.catch(() => null);
-      if (runtime) await runtime.lease.release();
-    },
-  };
+): Promise<LiveSource> {
+  const identity = await requireWorkspaceIdentity(options.workspaceIdentity.resolve(workspaceId));
+  const runtime = await options.runtimes.client(identity.host);
+  if (!runtime.success) throwWorkspacesRuntimeResolveError(runtime.error);
+  return source(runtime.data, identity);
 }
 
 async function requireWorkspaceIdentity(

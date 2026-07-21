@@ -1,24 +1,26 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import type { Automation } from '@core/primitives/automations/api';
 
 const mocks = vi.hoisted(() => ({
   buildAutomationDeployment: vi.fn(),
+  client: vi.fn(),
   deleteAutomationDefinition: vi.fn(),
   deploy: vi.fn(),
   getAutomation: vi.fn(),
   getAutomationRuntimeAvailability: vi.fn(),
+  getProjectById: vi.fn(),
   insertAutomation: vi.fn(),
   listAutomations: vi.fn(),
   logWarn: vi.fn(),
   onEvent: undefined as ((event: { run: AutomationRun }) => void) | undefined,
   projectExists: vi.fn(),
   remove: vi.fn(),
+  resolveAutomationRuntimeClient: vi.fn(),
   replaceAutomation: vi.fn(),
-  resolveAutomationRuntime: vi.fn(),
-  resolveLocalAutomationRuntime: vi.fn(),
   setAutomationRevision: vi.fn(),
   unsubscribe: vi.fn(),
   upsertRunProjection: vi.fn(),
@@ -56,8 +58,7 @@ vi.mock('@core/features/automations/api/node/run-projection', () => ({
 
 vi.mock('./runtime-client-resolver', () => ({
   getAutomationRuntimeAvailability: mocks.getAutomationRuntimeAvailability,
-  resolveAutomationRuntime: mocks.resolveAutomationRuntime,
-  resolveLocalAutomationRuntime: mocks.resolveLocalAutomationRuntime,
+  resolveAutomationRuntimeClient: mocks.resolveAutomationRuntimeClient,
 }));
 
 function automationFixture(overrides: Partial<Automation> = {}): Automation {
@@ -94,8 +95,8 @@ function createService(): AutomationsService {
     buildDeployment: mocks.buildAutomationDeployment,
     db: {} as never,
     runtime: {
-      getAutomationsRuntimeClient: vi.fn(),
-      getProjectById: vi.fn(),
+      runtimes: { client: mocks.client },
+      getProjectById: mocks.getProjectById,
     },
   });
 }
@@ -153,29 +154,27 @@ function runFixture(): AutomationRun {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.onEvent = undefined;
-  mocks.buildAutomationDeployment.mockImplementation((automation: Automation) => ({
-    automationId: automation.id,
-    revision: automation.revision,
-  }));
+  mocks.buildAutomationDeployment.mockImplementation((automation: Automation) =>
+    ok({
+      automationId: automation.id,
+      revision: automation.revision,
+    })
+  );
   mocks.deploy.mockImplementation(async (deployment: { revision: number }) => ({
     success: true,
     data: { deployment, deployedAt: 100 },
   }));
   mocks.remove.mockResolvedValue({ success: true, data: undefined });
   mocks.projectExists.mockResolvedValue(true);
+  mocks.getProjectById.mockResolvedValue({ id: 'project-1', type: 'local' });
   mocks.getAutomationRuntimeAvailability.mockResolvedValue({ available: true });
   mocks.setAutomationRevision.mockResolvedValue(true);
   mocks.listAutomations.mockResolvedValue([]);
   mocks.upsertRunProjection.mockResolvedValue(undefined);
-  const runtimeTarget = {
-    key: 'local',
-    client: { deploy: mocks.deploy, remove: mocks.remove },
-  };
-  mocks.resolveAutomationRuntime.mockResolvedValue(runtimeTarget);
-  mocks.resolveLocalAutomationRuntime.mockResolvedValue({
-    ...runtimeTarget,
-    client: {
-      ...runtimeTarget.client,
+  const runtimeClient = {
+    automations: {
+      deploy: mocks.deploy,
+      remove: mocks.remove,
       runEvents: {
         subscribe: async (
           _key: unknown,
@@ -186,7 +185,9 @@ beforeEach(() => {
         },
       },
     },
-  });
+  };
+  mocks.client.mockResolvedValue(ok(runtimeClient));
+  mocks.resolveAutomationRuntimeClient.mockResolvedValue(runtimeClient);
 });
 
 describe('AutomationsService definition synchronization', () => {
@@ -194,20 +195,23 @@ describe('AutomationsService definition synchronization', () => {
     const service = createService();
     mocks.insertAutomation.mockRejectedValue(new Error('insert failed'));
 
-    await expect(
-      service.create({
-        projectId: 'project-1',
-        name: 'Review changes',
-        triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
-        conversationConfig: {
-          prompt: 'Review changes',
-          provider: 'claude',
-          autoApprove: false,
-          type: 'acp',
-        },
-        taskConfig: automationFixture().taskConfig!,
-      })
-    ).rejects.toThrow('insert failed');
+    const result = await service.create({
+      projectId: 'project-1',
+      name: 'Review changes',
+      triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
+      conversationConfig: {
+        prompt: 'Review changes',
+        provider: 'claude',
+        autoApprove: false,
+        type: 'acp',
+      },
+      taskConfig: automationFixture().taskConfig!,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'runtime-unavailable', message: 'insert failed' },
+    });
 
     expect(mocks.deploy).toHaveBeenCalledOnce();
     expect(mocks.remove).toHaveBeenCalledWith({ automationId: expect.any(String) });
@@ -219,9 +223,16 @@ describe('AutomationsService definition synchronization', () => {
     mocks.getAutomation.mockResolvedValue(existing);
     mocks.replaceAutomation.mockResolvedValue(null);
 
-    await expect(service.update(existing.id, { name: 'Updated name' })).rejects.toThrow(
-      'automation_conflict'
-    );
+    const result = await service.update(existing.id, { name: 'Updated name' });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'automation-conflict',
+        automationId: existing.id,
+        message: 'This automation changed while it was being saved. Try again.',
+      },
+    });
 
     expect(mocks.deploy.mock.calls.map(([deployment]) => deployment.revision)).toEqual([2, 3]);
     expect(mocks.setAutomationRevision).toHaveBeenCalledWith(expect.anything(), existing.id, 3);
@@ -233,7 +244,12 @@ describe('AutomationsService definition synchronization', () => {
     mocks.getAutomation.mockResolvedValue(existing);
     mocks.deleteAutomationDefinition.mockRejectedValue(new Error('delete failed'));
 
-    await expect(service.delete(existing.id)).rejects.toThrow('delete failed');
+    const result = await service.delete(existing.id);
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'runtime-unavailable', message: 'delete failed' },
+    });
 
     expect(mocks.remove).toHaveBeenCalledWith({ automationId: existing.id });
     expect(mocks.deploy.mock.calls.map(([deployment]) => deployment.revision)).toEqual([3]);

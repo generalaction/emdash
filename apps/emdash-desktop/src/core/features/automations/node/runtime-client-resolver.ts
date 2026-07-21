@@ -1,19 +1,34 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  runtimeResolveErrorAsError,
+  type HostRuntimesClient,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import type { AutomationRuntimeAvailability } from '@core/primitives/automations/api';
-import type { Project } from '@core/primitives/projects/api';
-import type { AutomationsRuntimeClient } from '@core/services/runtime-broker/api/clients';
-
-export type AutomationRuntimeTarget = {
-  key: string;
-  client: AutomationsRuntimeClient;
-};
+import { projectHostRef, type Project } from '@core/primitives/projects/api';
 
 export type AutomationRuntimeDependencies = {
-  getAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   getProjectById(projectId: string): Promise<Project | undefined>;
 };
 
-const REMOTE_UNAVAILABLE_REASON =
-  'This desktop build cannot reach the remote automation runtime yet.';
+const ADOPTION_UNAVAILABLE_REASON = 'Run adoption is not yet supported for remote projects.';
+
+export async function resolveAutomationRuntimeClient(
+  dependencies: AutomationRuntimeDependencies,
+  projectId?: string | null
+): Promise<HostRuntimesClient> {
+  let host = LOCAL_HOST_REF;
+  if (projectId) {
+    const project = await dependencies.getProjectById(projectId);
+    if (!project) throw new Error(`Runtime project '${projectId}' was not found`);
+    host = projectHostRef(project);
+  }
+
+  const result = await dependencies.runtimes.client(host);
+  if (!result.success) throw runtimeResolveErrorAsError(result.error);
+  return result.data;
+}
 
 export async function getAutomationRuntimeAvailability(
   dependencies: AutomationRuntimeDependencies,
@@ -27,26 +42,7 @@ export async function getAutomationRuntimeAvailability(
     return { available: false, reason: 'The automation project no longer exists.' };
   }
   if (project.type === 'ssh') {
-    return { available: false, reason: REMOTE_UNAVAILABLE_REASON };
+    return { available: false, reason: ADOPTION_UNAVAILABLE_REASON };
   }
   return { available: true };
-}
-
-export async function resolveAutomationRuntime(
-  dependencies: AutomationRuntimeDependencies,
-  projectId: string | undefined
-): Promise<AutomationRuntimeTarget> {
-  const availability = await getAutomationRuntimeAvailability(dependencies, projectId);
-  if (!availability.available) throw new Error(availability.reason);
-
-  return resolveLocalAutomationRuntime(dependencies);
-}
-
-export async function resolveLocalAutomationRuntime(
-  dependencies: AutomationRuntimeDependencies
-): Promise<AutomationRuntimeTarget> {
-  return {
-    key: 'local',
-    client: await dependencies.getAutomationsRuntimeClient(),
-  };
 }

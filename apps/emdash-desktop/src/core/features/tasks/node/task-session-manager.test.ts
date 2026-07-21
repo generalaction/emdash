@@ -10,7 +10,6 @@ const deactivateStart = vi.hoisted(() => vi.fn());
 const teardownStart = vi.hoisted(() => vi.fn());
 const jobRelease = vi.hoisted(() => vi.fn());
 const jobDispose = vi.hoisted(() => vi.fn());
-const brokerRelease = vi.hoisted(() => vi.fn());
 const deactivateParticipants = vi.hoisted(() => vi.fn());
 
 vi.mock('@emdash/wire', async (importOriginal) => {
@@ -36,28 +35,25 @@ const dependencies = {
     })),
   },
   runtimes: {
-    session: () => ({
-      ready: async () =>
-        ok({
+    client: async () =>
+      ok({
+        workspace: {
+          deactivate: {},
+          teardown: {},
           workspace: {
-            deactivate: {},
-            teardown: {},
-            workspace: {
-              state: () => ({
-                asLiveSource: () => ({
-                  snapshot: async () => ({
-                    generation: 1,
-                    sequence: 0,
-                    timestamp: 0,
-                    data: { consumers: [] },
-                  }),
+            state: () => ({
+              asLiveSource: () => ({
+                snapshot: async () => ({
+                  generation: 1,
+                  sequence: 0,
+                  timestamp: 0,
+                  data: { consumers: [] },
                 }),
               }),
-            },
+            }),
           },
-        }),
-      release: brokerRelease,
-    }),
+        },
+      }),
   },
 } as never;
 
@@ -120,7 +116,6 @@ describe('executeTeardown', () => {
       automation,
     });
     expect(deactivateParticipants).toHaveBeenCalledOnce();
-    expect(brokerRelease).toHaveBeenCalledOnce();
   });
 
   it('keeps archive teardown-free while stopping sessions', async () => {
