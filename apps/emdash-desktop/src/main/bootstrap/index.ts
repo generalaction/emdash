@@ -27,6 +27,7 @@ export async function main(): Promise<void> {
     ssh: undefined,
     windowPhaseReady: false,
     workspaceIdentity: undefined,
+    workspaceServer: undefined,
   };
 
   try {

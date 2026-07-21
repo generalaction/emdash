@@ -9,6 +9,7 @@ import type { NotificationService } from '@core/services/notifications/node';
 import type { AppSettingsService } from '@core/services/settings/node';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import type { SshServiceHandle } from '@core/services/ssh/node';
+import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import type { AppConfig } from '../core/config';
 
 export type BootContext = {
@@ -25,6 +26,7 @@ export type BootContext = {
   workspaceIdentity: WorkspaceIdentityService | undefined;
   windowPhaseReady: boolean;
   ssh: SshServiceHandle | undefined;
+  workspaceServer: WorkspaceServerServiceHandle | undefined;
 };
 
 export class BootAborted extends Error {

@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
+
+const workspaceServerVersion = (
+  JSON.parse(readFileSync(resolve(__dirname, '../workspace-server/package.json'), 'utf8')) as {
+    version: string;
+  }
+).version;
 
 const alias = {
   '@emdash/core/runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
@@ -87,6 +94,9 @@ const toolingAlias = {
 };
 
 export default defineConfig({
+  define: {
+    __EMDASH_WORKSPACE_SERVER_VERSION__: JSON.stringify(workspaceServerVersion),
+  },
   resolve: { alias },
   test: {
     projects: [

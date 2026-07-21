@@ -1,8 +1,21 @@
+import { readFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import { desktopWorkers } from './src/core/manifests/node/workers';
+
+const workspaceServerVersion = readWorkspaceServerVersion();
+
+function readWorkspaceServerVersion(): string {
+  const packagePath = fileURLToPath(new URL('../workspace-server/package.json', import.meta.url));
+  const metadata = JSON.parse(readFileSync(packagePath, 'utf8')) as { version?: unknown };
+  if (typeof metadata.version !== 'string') {
+    throw new Error('workspace-server package.json must contain a string version');
+  }
+  return metadata.version;
+}
 
 function desktopWorkerBuildInputs(): Record<string, string> {
   return Object.fromEntries(
@@ -61,6 +74,9 @@ export default defineConfig({
   main: {
     root: 'src/main',
     envDir: resolve('.'),
+    define: {
+      __EMDASH_WORKSPACE_SERVER_VERSION__: JSON.stringify(workspaceServerVersion),
+    },
     build: {
       rollupOptions: {
         input: {

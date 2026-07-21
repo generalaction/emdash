@@ -15,6 +15,7 @@ import {
   ensureWorkspaceWorkerReady,
 } from '@main/gateway/desktop-workers';
 import { installDevServerBridge } from '@main/gateway/dev-server-bridge';
+import { configureRemoteRuntimes } from '@main/gateway/runtime-broker';
 import { log } from '@main/lib/logger';
 import { withRetry } from '@main/lib/retry';
 import { appScope } from '../../core/app-scope';
@@ -29,7 +30,11 @@ export const gatewayPhase: Phase<BootContext> = {
     if (!context.ssh) {
       throw new Error('SSH service was not initialized before the gateway phase');
     }
-    installDesktopWire(createDesktopWireOptions(context), context.ssh);
+    if (!context.workspaceServer) {
+      throw new Error('Workspace-server service was not initialized before the gateway phase');
+    }
+    appScope.add(configureRemoteRuntimes(context.workspaceServer));
+    installDesktopWire(createDesktopWireOptions(context), context.ssh, context.workspaceServer);
     runInBackground(
       'dev-server-bridge',
       () => withRetry(installDevServerBridge, { signal: appScope.signal }),

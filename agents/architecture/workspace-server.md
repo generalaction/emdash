@@ -2,6 +2,17 @@
 
 The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, ACP, …) to Emdash clients over the `@emdash/wire` protocol. Clients connect over an SSH-forwarded Unix socket; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
 
+The desktop client and managed installation flow live in
+`apps/emdash-desktop/src/core/services/workspace-server/`. For an SSH host, the runtime broker asks
+the provisioner to ensure the pinned artifact is installed and running, then holds one reconnecting
+Wire client lease for the broker session. Ordinary SSH disconnects preserve that lease; terminal
+client failures, exhausted SSH reconnects, and machine edits invalidate it.
+
+Managed Linux installations use `~/.emdash/workspace-server/` with immutable version directories,
+an atomic `current` symlink, staging and install-lock paths, and an explicitly selected socket under
+`run/`. Artifacts are pulled by the remote, verified against their SHA-256 sidecars, and extracted
+before `current` changes.
+
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 
 The daemon is the Electron-free equivalent of the desktop runtime host. Every core runtime is a
@@ -182,3 +193,4 @@ if (session.agreedMinor >= 1) {
 | [`apps/workspace-server/src/gateway/worker-paths.ts`](../../apps/workspace-server/src/gateway/worker-paths.ts) | packaged worker executable path resolution |
 | [`apps/workspace-server/src/gateway/entries/`](../../apps/workspace-server/src/gateway/entries/) | plugin-injecting ACP, agent config, and TUI-agent worker entries |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |
+| [`apps/emdash-desktop/src/core/services/workspace-server/`](../../apps/emdash-desktop/src/core/services/workspace-server/) | Desktop client, installer, provisioner, and lifecycle policy |

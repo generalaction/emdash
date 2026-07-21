@@ -1,4 +1,10 @@
-import { hostRefEquals, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  hostRef,
+  hostRefEquals,
+  LOCAL_HOST_REF,
+  sshConnectionIdOf,
+  type HostRef,
+} from '@emdash/core/primitives/host/api';
 import {
   RuntimeBroker,
   runtimeHostNotConfigured,
@@ -8,6 +14,7 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
+import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import {
   getAcpRuntimeClient,
@@ -20,25 +27,65 @@ import {
   hostDependenciesClient,
 } from './desktop-workers';
 
-export function createDesktopRuntimeBroker(scope: Scope): RuntimeBroker {
+export function createDesktopRuntimeBroker(
+  scope: Scope,
+  remoteRuntimes?: WorkspaceServerServiceHandle
+): RuntimeBroker {
   return new RuntimeBroker({
     scope,
     idleTtlMs: 30_000,
-    resolve: resolveDesktopRuntimeSession,
+    resolve: (host, sessionScope) =>
+      resolveDesktopRuntimeSession(host, sessionScope, remoteRuntimes ?? configuredRemoteRuntimes),
   });
 }
 
 let sharedBroker: RuntimeBroker | undefined;
+let configuredRemoteRuntimes: WorkspaceServerServiceHandle | undefined;
+let stopRemoteInvalidation: (() => void) | undefined;
 
 export function getDesktopRuntimeBroker(): RuntimeBroker {
   sharedBroker ??= createDesktopRuntimeBroker(appScope.child('runtime-broker'));
   return sharedBroker;
 }
 
+export function configureRemoteRuntimes(handle: WorkspaceServerServiceHandle): () => void {
+  stopRemoteInvalidation?.();
+  configuredRemoteRuntimes = handle;
+  const stop = handle.onInvalidate(({ connectionId }) => {
+    void getDesktopRuntimeBroker().invalidate(hostRef('remote', connectionId));
+  });
+  stopRemoteInvalidation = stop;
+
+  return () => {
+    if (configuredRemoteRuntimes !== handle) return;
+    stop();
+    stopRemoteInvalidation = undefined;
+    configuredRemoteRuntimes = undefined;
+  };
+}
+
 async function resolveDesktopRuntimeSession(
-  host: HostRef
+  host: HostRef,
+  scope: Scope,
+  remoteRuntimes: WorkspaceServerServiceHandle | undefined
 ): Promise<Result<HostRuntimesClient, RuntimeResolveError>> {
   if (!hostRefEquals(host, LOCAL_HOST_REF)) {
+    const connectionId = sshConnectionIdOf(host);
+    if (connectionId && remoteRuntimes) {
+      try {
+        const lease = await remoteRuntimes.acquireConnection(connectionId);
+        scope.add(() => lease.release());
+        const connection = await lease.ready();
+        return ok(connection.client);
+      } catch (error) {
+        return err(
+          runtimeHostUnavailable(
+            host,
+            error instanceof Error ? error.message : 'Remote workspace server is unavailable'
+          )
+        );
+      }
+    }
     return err(
       host.type === 'remote'
         ? runtimeHostUnavailable(host, 'Remote runtime sessions are not enabled')

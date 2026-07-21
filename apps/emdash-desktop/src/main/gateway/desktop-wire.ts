@@ -10,13 +10,14 @@ import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contrac
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import type { SshServiceHandle } from '@core/services/ssh/node';
+import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import { createRetryableReady } from './retryable-ready';
 import { getDesktopRuntimeBroker } from './runtime-broker';
 
 export type InstallDesktopWireOptions = Omit<
   DesktopControllerContext,
-  'runtimes' | 'scope' | 'ssh'
+  'runtimes' | 'scope' | 'ssh' | 'workspaceServer'
 >;
 
 const scope = appScope.child('desktop-wire');
@@ -24,13 +25,14 @@ let installed = false;
 
 export function installDesktopWire(
   options: InstallDesktopWireOptions,
-  ssh: SshServiceHandle
+  ssh: SshServiceHandle,
+  workspaceServer: WorkspaceServerServiceHandle
 ): void {
   if (installed || typeof ipcMain?.handle !== 'function') return;
   installed = true;
 
   const runtimes = getDesktopRuntimeBroker();
-  const controller = createLazyDesktopController(options, runtimes, ssh);
+  const controller = createLazyDesktopController(options, runtimes, ssh, workspaceServer);
 
   scope.add(
     exposeWireToWindows(
@@ -50,7 +52,8 @@ function createMessageChannel() {
 function createLazyDesktopController(
   options: InstallDesktopWireOptions,
   runtimes: RuntimeBroker,
-  ssh: SshServiceHandle
+  ssh: SshServiceHandle,
+  workspaceServer: WorkspaceServerServiceHandle
 ): Controller & { ready(): Promise<void>; dispose(): Promise<void> } {
   let controllers: Record<string, Controller> | undefined;
   let controllerScopes: ReturnType<typeof scope.child>[] = [];
@@ -69,6 +72,7 @@ function createLazyDesktopController(
             scope: controllerScope,
             runtimes,
             ssh,
+            workspaceServer,
           });
           return [domain, controller] as const;
         })

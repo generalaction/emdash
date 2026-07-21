@@ -58,6 +58,8 @@ import type { ProviderOverrideSettings } from '@core/services/settings/node/prov
 import { createAppSettingsWireController } from '@core/services/settings/node/wire-controller';
 import type { SshServiceHandle } from '@core/services/ssh/node';
 import { createSshWireController } from '@core/services/ssh/node/wire-controller';
+import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
+import { createWorkspaceServerWireController } from '@core/services/workspace-server/node/wire-controller';
 import { createAgentOperations } from '@main/core/agents/controller';
 import {
   getMementosRuntimeClient,
@@ -77,6 +79,7 @@ export type DesktopControllerContext = {
   readonly search: SearchService;
   readonly runtimes: RuntimeBroker;
   readonly ssh: SshServiceHandle;
+  readonly workspaceServer: WorkspaceServerServiceHandle;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
@@ -211,6 +214,10 @@ export const desktopNodeControllers = {
   },
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
+  },
+  workspaceServer: {
+    create: ({ workspaceServer }) =>
+      createWorkspaceServerWireController(workspaceServer.provisioningModel),
   },
   tasks: {
     create: ({ scope }) =>

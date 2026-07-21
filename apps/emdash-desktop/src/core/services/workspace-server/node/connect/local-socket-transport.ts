@@ -1,6 +1,7 @@
 import { createConnection, type Socket } from 'node:net';
-import { streamTransport, type WireTransport } from '@emdash/wire';
-import type { LocalWorkspaceServerTarget } from './workspace-server-client-source';
+import type { WireTransport } from '@emdash/wire';
+import type { LocalWorkspaceServerTarget } from '../targets';
+import { ownedStreamTransport } from './owned-stream-transport';
 
 export type OpenLocalWorkspaceServerTransportOptions = {
   connectTimeoutMs?: number;
@@ -16,21 +17,7 @@ export async function openLocalWorkspaceServerTransport(
     target.socketPath,
     options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
   );
-  return ownedSocketTransport(socket);
-}
-
-export function ownedSocketTransport(socket: Socket): WireTransport {
-  const transport = streamTransport(socket, socket);
-  let closed = false;
-  return {
-    ...transport,
-    close() {
-      if (closed) return;
-      closed = true;
-      transport.close?.();
-      socket.destroy();
-    },
-  };
+  return ownedStreamTransport(socket);
 }
 
 function connectLocalSocket(socketPath: string, timeoutMs: number): Promise<Socket> {

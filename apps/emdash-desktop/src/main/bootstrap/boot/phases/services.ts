@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { app } from 'electron';
 import type { AccountKVSchema } from '@core/features/account/node/services/account-session-store';
 import { createEmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
@@ -15,6 +16,11 @@ import { createAppSettingsService } from '@core/services/settings/node';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { createSshService } from '@core/services/ssh/node';
 import { sshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
+import {
+  createR2WorkspaceServerArtifactSource,
+  createRemoteFileWorkspaceServerArtifactSource,
+  createWorkspaceServerService,
+} from '@core/services/workspace-server/node';
 import { appService } from '@main/core/app/service';
 import { automationsService } from '@main/core/automations/automations-service';
 import { setOperationsEngine } from '@main/core/operations/operations-engine-instance';
@@ -106,6 +112,22 @@ export const servicesPhase: Phase<BootContext> = {
       credentials: sshCredentialService,
       logger: log,
       telemetry: telemetryService,
+    });
+    const artifactUrlOverride = process.env['EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL'];
+    const artifacts =
+      app.isPackaged || artifactUrlOverride
+        ? createR2WorkspaceServerArtifactSource(artifactUrlOverride)
+        : createRemoteFileWorkspaceServerArtifactSource({
+            localDirectory: resolve(app.getAppPath(), '../workspace-server/dist-artifacts'),
+            remoteDirectory:
+              process.env['EMDASH_WORKSPACE_SERVER_REMOTE_ARTIFACTS_DIR'] ??
+              '/opt/emdash-artifacts',
+          });
+    context.workspaceServer = createWorkspaceServerService({
+      scope: appScope,
+      ssh: context.ssh,
+      artifacts,
+      logger: log,
     });
     browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
     setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
