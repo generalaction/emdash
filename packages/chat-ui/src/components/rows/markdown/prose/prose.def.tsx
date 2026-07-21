@@ -40,7 +40,12 @@ export const proseBlockDef = defineBlock<ProseBlock, ProseLeafLayout>({
   },
 
   Render(props: { node: Measured<ProseLeafLayout> }) {
-    const l = props.node.layout;
-    return <Prose block={l} runs={l.raw.runs} variant={l.raw.variant} />;
+    return (
+      <Prose
+        block={props.node.layout}
+        runs={props.node.layout.raw.runs}
+        variant={props.node.layout.raw.variant}
+      />
+    );
   },
 });

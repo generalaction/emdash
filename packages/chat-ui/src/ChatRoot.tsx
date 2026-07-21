@@ -1553,6 +1553,12 @@ export function ChatRoot(props: ChatRootProps) {
 
     const onClick = (e: Event) => {
       const t = e.target as HTMLElement;
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
+        for (let i = 0; i < selection.rangeCount; i++) {
+          if (selection.getRangeAt(i).intersectsNode(t)) return;
+        }
+      }
 
       const userCard = t.closest('[data-user-card]') as HTMLElement | null;
       if (userCard?.dataset.userCard) {

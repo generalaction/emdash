@@ -5,7 +5,7 @@ import { vars } from '@styles/theme.css';
 
 /** A pre-laid-out line row. Height is set via inline style from the line-height constant. */
 export const pline = style({
-  position: 'absolute',
+  position: 'relative',
   display: 'flex',
   alignItems: 'baseline',
 });
@@ -16,11 +16,13 @@ export const pline = style({
  */
 export const pf = style({
   display: 'inline-block',
+  flexShrink: 0,
   whiteSpace: 'pre',
   lineHeight: 1,
-  position: 'absolute',
+  position: 'relative',
   top: '50%',
   transform: 'translateY(-50%)',
+  boxSizing: 'border-box',
 });
 
 export const pfBody = style({

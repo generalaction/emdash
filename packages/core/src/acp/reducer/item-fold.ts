@@ -132,6 +132,25 @@ function nextSeq(items: TranscriptItem[]): number {
   return maxSeq(items) + 1;
 }
 
+function resolveAssistantMessageId(
+  items: TranscriptItem[],
+  turnId: string,
+  messageId: string
+): string {
+  const baseId = makeMessageId(turnId, messageId, 'assistant');
+  const segmentPrefix = `${baseId}:segment:`;
+  const messages = items.filter(
+    (item) =>
+      item.kind === 'message' &&
+      item.role === 'assistant' &&
+      (item.id === baseId || item.id.startsWith(segmentPrefix))
+  );
+  const latest = messages.at(-1);
+  if (!latest) return baseId;
+  if (latest === items.at(-1)) return latest.id;
+  return `${segmentPrefix}${messages.length}`;
+}
+
 function baseToolFields(
   id: string,
   seq: number,
@@ -603,8 +622,11 @@ export function foldItem(
   const flatItems = flattenItems(items);
   switch (event.kind) {
     case 'message': {
-      const id = makeMessageId(turnId, event.messageId, event.role);
       const base = finalizeOpenThinking(flatItems, at);
+      const id =
+        event.role === 'assistant'
+          ? resolveAssistantMessageId(base, turnId, event.messageId)
+          : makeMessageId(turnId, event.messageId, event.role);
       const idx = base.findIndex((it) => it.kind === 'message' && it.id === id);
       if (idx >= 0) {
         // Append chunk to existing message.

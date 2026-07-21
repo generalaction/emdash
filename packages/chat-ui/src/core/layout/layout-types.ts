@@ -12,11 +12,13 @@
  * compose trees (core/compose.ts) returned by each ComponentDef.measure().
  */
 
-/** A single fragment on a line: the text to render and its x offset. */
+/** A single fragment on a line with its measured spacing and width. */
 export type FragmentLayout = {
   text: string;
-  /** X offset in px from the block's left edge. */
-  x: number;
+  /** Collapsed whitespace between this fragment and the previous fragment. */
+  gapBefore: number;
+  /** Measured width reserved for the text and any inline chrome. */
+  occupiedWidth: number;
   /** Index into the original `InlineRun[]` array — used to determine styling. */
   runIndex: number;
 };
