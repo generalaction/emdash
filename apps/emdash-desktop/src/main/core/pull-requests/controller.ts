@@ -12,6 +12,7 @@ import type {
 } from '@shared/core/pull-requests/pull-requests';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
+import { prAutoCleanupService } from './pr-auto-cleanup-service';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { type PrSyncEngineError } from './pr-sync-errors';
@@ -345,7 +346,14 @@ export const pullRequestController = createRPCController({
         return err<PullRequestError>(mapPrSyncEngineError(result.error, 'merge_failed'));
       }
       // Refresh the merged PR
-      void prSyncEngine.syncSingle(repositoryUrl, prNumber, authContext.data);
+      void prSyncEngine
+        .syncSingle(repositoryUrl, prNumber, authContext.data)
+        .then((syncResult) => {
+          if (syncResult.success) return prAutoCleanupService.processRepository(repositoryUrl);
+        })
+        .catch((syncError) => {
+          log.warn('Failed to run post-merge task cleanup:', syncError);
+        });
       return ok({ sha: result.data.sha, merged: result.data.merged });
     } catch (error) {
       log.error('Failed to merge pull request:', error);

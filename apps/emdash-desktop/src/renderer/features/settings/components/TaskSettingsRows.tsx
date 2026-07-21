@@ -2,6 +2,13 @@ import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -212,6 +219,43 @@ export const IncludeIssueContextByDefaultRow: React.FC = () => {
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
           />
+        </>
+      }
+    />
+  );
+};
+
+export const AutoCleanupOnPrMergeRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Auto-cleanup when a PR merges"
+      description="Choose whether linked tasks stay active, are archived, or are permanently deleted after their pull request merges."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoCleanupOnPrMerge')}
+            defaultLabel="off"
+            onReset={taskSettings.resetAutoCleanupOnPrMerge}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Select
+            value={taskSettings.autoCleanupOnPrMerge}
+            onValueChange={(value) => {
+              if (value) taskSettings.updateAutoCleanupOnPrMerge(value);
+            }}
+            disabled={taskSettings.loading || taskSettings.saving}
+          >
+            <SelectTrigger className="w-[110px] shrink-0" aria-label="PR merge cleanup action">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off</SelectItem>
+              <SelectItem value="archive">Archive</SelectItem>
+              <SelectItem value="delete">Delete</SelectItem>
+            </SelectContent>
+          </Select>
         </>
       }
     />

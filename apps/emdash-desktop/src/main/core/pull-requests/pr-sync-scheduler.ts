@@ -14,6 +14,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
 import { parseRepositoryRef } from '@shared/repository-ref';
+import { prAutoCleanupService } from './pr-auto-cleanup-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
 
@@ -206,7 +207,25 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     const authContext = await this._resolveAuthContext(projectId, remoteUrl);
     if (!authContext) return;
     // sync() routes to full or incremental based on cursor state.
-    void prSyncEngine.sync(remoteUrl, authContext);
+    this._runPostSyncCleanup(projectId, remoteUrl, prSyncEngine.sync(remoteUrl, authContext));
+  }
+
+  private _runPostSyncCleanup(
+    projectId: string,
+    remoteUrl: string,
+    sync: Promise<{ success: boolean }>
+  ): void {
+    void sync
+      .then((result) => {
+        if (result.success) return prAutoCleanupService.processRepository(remoteUrl);
+      })
+      .catch((error) => {
+        log.warn('PrSyncScheduler: post-sync cleanup failed', {
+          projectId,
+          remoteUrl,
+          error: String(error),
+        });
+      });
   }
 
   private async _syncRemotes(projectId: string, remoteUrls: string[]): Promise<void> {
@@ -218,7 +237,11 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
   private async _syncSingle(projectId: string, remoteUrl: string, prNumber: number): Promise<void> {
     const authContext = await this._resolveAuthContext(projectId, remoteUrl, 'single');
     if (!authContext) return;
-    void prSyncEngine.syncSingle(remoteUrl, prNumber, authContext);
+    this._runPostSyncCleanup(
+      projectId,
+      remoteUrl,
+      prSyncEngine.syncSingle(remoteUrl, prNumber, authContext)
+    );
   }
 
   private _emitAuthResolutionError(

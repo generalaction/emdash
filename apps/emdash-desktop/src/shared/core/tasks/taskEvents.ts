@@ -9,6 +9,14 @@ export const taskDeletedChannel = defineEvent<{
   projectId: string;
 }>('task:deleted');
 
+export const taskAutoCleanupChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  taskName: string;
+  prUrl: string;
+  action: 'archive' | 'delete';
+}>('task:auto-cleanup');
+
 export const taskStatusUpdatedChannel = defineEvent<{
   taskId: string;
   projectId: string;
