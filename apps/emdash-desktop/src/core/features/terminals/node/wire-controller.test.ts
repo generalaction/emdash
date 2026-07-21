@@ -8,10 +8,6 @@ import { terminalsContract } from '../api';
 import type { TerminalsRuntimeBroker } from '../api/runtime-adapter';
 import { createTerminalsWireController } from './wire-controller';
 
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: { getProject: vi.fn() },
-}));
-
 const identity = {
   projectId: 'project-1',
   workspaceId: 'workspace-1',
@@ -20,7 +16,15 @@ const identity = {
 } as const;
 const controllerDeps = {
   db: {} as never,
+  logger: { warn: vi.fn() } as never,
+  projects: { getProject: vi.fn() },
   settings: { get: vi.fn(async () => ({ defaultShell: 'default' })) } as never,
+  telemetry: { capture: vi.fn() } as never,
+  terminalShell: {
+    getColorEnv: vi.fn(async () => ({})),
+    getLocalAvailability: vi.fn(async () => []),
+    resolveWithSystemFallback: vi.fn(),
+  } as never,
 };
 
 describe('createTerminalsWireController', () => {

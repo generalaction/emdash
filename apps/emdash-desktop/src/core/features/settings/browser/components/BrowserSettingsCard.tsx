@@ -1,8 +1,9 @@
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { browserControlsRegistry } from '@core/features/browser/browser/browser-controls-registry';
-import { browserSessionStore } from '@core/features/browser/browser/browser-session-store';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILE_ID,
@@ -13,27 +14,26 @@ import {
   type BrowserProfile,
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { Input } from '@renderer/lib/ui/input';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { Input } from '@core/primitives/ui/browser/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/select';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { SettingRow } from './SettingRow';
 
 export function BrowserSettingsCard() {

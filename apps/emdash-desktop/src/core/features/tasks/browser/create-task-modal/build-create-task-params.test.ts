@@ -1,6 +1,6 @@
 import { asAgentProviderId, type AgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
-import type { InitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
+import type { InitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
 import { buildInitialConversation } from './build-create-task-params';
 
 const agent = asAgentProviderId;

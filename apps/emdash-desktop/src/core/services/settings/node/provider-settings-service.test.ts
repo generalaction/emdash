@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import {
+  type HostDependencySelectionStore,
   migrateProviderConfigOverrides,
   migrateProviderConfigToHostDependencyStore,
 } from './provider-config-migrations';
@@ -60,8 +60,7 @@ describe('migrateProviderConfigOverrides', () => {
 
 describe('migrateProviderConfigToHostDependencyStore', () => {
   it('migrates path+installSource=path to kind:path selection', async () => {
-    const mockStore: IHostDependencyStore = {
-      getSelection: vi.fn(),
+    const mockStore: HostDependencySelectionStore = {
       setSelection: vi.fn().mockResolvedValue(undefined),
     };
     await migrateProviderConfigToHostDependencyStore(
@@ -75,8 +74,7 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
   });
 
   it('skips non-absolute cli selections', async () => {
-    const mockStore: IHostDependencyStore = {
-      getSelection: vi.fn(),
+    const mockStore: HostDependencySelectionStore = {
       setSelection: vi.fn().mockResolvedValue(undefined),
     };
     await migrateProviderConfigToHostDependencyStore(
@@ -87,8 +85,7 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
   });
 
   it('skips package-manager install sources', async () => {
-    const mockStore: IHostDependencyStore = {
-      getSelection: vi.fn(),
+    const mockStore: HostDependencySelectionStore = {
       setSelection: vi.fn().mockResolvedValue(undefined),
     };
     await migrateProviderConfigToHostDependencyStore(
@@ -99,8 +96,7 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
   });
 
   it('skips entries without legacy fields', async () => {
-    const mockStore: IHostDependencyStore = {
-      getSelection: vi.fn(),
+    const mockStore: HostDependencySelectionStore = {
       setSelection: vi.fn().mockResolvedValue(undefined),
     };
     await migrateProviderConfigToHostDependencyStore(

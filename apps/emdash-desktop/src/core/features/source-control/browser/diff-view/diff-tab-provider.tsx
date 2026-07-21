@@ -1,17 +1,17 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
+import { getDiffTabManagerStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import type {
   TabEntry,
   TabHandle,
   TabProvider,
   TabViewContext,
   TabContentProps,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
-import { resolveWorkspacePath } from '@core/features/workspaces/browser/workspace-path';
-import { getDiffTabManagerStore } from '../stores/source-control-selectors';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import { DiffTabBarItem, DiffTabBarItemDragPreview } from './diff-tab-item';
 import { DiffView } from './main-panel/diff-view';
 import type { DiffPayload } from './stores/diff-tab-resource';

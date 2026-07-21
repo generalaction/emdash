@@ -3,15 +3,24 @@ import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
+import { Field } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Label } from '@core/primitives/ui/browser/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
-import { Button } from '@renderer/lib/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { Field } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
-import { cn } from '@renderer/utils/utils';
 
 type EnvEntry = { key: string; value: string };
 

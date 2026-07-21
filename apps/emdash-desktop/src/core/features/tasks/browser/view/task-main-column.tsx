@@ -14,14 +14,18 @@ import { usePanelRef } from 'react-resizable-panels';
 import {
   isTerminalDrawerDragData,
   type TerminalDrawerDragData,
-} from '@core/features/terminals/browser/task-terminal/terminal-drag';
-import { TerminalsPanel } from '@core/features/terminals/browser/task-terminal/terminal-panel';
-import { PaneContent } from '@core/features/workbench/browser/tabs/pane-content';
-import { PaneProvider } from '@core/features/workbench/browser/tabs/pane-context';
-import type { Pane as PaneGroup } from '@core/features/workbench/browser/tabs/pane-layout-store';
-import { TabDragPreview } from '@core/features/workbench/browser/tabs/tab-bar/tab-drag-preview';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+} from '@core/features/terminals/api/browser/task-terminal/terminal-drag';
+import { TerminalsPanel } from '@core/features/terminals/api/browser/task-terminal/terminal-panel';
+import { PaneProvider } from '@core/features/workbench/api/browser/tabs/pane-provider';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@core/primitives/ui/browser/resizable';
+import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
+import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
+import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
 

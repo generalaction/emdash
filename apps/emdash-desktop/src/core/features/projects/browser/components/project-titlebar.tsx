@@ -1,27 +1,27 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useConfirmDeleteProject } from '@core/features/projects/browser/hooks/use-confirm-delete-project';
+import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   asMounted,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
-import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
-import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { Separator } from '@renderer/lib/ui/separator';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,

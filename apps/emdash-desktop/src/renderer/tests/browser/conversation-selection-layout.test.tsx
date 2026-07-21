@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationSelectionControl } from '@core/features/conversations/browser/conversation-selection-control';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 
 function horizontalCenter(element: Element) {
   const box = element.getBoundingClientRect();

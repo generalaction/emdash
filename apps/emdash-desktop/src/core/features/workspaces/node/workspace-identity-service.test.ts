@@ -5,7 +5,7 @@ import {
   WorkspaceIdentityService,
   type WorkspaceIdentityRow,
   type WorkspaceIdentitySource,
-} from './workspace-identity-service';
+} from '@core/features/workspaces/api/node/workspace-identity-service';
 
 const localRow: WorkspaceIdentityRow = {
   workspaceId: 'workspace-local',

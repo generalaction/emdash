@@ -1,7 +1,10 @@
 import { installAppDbTestInstance } from '@tooling/vitest/app-db-test-instance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentStatusSignal } from '@core/primitives/agents/api';
-import { AgentStatusService } from './agent-status-service';
+import {
+  AgentStatusService,
+  setAgentStatusConversationEventPublisher,
+} from './agent-status-service';
 
 type TestConversationRow = {
   projectId: string;
@@ -49,9 +52,6 @@ mocks.update.mockImplementation(() => ({
 }));
 installAppDbTestInstance(() => ({ select: mocks.select, update: mocks.update }) as never);
 
-vi.mock('@core/features/conversations/node', () => ({
-  conversationWireEvents: { emit: mocks.emit },
-}));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn() } }));
 
 function row(overrides: Partial<TestConversationRow> = {}): TestConversationRow {
@@ -86,6 +86,7 @@ function resolveUpdate(index: number): void {
 describe('AgentStatusService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setAgentStatusConversationEventPublisher((event) => mocks.emit(undefined, event));
     mocks.blockUpdates = false;
     mocks.selectRows.length = 0;
     mocks.updateCalls.length = 0;

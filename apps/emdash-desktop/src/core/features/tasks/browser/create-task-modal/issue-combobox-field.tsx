@@ -1,5 +1,5 @@
-import { getIntegrationName } from '@core/features/integrations/browser/integration-display';
-import { useIntegrationsContext } from '@core/features/integrations/browser/integrations-provider';
+import { getIntegrationName } from '@core/features/integrations/api/browser/integration-display';
+import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import {
   IssueSelector,
   type IssueSelectorTriggerContext,
@@ -7,7 +7,7 @@ import {
   SelectedIssueValue,
 } from '@core/features/tasks/browser/components/issue-selector/issue-selector';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 
 interface IssueComboboxFieldProps {
   value: LinkedIssue | null;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   relativeToWorkspace,
   resolveWorkspacePath,
-} from '@core/features/workspaces/browser/workspace-path';
+} from '@core/features/workspaces/api/browser/workspace-path';
 
 describe('resolveWorkspacePath', () => {
   it('resolves relative restored paths under the workspace root', () => {

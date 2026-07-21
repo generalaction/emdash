@@ -9,7 +9,6 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { desktopHostEvents } from '@core/features/workbench/node';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
@@ -20,9 +19,8 @@ import {
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { sshConnections } from '@core/services/app-db/node/schema';
-import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
-import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import { getAppDb } from '@main/db/instance';
+import { acquireDesktopWorkspaceRuntime } from '@main/gateway/workspace-runtime';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
@@ -83,6 +81,12 @@ type RemoteTerminalLaunchAttempt = {
   args: string[];
 };
 
+type TerminalContextMenuEvent = {
+  type: 'terminal-context-menu-action';
+  requestId: string;
+  action: 'paste' | 'select-all' | 'clear';
+};
+
 type ShowWorkspaceItemInFolderError =
   | FsError
   | {
@@ -101,8 +105,10 @@ class AppService implements Disposable {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
+  private emitHostEvent: (event: TerminalContextMenuEvent) => void = () => {};
 
-  initialize(): void {
+  initialize(options: { emitHostEvent(event: TerminalContextMenuEvent): void }): void {
+    this.emitHostEvent = options.emitHostEvent;
     void this.getCachedAppVersion();
   }
 
@@ -225,10 +231,7 @@ class AppService implements Disposable {
     workspaceId: string;
     relativePath: string;
   }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
-    const workspace = await acquireWorkspaceRuntime(
-      getWorkspaceIdentityService(),
-      args.workspaceId
-    );
+    const workspace = await acquireDesktopWorkspaceRuntime(args.workspaceId);
     if (!workspace) {
       return err({
         type: 'not_found',
@@ -307,7 +310,7 @@ class AppService implements Disposable {
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
     const emitAction = (action: 'paste' | 'select-all' | 'clear') => {
-      desktopHostEvents.emit(undefined, {
+      this.emitHostEvent({
         type: 'terminal-context-menu-action',
         requestId: args.requestId,
         action,

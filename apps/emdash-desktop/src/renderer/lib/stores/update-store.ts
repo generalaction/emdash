@@ -2,7 +2,7 @@ import { action, computed, makeObservable, observable, runInAction } from 'mobx'
 import { toast } from 'sonner';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
-import { createUpdateToastActionLabel } from '@renderer/lib/components/update-toast-action-label';
+import { createUpdateToastActionLabel } from '@core/primitives/ui/browser/components/update-toast-action-label';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 

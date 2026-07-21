@@ -1,7 +1,12 @@
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { useTheme } from '@core/primitives/theme/browser';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 
 type IntegrationStatus =
   | 'connected'

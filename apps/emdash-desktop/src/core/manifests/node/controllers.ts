@@ -1,5 +1,6 @@
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import {
   createController,
   forwardController,
@@ -10,14 +11,22 @@ import {
 } from '@emdash/wire/api';
 import type { EmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { createAccountWireController } from '@core/features/account/node/wire-controller';
+import { createAgentOperations } from '@core/features/agents/node/controller';
 import { createAgentsWireController } from '@core/features/agents/node/wire-controller';
+import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { createAutomationsWireController } from '@core/features/automations/node/wire-controller';
-import { createBrowserWireController } from '@core/features/browser/node/wire-controller';
+import {
+  createBrowserWireController,
+  type BrowserOperations,
+} from '@core/features/browser/node/wire-controller';
+import { createCatalogWireController } from '@core/features/catalog/node/wire-controller';
+import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
 import { createConversationsWireController } from '@core/features/conversations/node/wire-controller';
 import type { EditorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import { createEditorWireController } from '@core/features/editor/node/wire-controller';
 import { createGithubWireController } from '@core/features/github/node/wire-controller';
 import { createIntegrationsWireController } from '@core/features/integrations/node/wire-controller';
+import type { IssueProviderRegistry } from '@core/features/issues/node/registry';
 import { createIssuesWireController } from '@core/features/issues/node/wire-controller';
 import {
   createLegacyPortWireController,
@@ -28,17 +37,32 @@ import { createPromptLibraryWireController } from '@core/features/library/node/w
 import { createMachinesWireController } from '@core/features/machines/node/wire-controller';
 import { createMcpWireController } from '@core/features/mcp/node/wire-controller';
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
 import { createSearchWireController } from '@core/features/search/node/wire-controller';
 import { createSkillsWireController } from '@core/features/skills/node/wire-controller';
 import { createSourceControlWireController } from '@core/features/source-control/node/wire-controller';
+import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { createTasksWireController } from '@core/features/tasks/node/wire-controller';
 import { createTelemetryWireController } from '@core/features/telemetry/node/wire-controller';
-import { createTerminalsWireController } from '@core/features/terminals/node/wire-controller';
-import { createUpdatesWireController } from '@core/features/updates/node/wire-controller';
-import { createDesktopHostWireController } from '@core/features/workbench/node/wire-controller';
+import {
+  createTerminalsWireController,
+  type CreateTerminalsWireControllerOptions,
+} from '@core/features/terminals/node/wire-controller';
+import {
+  createUpdatesWireController,
+  type UpdateOperations,
+} from '@core/features/updates/node/wire-controller';
+import {
+  createDesktopHostWireController,
+  type DesktopHostControllerOperations,
+} from '@core/features/workbench/node/wire-controller';
+import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import {
   createProjectSettingsWireController,
   createProjectWorkspacesWireController,
@@ -47,43 +71,78 @@ import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-service';
+import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { createCatalogWireController } from '@core/services/catalog/node/wire-controller';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
+import type { OperationsEngine } from '@core/services/operations/node';
+import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type {
+  AutomationsRuntimeClient,
+  FilesRuntimeClient,
+  GitRuntimeClient,
+  MementosRuntimeClient,
+  WorkspaceRuntimeClient,
+} from '@core/services/runtime-broker/api/clients';
 import type { AppSettingsService } from '@core/services/settings/node';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
-import { createAppSettingsWireController } from '@core/services/settings/node/wire-controller';
-import type { SshServiceHandle } from '@core/services/ssh/node';
+import {
+  createAppSettingsWireController,
+  type SettingsRuntimePort,
+} from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/wire-controller';
 import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { createWorkspaceServerWireController } from '@core/services/workspace-server/node/wire-controller';
-import { createAgentOperations } from '@main/core/agents/controller';
-import {
-  getMementosRuntimeClient,
-  getPullRequestsRuntimeClient,
-} from '@main/gateway/desktop-workers';
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
+  readonly agentDependencies: Omit<
+    Parameters<typeof createAgentOperations>[0],
+    'providerOverrideSettings'
+  >;
   readonly appSettings: AppSettingsService;
+  readonly automations: AutomationsService;
+  readonly browserOperations: BrowserOperations;
+  readonly compensation: CompensationRunner;
   readonly db: AppDb;
   readonly editorBuffer: EditorBufferService;
+  readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
+  readonly hostOperations: DesktopHostControllerOperations;
+  readonly issueProviders: IssueProviderRegistry;
   readonly legacyPortOperations: LegacyPortControllerOperations;
+  readonly logger: Logger;
   readonly notifications: NotificationService;
+  readonly operations: OperationsEngine;
   readonly promptLibrary: PromptLibraryService;
+  readonly projects: ProjectSessionManager;
+  readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
+  readonly runtimeClients: {
+    getAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient>;
+    getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
+    getGitRuntimeClient(): Promise<GitRuntimeClient>;
+    getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
+    getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
+    getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
+  };
   readonly scope: Scope;
   readonly search: SearchService;
   readonly runtimes: RuntimeBroker;
   readonly ssh: SshServiceHandle;
+  readonly settingsRuntime: SettingsRuntimePort;
+  readonly telemetry: TelemetryService;
+  readonly taskService: TaskService;
+  readonly taskSessions: TaskSessionManager;
+  readonly terminalShell: CreateTerminalsWireControllerOptions['terminalShell'];
+  readonly updateOperations: UpdateOperations;
   readonly workspaceServer: WorkspaceServerServiceHandle;
   readonly workspaceIdentity: WorkspaceIdentityService;
+  readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
-    'db' | 'runtimes' | 'workspaceIdentity'
+    'db' | 'getWorkspaceRuntimeClient' | 'operations' | 'runtimes' | 'workspaceIdentity'
   >;
 };
 
@@ -104,17 +163,22 @@ function controllerFromImpl<Defs extends ContractDefinitions>(
 
 export const desktopNodeControllers = {
   account: {
-    create: ({ accountService }) => createAccountWireController(accountService),
+    create: ({ accountService, logger, telemetry }) =>
+      createAccountWireController(accountService, { logger, telemetry }),
   },
   agents: {
-    create: ({ providerSettings, runtimes }) =>
+    create: ({ agentDependencies, providerSettings, runtimes }) =>
       createAgentsWireController({
-        operations: createAgentOperations(providerSettings),
+        operations: createAgentOperations({
+          ...agentDependencies,
+          providerOverrideSettings: providerSettings,
+        }),
         runtimes,
       }),
   },
   appSettings: {
-    create: ({ appSettings }) => createAppSettingsWireController(appSettings),
+    create: ({ appSettings, settingsRuntime }) =>
+      createAppSettingsWireController(appSettings, settingsRuntime),
   },
   editor: {
     create: ({ editorBuffer, runtimes, workspaceIdentity }) =>
@@ -127,22 +191,31 @@ export const desktopNodeControllers = {
     create: ({ ssh }) => createMachinesWireController(ssh.machines),
   },
   projectSettings: {
-    create: () => createProjectSettingsWireController(),
+    create: ({ projects, runtimes, workspaceIdentity }) =>
+      createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: () => createProjectWorkspacesWireController(),
+    create: ({ db, operations, runtimeClients, taskService, taskSessions }) =>
+      createProjectWorkspacesWireController({
+        db,
+        getGitRuntimeClient: runtimeClients.getGitRuntimeClient,
+        getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
+        operations,
+        taskService,
+        taskSessions,
+      }),
   },
   promptLibrary: {
     create: ({ promptLibrary }) => createPromptLibraryWireController(promptLibrary),
   },
   repository: {
-    create: () => createRepositoryWireController(),
+    create: ({ projects }) => createRepositoryWireController(projects),
   },
   search: {
     create: ({ search }) => createSearchWireController(search),
   },
   telemetry: {
-    create: () => createTelemetryWireController(),
+    create: ({ telemetry }) => createTelemetryWireController(telemetry),
   },
   sourceControl: {
     create: ({ runtimes, workspaceIdentity }) =>
@@ -155,62 +228,139 @@ export const desktopNodeControllers = {
     create: ({ runtimes }) => createSkillsWireController({ runtimes }),
   },
   terminals: {
-    create: ({ appSettings, db, runtimes, workspaceIdentity }) =>
+    create: ({
+      appSettings,
+      db,
+      logger,
+      projects,
+      runtimes,
+      telemetry,
+      terminalShell,
+      workspaceIdentity,
+    }) =>
       createTerminalsWireController({
         db,
+        projects,
         runtimes,
         settings: appSettings,
+        logger,
+        telemetry,
+        terminalShell,
         workspaceIdentity,
       }),
   },
   mementos: {
-    create: async () =>
-      forwardController(desktopDomainContracts.mementos, await getMementosRuntimeClient()),
+    create: async ({ runtimeClients }) =>
+      forwardController(
+        desktopDomainContracts.mementos,
+        await runtimeClients.getMementosRuntimeClient()
+      ),
   },
   notifications: {
     create: ({ notifications }) => createNotificationsWireController(notifications),
   },
   pullRequests: {
-    create: async () =>
-      forwardController(desktopDomainContracts.pullRequests, await getPullRequestsRuntimeClient()),
+    create: async ({ runtimeClients }) =>
+      forwardController(
+        desktopDomainContracts.pullRequests,
+        await runtimeClients.getPullRequestsRuntimeClient()
+      ),
   },
   catalog: {
     create: ({ scope }) =>
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, scope, workspaces, runtimes, workspaceIdentity }) =>
+    create: ({ db, operations, runtimeClients, scope, workspaces, runtimes, workspaceIdentity }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
-        createWorkspacesWireController({ ...workspaces, db, runtimes, workspaceIdentity }),
+        createWorkspacesWireController({
+          ...workspaces,
+          db,
+          getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
+          operations,
+          runtimes,
+          workspaceIdentity,
+        }),
         scope
       ),
   },
   projects: {
-    create: ({ scope }) =>
-      controllerFromImpl(desktopDomainContracts.projects, createProjectsWireController(), scope),
+    create: ({
+      db,
+      operations,
+      projects,
+      projectSettings,
+      runtimeClients,
+      scope,
+      workspacePlacement,
+    }) =>
+      controllerFromImpl(
+        desktopDomainContracts.projects,
+        createProjectsWireController({
+          db,
+          getFilesRuntimeClient: runtimeClients.getFilesRuntimeClient,
+          getGitRuntimeClient: runtimeClients.getGitRuntimeClient,
+          getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
+          operations,
+          placement: workspacePlacement,
+          projects,
+          projectSettings,
+        }),
+        scope
+      ),
   },
   automations: {
-    create: () => createAutomationsWireController(),
+    create: ({ automations, db, projects, runtimeClients, taskService }) =>
+      createAutomationsWireController({
+        db,
+        getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+        runtime: {
+          getAutomationsRuntimeClient: runtimeClients.getAutomationsRuntimeClient,
+          getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+        },
+        service: automations,
+        taskService,
+      }),
   },
   browser: {
-    create: () => createBrowserWireController(),
+    create: ({ browserOperations }) => createBrowserWireController(browserOperations),
   },
   conversations: {
-    create: ({ db, runtimes, workspaceIdentity }) =>
-      createConversationsWireController({ db, runtimes, workspaceIdentity }),
+    create: ({
+      compensation,
+      db,
+      logger,
+      projects,
+      runtimes,
+      taskSessions,
+      telemetry,
+      workspaceIdentity,
+    }) =>
+      createConversationsWireController({
+        db,
+        logger,
+        projects,
+        runtimes,
+        taskSessions,
+        telemetry,
+        workspaceIdentity,
+        withCompensation: compensation,
+      }),
   },
   previewServers: {
     create: () => createPreviewServersWireController(),
   },
   github: {
-    create: () => createGithubWireController(),
+    create: ({ github, logger, telemetry }) =>
+      createGithubWireController({ ...github, logger, telemetry }),
   },
   integrations: {
     create: () => createIntegrationsWireController(),
   },
   issues: {
-    create: () => createIssuesWireController(),
+    create: ({ issueProviders, projects }) =>
+      createIssuesWireController({ projects, providers: issueProviders }),
   },
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
@@ -220,14 +370,25 @@ export const desktopNodeControllers = {
       createWorkspaceServerWireController(workspaceServer.provisioningModel),
   },
   tasks: {
-    create: ({ scope }) =>
-      controllerFromImpl(desktopDomainContracts.tasks, createTasksWireController(), scope),
+    create: ({ db, operations, runtimes, scope, taskService, telemetry, workspaceIdentity }) =>
+      controllerFromImpl(
+        desktopDomainContracts.tasks,
+        createTasksWireController({
+          db,
+          operations,
+          runtimes,
+          service: taskService,
+          telemetry,
+          workspaceIdentity,
+        }),
+        scope
+      ),
   },
   updates: {
-    create: () => createUpdatesWireController(),
+    create: ({ updateOperations }) => createUpdatesWireController(updateOperations),
   },
   host: {
-    create: () => createDesktopHostWireController(),
+    create: ({ hostOperations }) => createDesktopHostWireController(hostOperations),
   },
 } satisfies {
   readonly [Domain in DesktopDomain]: DesktopNodeControllerContribution;

@@ -2,9 +2,9 @@ import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
+import { Badge } from '@core/primitives/ui/browser/badge';
+import { Button } from '@core/primitives/ui/browser/button';
 import { appState } from '@renderer/lib/stores/app-state';
-import { Badge } from '@renderer/lib/ui/badge';
-import { Button } from '@renderer/lib/ui/button';
 import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {

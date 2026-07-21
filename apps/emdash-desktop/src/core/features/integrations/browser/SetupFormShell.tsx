@@ -1,10 +1,10 @@
 import { Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { DialogContentArea, DialogFooter } from '@renderer/lib/ui/dialog';
-import { useIntegrationsContext } from './integrations-provider';
+import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { DialogContentArea, DialogFooter } from '@core/primitives/ui/browser/dialog';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import type { IntegrationFormInput } from './types';
 
 export type SetupFormProps = {

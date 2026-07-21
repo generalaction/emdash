@@ -1,8 +1,7 @@
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { buttonVariants } from '@renderer/lib/ui/button';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { buttonVariants } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +10,11 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { MicroLabel } from '@renderer/lib/ui/label';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   const openAddProjectModal = useOpenModal('addProjectModal');

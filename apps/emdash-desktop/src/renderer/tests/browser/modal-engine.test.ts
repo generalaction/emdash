@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { openModal } from '@renderer/lib/modal/api';
-import { modalStore } from '@renderer/lib/modal/modal-store';
+import { openModal } from '@core/manifests/browser/modal-api';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
 
 vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {}, sidebarStore: {} }));
 

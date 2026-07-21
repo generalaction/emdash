@@ -1,18 +1,18 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { readEditorImage } from '@core/features/editor/api/browser/files';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import {
   useTaskComposition,
   useWorkspace,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
+import { Spinner } from '@core/primitives/ui/browser/spinner';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import { Spinner } from '@renderer/lib/ui/spinner';
-import { readEditorImage } from '../files';
-import { modelRegistry } from '../monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '../monaco/monacoModelPath';
-import type { FileTabResource } from '../task-editor/stores/file-tab-resource';
-import { resolveWorkspaceResourcePath } from './workspace-resource-path';
 
 interface MarkdownEditorRendererProps {
   tab: FileTabResource;

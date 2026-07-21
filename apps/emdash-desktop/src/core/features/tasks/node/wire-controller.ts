@@ -1,10 +1,14 @@
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
 import { tasksWireContract } from '@core/features/tasks/api';
+import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { taskEvents } from '@core/features/tasks/node';
+import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationsEngine } from '@core/services/operations/node';
-import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
-import { taskOperations } from '@main/core/tasks/controller';
-import { enqueueDeleteTask } from '@main/core/tasks/operations/delete-task-definition';
+import { createTaskOperations } from './controller';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type TasksWireImpl = ContractImpl<ContractDefinitionsOf<typeof tasksWireContract>>;
@@ -14,7 +18,16 @@ export type TasksWireController = {
   dispose(): Promise<void>;
 };
 
-export function createTasksWireController(): TasksWireController {
+export function createTasksWireController(options: {
+  db: AppDb;
+  operations: OperationsEngine;
+  runtimes: RuntimeBroker;
+  service: TaskService;
+  telemetry: TelemetryService;
+  workspaceIdentity: WorkspaceIdentityService;
+}): TasksWireController {
+  const { operations } = options;
+  const taskOperations = createTaskOperations(options);
   return {
     impl: {
       createTask: (input) => taskOperations.createTask(input),
@@ -37,19 +50,18 @@ export function createTasksWireController(): TasksWireController {
       teardownTask: ({ projectId, taskId }) => taskOperations.teardownTask(projectId, taskId),
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       events: taskEvents,
-      delete: (input) => enqueueDeleteTask(input),
-      retryDelete: (input) => getOperationsEngine().retryDelete('task', input.taskId),
-      forgetWithoutCleanup: (input) =>
-        getOperationsEngine().forgetWithoutCleanup('task', input.taskId),
-      deletions: createTaskDeletionsProvider(),
+      delete: (input) => enqueueDeleteTask(operations, input),
+      retryDelete: (input) => operations.retryDelete('task', input.taskId),
+      forgetWithoutCleanup: (input) => operations.forgetWithoutCleanup('task', input.taskId),
+      deletions: createTaskDeletionsProvider(operations),
     },
     async dispose() {},
   };
 }
 
-function createTaskDeletionsProvider(): LeasedLiveModelProvider<
-  typeof tasksWireContract.deletions
-> {
+function createTaskDeletionsProvider(
+  operations: OperationsEngine
+): LeasedLiveModelProvider<typeof tasksWireContract.deletions> {
   return {
     kind: 'leasedLiveModelProvider',
     contract: tasksWireContract.deletions,
@@ -60,7 +72,7 @@ function createTaskDeletionsProvider(): LeasedLiveModelProvider<
         ready: async () => {
           if (name !== 'list') throw new Error(`Unknown task deletion state '${String(name)}'`);
           if (released) throw new Error('Task deletion state lease was released before ready');
-          lease ??= getOperationsEngine().acquireDeletionState('task', key.entityId);
+          lease ??= operations.acquireDeletionState('task', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Task deletion state lease was released before ready');

@@ -4,16 +4,16 @@ import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { libraryViewDef } from '@core/features/library/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   isCurrentView,
   useNavigate,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {

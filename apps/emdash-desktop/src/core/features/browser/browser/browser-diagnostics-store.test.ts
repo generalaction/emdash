@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BrowserDiagnosticsStore } from './browser-diagnostics-store';
+import { BrowserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
 
 describe('BrowserDiagnosticsStore', () => {
   it('bounds diagnostics per browser and keeps newest entries', () => {

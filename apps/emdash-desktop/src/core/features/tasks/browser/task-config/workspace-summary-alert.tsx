@@ -1,7 +1,11 @@
 import { ChevronDown, Info } from 'lucide-react';
+import { cn } from '@core/primitives/ui/browser/cn';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { cn } from '@renderer/utils/utils';
 
 // ---------------------------------------------------------------------------
 // Intent text per preset

@@ -1,7 +1,12 @@
 import { RotateCcw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 
 interface ResetToDefaultButtonProps {
   /** Optional label shown in the tooltip: "Reset to default: <label>" */

@@ -77,6 +77,10 @@
       "types": "./dist/primitives-versioned-schema-api.d.mts",
       "default": "./dist/primitives-versioned-schema-api.mjs"
     },
+    "./primitives/runtime-resolution/api": {
+      "types": "./dist/primitives-runtime-resolution-api.d.mts",
+      "default": "./dist/primitives-runtime-resolution-api.mjs"
+    },
     "./primitives/sqlite-store/api": {
       "types": "./dist/primitives-sqlite-store-api.d.mts",
       "default": "./dist/primitives-sqlite-store-api.mjs"
@@ -228,6 +232,14 @@
     "./runtimes/workspace/api": {
       "types": "./dist/runtimes-workspace-api.d.mts",
       "default": "./dist/runtimes-workspace-api.mjs"
+    },
+    "./runtimes/workspace/api/provisioning": {
+      "types": "./dist/runtimes-workspace-api-provisioning.d.mts",
+      "default": "./dist/runtimes-workspace-api-provisioning.mjs"
+    },
+    "./runtimes/workspace/api/provisioning/placement": {
+      "types": "./dist/runtimes-workspace-api-provisioning-placement.d.mts",
+      "default": "./dist/runtimes-workspace-api-provisioning-placement.mjs"
     },
     "./runtimes/workspace/node": {
       "types": "./dist/runtimes-workspace-node.d.mts",

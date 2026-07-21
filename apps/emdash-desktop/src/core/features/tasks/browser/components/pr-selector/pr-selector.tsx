@@ -1,12 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
-import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
-import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
-import { Button } from '@renderer/lib/ui/button';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   Combobox,
   ComboboxContent,
@@ -16,9 +13,17 @@ import {
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
-} from '@renderer/lib/ui/combobox';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/combobox';
+import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
+import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@core/primitives/ui/browser/select';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import {
   pullRequestErrorMessage,
   type PullRequest,

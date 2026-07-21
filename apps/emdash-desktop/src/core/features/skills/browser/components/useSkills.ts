@@ -6,8 +6,8 @@ import {
 } from '@emdash/core/primitives/skills/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';

@@ -1,4 +1,4 @@
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import type { LinkedType, CreateTaskState } from './use-create-task-state';

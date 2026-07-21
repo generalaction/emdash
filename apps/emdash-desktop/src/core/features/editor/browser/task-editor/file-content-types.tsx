@@ -10,16 +10,16 @@
  */
 
 import type { ComponentType } from 'react';
+import { HtmlRenderer } from '@core/features/editor/api/browser/renderers/html-renderer';
+import type { FileContentType } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { BinaryRenderer } from '../renderers/binary-renderer';
 import { CsvRenderer } from '../renderers/csv-renderer';
 import { FileErrorRenderer } from '../renderers/file-error-renderer';
-import { HtmlRenderer } from '../renderers/html-renderer';
 import { ImageRenderer } from '../renderers/image-renderer';
 import { MarkdownEditorRenderer } from '../renderers/markdown-renderer';
 import { SvgRenderer } from '../renderers/svg-renderer';
 import { TooLargeRenderer } from '../renderers/too-large-renderer';
-import type { FileContentType } from './stores/file-tab-resource';
-import type { FileTabResource } from './stores/file-tab-resource';
 
 export interface FileContentTypeDef {
   /** True when the file type supports Monaco source editing. */

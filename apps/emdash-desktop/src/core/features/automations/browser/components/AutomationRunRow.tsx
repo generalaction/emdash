@@ -1,17 +1,17 @@
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
+import { isAutomationRunAdoptable } from '@core/features/automations/api/automation-run';
 import { useAutomationRunActions } from '@core/features/automations/browser/use-automation-run-actions';
-import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
+import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import {
   getRegisteredTaskData,
   getTaskIdForAutomationRun,
   getTaskStore,
-} from '@core/features/tasks/browser/stores/task-selectors';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { isAutomationRunAdoptable } from '@core/primitives/automations/api';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { cn } from '@renderer/utils/utils';
 import { useAutomationRun } from '../use-automations';
 import { RunMetaLine } from './RunMetaLine';
 import { TaskDataLine } from './TaskDataLine';

@@ -1,67 +1,17 @@
 import { ok } from '@emdash/shared/result';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequestsRuntimeClient } from '@main/gateway/desktop-workers';
+import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import { PullRequestsRegistration } from './pull-requests-registration';
 
 const mocks = vi.hoisted(() => ({
-  projects: new Map<string, { remoteUrls: string[]; subscribeRemotes: () => () => void }>(),
-  resolve: vi.fn(),
+  projects: new Map<
+    string,
+    { remoteUrls: string[]; subscribeRemotes: (handler: () => void) => () => void }
+  >(),
   resolveAuth: vi.fn(),
 }));
 
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: {
-    getProject: (projectId: string) => {
-      const project = mocks.projects.get(projectId);
-      if (!project) return undefined;
-      return {
-        repository: { path: `/tmp/${projectId}` },
-        git: {
-          repository: {
-            model: {
-              state: () => ({
-                snapshot: async () => ({
-                  data: {
-                    remotes: project.remoteUrls.map((url, index) => ({
-                      name: `remote-${index}`,
-                      url,
-                    })),
-                  },
-                }),
-              }),
-            },
-          },
-        },
-        gitRepository: {
-          subscribeRemotes: project.subscribeRemotes,
-        },
-      };
-    },
-    on: vi.fn(() => () => {}),
-  },
-}));
-
-vi.mock('@main/core/github/services/github-repository-resolver', () => ({
-  githubRepositoryResolver: { resolve: mocks.resolve },
-}));
-
-vi.mock('@main/core/github/services/project-github-auth-context', () => ({
-  resolveProjectGitHubAuthContext: mocks.resolveAuth,
-}));
-
-vi.mock('@main/core/projects/settings/project-settings-service', () => ({
-  projectSettingsService: { on: vi.fn(() => () => {}) },
-}));
-
-vi.mock('@main/core/tasks/task-session-manager', () => ({
-  taskSessionManager: { hooks: { on: vi.fn(() => () => {}) } },
-}));
-
-vi.mock('@main/gateway/desktop-workers', () => ({
-  getPullRequestsRuntimeClient: vi.fn(),
-}));
-
-vi.mock('@main/lib/logger', () => ({
+vi.mock('@emdash/shared/logger', () => ({
   log: { warn: vi.fn() },
 }));
 
@@ -77,17 +27,26 @@ function createClient() {
   };
 }
 
+function createRegistration(client: ReturnType<typeof createClient>) {
+  return new PullRequestsRegistration({
+    getClient: async () => client as unknown as PullRequestsRuntimeClient,
+    onProjectOpened: vi.fn(() => () => {}),
+    onProjectClosed: vi.fn(() => () => {}),
+    onProjectSettingsChanged: vi.fn(() => () => {}),
+    onTaskProvisioned: vi.fn(() => () => {}),
+    subscribeToProjectRemotes: (projectId, handler) => {
+      const project = mocks.projects.get(projectId);
+      return project?.subscribeRemotes(handler);
+    },
+    resolveProjectRepositoryUrls: async (projectId) =>
+      mocks.projects.get(projectId)?.remoteUrls ?? [],
+    resolveProjectAuthContext: mocks.resolveAuth,
+  });
+}
+
 describe('PullRequestsRegistration', () => {
   beforeEach(() => {
     mocks.projects.clear();
-    mocks.resolve.mockImplementation(async (remoteUrl: string) =>
-      ok({
-        host: 'github.com',
-        owner: 'acme',
-        name: remoteUrl.split('/').at(-1) ?? 'repo',
-        repositoryUrl: remoteUrl,
-      })
-    );
     mocks.resolveAuth.mockResolvedValue(ok({ accountId: 'account-1' }));
   });
 
@@ -96,9 +55,7 @@ describe('PullRequestsRegistration', () => {
     mocks.projects.set('project-1', { remoteUrls: [repositoryUrl], subscribeRemotes: vi.fn() });
     mocks.projects.set('project-2', { remoteUrls: [repositoryUrl], subscribeRemotes: vi.fn() });
     const client = createClient();
-    const registration = new PullRequestsRegistration({
-      getClient: async () => client as unknown as PullRequestsRuntimeClient,
-    });
+    const registration = createRegistration(client);
 
     await registration.onProjectOpened('project-1');
     await registration.onProjectOpened('project-2');
@@ -114,9 +71,7 @@ describe('PullRequestsRegistration', () => {
     mocks.projects.set('project-1', { remoteUrls: [repositoryUrl], subscribeRemotes: vi.fn() });
     const client = createClient();
     client.getPullRequestsForBranch.mockResolvedValue(ok({ prs: [{ identifier: '#42' }] }));
-    const registration = new PullRequestsRegistration({
-      getClient: async () => client as unknown as PullRequestsRuntimeClient,
-    });
+    const registration = createRegistration(client);
 
     await registration.onProjectOpened('project-1');
     await registration.onTaskProvisioned('project-1', 'feature-branch');
@@ -132,9 +87,7 @@ describe('PullRequestsRegistration', () => {
     const repositoryUrl = 'https://github.com/acme/deleted';
     mocks.projects.set('project-1', { remoteUrls: [repositoryUrl], subscribeRemotes: vi.fn() });
     const client = createClient();
-    const registration = new PullRequestsRegistration({
-      getClient: async () => client as unknown as PullRequestsRuntimeClient,
-    });
+    const registration = createRegistration(client);
 
     await registration.onProjectOpened('project-1');
     await registration.deleteProjectData('project-1');

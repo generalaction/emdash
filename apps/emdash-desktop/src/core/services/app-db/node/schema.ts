@@ -1,4 +1,3 @@
-import type { AutomationRunStatus } from '@emdash/core/runtimes/automations/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
@@ -8,6 +7,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import type { AutomationRunStatus } from '@core/primitives/automations/api/automation-run-status';
 import {
   automationConversationConfig,
   automationTriggerConfig,

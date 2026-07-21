@@ -1,4 +1,4 @@
-import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import type { RuntimeResolveError } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
 
 export type PreviewServerSource =

@@ -3,25 +3,28 @@ import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components
 import { ChevronDown, Pause, Play, Plus, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { type TerminalTabViewStore } from '@core/features/terminals/browser/task-terminal/terminal-tab-view-store';
+import {
+  TERMINAL_DRAWER_DRAG_TYPE,
+  type TerminalDrawerDragData,
+} from '@core/features/terminals/api/browser/task-terminal/terminal-drag';
+import { type TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
 import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
-} from '@core/features/workspaces/browser/lifecycle-scripts';
+} from '@core/features/workspaces/api/browser/lifecycle-scripts';
 import type { TerminalShellAvailability, TerminalShellId } from '@core/primitives/terminals/api';
-import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
-import { TERMINAL_DRAWER_DRAG_TYPE, type TerminalDrawerDragData } from './terminal-drag';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 export type TerminalDrawerMode = 'terminals' | 'scripts';
 

@@ -2,19 +2,19 @@ import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { formatErrorType } from '@core/features/tasks/browser/utils';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { formatErrorType } from '@core/features/tasks/api/browser/utils';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { Button } from '@core/primitives/ui/browser/button';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { activeDiffEntry } from '../pane-selectors';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';

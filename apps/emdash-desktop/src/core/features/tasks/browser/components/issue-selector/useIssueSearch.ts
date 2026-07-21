@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
-import { useIssues } from '@core/features/integrations/browser/use-issues';
-import { getProjectViewStore } from '@core/features/projects/browser/stores/project-selectors';
+import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { useIssues } from '@core/features/integrations/api/browser/use-issues';
+import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;

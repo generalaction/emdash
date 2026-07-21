@@ -4,13 +4,13 @@ import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
-import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Separator } from '@renderer/lib/ui/separator';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Textarea } from '@renderer/lib/ui/textarea';
 import { ConfigMigrationNotice } from '../config-migration-notice';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {

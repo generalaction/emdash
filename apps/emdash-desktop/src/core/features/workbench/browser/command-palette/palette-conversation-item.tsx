@@ -1,9 +1,9 @@
 import { Command } from 'cmdk';
 import { observer } from 'mobx-react-lite';
-import type { ConversationStore } from '@core/features/conversations/browser/conversation-manager';
-import { formatConversationTitleForDisplay } from '@core/features/conversations/browser/conversation-title-utils';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 
 export const PaletteConversationItem = observer(function PaletteConversationItem({

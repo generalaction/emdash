@@ -1,17 +1,17 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { PaneSizingContextProvider } from '@core/features/terminals/browser/pty/pane-sizing-context';
-import { TERMINAL_PADDING_PX } from '@core/features/terminals/browser/pty/pty';
-import { PtyPane } from '@core/features/terminals/browser/pty/pty-pane';
-import { type PtySession } from '@core/features/terminals/browser/pty/pty-session';
-import { TerminalSearchOverlay } from '@core/features/terminals/browser/pty/terminal-search-overlay';
-import { useTerminalSearch } from '@core/features/terminals/browser/pty/use-terminal-search';
+import { PaneSizingContextProvider } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
+import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
+import { PtyPane } from '@core/features/terminals/api/browser/pty/pty-pane';
+import { type PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
+import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';
+import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,
-} from '@core/features/workbench/browser/tabs/pane-dimension-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { cssVar } from '@renderer/utils/cssVars';
-import { cn } from '@renderer/utils/utils';
 
 export interface TerminalPtyContentProps {
   activeSession: PtySession | null;

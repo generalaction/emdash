@@ -1,19 +1,19 @@
 import { err } from '@emdash/shared';
 import type {
+  IssueContextOpts,
+  IssueProvider,
+  IssueQueryOpts,
+  IssueSearchOpts,
+} from '@core/features/issues/api/node/issue-provider';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type {
   ConnectionStatus,
   ConnectionStatusMap,
   IssueContextResult,
   IssueListResult,
   IssueProviderType,
 } from '@core/primitives/issue-providers/api';
-import { projectManager } from '@main/core/projects/project-manager';
-import type {
-  IssueContextOpts,
-  IssueProvider,
-  IssueQueryOpts,
-  IssueSearchOpts,
-} from './issue-provider';
-import { getAllIssueProviders, getIssueProvider } from './registry';
+import type { IssueProviderRegistry } from './registry';
 
 const DEFAULT_CAPABILITIES = {
   requiresProjectPath: false,
@@ -22,6 +22,11 @@ const DEFAULT_CAPABILITIES = {
 } as const;
 
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;
+
+export type IssueOperationsDependencies = {
+  projects: Pick<ProjectSessionManager, 'getProject'>;
+  providers: IssueProviderRegistry;
+};
 
 function timeoutStatus(provider: IssueProvider): ConnectionStatus {
   return {
@@ -72,9 +77,12 @@ async function checkProviderConnection(provider: IssueProvider): Promise<Connect
   }
 }
 
-async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T> {
+async function withResolvedRemote<T extends IssueQueryOpts>(
+  dependencies: IssueOperationsDependencies,
+  opts: T
+): Promise<T> {
   if (!opts.projectId) return opts;
-  const project = projectManager.getProject(opts.projectId);
+  const project = dependencies.projects.getProject(opts.projectId);
   if (!project) return opts;
 
   const remote = await project.gitRepository.getBaseRemote().catch(() => undefined);
@@ -96,8 +104,11 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   return { ...opts, remote: selectedRemote, repositoryUrl };
 }
 
-export async function checkConnection(provider: IssueProviderType): Promise<ConnectionStatus> {
-  const issueProvider = getIssueProvider(provider);
+export async function checkConnection(
+  dependencies: IssueOperationsDependencies,
+  provider: IssueProviderType
+): Promise<ConnectionStatus> {
+  const issueProvider = dependencies.providers.get(provider);
   if (!issueProvider) {
     return {
       connected: false,
@@ -109,9 +120,11 @@ export async function checkConnection(provider: IssueProviderType): Promise<Conn
   return checkProviderConnection(issueProvider);
 }
 
-export async function checkAllConnections(): Promise<ConnectionStatusMap> {
+export async function checkAllConnections(
+  dependencies: IssueOperationsDependencies
+): Promise<ConnectionStatusMap> {
   const settled = await Promise.all(
-    getAllIssueProviders().map(async (provider) => {
+    dependencies.providers.getAll().map(async (provider) => {
       const status = await checkProviderConnection(provider);
       return [provider.type, status] as const;
     })
@@ -120,9 +133,11 @@ export async function checkAllConnections(): Promise<ConnectionStatusMap> {
   return Object.fromEntries(settled) as ConnectionStatusMap;
 }
 
-export async function checkConfiguredConnections(): Promise<Record<IssueProviderType, boolean>> {
+export async function checkConfiguredConnections(
+  dependencies: IssueOperationsDependencies
+): Promise<Record<IssueProviderType, boolean>> {
   const settled = await Promise.all(
-    getAllIssueProviders().map(async (provider) => {
+    dependencies.providers.getAll().map(async (provider) => {
       const configured = await checkProviderConfigured(provider);
       return [provider.type, configured] as const;
     })
@@ -132,34 +147,37 @@ export async function checkConfiguredConnections(): Promise<Record<IssueProvider
 }
 
 export async function listIssues(
+  dependencies: IssueOperationsDependencies,
   provider: IssueProviderType,
   opts: IssueQueryOpts
 ): Promise<IssueListResult> {
-  const issueProvider = getIssueProvider(provider);
+  const issueProvider = dependencies.providers.get(provider);
   if (!issueProvider) {
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  return issueProvider.listIssues(await withResolvedRemote(opts));
+  return issueProvider.listIssues(await withResolvedRemote(dependencies, opts));
 }
 
 export async function searchIssues(
+  dependencies: IssueOperationsDependencies,
   provider: IssueProviderType,
   opts: IssueSearchOpts
 ): Promise<IssueListResult> {
-  const issueProvider = getIssueProvider(provider);
+  const issueProvider = dependencies.providers.get(provider);
   if (!issueProvider) {
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
 
-  return issueProvider.searchIssues(await withResolvedRemote(opts));
+  return issueProvider.searchIssues(await withResolvedRemote(dependencies, opts));
 }
 
 export async function getIssueContext(
+  dependencies: IssueOperationsDependencies,
   provider: IssueProviderType,
   opts: IssueContextOpts
 ): Promise<IssueContextResult> {
-  const issueProvider = getIssueProvider(provider);
+  const issueProvider = dependencies.providers.get(provider);
   if (!issueProvider) {
     return err({ type: 'generic', message: `Unknown provider: ${provider}` });
   }
@@ -168,5 +186,5 @@ export async function getIssueContext(
     return err({ type: 'generic', message: `${provider} does not support issue context.` });
   }
 
-  return issueProvider.getIssueContext(await withResolvedRemote(opts));
+  return issueProvider.getIssueContext(await withResolvedRemote(dependencies, opts));
 }

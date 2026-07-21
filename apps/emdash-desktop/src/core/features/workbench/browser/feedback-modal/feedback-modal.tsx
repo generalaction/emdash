@@ -1,27 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useAttachments } from '@renderer/lib/hooks/use-attachments';
-import { useModalController } from '@renderer/lib/modal/api';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Input } from '@renderer/lib/ui/input';
-import { Spinner } from '@renderer/lib/ui/spinner';
-import { Textarea } from '@renderer/lib/ui/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/dialog';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Spinner } from '@core/primitives/ui/browser/spinner';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { appState } from '@renderer/lib/stores/app-state';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {

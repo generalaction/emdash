@@ -3,15 +3,15 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useRef, useState } from 'react';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import {
   useTaskComposition,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { activeDiffEntry } from '../../../pane-selectors';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';
 import { ChangesListItem } from '../changes-list-item';

@@ -22,14 +22,14 @@ vi.mock('@renderer/lib/runtime/pull-requests-client', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/components/pr-status-icon', async () => {
+vi.mock('@core/primitives/ui/browser/components/pr-status-icon', async () => {
   const React = await import('react');
   return {
     StatusIcon: () => React.createElement('span', { 'data-testid': 'status-icon' }),
   };
 });
 
-vi.mock('@renderer/lib/ui/select', async () => {
+vi.mock('@core/primitives/ui/browser/select', async () => {
   const React = await import('react');
   type SelectContextValue = {
     onValueChange?: (value: string) => void;
@@ -68,7 +68,7 @@ vi.mock('@renderer/lib/ui/select', async () => {
   };
 });
 
-vi.mock('@renderer/lib/ui/combobox', async () => {
+vi.mock('@core/primitives/ui/browser/combobox', async () => {
   const React = await import('react');
 
   type ComboboxContextValue = {

@@ -5,9 +5,9 @@ import type {
   GitHubAccountSummary,
   GitHubUser,
 } from '@core/primitives/github/api';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
-import { useToast } from '../hooks/use-toast';
 import {
   GITHUB_ACCOUNTS_QUERY_KEY,
   GITHUB_ACCOUNT_STATE_QUERY_KEY,

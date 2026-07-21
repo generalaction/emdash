@@ -1,3 +1,4 @@
+import { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import {
@@ -5,7 +6,6 @@ import {
   scopedStoreToken,
   type ScopedStoreContribution,
 } from '@core/primitives/scoped-stores/browser';
-import { ProjectSettingsStore } from '../browser/stores/project-settings-store';
 import { ProjectViewStore } from '../browser/stores/project-view';
 import { projectViewMemento } from './mementos';
 

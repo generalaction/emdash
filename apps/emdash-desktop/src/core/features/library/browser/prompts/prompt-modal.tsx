@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Textarea } from '@renderer/lib/ui/textarea';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
 
 export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
 

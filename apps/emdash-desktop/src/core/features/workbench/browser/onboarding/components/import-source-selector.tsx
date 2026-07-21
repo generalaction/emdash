@@ -3,7 +3,7 @@ import {
   type LegacyImportSource,
   type LegacyPortPreviewSource,
 } from '@core/primitives/legacy-port/api/legacy-port';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { formatCount, sourceLabel } from './import-format';
 
 function SourceCard({

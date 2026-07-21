@@ -31,21 +31,30 @@ import { type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
+import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
+import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
+import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
-import { pullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
+import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
-import { automationRuntimePaths } from '@main/core/automations/runtime-paths';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
+import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { getGitExecutable } from '@main/core/utils/exec';
 import { desktopKeyValueStore } from '@main/db/kv';
+import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
 import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
 import { pullRequestsComponent } from '@root/src/core/services/pull-requests/node';
 import { desktopWorkerPath } from './worker-paths';
+
+const pullRequestsGitHubAuthController = createPullRequestsGitHubAuthController(
+  new GitHubApiAuthService(providerAccountRegistry),
+  githubApiBaseUrlForHost
+);
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -270,7 +279,7 @@ export async function disposeDesktopWireWorkers(): Promise<void> {
 }
 
 async function createAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient> {
-  const paths = automationRuntimePaths();
+  const paths = automationRuntimePaths(resolveDatabasePath());
   mkdirSync(paths.stateDirectory, { recursive: true });
   const [workspace, acpSessions, tuiSessions] = await Promise.all([
     getWorkspaceRuntimeClient(),

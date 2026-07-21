@@ -1,6 +1,6 @@
 import type { EmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import type { PromptLibraryService } from '@core/features/library/node/prompt-library-service';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-service';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { NotificationService } from '@core/services/notifications/node';
 import type { AppSettingsService } from '@core/services/settings/node';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';

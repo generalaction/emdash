@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from '@core/primitives/commands/api';
 import { keybinding } from '@core/primitives/keybindings/api';
+import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import { defineViewScope, disabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { ViewScopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from './keybinding-dispatcher';
-import { KeybindingService } from './keybinding-service';
 
 const outerCommand = defineCommand({
   id: 'test.outer',

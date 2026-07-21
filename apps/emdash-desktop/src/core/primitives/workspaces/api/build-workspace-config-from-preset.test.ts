@@ -1,5 +1,5 @@
-import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
+import type { GitBranchRef } from '@core/primitives/git/api';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { buildWorkspaceConfigFromPreset } from './build-workspace-config-from-preset';
 import type { PresetContext } from './workspace-presets';

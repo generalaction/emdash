@@ -1,11 +1,11 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { activeDiffEntry } from '../../../pane-selectors';

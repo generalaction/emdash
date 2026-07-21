@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import { SidebarConversationsList } from '@core/features/conversations/browser/sidebar-conversations-list';
-import { EditorFileTree } from '@core/features/editor/browser/task-editor/editor-file-tree';
-import { ChangesPanel } from '@core/features/source-control/browser/diff-view/changes-panel/changes-panel';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { SidebarConversationsList } from '@core/features/conversations/api/browser/sidebar-conversations-list';
+import { EditorFileTree } from '@core/features/editor/api/browser/task-editor/editor-file-tree';
+import { ChangesPanel } from '@core/features/source-control/api/browser/diff-view/changes-panel/changes-panel';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { ShowHide } from '@core/primitives/ui/browser/show-hide';
 
 export const TaskSidebar = observer(function TaskSidebar() {
   const taskView = useTaskComposition();

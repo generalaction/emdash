@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DraftComment } from '@core/features/source-control/browser/diff-view/stores/draft-comments-store';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,

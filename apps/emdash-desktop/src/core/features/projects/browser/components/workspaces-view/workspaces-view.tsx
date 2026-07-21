@@ -13,8 +13,23 @@ import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getWorkspacesWireClient } from '@core/features/workspaces/browser/client';
+import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { DeletionState } from '@core/primitives/operations/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
+import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { Spinner } from '@core/primitives/ui/browser/spinner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
@@ -22,18 +37,8 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
-import { PageHeader } from '@renderer/lib/components/page-header';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { SearchInput } from '@renderer/lib/ui/search-input';
-import { Spinner } from '@renderer/lib/ui/spinner';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import { cn } from '@renderer/utils/utils';
 import { usePendingCleanups } from './use-pending-cleanups';
 
 type UsageFilter = 'all' | 'used' | 'unused';

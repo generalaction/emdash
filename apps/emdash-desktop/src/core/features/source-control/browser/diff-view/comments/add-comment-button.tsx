@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 
 interface AddCommentButtonProps {
   pinned: boolean;

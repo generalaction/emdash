@@ -1,9 +1,15 @@
 import type { PendingLease } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { MachineMutationEvent } from '@core/features/machines/node/machines-service';
-import type { SshServiceHandle } from '@core/services/ssh/node';
+import type {
+  MachineMutationEvent,
+  MachinesService,
+} from '@core/features/machines/api/node/machines-service';
 import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
-import type { SshConnectionManagerEvent } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
+import type {
+  SshConnectionManager,
+  SshConnectionManagerEvent,
+} from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
+import type { SshService } from '@core/services/ssh/node/ssh-service';
 import {
   createWorkspaceServerClientSource,
   type WorkspaceServerConnection,
@@ -17,9 +23,10 @@ import { WorkspaceServerInstaller } from './provision/installer';
 import { WorkspaceServerProvisioner } from './provision/provisioner';
 import { WorkspaceServerProvisioningModel } from './provision/provisioning-model';
 
-type WorkspaceServerSshHandle = Pick<SshServiceHandle, 'manager'> & {
-  ssh: Pick<SshServiceHandle['ssh'], 'connect'>;
-  machines: Pick<SshServiceHandle['machines'], 'on'>;
+type WorkspaceServerSshHandle = {
+  manager: SshConnectionManager;
+  ssh: Pick<SshService, 'connect'>;
+  machines: Pick<MachinesService, 'on'>;
 };
 
 type WorkspaceServerServiceLog = {

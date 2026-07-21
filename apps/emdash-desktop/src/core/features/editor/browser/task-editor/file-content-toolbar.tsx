@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { useWorkspace } from '@core/features/workbench/browser/task-composition-context';
-import { relativeToWorkspace } from '@core/features/workspaces/browser/workspace-path';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { FileTabResource } from './stores/file-tab-resource';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 
 interface FileContentToolbarProps {
   tab: FileTabResource;

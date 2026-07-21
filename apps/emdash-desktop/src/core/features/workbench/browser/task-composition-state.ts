@@ -2,7 +2,7 @@ import type { TaskDiffSelectionState } from '@core/features/tasks/contributions/
 import {
   relativeToWorkspace,
   resolveWorkspacePath,
-} from '@core/features/workspaces/browser/workspace-path';
+} from '@core/features/workspaces/api/browser/workspace-path';
 
 export function sanitizeDiffSelection(
   value: TaskDiffSelectionState,

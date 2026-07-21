@@ -1,5 +1,5 @@
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Switch } from '@renderer/lib/ui/switch';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Switch } from '@core/primitives/ui/browser/switch';
 import { BranchNameField } from './branch-name-field';
 import type { WorkspacePanelProps } from './new-worktree-panel';
 import { SetupStepPreview } from './setup-step-preview';

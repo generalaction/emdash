@@ -1,7 +1,14 @@
 import { Terminal } from 'lucide-react';
 import { computed, makeObservable, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import type { PtySession } from '@core/features/terminals/browser/pty/pty-session';
+import type { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
+import { terminalRegistry } from '@core/features/terminals/api/browser/stores/terminal-registry';
+import type {
+  TerminalManagerStore,
+  TerminalStore,
+} from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import type {
   ResolvedTab,
   TabBarItemProps,
@@ -11,16 +18,12 @@ import type {
   TabProvider,
   TabResource,
   TabViewContext,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { terminalRegistry } from '../stores/terminal-registry';
-import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
 import { TerminalPtyContent } from './terminal-pty-content';
 
 export interface TerminalTabState {

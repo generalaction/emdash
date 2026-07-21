@@ -1,5 +1,5 @@
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { sortGitHubAccountsByDefault } from '../../github-account-select-model';
 
 export const NO_GITHUB_ACCOUNT = '__no_github_account__';
 export const UNCONFIGURED_GITHUB_ACCOUNT = '__unconfigured_github_account__';

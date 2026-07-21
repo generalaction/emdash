@@ -2,17 +2,17 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceConfigState } from './use-workspace-config';
+import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 
-vi.mock('@core/features/source-control/browser/stores/source-control-selectors', () => ({
+vi.mock('@core/features/source-control/api/browser/stores/source-control-selectors', () => ({
   getGitRepositoryStore: () => undefined,
 }));
 
@@ -28,7 +28,8 @@ vi.mock('./use-branch-name', () => ({
   }),
 }));
 
-const { useWorkspaceConfig } = await import('./use-workspace-config');
+const { useWorkspaceConfig } =
+  await import('../../api/browser/create-task-modal/use-workspace-config');
 
 let latestState: WorkspaceConfigState | undefined;
 

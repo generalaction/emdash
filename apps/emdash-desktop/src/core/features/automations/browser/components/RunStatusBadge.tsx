@@ -1,7 +1,10 @@
 import { CheckCircle2, Clock, Loader2, MinusCircle, XCircle } from 'lucide-react';
-import type { AutomationRun, AutomationRunStatus } from '@core/primitives/automations/api';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+import type {
+  AutomationRun,
+  AutomationRunStatus,
+} from '@core/features/automations/api/automation-run';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { formatRunError } from '../automation-run-format';
 
 interface RunStatusBadgeProps {

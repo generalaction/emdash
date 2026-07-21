@@ -10,17 +10,20 @@ import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useMemo, useRef, useState, useEffect } from 'react';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import type {
+  FileSelection,
+  FileTabResource,
+} from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { searchContract } from '@core/features/search/api';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { FileIcon } from '../renderers/file-icon';
 import {
   countContentSearchOccurrences,
   highlightSegments,
   mergeContentSearchFiles,
 } from './file-content-search-model';
-import type { FileSelection, FileTabResource } from './stores/file-tab-resource';
 
 const SEARCH_DEBOUNCE_MS = 200;
 

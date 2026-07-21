@@ -1,15 +1,15 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
+import type { BrowserSessionSnapshot } from '@core/primitives/browser/api';
 import type {
   TabBarItemProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
-import type { BrowserSessionSnapshot } from '@core/primitives/browser/api';
-import type { BrowserTabResource } from './browser-tab-resource';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
 
 function browserTabLabel(session: BrowserSessionSnapshot | undefined): string {
   if (!session) return 'Browser';

@@ -1,5 +1,9 @@
 import { ChevronDown, Terminal } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
 
 interface SetupStepPreviewProps {
   steps: string[];

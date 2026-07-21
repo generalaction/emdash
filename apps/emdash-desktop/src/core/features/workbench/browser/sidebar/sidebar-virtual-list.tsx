@@ -26,7 +26,7 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type SidebarRow } from '@core/features/workbench/browser/sidebar/sidebar-store';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';

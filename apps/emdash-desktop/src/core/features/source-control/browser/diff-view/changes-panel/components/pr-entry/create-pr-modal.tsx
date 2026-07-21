@@ -2,32 +2,32 @@ import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { formatPushErrorDetail } from '@core/features/tasks/browser/utils';
-import { workspaceRegistry } from '@core/features/workspaces/browser/stores/workspace-registry';
+import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { formatPushErrorDetail } from '@core/features/tasks/api/browser/utils';
+import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { BranchDisplay } from '@renderer/lib/components/branch-display';
-import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
-import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
-import { useModalController } from '@renderer/lib/modal/api';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
-import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Alert, AlertDescription, AlertTitle } from '@core/primitives/ui/browser/alert';
+import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
+import { BranchDisplay } from '@core/primitives/ui/browser/components/branch-display';
+import { RemoteSelectContent } from '@core/primitives/ui/browser/components/remote-select-content';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Select, SelectTrigger } from '@renderer/lib/ui/select';
-import { Separator } from '@renderer/lib/ui/separator';
-import { SplitButton } from '@renderer/lib/ui/split-button';
-import { Textarea } from '@renderer/lib/ui/textarea';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { SplitButton } from '@core/primitives/ui/browser/split-button';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
+import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { log } from '@renderer/utils/logger';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { resolveInitialBaseBranch } from './base-branch';

@@ -1,9 +1,9 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
+import { type PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { type GitCheckoutStore } from '../../stores/git-checkout-store';
-import { type PrStore } from '../../stores/pr-store';
 import { ChangesViewStore } from './changes-view-store';
 
 class FakeGitCheckoutStore {

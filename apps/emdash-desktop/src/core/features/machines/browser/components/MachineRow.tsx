@@ -2,9 +2,14 @@ import { PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type { SshConfig } from '@core/primitives/ssh/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { authLabel, projectUsageNamesText, projectUsageText } from './machine-formatters';
 import { MachineBadge } from './MachineBadge';
 

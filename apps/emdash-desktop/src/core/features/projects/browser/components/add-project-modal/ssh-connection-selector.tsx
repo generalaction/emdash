@@ -1,8 +1,8 @@
 import { ChevronsUpDownIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
+import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
 import { appState } from '@renderer/lib/stores/app-state';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
 
 interface SshConnectionSelectorProps {
   connectionId?: string;

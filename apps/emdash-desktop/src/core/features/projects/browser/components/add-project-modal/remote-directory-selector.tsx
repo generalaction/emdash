@@ -1,4 +1,4 @@
-import { Input } from '@renderer/lib/ui/input';
+import { Input } from '@core/primitives/ui/browser/input';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;

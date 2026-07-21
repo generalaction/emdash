@@ -1,17 +1,18 @@
 import { Command } from 'cmdk';
 import { useObserver } from 'mobx-react-lite';
-import type { ConversationStore } from '@core/features/conversations/browser/conversation-manager';
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
+import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import {
   asMounted,
   getProjectManagerStore,
-} from '@core/features/projects/browser/stores/project-selectors';
-import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
-import { isRegistered, type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { isRegistered } from '@core/primitives/task-state/browser/task-state';
+import { cn } from '@core/primitives/ui/browser/cn';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
-import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteTaskItem } from './palette-task-item';
 

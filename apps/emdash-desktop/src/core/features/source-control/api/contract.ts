@@ -5,7 +5,7 @@ import {
   runtimeFallibleMutations,
   runtimeFallibleProcedure,
   runtimeResolveErrorUnion,
-} from '@core/features/runtime-routing/api/fallible-contract';
+} from '@core/primitives/desktop-runtime/api/fallible-contract';
 
 const projectKeySchema = z.object({ projectId: z.string() });
 const workspaceKeySchema = z.object({ workspaceId: z.string() });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
+import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import type { WorkbenchSidebarState } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { SidebarStore } from './sidebar-store';

@@ -1,6 +1,6 @@
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import { Badge } from '@renderer/lib/ui/badge';
-import { cn } from '@renderer/utils/utils';
+import { Badge } from '@core/primitives/ui/browser/badge';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { stateLabel } from './machine-formatters';
 
 export function MachineBadge({ state }: { state: ConnectionState }) {

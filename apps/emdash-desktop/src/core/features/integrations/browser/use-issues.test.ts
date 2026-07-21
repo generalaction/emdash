@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useIssues } from './use-issues';
+import { useIssues } from '@core/features/integrations/api/browser/use-issues';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -14,13 +14,13 @@ const mocks = vi.hoisted(() => ({
   searchIssues: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
     issues: {
       listIssues: mocks.listIssues,
       searchIssues: mocks.searchIssues,
     },
-  },
+  }),
 }));
 
 function Probe() {

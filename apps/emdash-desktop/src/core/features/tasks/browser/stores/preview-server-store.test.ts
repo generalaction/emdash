@@ -26,7 +26,7 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   }),
 }));
 
-const { PreviewServerStore } = await import('./preview-server-store');
+const { PreviewServerStore } = await import('../../api/browser/stores/preview-server-store');
 
 function directServer(overrides: Partial<PreviewServer> = {}): PreviewServer {
   return {

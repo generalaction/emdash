@@ -8,8 +8,7 @@ import {
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
-import { conversationWireEvents } from '@core/features/conversations/node';
-import { setSessionId } from '@main/core/conversations/set-session-id';
+import type { ConversationEvent } from '@core/primitives/conversations/api';
 import { getTuiAgentsRuntimeClient, tuiAgentsWorker } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import { agentStatusService } from './agent-status-service';
@@ -17,6 +16,17 @@ import {
   eventFromTuiAgentState,
   shouldApplyAgentStateTransition,
 } from './tui-agent-status-transition';
+
+type TuiAgentStatusBridgeDependencies = {
+  setSessionId(
+    conversationId: string,
+    sessionId: string
+  ): Promise<
+    | { success: true; data: { taskId: string; projectId: string } }
+    | { success: false; error: { type: string } }
+  >;
+  publishConversationEvent(event: ConversationEvent): void;
+};
 
 class TuiAgentStatusBridge {
   private readonly agentStates = new Map<string, TuiAgentState>();
@@ -27,8 +37,10 @@ class TuiAgentStatusBridge {
   private attaching = false;
   private agentStatesBootstrapped = false;
   private sessionsBootstrapped = false;
+  private dependencies: TuiAgentStatusBridgeDependencies | undefined;
 
-  initialize(): void {
+  initialize(dependencies: TuiAgentStatusBridgeDependencies): void {
+    this.dependencies = dependencies;
     void this.attach().catch((error) => {
       log.warn('TUI agent status bridge failed to attach', { error: String(error) });
     });
@@ -172,7 +184,9 @@ class TuiAgentStatusBridge {
     session: TuiSessionState
   ): Promise<void> {
     if (!session.sessionId || previous?.sessionId === session.sessionId) return;
-    const result = await setSessionId(session.conversationId, session.sessionId);
+    const dependencies = this.dependencies;
+    if (!dependencies) throw new Error('TUI agent status bridge has not been initialized');
+    const result = await dependencies.setSessionId(session.conversationId, session.sessionId);
     if (!result.success) {
       log.warn('TUI agent status bridge failed to persist session id', {
         conversationId: session.conversationId,
@@ -181,7 +195,7 @@ class TuiAgentStatusBridge {
       return;
     }
 
-    conversationWireEvents.emit(undefined, {
+    dependencies.publishConversationEvent({
       type: 'changed',
       conversationId: session.conversationId,
       taskId: result.data.taskId,

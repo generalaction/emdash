@@ -1,6 +1,7 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
 import { useCallback, useMemo, useState } from 'react';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   emptyProjectSettingsOverrideState,
   type MigrateProjectConfigRequest,
@@ -14,8 +15,7 @@ import {
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,

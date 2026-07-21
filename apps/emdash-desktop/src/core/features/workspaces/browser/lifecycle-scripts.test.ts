@@ -1,7 +1,10 @@
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  LifecycleScriptsStore,
+  LifecycleScriptStore,
+} from '@core/features/workspaces/api/browser/lifecycle-scripts';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
-import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts';
 
 const offEvent = vi.fn();
 const getSettings = vi.hoisted(() => vi.fn());
@@ -13,14 +16,14 @@ const fileWatch = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('@core/features/editor/browser/files', () => ({
+vi.mock('@core/features/editor/api/browser/files', () => ({
   watchFileContent: vi.fn(async (_workspaceId: string, _path: string, handler: () => void) => {
     fileWatch.handler = handler;
     return fileWatch.unsubscribe;
   }),
 }));
 
-vi.mock('@core/features/terminals/browser/client', () => ({
+vi.mock('@core/features/terminals/api/browser/client', () => ({
   getTerminalsClient: vi.fn(() => new Promise(() => {})),
 }));
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
@@ -44,7 +47,7 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   }),
 }));
 
-vi.mock('@core/features/terminals/browser/pty/pty-session', () => ({
+vi.mock('@core/features/terminals/api/browser/pty/pty-session', () => ({
   PtySession: class {
     pty = null;
     status = 'disconnected';

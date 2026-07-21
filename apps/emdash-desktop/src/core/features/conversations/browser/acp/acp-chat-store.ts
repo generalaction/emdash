@@ -18,17 +18,17 @@ import type {
 } from '@emdash/ui/react/components';
 import type { BlobSource } from '@emdash/wire';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { getAgentsClient } from '@core/features/agents/browser/client';
+import { getAgentsClient } from '@core/features/agents/api/browser/client';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
-import { conversationRegistry } from '../stores/conversation-registry';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 

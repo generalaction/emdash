@@ -1,7 +1,7 @@
 import { ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
-import { hostRefFromConnectionId } from '@core/features/agents/browser/client';
-import { useAgentInstallationStatus } from '@core/features/agents/browser/use-agent-installation-statuses';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
+import { useAgentInstallationStatus } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallMethod } from '@core/primitives/agents/api';
 import { resolveActiveInstallation } from '@core/primitives/agents/api';
 import { CommandActionButton, CommandRow } from './install-command-row';

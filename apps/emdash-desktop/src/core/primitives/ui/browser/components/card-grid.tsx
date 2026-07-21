@@ -1,0 +1,41 @@
+import type { ComponentProps } from 'react';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
+
+export function CardGrid({ children, className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function CardGridSection({ children, title }: ComponentProps<'div'> & { title: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <MicroLabel>{title}</MicroLabel>
+
+      <CardGrid>{children}</CardGrid>
+    </div>
+  );
+}
+
+export function CardGridItem({ children, className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      className={cn(
+        'group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-background-1 hover:bg-background-2 p-4 text-left text-card-foreground transition-all',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}

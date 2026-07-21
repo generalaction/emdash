@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
 import { Result as ResultUtil } from '@emdash/shared/result';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import { log } from '@main/lib/logger';
+import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
   type AccountInitializeError,
   type AccountLinkProviderError,
@@ -20,10 +20,14 @@ import {
   parseRequiredProviderTokenResponse,
   parseSignInResponse,
 } from './account-auth-response-parser';
-import { AccountAuthServerClient } from './account-auth-server-client';
-import { AccountOAuthClient } from './account-oauth-client';
-import { AccountSessionStore, type AccountProfileKeyValueStore } from './account-session-store';
-import { ProviderTokenDispatcher } from './provider-token-dispatcher';
+import type { AccountAuthServerClient } from './account-auth-server-client';
+import type { AccountOAuthClient } from './account-oauth-client';
+import {
+  AccountSessionStore,
+  type AccountProfileKeyValueStore,
+  type AccountSessionCredentialStore,
+} from './account-session-store';
+import type { ProviderTokenDispatcher } from './provider-token-dispatcher';
 
 type AccountServiceHooks = {
   accountChanged: (username: string, userId: string, email: string) => void | Promise<void>;
@@ -32,14 +36,14 @@ type AccountServiceHooks = {
 
 export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   private readonly _hooks = new HookCore<AccountServiceHooks>((name, e) =>
-    log.error(`EmdashAccountService: ${String(name)} hook error`, e)
+    log.error(`EmdashAccountService: ${String(name)} hook error`, { error: e })
   );
 
   constructor(
     private readonly sessionStore: AccountSessionStore,
-    private readonly authServerClient = new AccountAuthServerClient(),
-    private readonly oauthClient = new AccountOAuthClient(),
-    private readonly providerTokenDispatcher = new ProviderTokenDispatcher()
+    private readonly authServerClient: AccountAuthServerClient,
+    private readonly oauthClient: AccountOAuthClient,
+    private readonly providerTokenDispatcher: ProviderTokenDispatcher
   ) {}
 
   on<K extends keyof AccountServiceHooks>(name: K, handler: AccountServiceHooks[K]) {
@@ -184,7 +188,16 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 }
 
 export function createEmdashAccountService(options: {
+  authServerClient: AccountAuthServerClient;
+  credentials: AccountSessionCredentialStore;
   keyValueStore: AccountProfileKeyValueStore;
+  oauthClient: AccountOAuthClient;
+  providerTokenDispatcher: ProviderTokenDispatcher;
 }): EmdashAccountService {
-  return new EmdashAccountService(new AccountSessionStore(options.keyValueStore));
+  return new EmdashAccountService(
+    new AccountSessionStore(options.keyValueStore, options.credentials),
+    options.authServerClient,
+    options.oauthClient,
+    options.providerTokenDispatcher
+  );
 }

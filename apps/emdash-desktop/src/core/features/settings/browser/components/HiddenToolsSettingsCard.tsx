@@ -1,9 +1,14 @@
 import { useMemo } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { OPEN_IN_APPS, type OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import IntegrationRow from './IntegrationRow';
 
 export default function HiddenToolsSettingsCard() {

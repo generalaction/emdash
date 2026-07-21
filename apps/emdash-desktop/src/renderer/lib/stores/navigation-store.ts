@@ -10,6 +10,7 @@ import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
 import type { JsonObject, JsonValue } from '@core/primitives/json/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
 import type {
   HistoryEntry,
   NavigationParticipant,
@@ -19,7 +20,6 @@ import type {
 import type { Subject } from '@core/primitives/subjects/api';
 import type { ViewRef } from '@core/primitives/views/api';
 import { getViewRuntime, type RuntimeViewDef } from '@core/primitives/views/react';
-import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
 import { appState } from './app-state';

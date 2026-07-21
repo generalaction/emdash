@@ -1,11 +1,11 @@
 import type { GitChange, GitChangeStatus } from '@emdash/core/runtimes/git/api';
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
-import { FileIcon } from '@core/features/editor/browser/renderers/file-icon';
-import { splitPath } from '@core/features/tasks/browser/utils';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { splitPath } from '@core/features/tasks/api/browser/utils';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
-import { cn } from '@renderer/utils/utils';
 import { displayPathForChange } from './changes-tree-utils';
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {

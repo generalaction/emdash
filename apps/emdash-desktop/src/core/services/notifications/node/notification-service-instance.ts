@@ -1,15 +1,22 @@
+import type { AgentEvent } from '@core/primitives/agents/api';
+import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { AppSettingsService } from '@core/services/settings/node';
+import type { EmitNotificationDelivery, NotificationSink } from '../api/ports';
 import { NotificationService, type NotificationServiceDeps } from './notification-service';
 import { installAgentStatusNotificationProducer } from './producers';
-import { createSoundNotificationSink, createSystemNotificationSink } from './sinks';
+import { createSoundNotificationSink } from './sinks';
 import { SqliteNotificationStore } from './sqlite-store';
 
 export type CreateNotificationServiceDeps = {
   db: AppDb;
-  settings: Pick<AppSettingsService, 'get'>;
+  settings: {
+    get(key: 'notifications'): Promise<NotificationSettings>;
+  };
+  resolveProviderName(providerId: string): string;
   isAppFocused(): boolean;
+  onAgentEvent(handler: (event: AgentEvent) => void): () => void;
   logger?: NotificationServiceDeps['logger'];
+  createSystemSink?: (emitDelivery: EmitNotificationDelivery) => NotificationSink;
 };
 
 export function createNotificationService(
@@ -26,9 +33,17 @@ export function createNotificationService(
     },
   });
 
-  service.registerSink(createSystemNotificationSink((event) => service.emitDelivery(event)));
+  if (deps.createSystemSink) {
+    service.registerSink(deps.createSystemSink((event) => service.emitDelivery(event)));
+  }
   service.registerSink(createSoundNotificationSink((event) => service.emitDelivery(event)));
-  service.registerDisposer(installAgentStatusNotificationProducer(service, { db: deps.db }));
+  service.registerDisposer(
+    installAgentStatusNotificationProducer(service, {
+      db: deps.db,
+      onAgentEvent: deps.onAgentEvent,
+      resolveProviderName: deps.resolveProviderName,
+    })
+  );
 
   return service;
 }

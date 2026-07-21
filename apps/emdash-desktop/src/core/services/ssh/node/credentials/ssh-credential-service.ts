@@ -1,6 +1,8 @@
-import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
+import type { SecretStore } from '@core/primitives/secrets/api/secret-store';
 
 export class SshCredentialService {
+  constructor(private readonly secrets: SecretStore) {}
+
   private passwordSecretKey(connectionId: string): string {
     return `ssh:${connectionId}:password`;
   }
@@ -11,7 +13,7 @@ export class SshCredentialService {
 
   async storePassword(connectionId: string, password: string): Promise<void> {
     try {
-      await encryptedAppSecretsStore.setSecret(this.passwordSecretKey(connectionId), password);
+      await this.secrets.setSecret(this.passwordSecretKey(connectionId), password);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store password for connection ${connectionId}: ${message}`);
@@ -20,7 +22,7 @@ export class SshCredentialService {
 
   async getPassword(connectionId: string): Promise<string | null> {
     try {
-      return await encryptedAppSecretsStore.getSecret(this.passwordSecretKey(connectionId));
+      return await this.secrets.getSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to retrieve password for connection ${connectionId}: ${message}`);
@@ -29,7 +31,7 @@ export class SshCredentialService {
 
   async deletePassword(connectionId: string): Promise<void> {
     try {
-      await encryptedAppSecretsStore.deleteSecret(this.passwordSecretKey(connectionId));
+      await this.secrets.deleteSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete password for connection ${connectionId}: ${message}`);
@@ -38,9 +40,7 @@ export class SshCredentialService {
 
   async hasPassword(connectionId: string): Promise<boolean> {
     try {
-      const credential = await encryptedAppSecretsStore.getSecret(
-        this.passwordSecretKey(connectionId)
-      );
+      const credential = await this.secrets.getSecret(this.passwordSecretKey(connectionId));
       return credential !== null;
     } catch {
       return false;
@@ -49,7 +49,7 @@ export class SshCredentialService {
 
   async storePassphrase(connectionId: string, passphrase: string): Promise<void> {
     try {
-      await encryptedAppSecretsStore.setSecret(this.passphraseSecretKey(connectionId), passphrase);
+      await this.secrets.setSecret(this.passphraseSecretKey(connectionId), passphrase);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store passphrase for connection ${connectionId}: ${message}`);
@@ -58,7 +58,7 @@ export class SshCredentialService {
 
   async getPassphrase(connectionId: string): Promise<string | null> {
     try {
-      return await encryptedAppSecretsStore.getSecret(this.passphraseSecretKey(connectionId));
+      return await this.secrets.getSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to retrieve passphrase for connection ${connectionId}: ${message}`);
@@ -67,7 +67,7 @@ export class SshCredentialService {
 
   async deletePassphrase(connectionId: string): Promise<void> {
     try {
-      await encryptedAppSecretsStore.deleteSecret(this.passphraseSecretKey(connectionId));
+      await this.secrets.deleteSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete passphrase for connection ${connectionId}: ${message}`);
@@ -76,9 +76,7 @@ export class SshCredentialService {
 
   async hasPassphrase(connectionId: string): Promise<boolean> {
     try {
-      const credential = await encryptedAppSecretsStore.getSecret(
-        this.passphraseSecretKey(connectionId)
-      );
+      const credential = await this.secrets.getSecret(this.passphraseSecretKey(connectionId));
       return credential !== null;
     } catch {
       return false;
@@ -108,5 +106,3 @@ export class SshCredentialService {
     ]);
   }
 }
-
-export const sshCredentialService = new SshCredentialService();

@@ -1,13 +1,13 @@
 import { observer } from 'mobx-react-lite';
-import { useAgentSettings } from '@core/features/agents/browser/use-agent-settings';
-import { useAgents } from '@core/features/agents/browser/use-agents';
-import { Field } from '@renderer/lib/ui/field';
-import { Label } from '@renderer/lib/ui/label';
-import { Sheet, SheetContent, SheetHeader } from '@renderer/lib/ui/sheet';
+import { useAgentSettings } from '@core/features/agents/api/browser/use-agent-settings';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { InstallSection } from '@core/features/settings/api/browser/agents-page/InstallSection';
+import { Field } from '@core/primitives/ui/browser/field';
+import { Label } from '@core/primitives/ui/browser/label';
+import { Sheet, SheetContent, SheetHeader } from '@core/primitives/ui/browser/sheet';
 import { AgentMcpSection } from './AgentMcpSection';
 import { AgentSheetHeaderSection } from './AgentSheetHeaderSection';
 import { InstalledAgentContent } from './InstalledAgentContent';
-import { InstallSection } from './InstallSection';
 
 interface AgentDetailSheetProps {
   agentId: string | null;

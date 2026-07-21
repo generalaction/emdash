@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import {
   getResolvedIconPath,
   getResolvedLabel,

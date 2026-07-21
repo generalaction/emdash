@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FileTabResource } from './file-tab-resource';
+import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 
 describe('FileTabResource selections', () => {
   it('switches previewable files to source and exposes a one-shot selection request', () => {

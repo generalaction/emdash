@@ -1,5 +1,5 @@
-import type { TabResource } from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { conversationRegistry } from '../stores/conversation-registry';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import type { TabResource } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import type { AcpChatStore } from './acp-chat-store';
 
 /**

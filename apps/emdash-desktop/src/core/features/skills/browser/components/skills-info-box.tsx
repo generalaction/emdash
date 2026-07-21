@@ -1,4 +1,4 @@
-import { Alert, AlertDescription } from '@renderer/lib/ui/alert';
+import { Alert, AlertDescription } from '@core/primitives/ui/browser/alert';
 
 export function SkillsInfoBox() {
   return (

@@ -1,10 +1,10 @@
 import { RefreshCw } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { useAgentInstallationStatuses } from '@core/features/agents/browser/use-agent-installation-statuses';
-import { PageHeader } from '@renderer/lib/components/page-header';
-import { Button } from '@renderer/lib/ui/button';
-import { SearchInput } from '@renderer/lib/ui/search-input';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
+import { Button } from '@core/primitives/ui/browser/button';
+import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { CliAgentsList, type AgentFilter } from './CliAgentsList';
 
 export function AgentsSettingsPage() {

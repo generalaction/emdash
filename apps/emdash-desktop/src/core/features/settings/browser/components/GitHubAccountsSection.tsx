@@ -2,19 +2,24 @@ import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import {
   GitHubCredentialSourceBadge,
   GitHubDefaultAccountBadge,
-} from '@core/features/projects/browser/components/github-account-select';
-import { sortGitHubAccountsByDefault } from '@core/features/projects/browser/components/github-account-select-model';
+} from '@core/features/projects/api/browser/components/github-account-select';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { useToast } from '@renderer/lib/hooks/use-toast';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useGitHubAccounts,
   useRemoveGitHubAccount,
   useSetDefaultGitHubAccount,
 } from '@renderer/lib/hooks/useGithubAccounts';
-import { useOpenModal } from '@renderer/lib/modal/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();

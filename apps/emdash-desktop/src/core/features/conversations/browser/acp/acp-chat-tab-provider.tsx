@@ -1,4 +1,9 @@
 import { observer } from 'mobx-react-lite';
+import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import type {
   TabEntry,
   TabHandle,
@@ -6,18 +11,13 @@ import type {
   TabViewContext,
   TabBarItemProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
 import { ConversationAgentIcon } from '../conversation-agent-icon';
-import { formatConversationTitleForDisplay } from '../conversation-title-utils';
-import { conversationRegistry } from '../stores/conversation-registry';
 import { AcpChatPanel } from './acp-chat-panel';
 import { getAcpChatResourceManager } from './acp-chat-resource-manager';
 import { AcpChatTabResource } from './acp-chat-tab-resource';

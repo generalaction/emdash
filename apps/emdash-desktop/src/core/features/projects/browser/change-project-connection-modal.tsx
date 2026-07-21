@@ -1,19 +1,19 @@
 import { useState } from 'react';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
-import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
-import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { ModalLayout } from '@renderer/lib/ui/modal-layout';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
+import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {
   projectId: string;

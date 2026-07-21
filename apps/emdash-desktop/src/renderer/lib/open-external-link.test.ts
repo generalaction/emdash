@@ -3,7 +3,7 @@ import { confirmOpenExternalLink } from './open-external-link';
 
 const mocks = vi.hoisted(() => ({
   clipboardWriteText: vi.fn(),
-  getTaskView: vi.fn(),
+  getTaskComposition: vi.fn(),
   navigationRef: {
     viewId: 'home',
     params: {} as { projectId?: string; taskId?: string },
@@ -14,11 +14,11 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
-  getTaskView: mocks.getTaskView,
+vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
+  getTaskComposition: mocks.getTaskComposition,
 }));
 
-vi.mock('@renderer/lib/hooks/use-toast', () => ({
+vi.mock('@core/primitives/ui/browser/use-toast', () => ({
   toast: mocks.toast,
 }));
 
@@ -31,7 +31,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/modal/api', () => ({
+vi.mock('@core/manifests/browser/modal-api', () => ({
   openModal: mocks.openModal,
 }));
 
@@ -124,7 +124,7 @@ describe('confirmOpenExternalLink', () => {
     };
     mocks.navigationRef.viewId = 'task';
     mocks.navigationRef.params = { projectId: 'project-1', taskId: 'task-1' };
-    mocks.getTaskView.mockReturnValue(taskView);
+    mocks.getTaskComposition.mockReturnValue(taskView);
     mocks.openModal.mockResolvedValue({
       success: true,
       data: 'emdash-browser',

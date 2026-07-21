@@ -23,19 +23,12 @@ const mocks = vi.hoisted(() => ({
   taskSessionOn: vi.fn(),
 }));
 
-vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: { capture: mocks.capture },
-}));
-
-vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { on: mocks.taskServiceOn },
-}));
-
-vi.mock('@main/core/tasks/task-session-manager', () => ({
-  taskSessionManager: { hooks: { on: mocks.taskSessionOn } },
-}));
-
-await import('./task-telemetry');
+const { installTaskTelemetry } = await import('./task-telemetry');
+installTaskTelemetry(
+  { capture: mocks.capture } as never,
+  { on: mocks.taskServiceOn } as never,
+  { hooks: { on: mocks.taskSessionOn } } as never
+);
 
 function getTaskCreatedHandler() {
   return mocks.taskServiceOn.mock.calls.find(([event]) => event === 'task:created')?.[1] as

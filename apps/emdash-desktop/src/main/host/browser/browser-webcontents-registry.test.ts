@@ -6,10 +6,10 @@ import { commandPaletteCommand } from '@core/features/workbench/contributions/co
 import { desktopHostEvents } from '@core/features/workbench/node';
 import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
 import { matchesElectronInput } from '@core/primitives/keybindings/api';
+import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import { defineViewScope, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { ViewScopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from '@renderer/lib/keybindings/keybinding-dispatcher';
-import { KeybindingService } from '@renderer/lib/keybindings/keybinding-service';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();

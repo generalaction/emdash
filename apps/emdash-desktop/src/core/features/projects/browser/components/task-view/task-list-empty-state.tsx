@@ -1,13 +1,13 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
+import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
+import { ActionListItem } from '@core/primitives/ui/browser/action-list-item';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 interface TaskAction {
   label: string;

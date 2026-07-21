@@ -1,17 +1,17 @@
 import { observer } from 'mobx-react-lite';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import type {
   TabBarItemProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
 import type { ConversationTabResource } from './conversation-tab-resource';
-import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
 export const ConversationTabBarItem = observer(function ConversationTabBarItem({
   tab,

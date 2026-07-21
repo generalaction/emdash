@@ -7,10 +7,10 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { Button } from '@renderer/lib/ui/button';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
-import { cn } from '@renderer/utils/utils';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {

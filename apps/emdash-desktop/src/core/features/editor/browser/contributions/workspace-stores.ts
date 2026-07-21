@@ -1,10 +1,10 @@
-import type { WorkspaceScopedStoreContext } from '@core/features/workspaces/browser/contributions/workspace-stores';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import type { WorkspaceScopedStoreContext } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import {
   contributeScopedStore,
   scopedStoreToken,
   type ScopedStoreContribution,
 } from '@core/primitives/scoped-stores/browser';
-import { modelRegistry } from '../monaco/monaco-model-registry';
 import { releaseFileModelManager } from '../task-editor/stores/file-model-manager';
 
 type WorkspaceModelBinding = Readonly<{

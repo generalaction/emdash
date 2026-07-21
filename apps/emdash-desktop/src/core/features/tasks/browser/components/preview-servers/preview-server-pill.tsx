@@ -11,19 +11,19 @@ import { observer } from 'mobx-react-lite';
 import {
   usePreviewServers,
   useTaskComposition,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServer } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { MicroLabel } from '@renderer/lib/ui/label';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   formatPreviewServerLabel,
   previewServerStatusClasses,

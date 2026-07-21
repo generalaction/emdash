@@ -2,20 +2,20 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { formatErrorType, formatPushErrorDetail } from '@core/features/tasks/browser/utils';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { formatErrorType, formatPushErrorDetail } from '@core/features/tasks/api/browser/utils';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Input } from '@renderer/lib/ui/input';
-import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
-import { Textarea } from '@renderer/lib/ui/textarea';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Input } from '@core/primitives/ui/browser/input';
+import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
 
 type CommitPhase =
   | 'idle'

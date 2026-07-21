@@ -1,5 +1,5 @@
-import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
+import type { GitBranchRef } from '@core/primitives/git/api';
 import { fromStoredBranch, toStoredBranch } from './stored-branch';
 
 describe('stored-branch', () => {

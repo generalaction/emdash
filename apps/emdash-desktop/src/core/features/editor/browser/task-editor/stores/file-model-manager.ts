@@ -1,12 +1,15 @@
 import { runInAction } from 'mobx';
+import { getEditorClient } from '@core/features/editor/api/browser/client';
+import { readEditorImage } from '@core/features/editor/api/browser/files';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import {
+  getFileKind,
+  isMonacoBackedKind,
+} from '@core/features/editor/api/browser/renderers/fileKind';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
-import { getEditorClient } from '../../client';
-import { readEditorImage } from '../../files';
-import { modelRegistry } from '../../monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '../../monaco/monacoModelPath';
-import { getFileKind, isMonacoBackedKind } from '../../renderers/fileKind';
-import type { FileTabResource } from './file-tab-resource';
 
 /**
  * Context needed to register Monaco models for a file.

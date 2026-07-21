@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { isIssueIntegration } from '@core/features/integrations/browser/integration-display';
-import { useIntegrationsContext } from '@core/features/integrations/browser/integrations-provider';
-import { sortGitHubAccountsByDefault } from '@core/features/projects/browser/components/github-account-select-model';
+import { isIssueIntegration } from '@core/features/integrations/api/browser/integration-display';
+import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
+import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
+import { TooltipProvider } from '@core/primitives/ui/browser/tooltip';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
-import { TooltipProvider } from '@renderer/lib/ui/tooltip';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 

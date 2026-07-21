@@ -4,22 +4,27 @@ import { useMemo, useState } from 'react';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
-} from '@core/features/projects/browser/components/github-account-select';
+} from '@core/features/projects/api/browser/components/github-account-select';
+import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { Project } from '@core/primitives/projects/api';
-import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
-} from '@renderer/lib/components/remote-select-content';
+} from '@core/primitives/ui/browser/components/remote-select-content';
+import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@core/primitives/ui/browser/select';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { Switch } from '@core/primitives/ui/browser/switch';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
-import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { Separator } from '@renderer/lib/ui/separator';
-import { Switch } from '@renderer/lib/ui/switch';
-import { cn } from '@renderer/utils/utils';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
   createProjectGitHubAccountSelectState,

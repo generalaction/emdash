@@ -1,5 +1,5 @@
-import { nextDefaultConversationTitle } from '@core/features/conversations/browser/conversation-title-utils';
-import type { InitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
+import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
+import type { InitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
 import { extractIssueMentionTargets } from '@core/primitives/issues/api';
 import type { TaskConfig } from '@core/primitives/tasks/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';

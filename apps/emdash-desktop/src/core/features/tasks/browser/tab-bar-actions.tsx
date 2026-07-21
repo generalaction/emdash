@@ -1,15 +1,15 @@
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import {
   useTaskComposition,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 export const TabBarActions = observer(function TabBarActions() {
   const taskView = useTaskComposition();

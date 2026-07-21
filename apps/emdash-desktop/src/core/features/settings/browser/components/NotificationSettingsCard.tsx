@@ -1,20 +1,25 @@
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/select';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
-import { cn } from '@renderer/utils/utils';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

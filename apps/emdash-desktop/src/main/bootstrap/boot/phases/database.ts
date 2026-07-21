@@ -1,11 +1,9 @@
 import { sql } from 'drizzle-orm';
+import { resetStaleAcpAgentStatuses } from '@core/features/conversations/node/reset-stale-acp-agent-statuses';
+import { resetStaleTuiAgentStatuses } from '@core/features/conversations/node/reset-stale-tui-agent-statuses';
 import { createEditorBufferService } from '@core/features/editor/node/editor-buffer-service';
-import { createSearchService } from '@core/features/search/node/search-service';
 import { createWorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
 import { projects, tasks } from '@core/services/app-db/node/schema';
-import { acquireWorkspaceRuntime } from '@core/services/workspace-runtime-access/node';
-import { resetStaleAcpAgentStatuses } from '@main/core/conversations/reset-stale-acp-agent-statuses';
-import { resetStaleTuiAgentStatuses } from '@main/core/conversations/reset-stale-tui-agent-statuses';
 import { createDrizzleClient } from '@main/db/drizzleClient';
 import { initializeDatabase } from '@main/db/initialize';
 import { setAppDb } from '@main/db/instance';
@@ -35,17 +33,10 @@ export const databasePhase: Phase<BootContext> = {
       published = true;
       const workspaceIdentity = createWorkspaceIdentityService({ db: client.db });
       const editorBufferService = createEditorBufferService({ db: client.db, logger: log });
-      const searchService = createSearchService({
-        db: client.db,
-        sqlite: client.sqlite,
-        acquireWorkspaceRuntime: (workspaceId) =>
-          acquireWorkspaceRuntime(workspaceIdentity, workspaceId),
-      });
       setWorkspaceIdentityService(workspaceIdentity);
       context.db = client.db;
       context.sqlite = client.sqlite;
       context.editorBufferService = editorBufferService;
-      context.searchService = searchService;
       context.workspaceIdentity = workspaceIdentity;
       await runStartupRepairs(context);
     } catch (error) {
@@ -58,13 +49,11 @@ export const databasePhase: Phase<BootContext> = {
 async function runStartupRepairs(context: BootContext): Promise<void> {
   const db = context.db;
   const editorBufferService = context.editorBufferService;
-  const searchService = context.searchService;
-  if (!db || !editorBufferService || !searchService) {
+  if (!db || !editorBufferService) {
     throw new Error('Database services were not initialized before startup repairs');
   }
-  await resetStaleAcpAgentStatuses();
-  await resetStaleTuiAgentStatuses();
-  searchService.initialize();
+  await resetStaleAcpAgentStatuses(db);
+  await resetStaleTuiAgentStatuses(db);
 
   runInBackground('editor-buffer-prune', () => editorBufferService.pruneStale(), {
     onError: (error) => log.warn('Failed to prune stale editor buffers', { error }),

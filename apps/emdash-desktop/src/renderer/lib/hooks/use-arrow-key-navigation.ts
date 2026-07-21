@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { modalStore } from '@renderer/lib/modal/modal-store';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

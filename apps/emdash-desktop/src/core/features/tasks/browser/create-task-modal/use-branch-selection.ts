@@ -1,6 +1,6 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useCallback, useState } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 

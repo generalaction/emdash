@@ -3,7 +3,7 @@ import {
   type LegacyImportSource,
   type LegacyProjectConflict,
 } from '@core/primitives/legacy-port/api/legacy-port';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { formatCount, sourceLabel } from './import-format';
 
 function ConflictChoice({

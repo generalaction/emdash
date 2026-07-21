@@ -1,9 +1,16 @@
 import type {
   DependencyId,
   HostDependencySelection,
-} from '@emdash/core/services/host-dependencies/node';
+} from '@emdash/core/primitives/host-dependencies/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
-import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
+
+export type HostDependencySelectionStore = {
+  setSelection(
+    hostId: string,
+    dependencyId: DependencyId,
+    selection: HostDependencySelection
+  ): Promise<void>;
+};
 
 export function migrateProviderConfigOverrides(
   overrides: Record<string, Partial<ProviderCustomConfig>>
@@ -13,7 +20,7 @@ export function migrateProviderConfigOverrides(
 
 export async function migrateProviderConfigToHostDependencyStore(
   rawOverrides: Record<string, Record<string, unknown>>,
-  store: IHostDependencyStore
+  store: HostDependencySelectionStore
 ): Promise<void> {
   const migrations: Promise<void>[] = [];
 

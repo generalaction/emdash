@@ -4,6 +4,7 @@ import type {
   TelemetryEnvelope,
   TelemetryEvent,
   TelemetryProperties,
+  TelemetryService as TelemetryServicePort,
 } from '@core/primitives/telemetry/api/telemetry';
 import { getAppConfig } from '@main/bootstrap/core/config';
 import { KV } from '@main/db/kv';
@@ -29,7 +30,7 @@ const MAX_EVENT_TS_MS = 9_999_999_999_999;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GENERIC_NUMBER = 1_000_000;
 
-class TelemetryService implements Disposable {
+class DesktopTelemetryService implements Disposable, TelemetryServicePort {
   private enabled = true;
   private apiKey: string | undefined;
   private host: string | undefined;
@@ -495,4 +496,4 @@ class TelemetryService implements Disposable {
   }
 }
 
-export const telemetryService = new TelemetryService();
+export const telemetryService = new DesktopTelemetryService();

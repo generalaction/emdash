@@ -1,4 +1,4 @@
-import type { MachineMutationEvent } from '@core/features/machines/node/machines-service';
+import type { MachineMutationEvent } from '@core/features/machines/api/node/machines-service';
 import type { SshConnectionManagerEvent } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import type { WorkspaceServerClientSource } from './connect/client-source';
 import type { RemoteHostProbe } from './provision/host-probe';

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getFileKind, isMonacoBackedKind } from './fileKind';
+import {
+  getFileKind,
+  isMonacoBackedKind,
+} from '@core/features/editor/api/browser/renderers/fileKind';
 
 describe('fileKind', () => {
   it('treats csv as a Monaco-backed preview kind', () => {

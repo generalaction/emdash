@@ -1,10 +1,10 @@
 import { reaction } from 'mobx';
+import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
+import type { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { commitRef } from '@core/primitives/git/api';
 import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
-import type { PrStore } from '../../stores/pr-store';
 import type { DiffTabResource } from './diff-tab-resource';
-import type { DiffViewStore } from './diff-view-store';
 
 interface DiffSession {
   gitCheckout: GitCheckoutStore;

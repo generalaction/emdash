@@ -1,15 +1,18 @@
 import type { GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { modelRegistry } from '@core/features/editor/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/browser/monaco/monacoModelPath';
-import { isBinaryForDiff } from '@core/features/editor/browser/renderers/fileKind';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
+import {
+  MAX_STACKED_FILES,
+  type DiffViewStore,
+} from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
+import type { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
-import type { PrStore } from '../../stores/pr-store';
-import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';
 

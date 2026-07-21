@@ -1,33 +1,20 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AccountAuthServerClient } from './account-auth-server-client';
+import { AccountOAuthClient } from './account-oauth-client';
 import { AccountSessionStore } from './account-session-store';
 import { EmdashAccountService } from './emdash-account-service';
+import { ProviderTokenDispatcher } from './provider-token-dispatcher';
 
 const mockCredGet = vi.fn();
 const mockCredSet = vi.fn();
 const mockCredClear = vi.fn();
-vi.mock('./credential-store', () => ({
-  accountCredentialStore: {
-    get: (...args: unknown[]) => mockCredGet(...args),
-    set: (...args: unknown[]) => mockCredSet(...args),
-    clear: (...args: unknown[]) => mockCredClear(...args),
-  },
-}));
 
 const mockKvGet = vi.fn();
 const mockKvSet = vi.fn();
 
 const mockExecuteOAuthFlow = vi.fn();
-vi.mock('@main/core/shared/oauth-flow', () => ({
-  executeOAuthFlow: (...args: unknown[]) => mockExecuteOAuthFlow(...args),
-}));
-
 const mockDispatch = vi.fn().mockResolvedValue(undefined);
-vi.mock('../provider-token-registry', () => ({
-  providerTokenRegistry: {
-    dispatch: (...args: unknown[]) => mockDispatch(...args),
-  },
-}));
 
 vi.mock('../config', () => ({
   ACCOUNT_CONFIG: {
@@ -68,10 +55,22 @@ describe('EmdashAccountService', () => {
     mockExecuteOAuthFlow.mockReset();
     mockDispatch.mockResolvedValue(undefined);
     service = new EmdashAccountService(
-      new AccountSessionStore({
-        get: (...args) => mockKvGet(...args),
-        setOrThrow: (...args) => mockKvSet(...args),
-      })
+      new AccountSessionStore(
+        {
+          get: (...args) => mockKvGet(...args),
+          setOrThrow: (...args) => mockKvSet(...args),
+        },
+        {
+          get: (...args) => mockCredGet(...args),
+          set: (...args) => mockCredSet(...args),
+          clear: (...args) => mockCredClear(...args),
+        }
+      ),
+      new AccountAuthServerClient(),
+      new AccountOAuthClient((options) => mockExecuteOAuthFlow(options)),
+      new ProviderTokenDispatcher({
+        dispatch: (...args: unknown[]) => mockDispatch(...args),
+      } as never)
     );
   });
 

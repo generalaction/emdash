@@ -2,13 +2,13 @@ import { motion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
 import YTBanner from '@/assets/images/ytbanner.webp';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { confirmCommand } from '@core/features/workbench/contributions/commands';
 import { detectPlatformContext, resolveEffectiveChord } from '@core/primitives/keybindings/api';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { useChordKeydown } from '@renderer/lib/keybindings';
-import { Button } from '@renderer/lib/ui/button';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { useChordKeydown } from '@core/primitives/keybindings/browser';
+import { useTheme } from '@core/primitives/theme/browser';
+import { Button } from '@core/primitives/ui/browser/button';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 
 const SHORTCUT_PRESS_DURATION_MS = 120;
 

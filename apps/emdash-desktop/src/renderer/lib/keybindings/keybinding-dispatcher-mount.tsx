@@ -1,10 +1,10 @@
 import { isDeepEqual } from '@emdash/shared';
 import { reaction } from 'mobx';
 import { useEffect } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { keybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { keybindingDispatcher } from './keybinding-dispatcher';
-import { keybindingService } from './keybinding-service';
 
 export function KeybindingDispatcherMount() {
   const { value: keyboard } = useAppSettingsKey('keyboard');

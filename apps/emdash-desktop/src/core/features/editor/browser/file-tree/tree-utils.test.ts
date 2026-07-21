@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { portablePath } from '@core/primitives/desktop-runtime/api';
-import type { EditorFileEntry as FileEntry } from '../../api';
 import {
   buildFileTreeVisibleRows,
   buildNestedVisibleRows,
@@ -9,7 +7,9 @@ import {
   toRenderableFileNode,
   type NestedFileNode,
   type RenderableFileNode,
-} from './tree-utils';
+} from '@core/features/editor/api/browser/file-tree/tree-utils';
+import { portablePath } from '@core/primitives/desktop-runtime/api';
+import type { EditorFileEntry as FileEntry } from '../../api';
 
 function attach(parent: NestedFileNode, child: NestedFileNode): NestedFileNode {
   parent.children.push(child);

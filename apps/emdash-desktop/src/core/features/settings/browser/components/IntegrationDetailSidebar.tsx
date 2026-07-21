@@ -1,11 +1,11 @@
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ISSUE_FEATURE_LABELS } from '@core/features/integrations/browser/integration-display';
-import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
+import { ISSUE_FEATURE_LABELS } from '@core/features/integrations/api/browser/integration-display';
+import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { Button } from '@renderer/lib/ui/button';
-import { MicroLabel } from '@renderer/lib/ui/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { GitHubAccountRows } from './GitHubAccountsSection';
 import type { IntegrationItem } from './IntegrationsCard';
 

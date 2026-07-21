@@ -1,0 +1,29 @@
+import { cn } from '@core/primitives/ui/browser/cn';
+
+function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {
+  return (
+    <kbd
+      data-slot="kbd"
+      className={cn(
+        "pointer-events-none inline-flex h-4 w-fit min-w-4 items-center justify-center gap-1 rounded-sm bg-muted px-1 font-sans text-xs font-medium text-muted-foreground select-none in-data-[slot=tooltip-content]:bg-background/20 in-data-[slot=tooltip-content]:text-background dark:in-data-[slot=tooltip-content]:bg-background/10 [&_svg:not([class*='size-'])]:size-3",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function KbdGroup({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <kbd
+      data-slot="kbd-group"
+      className={cn(
+        'inline-flex items-center gap-0 [&>[data-slot=kbd]]:min-w-0 [&>[data-slot=kbd]]:rounded-none [&>[data-slot=kbd]]:px-0 [&>[data-slot=kbd]:first-child]:rounded-l-sm [&>[data-slot=kbd]:first-child]:pl-1 [&>[data-slot=kbd]:last-child]:rounded-r-sm [&>[data-slot=kbd]:last-child]:pr-1',
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Kbd, KbdGroup };

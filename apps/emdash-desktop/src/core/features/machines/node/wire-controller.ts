@@ -1,6 +1,6 @@
 import { createController, type Controller } from '@emdash/wire/api';
+import type { MachinesService } from '@core/features/machines/api/node/machines-service';
 import { machinesContract } from '../api';
-import type { MachinesService } from './machines-service';
 
 export function createMachinesWireController(service: MachinesService): Controller {
   return createController(machinesContract, {

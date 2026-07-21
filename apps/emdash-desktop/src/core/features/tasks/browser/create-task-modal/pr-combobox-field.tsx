@@ -1,10 +1,10 @@
-import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
+import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import {
   PrSelector,
   SelectedPrValue,
 } from '@core/features/tasks/browser/components/pr-selector/pr-selector';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 interface PrComboboxFieldProps {

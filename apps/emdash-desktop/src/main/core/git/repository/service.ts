@@ -3,15 +3,19 @@ import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { resolveConfiguredRemotes } from '@core/primitives/git/api';
+import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import type { ProjectRemoteState } from '@core/primitives/projects/api';
-import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { GitRuntimeClient } from '@main/gateway/accessors';
+
+type GitRepositorySettingsProvider = {
+  get(): Promise<ProjectSettings>;
+};
 
 export class GitRepositoryService {
   constructor(
     private readonly client: GitRuntimeClient,
     private readonly selector: RepositorySelector,
-    private readonly settings: ProjectSettingsProvider
+    private readonly settings: GitRepositorySettingsProvider
   ) {}
 
   subscribeRemotes(cb: (update: GitRemotesState) => void): Unsubscribe {

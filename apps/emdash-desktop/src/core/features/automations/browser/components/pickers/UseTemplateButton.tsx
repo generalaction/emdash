@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,8 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/dropdown-menu';
 import type { BuiltinAutomationTemplate } from '../../automation-template';
 import { emptyStateAutomationTemplates } from '../../builtin-catalog';
 

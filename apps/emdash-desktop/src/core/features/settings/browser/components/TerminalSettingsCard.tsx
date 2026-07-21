@@ -1,6 +1,6 @@
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useInstalledFonts } from '@core/features/settings/browser/use-installed-fonts';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
@@ -9,12 +9,7 @@ import {
   TERMINAL_FONT_SIZE_MIN,
   type TerminalShellId,
 } from '@core/primitives/terminals/api';
-import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
-import {
-  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
-  useTerminalShellAvailability,
-} from '@renderer/lib/hooks/use-terminal-shell-availability';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -27,15 +22,20 @@ import {
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
-} from '@renderer/lib/ui/combobox';
+} from '@core/primitives/ui/browser/combobox';
+import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
+} from '@core/primitives/ui/browser/select';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { SettingRow } from './SettingRow';
 
 type FontOption = {

@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
+import { useRegisterNotificationOpenHandlers } from '@core/features/workbench/contributions/browser/notification-open-handlers';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import { scopes } from '@core/primitives/view-scopes/browser';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { useRegisterNotificationOpenHandlers } from '@root/src/core/services/notifications/browser';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   useRegisterNotificationOpenHandlers();

@@ -2,8 +2,8 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-} from '@core/primitives/automations/api';
-import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
+} from '@core/features/automations/api/automation-run';
+import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 import { RunStatusBadge } from './RunStatusBadge';
 

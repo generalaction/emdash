@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react';
-import type { HostDependencyInstallation } from '@core/features/agents/browser/use-agent-installation-statuses';
+import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { InstallMethod, InstallOption } from '@core/primitives/agents/api';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type InstallDependencyCardProps = {

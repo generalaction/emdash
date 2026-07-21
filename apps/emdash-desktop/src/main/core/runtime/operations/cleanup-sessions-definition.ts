@@ -4,6 +4,7 @@ import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
+import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   lifecycleOperations,
@@ -20,14 +21,8 @@ import {
   type OperationSubmit,
 } from '@core/services/operations/node';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import { submitReconcilerProjectCleanup } from '@main/core/projects/operations/delete-project-definition';
-import { projectManager } from '@main/core/projects/project-manager';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import { submitReconcilerTaskCleanup } from '@main/core/tasks/operations/delete-task-definition';
-import { resolveLifecycleOperationContext } from '@main/core/workspaces/operations/lifecycle-operation-context';
-import { listProjectWorkspaces } from '@main/core/workspaces/operations/list-project-workspaces';
-import { submitReconcilerWorkspaceCleanup } from '@main/core/workspaces/operations/workspace-lifecycle-definitions';
-import { shouldProposeWorkspaceCleanup } from '@main/core/workspaces/operations/workspace-reconciliation-policy';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -38,6 +33,8 @@ import {
   killLifecycleAcpSessions,
   killLifecycleTerminalSessions,
   resolveLifecycleSessionTargets,
+  type LifecycleSessionContext,
+  type SessionCleanupDependencies,
 } from './session-cleanup';
 
 const SESSION_TIMEOUT_MS = 30_000;
@@ -71,7 +68,34 @@ type SessionCandidate = ReconcilerSessionCleanupInput & {
   tmuxSessionNames: string[];
 };
 
-export function createCleanupSessionsOperationDefinition(): OperationDefinition {
+export type CleanupSessionsDependencies = {
+  sessionCleanup: SessionCleanupDependencies;
+  resolveLifecycleOperationContext(
+    db: AppDb,
+    operation: Parameters<typeof resolveLifecycleSessionTargets>[1]
+  ): Promise<LifecycleSessionContext>;
+  submitReconcilerProjectCleanup(submit: OperationSubmit, projectId: string): Promise<void>;
+  submitReconcilerTaskCleanup(submit: OperationSubmit, taskId: string): Promise<void>;
+  submitReconcilerWorkspaceCleanup(
+    submit: OperationSubmit,
+    input: {
+      projectId: string;
+      workspaceId?: string;
+      workspacePath: string;
+      branchName?: string;
+    }
+  ): Promise<void>;
+  listProjectWorkspaces(projectId: string): Promise<ProjectWorkspacesResult>;
+  shouldProposeWorkspaceCleanup(
+    row: Pick<ProjectWorkspaceRow, 'kind' | 'path' | 'tasks'>,
+    projectPath: string
+  ): boolean;
+  getProjectExecutionContext(projectId: string): IExecutionContext | undefined;
+};
+
+export function createCleanupSessionsOperationDefinition(
+  dependencies: CleanupSessionsDependencies
+): OperationDefinition {
   return {
     kind: 'cleanup-sessions',
     entityKind: 'task',
@@ -84,14 +108,15 @@ export function createCleanupSessionsOperationDefinition(): OperationDefinition 
     },
     async run(runContext) {
       const { db, operation } = runContext;
-      const context = await resolveLifecycleOperationContext(db, operation);
+      const context = await dependencies.resolveLifecycleOperationContext(db, operation);
       const targets = await resolveLifecycleSessionTargets(db, operation, context);
       const actions = [];
       if (targets.acpConversationIds.length > 0) {
         actions.push({
           id: 'kill-acp-sessions',
           timeoutMs: SESSION_TIMEOUT_MS,
-          run: async () => killLifecycleAcpSessions(db, operation, targets),
+          run: async () =>
+            killLifecycleAcpSessions(dependencies.sessionCleanup, db, operation, targets),
         });
       }
       if (
@@ -102,16 +127,26 @@ export function createCleanupSessionsOperationDefinition(): OperationDefinition 
         actions.push({
           id: 'kill-tui-sessions',
           timeoutMs: SESSION_TIMEOUT_MS,
-          run: async () => killLifecycleTerminalSessions(db, operation, context, targets),
+          run: async () =>
+            killLifecycleTerminalSessions(
+              dependencies.sessionCleanup,
+              db,
+              operation,
+              context,
+              targets
+            ),
         });
       }
       return runOperationActions(runContext, actions);
     },
-    reconcile: sweepLifecycleDrift,
+    reconcile: (context) => sweepLifecycleDrift(dependencies, context),
   };
 }
 
-export async function sweepLifecycleDrift(context: OperationReconcileContext): Promise<void> {
+export async function sweepLifecycleDrift(
+  dependencies: CleanupSessionsDependencies,
+  context: OperationReconcileContext
+): Promise<void> {
   const { db, submit } = context;
   const [taskOwners, conversationOwners, terminalOwners] = await Promise.all([
     loadTaskOwners(db),
@@ -139,10 +174,10 @@ export async function sweepLifecycleDrift(context: OperationReconcileContext): P
     taskOwners.filter((owner) => !isOwnerActive(owner)).map((owner) => owner.taskId)
   );
   for (const taskId of invalidTaskIds) {
-    await submitReconcilerTaskCleanup(submit, taskId);
+    await dependencies.submitReconcilerTaskCleanup(submit, taskId);
   }
   for (const projectId of await loadTombstonedProjectIds(db)) {
-    await submitReconcilerProjectCleanup(submit, projectId);
+    await dependencies.submitReconcilerProjectCleanup(submit, projectId);
   }
 
   const intentContext = await loadAndPruneSessionIntents(validConversationIds);
@@ -201,10 +236,10 @@ export async function sweepLifecycleDrift(context: OperationReconcileContext): P
     ...validTerminalSessionIds,
   ]);
   for (const project of await loadActiveProjects(db)) {
-    const provider = projectManager.getProject(project.id);
-    if (!provider) continue;
+    const projectContext = dependencies.getProjectExecutionContext(project.id);
+    if (!projectContext) continue;
     try {
-      const activity = await listTmuxSessionActivity(provider.ctx);
+      const activity = await listTmuxSessionActivity(projectContext);
       for (const sessionName of activity.keys()) {
         const sessionId = decodeTmuxSessionName(sessionName);
         if (!sessionId || wantedTmuxSessionIds.has(sessionId)) continue;
@@ -229,10 +264,10 @@ export async function sweepLifecycleDrift(context: OperationReconcileContext): P
 
   for (const project of await loadActiveProjects(db)) {
     try {
-      const result = await listProjectWorkspaces(project.id);
+      const result = await dependencies.listProjectWorkspaces(project.id);
       for (const row of result.rows) {
-        if (!shouldProposeWorkspaceCleanup(row, project.path)) continue;
-        await submitReconcilerWorkspaceCleanup(submit, {
+        if (!dependencies.shouldProposeWorkspaceCleanup(row, project.path)) continue;
+        await dependencies.submitReconcilerWorkspaceCleanup(submit, {
           projectId: project.id,
           workspaceId: row.workspaceId ?? undefined,
           workspacePath: row.path,

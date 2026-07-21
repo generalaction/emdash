@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
+import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
 import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';
 import { useAutomations, useDeleteAutomation, useUpdateAutomation } from '../use-automations';

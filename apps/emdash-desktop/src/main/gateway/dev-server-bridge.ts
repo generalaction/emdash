@@ -4,7 +4,9 @@ import {
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
+import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { appScope } from '@main/bootstrap/core/app-scope';
+import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import {
   createDevServerBridge,
   type DevServerBridge,
@@ -64,5 +66,10 @@ const bridgeScope = appScope.child('dev-server-bridge');
 export const installDevServerBridge = createDevServerBridgeInstaller({
   scope: bridgeScope,
   runtimes: getDesktopRuntimeBroker(),
-  createBridge: createDevServerBridge,
+  createBridge: (client) =>
+    createDevServerBridge(client, {
+      previewServers: previewServerService,
+      resolveWorkspace: (workspacePath, host) =>
+        getWorkspaceIdentityService().findByPath(workspacePath, host),
+    }),
 });

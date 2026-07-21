@@ -42,17 +42,17 @@ vi.mock('@core/features/search/node/search-service', () => ({
 vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
   createWorkspaceIdentityService: () => ({}),
 }));
-vi.mock('@core/services/workspace-runtime-access/node', () => ({
+vi.mock('@core/features/workspaces/api/node/runtime-access', () => ({
   acquireWorkspaceRuntime: vi.fn(),
 }));
 vi.mock('@core/services/app-db/node/schema', () => ({
   projects: { id: 'projects.id' },
   tasks: { id: 'tasks.id' },
 }));
-vi.mock('@main/core/conversations/reset-stale-acp-agent-statuses', () => ({
+vi.mock('@core/features/conversations/node/reset-stale-acp-agent-statuses', () => ({
   resetStaleAcpAgentStatuses: mocks.resetStaleAcpAgentStatuses,
 }));
-vi.mock('@main/core/conversations/reset-stale-tui-agent-statuses', () => ({
+vi.mock('@core/features/conversations/node/reset-stale-tui-agent-statuses', () => ({
   resetStaleTuiAgentStatuses: mocks.resetStaleTuiAgentStatuses,
 }));
 vi.mock('@main/gateway/desktop-workers', () => ({

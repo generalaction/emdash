@@ -1,22 +1,22 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 // TODO(conversations-extraction): Pass task context actions into the panel as composition.
-import { ContextBar } from '@core/features/tasks/browser/context-bar/context-bar';
+import { ContextBar } from '@core/features/tasks/api/browser/context-bar/context-bar';
 // TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
-import { useIsActiveTask } from '@core/features/tasks/browser/hooks/use-is-active-task';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { PaneSizingContextProvider } from '@core/features/terminals/browser/pty/pane-sizing-context';
-import { PtyPane } from '@core/features/terminals/browser/pty/pty-pane';
-import { TerminalSearchOverlay } from '@core/features/terminals/browser/pty/terminal-search-overlay';
-import { useTerminalSearch } from '@core/features/terminals/browser/pty/use-terminal-search';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { PaneSizingContextProvider } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
+import { PtyPane } from '@core/features/terminals/api/browser/pty/pty-pane';
+import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';
+import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
 import {
   useConversations,
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
   activeConversationResource,

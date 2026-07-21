@@ -1,4 +1,3 @@
-import type { AgentAuthDescriptor } from '@emdash/core/services/agent-plugins/api/plugins';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 
 // ---------------------------------------------------------------------------
@@ -172,6 +171,26 @@ export type AgentModelOption = {
 export type AgentModelsCapability =
   | { kind: 'none' }
   | { kind: 'selectable'; modelOptions: Record<string, AgentModelOption> };
+
+export type AgentAuthMethod =
+  | {
+      kind: 'cli-login';
+      id: string;
+      name: string;
+      args: string[];
+      description?: string;
+    }
+  | {
+      kind: 'api-key';
+      id: string;
+      name: string;
+      envVars: Array<{ name: string; label: string }>;
+      helpUrl?: string;
+    };
+
+export type AgentAuthDescriptor =
+  | { kind: 'none' }
+  | { kind: 'supported'; methods: AgentAuthMethod[] };
 
 export type AgentCapabilities = {
   acp: { kind: string };

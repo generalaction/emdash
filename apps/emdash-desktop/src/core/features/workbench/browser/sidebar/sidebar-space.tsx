@@ -1,9 +1,9 @@
 import { PanelLeft } from 'lucide-react';
-import { NavButtons } from '@renderer/lib/components/nav-buttons';
+import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Toggle } from '@core/primitives/ui/browser/toggle';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Toggle } from '@renderer/lib/ui/toggle';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();

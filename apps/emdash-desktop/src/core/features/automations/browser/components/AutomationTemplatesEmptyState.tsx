@@ -1,4 +1,4 @@
-import { Label } from '@renderer/lib/ui/label';
+import { Label } from '@core/primitives/ui/browser/label';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { AutomationTemplateCard } from './AutomationTemplateCard';
 

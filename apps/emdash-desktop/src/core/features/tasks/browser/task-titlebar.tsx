@@ -15,43 +15,43 @@ import {
   asMounted,
   getProjectStore,
   projectDisplayName,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { useGitActions } from '@core/features/source-control/browser/use-git-actions';
+import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
   getRegisteredTaskData,
   getTaskStore,
   taskDisplayName,
   taskViewKind,
-} from '@core/features/tasks/browser/stores/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { type SidebarTab } from '@core/features/tasks/api/browser/types';
 import {
   useTaskComposition,
   useWorkspace,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
-import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
-import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
+import { Badge } from '@core/primitives/ui/browser/badge';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
+import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Toggle } from '@core/primitives/ui/browser/toggle';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Badge } from '@renderer/lib/ui/badge';
-import { Button } from '@renderer/lib/ui/button';
-import { MicroLabel } from '@renderer/lib/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { Separator } from '@renderer/lib/ui/separator';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Toggle } from '@renderer/lib/ui/toggle';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
-import { cn } from '@renderer/utils/utils';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
-import { type SidebarTab } from './types';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();

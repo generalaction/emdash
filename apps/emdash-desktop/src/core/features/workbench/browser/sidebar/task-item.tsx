@@ -1,25 +1,25 @@
 import { observer } from 'mobx-react-lite';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
-import { TaskContextMenu } from '@core/features/tasks/browser/components/task-context-menu';
-import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { TaskContextMenu } from '@core/features/tasks/api/browser/components/task-context-menu';
+import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
+import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import {
   getTaskManagerStore,
   getTaskStore,
-} from '@core/features/tasks/browser/stores/task-selectors';
-import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
-import { getTaskWorkspace } from '@core/features/workbench/browser/task-composition-selectors';
-import { PrBadge } from '@renderer/lib/components/pr-badge';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import {
   useNavigate,
   useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 

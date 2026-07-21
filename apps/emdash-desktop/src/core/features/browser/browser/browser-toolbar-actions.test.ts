@@ -34,11 +34,11 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   })),
 }));
 
-vi.mock('@renderer/lib/modal/api', () => ({
+vi.mock('@core/manifests/browser/modal-api', () => ({
   openModal: mocks.openModal,
 }));
 
-vi.mock('@renderer/lib/hooks/use-toast', () => ({
+vi.mock('@core/primitives/ui/browser/use-toast', () => ({
   toast: mocks.toast,
 }));
 

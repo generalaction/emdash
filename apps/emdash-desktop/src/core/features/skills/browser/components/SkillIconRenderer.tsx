@@ -1,6 +1,6 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import React, { useState } from 'react';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { useTheme } from '@core/primitives/theme/browser';
 import { resolveSkillIcon } from './skillIcons';
 
 function processSvg(raw: string, fillColor: string): string {

@@ -5,8 +5,9 @@ export {
   type MementoHandle,
 } from './memento-client';
 export {
-  getMementosWireClient,
-  resetMementosWireClient,
-  type MementosWireClient,
-} from './mementos-wire-client';
+  configureMementos,
+  getMementoClient,
+  initMementos,
+  type MementosBootstrapDeps,
+} from './singleton';
 export { sanitizedMemento, type SanitizedMementoOptions } from './sanitized';

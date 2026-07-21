@@ -1,5 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { err, type PendingLease, type Result } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import {
   createController,
@@ -8,14 +9,16 @@ import {
   type LiveModelDef,
 } from '@emdash/wire/api';
 import { and, eq } from 'drizzle-orm';
+import { createConversationOperations } from '@core/features/conversations/node/controller';
+import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
+import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
+import { setSessionId } from '@core/features/conversations/node/set-session-id';
+import { touchConversation } from '@core/features/conversations/node/touchConversation';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { conversations, tasks } from '@core/services/app-db/node/schema';
-import { conversationOperations } from '@main/core/conversations/controller';
-import { setConversationModeId } from '@main/core/conversations/set-mode-id';
-import { setSessionId } from '@main/core/conversations/set-session-id';
-import { touchConversation } from '@main/core/conversations/touchConversation';
-import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
 import { conversationsContract } from '../api';
 import {
   throwConversationsRuntimeResolveError,
@@ -54,6 +57,11 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
   hooks?: ConversationRuntimeHooks;
+  logger: Logger;
+  projects: Pick<ProjectSessionManager, 'getProject'>;
+  telemetry: TelemetryService;
+  taskSessions: Pick<TaskSessionManager, 'getTask'>;
+  withCompensation: CompensationRunner;
 }>;
 
 export function createConversationsWireController(
@@ -63,7 +71,14 @@ export function createConversationsWireController(
     options.resolveTarget ??
     ((conversationId) =>
       resolveConversationRuntimeTarget(conversationId, options.workspaceIdentity, options.db));
-  const hooks = options.hooks ?? createDefaultRuntimeHooks(options.db);
+  const hooks = options.hooks ?? createDefaultRuntimeHooks(options);
+  const conversationOperations = createConversationOperations({
+    db: options.db,
+    projects: options.projects,
+    taskSessions: options.taskSessions,
+    telemetry: options.telemetry,
+    withCompensation: options.withCompensation,
+  });
   const target = (conversationId: string) => resolveTarget(conversationId);
   const run = <T, E>(
     conversationId: string,
@@ -272,12 +287,15 @@ export function createConversationsWireController(
   });
 }
 
-function createDefaultRuntimeHooks(db: AppDb): ConversationRuntimeHooks {
+function createDefaultRuntimeHooks(
+  options: Pick<CreateConversationsWireControllerOptions, 'db' | 'logger' | 'telemetry'>
+): ConversationRuntimeHooks {
+  const { db, logger, telemetry } = options;
   return {
     async persistAcpSessionId(target, sessionId) {
       const result = await setSessionId(target.conversationId, sessionId, db);
       if (!result.success) {
-        log.warn('ACP runtime failed to persist returned session id', {
+        logger.warn('ACP runtime failed to persist returned session id', {
           conversationId: target.conversationId,
           error: result.error,
         });
@@ -295,7 +313,7 @@ function createDefaultRuntimeHooks(db: AppDb): ConversationRuntimeHooks {
     async persistAcpMode(target, modeId) {
       const result = await setConversationModeId(target.conversationId, modeId, db);
       if (!result.success) {
-        log.warn('ACP runtime failed to persist selected mode id', {
+        logger.warn('ACP runtime failed to persist selected mode id', {
           conversationId: target.conversationId,
           error: result.error,
         });
@@ -312,7 +330,7 @@ function createDefaultRuntimeHooks(db: AppDb): ConversationRuntimeHooks {
     },
     async recordTuiInput(target) {
       if (target.providerId) {
-        telemetryService.capture('agent_run_started', {
+        telemetry.capture('agent_run_started', {
           provider: target.providerId,
           project_id: target.projectId,
           task_id: target.taskId,

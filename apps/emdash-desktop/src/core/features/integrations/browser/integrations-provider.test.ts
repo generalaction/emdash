@@ -3,7 +3,10 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IntegrationsProvider, useIntegrationsContext } from './integrations-provider';
+import {
+  IntegrationsProvider,
+  useIntegrationsContext,
+} from '@core/features/integrations/api/browser/integrations-provider';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -17,8 +20,8 @@ const mocks = vi.hoisted(() => ({
   listIntegrations: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
     issues: {
       checkAllConnections: mocks.checkAllConnections,
       checkConfiguredConnections: mocks.checkConfiguredConnections,
@@ -28,7 +31,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
       connect: mocks.connectIntegration,
       disconnect: mocks.disconnectIntegration,
     },
-  },
+  }),
 }));
 
 type ProbeState = {

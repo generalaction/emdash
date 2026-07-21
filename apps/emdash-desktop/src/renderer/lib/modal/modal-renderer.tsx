@@ -4,18 +4,18 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { modalCatalog } from '@core/manifests/browser/modal-catalog';
+import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import {
   ModalHostContext,
   type ModalHostController,
   type ModalPosition,
   type ModalSize,
 } from '@core/primitives/modals/react';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { Dialog, DialogOverlay, DialogPortal } from '@core/primitives/ui/browser/dialog';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { confirmRegistry } from '@renderer/lib/keybindings';
-import { Dialog, DialogOverlay, DialogPortal } from '@renderer/lib/ui/dialog';
-import { cn } from '@renderer/utils/utils';
-import { modalStore } from './modal-store';
 
 type RuntimeModalEntry = {
   // The catalog erases each component's props at this renderer boundary.

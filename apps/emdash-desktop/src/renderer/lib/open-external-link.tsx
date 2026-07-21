@@ -1,6 +1,6 @@
-import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { openModal } from '@renderer/lib/modal/api';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openModal } from '@core/manifests/browser/modal-api';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';

@@ -1,8 +1,8 @@
 import { AlignJustify, ListTree } from 'lucide-react';
 import { useState } from 'react';
 import type { ChangesListViewMode } from '@core/primitives/app-settings/api';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 interface ChangesViewModeToggleProps {
   value: ChangesListViewMode;

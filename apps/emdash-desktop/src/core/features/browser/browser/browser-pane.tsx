@@ -1,22 +1,22 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import { usePreviewServers } from '@core/features/workbench/browser/task-composition-context';
+import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import {
   cycleNextTabCommand,
   cyclePreviousTabCommand,
 } from '@core/features/workbench/contributions/commands';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
-import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
   describeBrowserLoadError,
   type BrowserLoadErrorPresentation,
 } from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
-import { browserSessionStore } from './browser-session-store';
 import { BrowserStartPage } from './browser-start-page';
 import { BrowserToolbar } from './browser-toolbar';
 import { canOpenBrowserUrlExternally, openBrowserUrlExternally } from './browser-toolbar-actions';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BrowserSessionStore } from './browser-session-store';
+import { BrowserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 
 describe('BrowserSessionStore', () => {
   it('creates isolated sessions with normalized initial URLs', () => {

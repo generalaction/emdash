@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { ContainedImage } from '@renderer/lib/ui/contained-image';
-import { modelRegistry } from '../monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '../monaco/monacoModelPath';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { ContainedImage } from '@core/primitives/ui/browser/contained-image';
 
 interface SvgRendererProps {
   filePath: string;

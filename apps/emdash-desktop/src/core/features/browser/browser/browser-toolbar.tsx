@@ -12,7 +12,8 @@ import {
   Square,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import {
   BROWSER_DEFAULT_URL,
@@ -29,9 +30,8 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,11 +43,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { Input } from '@renderer/lib/ui/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
-import { browserSessionStore } from './browser-session-store';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
   canOpenBrowserUrlExternally,
   captureBrowserScreenshot,

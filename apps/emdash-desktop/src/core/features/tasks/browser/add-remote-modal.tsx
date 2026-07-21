@@ -1,27 +1,27 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getProjectSettingsStore } from '@core/features/projects/browser/stores/project-selectors';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
-import { useModalController } from '@renderer/lib/modal/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
+import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
-import { ModalLayout } from '@renderer/lib/ui/modal-layout';
-import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Label } from '@core/primitives/ui/browser/label';
+import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type AddRemoteModalArgs = {
   projectId: string;

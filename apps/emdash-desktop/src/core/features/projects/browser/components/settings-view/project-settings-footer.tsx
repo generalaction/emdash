@@ -1,7 +1,12 @@
 import { Check, Loader2, Undo2 } from 'lucide-react';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 
 export type ProjectSettingsSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 

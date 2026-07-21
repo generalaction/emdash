@@ -1,8 +1,12 @@
 import { type ReactNode } from 'react';
 import { useDefaultLayout } from 'react-resizable-panels';
+import { cn } from '@core/primitives/ui/browser/cn';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@core/primitives/ui/browser/resizable';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { cn } from '@renderer/utils/utils';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
 const LEFT_SIDEBAR_MIN_SIZE = '200px';

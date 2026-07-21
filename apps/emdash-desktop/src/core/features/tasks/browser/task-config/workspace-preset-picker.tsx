@@ -8,17 +8,17 @@ import {
   Layers,
 } from 'lucide-react';
 import React from 'react';
-import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
-import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
+import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   Combobox,
   ComboboxContent,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-} from '@renderer/lib/ui/combobox';
-import { cn } from '@renderer/utils/utils';
-import { useTaskConfig } from './task-config-context';
+} from '@core/primitives/ui/browser/combobox';
+import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
+import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 
 // ---------------------------------------------------------------------------
 // Icons

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveWorkspaceResourcePath } from './workspace-resource-path';
+import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
 
 const workspacePath = '/repo';
 

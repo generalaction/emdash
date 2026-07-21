@@ -6,12 +6,12 @@ const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
+vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
+  getDesktopWireClient: async () => ({
     issues: {
       getIssueContext: mocks.getIssueContext,
     },
-  },
+  }),
 }));
 
 function makeIssue(overrides: Partial<LinkedIssue> = {}): LinkedIssue {
@@ -46,9 +46,9 @@ describe('refreshLinkedIssueContext', () => {
     mocks.getIssueContext.mockResolvedValue({ success: true, data: refreshedIssue });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
-    expect(mocks.getIssueContext).toHaveBeenCalledWith('github', {
-      identifier: '#42',
-      projectId: 'project-1',
+    expect(mocks.getIssueContext).toHaveBeenCalledWith({
+      provider: 'github',
+      options: { identifier: '#42', projectId: 'project-1' },
     });
   });
 
@@ -58,9 +58,9 @@ describe('refreshLinkedIssueContext', () => {
     mocks.getIssueContext.mockResolvedValue({ success: true, data: refreshedIssue });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(refreshedIssue);
-    expect(mocks.getIssueContext).toHaveBeenCalledWith('linear', {
-      identifier: 'ENG-1201',
-      projectId: 'project-1',
+    expect(mocks.getIssueContext).toHaveBeenCalledWith({
+      provider: 'linear',
+      options: { identifier: 'ENG-1201', projectId: 'project-1' },
     });
   });
 

@@ -1,17 +1,17 @@
 import { observer } from 'mobx-react-lite';
-import { PullRequestView } from '@core/features/projects/browser/components/pr-view/pr-view';
-import { SettingsPanel } from '@core/features/projects/browser/components/settings-view/settings-panel';
-import { TaskList } from '@core/features/projects/browser/components/task-view/task-list';
-import { WorkspacesView } from '@core/features/projects/browser/components/workspaces-view/workspaces-view';
 import {
   asMounted,
   getProjectStore,
   getProjectViewStore,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { PullRequestView } from '@core/features/projects/browser/components/pr-view/pr-view';
+import { SettingsPanel } from '@core/features/projects/browser/components/settings-view/settings-panel';
+import { TaskList } from '@core/features/projects/browser/components/task-view/task-list';
+import { WorkspacesView } from '@core/features/projects/browser/components/workspaces-view/workspaces-view';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { cn } from '@renderer/utils/utils';
 
 const projectViewItems: Array<{ id: ProjectView; label: string }> = [
   { id: 'tasks', label: 'Tasks' },

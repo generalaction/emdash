@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatConversationTitleForDisplay,
   nextDefaultConversationTitle,
-} from '@core/features/conversations/browser/conversation-title-utils';
+} from '@core/features/conversations/api/browser/conversation-title-utils';
 
 describe('nextDefaultConversationTitle', () => {
   it('fills the smallest missing index for a provider', () => {

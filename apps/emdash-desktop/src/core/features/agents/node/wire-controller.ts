@@ -3,7 +3,7 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
 import type { LeasedLiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
-import type { AgentOperations } from '@main/core/agents/controller';
+import type { AgentOperations } from '@core/features/agents/node/controller';
 import { agentsContract } from '../api';
 import {
   throwAgentsRuntimeResolveError,

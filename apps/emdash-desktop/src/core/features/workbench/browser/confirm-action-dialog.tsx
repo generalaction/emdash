@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
+} from '@core/primitives/ui/browser/dialog';
 
 export type ConfirmActionDialogArgs = {
   title: string;

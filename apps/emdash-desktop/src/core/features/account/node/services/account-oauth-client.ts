@@ -1,9 +1,14 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
-import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { type AccountOAuthError, unknownErrorMessage } from '../account-errors';
 import { ACCOUNT_CONFIG } from '../config';
 
 export class AccountOAuthClient {
+  constructor(
+    private readonly executeOAuthFlow: (
+      options: OAuthFlowOptions
+    ) => Promise<Record<string, unknown>>
+  ) {}
+
   async signIn(provider: string): Promise<Result<Record<string, unknown>, AccountOAuthError>> {
     const { baseUrl } = ACCOUNT_CONFIG.authServer;
     const extraParams: Record<string, string> = {};
@@ -42,10 +47,10 @@ export class AccountOAuthClient {
   }
 
   private async execute(
-    options: Parameters<typeof executeOAuthFlow>[0]
+    options: OAuthFlowOptions
   ): Promise<Result<Record<string, unknown>, AccountOAuthError>> {
     try {
-      return ok(await executeOAuthFlow(options));
+      return ok(await this.executeOAuthFlow(options));
     } catch (error) {
       return err({
         type: 'oauth_failed',
@@ -55,3 +60,12 @@ export class AccountOAuthClient {
     }
   }
 }
+
+export type OAuthFlowOptions = {
+  authorizeUrl: string;
+  exchangeUrl: string;
+  successRedirectUrl: string;
+  errorRedirectUrl: string;
+  extraParams?: Record<string, string>;
+  timeoutMs?: number;
+};

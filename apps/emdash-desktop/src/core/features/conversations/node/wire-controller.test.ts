@@ -7,8 +7,8 @@ import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
 import { createConversationsWireController } from './wire-controller';
 
-vi.mock('@main/core/conversations/controller', () => ({
-  conversationOperations: {
+vi.mock('@core/features/conversations/node/controller', () => ({
+  createConversationOperations: () => ({
     getConversations: vi.fn(),
     createConversation: vi.fn(),
     deleteConversation: vi.fn(),
@@ -18,15 +18,8 @@ vi.mock('@main/core/conversations/controller', () => ({
     getConversationsForTask: vi.fn(),
     getConversationsForProject: vi.fn(),
     markConversationSeen: vi.fn(),
-  },
+  }),
 }));
-vi.mock('@main/lib/logger', () => ({
-  log: { warn: vi.fn() },
-}));
-vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: { capture: vi.fn() },
-}));
-
 const target = {
   conversationId: 'conversation-1',
   projectId: 'project-1',
@@ -223,6 +216,7 @@ function setupController(options: {
   };
   return createConversationsWireController({
     db: {} as never,
+    logger: { warn: vi.fn() } as never,
     runtimes: {
       session: () => ({
         ready: async () => (options.runtimeError ? err(options.runtimeError) : ok(options.client)),
@@ -230,6 +224,10 @@ function setupController(options: {
       }),
     } as never,
     workspaceIdentity: {} as never,
+    telemetry: { capture: vi.fn() } as never,
+    projects: { getProject: vi.fn() },
+    taskSessions: { getTask: vi.fn() },
+    withCompensation: async ({ action }) => action(),
     resolveTarget: async () => target,
     hooks,
   });

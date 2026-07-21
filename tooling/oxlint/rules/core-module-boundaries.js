@@ -1,7 +1,14 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  DEFAULT_BOUNDARY_ALLOWLIST_PATH,
+  DEFAULT_REPO_ROOT,
+  isBoundaryFileAllowlisted,
+  loadBoundaryAllowlists,
+} from '../boundary-allowlists.js';
 
 const MODULE_TYPES = new Set(['runtimes', 'services', 'primitives', 'features']);
+const SHARED_INFRA_SERVICES = new Set(['app-db', 'operations']);
 const ALIAS_PREFIXES = {
   '@runtimes/': 'runtimes',
   '@services/': 'services',
@@ -35,12 +42,17 @@ export function classifyCorePath(filePath, coreSrcRoot = DEFAULT_CORE_SRC_ROOT) 
   }
 
   const relative = normalizePath(path.relative(normalizedRoot, normalizedFile));
-  const [type, moduleName, surface] = relative.split('/');
+  const [type, moduleName, surface, nestedSurface] = relative.split('/');
+  const platform =
+    surface === 'api' && (nestedSurface === 'browser' || nestedSurface === 'node')
+      ? nestedSurface
+      : undefined;
   if (!MODULE_TYPES.has(type) || !moduleName) return undefined;
   return {
     type,
     moduleName,
     ...(surface ? { surface } : {}),
+    ...(platform ? { platform } : {}),
   };
 }
 
@@ -50,23 +62,33 @@ export function classifyImportSpecifier(specifier, fromFile, coreSrcRoot = DEFAU
   for (const [prefix, type] of Object.entries(ALIAS_PREFIXES)) {
     if (!specifier.startsWith(prefix)) continue;
     const rest = specifier.slice(prefix.length);
-    const [moduleName, surface] = rest.split('/');
+    const [moduleName, surface, nestedSurface] = rest.split('/');
+    const platform =
+      surface === 'api' && (nestedSurface === 'browser' || nestedSurface === 'node')
+        ? nestedSurface
+        : undefined;
     if (!moduleName) return undefined;
     return {
       type,
       moduleName,
       ...(surface ? { surface } : {}),
+      ...(platform ? { platform } : {}),
     };
   }
 
   if (specifier.startsWith(CORE_PACKAGE_PREFIX)) {
     const rest = specifier.slice(CORE_PACKAGE_PREFIX.length);
-    const [type, moduleName, surface] = rest.split('/');
+    const [type, moduleName, surface, nestedSurface] = rest.split('/');
+    const platform =
+      surface === 'api' && (nestedSurface === 'browser' || nestedSurface === 'node')
+        ? nestedSurface
+        : undefined;
     if (!MODULE_TYPES.has(type) || !moduleName) return undefined;
     return {
       type,
       moduleName,
       ...(surface ? { surface } : {}),
+      ...(platform ? { platform } : {}),
     };
   }
 
@@ -81,6 +103,7 @@ export function classifyImportSpecifier(specifier, fromFile, coreSrcRoot = DEFAU
 export function isAllowedCoreModuleDependency(source, target) {
   if (!source || !target) return true;
   if (source.type === target.type && source.moduleName === target.moduleName) return true;
+  if (target.type === 'services' && SHARED_INFRA_SERVICES.has(target.moduleName)) return true;
 
   if (source.type === 'services' && source.moduleName === 'runtime-broker') {
     return (
@@ -104,8 +127,14 @@ export function isAllowedCoreModuleDependency(source, target) {
     if (source.surface === 'api' && target.surface === 'api') {
       return true;
     }
+    if (target.type === 'features') {
+      return target.surface === 'api' || target.surface === 'contributions';
+    }
+    if (target.type === 'runtimes') {
+      return target.surface === 'api';
+    }
     if (
-      source.surface === 'node' &&
+      (source.surface === 'node' || (source.surface === 'api' && source.platform === 'node')) &&
       target.type === 'services' &&
       (target.surface === 'api' || target.surface === 'node')
     ) {
@@ -115,7 +144,6 @@ export function isAllowedCoreModuleDependency(source, target) {
       source.surface === 'browser' &&
       (target.type === 'primitives' ||
         target.surface === 'api' ||
-        target.surface === 'browser' ||
         target.surface === 'contributions')
     ) {
       return true;
@@ -133,7 +161,7 @@ export function isAllowedCoreModuleDependency(source, target) {
 export function dependencyMessage(source, target, specifier) {
   return `${source.type}/${source.moduleName} must not import ${target.type}/${
     target.moduleName
-  } via '${specifier}'. Allowed Core module dependencies are: runtime-broker -> runtime/host-dependency APIs and primitives, runtimes -> services/primitives, services -> primitives, feature APIs -> other APIs/primitives, feature node surfaces -> service APIs/node surfaces or primitives, feature browser surfaces -> other api/browser/contributions surfaces or primitives, other feature surfaces -> primitives, primitives -> primitives.`;
+  } via '${specifier}'. Allowed Core module dependencies are: any module -> named shared-infra services (app-db/operations), runtime-broker -> runtime/host-dependency APIs and primitives, runtimes -> services/primitives, services -> primitives, features -> other feature api/contributions surfaces, runtime APIs, and primitives, feature node surfaces -> service APIs/node surfaces, primitives -> primitives.`;
 }
 
 function getFilename(context) {
@@ -183,6 +211,12 @@ export const coreModuleBoundariesRule = {
           coreSrcRoot: {
             type: 'string',
           },
+          allowlistPath: {
+            type: 'string',
+          },
+          repoRoot: {
+            type: 'string',
+          },
         },
         additionalProperties: false,
       },
@@ -204,10 +238,16 @@ export const coreModuleBoundariesRule = {
       : undefined;
     if (!source?.module) return {};
     const { coreSrcRoot, module: sourceModule } = source;
+
+    const allowlists = loadBoundaryAllowlists(
+      options.allowlistPath ?? DEFAULT_BOUNDARY_ALLOWLIST_PATH
+    );
     if (
-      !options.coreSrcRoot &&
-      normalizeAbsolute(coreSrcRoot) === normalizeAbsolute(DEFAULT_DESKTOP_CORE_SRC_ROOT) &&
-      sourceModule.type !== 'features'
+      isBoundaryFileAllowlisted(
+        filename,
+        allowlists.crossSlice,
+        options.repoRoot ?? DEFAULT_REPO_ROOT
+      )
     ) {
       return {};
     }

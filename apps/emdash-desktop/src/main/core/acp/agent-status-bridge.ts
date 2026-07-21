@@ -3,7 +3,6 @@ import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { getAcpRuntimeClient, getAcpWorker } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import {
@@ -13,6 +12,9 @@ import {
 } from './agent-status-transition';
 
 type SessionSummaryList = Record<string, SessionSummary>;
+export type ConversationCreatedSubscription = (
+  handler: (conversation: { id: string }) => void
+) => Unsubscribe;
 
 const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 
@@ -24,10 +26,9 @@ class AcpAgentStatusBridge {
   private attaching = false;
   private bootstrapped = false;
 
-  initialize(): void {
-    this.conversationCreatedUnsubscribe ??= conversationEvents.on(
-      'conversation:created',
-      (conversation) => this.cacheConversationSnapshot(conversation.id)
+  initialize(onConversationCreated: ConversationCreatedSubscription): void {
+    this.conversationCreatedUnsubscribe ??= onConversationCreated((conversation) =>
+      this.cacheConversationSnapshot(conversation.id)
     );
     void this.attach().catch((error) => {
       log.warn('ACP agent status bridge failed to attach', { error: String(error) });

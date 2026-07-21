@@ -1,40 +1,22 @@
-import { createController, type Controller } from '@emdash/wire/api';
-import { appOperations } from '@main/core/app/controller';
+import {
+  createController,
+  type Contract,
+  type ContractImpl,
+  type Controller,
+} from '@emdash/wire/api';
 import { desktopHostContract } from '../api';
 import { desktopHostEvents } from './event-host';
 
-export function createDesktopHostWireController(): Controller {
+type ContractDefinitionsOf<TContract> =
+  TContract extends Contract<infer Definitions> ? Definitions : never;
+type DesktopHostImpl = ContractImpl<ContractDefinitionsOf<typeof desktopHostContract>>;
+export type DesktopHostControllerOperations = Omit<DesktopHostImpl, 'events'>;
+
+export function createDesktopHostWireController(
+  operations: DesktopHostControllerOperations
+): Controller {
   return createController(desktopHostContract, {
-    openExternal: ({ url }) => appOperations.openExternal(url),
-    openPath: ({ path }) => appOperations.openPath(path),
-    showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
-    readUserFile: ({ path }) => appOperations.readUserFile(path),
-    writeRendererLog: (input) => appOperations.writeRendererLog(input),
-    clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
-    persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
-    persistClipboardImage: () => appOperations.persistClipboardImage(),
-    showTerminalContextMenu: (input) => appOperations.showTerminalContextMenu(input),
-    setMenuKeybindings: (input) => appOperations.setMenuKeybindings(input),
-    quit: () => appOperations.quit(),
-    resolveQuitConfirmation: (input) => appOperations.resolveQuitConfirmation(input),
-    ackShutdownFlush: () => appOperations.ackShutdownFlush(),
-    shutdownReady: () => appOperations.shutdownReady(),
-    openIn: (input) => appOperations.openIn(input),
-    checkInstalledApps: () => appOperations.checkInstalledApps(),
-    listInstalledFonts: (input) => appOperations.listInstalledFonts(input),
-    openSelectDirectoryDialog: (input) => appOperations.openSelectDirectoryDialog(input),
-    openSelectAudioFileDialog: (input) => appOperations.openSelectAudioFileDialog(input),
-    saveTextFile: (input) => appOperations.saveTextFile(input),
-    readAudioFileDataUrl: ({ filePath }) => appOperations.readAudioFileDataUrl(filePath),
-    minimizeWindow: () => appOperations.minimizeWindow(),
-    toggleMaximizeWindow: () => appOperations.toggleMaximizeWindow(),
-    closeWindow: () => appOperations.closeWindow(),
-    isWindowMaximized: () => appOperations.isWindowMaximized(),
-    getAppVersion: () => appOperations.getAppVersion(),
-    getElectronVersion: () => appOperations.getElectronVersion(),
-    getPlatform: () => appOperations.getPlatform(),
-    getPlatformDisplayName: () => appOperations.getPlatformDisplayName(),
-    getDiagnosticLogAttachment: () => appOperations.getDiagnosticLogAttachment(),
+    ...operations,
     events: desktopHostEvents,
   });
 }

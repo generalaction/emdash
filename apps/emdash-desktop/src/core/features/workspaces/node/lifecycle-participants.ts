@@ -1,9 +1,8 @@
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { log } from '@emdash/shared/logger';
+import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import { registerFileSearchRoot } from '@main/core/file-search/runtime-client';
-import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
-import { log } from '@main/lib/logger';
-import type { WorkspaceIdentity } from './workspace-identity-service';
 
 export type WorkspaceLifecycleContext = Readonly<{
   identity: WorkspaceIdentity;
@@ -15,43 +14,53 @@ export type WorkspaceLifecycleParticipant = Readonly<{
   deactivate?(context: WorkspaceLifecycleContext): void | Promise<void>;
 }>;
 
-export const workspaceLifecycleParticipants: readonly WorkspaceLifecycleParticipant[] = [
-  {
-    id: 'file-search',
-    activate: ({ identity }) =>
-      registerFileSearchRoot(
-        hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path,
-        identity.host
-      ),
-  },
-  {
-    id: 'preview-servers',
-    deactivate: ({ identity }) =>
-      previewServerService.stopForWorkspace(identity.projectId, identity.workspaceId),
-  },
-];
-
-export async function activateWorkspaceParticipants(identity: WorkspaceIdentity): Promise<void> {
-  await runParticipants('activate', identity);
+export function createWorkspaceLifecycleParticipants(dependencies: {
+  registerFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
+  stopPreviewServers(projectId: string, workspaceId: string): Promise<void> | void;
+}): readonly WorkspaceLifecycleParticipant[] {
+  return [
+    {
+      id: 'file-search',
+      activate: ({ identity }) =>
+        dependencies.registerFileSearchRoot(
+          hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host)).path,
+          identity.host
+        ),
+    },
+    {
+      id: 'preview-servers',
+      deactivate: ({ identity }) =>
+        dependencies.stopPreviewServers(identity.projectId, identity.workspaceId),
+    },
+  ];
 }
 
-export async function deactivateWorkspaceParticipants(identity: WorkspaceIdentity): Promise<void> {
-  await runParticipants('deactivate', identity);
+export async function activateWorkspaceParticipants(
+  participants: readonly WorkspaceLifecycleParticipant[],
+  identity: WorkspaceIdentity
+): Promise<void> {
+  await runParticipants(participants, 'activate', identity);
+}
+
+export async function deactivateWorkspaceParticipants(
+  participants: readonly WorkspaceLifecycleParticipant[],
+  identity: WorkspaceIdentity
+): Promise<void> {
+  await runParticipants(participants, 'deactivate', identity);
 }
 
 async function runParticipants(
+  participants: readonly WorkspaceLifecycleParticipant[],
   phase: 'activate' | 'deactivate',
   identity: WorkspaceIdentity
 ): Promise<void> {
   const results = await Promise.allSettled(
-    workspaceLifecycleParticipants.map((participant) =>
-      Promise.resolve(participant[phase]?.({ identity }))
-    )
+    participants.map((participant) => Promise.resolve(participant[phase]?.({ identity })))
   );
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') return;
     log.warn('Workspace lifecycle participant failed', {
-      participant: workspaceLifecycleParticipants[index]?.id,
+      participant: participants[index]?.id,
       phase,
       workspaceId: identity.workspaceId,
       error: result.reason,

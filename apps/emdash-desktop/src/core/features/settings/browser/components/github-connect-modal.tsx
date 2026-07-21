@@ -8,8 +8,17 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useToast } from '@renderer/lib/hooks/use-toast';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@core/primitives/ui/browser/dialog';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useAccountLinkProvider,
   useAccountSession,
@@ -19,15 +28,6 @@ import {
   useGitHubDeviceFlowAuth,
   useImportGitHubCliAccounts,
 } from '@renderer/lib/hooks/useGithubAccounts';
-import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { cn } from '@renderer/utils/utils';
 
 type MethodError = {
   method: 'oauth' | 'cli' | 'device_flow';

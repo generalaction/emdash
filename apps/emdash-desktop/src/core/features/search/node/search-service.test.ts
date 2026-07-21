@@ -15,24 +15,20 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock('@main/lib/logger', () => ({
-  log: { info: vi.fn(), warn: mocks.warn },
-}));
+vi.mock(import('@emdash/shared/logger'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    log: { ...actual.log, info: vi.fn(), warn: mocks.warn },
+  };
+});
 
-vi.mock('@main/core/conversations/conversation-events', () => ({
+vi.mock('@core/features/conversations/api/node/conversation-events', () => ({
   conversationEvents: { on: vi.fn() },
 }));
 
-vi.mock('@main/core/projects/project-events', () => ({
+vi.mock('@core/features/projects/api/node/project-events', () => ({
   projectEvents: { on: vi.fn() },
-}));
-
-vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { on: vi.fn() },
-}));
-
-vi.mock('@main/core/file-search/runtime-client', () => ({
-  searchFileSearchRoot: mocks.fileSearch,
 }));
 
 describe('SearchService runtime file search', () => {
@@ -41,6 +37,8 @@ describe('SearchService runtime file search', () => {
     db: {} as never,
     sqlite: { prepare: mocks.prepare } as never,
     acquireWorkspaceRuntime: mocks.workspaceGet,
+    searchFileSearchRoot: mocks.fileSearch,
+    tasks: { on: vi.fn() } as never,
   });
 
   beforeEach(() => {

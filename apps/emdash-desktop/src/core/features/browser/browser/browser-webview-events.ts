@@ -1,6 +1,6 @@
+import { browserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { BROWSER_DEFAULT_URL, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
-import { browserDiagnosticsStore } from './browser-diagnostics-store';
-import { browserSessionStore } from './browser-session-store';
 import type { BrowserWebviewElement } from './browser-webview-types';
 
 export function bindBrowserWebviewEvents(

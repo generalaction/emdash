@@ -4,8 +4,13 @@ import {
   type PromptContextAction,
 } from '@core/features/tasks/browser/context-bar/context-actions';
 import { PromptActionsMenu } from '@core/features/tasks/browser/context-bar/prompt-actions-menu';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 
 interface ModalContextBarProps {

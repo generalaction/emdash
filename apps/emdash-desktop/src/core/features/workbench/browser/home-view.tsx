@@ -2,12 +2,12 @@ import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react'
 import { motion } from 'motion/react';
 import { Fragment } from 'react';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useTheme } from '@core/primitives/theme/browser';
+import { ActionListItem } from '@core/primitives/ui/browser/action-list-item';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 const PROJECT_ACTIONS = [
   {

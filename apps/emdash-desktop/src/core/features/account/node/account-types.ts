@@ -1,4 +1,4 @@
-import type { ProviderAccountPayload } from './provider-token-registry';
+import type { ProviderAccountPayload } from '@core/features/account/api/node/provider-token-registry';
 
 export interface AccountUser {
   userId: string;

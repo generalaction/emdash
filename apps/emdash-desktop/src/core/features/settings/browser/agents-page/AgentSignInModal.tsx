@@ -4,30 +4,30 @@ import { Terminal } from '@xterm/xterm';
 import { Loader2 } from 'lucide-react';
 import { reaction } from 'mobx';
 import { useEffect, useRef, useState } from 'react';
-import { AcpAuthLoginBinding } from '@core/features/agents/browser/auth-login-binding';
-import { isPrimaryMouseButton } from '@core/features/terminals/browser/pty/file-link-provider';
+import { AcpAuthLoginBinding } from '@core/features/agents/api/browser/auth-login-binding';
+import { isPrimaryMouseButton } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import {
   buildTheme,
   TERMINAL_LETTER_SPACING,
   TERMINAL_LINE_HEIGHT,
   TERMINAL_PADDING_PX,
-} from '@core/features/terminals/browser/pty/pty';
+} from '@core/features/terminals/api/browser/pty/pty';
 import {
   computeGridDimensions,
   measureTerminalCell,
-} from '@core/features/terminals/browser/pty/pty-dimensions';
-import { buildTerminalFontFamily } from '@core/features/terminals/browser/pty/terminal-font';
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
+import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
-import { useModalController } from '@renderer/lib/modal/api';
-import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
+} from '@core/primitives/ui/browser/dialog';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 
 export type AgentSignInModalArgs = {
   providerId: string;

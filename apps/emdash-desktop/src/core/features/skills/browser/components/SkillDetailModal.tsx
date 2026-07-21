@@ -2,8 +2,8 @@ import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import { parseFrontmatter } from '@emdash/core/primitives/skills/api';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+} from '@core/primitives/ui/browser/dialog';
+import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 const sourceMeta = {

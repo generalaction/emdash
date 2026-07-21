@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import type { ComboboxSelectOption } from '@core/primitives/ui/browser/combobox-popover';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.length > 0) return error;

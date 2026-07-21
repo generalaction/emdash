@@ -9,16 +9,16 @@ import { err, ok } from '@emdash/shared';
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import { getEditorClient } from '@core/features/editor/browser/client';
-import { editorFilePath } from '@core/features/editor/browser/files';
-import { sourceControlContract } from '../../api';
+import { getEditorClient } from '@core/features/editor/api/browser/client';
+import { editorFilePath } from '@core/features/editor/api/browser/files';
 import {
   checkoutSelector,
   getSourceControlClient,
   gitFilePath,
   runSourceControlJob,
-} from '../client';
-import { getGitRepositoryStore } from './source-control-selectors';
+} from '@core/features/source-control/api/browser/client';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { sourceControlContract } from '../../api';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;

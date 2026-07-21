@@ -1,10 +1,5 @@
-import type {
-  GitBranchRef,
-  GitObjectRef,
-  GitRemote,
-  MergeBaseRange,
-} from '@emdash/core/runtimes/git/api';
 import type { ProjectSettings } from '@core/primitives/project-settings/api';
+import type { GitBranchRef, GitObjectRef, GitRemote, MergeBaseRange } from './types';
 import { DEFAULT_REMOTE_NAME, type ConfiguredRemotes, type GitRef } from './types';
 
 export function toRangeString(range: MergeBaseRange): string {

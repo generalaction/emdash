@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatFetchErrorDetail, formatPushErrorDetail } from './utils';
+import {
+  formatFetchErrorDetail,
+  formatPushErrorDetail,
+} from '@core/features/tasks/api/browser/utils';
 
 describe('formatFetchErrorDetail', () => {
   it('suggests gh auth login for GitHub authentication failures', () => {

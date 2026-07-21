@@ -1,7 +1,7 @@
 import { CircleAlert } from 'lucide-react';
-import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import type { IntegrationItem } from './IntegrationsCard';
 
 export function IntegrationGridCard({

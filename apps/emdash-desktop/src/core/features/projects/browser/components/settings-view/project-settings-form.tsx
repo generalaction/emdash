@@ -1,7 +1,7 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import type { Result } from '@emdash/shared';
 import { observer } from 'mobx-react-lite';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,
@@ -13,8 +13,8 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { Project, UpdateProjectSettingsError } from '@core/primitives/projects/api';
+import { FieldGroup } from '@core/primitives/ui/browser/field';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { FieldGroup } from '@renderer/lib/ui/field';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';

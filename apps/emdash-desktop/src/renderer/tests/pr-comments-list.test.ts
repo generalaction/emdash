@@ -5,11 +5,11 @@ import { CommentsList } from '@core/features/source-control/browser/diff-view/ch
 import { buildPullRequestConversationItems } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
 import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 
-vi.mock('@renderer/lib/hooks/useTheme', () => ({
+vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@core/features/tasks/browser/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 

@@ -1,13 +1,17 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
+import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
 import type { BranchSelectionState } from '@core/features/tasks/browser/create-task-modal/use-branch-selection';
-import { BranchDisplay } from '@renderer/lib/components/branch-display';
-import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Switch } from '@renderer/lib/ui/switch';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
+import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
+import { BranchDisplay } from '@core/primitives/ui/browser/components/branch-display';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Switch } from '@core/primitives/ui/browser/switch';
 import { BranchNameField } from './branch-name-field';
 
 interface BranchPickerFieldProps {

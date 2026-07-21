@@ -1,12 +1,12 @@
 import { and, eq, isNull, type SQL } from 'drizzle-orm';
-import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import {
   isRemoteWorkspaceRow,
   WorkspaceIdentityService,
   type WorkspaceIdentityRow,
   type WorkspaceIdentitySource,
-} from './workspace-identity-service';
+} from '@core/features/workspaces/api/node/workspace-identity-service';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 
 export function createWorkspaceIdentityService(options: { db: AppDb }): WorkspaceIdentityService {
   const source: WorkspaceIdentitySource = {

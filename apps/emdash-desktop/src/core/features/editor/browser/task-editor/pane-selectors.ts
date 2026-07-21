@@ -1,12 +1,12 @@
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 /**
  * Pane selectors for the editor domain.
  *
  * These helpers let editor code read file-tab state from a generic PaneStore /
  * PaneLayoutStore without the engine having to know about FileTabResource.
  */
-import type { PaneLayoutStore } from '@core/features/workbench/browser/tabs/pane-layout-store';
-import type { PaneStore } from '@core/features/workbench/browser/tabs/pane-store';
-import type { FileTabResource } from './stores/file-tab-resource';
+import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
+import type { PaneStore } from '@core/primitives/workbench-shell/browser/tabs/pane-store';
 
 export function activeFileResource(pane: PaneStore): FileTabResource | undefined {
   return pane.activeResourceOfKind<FileTabResource>('file');

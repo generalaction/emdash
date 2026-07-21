@@ -2,22 +2,22 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { modelRegistry } from '@core/features/editor/browser/monaco/monaco-model-registry';
-import { StickyDiffEditor } from '@core/features/editor/browser/monaco/sticky-diff-editor';
-import { FileIcon } from '@core/features/editor/browser/renderers/file-icon';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { StickyDiffEditor } from '@core/features/editor/api/browser/monaco/sticky-diff-editor';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import { ShowHide } from '@core/primitives/ui/browser/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
-import { cn } from '@renderer/utils/utils';
-import type { DiffViewStore } from '../stores/diff-view-store';
 import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-diff-panel-store';
 import { isMissingFileError } from './missing-file-error';
 

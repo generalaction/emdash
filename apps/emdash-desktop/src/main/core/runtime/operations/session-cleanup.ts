@@ -12,14 +12,10 @@ import {
   tasks,
   terminals,
   type LifecycleOperationRow,
+  type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
-import { projectManager } from '@main/core/projects/project-manager';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import {
-  lifecycleWorkspaceIsUnused,
-  WorkspaceInUseError,
-} from '@main/core/workspaces/operations/lifecycle-cleanup';
-import type { LifecycleOperationContext } from '@main/core/workspaces/operations/lifecycle-operation-context';
 import {
   getAcpRuntimeClient,
   getTerminalsRuntimeClient,
@@ -34,6 +30,16 @@ export type LifecycleSessionTargets = {
   tmuxSessionNames: string[];
 };
 
+export type LifecycleSessionContext = {
+  workspace?: Pick<WorkspaceRow, 'id'>;
+  workspacePath?: string;
+};
+
+export type SessionCleanupDependencies = {
+  assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationRow): Promise<void>;
+  getProjectExecutionContext(projectId: string): IExecutionContext | undefined;
+};
+
 type SessionTargetSets = {
   [K in keyof LifecycleSessionTargets]: Set<string>;
 };
@@ -41,7 +47,7 @@ type SessionTargetSets = {
 export async function resolveLifecycleSessionTargets(
   db: AppDb,
   operation: LifecycleOperationRow,
-  context: LifecycleOperationContext,
+  context: LifecycleSessionContext,
   options: { includeRuntimeTargets?: boolean } = {}
 ): Promise<LifecycleSessionTargets> {
   const targets = payloadTargets(operation);
@@ -101,11 +107,12 @@ export async function resolveLifecycleSessionTargets(
 }
 
 export async function killLifecycleAcpSessions(
+  dependencies: SessionCleanupDependencies,
   db: AppDb,
   operation: LifecycleOperationRow,
   targets: LifecycleSessionTargets
 ): Promise<void> {
-  await assertWorkspaceDeleteAllowed(db, operation);
+  await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.acpConversationIds.length === 0) return;
   const client = await getAcpRuntimeClient();
   for (const conversationId of targets.acpConversationIds) {
@@ -117,12 +124,13 @@ export async function killLifecycleAcpSessions(
 }
 
 export async function killLifecycleTerminalSessions(
+  dependencies: SessionCleanupDependencies,
   db: AppDb,
   operation: LifecycleOperationRow,
-  context: LifecycleOperationContext,
+  context: LifecycleSessionContext,
   targets: LifecycleSessionTargets
 ): Promise<void> {
-  await assertWorkspaceDeleteAllowed(db, operation);
+  await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.tuiConversationIds.length > 0) {
     const tui = await getTuiAgentsRuntimeClient();
     for (const conversationId of targets.tuiConversationIds) {
@@ -148,10 +156,10 @@ export async function killLifecycleTerminalSessions(
   }
 
   if (!operation.projectId) return;
-  const project = projectManager.getProject(operation.projectId);
-  if (!project) return;
+  const projectContext = dependencies.getProjectExecutionContext(operation.projectId);
+  if (!projectContext) return;
   await Promise.all(
-    targets.tmuxSessionNames.map((sessionName) => killTmuxSession(project.ctx, sessionName))
+    targets.tmuxSessionNames.map((sessionName) => killTmuxSession(projectContext, sessionName))
   );
 }
 
@@ -176,7 +184,7 @@ function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
 async function taskIdsForOperation(
   db: AppDb,
   operation: LifecycleOperationRow,
-  context: LifecycleOperationContext
+  context: LifecycleSessionContext
 ): Promise<string[]> {
   if (operation.kind === 'delete-task') {
     return operation.taskId ? [operation.taskId] : [];
@@ -237,19 +245,6 @@ async function addRuntimePathTargets(
   });
 
   await Promise.all([terminalScan, ...intentScans]);
-}
-
-async function assertWorkspaceDeleteAllowed(
-  db: AppDb,
-  operation: LifecycleOperationRow
-): Promise<void> {
-  if (
-    operation.kind === 'delete-workspace' &&
-    operation.workspaceId &&
-    !(await lifecycleWorkspaceIsUnused(db, operation.workspaceId))
-  ) {
-    throw new WorkspaceInUseError();
-  }
 }
 
 function isMissingError(error: unknown): boolean {

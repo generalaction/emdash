@@ -1,19 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { useTaskSettings } from './hooks/useTaskSettings';
+} from '@core/primitives/ui/browser/dialog';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type DeleteTaskModalArgs = {
   projectId: string;

@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
-import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   Combobox,
   ComboboxContent,
@@ -10,10 +9,16 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-} from '@renderer/lib/ui/combobox';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/combobox';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 function workspaceLabel(ws: ProjectWorkspace): string {
   if (ws.kind === 'project-root') return 'Repository root';

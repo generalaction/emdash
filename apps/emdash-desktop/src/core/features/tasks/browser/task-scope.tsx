@@ -1,24 +1,25 @@
 import { useLayoutEffect, type ReactNode } from 'react';
-import { browserControlsRegistry } from '@core/features/browser/browser/browser-controls-registry';
-import type { BrowserTabResource } from '@core/features/browser/browser/browser-tab-resource';
+import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
+import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
 import {
   runGitFetch,
   runGitPublishBranch,
   runGitPull,
   runGitPush,
-} from '@core/features/source-control/browser/git-action-handlers';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
+} from '@core/features/source-control/api/browser/git-action-handlers';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import {
   getRegisteredTaskData,
   getTaskManagerStore,
   getTaskStore,
-} from '@core/features/tasks/browser/stores/task-selectors';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import type { ResolvedTab } from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { getTaskComposition } from '@core/features/workbench/browser/task-composition-selectors';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   disabled,
   enabled,
@@ -28,8 +29,7 @@ import {
 } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { openModal } from '@renderer/lib/modal/api';
+import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 

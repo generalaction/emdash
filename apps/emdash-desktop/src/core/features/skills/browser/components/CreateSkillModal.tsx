@@ -2,20 +2,20 @@ import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
-import { Textarea } from '@renderer/lib/ui/textarea';
+} from '@core/primitives/ui/browser/dialog';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Label } from '@core/primitives/ui/browser/label';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { getSkillsClient } from '../client';
 

@@ -25,7 +25,7 @@ vi.mock('@core/primitives/views/react', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/modal/modal-store', () => ({
+vi.mock('@core/primitives/modals/react/modal-store', () => ({
   modalStore: { dismiss: dismissModal },
 }));
 

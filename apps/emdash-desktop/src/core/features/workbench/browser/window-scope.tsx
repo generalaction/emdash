@@ -1,24 +1,24 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { libraryViewDef } from '@core/features/library/contributions/views';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getRegisteredTaskData } from '@core/features/tasks/browser/stores/task-selectors';
+import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { confirmRegistry } from '@core/primitives/keybindings/browser';
+import { applyHistoryEntry } from '@core/primitives/ui/browser/components/nav-buttons';
+import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
-import { openInCommandRegistry } from '@renderer/lib/components/titlebar/open-in-command-registry';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { confirmRegistry } from '@renderer/lib/keybindings';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { openModal } from '@renderer/lib/modal/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
-import { getTaskComposition } from './task-composition-selectors';
 
 export function WindowScope({ children }: { readonly children: ReactNode }) {
   const { currentView } = useWorkspaceSlots();

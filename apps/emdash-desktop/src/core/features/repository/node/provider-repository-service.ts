@@ -1,12 +1,14 @@
 import { err, Result } from '@emdash/shared/result';
 import { match } from 'ts-pattern';
+import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { ProviderRepositoryResult } from '@core/primitives/repository/api';
-import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
-import { projectManager } from '@main/core/projects/project-manager';
 
 export class ProviderRepositoryService {
+  constructor(private readonly projects: Pick<ProjectSessionManager, 'getProject'>) {}
+
   async resolveProject(projectId: string): Promise<ProviderRepositoryResult> {
-    const project = projectManager.getProject(projectId);
+    const project = this.projects.getProject(projectId);
     if (!project) return err({ type: 'no_remote' });
 
     const remoteState = await project.getRemoteState();
@@ -43,5 +45,3 @@ export class ProviderRepositoryService {
       );
   }
 }
-
-export const providerRepositoryService = new ProviderRepositoryService();

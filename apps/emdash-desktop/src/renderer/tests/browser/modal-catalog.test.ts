@@ -1,8 +1,8 @@
 import type { Result } from '@emdash/shared';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { openModal } from '@core/manifests/browser/modal-api';
 import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import type { ModalDismissed } from '@core/primitives/modals/react';
-import { openModal } from '@renderer/lib/modal/api';
 
 vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {}, sidebarStore: {} }));
 

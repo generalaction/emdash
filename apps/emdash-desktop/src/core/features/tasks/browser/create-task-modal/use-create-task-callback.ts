@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
-import type { InitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
+import type { InitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';

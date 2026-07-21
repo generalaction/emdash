@@ -18,6 +18,7 @@ export default defineConfig({
     'primitives-agent-env-api': 'src/primitives/agent-env/api/index.ts',
     'primitives-plugin-fs-api': 'src/primitives/plugin-fs/api/index.ts',
     'primitives-versioned-schema-api': 'src/primitives/versioned-schema/api/index.ts',
+    'primitives-runtime-resolution-api': 'src/primitives/runtime-resolution/api/index.ts',
     'primitives-sqlite-store-api': 'src/primitives/sqlite-store/api/index.ts',
     'primitives-sqlite-store-codegen': 'src/primitives/sqlite-store/codegen/index.ts',
     'primitives-sqlite-store-node': 'src/primitives/sqlite-store/node/index.ts',
@@ -57,6 +58,9 @@ export default defineConfig({
     'runtimes-terminals-api': 'src/runtimes/terminals/api/index.ts',
     'runtimes-terminals-node': 'src/runtimes/terminals/node/index.ts',
     'runtimes-workspace-api': 'src/runtimes/workspace/api/index.ts',
+    'runtimes-workspace-api-provisioning': 'src/runtimes/workspace/api/provisioning/index.ts',
+    'runtimes-workspace-api-provisioning-placement':
+      'src/runtimes/workspace/api/provisioning/placement.ts',
     'runtimes-workspace-node': 'src/runtimes/workspace/node/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',
     'workspace-server-wire': 'src/workspace-server/wire/index.ts',

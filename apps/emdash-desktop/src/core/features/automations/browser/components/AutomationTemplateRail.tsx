@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { AutomationTemplateCard } from './AutomationTemplateCard';
 

@@ -1,35 +1,35 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { useAgents } from '@core/features/agents/browser/use-agents';
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
-import { getProjectSshConnectionId } from '@core/features/projects/browser/stores/project-selectors';
+import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
+import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
 // TODO(conversations-extraction): Pass task settings into the modal instead of importing task hooks.
-import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
 import { defineModal } from '@core/primitives/modals/react';
-import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { useModalController } from '@renderer/lib/modal/api';
-import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
-import { nextDefaultConversationTitle } from './conversation-title-utils';
-import { useEffectiveProvider } from './use-effective-provider';
+} from '@core/primitives/ui/browser/select';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   projectId,

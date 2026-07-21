@@ -49,13 +49,8 @@ vi.mock('@main/host/window', () => ({
   getMainWindow: vi.fn(),
 }));
 
-vi.mock('@core/services/workspace-runtime-access/node', () => ({
-  acquireWorkspaceRuntime: (_workspaceIdentity: unknown, workspaceId: string) =>
-    mocks.workspaceGet(workspaceId),
-}));
-
-vi.mock('@main/bootstrap/core/service-instances', () => ({
-  getWorkspaceIdentityService: () => ({}),
+vi.mock('@main/gateway/workspace-runtime', () => ({
+  acquireDesktopWorkspaceRuntime: (workspaceId: string) => mocks.workspaceGet(workspaceId),
 }));
 
 vi.mock('@core/services/app-db/node/schema', () => ({
@@ -80,6 +75,7 @@ vi.mock('@main/lib/childProcessEnv', () => ({
 }));
 
 const { appService } = await import('./service');
+appService.initialize({ emitHostEvent: mocks.eventEmit });
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
 

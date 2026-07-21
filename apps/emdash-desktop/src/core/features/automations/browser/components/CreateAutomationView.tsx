@@ -4,15 +4,19 @@ import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
-import { useToast } from '@renderer/lib/hooks/use-toast';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { Field } from '@core/primitives/ui/browser/field';
+import { Label } from '@core/primitives/ui/browser/label';
+import { SheetFooter } from '@core/primitives/ui/browser/sheet';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
-import { Button } from '@renderer/lib/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { Field } from '@renderer/lib/ui/field';
-import { Label } from '@renderer/lib/ui/label';
-import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';

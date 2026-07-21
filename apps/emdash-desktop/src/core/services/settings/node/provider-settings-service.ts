@@ -1,10 +1,10 @@
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import { OverrideSettings } from './override-settings';
 import {
   migrateProviderConfigOverrides,
   migrateProviderConfigToHostDependencyStore,
+  type HostDependencySelectionStore,
 } from './provider-config-migrations';
 import { providerConfigDefaults, providerCustomConfigEntrySchema } from './provider-config-schema';
 
@@ -21,7 +21,8 @@ export function createProviderOverrideSettings(db: AppDb): ProviderOverrideSetti
 }
 
 export async function runProviderSettingsMigration(
-  providerOverrideSettings: ProviderOverrideSettings
+  providerOverrideSettings: ProviderOverrideSettings,
+  hostDependencyStore: HostDependencySelectionStore
 ): Promise<void> {
   const raw = await providerOverrideSettings.getRawOverrides();
   await migrateProviderConfigToHostDependencyStore(raw, hostDependencyStore);

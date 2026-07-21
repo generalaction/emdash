@@ -30,7 +30,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@core/features/integrations/browser/integrations-provider', () => {
+vi.mock('@core/features/integrations/api/browser/integrations-provider', () => {
   const integrations = [
     {
       id: 'github',
@@ -48,7 +48,7 @@ vi.mock('@core/features/integrations/browser/integrations-provider', () => {
   };
 });
 
-vi.mock('@renderer/lib/ui/combobox', async () => {
+vi.mock('@core/primitives/ui/browser/combobox', async () => {
   const React = await import('react');
   return {
     Combobox: ({ children }: { children: React.ReactNode }) =>
@@ -72,7 +72,7 @@ vi.mock('@renderer/lib/ui/combobox', async () => {
   };
 });
 
-vi.mock('@renderer/lib/ui/select', async () => {
+vi.mock('@core/primitives/ui/browser/select', async () => {
   const React = await import('react');
   return {
     Select: ({ children }: { children: React.ReactNode }) =>
@@ -86,7 +86,7 @@ vi.mock('@renderer/lib/ui/select', async () => {
   };
 });
 
-vi.mock('@renderer/lib/ui/tooltip', async () => {
+vi.mock('@core/primitives/ui/browser/tooltip', async () => {
   const React = await import('react');
   return {
     Tooltip: ({ children }: { children: React.ReactNode }) =>
@@ -97,7 +97,7 @@ vi.mock('@renderer/lib/ui/tooltip', async () => {
   };
 });
 
-vi.mock('@renderer/lib/components/inline-markdown', async () => {
+vi.mock('@core/primitives/ui/browser/components/inline-markdown', async () => {
   const React = await import('react');
   return {
     InlineMarkdown: ({ children }: { children: React.ReactNode }) =>

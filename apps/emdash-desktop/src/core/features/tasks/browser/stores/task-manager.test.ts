@@ -1,10 +1,10 @@
 import { runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
+import { createUnprovisionedTask } from '@core/features/tasks/api/browser/stores/task-store';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import type { Task } from '@core/primitives/tasks/api';
-import { TaskManagerStore } from './task-manager';
-import { createUnprovisionedTask } from './task-store';
 
 let taskDeletedHandler:
   | ((event: { type: 'deleted'; taskId: string; projectId: string }) => void)
@@ -60,7 +60,7 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/mementos', () => ({
+vi.mock('@core/primitives/mementos/browser', () => ({
   getMementoClient: () => ({
     deleteBySubject: mocks.deleteBySubject,
     reportError: vi.fn(),
@@ -80,7 +80,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   },
 }));
 
-vi.mock('@core/features/projects/browser/stores/project-selectors', () => ({
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectManagerStore: mocks.getProjectManagerStore,
   getProjectSshConnectionId: vi.fn(),
 }));

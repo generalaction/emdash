@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { browserDiagnosticsStore } from './browser-diagnostics-store';
-import { browserSessionStore } from './browser-session-store';
+import { browserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
 import type { BrowserWebviewElement, BrowserWebviewEventMap } from './browser-webview-types';
 

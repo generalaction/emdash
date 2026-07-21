@@ -9,6 +9,7 @@ import {
   runInAction,
   type IReactionDisposer,
 } from 'mobx';
+import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type {
   ConnectionState,
   ConnectionTestResult,
@@ -18,7 +19,6 @@ import type {
 } from '@core/primitives/ssh/api';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Resource } from '@renderer/lib/stores/resource';
 import type { machinesContract } from '../api';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &

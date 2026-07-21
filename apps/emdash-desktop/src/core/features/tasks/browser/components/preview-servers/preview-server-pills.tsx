@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import {
   usePreviewServers,
   useWorkspace,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { ManualForwardButton } from './manual-forward-button';
 import { PreviewServerPill } from './preview-server-pill';
 

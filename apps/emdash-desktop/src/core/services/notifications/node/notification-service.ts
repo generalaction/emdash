@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Logger } from '@emdash/shared/logger';
 import { err, ok } from '@emdash/shared/result';
 import {
   createEventStreamHost,
@@ -6,7 +7,6 @@ import {
   type EventStreamHost,
   type LiveModelHost,
 } from '@emdash/wire';
-import type { Logger } from '@main/lib/logger';
 import {
   notificationsContract,
   type AppNotification,

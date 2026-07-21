@@ -1,23 +1,16 @@
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
-import { projectManager } from '@main/core/projects/project-manager';
+import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
 import { ProviderRepositoryService } from './provider-repository-service';
 
-vi.mock('@main/core/github/services/github-repository-resolver', () => ({
+vi.mock('@core/features/github/api/node/services/github-repository-resolver', () => ({
   githubRepositoryResolver: {
     resolve: vi.fn(),
   },
 }));
 
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: {
-    getProject: vi.fn(),
-  },
-}));
-
 const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
-const mockProjectManager = vi.mocked(projectManager);
+const mockProjectManager = { getProject: vi.fn() };
 
 function mockProject(remoteState: { hasRemote: boolean; selectedRemoteUrl?: string | null }) {
   mockProjectManager.getProject.mockReturnValue({
@@ -33,17 +26,17 @@ describe('ProviderRepositoryService', () => {
   it('returns no_remote when the project is missing', async () => {
     mockProjectManager.getProject.mockReturnValue(undefined);
 
-    await expect(new ProviderRepositoryService().resolveProject('project-1')).resolves.toEqual(
-      err({ type: 'no_remote' })
-    );
+    await expect(
+      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+    ).resolves.toEqual(err({ type: 'no_remote' }));
   });
 
   it('returns invalid_remote when the project has no selected remote URL', async () => {
     mockProject({ hasRemote: true, selectedRemoteUrl: '' });
 
-    await expect(new ProviderRepositoryService().resolveProject('project-1')).resolves.toEqual(
-      err({ type: 'invalid_remote' })
-    );
+    await expect(
+      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+    ).resolves.toEqual(err({ type: 'invalid_remote' }));
   });
 
   it('returns GitHub provider capabilities for GHES repositories', async () => {
@@ -58,7 +51,9 @@ describe('ProviderRepositoryService', () => {
       })
     );
 
-    await expect(new ProviderRepositoryService().resolveProject('project-1')).resolves.toEqual(
+    await expect(
+      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+    ).resolves.toEqual(
       ok({
         provider: 'github',
         host: 'ghe.example.com',
@@ -78,7 +73,9 @@ describe('ProviderRepositoryService', () => {
       err({ type: 'not_github', host: 'gitlab.example.com', reason: 'not GitHub' })
     );
 
-    await expect(new ProviderRepositoryService().resolveProject('project-1')).resolves.toEqual(
+    await expect(
+      new ProviderRepositoryService(mockProjectManager).resolveProject('project-1')
+    ).resolves.toEqual(
       err({ type: 'unsupported_provider', host: 'gitlab.example.com', reason: 'not GitHub' })
     );
   });

@@ -3,7 +3,7 @@ import {
   invalidateCellMetricsCache,
   measureDimensions,
   measureTerminalCell,
-} from './pty-dimensions';
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
 
 // ── measureDimensions (node-safe, uses mock window/getComputedStyle) ──────────
 

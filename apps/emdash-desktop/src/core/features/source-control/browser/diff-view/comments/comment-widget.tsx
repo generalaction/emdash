@@ -1,7 +1,7 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Button } from '@renderer/lib/ui/button';
-import type { DraftComment } from '../stores/draft-comments-store';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
+import { Button } from '@core/primitives/ui/browser/button';
 import { Comment, useTextareaAutoFocus } from './comment-card';
 
 interface CommentWidgetProps {

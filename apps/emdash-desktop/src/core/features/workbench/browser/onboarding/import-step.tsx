@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
   useLegacyPortPreview,
   useLegacyPortStartFresh,
 } from '@renderer/lib/hooks/useLegacyPort';
-import { Button } from '@renderer/lib/ui/button';
-import { cn } from '@renderer/utils/utils';
 import { ImportHeader } from './components/import-header';
 import { ImportProgress } from './components/import-progress';
 import { ImportSourceSelector } from './components/import-source-selector';

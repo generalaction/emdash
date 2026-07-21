@@ -6,7 +6,6 @@ import {
   unknownErrorMessage,
 } from '../account-errors';
 import type { AccountUser, CachedProfile, SessionSnapshot, SessionState } from '../account-types';
-import { accountCredentialStore } from './credential-store';
 
 export interface AccountKVSchema extends Record<string, unknown> {
   profile: CachedProfile;
@@ -17,16 +16,25 @@ export type AccountProfileKeyValueStore = {
   setOrThrow(key: 'profile', value: CachedProfile): Promise<void>;
 };
 
+export type AccountSessionCredentialStore = {
+  get(): Promise<Result<string | null, AccountSessionPersistenceError>>;
+  set(token: string): Promise<Result<void, AccountSessionPersistenceError>>;
+  clear(): Promise<Result<void, AccountSessionPersistenceError>>;
+};
+
 export class AccountSessionStore {
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
 
-  constructor(private readonly accountKV: AccountProfileKeyValueStore) {}
+  constructor(
+    private readonly accountKV: AccountProfileKeyValueStore,
+    private readonly credentials: AccountSessionCredentialStore
+  ) {}
 
   async load(): Promise<Result<SessionSnapshot, AccountSessionPersistenceError>> {
     try {
       const [sessionToken, profile] = await Promise.all([
-        accountCredentialStore.get(),
+        this.credentials.get(),
         this.accountKV.get('profile'),
       ]);
       if (!sessionToken.success) return sessionToken;
@@ -59,7 +67,7 @@ export class AccountSessionStore {
     if (this.sessionToken) return ok(this.sessionToken);
 
     try {
-      const sessionToken = await accountCredentialStore.get();
+      const sessionToken = await this.credentials.get();
       if (!sessionToken.success) return sessionToken;
 
       this.sessionToken = sessionToken.data;
@@ -97,18 +105,16 @@ export class AccountSessionStore {
       lastValidated,
     };
 
-    return await ResultUtil.fromAsync(accountCredentialStore.set(sessionToken)).andThen(
-      async () => {
-        try {
-          await this.accountKV.setOrThrow('profile', profile);
-          this.sessionToken = sessionToken;
-          this.cachedProfile = profile;
-          return ok();
-        } catch (error) {
-          return err(toSessionPersistenceError(error, 'Failed to persist account session'));
-        }
+    return await ResultUtil.fromAsync(this.credentials.set(sessionToken)).andThen(async () => {
+      try {
+        await this.accountKV.setOrThrow('profile', profile);
+        this.sessionToken = sessionToken;
+        this.cachedProfile = profile;
+        return ok();
+      } catch (error) {
+        return err(toSessionPersistenceError(error, 'Failed to persist account session'));
       }
-    );
+    });
   }
 
   async markValidated(
@@ -126,7 +132,7 @@ export class AccountSessionStore {
   }
 
   async clearSessionPreservingAccount(): Promise<Result<void, AccountSessionPersistenceError>> {
-    const clearedToken = await accountCredentialStore.clear();
+    const clearedToken = await this.credentials.clear();
     if (!clearedToken.success) return clearedToken;
     this.sessionToken = null;
 

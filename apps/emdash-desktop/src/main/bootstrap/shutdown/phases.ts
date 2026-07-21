@@ -1,10 +1,10 @@
-import { pullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
-import { automationsService } from '@main/core/automations/automations-service';
 import { disposeOperationsEngine } from '@main/core/operations/operations-engine-instance';
-import { projectManager } from '@main/core/projects/project-manager';
 import { closeAppDb } from '@main/db/instance';
 import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
 import { updateService } from '@main/host/updates/update-service';
@@ -17,70 +17,90 @@ import { disposeNotificationService } from '../core/service-instances';
 const CRITICAL_DEADLINE_MS = 5_000;
 const GRACE_WINDOW_MS = 400;
 
-const criticalPhases: Phase<void>[] = [
-  {
-    name: 'acp-agent-status-bridge',
-    run: async () => acpAgentStatusBridge.dispose(),
-  },
-  {
-    name: 'tui-agent-status-bridge',
-    run: async () => tuiAgentStatusBridge.dispose(),
-  },
-  {
-    name: 'agent-status-service',
-    run: async () => agentStatusService.dispose(),
-  },
-  {
-    name: 'operations-engine',
-    run: () => disposeOperationsEngine(),
-  },
-  {
-    name: 'project-manager-release',
-    run: () => projectManager.release(),
-  },
-  {
-    name: 'desktop-wire-workers',
-    run: () => disposeDesktopWireWorkers(),
-  },
-  {
-    name: 'app-scope',
-    run: () => appScope.dispose(),
-  },
-  {
-    name: 'database',
-    run: () => closeAppDb(),
-  },
-  {
-    name: 'telemetry-service',
-    run: () => telemetryService.dispose(),
-  },
-];
+type QuitCleanupServices = {
+  automations: Pick<AutomationsService, 'stop'>;
+  projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
+  pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
+};
 
-const bestEffortPhases: Phase<void>[] = [
-  {
-    name: 'project-manager-dispose',
-    run: () => projectManager.dispose(),
-  },
-];
+let cleanupServices: QuitCleanupServices | undefined;
+
+export function configureQuitCleanupServices(services: QuitCleanupServices): void {
+  cleanupServices = services;
+}
+
+function criticalPhases(services: QuitCleanupServices): Phase<void>[] {
+  return [
+    {
+      name: 'acp-agent-status-bridge',
+      run: async () => acpAgentStatusBridge.dispose(),
+    },
+    {
+      name: 'tui-agent-status-bridge',
+      run: async () => tuiAgentStatusBridge.dispose(),
+    },
+    {
+      name: 'agent-status-service',
+      run: async () => agentStatusService.dispose(),
+    },
+    {
+      name: 'operations-engine',
+      run: () => disposeOperationsEngine(),
+    },
+    {
+      name: 'project-manager-release',
+      run: () => services.projects.release(),
+    },
+    {
+      name: 'desktop-wire-workers',
+      run: () => disposeDesktopWireWorkers(),
+    },
+    {
+      name: 'app-scope',
+      run: () => appScope.dispose(),
+    },
+    {
+      name: 'database',
+      run: () => closeAppDb(),
+    },
+    {
+      name: 'telemetry-service',
+      run: () => telemetryService.dispose(),
+    },
+  ];
+}
+
+function bestEffortPhases(services: QuitCleanupServices): Phase<void>[] {
+  return [
+    {
+      name: 'project-manager-dispose',
+      run: () => services.projects.dispose(),
+    },
+  ];
+}
 
 export async function runQuitCleanup(): Promise<void> {
+  const services = cleanupServices;
+  if (!services) throw new Error('Quit cleanup services were not configured');
   telemetryService.capture('app_closed');
 
-  automationsService.stop();
+  services.automations.stop();
   updateService.dispose();
   disposeNotificationService();
-  pullRequestsRegistration.dispose();
+  services.pullRequests.dispose();
 
-  await withDeadline(runCriticalPhases(), CRITICAL_DEADLINE_MS).catch((error: unknown) => {
+  await withDeadline(runCriticalPhases(services), CRITICAL_DEADLINE_MS).catch((error: unknown) => {
     log.error('quit: critical cleanup failed or timed out', error);
   });
 
-  const graceful = Promise.allSettled(bestEffortPhases.map((phase) => runPhase(phase, undefined)));
+  const graceful = Promise.allSettled(
+    bestEffortPhases(services).map((phase) => runPhase(phase, undefined))
+  );
   await Promise.race([graceful, delay(GRACE_WINDOW_MS)]);
 }
 
-async function runCriticalPhases(): Promise<void> {
-  for (const phase of criticalPhases) {
+async function runCriticalPhases(services: QuitCleanupServices): Promise<void> {
+  for (const phase of criticalPhases(services)) {
     try {
       await runPhase(phase, undefined);
     } catch (error) {

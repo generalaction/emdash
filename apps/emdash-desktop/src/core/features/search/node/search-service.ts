@@ -1,5 +1,10 @@
-import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import {
+  isRuntimeResolveError,
+  type HostRuntimesClient,
+} from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
 import {
   createLiveJobReplica,
   LiveJobFailedError,
@@ -11,6 +16,10 @@ import {
 } from '@emdash/wire';
 import type Database from 'better-sqlite3';
 import { and, eq, isNull } from 'drizzle-orm';
+import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
+import { projectEvents } from '@core/features/projects/api/node/project-events';
+import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import type { WorkspaceRuntimeAccess } from '@core/features/workspaces/api/node/runtime-access';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
@@ -23,12 +32,6 @@ import type {
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
-import type { WorkspaceRuntimeAccess } from '@core/services/workspace-runtime-access/node';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { searchFileSearchRoot } from '@main/core/file-search/runtime-client';
-import { projectEvents } from '@main/core/projects/project-events';
-import { taskService } from '@main/core/tasks/task-service';
-import { log } from '@main/lib/logger';
 import { contentSearchRuntimeContract, type searchContract } from '../api';
 
 type FtsRow = {
@@ -57,16 +60,23 @@ export type SearchServiceDeps = {
   db: AppDb;
   sqlite: Database.Database;
   acquireWorkspaceRuntime(workspaceId: string): Promise<WorkspaceRuntimeAccess | null>;
+  searchFileSearchRoot(
+    client: HostRuntimesClient['fileSearch'],
+    root: HostAbsolutePath,
+    query: string,
+    limit?: number
+  ): Promise<WorkspaceFileHit[]>;
+  tasks: Pick<TaskService, 'on'>;
 };
 
 export class SearchService {
   constructor(private readonly deps: SearchServiceDeps) {}
 
   initialize(): void {
-    taskService.on('task:created', (task) => void this.upsertTaskWithBranch(task));
-    taskService.on('task:updated', (task) => void this.upsertTaskWithBranch(task));
-    taskService.on('task:archived', (taskId) => this.removeByType('task', taskId));
-    taskService.on('task:deleted', (taskId) => this.removeByType('task', taskId));
+    this.deps.tasks.on('task:created', (task) => void this.upsertTaskWithBranch(task));
+    this.deps.tasks.on('task:updated', (task) => void this.upsertTaskWithBranch(task));
+    this.deps.tasks.on('task:archived', (taskId) => this.removeByType('task', taskId));
+    this.deps.tasks.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
@@ -93,7 +103,7 @@ export class SearchService {
     const workspace = await this.deps.acquireWorkspaceRuntime(workspaceId);
     if (!workspace) return [];
     try {
-      return await searchFileSearchRoot(
+      return await this.deps.searchFileSearchRoot(
         workspace.client.fileSearch,
         workspace.files.root,
         query,

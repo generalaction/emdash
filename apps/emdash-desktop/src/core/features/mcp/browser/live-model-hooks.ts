@@ -2,8 +2,8 @@ import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { createLiveModelReplica } from '@emdash/wire';
 import { useEffect, useState } from 'react';
+import { getMcpClient } from '@core/features/mcp/api/browser/client';
 import { mcpContract } from '../api';
-import { getMcpClient } from './client';
 
 export function useInstalledMcpServersLiveModel(host: HostRef = LOCAL_HOST_REF): {
   data: McpServer[];

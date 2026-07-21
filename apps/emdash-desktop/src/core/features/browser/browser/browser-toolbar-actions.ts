@@ -1,10 +1,10 @@
+import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,
   type BrowserDataClearKind,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { openModal } from '@renderer/lib/modal/api';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';

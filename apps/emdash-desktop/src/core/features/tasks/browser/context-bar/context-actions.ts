@@ -1,4 +1,4 @@
-import type { DraftComment } from '@core/features/source-control/browser/diff-view/stores/draft-comments-store';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { buildIssueContextText } from '@core/primitives/issues/api';
 import { formatCommentsForAgent } from '@core/primitives/line-comments/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';

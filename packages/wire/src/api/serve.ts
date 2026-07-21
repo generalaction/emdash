@@ -245,7 +245,7 @@ export function serve(
     // unhandled rejection (fatal in the Electron main process).
     void attachment.release().catch((error: unknown) => {
       const logger = options.logger ?? getCurrentLogger();
-      logger.warn('Wire attachment release failed', error);
+      logger.warn('Wire attachment release failed', { error: toSerializedError(error) });
     });
   }
 

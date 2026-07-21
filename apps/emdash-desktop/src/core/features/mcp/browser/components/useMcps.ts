@@ -2,12 +2,12 @@ import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { useAgentInstallationStatuses } from '@core/features/agents/browser/use-agent-installation-statuses';
-import { useAgents } from '@core/features/agents/browser/use-agents';
+import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { getMcpClient } from '@core/features/mcp/api/browser/client';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { getMcpClient } from '../client';
 import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
 
 const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;

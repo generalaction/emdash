@@ -1,10 +1,14 @@
 import { LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createUnmountedProject,
+  isUnregisteredProject,
+  type ProjectStore,
+} from '@core/features/projects/api/browser/stores/project';
+import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
-import { createUnmountedProject, isUnregisteredProject, type ProjectStore } from './project';
-import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
   createGithubRepository: vi.fn(),
@@ -57,7 +61,7 @@ vi.mock('@renderer/lib/runtime/projects-wire-client', () => ({
   getProjectsWireClient: async () => ({ create: {}, delete: mocks.projectWireDelete }),
 }));
 
-vi.mock('@renderer/lib/mementos', () => ({
+vi.mock('@core/primitives/mementos/browser', () => ({
   getMementoClient: () => ({
     deleteBySubject: mocks.deleteMementoSubject,
     reportError: mocks.mementoReportError,

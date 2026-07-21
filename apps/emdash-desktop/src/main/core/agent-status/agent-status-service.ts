@@ -1,14 +1,14 @@
 import { isAttentionNotification } from '@emdash/core/runtimes/tui-agents/api';
 import { and, eq, inArray } from 'drizzle-orm';
-import { conversationWireEvents } from '@core/features/conversations/node';
 import {
   type AgentEvent,
   type AgentStatus,
   type AgentStatusSignal,
 } from '@core/primitives/agents/api';
+import type { ConversationEvent } from '@core/primitives/conversations/api';
+import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { conversations } from '@core/services/app-db/node/schema';
 import { getAppDb } from '@main/db/instance';
-import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 
 export type AgentStatusServiceHooks = {
@@ -25,6 +25,14 @@ type ConversationContext = {
   taskId: string;
   providerId: string | null;
 };
+
+let publishConversationEvent: (event: ConversationEvent) => void = () => {};
+
+export function setAgentStatusConversationEventPublisher(
+  publisher: (event: ConversationEvent) => void
+): void {
+  publishConversationEvent = publisher;
+}
 
 function conversationContextSelection() {
   return {
@@ -96,7 +104,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       if (!row) return;
 
       context = row;
-      conversationWireEvents.emit(undefined, {
+      publishConversationEvent({
         type: 'agent-status-changed',
         conversationId: signal.conversationId,
         taskId: row.taskId,
@@ -137,7 +145,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       .returning(conversationContextSelection());
     if (!row) return;
 
-    conversationWireEvents.emit(undefined, {
+    publishConversationEvent({
       type: 'agent-status-changed',
       conversationId,
       taskId: row.taskId,

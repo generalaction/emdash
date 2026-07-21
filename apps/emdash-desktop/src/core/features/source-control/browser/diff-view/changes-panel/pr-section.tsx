@@ -1,23 +1,23 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
+} from '@core/features/workbench/api/browser/task-composition-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
-import { Button } from '@renderer/lib/ui/button';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitRangeCommitsList } from './components/pr-entry/commits-list';

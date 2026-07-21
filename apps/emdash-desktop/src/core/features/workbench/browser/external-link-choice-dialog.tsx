@@ -1,15 +1,20 @@
 import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 
 export type ExternalLinkChoice = 'emdash-browser' | 'external-browser';
 

@@ -1,7 +1,7 @@
 import { ChevronDown } from 'lucide-react';
-import { Badge } from '@renderer/lib/ui/badge';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { cn } from '@renderer/utils/utils';
+import { Badge } from '@core/primitives/ui/browser/badge';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { type SelectionState } from '../../stores/changes-view-store';
 
 interface SectionHeaderProps {

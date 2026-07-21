@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
-import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
-import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
-import { CLISpinner } from '@renderer/lib/components/cliSpinner';
+import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
+import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
+import { CLISpinner } from '@core/primitives/ui/browser/components/cliSpinner';
+import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { getSortInstant, sortKindFor } from './sidebar-store';
 
 /**

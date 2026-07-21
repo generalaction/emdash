@@ -2,43 +2,43 @@ import { useQuery } from '@tanstack/react-query';
 import { Github, Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
-} from '@core/features/projects/browser/components/github-account-select';
-import { createRequiredGitHubAccountSelectState } from '@core/features/projects/browser/components/github-account-select-model';
+} from '@core/features/projects/api/browser/components/github-account-select';
+import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
+import {
+  getProjectManagerStore,
+  getProjectSettingsStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
 import type {
   ModeData as ProjectCreationModeData,
   ProjectType,
 } from '@core/features/projects/browser/stores/project-creation-types';
-import {
-  getProjectManagerStore,
-  getProjectSettingsStore,
-} from '@core/features/projects/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useModalController, useOpenModal } from '@renderer/lib/modal/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { appState } from '@renderer/lib/stores/app-state';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { ModalLayout } from '@renderer/lib/ui/modal-layout';
-import { Select, SelectContent, SelectTrigger } from '@renderer/lib/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
+import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import { Select, SelectContent, SelectTrigger } from '@core/primitives/ui/browser/select';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';

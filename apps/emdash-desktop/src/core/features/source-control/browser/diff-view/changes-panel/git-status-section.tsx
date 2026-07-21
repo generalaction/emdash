@@ -3,15 +3,20 @@ import { observer } from 'mobx-react-lite';
 import {
   getProjectStore,
   projectDisplayName,
-} from '@core/features/projects/browser/stores/project-selectors';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
-import { useGitActions } from '@core/features/source-control/browser/use-git-actions';
-import { getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {

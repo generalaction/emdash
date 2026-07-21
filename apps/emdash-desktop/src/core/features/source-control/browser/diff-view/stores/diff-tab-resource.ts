@@ -1,11 +1,11 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
-import { getFileKind } from '@core/features/editor/browser/renderers/fileKind';
+import { getFileKind } from '@core/features/editor/api/browser/renderers/fileKind';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import type {
   TabHandle,
   TabResource,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import type { DiffTabManager } from './diff-tab-manager';
 
 export type DiffViewMode = 'diff' | 'preview';

@@ -1,10 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { ModelStatusOverlay } from '../monaco/model-status-overlay';
-import { modelRegistry } from '../monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '../monaco/monacoModelPath';
-import { useModelStatus } from '../monaco/use-model';
+import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from './csv-parser';
 
 interface CsvRendererProps {

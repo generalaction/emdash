@@ -1,6 +1,7 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import {
   createLiveJobReplica,
   LiveJobFailedError,
@@ -10,6 +11,8 @@ import {
 } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import {
   terminalsContract,
   type RunTerminalScriptWorkflowInput,
@@ -32,29 +35,51 @@ import {
   type TerminalsWorkspaceIdentityResolver,
 } from '@core/features/terminals/api/runtime-adapter';
 import { terminalsRuntimeContract } from '@core/features/terminals/api/runtime-adapter';
+import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import { type Terminal, type TerminalShellId } from '@core/primitives/terminals/api';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import {
+  type RuntimeTerminalShellId,
+  type Terminal,
+  type TerminalShellAvailability,
+  type TerminalShellFamily,
+  type TerminalShellId,
+} from '@core/primitives/terminals/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
+import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import type { AppSettingsService } from '@core/services/settings/node';
-import { filesClientScope } from '@main/core/files/runtime-client';
-import { projectManager } from '@main/core/projects/project-manager';
-import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
-import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
-import {
-  getLocalTerminalShellAvailability,
-  resolveTerminalShellWithSystemFallback,
-} from '@main/core/terminal-shell/resolver';
-import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
-import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
 
-type CreateTerminalsWireControllerOptions = Readonly<{
+export type CreateTerminalsWireControllerOptions = Readonly<{
   db: AppDb;
+  projects: Pick<ProjectSessionManager, 'getProject'>;
   runtimes: TerminalsRuntimeBroker;
   settings: Pick<AppSettingsService, 'get'>;
   workspaceIdentity: TerminalsWorkspaceIdentityResolver;
+  logger: Logger;
+  telemetry: TelemetryService;
+  terminalShell: {
+    getColorEnv(): Promise<Record<string, string>>;
+    getLocalAvailability(): Promise<TerminalShellAvailability[]>;
+    resolveWithSystemFallback(options: {
+      intent: TerminalShellId;
+      target: { kind: 'local' };
+      onFallback(error: { shell: TerminalShellId; message: string }): void;
+    }): Promise<{
+      id: RuntimeTerminalShellId | 'target-default';
+      resolvedShellId: RuntimeTerminalShellId;
+      resolvedFromSystem: boolean;
+      executable: string;
+      available: true;
+      family: TerminalShellFamily;
+      interactiveArgs: string[];
+      commandArgs: string[];
+      envCaptureArgs?: string[];
+      capturedEnv?: Record<string, string>;
+      remotePathLookup?: boolean;
+    }>;
+  };
 }>;
 
 type TerminalContext = Readonly<{
@@ -78,7 +103,7 @@ export function createTerminalsWireController(
     delete: (input) => deleteTerminal(options, input),
     rename: (input) => renameTerminal(options, input),
     hydrate: (input) => hydrateTerminal(options, input),
-    getShellAvailability: () => getShellAvailability(),
+    getShellAvailability: () => getShellAvailability(options),
     runScriptWorkflow: {
       run: (input, context) => runScriptWorkflow(options, input, context),
       toError: unknownToTerminalError,
@@ -160,7 +185,7 @@ async function createTerminal(
     return hydrated;
   }
 
-  telemetryService.capture('terminal_created', {
+  options.telemetry.capture('terminal_created', {
     terminal_id: input.id,
     project_id: input.projectId,
     task_id: input.taskId,
@@ -202,7 +227,7 @@ async function deleteTerminal(
     ).catch(() => {});
   }
 
-  telemetryService.capture('terminal_deleted', {
+  options.telemetry.capture('terminal_deleted', {
     terminal_id: terminalId,
     project_id: projectId,
     task_id: taskId,
@@ -248,9 +273,9 @@ async function hydrateTerminal(
   return startRuntimeTerminal(options, mapTerminalRowToTerminal(row), input.initialSize);
 }
 
-async function getShellAvailability() {
+async function getShellAvailability(options: CreateTerminalsWireControllerOptions) {
   try {
-    return ok(await getLocalTerminalShellAvailability());
+    return ok(await options.terminalShell.getLocalAvailability());
   } catch (error) {
     return err(terminalError('shell-availability-failed', errorMessage(error)));
   }
@@ -264,17 +289,17 @@ async function startRuntimeTerminal(
   const context = await resolveTerminalContext(options, terminal);
   if (!context.success) return context;
 
-  const profile = await resolveTerminalShellWithSystemFallback({
+  const profile = await options.terminalShell.resolveWithSystemFallback({
     intent: terminal.shellId,
     target: { kind: 'local' },
     onFallback: (error) =>
-      log.warn('terminals: falling back to system shell', {
+      options.logger.warn('terminals: falling back to system shell', {
         terminalId: terminal.id,
         shell: error.shell,
         message: error.message,
       }),
   });
-  const colorEnv = await getTerminalColorEnv();
+  const colorEnv = await options.terminalShell.getColorEnv();
   const result = await withWorkspaceRuntime(options, context.data.identity.workspaceId, (client) =>
     client.terminals.startTerminal({
       key: context.data.key,
@@ -322,7 +347,7 @@ async function resolveTerminalContext(
     return err(terminalError('missing-workspace', `Task ${terminal.taskId} has no workspace`));
   }
 
-  const project = projectManager.getProject(terminal.projectId);
+  const project = options.projects.getProject(terminal.projectId);
   if (!project) {
     return err(terminalError('missing-project', `Project ${terminal.projectId} not found`));
   }
@@ -379,7 +404,7 @@ async function runScriptWorkflow(
   if (taskRow.workspaceId !== input.workspaceId) {
     return err(terminalError('missing-workspace', `Task ${input.taskId} is not in this workspace`));
   }
-  const project = projectManager.getProject(input.projectId);
+  const project = options.projects.getProject(input.projectId);
   if (!project)
     return err(terminalError('missing-project', `Project ${input.projectId} not found`));
 

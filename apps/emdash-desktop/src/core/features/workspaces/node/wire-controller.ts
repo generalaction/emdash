@@ -26,6 +26,10 @@ import {
   type WorkspaceSliceError,
 } from '@core/features/workspaces/api';
 import {
+  runCloneRepositoryProvision,
+  type CloneRepositoryProvisionInput,
+} from '@core/features/workspaces/api/node/workspace-bootstrap-service';
+import {
   isWorkspacesRuntimeResolveError,
   throwWorkspacesRuntimeResolveError,
   workspaceRuntimeContract as workspaceContract,
@@ -40,16 +44,11 @@ import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api'
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
-import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
-import { taskProvisionEvents } from '@main/core/tasks/task-provision-events';
+import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   enqueueArchiveWorkspace,
   enqueueDeleteWorkspace,
-} from '@main/core/workspaces/operations/workspace-lifecycle-definitions';
-import {
-  runCloneRepositoryProvision,
-  type CloneRepositoryProvisionInput,
-} from '@main/core/workspaces/workspace-bootstrap-service';
+} from './operations/workspace-lifecycle-definitions';
 
 type BootstrapKey = { workspaceId: string };
 type BootstrapState = LiveState<WorkspaceBootstrapState>;
@@ -64,9 +63,16 @@ export type WorkspacesWireTaskReadySubscription = (
   handler: (taskId: string, result: WorkspaceProvisionResult) => void
 ) => () => void;
 
+export type WorkspacesWireTaskProgressSubscription = (
+  handler: (progress: WorkspaceBootstrapProgress & { taskId: string }) => void
+) => () => void;
+
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
+  getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
+  operations: OperationsEngine;
   provisionTask: WorkspacesWireTaskProvisioner;
+  onTaskProvisionProgress: WorkspacesWireTaskProgressSubscription;
   onTaskWorkspaceReady: WorkspacesWireTaskReadySubscription;
   runtimes: WorkspacesRuntimeBroker;
   workspaceIdentity: WorkspacesIdentityResolver;
@@ -88,7 +94,7 @@ const activeProvisionJobs = new Map<string, ActiveProvisionJob>();
 export function createWorkspacesWireController(
   options: CreateWorkspacesWireControllerOptions
 ): WorkspacesWireController {
-  const unsubscribeProgress = taskProvisionEvents.on('progress', (progress) => {
+  const unsubscribeProgress = options.onTaskProvisionProgress((progress) => {
     void publishTaskProgress(options.db, progress.taskId, {
       step: progress.step,
       message: progress.message,
@@ -108,7 +114,7 @@ export function createWorkspacesWireController(
         toError: unknownToWorkspaceError,
       },
       provisionClone: {
-        run: (input, ctx) => runProvisionCloneJob(input, ctx),
+        run: (input, ctx) => runProvisionCloneJob(options, input, ctx),
         toError: unknownToWorkspaceError,
       },
       activate: job<typeof workspacesWireContract.activate>((input, ctx) =>
@@ -210,12 +216,12 @@ export function createWorkspacesWireController(
           );
           return result.success ? ok({ ...result.data, workspaceId: input.workspaceId }) : result;
         }),
-      delete: (input) => enqueueDeleteWorkspace(input.workspaceId),
-      archive: (input) => enqueueArchiveWorkspace(input),
-      retryDelete: (input) => getOperationsEngine().retryDelete('workspace', input.workspaceId),
+      delete: (input) => enqueueDeleteWorkspace(options.operations, input.workspaceId),
+      archive: (input) => enqueueArchiveWorkspace(options.operations, input),
+      retryDelete: (input) => options.operations.retryDelete('workspace', input.workspaceId),
       forgetWithoutCleanup: (input) =>
-        getOperationsEngine().forgetWithoutCleanup('workspace', input.workspaceId),
-      deletions: createWorkspaceDeletionsProvider(),
+        options.operations.forgetWithoutCleanup('workspace', input.workspaceId),
+      deletions: createWorkspaceDeletionsProvider(options.operations),
     },
     async dispose() {
       unsubscribeProgress();
@@ -378,9 +384,9 @@ function mapWorkspaceResult(
   return ok({ ...data, workspaceId });
 }
 
-function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
-  typeof workspacesWireContract.deletions
-> {
+function createWorkspaceDeletionsProvider(
+  operations: OperationsEngine
+): LeasedLiveModelProvider<typeof workspacesWireContract.deletions> {
   return {
     kind: 'leasedLiveModelProvider',
     contract: workspacesWireContract.deletions,
@@ -393,7 +399,7 @@ function createWorkspaceDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown workspace deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Workspace deletion state lease was released before ready');
-          lease ??= getOperationsEngine().acquireDeletionState('workspace', key.entityId);
+          lease ??= operations.acquireDeletionState('workspace', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Workspace deletion state lease was released before ready');
@@ -472,10 +478,11 @@ async function runProvisionJob(
 }
 
 async function runProvisionCloneJob(
+  options: CreateWorkspacesWireControllerOptions,
   input: CloneRepositoryProvisionInput,
   ctx: LiveJobContext<WorkspaceBootstrapProgress>
 ): Promise<Result<WorkspaceCloneProvisionResult, WorkspaceSliceError>> {
-  return runCloneRepositoryProvision({
+  return runCloneRepositoryProvision(options.getWorkspaceRuntimeClient, {
     ...input,
     signal: ctx.signal,
     onProgress(progress) {

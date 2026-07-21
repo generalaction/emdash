@@ -1,6 +1,7 @@
 import { err, type Result } from '@emdash/shared';
 import { Check, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type {
   MigrateProjectConfigRequest,
@@ -10,18 +11,22 @@ import type {
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup } from '@renderer/lib/ui/field';
-import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup } from '@core/primitives/ui/browser/field';
+import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@core/primitives/ui/browser/select';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type ImportStatus = 'idle' | 'importing' | 'imported' | 'error';

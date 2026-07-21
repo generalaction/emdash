@@ -6,10 +6,10 @@ import {
   desktopNodeControllers,
   type DesktopControllerContext,
 } from '@core/manifests/node/controllers';
+import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
-import type { SshServiceHandle } from '@core/services/ssh/node';
 import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import { createRetryableReady } from './retryable-ready';

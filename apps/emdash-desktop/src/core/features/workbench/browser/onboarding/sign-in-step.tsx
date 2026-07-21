@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle, Github, LogIn, User } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { Button } from '@core/primitives/ui/browser/button';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
-import { Button } from '@renderer/lib/ui/button';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
   const { data: session, isLoading: sessionLoading } = useAccountSession();

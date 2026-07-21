@@ -1,8 +1,12 @@
 import React, { useCallback } from 'react';
-import { MachinesCard } from '@core/features/machines/browser/components/MachinesCard';
+import { MachinesCard } from '@core/features/machines/api/browser/components/MachinesCard';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
-import { PageHeader } from '@renderer/lib/components/page-header';
-import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
+import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
+import {
+  PageContent,
+  PageLayout,
+  PageSidebarMenu,
+} from '@core/primitives/ui/browser/components/page-layout';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';

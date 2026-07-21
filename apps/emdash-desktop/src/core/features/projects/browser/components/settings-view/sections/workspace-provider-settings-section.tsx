@@ -1,6 +1,6 @@
-import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
-import { Separator } from '@renderer/lib/ui/separator';
-import { Textarea } from '@renderer/lib/ui/textarea';
+import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
+import { Separator } from '@core/primitives/ui/browser/separator';
+import { Textarea } from '@core/primitives/ui/browser/textarea';
 import type {
   FormState,
   FormUpdate,

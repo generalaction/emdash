@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
-import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
+import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import type { AgentStatus } from '@core/primitives/agents/api';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 
 export interface TaskDataLineProps {
   task: TaskStore;

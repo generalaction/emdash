@@ -1,17 +1,19 @@
 import { observer } from 'mobx-react-lite';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { openModal } from '@core/manifests/browser/modal-api';
 import type {
   TabEntry,
   TabHandle,
   TabProvider,
   TabViewContext,
   TabContentProps,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
-import { resolveWorkspacePath } from '@core/features/workspaces/browser/workspace-path';
-import { openModal } from '@renderer/lib/modal/api';
-import { modelRegistry } from '../monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '../monaco/monacoModelPath';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import { EditorProvider } from './editor-provider';
 import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
@@ -19,8 +21,6 @@ import { FileContentToolbar } from './file-content-toolbar';
 import { FILE_CONTENT_TYPES } from './file-content-types';
 import { FileTabBarItem, FileTabBarItemDragPreview } from './file-tab-item';
 import { getFileModelManager } from './stores/file-model-manager';
-import type { FilePayload } from './stores/file-tab-resource';
-import { FileTabResource } from './stores/file-tab-resource';
 
 export interface FileOpenArgs {
   path: string;

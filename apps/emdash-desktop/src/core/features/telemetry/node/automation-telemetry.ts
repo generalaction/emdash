@@ -1,12 +1,12 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { isValidProviderId } from '@core/features/agents/api/node/plugin-registry';
 import type {
-  Automation,
   AutomationRun,
   AutomationRunStatus,
-} from '@core/primitives/automations/api';
-import { isValidProviderId } from '@main/core/agents/plugin-registry';
-import { automationsService } from '@main/core/automations/automations-service';
-import { telemetryService } from '@main/lib/telemetry';
+} from '@core/features/automations/api/automation-run';
+import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
+import type { Automation } from '@core/primitives/automations/api';
+import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 
 const TERMINAL_RUN_STATUSES = new Set<AutomationRunStatus>([
   'done',
@@ -43,10 +43,10 @@ function getDurationMs(run: AutomationRun): number | undefined {
   return Math.max(0, run.finishedAt - run.startedAt);
 }
 
-function captureRunStarted(run: AutomationRun): void {
+function captureRunStarted(telemetry: Pick<TelemetryService, 'capture'>, run: AutomationRun): void {
   if (startedRunIds.has(run.id)) return;
   startedRunIds.add(run.id);
-  telemetryService.capture('automation_run_started', runTelemetryProps(run));
+  telemetry.capture('automation_run_started', runTelemetryProps(run));
 }
 
 function clearRunTelemetryDedupe(runId: string): void {
@@ -54,12 +54,15 @@ function clearRunTelemetryDedupe(runId: string): void {
   completedRunIds.delete(runId);
 }
 
-export function installAutomationTelemetry(): void {
+export function installAutomationTelemetry(
+  telemetry: TelemetryService,
+  automationsService: AutomationsService
+): void {
   if (installed) return;
   installed = true;
 
   automationsService.on('automation:created', (automation) => {
-    telemetryService.capture('automation_created', {
+    telemetry.capture('automation_created', {
       ...automationTelemetryProps(automation),
       enabled: automation.enabled,
       provider: getProvider(automation),
@@ -68,7 +71,7 @@ export function installAutomationTelemetry(): void {
   });
 
   automationsService.on('automation:enabled', (automation) => {
-    telemetryService.capture('automation_enabled_changed', {
+    telemetry.capture('automation_enabled_changed', {
       ...automationTelemetryProps(automation),
       enabled: automation.enabled,
     });
@@ -76,13 +79,13 @@ export function installAutomationTelemetry(): void {
 
   automationsService.on('run:step-completed', (run) => {
     if (run.status === 'provisioning_workspace') {
-      captureRunStarted(run);
+      captureRunStarted(telemetry, run);
     }
 
     if (!TERMINAL_RUN_STATUSES.has(run.status) || completedRunIds.has(run.id)) return;
     completedRunIds.add(run.id);
 
-    telemetryService.capture('automation_run_completed', {
+    telemetry.capture('automation_run_completed', {
       ...runTelemetryProps(run),
       status: run.status as 'done' | 'failed' | 'skipped' | 'cancelled',
       duration_ms: getDurationMs(run),

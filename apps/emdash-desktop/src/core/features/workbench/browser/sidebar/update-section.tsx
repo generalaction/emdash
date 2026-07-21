@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { Button } from '@core/primitives/ui/browser/button';
+import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
-import { MicroLabel } from '@renderer/lib/ui/label';
 
 export const UpdateSection = observer(function UpdateSection() {
   const update = appState.update;

@@ -10,8 +10,11 @@ import {
   shouldIgnoreForOptions,
   type KeybindingFocusContext,
 } from '@core/primitives/keybindings/browser';
+import {
+  keybindingService,
+  type KeybindingService,
+} from '@core/primitives/keybindings/browser/keybinding-service';
 import { scopes, type KeybindingHit, type ViewScopes } from '@core/primitives/view-scopes/browser';
-import { keybindingService, type KeybindingService } from './keybinding-service';
 
 export interface KeybindingDispatchEvent {
   readonly source: 'dom' | 'synthetic';

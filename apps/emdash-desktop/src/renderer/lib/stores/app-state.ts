@@ -1,5 +1,5 @@
 import { MachinesStore } from '@core/features/machines/browser/machines-store';
-import { ProjectManagerStore } from '@core/features/projects/browser/stores/project-manager';
+import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import { SidebarStore } from '@core/features/workbench/browser/sidebar/sidebar-store';
 import { NavigationHistoryStore } from './navigation-history-store';
 import { NavigationStore } from './navigation-store';
@@ -24,9 +24,6 @@ class AppState {
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();
     this.navigation = new NavigationStore();
-    if (typeof window !== 'undefined' && 'electronAPI' in window) {
-      void this.machines.start();
-    }
   }
 }
 

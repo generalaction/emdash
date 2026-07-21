@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import test from 'node:test';
 import {
   classifyCorePath,
@@ -34,7 +34,10 @@ test('classifies core module source files', () => {
       surface: 'api',
     }
   );
-  assert.equal(classifyCorePath(path.join(repoRoot, 'packages/core/src/workspace-server/index.ts')), undefined);
+  assert.equal(
+    classifyCorePath(path.join(repoRoot, 'packages/core/src/workspace-server/index.ts')),
+    undefined
+  );
   assert.deepEqual(
     classifyCorePath(
       path.join(desktopCoreSrcRoot, 'features/tasks/contributions/mementos.ts'),
@@ -75,11 +78,14 @@ test('classifies alias, package, and relative imports', () => {
       surface: 'api',
     }
   );
-  assert.deepEqual(classifyImportSpecifier('../../../host-dependencies/api', fromFile, coreSrcRoot), {
-    type: 'services',
-    moduleName: 'host-dependencies',
-    surface: 'api',
-  });
+  assert.deepEqual(
+    classifyImportSpecifier('../../../host-dependencies/api', fromFile, coreSrcRoot),
+    {
+      type: 'services',
+      moduleName: 'host-dependencies',
+      surface: 'api',
+    }
+  );
   assert.equal(classifyImportSpecifier('@emdash/shared', fromFile, coreSrcRoot), undefined);
   assert.deepEqual(
     classifyImportSpecifier(
@@ -101,6 +107,8 @@ test('allows only the core module dependency graph', () => {
   const serviceExec = { type: 'services', moduleName: 'exec' };
   const servicePty = { type: 'services', moduleName: 'pty' };
   const serviceRuntimeBroker = { type: 'services', moduleName: 'runtime-broker' };
+  const serviceAppDb = { type: 'services', moduleName: 'app-db', surface: 'node' };
+  const serviceOperations = { type: 'services', moduleName: 'operations', surface: 'node' };
   const serviceHostDependenciesApi = {
     type: 'services',
     moduleName: 'host-dependencies',
@@ -130,6 +138,8 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(runtimeGit, primitivePath), true);
   assert.equal(isAllowedCoreModuleDependency(serviceExec, primitivePath), true);
   assert.equal(isAllowedCoreModuleDependency(serviceExec, servicePty), false);
+  assert.equal(isAllowedCoreModuleDependency(serviceExec, serviceAppDb), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksNode, serviceOperations), true);
   assert.equal(isAllowedCoreModuleDependency(serviceExec, runtimeGit), false);
   assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, runtimeGitApi), true);
   assert.equal(isAllowedCoreModuleDependency(serviceRuntimeBroker, runtimeGitNode), false);
@@ -148,7 +158,7 @@ test('allows only the core module dependency graph', () => {
   assert.equal(isAllowedCoreModuleDependency(featureTasks, primitivePath), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasks, featureTasks), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasks, featureProjects), false);
-  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsBrowser), true);
+  assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsBrowser), false);
   assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsApi), true);
   assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, featureProjectsNode), false);
   assert.equal(isAllowedCoreModuleDependency(featureTasksBrowser, runtimeGitApi), true);
@@ -179,8 +189,10 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
     const fixtureCoreRoot = path.join(tempRoot, 'packages/core/src');
     const serviceDir = path.join(fixtureCoreRoot, 'services/example/api');
     const primitiveDir = path.join(fixtureCoreRoot, 'primitives/example/api');
+    const featureDir = path.join(fixtureCoreRoot, 'features/tasks/browser');
     await mkdir(serviceDir, { recursive: true });
     await mkdir(primitiveDir, { recursive: true });
+    await mkdir(featureDir, { recursive: true });
     await writeFile(
       path.join(tempRoot, '.oxlintrc.json'),
       JSON.stringify(
@@ -196,10 +208,7 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
         2
       )
     );
-    await writeFile(
-      path.join(primitiveDir, 'valid.ts'),
-      "export const ok = 1;\n"
-    );
+    await writeFile(path.join(primitiveDir, 'valid.ts'), 'export const ok = 1;\n');
     await writeFile(
       path.join(serviceDir, 'invalid.ts'),
       [
@@ -220,7 +229,19 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
     assert.match(result.output, /services\/example must not import runtimes\/files/);
     assert.match(result.output, /services\/example must not import runtimes\/acp/);
 
-    const validResult = await runOxlint(path.join(tempRoot, '.oxlintrc.json'), path.join(primitiveDir, 'valid.ts'));
+    const crossSlicePath = path.join(featureDir, 'invalid.ts');
+    await writeFile(
+      crossSlicePath,
+      "import { project } from '@core/features/projects/browser/project';\n"
+    );
+    const crossSliceResult = await runOxlint(path.join(tempRoot, '.oxlintrc.json'), crossSlicePath);
+    assert.notEqual(crossSliceResult.code, 0);
+    assert.match(crossSliceResult.output, /features\/tasks must not import features\/projects/);
+
+    const validResult = await runOxlint(
+      path.join(tempRoot, '.oxlintrc.json'),
+      path.join(primitiveDir, 'valid.ts')
+    );
     assert.equal(validResult.code, 0, validResult.output);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });

@@ -1,6 +1,6 @@
 import type * as monaco from 'monaco-editor';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import type { DraftComment } from '../stores/draft-comments-store';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { MonacoCommentManager } from './monaco-comment-manager';
 
 interface UseDiffEditorCommentsOptions {

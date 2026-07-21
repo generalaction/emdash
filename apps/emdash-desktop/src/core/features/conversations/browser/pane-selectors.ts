@@ -4,7 +4,7 @@
  * These helpers let conversation UI read conversation-tab state from a generic
  * PaneStore without the engine having to know about ConversationTabResource.
  */
-import type { PaneStore } from '@core/features/workbench/browser/tabs/pane-store';
+import type { PaneStore } from '@core/primitives/workbench-shell/browser/tabs/pane-store';
 import type { ConversationTabResource } from './conversation-tab-resource';
 
 export function activeConversationId(pane: PaneStore): string | undefined {

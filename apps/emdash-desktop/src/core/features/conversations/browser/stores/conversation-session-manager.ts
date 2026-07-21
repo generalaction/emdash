@@ -1,7 +1,7 @@
+import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { log } from '@renderer/utils/logger';
-import type { ConversationStore } from '../conversation-manager';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
-import { conversationRegistry } from './conversation-registry';
 
 /**
  * Per-task manager that controls conversation PTY-session lifecycle via acquire/release.

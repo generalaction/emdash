@@ -1,18 +1,18 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { useEffect, useMemo, useState } from 'react';
-import { useAgents } from '@core/features/agents/browser/use-agents';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import {
   asMounted,
   firstMountedProjectId,
   getProjectStore,
-} from '@core/features/projects/browser/stores/project-selectors';
-import { useProjectGitContext } from '@core/features/tasks/browser/create-task-modal/use-project-git-context';
-import { useTaskName } from '@core/features/tasks/browser/create-task-modal/use-task-name';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
+import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
 import {
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
-} from '@core/features/tasks/browser/create-task-modal/use-workspace-config';
-import { useInitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
+} from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
+import { useInitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
 import { agentSupportsAcp, agentSupportsInitialPromptDelivery } from '@core/primitives/agents/api';
 import type { Automation } from '@core/primitives/automations/api';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@core/primitives/automations/api';

@@ -1,15 +1,15 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
-import { PageHeader } from '@renderer/lib/components/page-header';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { SearchInput } from '@renderer/lib/ui/search-input';
-import { cn } from '@renderer/utils/utils';
-import { usePromptLibrary } from './use-prompt-library';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
+import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 
 type PromptListItem = {
   id: string;

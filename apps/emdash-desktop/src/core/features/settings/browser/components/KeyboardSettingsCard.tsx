@@ -1,7 +1,7 @@
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { SCOPE_CATALOG } from '@core/manifests/browser/scope-catalog';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
 import {
@@ -12,15 +12,20 @@ import {
   type Chord,
   type KeybindingEntry,
 } from '@core/primitives/keybindings/api';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   keyboardLayoutService,
   keybindingService,
   useChordRecorder,
-} from '@renderer/lib/keybindings';
-import { Button } from '@renderer/lib/ui/button';
-import { Shortcut } from '@renderer/lib/ui/shortcut';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/keybindings/browser';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Shortcut } from '@core/primitives/ui/browser/shortcut';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 
 const groupsByCommandId = new Map<string, string[]>();
 for (const scope of SCOPE_CATALOG) {

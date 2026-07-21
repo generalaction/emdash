@@ -2,11 +2,11 @@ import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import { useAgents } from '@core/features/agents/browser/use-agents';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { CardGridItem } from '@renderer/lib/components/card-grid';
-import { Button } from '@renderer/lib/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { Button } from '@core/primitives/ui/browser/button';
+import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
 interface McpCardProps {

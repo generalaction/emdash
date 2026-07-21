@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTerminalFontFamily } from './terminal-font';
+import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
 
 describe('buildTerminalFontFamily', () => {
   it('quotes font family names that contain spaces', () => {

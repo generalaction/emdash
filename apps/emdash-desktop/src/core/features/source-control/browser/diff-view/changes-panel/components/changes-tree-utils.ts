@@ -4,7 +4,7 @@ import {
   normalizeFileTreePath,
   sortFileNodes,
   type NestedFileNode,
-} from '@core/features/editor/browser/file-tree/tree-utils';
+} from '@core/features/editor/api/browser/file-tree/tree-utils';
 
 export interface ChangesTree {
   rootNodes: NestedFileNode[];

@@ -9,15 +9,15 @@ import {
   uploadFile,
 } from '@emdash/wire';
 import { z } from 'zod';
-import {
-  runtimeFallibleProcedure,
-  runtimeResolveErrorUnion,
-} from '@core/features/runtime-routing/api/fallible-contract';
 import type {
   Conversation,
   ConversationEvent,
   CreateConversationParams,
 } from '@core/primitives/conversations/api';
+import {
+  runtimeFallibleProcedure,
+  runtimeResolveErrorUnion,
+} from '@core/primitives/desktop-runtime/api/fallible-contract';
 
 const conversationKey = z.object({ conversationId: z.string() });
 const conversationLocation = z.object({

@@ -3,7 +3,7 @@ import { sourceControlWorkspaceStoreContributions } from '@core/features/source-
 import {
   workspacesScopedStoreContributions,
   type WorkspaceScopedStoreContext,
-} from '@core/features/workspaces/browser/contributions/workspace-stores';
+} from '@core/features/workspaces/contributions/browser/workspace-stores';
 import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 
 export const workspaceStoreContributions: readonly ScopedStoreContribution<WorkspaceScopedStoreContext>[] =

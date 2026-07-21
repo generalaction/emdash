@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConversationManagerStore } from './conversation-manager';
+import { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
 
 const hydrateConversation = vi.hoisted(() => vi.fn());
 const dehydrateConversation = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 
-vi.mock('@core/features/editor/browser/open-file-in-file-editor', () => ({
+vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({
     onOpenExternal: vi.fn(),
     onOpenFile: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@core/features/terminals/browser/pty/pty', () => ({
+vi.mock('@core/features/terminals/api/browser/pty/pty', () => ({
   FrontendPty: class {
     constructor(readonly sessionId: string) {}
 

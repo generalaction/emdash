@@ -1,13 +1,13 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type * as WireModule from '@emdash/wire';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AcpAuthLoginBinding } from './auth-login-binding';
+import { AcpAuthLoginBinding } from '@core/features/agents/api/browser/auth-login-binding';
 
 const runtimeClient = vi.hoisted(() => ({
   current: undefined as unknown,
 }));
 
-vi.mock('./client', () => ({
+vi.mock('@core/features/agents/api/browser/client', () => ({
   getAgentsClient: () => Promise.resolve(runtimeClient.current),
 }));
 

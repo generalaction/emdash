@@ -1,9 +1,9 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import type { HostDependencyInstallation } from '@core/features/agents/browser/use-agent-installation-statuses';
+import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { Installation } from '@core/primitives/agents/api';
-import { Alert } from '@renderer/lib/ui/alert';
-import { Input } from '@renderer/lib/ui/input';
+import { Alert } from '@core/primitives/ui/browser/alert';
+import { Input } from '@core/primitives/ui/browser/input';
 import { CommandActionButton } from './install-command-row';
 
 export type InstallationOverrideCardProps = {

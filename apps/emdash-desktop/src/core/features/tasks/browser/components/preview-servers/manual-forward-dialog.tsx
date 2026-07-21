@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { usePreviewServers } from '@core/features/workbench/browser/task-composition-context';
+import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContent,
   DialogContentArea,
@@ -9,9 +9,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
+} from '@core/primitives/ui/browser/dialog';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Label } from '@core/primitives/ui/browser/label';
 
 function parsePort(value: string): number | undefined {
   const trimmed = value.trim();

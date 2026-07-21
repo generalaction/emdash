@@ -1,17 +1,17 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useConfirmDeleteProject } from '@core/features/projects/browser/hooks/use-confirm-delete-project';
-import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { appState } from '@renderer/lib/stores/app-state';
-import { isUnregisteredProject } from '../../stores/project';
+import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
+import { isUnregisteredProject } from '@core/features/projects/api/browser/stores/project';
 import {
   getProjectManagerStore,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
   unmountedMountErrorMessage,
-} from '../../stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
 

@@ -1,17 +1,17 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { type ProjectStore } from '@core/features/projects/browser/stores/project';
-import type { ProjectManagerStore } from '@core/features/projects/browser/stores/project-manager';
-import { taskManagerStoreToken } from '@core/features/tasks/browser/contributions/project-store-tokens';
-import {
-  registeredTaskData,
-  unregisteredTaskData,
-  type TaskStore,
-} from '@core/features/tasks/browser/stores/task-store';
+import { type ProjectStore } from '@core/features/projects/api/browser/stores/project';
+import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
+import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import {
   workbenchSidebarMemento,
   type WorkbenchSidebarState,
 } from '@core/features/workbench/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
+import {
+  registeredTaskData,
+  unregisteredTaskData,
+} from '@core/primitives/task-state/browser/task-state';
 export type SidebarTaskSortBy = WorkbenchSidebarState['taskSortBy'];
 
 export type TaskSortKind = 'created' | 'updated';

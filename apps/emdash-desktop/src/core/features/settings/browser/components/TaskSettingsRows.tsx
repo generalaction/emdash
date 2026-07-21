@@ -1,9 +1,14 @@
 import { Info } from 'lucide-react';
 import React from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
-import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

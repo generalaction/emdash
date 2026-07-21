@@ -17,9 +17,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   computeGridDimensions,
   measureTerminalCell,
-} from '@core/features/terminals/browser/pty/pty-dimensions';
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { createResizeScheduler } from '@core/features/terminals/browser/pty/resize-scheduler';
-import type { PaneDimensionSink } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
+import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 
 // ── Minimal observable sink ───────────────────────────────────────────────────
 
@@ -270,7 +270,7 @@ describe('PaneDimensionProvider single-source measurement', () => {
 // so the bySession registry is exercised end-to-end.
 
 async function getPtyModule() {
-  return import('@core/features/terminals/browser/pty/pty');
+  return import('@core/features/terminals/api/browser/pty/pty');
 }
 
 describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {

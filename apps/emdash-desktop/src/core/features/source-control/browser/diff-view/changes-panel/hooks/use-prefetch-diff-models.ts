@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { modelRegistry } from '@core/features/editor/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/browser/monaco/monacoModelPath';
-import { isBinaryForDiff } from '@core/features/editor/browser/renderers/fileKind';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
 import { HEAD_REF, STAGED_REF, type GitRef } from '@core/primitives/git/api';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 

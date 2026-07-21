@@ -1,5 +1,5 @@
-import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { isRegistered } from '@core/features/tasks/browser/stores/task-store';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 
 export type LinkedIssueInfo = { taskId: string; taskName: string };
 

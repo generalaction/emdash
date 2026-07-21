@@ -2,6 +2,7 @@ import { accountContract } from '@core/features/account/api';
 import { agentsContract } from '@core/features/agents/api';
 import { automationsContract } from '@core/features/automations/api';
 import { browserContract } from '@core/features/browser/api';
+import { catalogWireContract } from '@core/features/catalog/api';
 import { conversationsContract } from '@core/features/conversations/api';
 import { editorContract } from '@core/features/editor/api';
 import { githubContract } from '@core/features/github/api';
@@ -28,7 +29,6 @@ import {
   workspacesWireContract,
 } from '@core/features/workspaces/api';
 import { mementosWireContract } from '@core/primitives/mementos/api';
-import { catalogWireContract } from '@core/services/catalog/api';
 import { appSettingsContract } from '@core/services/settings/api';
 import { sshContract } from '@core/services/ssh/api';
 import { workspaceServerDesktopContract } from '@core/services/workspace-server/api';

@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { type ReactNode } from 'react';
+import { getProjectStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { appState } from '@renderer/lib/stores/app-state';
-import { getProjectStore } from '../stores/project-selectors';
 import { SshChannelUnavailablePanel } from './ssh-channel-unavailable-panel';
 
 export const ProjectSshHealthGate = observer(function ProjectSshHealthGate({

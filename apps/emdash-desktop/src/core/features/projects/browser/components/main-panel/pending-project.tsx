@@ -5,13 +5,13 @@ import {
   type SteppedLoaderStep,
 } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { type UnregisteredProject } from '@core/features/projects/browser/stores/project';
-import { getProjectManagerStore } from '@core/features/projects/browser/stores/project-selectors';
+import { type UnregisteredProject } from '@core/features/projects/api/browser/stores/project';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
+import { Button } from '@core/primitives/ui/browser/button';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
-import { Button } from '@renderer/lib/ui/button';
 
 type Stage = 'creating-repo' | 'cloning' | 'registering';
 

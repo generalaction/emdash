@@ -16,19 +16,22 @@ import {
   type ComponentProps,
   type ReactNode,
 } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
-import { useModalController } from '@renderer/lib/modal/api';
-import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@core/primitives/ui/browser/collapsible';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
+} from '@core/primitives/ui/browser/dialog';
 import {
   Field,
   FieldDescription,
@@ -37,13 +40,24 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
-} from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
-import { ModalLayout } from '@renderer/lib/ui/modal-layout';
-import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@core/primitives/ui/browser/select';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { appState } from '@renderer/lib/stores/app-state';
 import { suggestedAuthTypeForSshConfigHost, type MachineAuthType } from './machine-form-model';
 import { machineFormSchema } from './machine-form-schema';
 import { useSshConfigHost, useSshConfigHosts } from './use-ssh-config-hosts';

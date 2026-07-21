@@ -46,6 +46,7 @@
     "typescript/no-useless-default-assignment": "off",
     "typescript/restrict-template-expressions": "off",
     "typescript/unbound-method": "off",
+    "emdash/core-host-boundaries": "error",
     "emdash/core-module-boundaries": "error"
   },
   "overrides": [

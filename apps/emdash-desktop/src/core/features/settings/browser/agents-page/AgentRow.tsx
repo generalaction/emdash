@@ -1,7 +1,7 @@
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { getAgentUpdateActionState } from '@core/features/agents/api/browser/components/agent-selector/agent-install';
 import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
-import { AgentUiBadge } from '@renderer/lib/components/agent-ui-badge';
+import { AgentUiBadge } from '@core/primitives/ui/browser/components/agent-ui-badge';
 import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
 
 export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {

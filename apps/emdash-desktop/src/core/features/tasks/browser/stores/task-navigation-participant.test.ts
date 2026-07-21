@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TaskNavigationParticipant } from './task-navigation-participant';
+import { TaskNavigationParticipant } from '@core/features/tasks/api/browser/stores/task-navigation-participant';
 
 function pane(activeTabId: string | undefined, tabIds: string[]) {
   return {

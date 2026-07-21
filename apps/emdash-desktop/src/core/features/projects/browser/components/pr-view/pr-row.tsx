@@ -1,13 +1,13 @@
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
-import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
-import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
-import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
-import { useOpenModal } from '@renderer/lib/modal/api';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
+import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
+import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
+import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 

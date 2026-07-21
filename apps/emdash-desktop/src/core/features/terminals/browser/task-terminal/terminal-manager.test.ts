@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TerminalManagerStore } from './terminal-manager';
+import { TerminalManagerStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 
 const createTerminal = vi.hoisted(() => vi.fn());
 const listTerminals = vi.hoisted(() => vi.fn());
@@ -10,11 +10,11 @@ const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const getAppSettingValueSnapshot = vi.hoisted(() => vi.fn());
 
-vi.mock('@core/features/editor/browser/open-file-in-file-editor', () => ({
+vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
   makeFileLinkHandlers: () => ({}),
 }));
 
-vi.mock('@core/features/settings/browser/app-settings-client', () => ({
+vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({
   getAppSettingValueSnapshot,
 }));
 
@@ -30,7 +30,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@core/features/terminals/browser/client', () => ({
+vi.mock('@core/features/terminals/api/browser/client', () => ({
   getTerminalsClient: async () => ({
     create: createTerminal,
     delete: deleteTerminal,
@@ -40,7 +40,7 @@ vi.mock('@core/features/terminals/browser/client', () => ({
   }),
 }));
 
-vi.mock('@core/features/terminals/browser/pty/pty', () => ({
+vi.mock('@core/features/terminals/api/browser/pty/pty', () => ({
   FrontendPty: class {
     constructor(readonly sessionId: string) {}
 

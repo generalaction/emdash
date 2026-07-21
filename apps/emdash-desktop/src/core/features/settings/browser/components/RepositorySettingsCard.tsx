@@ -1,8 +1,8 @@
 import React from 'react';
-import { useAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { normalizeBranchPrefix } from '@core/primitives/tasks/api';
-import { Input } from '@renderer/lib/ui/input';
-import { Switch } from '@renderer/lib/ui/switch';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Switch } from '@core/primitives/ui/browser/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

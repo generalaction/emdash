@@ -17,21 +17,21 @@
 import type { IObservableValue } from 'mobx';
 import { observable, reaction, runInAction } from 'mobx';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { PaneDimensionSink } from '@core/features/workbench/browser/tabs/pane-dimension-provider';
-import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import {
   getFrontendPty,
   TERMINAL_LETTER_SPACING,
   TERMINAL_LINE_HEIGHT,
   TERMINAL_PADDING_PX,
-} from './pty';
+} from '@core/features/terminals/api/browser/pty/pty';
 import {
   computeGridDimensions,
   invalidateCellMetricsCache,
   measureTerminalCell,
-} from './pty-dimensions';
+} from '@core/features/terminals/api/browser/pty/pty-dimensions';
+import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
+import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { createResizeScheduler, type ResizeScheduler } from './resize-scheduler';
-import { buildTerminalFontFamily } from './terminal-font';
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 

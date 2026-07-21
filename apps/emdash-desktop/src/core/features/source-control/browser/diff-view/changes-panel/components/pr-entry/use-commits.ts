@@ -1,7 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
+import {
+  checkoutSelector,
+  getSourceControlClient,
+} from '@core/features/source-control/api/browser/client';
 import { commitRef } from '@core/primitives/git/api';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
-import { checkoutSelector, getSourceControlClient } from '../../../../client';
 
 const PAGE_SIZE = 50;
 

@@ -2,11 +2,11 @@ import type { McpProvidersResponse } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { X } from 'lucide-react';
 import React from 'react';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { Button } from '@renderer/lib/ui/button';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { cn } from '@renderer/utils/utils';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 
 interface SyncToAgentsSectionProps {
   providers: McpProvidersResponse[];

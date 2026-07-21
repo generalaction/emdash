@@ -2,17 +2,17 @@ import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
-import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+} from '@core/primitives/ui/browser/dropdown-menu';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
+import { Switch } from '@core/primitives/ui/browser/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useAutomationTargetAvailability, useRunAutomationNow } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';

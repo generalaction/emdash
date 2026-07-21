@@ -1,12 +1,14 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
+import type {
+  providerTokenRegistry,
+  ProviderTokenDispatchResult,
+} from '@core/features/account/api/node/provider-token-registry';
 import { type AccountProviderTokenPersistenceError, unknownErrorMessage } from '../account-errors';
 import type { AuthProviderToken } from '../account-types';
-import {
-  providerTokenRegistry,
-  type ProviderTokenDispatchResult,
-} from '../provider-token-registry';
 
 export class ProviderTokenDispatcher {
+  constructor(private readonly registry: Pick<typeof providerTokenRegistry, 'dispatch'>) {}
+
   async dispatchOptional(
     token: AuthProviderToken | undefined
   ): Promise<
@@ -22,7 +24,7 @@ export class ProviderTokenDispatcher {
     Result<ProviderTokenDispatchResult | undefined, AccountProviderTokenPersistenceError>
   > {
     try {
-      const result = await providerTokenRegistry.dispatch(token.providerId, {
+      const result = await this.registry.dispatch(token.providerId, {
         accessToken: token.accessToken,
         providerAccount: token.providerAccount,
       });

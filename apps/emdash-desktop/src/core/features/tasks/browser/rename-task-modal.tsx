@@ -1,19 +1,19 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
-import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
 import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,

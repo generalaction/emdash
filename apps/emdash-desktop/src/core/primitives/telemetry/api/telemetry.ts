@@ -180,3 +180,27 @@ export type TelemetryEventProperties = {
 export type TelemetryEvent = keyof TelemetryEventProperties;
 export type TelemetryProperties<E extends TelemetryEvent> = TelemetryEventProperties[E] &
   TelemetryEnvelope;
+
+export type TelemetryStatus = {
+  enabled: boolean;
+  envDisabled: boolean;
+  userOptOut: boolean;
+  hasKeyAndHost: boolean;
+  session_id: string | null;
+  instance_id: string | null;
+};
+
+/**
+ * Core-facing telemetry port. Desktop owns the PostHog-specific implementation
+ * and injects it at controller and service composition boundaries.
+ */
+export interface TelemetryService {
+  capture<E extends TelemetryEvent>(
+    event: E,
+    properties?: TelemetryProperties<E> | Record<string, unknown>
+  ): void;
+  captureException(error: Error | unknown, additionalProperties?: Record<string, unknown>): void;
+  getTelemetryStatus(): TelemetryStatus;
+  setTelemetryEnabledViaUser(enabled: boolean): void;
+  getFeatureFlags(): Record<string, boolean>;
+}

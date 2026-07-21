@@ -3,11 +3,11 @@ import { waitFor } from '@emdash/shared/testing';
 import { createLiveModelHost, defineContract } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MonacoModelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { sourceControlContract } from '@core/features/source-control/api';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { HEAD_REF, STAGED_REF, type GitRef } from '@core/primitives/git/api';
 import { editorContract, type EditorFileContentModel } from '../../api';
-import { MonacoModelRegistry } from './monaco-model-registry';
 
 const runtimeClients = vi.hoisted(() => ({
   files: undefined as unknown,
@@ -22,11 +22,11 @@ const gitTestContract = defineContract({
   checkout: defineContract({ content: sourceControlContract.checkout.content }),
 });
 
-vi.mock('../client', () => ({
+vi.mock('@core/features/editor/api/browser/client', () => ({
   getEditorClient: async () => ({ ...(runtimeClients.files as object), ...editorClient }),
 }));
 
-vi.mock('@core/features/source-control/browser/client', () => ({
+vi.mock('@core/features/source-control/api/browser/client', () => ({
   getSourceControlClient: async () => runtimeClients.git,
 }));
 

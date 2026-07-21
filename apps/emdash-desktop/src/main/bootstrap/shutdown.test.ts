@@ -11,10 +11,15 @@ import {
   shouldAllowWindowClose,
   type ShutdownCoordinatorDependencies,
 } from './shutdown';
+import { configureQuitCleanupServices } from './shutdown/phases';
 
 const mocks = vi.hoisted(() => ({
   appScopeDispose: vi.fn(),
+  automationsStop: vi.fn(),
   closeAppDb: vi.fn(),
+  projectsDispose: vi.fn(),
+  projectsRelease: vi.fn(),
+  pullRequestsDispose: vi.fn(),
   telemetryDispose: vi.fn(),
   updateService: {
     isInstallRequested: false as boolean,
@@ -40,13 +45,13 @@ vi.mock('@main/core/agent-status/agent-status-service', () => ({
 vi.mock('@main/core/agent-status/tui-agent-status-bridge', () => ({
   tuiAgentStatusBridge: { dispose: vi.fn() },
 }));
-vi.mock('@main/core/automations/automations-service', () => ({
+vi.mock('@core/features/automations/api/node/automations-service', () => ({
   automationsService: { stop: vi.fn() },
 }));
 vi.mock('@main/core/operations/operations-engine-instance', () => ({
   disposeOperationsEngine: vi.fn(),
 }));
-vi.mock('@main/core/projects/project-manager', () => ({
+vi.mock('@core/features/projects/api/node/project-manager', () => ({
   projectManager: { release: vi.fn(), dispose: vi.fn() },
 }));
 vi.mock('@main/gateway/desktop-workers', () => ({
@@ -87,6 +92,15 @@ afterEach(() => {
 
 describe('quit cleanup phases', () => {
   it('closes the database after app scope and before telemetry', async () => {
+    configureQuitCleanupServices({
+      automations: { stop: mocks.automationsStop },
+      projects: {
+        dispose: mocks.projectsDispose,
+        release: mocks.projectsRelease,
+      },
+      pullRequests: { dispose: mocks.pullRequestsDispose },
+    });
+
     await runQuitCleanup();
 
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();

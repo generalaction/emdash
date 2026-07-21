@@ -3,10 +3,15 @@ import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { Badge } from '@renderer/lib/ui/badge';
-import { Button } from '@renderer/lib/ui/button';
-import { FieldTitle } from '@renderer/lib/ui/field';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Badge } from '@core/primitives/ui/browser/badge';
+import { Button } from '@core/primitives/ui/browser/button';
+import { FieldTitle } from '@core/primitives/ui/browser/field';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 
 type Props = {
   children: React.ReactNode;

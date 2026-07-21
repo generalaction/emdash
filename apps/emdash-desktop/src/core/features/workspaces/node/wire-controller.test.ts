@@ -6,13 +6,13 @@ import type { workspacesWireContract } from '../api';
 import type { WorkspacesIdentityResolver, WorkspacesRuntimeBroker } from '../api/runtime-adapter';
 import { createWorkspacesWireController } from './wire-controller';
 
-vi.mock('@main/core/tasks/task-provision-events', () => ({
+vi.mock('@core/features/tasks/node/task-provision-events', () => ({
   taskProvisionEvents: {
     on: vi.fn(() => () => {}),
   },
 }));
 
-vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
+vi.mock('@core/features/workspaces/api/node/workspace-bootstrap-service', () => ({
   runCloneRepositoryProvision: vi.fn(),
 }));
 
@@ -38,7 +38,10 @@ describe('createWorkspacesWireController', () => {
     }));
     const controller = createWorkspacesWireController({
       db: {} as never,
+      getWorkspaceRuntimeClient: vi.fn(),
+      operations: {} as never,
       provisionTask: vi.fn(),
+      onTaskProvisionProgress: () => () => {},
       onTaskWorkspaceReady: () => () => {},
       runtimes: { session } as unknown as WorkspacesRuntimeBroker,
       workspaceIdentity: {
@@ -74,7 +77,10 @@ describe('createWorkspacesWireController', () => {
     const release = vi.fn(async () => {});
     const controller = createWorkspacesWireController({
       db: {} as never,
+      getWorkspaceRuntimeClient: vi.fn(),
+      operations: {} as never,
       provisionTask: vi.fn(),
+      onTaskProvisionProgress: () => () => {},
       onTaskWorkspaceReady: () => () => {},
       runtimes: {
         session: () => ({

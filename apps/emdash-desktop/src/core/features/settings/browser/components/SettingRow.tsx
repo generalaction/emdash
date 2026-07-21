@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 
 interface SettingRowProps {
   title: React.ReactNode;

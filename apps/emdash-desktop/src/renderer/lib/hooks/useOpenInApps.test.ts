@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   getPlatform: vi.fn(),
 }));
 
-vi.mock('@core/features/settings/browser/use-app-settings-key', () => ({
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({
     value: { hidden: [] },
     update: vi.fn(),

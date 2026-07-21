@@ -1,13 +1,13 @@
 import { FileSearch, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import { useWorkspaceId } from '@core/features/workbench/browser/task-composition-context';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useWorkspaceId } from '@core/features/workbench/api/browser/task-composition-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { cn } from '@renderer/utils/utils';
 
 export function PaneEmptyState() {
   const { projectId, taskId } = useTaskViewContext();

@@ -1,6 +1,6 @@
 import { Check, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import { Comment, useTextareaAutoFocus } from './comment-card';
 
 interface CommentInputProps {

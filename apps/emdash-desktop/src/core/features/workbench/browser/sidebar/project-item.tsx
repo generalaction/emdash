@@ -11,38 +11,38 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
-import { useConfirmDeleteProject } from '@core/features/projects/browser/hooks/use-confirm-delete-project';
+import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   isUnmountedProject,
   isUnregisteredProject,
   type UnregisteredProject,
-} from '@core/features/projects/browser/stores/project';
+} from '@core/features/projects/api/browser/stores/project';
 import {
   getProjectStore,
   projectViewKind,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
-import {
-  useNavigate,
-  useViewParams,
-  useWorkspaceSlots,
-} from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from '@renderer/lib/ui/context-menu';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/context-menu';
+import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import {
+  useNavigate,
+  useViewParams,
+  useWorkspaceSlots,
+} from '@renderer/lib/layout/navigation-provider';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import {
   SidebarItemMiniButton,
   SidebarMenuAction,

@@ -1,14 +1,21 @@
-import { ok } from '@emdash/shared/result';
+import { ok, type Result } from '@emdash/shared/result';
 import { createController, type Controller } from '@emdash/wire/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
-import { githubApiAuthService } from '@main/core/github/services/github-api-auth-service-instance';
-import { githubApiBaseUrlForHost } from '@main/core/github/services/github-api-base-url';
-import { githubAuthContract } from '@root/src/core/services/pull-requests/api';
+import {
+  githubAuthContract,
+  type GitHubAuthError,
+} from '@root/src/core/services/pull-requests/api';
 
-type GitHubTokenService = Pick<typeof githubApiAuthService, 'getToken'>;
+type GitHubTokenService = {
+  getToken(
+    host: string,
+    context?: { accountId?: string }
+  ): Promise<Result<string, GitHubAuthError>>;
+};
 
 export function createPullRequestsGitHubAuthController(
-  tokenService: GitHubTokenService = githubApiAuthService
+  tokenService: GitHubTokenService,
+  apiBaseUrlForHost: (host: string) => string
 ): Controller {
   return createController(githubAuthContract, {
     resolveAuth: async (input) => {
@@ -18,10 +25,8 @@ export function createPullRequestsGitHubAuthController(
       return ok({
         token: token.data,
         host,
-        apiBaseUrl: githubApiBaseUrlForHost(host),
+        apiBaseUrl: apiBaseUrlForHost(host),
       });
     },
   });
 }
-
-export const pullRequestsGitHubAuthController = createPullRequestsGitHubAuthController();

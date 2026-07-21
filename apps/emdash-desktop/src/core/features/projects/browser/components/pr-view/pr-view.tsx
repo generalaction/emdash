@@ -9,26 +9,26 @@ import {
   type StatusFilter,
 } from '@core/features/projects/browser/components/pr-view/usePrViewState';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { Button } from '@renderer/lib/ui/button';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from '@renderer/lib/ui/context-menu';
-import { Input } from '@renderer/lib/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { SearchInput } from '@renderer/lib/ui/search-input';
+} from '@core/primitives/ui/browser/context-menu';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+} from '@core/primitives/ui/browser/select';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import type { PullRequestSort } from '@root/src/core/services/pull-requests/api';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';

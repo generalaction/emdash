@@ -2,8 +2,8 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { BrowserPane } from './browser-pane';
-import { browserSessionStore } from './browser-session-store';
 
 const browserRpc = vi.hoisted(() => ({
   bindWebContents: vi.fn(),
@@ -11,11 +11,11 @@ const browserRpc = vi.hoisted(() => ({
   setActiveBrowser: vi.fn(),
 }));
 
-vi.mock('@core/features/tasks/browser/task-view-context', () => ({
+vi.mock('@core/features/workbench/api/browser/task-composition-context', () => ({
   usePreviewServers: () => ({ urls: [] }),
 }));
 
-vi.mock('@core/features/workbench/browser/tabs/pane-context', () => ({
+vi.mock('@core/primitives/workbench-shell/browser/tabs/pane-context', () => ({
   usePaneContext: () => ({
     pane: { setNextTabActive: vi.fn(), setPreviousTabActive: vi.fn() },
   }),

@@ -1,24 +1,24 @@
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
+import { StackedAgentLogos } from '@core/features/agents/api/browser/components/stacked-agent-logos';
 import {
   taskAgentStatus,
   taskConversationStats,
-} from '@core/features/conversations/browser/conversation-selectors';
-import { getTaskGitCheckoutStore } from '@core/features/source-control/browser/stores/task-source-control-selectors';
-import { TaskContextMenu } from '@core/features/tasks/browser/components/task-context-menu';
-import { TaskGitDiffStats } from '@core/features/tasks/browser/components/task-git-diff-stats';
-import { getTaskManagerStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { type TaskStore } from '@core/features/tasks/browser/stores/task-store';
+} from '@core/features/conversations/api/browser/conversation-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { TaskContextMenu } from '@core/features/tasks/api/browser/components/task-context-menu';
+import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
+import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { type Task } from '@core/primitives/tasks/api';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
-import { PrBadge } from '@renderer/lib/components/pr-badge';
-import { StackedAgentLogos } from '@renderer/lib/components/stacked-agent-logos';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
+import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
+import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useOpenModal } from '@renderer/lib/modal/api';
-import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
-import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 
 export type ReadyTask = TaskStore & { data: Task };

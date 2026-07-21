@@ -1,6 +1,6 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, makeObservable, observable } from 'mobx';
-import { getFileKind } from '@core/features/editor/browser/renderers/fileKind';
+import { getFileKind } from '@core/features/editor/api/browser/renderers/fileKind';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 
 export type DiffRendererData =

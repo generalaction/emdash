@@ -1,8 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
+import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
 import { BrowserPane } from '@core/features/browser/browser/browser-pane';
-import { browserSessionStore } from '@core/features/browser/browser/browser-session-store';
-import { getAppSettingValueSnapshot } from '@core/features/settings/browser/app-settings-client';
+import { getAppSettingValueSnapshot } from '@core/features/settings/api/browser/app-settings-client';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { normalizeBrowserProfileSelection } from '@core/primitives/browser/api';
+import type { BrowserSessionSnapshot } from '@core/primitives/browser/api';
 import type {
   TabEntry,
   TabHandle,
@@ -10,14 +14,10 @@ import type {
   TabViewContext,
   TabContentProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
-import { normalizeBrowserProfileSelection } from '@core/primitives/browser/api';
-import type { BrowserSessionSnapshot } from '@core/primitives/browser/api';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { BrowserTabBarItem, BrowserTabBarItemDragPreview } from './browser-tab-item';
-import { BrowserTabResource } from './browser-tab-resource';
 
 export interface BrowserState {
   browserId: string;

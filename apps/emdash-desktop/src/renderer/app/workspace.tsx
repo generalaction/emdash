@@ -1,13 +1,13 @@
 import { LeftSidebar } from '@core/features/workbench/browser/sidebar/left-sidebar';
 import { WindowScope } from '@core/features/workbench/browser/window-scope';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { useTheme } from '@core/primitives/theme/browser';
+import { Toaster } from '@core/primitives/ui/browser/toaster';
 import { BrowserShortcutForwarding, KeybindingDispatcherMount } from '@renderer/lib/keybindings';
 import {
   useWorkspaceSlots,
   useWorkspaceViewParams,
 } from '@renderer/lib/layout/navigation-provider';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
-import { Toaster } from '@renderer/lib/ui/toaster';
 
 export function Workspace() {
   useTheme();

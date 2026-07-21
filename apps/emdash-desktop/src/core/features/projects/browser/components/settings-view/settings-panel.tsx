@@ -1,13 +1,13 @@
 import { observer } from 'mobx-react-lite';
-import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
 import {
   asMounted,
   getProjectSettingsStore,
   getProjectStore,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { Spinner } from '@renderer/lib/ui/spinner';
 
 export const SettingsPanel = observer(function SettingsPanel() {
   const {

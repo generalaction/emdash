@@ -4,19 +4,13 @@ import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import {
   getIntegrationName,
   isIssueIntegration,
-} from '@core/features/integrations/browser/integration-display';
-import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
-import { useIntegrationsContext } from '@core/features/integrations/browser/integrations-provider';
+} from '@core/features/integrations/api/browser/integration-display';
+import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
+import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { InlineMarkdown } from '@renderer/lib/components/inline-markdown';
-import {
-  IssueStatusIndicator,
-  toIssueStatus,
-} from '@renderer/lib/components/issue-status-indicator';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { cn } from '@core/primitives/ui/browser/cn';
 import {
   Combobox,
   ComboboxContent,
@@ -26,10 +20,21 @@ import {
   ComboboxList,
   ComboboxTrigger,
   ComboboxValue,
-} from '@renderer/lib/ui/combobox';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/combobox';
+import { InlineMarkdown } from '@core/primitives/ui/browser/components/inline-markdown';
+import {
+  IssueStatusIndicator,
+  toIssueStatus,
+} from '@core/primitives/ui/browser/components/issue-status-indicator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@core/primitives/ui/browser/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 

@@ -3,13 +3,12 @@ import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wi
 import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
 import type { OperationsEngine } from '@core/services/operations/node';
-import { getOperationsEngine } from '@main/core/operations/operations-engine-instance';
-import { projectOperations } from '@main/core/projects/controller';
+import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
   unknownToWorkspaceError,
-} from '@main/core/projects/operations/create-project-from-remote';
-import { enqueueDeleteProject } from '@main/core/projects/operations/delete-project-definition';
+} from './operations/create-project-from-remote';
+import { enqueueDeleteProject } from './operations/delete-project-definition';
 
 type CreationKey = { projectId: string };
 type CreationState = LiveState<ProjectCreationState>;
@@ -23,7 +22,11 @@ export type ProjectsWireController = {
 
 const creationStates = new Map<string, CreationState>();
 
-export function createProjectsWireController(): ProjectsWireController {
+export function createProjectsWireController(
+  dependencies: ProjectOperationDependencies
+): ProjectsWireController {
+  const { operations } = dependencies;
+  const projectOperations = createProjectOperations(dependencies);
   return {
     impl: {
       createProject: (input) => projectOperations.createProject(input),
@@ -50,14 +53,14 @@ export function createProjectsWireController(): ProjectsWireController {
       events: projectEvents,
       creation: createCreationProvider(),
       create: {
-        run: (input, ctx) => createProjectFromRemote(input, ctx, publishCreationState),
+        run: (input, ctx) =>
+          createProjectFromRemote(dependencies, input, ctx, publishCreationState),
         toError: unknownToWorkspaceError,
       },
-      delete: (input) => enqueueDeleteProject(input.projectId),
-      retryDelete: (input) => getOperationsEngine().retryDelete('project', input.projectId),
-      forgetWithoutCleanup: (input) =>
-        getOperationsEngine().forgetWithoutCleanup('project', input.projectId),
-      deletions: createProjectDeletionsProvider(),
+      delete: (input) => enqueueDeleteProject(operations, input.projectId),
+      retryDelete: (input) => operations.retryDelete('project', input.projectId),
+      forgetWithoutCleanup: (input) => operations.forgetWithoutCleanup('project', input.projectId),
+      deletions: createProjectDeletionsProvider(operations),
     },
     async dispose() {
       creationStates.clear();
@@ -65,9 +68,9 @@ export function createProjectsWireController(): ProjectsWireController {
   };
 }
 
-function createProjectDeletionsProvider(): LeasedLiveModelProvider<
-  typeof projectsWireContract.deletions
-> {
+function createProjectDeletionsProvider(
+  operations: OperationsEngine
+): LeasedLiveModelProvider<typeof projectsWireContract.deletions> {
   return {
     kind: 'leasedLiveModelProvider',
     contract: projectsWireContract.deletions,
@@ -80,7 +83,7 @@ function createProjectDeletionsProvider(): LeasedLiveModelProvider<
             throw new Error(`Unknown project deletion state '${String(name)}'`);
           }
           if (released) throw new Error('Project deletion state lease was released before ready');
-          lease ??= getOperationsEngine().acquireDeletionState('project', key.entityId);
+          lease ??= operations.acquireDeletionState('project', key.entityId);
           if (released) {
             await lease.release();
             throw new Error('Project deletion state lease was released before ready');

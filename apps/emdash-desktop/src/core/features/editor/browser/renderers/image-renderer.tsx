@@ -1,4 +1,4 @@
-import { ContainedImage } from '@renderer/lib/ui/contained-image';
+import { ContainedImage } from '@core/primitives/ui/browser/contained-image';
 
 interface ImageRendererProps {
   file: { path: string; content: string };

@@ -2,26 +2,66 @@ import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runt
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createLiveModelReplica } from '@emdash/wire';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
-import type { DirectPreviewServer } from '@core/primitives/preview-servers/api';
+import type {
+  DirectPreviewServer,
+  DirectPreviewServerHost,
+  PreviewServerProtocol,
+  PreviewServerSource,
+} from '@core/primitives/preview-servers/api';
 import { parsePtySessionId } from '@core/primitives/pty/api';
-import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import type { TerminalsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
-import type { DetectedPreviewUrl, StopTerminalServerHandler } from './preview-server-service';
-import { previewServerService } from './preview-server-service-instance';
 
 export type DevServerBridge = {
   dispose(): Promise<void>;
 };
 
+type DetectedPreviewUrl = {
+  protocol: PreviewServerProtocol;
+  host: DirectPreviewServerHost;
+  port: number;
+  urlPath: string;
+};
+
+export type DevServerBridgeDependencies = {
+  previewServers: {
+    registerDetectedTarget(target: {
+      projectId: string;
+      workspaceId: string;
+      transport: 'local';
+      source: PreviewServerSource;
+      protocol: PreviewServerProtocol;
+      host: DirectPreviewServerHost;
+      port: number;
+      urlPath: string;
+    }): Promise<DirectPreviewServer>;
+    handleTerminalSourceClosed(input: {
+      projectId: string;
+      workspaceId: string;
+      terminalId: string;
+      transport: 'local';
+      reason: 'local-probe-failed';
+      server: DetectedPreviewUrl;
+    }): Promise<void>;
+    setStopTerminalServerHandler(
+      handler: ((server: DirectPreviewServer) => Promise<void> | void) | undefined
+    ): void;
+  };
+  resolveWorkspace(
+    workspacePath: string,
+    host: TerminalDevServer['key']['workspace']['host']
+  ): Promise<{ projectId: string; workspaceId: string } | null | undefined>;
+};
+
 export async function createDevServerBridge(
-  client: TerminalsRuntimeClient
+  client: TerminalsRuntimeClient,
+  dependencies: DevServerBridgeDependencies
 ): Promise<DevServerBridge> {
   let previous = new Map<string, TerminalDevServer>();
   const replica = createLiveModelReplica(terminalsContract.devServers, client.devServers, {
     onChange: {
       list: (list: TerminalDevServerList) => {
-        void syncDevServers(previous, list).catch((error) => {
+        void syncDevServers(dependencies, previous, list).catch((error) => {
           log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
         });
         previous = new Map(Object.entries(list));
@@ -36,8 +76,8 @@ export async function createDevServerBridge(
     throw error;
   }
 
-  const stopHandler: StopTerminalServerHandler = async (server) => {
-    const devServer = await findDevServerForPreview(previous, server);
+  const stopHandler = async (server: DirectPreviewServer) => {
+    const devServer = await findDevServerForPreview(dependencies, previous, server);
     if (!devServer) return;
     const result = await client.sendInput({ key: devServer.key, data: '\x03' });
     if (!result.success) {
@@ -47,11 +87,11 @@ export async function createDevServerBridge(
       });
     }
   };
-  previewServerService.setStopTerminalServerHandler(stopHandler);
+  dependencies.previewServers.setStopTerminalServerHandler(stopHandler);
 
   return {
     async dispose() {
-      previewServerService.setStopTerminalServerHandler(undefined);
+      dependencies.previewServers.setStopTerminalServerHandler(undefined);
       await Promise.all([lease.release(), replica.dispose()]);
       previous = new Map();
     },
@@ -59,6 +99,7 @@ export async function createDevServerBridge(
 }
 
 async function syncDevServers(
+  dependencies: DevServerBridgeDependencies,
   previous: Map<string, TerminalDevServer>,
   nextList: TerminalDevServerList
 ): Promise<void> {
@@ -67,20 +108,23 @@ async function syncDevServers(
   for (const [id, server] of previous) {
     const current = next.get(id);
     if (current && sameDevServer(server, current)) continue;
-    await handleDevServerRemoved(server);
+    await handleDevServerRemoved(dependencies, server);
   }
 
   for (const [id, server] of next) {
     const old = previous.get(id);
     if (old && sameDevServer(old, server)) continue;
-    await handleDevServerAdded(server);
+    await handleDevServerAdded(dependencies, server);
   }
 }
 
-async function handleDevServerAdded(server: TerminalDevServer): Promise<void> {
-  const context = await resolveServerContext(server);
+async function handleDevServerAdded(
+  dependencies: DevServerBridgeDependencies,
+  server: TerminalDevServer
+): Promise<void> {
+  const context = await resolveServerContext(dependencies, server);
   if (!context) return;
-  await previewServerService.registerDetectedTarget({
+  await dependencies.previewServers.registerDetectedTarget({
     projectId: context.projectId,
     workspaceId: context.workspaceId,
     transport: 'local',
@@ -92,10 +136,13 @@ async function handleDevServerAdded(server: TerminalDevServer): Promise<void> {
   });
 }
 
-async function handleDevServerRemoved(server: TerminalDevServer): Promise<void> {
-  const context = await resolveServerContext(server);
+async function handleDevServerRemoved(
+  dependencies: DevServerBridgeDependencies,
+  server: TerminalDevServer
+): Promise<void> {
+  const context = await resolveServerContext(dependencies, server);
   if (!context) return;
-  await previewServerService.handleTerminalSourceClosed({
+  await dependencies.previewServers.handleTerminalSourceClosed({
     projectId: context.projectId,
     workspaceId: context.workspaceId,
     terminalId: context.terminalId,
@@ -105,7 +152,10 @@ async function handleDevServerRemoved(server: TerminalDevServer): Promise<void> 
   });
 }
 
-async function resolveServerContext(server: TerminalDevServer): Promise<
+async function resolveServerContext(
+  dependencies: DevServerBridgeDependencies,
+  server: TerminalDevServer
+): Promise<
   | {
       projectId: string;
       workspaceId: string;
@@ -114,10 +164,7 @@ async function resolveServerContext(server: TerminalDevServer): Promise<
   | undefined
 > {
   const workspacePath = nativePathFromHost(server.key.workspace.path);
-  const workspace = await getWorkspaceIdentityService().findByPath(
-    workspacePath,
-    server.key.workspace.host
-  );
+  const workspace = await dependencies.resolveWorkspace(workspacePath, server.key.workspace.host);
   if (!workspace) return undefined;
   const parsed = parsePtySessionId(server.key.id);
   return {
@@ -137,6 +184,7 @@ function detectedPreviewUrl(server: TerminalDevServer): DetectedPreviewUrl {
 }
 
 async function findDevServerForPreview(
+  dependencies: DevServerBridgeDependencies,
   devServers: Map<string, TerminalDevServer>,
   preview: DirectPreviewServer
 ): Promise<TerminalDevServer | undefined> {
@@ -145,7 +193,7 @@ async function findDevServerForPreview(
     if (devServer.protocol !== preview.protocol) continue;
     if (devServer.host !== preview.host) continue;
     if (devServer.port !== preview.port) continue;
-    const context = await resolveServerContext(devServer);
+    const context = await resolveServerContext(dependencies, devServer);
     if (!context) continue;
     if (context.projectId !== preview.projectId) continue;
     if (context.workspaceId !== preview.workspaceId) continue;

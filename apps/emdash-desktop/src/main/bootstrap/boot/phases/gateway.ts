@@ -1,4 +1,8 @@
+import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
+import { conversationWireEvents } from '@core/features/conversations/node/event-host';
+import { setSessionId } from '@core/features/conversations/node/set-session-id';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
+import { setAgentStatusConversationEventPublisher } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { installDesktopWire } from '@main/gateway/desktop-wire';
 import {
@@ -55,8 +59,18 @@ export const gatewayPhase: Phase<BootContext> = {
     runInBackground('automations-runtime', ensureAutomationsWorkerReady);
     runInBackground('pull-requests-runtime', ensurePullRequestsWorkerReady);
 
-    acpAgentStatusBridge.initialize();
-    tuiAgentStatusBridge.initialize();
+    acpAgentStatusBridge.initialize((handler) =>
+      conversationEvents.on('conversation:created', handler)
+    );
+    const publishConversationEvent = (event: Parameters<typeof conversationWireEvents.emit>[1]) =>
+      conversationWireEvents.emit(undefined, event);
+    setAgentStatusConversationEventPublisher(publishConversationEvent);
+    const db = context.db;
+    if (!db) throw new Error('App database was not initialized before the gateway phase');
+    tuiAgentStatusBridge.initialize({
+      setSessionId: (conversationId, sessionId) => setSessionId(conversationId, sessionId, db),
+      publishConversationEvent,
+    });
 
     runInBackground('account-session', async () => {
       if (!context.accountService) {

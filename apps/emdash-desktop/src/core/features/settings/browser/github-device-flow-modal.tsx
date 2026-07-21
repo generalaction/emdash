@@ -1,20 +1,20 @@
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
-import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useModalController } from '@renderer/lib/modal/api';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
+} from '@core/primitives/ui/browser/dialog';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
+import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 
 export type GithubDeviceFlowModalArgs = {

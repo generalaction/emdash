@@ -1,4 +1,4 @@
-import type { GitExecErrorCode } from '@emdash/core/runtimes/git/api';
+import type { GitExecErrorCode } from '@core/primitives/git/api';
 
 export type Args = {
   remote: string;

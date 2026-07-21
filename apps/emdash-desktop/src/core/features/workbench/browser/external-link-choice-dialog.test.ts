@@ -1,10 +1,10 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { Dialog } from '@renderer/lib/ui/dialog';
+import { Dialog } from '@core/primitives/ui/browser/dialog';
 import { ExternalLinkChoiceDialog } from './external-link-choice-dialog';
 
-vi.mock('@renderer/lib/modal/api', () => ({
+vi.mock('@core/manifests/browser/modal-api', () => ({
   useModalController: () => ({
     complete: vi.fn(),
     dismiss: vi.fn(),

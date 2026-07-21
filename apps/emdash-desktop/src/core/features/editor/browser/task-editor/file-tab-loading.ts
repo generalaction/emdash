@@ -1,4 +1,4 @@
-import type { ModelStatus } from '../monaco/monaco-model-registry';
+import type { ModelStatus } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 
 interface FileTabLoadingState {
   isExternal: boolean;

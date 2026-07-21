@@ -2,6 +2,16 @@ import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primit
 import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
 import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { getEditorClient } from '@core/features/editor/api/browser/client';
+import {
+  buildFileTreeVisibleRows,
+  isExpandableFileTreeNode,
+  normalizeFileTreePath,
+  sortFileNodes,
+  toRenderableFileNode,
+  type FileNodeId,
+  type RenderableFileNode,
+} from '@core/features/editor/api/browser/file-tree/tree-utils';
 import {
   absoluteRuntimePath,
   hostPathFromNative,
@@ -11,16 +21,6 @@ import {
   resolveRelativePath,
 } from '@core/primitives/desktop-runtime/api';
 import { editorContract, type EditorFileTreeModel } from '../../../api';
-import { getEditorClient } from '../../client';
-import {
-  buildFileTreeVisibleRows,
-  isExpandableFileTreeNode,
-  normalizeFileTreePath,
-  sortFileNodes,
-  toRenderableFileNode,
-  type FileNodeId,
-  type RenderableFileNode,
-} from '../../file-tree/tree-utils';
 
 type TreeModel = typeof editorContract.tree.model;
 type OptimisticNode = { node: RenderableFileNode; timer?: ReturnType<typeof setTimeout> };

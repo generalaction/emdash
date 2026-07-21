@@ -1,6 +1,6 @@
-import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { type TaskNameState } from './use-task-name';
+import { type TaskNameState } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 
 interface TaskNameFieldProps {
   state: TaskNameState;

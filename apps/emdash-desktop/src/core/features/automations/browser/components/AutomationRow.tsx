@@ -14,21 +14,21 @@ import {
   useScheduledAutomationRun,
   useAutomationTargetAvailability,
 } from '@core/features/automations/browser/use-automations';
-import { taskAgentStatus } from '@core/features/conversations/browser/conversation-selectors';
+import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import {
   getProjectStore,
   projectDisplayName,
-} from '@core/features/projects/browser/stores/project-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import {
   getTaskIdForAutomationRun,
   getTaskStore,
-} from '@core/features/tasks/browser/stores/task-selectors';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';
-import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
-import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
-import { Switch } from '@renderer/lib/ui/switch';
-import { cn } from '@renderer/utils/utils';
+import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
+import { Switch } from '@core/primitives/ui/browser/switch';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 
 const RUN_STATUS_ICON: Record<

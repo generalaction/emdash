@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
+import { type PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { type GitCheckoutStore } from '../../stores/git-checkout-store';
-import { type PrStore } from '../../stores/pr-store';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 

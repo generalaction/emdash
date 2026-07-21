@@ -1,9 +1,12 @@
 import { createController, type Controller } from '@emdash/wire/api';
-import { githubOperations } from '@main/core/github/controller';
+import { createGithubOperations } from '@core/features/github/node/controller';
 import { githubContract } from '../api';
 import { githubEvents } from './event-host';
 
-export function createGithubWireController(): Controller {
+export function createGithubWireController(
+  dependencies: Parameters<typeof createGithubOperations>[0]
+): Controller {
+  const githubOperations = createGithubOperations(dependencies);
   return createController(githubContract, {
     getAccountState: () => githubOperations.getAccountState(),
     auth: () => githubOperations.auth(),

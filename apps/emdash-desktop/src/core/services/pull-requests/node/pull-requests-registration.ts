@@ -1,14 +1,7 @@
+import type { Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
-import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
-import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
-import { projectManager } from '@main/core/projects/project-manager';
-import { projectSettingsService } from '@main/core/projects/settings/project-settings-service';
-import { taskSessionManager } from '@main/core/tasks/task-session-manager';
-import {
-  getPullRequestsRuntimeClient,
-  type PullRequestsRuntimeClient,
-} from '@main/gateway/desktop-workers';
-import { log } from '@main/lib/logger';
+import { log } from '@emdash/shared/logger';
+import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 
 type PullRequestsRegistrationClient = Pick<
   PullRequestsRuntimeClient,
@@ -21,6 +14,17 @@ type PullRequestsRegistrationClient = Pick<
 
 type PullRequestsRegistrationOptions = {
   getClient: () => Promise<PullRequestsRegistrationClient>;
+  onProjectOpened(handler: (projectId: string) => void): () => void;
+  onProjectClosed(handler: (projectId: string) => void): () => void;
+  onProjectSettingsChanged(handler: (projectId: string) => void): () => void;
+  onTaskProvisioned(
+    handler: (event: { projectId: string; branchName: string | undefined }) => void
+  ): () => void;
+  subscribeToProjectRemotes(projectId: string, handler: () => void): (() => void) | undefined;
+  resolveProjectRepositoryUrls(projectId: string): Promise<string[]>;
+  resolveProjectAuthContext(
+    projectId: string
+  ): Promise<Result<{ accountId?: string }, { message: string }>>;
 };
 
 export class PullRequestsRegistration implements Disposable {
@@ -28,18 +32,18 @@ export class PullRequestsRegistration implements Disposable {
   private readonly repositoryUnsubscribes = new Map<string, () => void>();
   private unsubscribes: Array<() => void> = [];
 
-  constructor(
-    private readonly options: PullRequestsRegistrationOptions = {
-      getClient: getPullRequestsRuntimeClient,
-    }
-  ) {}
+  constructor(private readonly options: PullRequestsRegistrationOptions) {}
 
   initialize(): void {
     if (this.unsubscribes.length > 0) return;
     this.unsubscribes = [
-      projectManager.on('projectOpened', (projectId) => this.onProjectOpened(projectId)),
-      projectManager.on('projectClosed', (projectId) => this.onProjectClosed(projectId)),
-      taskSessionManager.hooks.on('task:provisioned', ({ projectId, branchName }) => {
+      this.options.onProjectOpened((projectId) => {
+        void this.onProjectOpened(projectId);
+      }),
+      this.options.onProjectClosed((projectId) => {
+        void this.onProjectClosed(projectId);
+      }),
+      this.options.onTaskProvisioned(({ projectId, branchName }) => {
         void this.onTaskProvisioned(projectId, branchName).catch((error) => {
           log.warn('PullRequestsRegistration: failed to refresh a provisioned task', {
             projectId,
@@ -47,7 +51,7 @@ export class PullRequestsRegistration implements Disposable {
           });
         });
       }),
-      projectSettingsService.on('project-settings:changed', ({ projectId }) => {
+      this.options.onProjectSettingsChanged((projectId) => {
         void this.refreshProject(projectId).catch((error) => {
           log.warn('PullRequestsRegistration: failed to refresh project settings', {
             projectId,
@@ -84,7 +88,7 @@ export class PullRequestsRegistration implements Disposable {
     const repositoryUrls = await this.resolveRepositoryUrls(projectId);
     this.projectRepositoryUrls.set(projectId, repositoryUrls);
 
-    const authContext = await resolveProjectGitHubAuthContext(projectId);
+    const authContext = await this.options.resolveProjectAuthContext(projectId);
     const accountId = authContext.success ? authContext.data.accountId : undefined;
     if (!authContext.success) {
       log.warn('PullRequestsRegistration: failed to resolve project GitHub account', {
@@ -147,38 +151,20 @@ export class PullRequestsRegistration implements Disposable {
 
   private subscribeToRepository(projectId: string): void {
     if (this.repositoryUnsubscribes.has(projectId)) return;
-    const project = projectManager.getProject(projectId);
-    if (!project) return;
-    this.repositoryUnsubscribes.set(
-      projectId,
-      project.gitRepository.subscribeRemotes(() => {
-        void this.refreshProject(projectId).catch((error) => {
-          log.warn('PullRequestsRegistration: failed to refresh changed remotes', {
-            projectId,
-            error: String(error),
-          });
+    const unsubscribe = this.options.subscribeToProjectRemotes(projectId, () => {
+      void this.refreshProject(projectId).catch((error) => {
+        log.warn('PullRequestsRegistration: failed to refresh changed remotes', {
+          projectId,
+          error: String(error),
         });
-      })
-    );
+      });
+    });
+    if (unsubscribe) this.repositoryUnsubscribes.set(projectId, unsubscribe);
   }
 
   private async resolveRepositoryUrls(projectId: string): Promise<string[]> {
-    const project = projectManager.getProject(projectId);
-    if (!project) return [];
     try {
-      const remotes = (
-        await project.git.repository.model.state(project.repository, 'remotes').snapshot()
-      ).data.remotes;
-      const resolved = await Promise.all(
-        remotes.map(async (remote) => await githubRepositoryResolver.resolve(remote.url))
-      );
-      return [
-        ...new Set(
-          resolved.flatMap((repository) =>
-            repository.success ? [repository.data.repositoryUrl] : []
-          )
-        ),
-      ];
+      return await this.options.resolveProjectRepositoryUrls(projectId);
     } catch (error) {
       log.warn('PullRequestsRegistration: failed to resolve project remotes', {
         projectId,
@@ -201,5 +187,3 @@ export class PullRequestsRegistration implements Disposable {
     return [...this.projectRepositoryUrls.values()].some((urls) => urls.includes(repositoryUrl));
   }
 }
-
-export const pullRequestsRegistration = new PullRequestsRegistration();

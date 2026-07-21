@@ -1,9 +1,9 @@
 import { X } from 'lucide-react';
 import React from 'react';
+import { Button } from '@core/primitives/ui/browser/button';
+import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
-import { Button } from '@renderer/lib/ui/button';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
 
 export interface KVEntry {
   id: number;

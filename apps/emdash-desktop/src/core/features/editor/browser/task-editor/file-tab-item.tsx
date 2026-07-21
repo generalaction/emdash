@@ -1,18 +1,18 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type {
   TabBarItemProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { modelRegistry } from '../monaco/monaco-model-registry';
-import { FileIcon } from '../renderers/file-icon';
 import { isFileTabLoading } from './file-tab-loading';
-import type { FileTabResource } from './stores/file-tab-resource';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
   if (diskStatus === 'error') return 'File not found';

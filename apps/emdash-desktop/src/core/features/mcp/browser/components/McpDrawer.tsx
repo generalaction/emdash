@@ -6,18 +6,24 @@ import type {
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@renderer/lib/ui/sheet';
+} from '@core/primitives/ui/browser/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@core/primitives/ui/browser/sheet';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { SyncToAgentsSection } from './SyncToAgentsSection';
 

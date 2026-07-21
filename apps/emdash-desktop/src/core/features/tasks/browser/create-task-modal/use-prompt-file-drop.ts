@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { resolveDroppedFile } from '@core/features/terminals/browser/pty/terminal-image-injection';
-import { formatTerminalImagePaths } from '@core/features/terminals/browser/pty/terminal-image-paths';
+import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
+import { formatTerminalImagePaths } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import {
   getDraggedWorkspaceFile,
   hasDraggedFiles,

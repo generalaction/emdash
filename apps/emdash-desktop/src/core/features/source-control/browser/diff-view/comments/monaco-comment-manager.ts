@@ -1,7 +1,7 @@
 import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { DraftComment } from '../stores/draft-comments-store';
+import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
 import { AddCommentButton } from './add-comment-button';
 import { CommentInput } from './comment-input';
 import { CommentWidget } from './comment-widget';

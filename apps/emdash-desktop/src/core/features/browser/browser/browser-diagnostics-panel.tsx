@@ -1,6 +1,6 @@
 import { AlertCircle, Info, TriangleAlert } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { browserDiagnosticsStore } from './browser-diagnostics-store';
+import { browserDiagnosticsStore } from '@core/features/browser/api/browser/browser-diagnostics-store';
 
 export const BrowserDiagnosticsPanel = observer(function BrowserDiagnosticsPanel({
   browserId,

@@ -2,14 +2,18 @@ import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/runti
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { readEditorImage } from '@core/features/editor/browser/files';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
+import { readEditorImage } from '@core/features/editor/api/browser/files';
+import {
+  checkoutSelector,
+  getSourceControlClient,
+  gitFilePath,
+} from '@core/features/source-control/api/browser/client';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
-import { useWorkspace } from '@core/features/workbench/browser/task-composition-context';
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import { checkoutSelector, getSourceControlClient, gitFilePath } from '../../client';
 
 interface ImageDiffViewProps {
   projectId: string;

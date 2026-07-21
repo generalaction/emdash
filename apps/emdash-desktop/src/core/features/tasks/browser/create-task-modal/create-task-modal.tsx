@@ -1,35 +1,35 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
+import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
 import {
   getProjectManagerStore,
   mountedProjectData,
-} from '@core/features/projects/browser/stores/project-selectors';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
-import { useTaskSettings } from '@core/features/tasks/browser/hooks/useTaskSettings';
-import { ConversationField } from '@core/features/tasks/browser/task-config/conversation-field';
-import { useInitialConversationState } from '@core/features/tasks/browser/task-config/initial-conversation-section';
-import { TaskConfigPanel } from '@core/features/tasks/browser/task-config/task-config-panel';
-import { TaskStateProvider } from '@core/features/tasks/browser/task-config/task-state-context';
-import { WorkspaceSettingsSection } from '@core/features/tasks/browser/task-config/workspace-settings-section';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useProjectGitContext } from '@core/features/tasks/api/browser/create-task-modal/use-project-git-context';
+import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
+import { ConversationField } from '@core/features/tasks/api/browser/task-config/conversation-field';
+import { useInitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+import { TaskConfigPanel } from '@core/features/tasks/api/browser/task-config/task-config-panel';
+import { TaskStateProvider } from '@core/features/tasks/api/browser/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-config/workspace-settings-section';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { useModalController } from '@renderer/lib/modal/api';
-import { appState } from '@renderer/lib/stores/app-state';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@renderer/lib/ui/dialog';
+} from '@core/primitives/ui/browser/dialog';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
-import { useProjectGitContext } from './use-project-git-context';
 
 function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {

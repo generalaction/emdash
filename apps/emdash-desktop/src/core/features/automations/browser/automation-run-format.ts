@@ -1,4 +1,7 @@
-import type { AutomationRunTriggerKind, RunError } from '@core/primitives/automations/api';
+import type {
+  AutomationRunTriggerKind,
+  RunError,
+} from '@core/features/automations/api/automation-run';
 
 export function formatRunError(error: RunError | null): string {
   if (!error) return 'Unknown error';

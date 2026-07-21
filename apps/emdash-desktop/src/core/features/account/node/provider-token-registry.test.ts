@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { providerTokenRegistry } from './provider-token-registry';
+import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 
 describe('providerTokenRegistry', () => {
   beforeEach(() => {

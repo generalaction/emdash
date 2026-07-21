@@ -1,11 +1,14 @@
 import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TaskTerminalSelectionState } from '@core/features/tasks/contributions/mementos';
-import { terminalRegistry } from '@core/features/terminals/browser/stores/terminal-registry';
+import { terminalRegistry } from '@core/features/terminals/api/browser/stores/terminal-registry';
+import type {
+  TerminalManagerStore,
+  TerminalStore,
+} from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
+import { TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { Terminal } from '@core/primitives/terminals/api';
-import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
-import { TerminalTabViewStore } from './terminal-tab-view-store';
 
 vi.mock('./terminal-manager', () => ({
   TerminalManagerStore: class {},

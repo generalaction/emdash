@@ -1,14 +1,14 @@
 import { createLiveModelReplica } from '@emdash/wire';
 import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import { reaction, runInAction } from 'mobx';
-import { gitCheckoutStoreToken } from '@core/features/source-control/browser/contributions/workspace-store-tokens';
-import type { TaskManagerStore } from '@core/features/tasks/browser/stores/task-manager';
-import type { TaskStore } from '@core/features/tasks/browser/stores/task-store';
-import { workspaceRegistry } from '@core/features/workspaces/browser/stores/workspace-registry';
+import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
+import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import type { Task } from '@core/primitives/tasks/api';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
-import type { GitRepositoryStore } from './git-repository-store';
 
 export class TaskPrSyncCoordinator {
   private model: OptimisticLiveModel<typeof pullRequestsContract.syncState> | null = null;

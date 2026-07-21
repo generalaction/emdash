@@ -8,14 +8,18 @@ import {
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
-} from '@core/features/tasks/browser/stores/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { taskTabView } from '@core/features/workbench/browser/task-tab-registry';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@core/primitives/ui/browser/resizable';
 import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
-import { Button } from '@renderer/lib/ui/button';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 

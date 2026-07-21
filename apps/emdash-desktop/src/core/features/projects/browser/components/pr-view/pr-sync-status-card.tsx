@@ -1,8 +1,8 @@
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
-import { Button } from '@renderer/lib/ui/button';
+import { Button } from '@core/primitives/ui/browser/button';
+import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 

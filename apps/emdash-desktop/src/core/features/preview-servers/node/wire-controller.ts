@@ -1,5 +1,5 @@
 import { createController, type Controller } from '@emdash/wire/api';
-import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { previewServersContract } from '../api';
 import { previewServerEvents } from './event-host';
 

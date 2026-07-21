@@ -1,8 +1,8 @@
+import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
-import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { FieldLabel } from '@renderer/lib/ui/field';
-import { Switch } from '@renderer/lib/ui/switch';
-import { useTaskConfig } from './task-config-context';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { FieldLabel } from '@core/primitives/ui/browser/field';
+import { Switch } from '@core/primitives/ui/browser/switch';
 
 interface BranchNameFieldProps {
   state: Pick<BranchNameState, 'branchName' | 'setBranchName' | 'branchAlreadyExists'>;

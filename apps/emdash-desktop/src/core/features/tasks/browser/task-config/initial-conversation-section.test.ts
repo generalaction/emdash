@@ -3,12 +3,12 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
   InitialConversationField,
   useInitialConversationState,
   type InitialConversationState,
-} from './initial-conversation-section';
+} from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -46,18 +46,18 @@ vi.mock('@emdash/ui/react/components', () => ({
   },
 }));
 
-vi.mock('@core/features/projects/browser/stores/project-selectors', () => ({
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSshConnectionId: mocks.getProjectSshConnectionId,
   asMounted: vi.fn(() => undefined),
   getProjectStore: vi.fn(() => undefined),
   getProjectViewStore: vi.fn(() => undefined),
 }));
 
-vi.mock('@core/features/integrations/browser/integration-icon', () => ({
+vi.mock('@core/features/integrations/api/browser/integration-icon', () => ({
   IntegrationIcon: () => null,
 }));
 
-vi.mock('@core/features/integrations/browser/use-connected-issue-providers', () => ({
+vi.mock('@core/features/integrations/api/browser/use-connected-issue-providers', () => ({
   useConnectedIssueProviders: () => ({
     connectedProviders: [],
     hasAnyIssueIntegration: false,
@@ -66,11 +66,11 @@ vi.mock('@core/features/integrations/browser/use-connected-issue-providers', () 
   }),
 }));
 
-vi.mock('@core/features/library/browser/prompts/use-prompt-library', () => ({
+vi.mock('@core/features/library/api/browser/prompts/use-prompt-library', () => ({
   usePromptLibrary: () => ({ value: [] }),
 }));
 
-vi.mock('@renderer/lib/components/agent-selector/agent-selector', () => ({
+vi.mock('@core/features/agents/api/browser/components/agent-selector/agent-selector', () => ({
   AgentSelector: () => null,
 }));
 
@@ -86,7 +86,7 @@ vi.mock('../context-bar/add-context-popover', () => ({
   AddContextPopover: () => null,
 }));
 
-vi.mock('@core/features/agents/browser/use-agents', () => ({
+vi.mock('@core/features/agents/api/browser/use-agents', () => ({
   useAgents: () => ({
     data: [
       {
@@ -114,7 +114,7 @@ vi.mock('@renderer/utils/logger', () => ({
   log: { warn: vi.fn() },
 }));
 
-vi.mock('@core/features/conversations/browser/use-effective-provider', () => ({
+vi.mock('@core/features/conversations/api/browser/use-effective-provider', () => ({
   useEffectiveProvider: () => ({
     providerId: 'claude',
     setProviderOverride: mocks.setProviderOverride,

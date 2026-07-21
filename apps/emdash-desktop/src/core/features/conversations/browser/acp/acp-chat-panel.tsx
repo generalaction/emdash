@@ -13,46 +13,46 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAgents } from '@core/features/agents/browser/use-agents';
-import { conversationRegistry } from '@core/features/conversations/browser/stores/conversation-registry';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
   openFileInAdjacentPane,
   openFileInTaskEditor,
-} from '@core/features/editor/browser/open-file-in-file-editor';
-import { IntegrationIcon } from '@core/features/integrations/browser/integration-icon';
-import { useConnectedIssueProviders } from '@core/features/integrations/browser/use-connected-issue-providers';
-import { usePromptLibrary } from '@core/features/library/browser/prompts/use-prompt-library';
+} from '@core/features/editor/api/browser/open-file-in-file-editor';
+import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
+import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {
   asMounted,
   getProjectStore,
   getProjectViewStore,
-} from '@core/features/projects/browser/stores/project-selectors';
-import { getGitRepositoryStore } from '@core/features/source-control/browser/stores/source-control-selectors';
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import {
   asProvisioned,
   getRegisteredTaskData,
   getTaskStore,
-} from '@core/features/tasks/browser/stores/task-selectors';
+} from '@core/features/tasks/api/browser/task-state/task-selectors';
 import {
   isHeicLikeFile,
   isUnstableDropPath,
-} from '@core/features/terminals/browser/pty/terminal-image-paths';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
+} from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { openModal } from '@core/manifests/browser/modal-api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
+import { Button } from '@core/primitives/ui/browser/button';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import {
   issueMentionToken,
   parseIssueMentionToken,
 } from '@renderer/lib/chat/chat-mention-provider';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { openModal } from '@renderer/lib/modal/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';

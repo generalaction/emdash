@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
-import { PageHeader } from '@renderer/lib/components/page-header';
-import { Button } from '@renderer/lib/ui/button';
-import { SearchInput } from '@renderer/lib/ui/search-input';
+import { Button } from '@core/primitives/ui/browser/button';
+import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
 
 interface AutomationsHeaderProps {
   search: string;

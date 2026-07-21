@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createXtermLogSink } from './xterm-log-sink';
+import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 
 describe('createXtermLogSink', () => {
   it('resets xterm and writes retained text', () => {

@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
-import { useTaskComposition } from '@core/features/workbench/browser/task-composition-context';
-import { ModelStatusOverlay } from '../monaco/model-status-overlay';
-import { buildMonacoModelPath } from '../monaco/monacoModelPath';
-import { useModelStatus } from '../monaco/use-model';
+import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { useEditorContext } from './editor-provider';
 import { activeFileEntry as getActiveFileEntry } from './pane-selectors';
 

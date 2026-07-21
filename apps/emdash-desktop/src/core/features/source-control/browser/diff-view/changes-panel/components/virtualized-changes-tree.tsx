@@ -6,9 +6,9 @@ import {
   buildNestedVisibleRows,
   isChainExpanded,
   type TreeRow,
-} from '@core/features/editor/browser/file-tree/tree-utils';
-import { FileIcon } from '@core/features/editor/browser/renderers/file-icon';
-import { cn } from '@renderer/utils/utils';
+} from '@core/features/editor/api/browser/file-tree/tree-utils';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { ChangeStatusAffordance } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 

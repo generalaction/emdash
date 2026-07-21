@@ -1,14 +1,15 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
+import { usePaneSizingContext } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
+import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/browser/pty/pty';
+import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
+import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
+import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import type { AppSettings } from '@core/services/settings/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
-import { usePaneSizingContext } from './pane-sizing-context';
-import type { FrontendPty, SessionTheme } from './pty';
-import { TERMINAL_PADDING_PX } from './pty';
-import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
   CTRL_J_ASCII,
@@ -20,7 +21,6 @@ import {
   shouldPasteToTerminal,
 } from './pty-keybindings';
 import { getTerminalContextLink } from './terminal-context-link';
-import { buildTerminalFontFamily } from './terminal-font';
 import { getCellMetrics } from './xterm-cell-metrics';
 
 const IS_MAC_PLATFORM =

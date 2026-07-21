@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
   createRequiredGitHubAccountSelectState,
   sortGitHubAccountsByDefault,
-} from './github-account-select-model';
+} from '@core/features/projects/api/browser/components/github-account-select-model';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 
 function account(
   accountId: string,

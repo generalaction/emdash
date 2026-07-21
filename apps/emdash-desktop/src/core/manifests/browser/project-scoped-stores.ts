@@ -5,7 +5,7 @@ import {
 import {
   sourceControlProjectStoreContributions,
   sourceControlTaskProjectStoreContributions,
-} from '@core/features/source-control/browser/contributions/project-stores';
+} from '@core/features/source-control/contributions/browser/project-stores';
 import { taskProjectScopedStoreContributions } from '@core/features/tasks/browser/contributions/project-stores';
 import type { ScopedStoreContribution } from '@core/primitives/scoped-stores/browser';
 

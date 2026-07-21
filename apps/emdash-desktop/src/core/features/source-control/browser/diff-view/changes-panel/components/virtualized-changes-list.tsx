@@ -1,7 +1,7 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { ChangesListItem } from './changes-list-item';
 
 export interface VirtualizedChangesListProps {

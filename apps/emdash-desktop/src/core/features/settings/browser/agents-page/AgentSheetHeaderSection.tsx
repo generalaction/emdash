@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import type { AgentPayload } from '@core/primitives/agents/api';
-import { AgentIcon } from '@renderer/lib/components/agent-icon';
 
 function formatSupportsText(agent: AgentPayload): string {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';

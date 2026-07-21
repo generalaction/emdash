@@ -1,7 +1,7 @@
 import { loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { configureMonacoTypeScript } from './monaco-config';
-import { modelRegistry } from './monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from './monaco-themes';
 
 let instance: typeof monaco | null = null;

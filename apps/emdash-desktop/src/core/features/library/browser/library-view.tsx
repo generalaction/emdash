@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { libraryViewDef } from '@core/features/library/contributions/views';
-import { McpView } from '@core/features/mcp/browser/components/McpView';
-import { SkillsView } from '@core/features/skills/browser/components/SkillsView';
+import { McpView } from '@core/features/mcp/api/browser/components/McpView';
+import { SkillsView } from '@core/features/skills/api/browser/components/SkillsView';
+import {
+  PageContent,
+  PageLayout,
+  PageSidebarMenu,
+} from '@core/primitives/ui/browser/components/page-layout';
 import { defineViewRuntime } from '@core/primitives/views/react';
-import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/components/page-layout';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { PromptLibraryView } from './prompts/prompt-library-view';
 

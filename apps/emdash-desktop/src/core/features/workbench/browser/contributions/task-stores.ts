@@ -1,13 +1,13 @@
-import { conversationManagerStoreToken } from '@core/features/conversations/browser/contributions/task-stores';
-import { gitRepositoryStoreToken } from '@core/features/source-control/browser/contributions/project-stores';
-import type { TaskScopedStoreContext } from '@core/features/tasks/browser/contributions/task-stores';
-import { terminalManagerStoreToken } from '@core/features/terminals/browser/contributions/task-stores';
+import { conversationManagerStoreToken } from '@core/features/conversations/contributions/browser/task-stores';
+import { gitRepositoryStoreToken } from '@core/features/source-control/contributions/browser/project-stores';
+import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
+import { terminalManagerStoreToken } from '@core/features/terminals/contributions/browser/task-stores';
+import { TaskComposition } from '@core/features/workbench/api/browser/task-composition';
+import { taskCompositionStoreToken } from '@core/features/workbench/contributions/browser/task-store-tokens';
 import {
   contributeScopedStore,
   type ScopedStoreContribution,
 } from '@core/primitives/scoped-stores/browser';
-import { TaskComposition } from '../task-composition';
-import { taskCompositionStoreToken } from './task-store-tokens';
 
 export const workbenchTaskStoreContributions: readonly ScopedStoreContribution<TaskScopedStoreContext>[] =
   [

@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
-import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
+import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrRow } from './pr-row';
 

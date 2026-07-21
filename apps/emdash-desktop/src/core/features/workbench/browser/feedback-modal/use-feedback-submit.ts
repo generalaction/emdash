@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { log } from '@renderer/utils/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 

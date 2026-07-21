@@ -1,7 +1,7 @@
 import { Check, Loader2, MoreHorizontal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
-import type { HostDependencyInstallation } from '@core/features/agents/browser/use-agent-installation-statuses';
+import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallOption, SelectedSource } from '@core/primitives/agents/api';
 import { resolveActiveInstallation, sourceKey } from '@core/primitives/agents/api';
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
+} from '@core/primitives/ui/browser/dropdown-menu';
 import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
 import { buildSourceRows, provenanceLabel } from './installation-sources';
 

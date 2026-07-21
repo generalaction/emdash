@@ -1,7 +1,7 @@
 import { Globe, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Dialog } from '@renderer/lib/ui/dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Dialog } from '@core/primitives/ui/browser/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
 export function ManualForwardButton() {

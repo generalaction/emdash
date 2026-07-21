@@ -2,31 +2,31 @@ import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
-import { readEditorImage } from '@core/features/editor/browser/files';
-import { ModelStatusOverlay } from '@core/features/editor/browser/monaco/model-status-overlay';
-import { modelRegistry } from '@core/features/editor/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/browser/monaco/monacoModelPath';
-import { StickyDiffEditor } from '@core/features/editor/browser/monaco/sticky-diff-editor';
-import { useModelStatus } from '@core/features/editor/browser/monaco/use-model';
-import { HtmlContentRenderer } from '@core/features/editor/browser/renderers/html-renderer';
-import { resolveWorkspaceResourcePath } from '@core/features/editor/browser/renderers/workspace-resource-path';
-import { draftCommentsStoreToken } from '@core/features/source-control/browser/contributions/task-stores';
-import { getTaskStore } from '@core/features/tasks/browser/stores/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/browser/task-view-context';
+import { readEditorImage } from '@core/features/editor/api/browser/files';
+import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
+import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { StickyDiffEditor } from '@core/features/editor/api/browser/monaco/sticky-diff-editor';
+import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
+import { HtmlContentRenderer } from '@core/features/editor/api/browser/renderers/html-renderer';
+import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
+import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
-import { usePaneContext } from '@core/features/workbench/browser/tabs/pane-context';
 import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
-} from '@core/features/workbench/browser/task-composition-context';
+} from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
 import {
   getDraftCommentTargetKey,
   type DraftCommentTarget,
 } from '@core/primitives/line-comments/api';
-import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
+import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';

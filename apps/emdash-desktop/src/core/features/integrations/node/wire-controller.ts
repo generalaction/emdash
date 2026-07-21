@@ -1,5 +1,5 @@
 import { createController, type Controller } from '@emdash/wire/api';
-import { integrationOperations } from '@main/core/integrations/controller';
+import { integrationOperations } from '@core/features/integrations/node/controller';
 import { integrationsContract } from '../api';
 
 export function createIntegrationsWireController(): Controller {

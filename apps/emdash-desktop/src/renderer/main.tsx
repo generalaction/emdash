@@ -7,7 +7,7 @@ import {
 } from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
-import { prefetchAppSettingsKey } from '@core/features/settings/browser/use-app-settings-key';
+import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import {
   workbenchHistoryMemento,
   workbenchNavigationMemento,
@@ -15,6 +15,8 @@ import {
 } from '@core/features/workbench/contributions/mementos';
 import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
+import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { appSubject } from '@core/primitives/subjects/api';
 import '@emdash/ui/style.css';
@@ -22,15 +24,15 @@ import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
+import { ErrorBoundary } from '@core/primitives/ui/browser/components/error-boundary';
 import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
-import { initMementos } from '@renderer/lib/mementos';
+import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
 import { App } from './App';
-import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
@@ -45,11 +47,17 @@ async function bootstrap() {
   wireExternalLinkRequests();
 
   appState.update.start();
+  void appState.machines.start();
   initSoundPlayer();
   initNotificationDeliveryListener();
 
   // Stores may acquire memento spaces while project data loads, so initialize
   // the singleton before starting any store construction.
+  configureMementos({
+    getWireClient: getMementosWireClient,
+    catalog: mementoCatalog,
+    onError: (error) => log.error('Memento operation failed:', error),
+  });
   const mementoClient = await initMementos();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here

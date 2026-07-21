@@ -1,6 +1,6 @@
+import { runNotificationOpenHandler } from '@core/primitives/notifications/browser/open-handlers';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
-import { runNotificationOpenHandler } from './open-handlers';
 
 let cleanup: (() => void) | null = null;
 

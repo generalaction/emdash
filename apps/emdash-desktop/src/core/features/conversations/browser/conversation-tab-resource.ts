@@ -1,11 +1,11 @@
 import { reaction } from 'mobx';
+import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import type {
   TabHandle,
   TabResource,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { ConversationStore } from './conversation-manager';
-import { conversationRegistry } from './stores/conversation-registry';
 
 /**
  * Domain resource for a single open conversation tab.

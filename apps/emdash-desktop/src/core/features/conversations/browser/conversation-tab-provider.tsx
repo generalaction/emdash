@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import type {
   TabEntry,
   TabHandle,
   TabProvider,
   TabViewContext,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
-import { createTabProvider } from '@core/features/workbench/browser/tabs/core/tab-provider-registry';
-import type { TaskTabContext } from '@core/features/workbench/browser/tabs/core/task-tab-context';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
+import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import { ConversationTabBarItem, ConversationTabBarItemDragPreview } from './conversation-tab-item';
 import { ConversationTabResource } from './conversation-tab-resource';
 import { ConversationsPanel } from './conversations-panel';

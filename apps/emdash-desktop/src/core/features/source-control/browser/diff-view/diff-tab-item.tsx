@@ -1,14 +1,14 @@
 import { observer } from 'mobx-react-lite';
-import { FileIcon } from '@core/features/editor/browser/renderers/file-icon';
+import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type {
   TabBarItemProps,
   ResolvedTab,
-} from '@core/features/workbench/browser/tabs/core/tab-provider';
+} from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
-} from '@core/features/workbench/browser/tabs/tab-bar/generic-tab-item';
-import { TabTitle } from '@core/features/workbench/browser/tabs/tab-bar/tab-title';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
+import { TabTitle } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-title';
 import { GitChangeStatusIcon } from './changes-panel/components/changes-list-item';
 import type { DiffTabResource } from './stores/diff-tab-resource';
 

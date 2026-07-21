@@ -1,65 +1,66 @@
 import { createController, type Controller } from '@emdash/wire/api';
-import { app, shell } from 'electron';
-import { EMDASH_RELEASES_URL } from '@core/primitives/urls/api/urls';
-import { updateService } from '@main/host/updates/update-service';
-import { formatUpdaterError } from '@main/host/updates/utils';
-import { updatesContract } from '../api';
+import { updatesContract, type DesktopUpdateState } from '../api';
 import { updateEvents } from './event-host';
 
-export function createUpdatesWireController(): Controller {
+export type UpdateOperations = {
+  checkForUpdates(): Promise<unknown | null>;
+  downloadUpdate(): Promise<void>;
+  quitAndInstall(): void;
+  openLatestRelease(): Promise<void>;
+  getState(): DesktopUpdateState;
+  fetchReleaseNotes(): Promise<string | null>;
+  formatError(error: unknown): string;
+};
+
+export function createUpdatesWireController(updateOperations: UpdateOperations): Controller {
   return createController(updatesContract, {
     check: async () => {
       try {
-        const result = await updateService.checkForUpdates();
+        const result = await updateOperations.checkForUpdates();
         return { success: true as const, result: result ?? null };
       } catch (error) {
-        return { success: false as const, error: formatUpdaterError(error) };
+        return { success: false as const, error: updateOperations.formatError(error) };
       }
     },
     download: async () => {
       try {
-        await updateService.downloadUpdate();
+        await updateOperations.downloadUpdate();
         return { success: true as const };
       } catch (error) {
-        return { success: false as const, error: formatUpdaterError(error) };
+        return { success: false as const, error: updateOperations.formatError(error) };
       }
     },
     quitAndInstall: async () => {
       try {
-        updateService.quitAndInstall();
+        updateOperations.quitAndInstall();
         return { success: true as const };
       } catch (error) {
-        return { success: false as const, error: formatUpdaterError(error) };
+        return { success: false as const, error: updateOperations.formatError(error) };
       }
     },
     openLatest: async () => {
       try {
-        await shell.openExternal(EMDASH_RELEASES_URL);
-        setTimeout(() => {
-          try {
-            app.quit();
-          } catch {}
-        }, 500);
+        await updateOperations.openLatestRelease();
         return { success: true as const };
       } catch (error) {
         return {
           success: false as const,
-          error: error instanceof Error ? error.message : String(error),
+          error: updateOperations.formatError(error),
         };
       }
     },
     getState: async () => {
       try {
-        return { success: true as const, data: updateService.getState() };
+        return { success: true as const, data: updateOperations.getState() };
       } catch (error) {
-        return { success: false as const, error: formatUpdaterError(error) };
+        return { success: false as const, error: updateOperations.formatError(error) };
       }
     },
     getReleaseNotes: async () => {
       try {
-        return { success: true as const, data: await updateService.fetchReleaseNotes() };
+        return { success: true as const, data: await updateOperations.fetchReleaseNotes() };
       } catch (error) {
-        return { success: false as const, error: formatUpdaterError(error) };
+        return { success: false as const, error: updateOperations.formatError(error) };
       }
     },
     events: updateEvents,

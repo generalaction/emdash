@@ -1,11 +1,14 @@
 import { ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+  useIntegrationsContext,
+  type IntegrationMetadata,
+} from '@core/features/integrations/api/browser/integrations-provider';
+import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { useModalController } from '@renderer/lib/modal/api';
-import { Button } from '@renderer/lib/ui/button';
-import { DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
-import { Input } from '@renderer/lib/ui/input';
-import { useIntegrationsContext, type IntegrationMetadata } from './integrations-provider';
+import { Button } from '@core/primitives/ui/browser/button';
+import { DialogHeader, DialogTitle } from '@core/primitives/ui/browser/dialog';
+import { Input } from '@core/primitives/ui/browser/input';
 import { SetupFormShell } from './SetupFormShell';
 import type { SetupIntegrationType } from './types';
 

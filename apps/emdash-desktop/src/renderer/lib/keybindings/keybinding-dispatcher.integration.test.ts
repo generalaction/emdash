@@ -7,6 +7,7 @@ import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { settingsCommand } from '@core/features/workbench/contributions/commands';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import {
   disabled,
   enabled,
@@ -16,7 +17,6 @@ import {
 } from '@core/primitives/view-scopes/api';
 import { ViewScopes } from '@core/primitives/view-scopes/browser';
 import { KeybindingDispatcher } from './keybinding-dispatcher';
-import { KeybindingService } from './keybinding-service';
 
 function implementationFor<TDefinition extends ViewScopeDefinition>(
   definition: TDefinition,

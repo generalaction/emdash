@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createUnprovisionedTask } from '@core/features/tasks/api/browser/stores/task-store';
 import type { Task } from '@core/primitives/tasks/api';
-import { createUnprovisionedTask } from './task-store';
 
 vi.mock('@core/manifests/browser/task-scoped-stores', () => ({
   taskStoreContributions: [],

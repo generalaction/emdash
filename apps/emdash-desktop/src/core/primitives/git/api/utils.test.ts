@@ -1,5 +1,5 @@
-import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it } from 'vitest';
+import type { GitBranchRef } from './types';
 import { DEFAULT_REMOTE_NAME } from './types';
 import {
   projectDefaultBranchToBranch,
