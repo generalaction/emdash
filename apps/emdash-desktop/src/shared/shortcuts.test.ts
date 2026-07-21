@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { getDomTabNavigationDirection, getElectronTabNavigationDirection } from './shortcuts';
+import {
+  APP_SHORTCUTS,
+  getDomTabNavigationDirection,
+  getElectronTabNavigationDirection,
+  resolveDefaultHotkey,
+  TAB_BY_NUMBER_KEYS,
+  TASK_BY_NUMBER_KEYS,
+} from './shortcuts';
 
 describe('tab navigation shortcuts', () => {
   it('recognizes DOM Control+Tab navigation', () => {
@@ -72,5 +79,21 @@ describe('tab navigation shortcuts', () => {
         meta: false,
       })
     ).toBeNull();
+  });
+});
+
+describe('number shortcut defaults', () => {
+  it('binds each tab digit to Mod+digit', () => {
+    TAB_BY_NUMBER_KEYS.forEach((key, i) => {
+      expect(resolveDefaultHotkey(APP_SHORTCUTS[key])).toBe(`Mod+${i + 1}`);
+    });
+  });
+
+  it('binds each task digit to a distinct per-platform default', () => {
+    TASK_BY_NUMBER_KEYS.forEach((key, i) => {
+      const hotkey = resolveDefaultHotkey(APP_SHORTCUTS[key]);
+      expect(hotkey).toMatch(new RegExp(`\\+${i + 1}$`));
+      expect(hotkey).not.toBe(resolveDefaultHotkey(APP_SHORTCUTS[TAB_BY_NUMBER_KEYS[i]]));
+    });
   });
 });

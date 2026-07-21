@@ -1,3 +1,4 @@
+import type { Hotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import { TaskSidebarTrailingSlot } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
@@ -15,6 +16,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
@@ -26,12 +28,15 @@ interface SidebarTaskItemProps {
   projectId: string;
   /** Pinned strip uses tighter padding than tasks nested under a project. */
   rowVariant?: 'underProject' | 'pinned';
+  /** Full task-by-number hotkey (e.g. 'Mod+3'), shown while the modifier is held. */
+  numberHint?: Hotkey | null;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
   taskId,
   projectId,
   rowVariant = 'underProject',
+  numberHint = null,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
@@ -102,7 +107,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     >
       <SidebarMenuRow
         className={cn(
-          'group/row flex items-center justify-between px-1 py-1.5 h-8 gap-1',
+          'group/row relative flex items-center justify-between px-1 py-1.5 h-8 gap-1',
           rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
         )}
         isActive={isActive}
@@ -127,6 +132,18 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           {showPrStatus && <RenderPrBadge task={task} />}
           <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
         </div>
+        {numberHint != null && (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center rounded-r-lg pr-2 pl-10',
+              'bg-gradient-to-l from-background-tertiary from-55% to-transparent',
+              'group-hover/row:from-background-tertiary-1',
+              'group-data-[active=true]/row:from-background-tertiary-2'
+            )}
+          >
+            <Shortcut hotkey={numberHint} variant="keycaps" />
+          </div>
+        )}
       </SidebarMenuRow>
     </TaskContextMenu>
   );

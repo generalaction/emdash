@@ -4,12 +4,14 @@ import type { ReactNode } from 'react';
 import type { TabHost } from '@renderer/features/tabs/core/tab-host';
 import type { ResolvedTab, TabViewContext } from '@renderer/features/tabs/core/tab-provider';
 import { Separator } from '@renderer/lib/ui/separator';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { usePaneContext } from '../pane-context';
 import { DraggableTab } from './draggable-tab';
 import { TabCloseButton } from './tab-close-button';
 import type { TabCommand } from './tab-commands';
 import { TabContextMenu } from './tab-context-menu';
+import { useTabNumberHint } from './tab-number-hints';
 import { TabTitle } from './tab-title';
 
 /** Props for GenericTabItem — aligns with TabBarItemProps<any> for convenience. */
@@ -66,6 +68,7 @@ export const GenericTabItem = observer(function GenericTabItem({
   renameMaxLength,
 }: GenericTabItemProps) {
   const { isFocusedPane, pane } = usePaneContext();
+  const numberHint = useTabNumberHint(tab.tabId);
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
 
@@ -177,6 +180,18 @@ export const GenericTabItem = observer(function GenericTabItem({
               statusIndicator={statusSlot}
             />
           </div>
+          {numberHint != null && (
+            <div
+              className={cn(
+                'pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center pr-2 pl-8',
+                'bg-gradient-to-l from-background-secondary from-55% to-transparent',
+                tab.isActive && 'from-background-secondary-1',
+                'group-hover:from-muted'
+              )}
+            >
+              <Shortcut hotkey={numberHint} variant="keycaps" />
+            </div>
+          )}
         </div>
         <Separator orientation="vertical" />
       </DraggableTab>

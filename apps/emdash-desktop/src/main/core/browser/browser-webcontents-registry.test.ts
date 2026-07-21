@@ -1,7 +1,13 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
-import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import {
+  browserAppShortcutChannel,
+  numberShortcutChannel,
+  numberShortcutModifierChannel,
+  tabNavigationShortcutChannel,
+} from '@shared/events/appEvents';
+import { isMacLike } from '@shared/shortcuts';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -248,7 +254,101 @@ describe('BrowserWebContentsRegistry', () => {
     });
   });
 
-  it('emits app shortcuts from focused browser webContents', () => {
+  it('emits tab number shortcuts for any digit from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    // The default tab family is Mod+1-9; digit 3+ must forward too.
+    const macLike = isMacLike();
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: '3',
+      control: !macLike,
+      shift: false,
+      alt: false,
+      meta: macLike,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      family: 'tab',
+      index: 2,
+    });
+  });
+
+  it('emits task number shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const macLike = isMacLike();
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: '2',
+      control: macLike,
+      shift: false,
+      alt: !macLike,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      family: 'task',
+      index: 1,
+    });
+  });
+
+  it('respects rebinding and disabling of individual number shortcuts in webviews', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.setKeyboardSettings({ tab7: 'Alt+7', task2: null });
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const altEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', altEvent, {
+      type: 'keyDown',
+      key: '7',
+      control: false,
+      shift: false,
+      alt: true,
+      meta: false,
+    });
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      family: 'tab',
+      index: 6,
+    });
+
+    vi.mocked(events.emit).mockClear();
+    const macLike = isMacLike();
+    const disabledTaskEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', disabledTaskEvent, {
+      type: 'keyDown',
+      key: '2',
+      control: macLike,
+      shift: false,
+      alt: !macLike,
+      meta: false,
+    });
+    expect(disabledTaskEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(numberShortcutChannel, expect.anything());
+  });
+
+  it('forwards modifier state while a browser webview has focus', () => {
     const registry = new BrowserWebContentsRegistry();
     registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
 
@@ -259,11 +359,60 @@ describe('BrowserWebContentsRegistry', () => {
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
-      key: 'K',
+      key: 'Meta',
       control: false,
       shift: false,
       alt: false,
       meta: true,
+    });
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: 'Meta',
+      held: true,
+    });
+
+    vi.mocked(events.emit).mockClear();
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyUp',
+      key: 'Meta',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: 'Meta',
+      held: false,
+    });
+
+    vi.mocked(events.emit).mockClear();
+    webContents.emitEvent('blur');
+    expect(events.emit).toHaveBeenCalledWith(numberShortcutModifierChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      modifier: null,
+      held: false,
+    });
+  });
+
+  it('emits app shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const macLike = isMacLike();
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'K',
+      control: !macLike,
+      shift: false,
+      alt: false,
+      meta: macLike,
     });
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
@@ -282,14 +431,15 @@ describe('BrowserWebContentsRegistry', () => {
     registry.handleWebviewAttached(webContents);
     registry.bindWebContents('browser-1', webContents);
 
+    const macLike = isMacLike();
     const keyEvent = { preventDefault: vi.fn() };
     webContents.emitEvent('before-input-event', keyEvent, {
       type: 'keyDown',
       key: 'K',
-      control: false,
+      control: !macLike,
       shift: false,
       alt: false,
-      meta: true,
+      meta: macLike,
     });
 
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();

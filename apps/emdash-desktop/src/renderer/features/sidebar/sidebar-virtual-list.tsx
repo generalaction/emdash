@@ -31,11 +31,13 @@ import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-pr
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
+import { taskHintKey, useTaskNumberHints } from './use-task-number-hints';
 
 const ROW_HEIGHT = 32;
 
 export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const rows = sidebarStore.sidebarRows;
+  const numberHints = useTaskNumberHints();
   const { currentView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
@@ -224,7 +226,11 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
               }
               return (
                 <SortableRow key={`${row.projectId}:${row.taskId}`} dndId={dndId} style={vStyle}>
-                  <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
+                  <SidebarTaskItem
+                    projectId={row.projectId}
+                    taskId={row.taskId}
+                    numberHint={numberHints?.get(taskHintKey(row.projectId, row.taskId)) ?? null}
+                  />
                 </SortableRow>
               );
             })}

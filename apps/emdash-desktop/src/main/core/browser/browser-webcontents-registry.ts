@@ -18,12 +18,20 @@ import {
   type BrowsingDataKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
-import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import {
+  browserAppShortcutChannel,
+  numberShortcutChannel,
+  numberShortcutModifierChannel,
+  tabNavigationShortcutChannel,
+  type NumberShortcutModifier,
+} from '@shared/events/appEvents';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import {
   APP_SHORTCUTS,
   getElectronTabNavigationDirection,
   resolveDefaultHotkey,
+  TAB_BY_NUMBER_KEYS,
+  TASK_BY_NUMBER_KEYS,
   type ShortcutSettingsKey,
 } from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
@@ -67,6 +75,7 @@ export class BrowserWebContentsRegistry {
   private readonly pendingWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
   private browserShortcuts = getBrowserShortcuts();
+  private browserNumberBindings = getBrowserNumberBindings();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -86,6 +95,7 @@ export class BrowserWebContentsRegistry {
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
     this.browserShortcuts = getBrowserShortcuts(keyboard);
+    this.browserNumberBindings = getBrowserNumberBindings(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -240,24 +250,42 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
+      const browserId = this.browserIdByWebContentsId.get(webContents.id);
+      const modifier = getNumberShortcutModifier(input.key);
+      if (browserId && modifier && (input.type === 'keyDown' || input.type === 'keyUp')) {
+        events.emit(numberShortcutModifierChannel, {
+          source: { kind: 'browser', browserId },
+          modifier,
+          held: input.type === 'keyDown',
+        });
+      }
+
       const tabNavigationDirection = getElectronTabNavigationDirection(input);
-      if (tabNavigationDirection) {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
-        if (browserId) {
-          event.preventDefault();
-          events.emit(tabNavigationShortcutChannel, {
+      if (tabNavigationDirection && browserId) {
+        event.preventDefault();
+        events.emit(tabNavigationShortcutChannel, {
+          source: { kind: 'browser', browserId },
+          direction: tabNavigationDirection,
+        });
+        return;
+      }
+
+      const numberShortcuts = getBrowserNumberShortcuts(input, this.browserNumberBindings);
+      if (numberShortcuts.length > 0 && browserId) {
+        event.preventDefault();
+        for (const numberShortcut of numberShortcuts) {
+          events.emit(numberShortcutChannel, {
             source: { kind: 'browser', browserId },
-            direction: tabNavigationDirection,
+            ...numberShortcut,
           });
-          return;
         }
+        return;
       }
 
       const shortcutKey = getBrowserShortcutKey(input, this.browserShortcuts);
       if (shortcutKey === null) return;
 
       if (shortcutKey !== 'browserCopyUrl') {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
         if (!browserId) return;
         event.preventDefault();
         events.emit(browserAppShortcutChannel, {
@@ -272,6 +300,16 @@ export class BrowserWebContentsRegistry {
       event.preventDefault();
       clipboard.writeText(normalized.url);
       events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
+    });
+
+    webContents.on('blur', () => {
+      const browserId = this.browserIdByWebContentsId.get(webContents.id);
+      if (!browserId) return;
+      events.emit(numberShortcutModifierChannel, {
+        source: { kind: 'browser', browserId },
+        modifier: null,
+        held: false,
+      });
     });
 
     webContents.on('context-menu', (event, params) => {
@@ -445,6 +483,64 @@ type ParsedShortcut = {
   control: boolean;
 };
 
+type BrowserNumberBinding = {
+  family: 'tab' | 'task';
+  index: number;
+  parsed: ParsedShortcut;
+};
+
+/**
+ * Parses the individually-configurable jump shortcuts (tab1-9 / task1-9) so
+ * presses inside browser webviews can be forwarded to the app with the digit.
+ */
+function getBrowserNumberBindings(keyboard?: AppSettings['keyboard']): BrowserNumberBinding[] {
+  // Inside the function: the registry singleton constructs during module init,
+  // before module-level consts below the class would initialize.
+  const families: ReadonlyArray<['tab' | 'task', readonly ShortcutSettingsKey[]]> = [
+    ['tab', TAB_BY_NUMBER_KEYS],
+    ['task', TASK_BY_NUMBER_KEYS],
+  ];
+  const bindings: BrowserNumberBinding[] = [];
+  for (const [family, keys] of families) {
+    keys.forEach((shortcutKey, index) => {
+      const configured = keyboard?.[shortcutKey];
+      if (configured === null) return;
+      const hotkey = configured ?? resolveDefaultHotkey(APP_SHORTCUTS[shortcutKey]);
+      if (!hotkey) return;
+      const parsed = parseShortcut(hotkey);
+      if (parsed) bindings.push({ family, index, parsed });
+    });
+  }
+  return bindings;
+}
+
+function getBrowserNumberShortcuts(
+  input: Electron.Input,
+  bindings: readonly BrowserNumberBinding[]
+): { family: 'tab' | 'task'; index: number }[] {
+  if (input.type !== 'keyDown') return [];
+  const matches: { family: 'tab' | 'task'; index: number }[] = [];
+  for (const { family, index, parsed } of bindings) {
+    if (
+      normalizeInputKey(input.key) === parsed.key &&
+      Boolean(input.shift) === parsed.shift &&
+      Boolean(input.alt) === parsed.alt &&
+      Boolean(input.meta) === parsed.meta &&
+      Boolean(input.control) === parsed.control
+    ) {
+      matches.push({ family, index });
+    }
+  }
+  return matches;
+}
+
+function isNumberShortcutKey(key: ShortcutSettingsKey): boolean {
+  return (
+    (TAB_BY_NUMBER_KEYS as readonly string[]).includes(key) ||
+    (TASK_BY_NUMBER_KEYS as readonly string[]).includes(key)
+  );
+}
+
 function getBrowserShortcuts(
   keyboard?: AppSettings['keyboard']
 ): Map<ShortcutSettingsKey, ParsedShortcut> {
@@ -453,6 +549,8 @@ function getBrowserShortcuts(
     if (shortcutKey === 'closeModal' || APP_SHORTCUTS[shortcutKey].ignoreWhenBrowserFocused) {
       continue;
     }
+    // Number shortcuts are forwarded with their digit by getBrowserNumberShortcuts.
+    if (isNumberShortcutKey(shortcutKey)) continue;
 
     const configured = keyboard?.[shortcutKey];
     if (configured === null) continue;
@@ -543,6 +641,21 @@ function parseShortcut(shortcut: string): {
 
 function normalizeInputKey(key: string): string {
   return key.toLowerCase();
+}
+
+function getNumberShortcutModifier(key: string): NumberShortcutModifier | null {
+  switch (normalizeInputKey(key)) {
+    case 'meta':
+      return 'Meta';
+    case 'control':
+      return 'Control';
+    case 'alt':
+      return 'Alt';
+    case 'shift':
+      return 'Shift';
+    default:
+      return null;
+  }
 }
 
 function clearWebviewSelection(webContents: WebContents): void {

@@ -2,10 +2,11 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { claimNumberHotkey } from '@renderer/lib/hooks/use-number-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
-import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { numberShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
@@ -110,7 +111,7 @@ export const BrowserPane = observer(function BrowserPane({
 
   useEffect(() => {
     if (!visible || !sessionBrowserId) return;
-    return events.on(tabNavigationShortcutChannel, (event) => {
+    const offTabNavigation = events.on(tabNavigationShortcutChannel, (event) => {
       if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
       if (event.direction === 'next') {
         pane.setNextTabActive();
@@ -118,6 +119,16 @@ export const BrowserPane = observer(function BrowserPane({
         pane.setPreviousTabActive();
       }
     });
+    const offNumberShortcut = events.on(numberShortcutChannel, (event) => {
+      if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
+      if (event.family !== 'tab') return;
+      if (!claimNumberHotkey(`tab:${event.index}`)) return;
+      pane.setTabActiveIndex(event.index);
+    });
+    return () => {
+      offTabNavigation();
+      offNumberShortcut();
+    };
   }, [sessionBrowserId, pane, visible]);
 
   const webviewProps = useMemo(() => {
