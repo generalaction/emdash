@@ -1,4 +1,5 @@
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
+import type { IntegrationAuthMethod } from '@emdash/plugins/integrations';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { events } from '@main/lib/events';
 import {
@@ -11,7 +12,7 @@ import { githubIdentityClient } from './github-identity-client';
 function resolveDeviceFlowConfig(): GitHubDeviceFlowConfig {
   const plugin = integrationPluginRegistry.get('github');
   const method = plugin?.capabilities.auth.methods.find(
-    (candidate) => candidate.kind === 'oauth-device'
+    (candidate: IntegrationAuthMethod) => candidate.kind === 'oauth-device'
   );
   if (!method || method.kind !== 'oauth-device') {
     throw new Error('GitHub integration plugin does not declare an oauth-device auth method.');

@@ -1,4 +1,4 @@
-import type { IssuesPluginProvider } from '@emdash/plugins/issues';
+import type { IssueData, IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, type Err, ok } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type {
@@ -71,7 +71,7 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
-      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
+      return ok(result.data.map((issue: IssueData) => toLinkedIssue(provider, issue)));
     },
 
     async searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
@@ -92,7 +92,7 @@ export function createPluginIssueProvider(plugin: IssuesPluginProvider): IssuePr
       });
       if (!result) return ok([]);
       if (!result.success) return err(result.error);
-      return ok(result.data.map((issue) => toLinkedIssue(provider, issue)));
+      return ok(result.data.map((issue: IssueData) => toLinkedIssue(provider, issue)));
     },
 
     getIssueContext: plugin.behavior.issues?.getIssue

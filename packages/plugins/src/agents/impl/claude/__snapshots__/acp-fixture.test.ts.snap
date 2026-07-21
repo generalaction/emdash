@@ -899,7 +899,7 @@ Phase: starting
   → E: ReplayEnded {status: complete}    ⇒ phase: ready       [effects: turnCommitted, state]
 
 Phase: ready
-  → C: Prompt {userUpdate}               ⇒ (decide ok) 
+  → C: Prompt {userUpdate}               ⇒ (decide ok)
   → E: PromptStarted {userUpdate}        ⇒ phase: working     [effects: state, update, agentEvent:start]
 
 Phase: working
@@ -1080,7 +1080,7 @@ import type { Result } from '@emdash/shared';
 import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import { createAcpAgentConnection } from './acp-agent-connection';
-import { AgentTerminalManager } from './agent-ports/terminal-manager';
+import { AgentTerminalManager } from './agent-terminal-manager';
 
 ===== session-machine.ts =====
 /**

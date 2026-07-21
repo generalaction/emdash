@@ -263,9 +263,11 @@ describe('AcpRuntime session manager', () => {
 
     h.lastChild.emitExit(42);
 
-    expect(rt.getSessionState('conv-close').lifecycle).toBe('closed');
-    expect(rt.sessionLiveModels('conv-close')).toBeNull();
-    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    await vi.waitFor(() => {
+      expect(rt.getSessionState('conv-close').lifecycle).toBe('closed');
+      expect(rt.sessionLiveModels('conv-close')).toBeNull();
+      expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    });
   });
 
   it('removes all sessions sharing a process when that process closes', async () => {
@@ -281,10 +283,12 @@ describe('AcpRuntime session manager', () => {
 
     h.lastChild.emitExit(42);
 
-    expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
-    expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
-    expect(rt.sessionLiveModels('conv-a')).toBeNull();
-    expect(rt.sessionLiveModels('conv-b')).toBeNull();
-    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    await vi.waitFor(() => {
+      expect(rt.getSessionState('conv-a').lifecycle).toBe('closed');
+      expect(rt.getSessionState('conv-b').lifecycle).toBe('closed');
+      expect(rt.sessionLiveModels('conv-a')).toBeNull();
+      expect(rt.sessionLiveModels('conv-b')).toBeNull();
+      expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    });
   });
 });

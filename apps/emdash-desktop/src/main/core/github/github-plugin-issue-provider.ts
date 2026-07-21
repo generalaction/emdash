@@ -1,4 +1,4 @@
-import type { IssuesPluginProvider } from '@emdash/plugins/issues';
+import type { IssueData, IssuesPluginProvider } from '@emdash/plugins/issues';
 import { err, ok, type Result } from '@emdash/shared';
 import { match, P } from 'ts-pattern';
 import { GITHUB_PROVIDER_ID, toGitHubAccount } from '@main/core/github/accounts/github-accounts';
@@ -130,7 +130,7 @@ export function createGitHubPluginIssueProvider(plugin: IssuesPluginProvider): I
     if (!result) return ok([]);
     if (!result.success) return err(result.error);
 
-    return ok(result.data.map((issue) => toLinkedIssue('github', issue)));
+    return ok(result.data.map((issue: IssueData) => toLinkedIssue('github', issue)));
   }
 
   return {

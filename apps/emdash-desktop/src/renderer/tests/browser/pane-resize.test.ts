@@ -83,6 +83,12 @@ async function waitForDimensions(
   );
 }
 
+async function flushAnimationFrames(count = 2): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('PaneDimensionProvider single-source measurement', () => {
@@ -293,8 +299,10 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
 
   afterEach(async () => {
     const { disposeAllPtys } = await getPtyModule();
+    await flushAnimationFrames();
     disposeAllPtys();
     document.querySelector('[data-terminal-host="true"]')?.remove();
+    await flushAnimationFrames();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

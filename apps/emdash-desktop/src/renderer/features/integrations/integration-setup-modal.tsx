@@ -13,6 +13,9 @@ type IntegrationSetupModalArgs = {
 };
 
 type Props = BaseModalProps<void> & IntegrationSetupModalArgs;
+type IntegrationAuthMethod = IntegrationMetadata['auth']['methods'][number];
+type IntegrationFormMethod = Extract<IntegrationAuthMethod, { kind: 'form' }>;
+type IntegrationAuthField = IntegrationFormMethod['fields'][number];
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
   const { integrationById } = useIntegrationsContext();
@@ -35,8 +38,10 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   );
 }
 
-function formMethod(metadata: IntegrationMetadata | undefined) {
-  return metadata?.auth.methods.find((method) => method.kind === 'form');
+function formMethod(metadata: IntegrationMetadata | undefined): IntegrationFormMethod | undefined {
+  return metadata?.auth.methods.find(
+    (method: IntegrationAuthMethod): method is IntegrationFormMethod => method.kind === 'form'
+  );
 }
 
 function IntegrationSetupForm({
@@ -52,11 +57,20 @@ function IntegrationSetupForm({
 }) {
   const method = formMethod(metadata);
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries((method?.fields ?? []).map((field) => [field.id, field.defaultValue ?? '']))
+    Object.fromEntries(
+      (method?.fields ?? []).map((field: IntegrationAuthField) => [
+        field.id,
+        field.defaultValue ?? '',
+      ])
+    )
   );
 
   const canSubmit = useMemo(
-    () => !!method && method.fields.every((field) => !field.required || values[field.id]?.trim()),
+    () =>
+      !!method &&
+      method.fields.every(
+        (field: IntegrationAuthField) => !field.required || values[field.id]?.trim()
+      ),
     [method, values]
   );
 
@@ -70,14 +84,19 @@ function IntegrationSetupForm({
     <SetupFormShell
       providerId={integration}
       getInput={() =>
-        Object.fromEntries(method.fields.map((field) => [field.id, values[field.id]?.trim() ?? '']))
+        Object.fromEntries(
+          method.fields.map((field: IntegrationAuthField) => [
+            field.id,
+            values[field.id]?.trim() ?? '',
+          ])
+        )
       }
       canSubmit={canSubmit}
       onSuccess={onSuccess}
       onClose={onClose}
     >
       <div className="grid gap-3">
-        {method.fields.map((field, index) => (
+        {method.fields.map((field: IntegrationAuthField, index: number) => (
           <div key={field.id} className="grid gap-1.5">
             <Input
               id={`integration-field-${field.id}`}

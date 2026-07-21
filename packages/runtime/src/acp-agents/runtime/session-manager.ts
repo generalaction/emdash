@@ -41,6 +41,7 @@ import { acpErr } from '@emdash/core/acp';
 import type { Lease, Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import type { LiveState } from '@emdash/wire';
 import { acquireAsResult } from '@emdash/wire/util';
 import { buildAgentClient, type InboundRouter } from '../agent-ports/agent-client';
 import type { FsPort } from '../agent-ports/fs-port';
@@ -576,15 +577,19 @@ export class SessionManager implements InboundRouter {
       title: cell?.transcript.title ?? null,
       updatedAt: Date.now(),
     };
-    this.sessionsList.states.list.produce((draft) => {
+    this.sessionSummaries().produce((draft) => {
       draft[input.conversationId] = summary;
     });
   }
 
   private deleteSessionSummary(conversationId: string): void {
-    this.sessionsList.states.list.produce((draft) => {
+    this.sessionSummaries().produce((draft) => {
       delete draft[conversationId];
     });
+  }
+
+  private sessionSummaries(): LiveState<Record<string, SessionSummary>> {
+    return this.sessionsList.states.list as LiveState<Record<string, SessionSummary>>;
   }
 
   private removeRecord(conversationId: string, releaseConnection: boolean): void {

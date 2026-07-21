@@ -56,7 +56,7 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
 
   if (!showTimestamp) return null;
 
-  const instant = getSortInstant(task, sortKindFor(sidebarStore.taskSortBy));
+  const instant = getSortInstant(task, sortKindFor(sidebarStore.lastTaskSortBy));
   if (!instant) return null;
 
   return (

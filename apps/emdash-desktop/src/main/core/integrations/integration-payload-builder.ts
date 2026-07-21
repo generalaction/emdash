@@ -1,6 +1,9 @@
 import {
   integrationPluginRegistry,
   type IntegrationAuthDescriptor,
+  type IntegrationAuthField,
+  type IntegrationAuthMethod,
+  type IntegrationPluginProvider,
 } from '@emdash/plugins/integrations';
 import { issuesPluginRegistry } from '@emdash/plugins/issues';
 import type { IssueProviderCapabilities } from '@shared/issue-providers';
@@ -34,9 +37,9 @@ function sentenceCase(label: string): string {
  * deleted; multi-field forms fall back to "credentials".
  */
 function disconnectCredentialLabel(auth: IntegrationAuthDescriptor): string | undefined {
-  const form = auth.methods.find((method) => method.kind === 'form');
+  const form = auth.methods.find((method: IntegrationAuthMethod) => method.kind === 'form');
   if (!form || form.kind !== 'form') return undefined;
-  const requiredFields = form.fields.filter((field) => field.required);
+  const requiredFields = form.fields.filter((field: IntegrationAuthField) => field.required);
   if (requiredFields.length === 1 && requiredFields[0]) {
     return sentenceCase(requiredFields[0].label);
   }
@@ -44,7 +47,7 @@ function disconnectCredentialLabel(auth: IntegrationAuthDescriptor): string | un
 }
 
 export function buildIntegrationListPayload() {
-  return integrationPluginRegistry.getAll().map((plugin) => ({
+  return integrationPluginRegistry.getAll().map((plugin: IntegrationPluginProvider) => ({
     id: plugin.metadata.id,
     name: plugin.metadata.name,
     description: plugin.metadata.description,
