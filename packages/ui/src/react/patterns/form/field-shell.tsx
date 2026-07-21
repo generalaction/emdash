@@ -56,7 +56,11 @@ export function FormFieldShell({
       <Field orientation="horizontal" className={className}>
         {hasTextContent && (
           <FieldContent>
-            {label != null && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
+            {label != null && (
+              <FieldLabel id={`${id}-label`} htmlFor={id}>
+                {label}
+              </FieldLabel>
+            )}
             {description != null && <FieldDescription>{description}</FieldDescription>}
           </FieldContent>
         )}
@@ -67,7 +71,11 @@ export function FormFieldShell({
 
   return (
     <Field orientation="vertical" className={className}>
-      {label != null && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
+      {label != null && (
+        <FieldLabel id={`${id}-label`} htmlFor={id}>
+          {label}
+        </FieldLabel>
+      )}
       {children({ id, invalid })}
       {description != null && <FieldDescription>{description}</FieldDescription>}
       {errors && <FieldError>{errors}</FieldError>}

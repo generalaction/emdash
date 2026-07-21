@@ -1,9 +1,9 @@
 import { defineSettingsPageContribution } from '@core/primitives/settings/api/page-contribution';
-import { ConnectionsSettingsPage } from '../browser/pages/connections-settings-page';
+import { MachinesSettingsPage } from '../browser/pages/machines-settings-page';
 
 export const machinesConnectionsPage = defineSettingsPageContribution({
   id: 'connections',
-  label: 'Connections',
+  label: 'Machines',
   icon: 'server',
-  component: ConnectionsSettingsPage,
+  component: MachinesSettingsPage,
 });

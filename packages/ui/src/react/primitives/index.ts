@@ -19,6 +19,7 @@ export { Toggle, ToggleGroup, type ToggleProps, type ToggleGroupProps } from './
 
 // ── Multi-part namespace consts ───────────────────────────────────────────────
 export { Select } from './select';
+export { RadioGroup } from './radio-group';
 export { Dialog, type DialogSize } from './dialog';
 export { Sheet, type SheetSide } from './sheet';
 export { Popover } from './popover';
