@@ -8,6 +8,7 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { WindowControls } from './window-controls';
+import { WindowMenuBar } from './window-menu-bar';
 
 const platform = detectPlatform();
 const isMac = platform === 'mac';
@@ -49,6 +50,8 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   </TooltipContent>
                 </Tooltip>
                 <NavButtons />
+                {/* Keep the menu reachable while the sidebar (which hosts it) is collapsed. */}
+                <WindowMenuBar className="ml-1" />
               </div>
             )}
             {leftSlot}
