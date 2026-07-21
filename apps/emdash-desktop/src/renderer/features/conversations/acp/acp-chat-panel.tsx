@@ -550,13 +550,18 @@ const ComposerForStore = observer(function ComposerForStore({
   const agentOptions = useMemo<ComposerAgentOption[]>(
     () =>
       (agents ?? [])
-        .filter((agent) => installedAgentIds.has(agent.id) && agentSupportsAcp(agent.capabilities))
+        .filter(
+          (agent) =>
+            agent.id === providerId ||
+            (installedAgentIds.has(agent.id) && agentSupportsAcp(agent.capabilities))
+        )
         .map((agent) => ({
           id: agent.id,
           name: agent.name,
           icon: <AgentIcon id={agent.id} size={14} className="rounded-sm" />,
+          disabled: !installedAgentIds.has(agent.id),
         })),
-    [agents, installedAgentIds]
+    [agents, installedAgentIds, providerId]
   );
 
   const handleAgentChange = useCallback(
