@@ -8,6 +8,10 @@ import {
   DEFAULT_TERMINAL_SHELL_AVAILABILITY,
   useTerminalShellAvailability,
 } from '@renderer/lib/hooks/use-terminal-shell-availability';
+import {
+  DEFAULT_MONOSPACE_FONT_FAMILY,
+  DEFAULT_MONOSPACE_FONT_LABEL,
+} from '@renderer/lib/monospace-font';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -60,11 +64,9 @@ const POPULAR_FONTS = [
   'MesloLGS NF',
 ];
 
-const DEFAULT_FONT_FAMILY = 'Menlo';
-
 const DEFAULT_OPTION: FontOption = {
   value: '',
-  label: `Default (${DEFAULT_FONT_FAMILY})`,
+  label: `Default (${DEFAULT_MONOSPACE_FONT_LABEL})`,
 };
 
 const clampFontSize = (size: number) =>
@@ -258,7 +260,7 @@ const TerminalSettingsCard: React.FC = () => {
                     disabled={loading || saving}
                     className="flex h-9 w-full items-center justify-between rounded-md border border-border bg-transparent px-2.5 py-1 text-left text-sm font-normal outline-none disabled:opacity-50"
                   >
-                    <ComboboxValue placeholder="Default (Menlo)" />
+                    <ComboboxValue placeholder={`Default (${DEFAULT_MONOSPACE_FONT_LABEL})`} />
                     <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 text-foreground-muted" />
                   </button>
                 }
@@ -285,7 +287,9 @@ const TerminalSettingsCard: React.FC = () => {
                           <ComboboxItem key={item.value || '__default__'} value={item}>
                             <span
                               style={{
-                                fontFamily: item.value ? `"${item.value}"` : DEFAULT_FONT_FAMILY,
+                                fontFamily: item.value
+                                  ? `"${item.value}"`
+                                  : DEFAULT_MONOSPACE_FONT_FAMILY,
                               }}
                             >
                               {item.label}

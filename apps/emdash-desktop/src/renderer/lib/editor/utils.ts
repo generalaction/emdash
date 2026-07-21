@@ -1,3 +1,5 @@
+import { DEFAULT_MONOSPACE_FONT_FAMILY } from '@renderer/lib/monospace-font';
+
 const MARKDOWN_EXTENSIONS = ['md', 'mdx'];
 
 /** Returns true if the file path points to a markdown file. */
@@ -16,6 +18,7 @@ export const isMarkdownFile = isMarkdownPath;
 /** Default Monaco editor options shared across all editor instances. */
 export const DEFAULT_EDITOR_OPTIONS = {
   minimap: { enabled: true },
+  fontFamily: DEFAULT_MONOSPACE_FONT_FAMILY,
   fontSize: 13,
   padding: { top: 12, bottom: 12 },
   lineNumbers: 'on' as const,
