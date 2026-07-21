@@ -8,7 +8,7 @@
 
 import { Extension } from '@tiptap/core';
 
-export function buildSubmitKeymap(onSubmit: () => void) {
+export function buildSubmitKeymap(onSubmit: () => void, onCancel: () => boolean) {
   return Extension.create({
     name: 'submitKeymap',
     addKeyboardShortcuts() {
@@ -17,6 +17,8 @@ export function buildSubmitKeymap(onSubmit: () => void) {
           onSubmit();
           return true;
         },
+
+        Escape: onCancel,
 
         'Shift-Enter': ({ editor }) => {
           editor.commands.setHardBreak();
