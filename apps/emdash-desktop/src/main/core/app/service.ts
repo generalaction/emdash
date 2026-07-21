@@ -15,6 +15,7 @@ import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
+  buildRemoteVsCodeCliArgs,
 } from '@main/utils/remoteOpenIn';
 import {
   appPasteChannel,
@@ -78,7 +79,7 @@ async function resolveHomeJailedPath(rawPath: string): Promise<string> {
   return realPath;
 }
 
-type RemoteTerminalLaunchAttempt = {
+type LaunchAttempt = {
   file: string;
   args: string[];
 };
@@ -381,7 +382,42 @@ class AppService implements IInitializable, IDisposable {
 
     const { host, username, port } = connection;
 
-    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor' || appId === 'zed') {
+    if (appId === 'vscode') {
+      const vscodeArgs = buildRemoteVsCodeCliArgs(host, username, target);
+      const attempts =
+        platform === 'darwin'
+          ? [
+              {
+                file: 'open',
+                args: ['-n', '-b', 'com.microsoft.VSCode', '--args', ...vscodeArgs],
+              },
+              {
+                file: 'open',
+                args: ['-n', '-b', 'com.microsoft.VSCodeInsiders', '--args', ...vscodeArgs],
+              },
+              {
+                file: 'open',
+                args: ['-n', '-a', 'Visual Studio Code', '--args', ...vscodeArgs],
+              },
+              {
+                file: 'open',
+                args: ['-n', '-a', 'Visual Studio Code - Insiders', '--args', ...vscodeArgs],
+              },
+            ]
+          : [
+              { file: 'code', args: vscodeArgs },
+              { file: 'code-insiders', args: vscodeArgs },
+            ];
+
+      try {
+        await this.launchCommandAttempts('VS Code', attempts);
+      } catch {
+        await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target, port));
+      }
+      return;
+    }
+
+    if (appId === 'vscodium' || appId === 'cursor' || appId === 'zed') {
       await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target, port));
       return;
     }
@@ -428,7 +464,7 @@ class AppService implements IInitializable, IDisposable {
             ]
           : [{ file: 'ghostty', args: ['-e', ...remoteExecArgs] }];
 
-      await this.launchRemoteTerminal('Ghostty', attempts);
+      await this.launchCommandAttempts('Ghostty', attempts);
       return;
     }
 
@@ -451,7 +487,7 @@ class AppService implements IInitializable, IDisposable {
             ]
           : [{ file: 'kitty', args: remoteExecArgs }];
 
-      await this.launchRemoteTerminal('Kitty', attempts);
+      await this.launchCommandAttempts('Kitty', attempts);
       return;
     }
 
@@ -474,7 +510,7 @@ class AppService implements IInitializable, IDisposable {
             ]
           : [{ file: 'alacritty', args: ['-e', ...remoteExecArgs] }];
 
-      await this.launchRemoteTerminal('Alacritty', attempts);
+      await this.launchCommandAttempts('Alacritty', attempts);
       return;
     }
 
@@ -493,7 +529,7 @@ class AppService implements IInitializable, IDisposable {
             ]
           : [{ file: 'kaku', args: ['start', '--', ...remoteExecArgs] }];
 
-      await this.launchRemoteTerminal('Kaku', attempts);
+      await this.launchCommandAttempts('Kaku', attempts);
       return;
     }
 
@@ -502,10 +538,7 @@ class AppService implements IInitializable, IDisposable {
     }
   }
 
-  private async launchRemoteTerminal(
-    label: string,
-    attempts: RemoteTerminalLaunchAttempt[]
-  ): Promise<void> {
+  private async launchCommandAttempts(label: string, attempts: LaunchAttempt[]): Promise<void> {
     let lastError: unknown = null;
     for (const attempt of attempts) {
       try {
