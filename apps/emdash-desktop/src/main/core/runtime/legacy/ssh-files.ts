@@ -817,8 +817,12 @@ function readExecStream(
   });
 }
 
-function buildRecursiveSnapshotCommand(rootPath: string): string {
+export function buildRecursiveSnapshotCommand(rootPath: string): string {
   const pruneExpression = buildFindPruneExpression();
+  // GNU find can stream metadata without starting a stat process for every entry.
+  const gnuFindSnapshotCommand = `find . -mindepth 1 ${pruneExpression}\\( -type f -printf ${quoteShellArg(
+    'file\\0%s\\0%T@\\0%P\\0'
+  )} -o -type d -printf ${quoteShellArg('directory\\0%s\\0%T@\\0%P\\0')} \\)`;
   const snapshotScript = `
 stat_style=$1
 shift
@@ -836,13 +840,20 @@ for p do
   printf '%s\\0%s\\0%s\\0%s\\0' "$kind" "$size" "$mtime" "$rel"
 done
 `.trim();
-
-  return [
-    `cd ${quoteShellArg(rootPath)} || exit 1`,
+  const portableSnapshotCommand = [
     "if stat -c '%s %Y' . >/dev/null 2>&1; then stat_style=gnu; elif stat -f '%z %m' . >/dev/null 2>&1; then stat_style=bsd; else exit 2; fi",
     `find . ${pruneExpression}\\( -type f -o -type d \\) -exec sh -c ${quoteShellArg(
       snapshotScript
     )} sh "$stat_style" {} +`,
+  ].join('\n');
+
+  return [
+    `cd ${quoteShellArg(rootPath)} || exit 1`,
+    `if find . -maxdepth 0 -printf ${quoteShellArg('%s\\0%T@\\0%P\\0')} >/dev/null 2>&1; then`,
+    `  ${gnuFindSnapshotCommand}`,
+    'else',
+    portableSnapshotCommand,
+    'fi',
   ].join('\n');
 }
 
@@ -858,7 +869,7 @@ function parseRecursiveSnapshot(
     if (!entryType) continue;
 
     const size = fields[index + 1];
-    const mtime = fields[index + 2];
+    const mtime = normalizeSnapshotMtime(fields[index + 2]);
     const absPath = toRemoteAbsolutePath(rootPath, fields[index + 3]);
     if (isIgnoredRemotePath(rootPath, absPath)) continue;
 
@@ -870,6 +881,11 @@ function parseRecursiveSnapshot(
   }
 
   return entries;
+}
+
+function normalizeSnapshotMtime(raw: string): string {
+  const fractionalSeparator = raw.indexOf('.');
+  return fractionalSeparator === -1 ? raw : raw.slice(0, fractionalSeparator);
 }
 
 function parseSnapshotEntryType(raw: string): Exclude<FileEntryType, 'unknown'> | null {
