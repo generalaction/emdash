@@ -660,6 +660,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     retainedStoreRef.current
   );
   const store = retainedStoreRef.current;
+  const isShowingActiveChat = pane.isVisible && activeStore === store;
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
@@ -737,10 +738,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   }, [agent?.name, cliAuthMethod, providerId, store]);
 
   useEffect(() => {
-    if (conversationStore && !conversationStore.seen) {
+    if (isShowingActiveChat && conversationStore && !conversationStore.seen) {
       conversationStore.markSeen();
     }
-  }, [conversationStore, conversationSeen]);
+  }, [isShowingActiveChat, conversationStore, conversationSeen]);
 
   useEffect(() => {
     if (!store) return;

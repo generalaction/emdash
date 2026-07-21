@@ -5,5 +5,5 @@ export function selectRetainedChatStore<T>(
 ): T | null {
   if (activeStore) return activeStore;
   if (retainedStore && openStores.includes(retainedStore)) return retainedStore;
-  return openStores[0] ?? null;
+  return null;
 }

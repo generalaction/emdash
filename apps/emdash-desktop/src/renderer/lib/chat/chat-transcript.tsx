@@ -74,12 +74,12 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 
   useEffect(() => {
     if (!ref.current) return;
-    const p = propsRef.current;
     let disposed = false;
     let createdView: ChatView | null = null;
 
     void import('@emdash/chat-ui').then(({ createChatView }) => {
       if (disposed || !ref.current) return;
+      const p = propsRef.current;
       const view = createChatView({
         context: p.context,
         state: p.state,

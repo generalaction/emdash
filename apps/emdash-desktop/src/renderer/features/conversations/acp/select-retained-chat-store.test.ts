@@ -17,4 +17,9 @@ describe('selectRetainedChatStore', () => {
     const closed = { id: 'closed' };
     expect(selectRetainedChatStore([], null, closed)).toBeNull();
   });
+
+  it('does not mount a chat that has never been active', () => {
+    const chat = { id: 'chat' };
+    expect(selectRetainedChatStore([chat], null, null)).toBeNull();
+  });
 });
