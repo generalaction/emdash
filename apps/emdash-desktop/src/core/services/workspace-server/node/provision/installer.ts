@@ -26,8 +26,8 @@ export class WorkspaceServerInstallError extends Error {
 export class WorkspaceServerInstaller {
   constructor(
     private readonly ssh: WorkspaceServerSshPort,
-    private readonly baseUrl = process.env['EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL'] ??
-      DEFAULT_WORKSPACE_SERVER_INSTALL_BASE_URL
+    private readonly baseUrl = DEFAULT_WORKSPACE_SERVER_INSTALL_BASE_URL,
+    private readonly installCommand?: string
   ) {}
 
   async installedVersion(
@@ -69,7 +69,9 @@ export class WorkspaceServerInstaller {
 
   async install(connectionId: string, signal?: AbortSignal): Promise<void> {
     const proxy = await this.ssh.ensureProxy(connectionId);
-    const command = buildWorkspaceServerInstallCommand(this.baseUrl);
+    const command = this.installCommand
+      ? renderCustomInstallCommand(this.installCommand, this.baseUrl)
+      : buildWorkspaceServerInstallCommand(this.baseUrl);
     const result = await proxy.execScript(command, {
       signal,
       timeoutMs: 5 * 60_000,
@@ -128,4 +130,12 @@ function validateInstallBaseUrl(value: string): string {
 
 function ensureTrailingSlash(value: string): string {
   return value.endsWith('/') ? value : `${value}/`;
+}
+
+function renderCustomInstallCommand(command: string, baseUrl: string): string {
+  const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
+  const scriptUrl = new URL('install.sh', ensureTrailingSlash(normalizedBaseUrl)).href;
+  return command
+    .replaceAll('{{scriptUrl}}', quoteArg(scriptUrl, 'posix'))
+    .replaceAll('{{baseUrl}}', quoteArg(normalizedBaseUrl, 'posix'));
 }

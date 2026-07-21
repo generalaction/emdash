@@ -79,3 +79,8 @@ export type OpenInSettings = {
 
 export type ChangesSection = keyof ChangesViewMode;
 export type ChangesListViewMode = ChangesViewMode[ChangesSection];
+
+export type RemoteMachineSettings = {
+  installBaseUrl: string;
+  installCommand: string | null;
+};

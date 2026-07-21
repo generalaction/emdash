@@ -63,6 +63,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       },
       machineEvents: { on: () => () => {} },
       installBaseUrl: 'file:///opt/emdash-artifacts',
+      installCommand: 'cat /opt/emdash-artifacts/install.sh | sh -s -- --base-url {{baseUrl}}',
     });
     const broker = createDesktopRuntimeBroker({} as never, remoteMachine);
     const layout = workspaceServerLayout('/home/devuser');

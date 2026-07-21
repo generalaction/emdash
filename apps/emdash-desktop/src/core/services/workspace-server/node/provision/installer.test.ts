@@ -38,6 +38,22 @@ describe('workspace-server installer command', () => {
     );
   });
 
+  it('uses a custom install command with substituted placeholders when configured', async () => {
+    const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    const installer = new WorkspaceServerInstaller(
+      { ensureProxy: vi.fn(async () => ({ execScript }) as never) },
+      'file:///opt/emdash-artifacts',
+      'cat /opt/emdash-artifacts/install.sh | sh -s -- --base-url {{baseUrl}}'
+    );
+
+    await installer.install('ssh-1');
+
+    expect(execScript).toHaveBeenCalledWith(
+      'cat /opt/emdash-artifacts/install.sh | sh -s -- --base-url file:///opt/emdash-artifacts',
+      expect.objectContaining({ timeoutMs: 300_000 })
+    );
+  });
+
   it.each([
     [40, 'unsupported-platform'],
     [41, 'artifact-download-failed'],

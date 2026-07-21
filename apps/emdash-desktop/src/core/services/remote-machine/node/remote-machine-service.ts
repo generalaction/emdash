@@ -29,6 +29,7 @@ export type CreateRemoteMachineServiceDeps = {
   };
   machineEvents: MachineMutationEvents;
   installBaseUrl?: string;
+  installCommand?: string;
   logger?: RemoteMachineServiceLog;
 };
 
@@ -51,7 +52,7 @@ export function createRemoteMachineService(
   const ssh = createWorkspaceServerSshPort(deps.ssh);
   const host = new RemoteHostProbe(ssh);
   const wire = createWireConnectionManager({ scope, ssh });
-  const installer = new WorkspaceServerInstaller(ssh, deps.installBaseUrl);
+  const installer = new WorkspaceServerInstaller(ssh, deps.installBaseUrl, deps.installCommand);
   const daemon = new RemoteWorkspaceServerDaemon(ssh);
   const provisioner = new WorkspaceServerProvisioner({
     scope,

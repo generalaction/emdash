@@ -16,7 +16,7 @@ export type InfrastructureBundle = {
   readonly remoteMachine: RemoteMachineService;
 };
 
-export function bootInfrastructure(database: DatabaseBundle): InfrastructureBundle {
+export async function bootInfrastructure(database: DatabaseBundle): Promise<InfrastructureBundle> {
   const ssh = createSshService({
     scope: appScope,
     db: database.db,
@@ -24,10 +24,13 @@ export function bootInfrastructure(database: DatabaseBundle): InfrastructureBund
     logger: log,
     telemetry: telemetryService,
   });
+  const remoteMachineSettings = await database.appSettings.get('remoteMachine');
   const remoteMachine = createRemoteMachineService({
     scope: appScope,
     ssh: { manager: ssh.manager, connect: ssh.ssh },
     machineEvents: ssh.machines,
+    installBaseUrl: remoteMachineSettings.installBaseUrl,
+    installCommand: remoteMachineSettings.installCommand ?? undefined,
     logger: log,
   });
   return { ssh, remoteMachine };
