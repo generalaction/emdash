@@ -190,6 +190,17 @@ export class GitWorktree implements IGitWorktree {
     }
   }
 
+  async listIndexableFiles(): Promise<string[]> {
+    const { stdout } = await this.exec.exec([
+      'ls-files',
+      '-z',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+    ]);
+    return stdout.split('\0').filter((entry) => entry.length > 0);
+  }
+
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
     return this.repository.readBlobAtRef(ref, this.toRelativePath(filePath));
   }

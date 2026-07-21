@@ -507,6 +507,10 @@ class LegacySshGitWorktree implements IGitWorktree {
     return this.git.isFileCleanlyTracked(this.toGitPath(filePath));
   }
 
+  listIndexableFiles(): Promise<string[]> {
+    return this.git.listIndexableFiles();
+  }
+
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
     return (await this.git.getChangedFiles(base)).map((change) => this.toAbsChange(change));
   }

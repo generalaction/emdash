@@ -178,6 +178,7 @@ export interface IGitWorktree extends IDisposable {
   /** Worktree git operations. */
   getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
+  listIndexableFiles(): Promise<string[]>;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;

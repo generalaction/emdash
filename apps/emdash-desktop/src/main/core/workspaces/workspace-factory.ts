@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -194,6 +195,14 @@ export function createWorkspaceFactory(
           enumerate: (root, options) => {
             const fs = filesRuntime.fileSystem();
             return fs.success ? fs.data.enumerate(root, options) : fs;
+          },
+          listGitFiles: async () => {
+            // SSH remote roots are POSIX regardless of the host OS, so join with
+            // path.posix there; a native path.join on a Windows host would emit
+            // backslash paths that never match the SSH watcher's POSIX change events.
+            const joinIndexPath = type.kind === 'ssh' ? path.posix.join : path.join;
+            const relativePaths = await ws.gitWorktree.listIndexableFiles();
+            return relativePaths.map((relativePath) => joinIndexPath(ws.path, relativePath));
           },
         });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>

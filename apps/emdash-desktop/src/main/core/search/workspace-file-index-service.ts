@@ -5,6 +5,7 @@ import {
   type FileError,
 } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { collectWithBudget } from './collect-with-budget';
 import { createSearchIndexExclusion } from './search-index-exclusions';
@@ -27,6 +28,7 @@ export type WorkspaceFileEnumerator = (
 export type WorkspaceFileIndexSource = {
   rootPath: string;
   enumerate: WorkspaceFileEnumerator;
+  listGitFiles?: () => Promise<string[]>;
 };
 
 export type WorkspaceFileIndexServiceOptions = {
@@ -35,6 +37,7 @@ export type WorkspaceFileIndexServiceOptions = {
   reindexTimeoutMs?: number;
   reindexDebounceMs?: number;
   now?: () => number;
+  getExtraExcludedSegments?: () => Promise<string[]>;
 };
 
 export class WorkspaceFileIndexService {
@@ -43,6 +46,10 @@ export class WorkspaceFileIndexService {
   private pendingReindex = new Set<string>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private activeSources = new Map<string, WorkspaceFileIndexSource>();
+  // Cached extra excluded segments, shared across workspaces. Safe as a single
+  // field only because the `indexer` setting is global; if it ever becomes
+  // per-project, key this by workspaceId.
+  private extraSegments: string[] = [];
 
   constructor(private readonly options: WorkspaceFileIndexServiceOptions = {}) {
     this.store = options.store ?? new WorkspaceFileIndexStore();
@@ -76,6 +83,7 @@ export class WorkspaceFileIndexService {
 
   async onWorkspaceActivated(workspaceId: string, source: WorkspaceFileIndexSource): Promise<void> {
     this.activeSources.set(workspaceId, source);
+    this.extraSegments = await this.loadExtraSegments();
     const meta = this.store.getMeta(workspaceId);
 
     if (meta && meta.rootPath !== source.rootPath) {
@@ -104,6 +112,12 @@ export class WorkspaceFileIndexService {
     this.store.deleteIndex(workspaceId);
   }
 
+  reindexActiveWorkspaces(): void {
+    for (const workspaceId of this.activeSources.keys()) {
+      this.scheduleReindex(workspaceId);
+    }
+  }
+
   searchFiles(workspaceId: string, query: string, limit = 20): FileHit[] {
     return this.store.searchFiles(workspaceId, query, limit);
   }
@@ -126,17 +140,14 @@ export class WorkspaceFileIndexService {
         const source = this.activeSources.get(workspaceId);
         if (!source) return;
 
-        const exclude = createSearchIndexExclusion(source.rootPath);
-        const enumeration = source.enumerate(source.rootPath, { exclude });
-        if (!enumeration.success) {
-          log.warn('WorkspaceFileIndexService: enumerate failed to start', {
-            workspaceId,
-            error: enumeration.error,
-          });
-          return;
-        }
+        this.extraSegments = await this.loadExtraSegments();
+        const exclude = createSearchIndexExclusion(source.rootPath, {
+          additionalSegments: this.extraSegments,
+        });
+        const iterable = await this.enumerateSource(workspaceId, source, exclude);
+        if (!iterable) return;
 
-        const result = await collectWithBudget(filterExcluded(enumeration.data, exclude), {
+        const result = await collectWithBudget(filterExcluded(iterable, exclude), {
           maxFiles: this.maxFiles,
           timeoutMs: this.reindexTimeoutMs,
           now: this.options.now,
@@ -175,7 +186,14 @@ export class WorkspaceFileIndexService {
   private applyChanges(workspaceId: string, changes: FileChange[]): void {
     let needsReindex = false;
     const rootPath = this.metaRootPath(workspaceId);
-    const exclude = createSearchIndexExclusion(rootPath);
+    // Incremental changes are filtered only by the segment predicate, not by
+    // gitignore. A newly-created gitignored file (not under a new directory and
+    // not matching an excluded segment) can briefly enter the index; it
+    // self-heals on the next reindex. Directory creates set needsReindex below,
+    // so the expensive cases (e.g. .tox/ appearing) re-list via git and stay clean.
+    const exclude = createSearchIndexExclusion(rootPath, {
+      additionalSegments: this.extraSegments,
+    });
     try {
       this.store.transaction(() => {
         let indexedFileCount = this.store.countIndexedFiles(workspaceId);
@@ -300,6 +318,37 @@ export class WorkspaceFileIndexService {
       ''
     );
   }
+
+  private loadExtraSegments(): Promise<string[]> {
+    return this.options.getExtraExcludedSegments?.() ?? Promise.resolve([]);
+  }
+
+  private async enumerateSource(
+    workspaceId: string,
+    source: WorkspaceFileIndexSource,
+    exclude: (absPath: string) => boolean
+  ): Promise<AsyncIterable<string> | null> {
+    if (source.listGitFiles) {
+      try {
+        const files = await source.listGitFiles();
+        return toAsyncIterable(files);
+      } catch (e) {
+        log.warn('WorkspaceFileIndexService: git listing failed, falling back to walk', {
+          workspaceId,
+          error: String(e),
+        });
+      }
+    }
+    const enumeration = source.enumerate(source.rootPath, { exclude });
+    if (!enumeration.success) {
+      log.warn('WorkspaceFileIndexService: enumerate failed to start', {
+        workspaceId,
+        error: enumeration.error,
+      });
+      return null;
+    }
+    return enumeration.data;
+  }
 }
 
 async function* filterExcluded(
@@ -311,6 +360,12 @@ async function* filterExcluded(
   }
 }
 
+async function* toAsyncIterable(items: string[]): AsyncIterable<string> {
+  for (const item of items) yield item;
+}
+
 export const workspaceFileIndexService = new WorkspaceFileIndexService({
   store: new WorkspaceFileIndexStore(),
+  getExtraExcludedSegments: async () =>
+    (await appSettingsService.get('indexer')).additionalExcludedSegments,
 });
