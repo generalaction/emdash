@@ -400,7 +400,8 @@ pnpm run test
   `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.emdash.json`.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
   `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_CLONE_CACHE`, `EMDASH_DISABLE_PTY`,
-  `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
+  `EMDASH_MCP_SERVER` (set to `false` to disable the built-in MCP server),
+  `EMDASH_MCP_PORT`, `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
 - App path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:

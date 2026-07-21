@@ -15,6 +15,11 @@ export interface McpServer {
   timeout?: number;
   oauth?: Record<string, unknown> | false;
   providers: string[];
+  /**
+   * Set by the main process when loading a server whose connection details it
+   * manages (see {@link McpCatalogEntry.managed}); ignored on save.
+   */
+  managed?: boolean;
 }
 
 /** Credential key with required/optional distinction */
@@ -34,6 +39,12 @@ export interface McpCatalogEntry {
   docsUrl: string;
   defaultConfig: RawServerEntry;
   credentialKeys: CredentialKey[];
+  /**
+   * Managed entries are servers emdash itself provides: their connection
+   * details are filled in by the main process on save and shown read-only in
+   * the add/edit modal.
+   */
+  managed?: boolean;
 }
 
 export interface McpLoadAllResponse {
@@ -47,3 +58,6 @@ export interface McpProvidersResponse {
   installed: boolean;
   supportsHttp: boolean;
 }
+
+/** Name of the MCP server entry emdash registers for itself in agent configs. */
+export const EMDASH_SELF_SERVER_NAME = 'emdash';

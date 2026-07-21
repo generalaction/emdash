@@ -13,6 +13,8 @@ export const mcpServerSchema = z.object({
   timeout: z.number().optional(),
   oauth: z.union([z.record(z.string(), z.unknown()), z.literal(false)]).optional(),
   providers: z.array(z.string()),
+  /** Set by the main process on load for servers whose connection details it manages. */
+  managed: z.boolean().optional(),
 });
 
 export type McpServer = z.infer<typeof mcpServerSchema>;
@@ -31,6 +33,8 @@ export interface McpCatalogEntry {
   docsUrl: string;
   defaultConfig: RawServerEntry;
   credentialKeys: CredentialKey[];
+  /** Managed entries are provided by emdash itself; connection details are injected on save. */
+  managed?: boolean;
 }
 
 export interface McpLoadAllResponse {
