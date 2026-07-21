@@ -12,6 +12,7 @@ import {
   type SshConnectionMetadata,
   sshConfigFromRow,
 } from '@core/services/ssh/node/config/connection-metadata';
+import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { SaveMachineInput } from '../api';
 
 type MachinesCredentials = {
@@ -38,13 +39,30 @@ export interface MachinesServiceDeps {
   now?: () => number;
 }
 
-export class MachinesService {
+export type MachineMutationEvent = {
+  type: 'saved' | 'deleted';
+  connectionId: string;
+};
+
+export type MachinesServiceHooks = {
+  'machine:mutated': (event: MachineMutationEvent) => void | Promise<void>;
+};
+
+export class MachinesService implements Hookable<MachinesServiceHooks> {
   private readonly createId: () => string;
   private readonly now: () => number;
+  private readonly hooks: HookCore<MachinesServiceHooks>;
 
   constructor(private readonly deps: MachinesServiceDeps) {
     this.createId = deps.createId ?? randomUUID;
     this.now = deps.now ?? Date.now;
+    this.hooks = new HookCore<MachinesServiceHooks>((name, error) => {
+      deps.log.warn(`MachinesService: ${String(name)} hook failed`, { error });
+    });
+  }
+
+  on<K extends keyof MachinesServiceHooks>(name: K, handler: MachinesServiceHooks[K]): () => void {
+    return this.hooks.on(name, handler);
   }
 
   async getMachines(): Promise<SshConfig[]> {
@@ -98,16 +116,15 @@ export class MachinesService {
 
     const { password: _password, passphrase: _passphrase, ...dbConfig } = config;
 
-    const existingMetadata: SshConnectionMetadata =
+    const existingRows =
       config.id === undefined
-        ? {}
-        : ((
-            await this.deps.db
-              .select({ metadata: sshConnectionsTable.metadata })
-              .from(sshConnectionsTable)
-              .where(eq(sshConnectionsTable.id, connectionId))
-              .limit(1)
-          )[0]?.metadata ?? {});
+        ? []
+        : await this.deps.db
+            .select({ metadata: sshConnectionsTable.metadata })
+            .from(sshConnectionsTable)
+            .where(eq(sshConnectionsTable.id, connectionId))
+            .limit(1);
+    const existingMetadata: SshConnectionMetadata = existingRows[0]?.metadata ?? {};
 
     const metadataUpdate: SshConnectionMetadata = {};
     if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {
@@ -151,6 +168,16 @@ export class MachinesService {
         },
       });
 
+    if (existingRows.length > 0) {
+      await this.deps.ssh.dropConnection(connectionId).catch((error: unknown) => {
+        this.deps.log.warn('MachinesService.saveMachine: error disconnecting previous config', {
+          connectionId,
+          error: String(error),
+        });
+      });
+    }
+    this.hooks.callHookBackground('machine:mutated', { type: 'saved', connectionId });
+
     return {
       ...dbConfig,
       id: connectionId,
@@ -182,6 +209,10 @@ export class MachinesService {
       await this.deps.credentials.deleteAllCredentials(id);
     } finally {
       this.deps.ssh.removeRuntimeState(id);
+      this.hooks.callHookBackground('machine:mutated', {
+        type: 'deleted',
+        connectionId: id,
+      });
     }
   }
 

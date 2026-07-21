@@ -79,6 +79,10 @@ describe('MachinesService', () => {
 
   it('allows saving an existing machine without renaming it', async () => {
     await insertSshConnection(fixture.db);
+    const events: unknown[] = [];
+    service.on('machine:mutated', (event) => {
+      events.push(event);
+    });
 
     await expect(
       service.saveMachine({
@@ -91,11 +95,36 @@ describe('MachinesService', () => {
         useAgent: true,
       })
     ).resolves.toMatchObject({ id: 'ssh-1', name: 'Existing SSH', host: 'example.org' });
+    expect(dropConnection).toHaveBeenCalledWith('ssh-1');
+    expect(events).toEqual([{ type: 'saved', connectionId: 'ssh-1' }]);
+  });
+
+  it('does not drop a pooled connection when creating a new machine', async () => {
+    const events: unknown[] = [];
+    service.on('machine:mutated', (event) => {
+      events.push(event);
+    });
+
+    const saved = await service.saveMachine({
+      name: 'New SSH',
+      host: 'example.org',
+      port: 22,
+      username: 'jona',
+      authType: 'agent',
+      useAgent: true,
+    });
+
+    expect(dropConnection).not.toHaveBeenCalled();
+    expect(events).toEqual([{ type: 'saved', connectionId: saved.id }]);
   });
 
   it('deletes an unused machine even when an orphan workspace still references it', async () => {
     await insertSshConnection(fixture.db);
     await insertRemoteWorkspace(fixture.db);
+    const events: unknown[] = [];
+    service.on('machine:mutated', (event) => {
+      events.push(event);
+    });
 
     let credentialDeleteSawConnectionRows: number | undefined;
     deleteAllCredentials.mockImplementation(async (connectionId: string) => {
@@ -122,6 +151,7 @@ describe('MachinesService', () => {
     expect(dropConnection).toHaveBeenCalledWith('ssh-1');
     expect(deleteAllCredentials).toHaveBeenCalledWith('ssh-1');
     expect(removeRuntimeState).toHaveBeenCalledWith('ssh-1');
+    expect(events).toEqual([{ type: 'deleted', connectionId: 'ssh-1' }]);
   });
 
   it('does not delete credentials when a project still uses the machine', async () => {
