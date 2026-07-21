@@ -18,7 +18,7 @@ import {
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
   taskNameCollisionKey,
-} from '@renderer/utils/taskNames';
+} from '@shared/core/tasks/task-names';
 
 type RenameTaskModalArgs = {
   projectId: string;

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import { db } from '@main/db/client';
 import {
   automationRuns,
@@ -469,21 +468,18 @@ export async function scheduleAutomationRun(input: {
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
   const runId = randomUUID();
-  const generatedTaskName = generateRandom();
   const triggerSnap = JSON.stringify(input.triggerConfigSnapshot);
   const convSnap = JSON.stringify(input.conversationConfigSnapshot);
   const taskSnap = input.taskConfigSnapshot ? JSON.stringify(input.taskConfigSnapshot) : null;
   const rows = db.all<AutomationRunRow>(sql`
     INSERT INTO automation_runs (
       id, automation_id, scheduled_at, deadline_at, status, trigger_kind,
-      trigger_config_snapshot, conversation_config_snapshot, task_config_snapshot,
-      generated_task_name
+      trigger_config_snapshot, conversation_config_snapshot, task_config_snapshot
     )
     SELECT
       ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt},
       'scheduled', ${input.triggerKind},
-      ${triggerSnap}, ${convSnap}, ${taskSnap},
-      ${generatedTaskName}
+      ${triggerSnap}, ${convSnap}, ${taskSnap}
     WHERE NOT EXISTS (
       SELECT 1
       FROM automation_runs
@@ -558,6 +554,7 @@ export async function startCreatingTask(
       launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
+      generated_task_name AS generatedTaskName,
       error,
       trigger_kind AS triggerKind,
       trigger_config_snapshot AS triggerConfigSnapshot,
@@ -575,6 +572,19 @@ export async function isAutomationRunTask(taskId: string): Promise<boolean> {
     .where(eq(tasks.id, taskId))
     .limit(1);
   return row?.type === 'automation-run';
+}
+
+export async function countAutomationTasks(automationId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(tasks)
+    .innerJoin(automationRuns, eq(tasks.automationRunId, automationRuns.id))
+    .where(eq(automationRuns.automationId, automationId));
+  return row?.count ?? 0;
+}
+
+export async function setRunGeneratedTaskName(id: string, name: string): Promise<void> {
+  await db.update(automationRuns).set({ generatedTaskName: name }).where(eq(automationRuns.id, id));
 }
 
 export async function insertRun(input: {
@@ -605,7 +615,7 @@ export async function insertRun(input: {
       launchedAt: input.launchedAt ?? null,
       finishedAt: input.finishedAt ?? null,
       status: input.status,
-      generatedTaskName: input.generatedTaskName ?? generateRandom(),
+      generatedTaskName: input.generatedTaskName ?? null,
       error: input.error ? JSON.stringify(input.error) : null,
       triggerKind: input.triggerKind,
       triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),
