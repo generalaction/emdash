@@ -91,3 +91,30 @@ export const externalIcon = style({
   color: vars.foregroundMuted,
   marginLeft: 'auto',
 });
+
+// ── Divider ───────────────────────────────────────────────────────────────────
+
+export const divider = style({
+  width: '100%',
+  paddingTop: '0.5rem',
+  paddingBottom: '0.5rem',
+  selectors: {
+    '&::before': {
+      content: "''",
+      display: 'block',
+      width: '100%',
+      height: '1px',
+      backgroundColor: vars.border,
+    },
+  },
+});
+
+export const dividerLabel = style({
+  fontSize: tokenVars.textXs,
+  lineHeight: 1,
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+  color: vars.foregroundMuted,
+  marginBottom: '0.25rem',
+  paddingLeft: '0.75rem',
+});

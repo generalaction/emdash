@@ -6,6 +6,7 @@ import {
   generalSettingsPage,
   integrationsSettingsPage,
   interfaceSettingsPage,
+  localWorkspacesSettingsPage,
   repositorySettingsPage,
 } from '@core/features/settings/contributions/settings-pages';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
@@ -14,10 +15,11 @@ import type { SettingsPageContribution } from '@core/primitives/settings/api/pag
 export const settingsPageContributions = [
   generalSettingsPage,
   accountSettingsPage,
-  agentsSettingsPage,
   integrationsSettingsPage,
-  machinesConnectionsPage,
+  interfaceSettingsPage,
   browserSettingsPage,
   repositorySettingsPage,
-  interfaceSettingsPage,
+  agentsSettingsPage,
+  localWorkspacesSettingsPage,
+  machinesConnectionsPage,
 ] as const satisfies readonly SettingsPageContribution<Exclude<SettingsPageTab, 'docs'>>[];

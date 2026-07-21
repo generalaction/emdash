@@ -3,7 +3,7 @@ import { MachinesSettingsPage } from '../browser/pages/machines-settings-page';
 
 export const machinesConnectionsPage = defineSettingsPageContribution({
   id: 'connections',
-  label: 'Machines',
+  label: 'Remote Machines',
   icon: 'server',
   component: MachinesSettingsPage,
 });

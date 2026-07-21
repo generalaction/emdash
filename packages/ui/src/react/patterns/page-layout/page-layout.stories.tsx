@@ -3,7 +3,7 @@ import { PlusIcon, WrenchIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
 import { SearchInput } from '../../primitives/search-input';
-import { PageLayout, type PageNavItem } from './index';
+import { PageLayout, type PageNavItem, type PageSidebarMenuItem } from './index';
 
 const meta: Meta = {
   title: 'Patterns/PageLayout',
@@ -329,4 +329,69 @@ function CustomSidebarDemo() {
 export const CustomSidebar: Story = {
   name: 'Custom sidebar — PageLayout.Sidebar bare slot',
   render: () => <CustomSidebarDemo />,
+};
+
+// ── 5. Sectioned sidebar — PageNavSection dividers ────────────────────────────
+
+const SECTIONED_ITEMS = [
+  { id: 'general', label: 'General', icon: 'settings' },
+  { id: 'account', label: 'Account', icon: 'user' },
+  { id: 'integrations', label: 'Integrations', icon: 'plug' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'interface', label: 'Interface', icon: 'panel-left' },
+  { id: 'browser', label: 'Browser', icon: 'globe' },
+  { id: 'repository', label: 'Repository', icon: 'git-branch' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'agents', label: 'Agents', icon: 'bot' },
+  { id: 'workspaces', label: 'Workspaces (local)', icon: 'folder-git-2' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'remote-machines', label: 'Remote Machines', icon: 'server' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'docs', label: 'Docs', icon: 'external-link', isExternal: true },
+] satisfies PageSidebarMenuItem[];
+
+function SectionedSidebarDemo() {
+  const [tab, setTab] = React.useState('general');
+
+  return (
+    <div
+      style={{
+        height: '40rem',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--em-background)',
+      }}
+    >
+      <PageLayout
+        sidebar={
+          <PageLayout.SidebarMenu
+            items={SECTIONED_ITEMS}
+            activeId={tab}
+            onSelect={(item) => {
+              if (!item.isExternal) setTab(item.id);
+            }}
+          />
+        }
+      >
+        <PageLayout.Content>
+          <PageLayout.Header
+            title={
+              SECTIONED_ITEMS.find((item) => item.kind !== 'divider' && item.id === tab)?.label ??
+              ''
+            }
+            description="Sectioned sidebar demonstrating divider support."
+            sticky
+          />
+          <div style={{ paddingTop: '1.5rem', paddingBottom: '2.5rem' }}>
+            <PlaceholderList count={4} />
+          </div>
+        </PageLayout.Content>
+      </PageLayout>
+    </div>
+  );
+}
+
+export const SectionedSidebar: Story = {
+  name: 'Sectioned sidebar — divider support',
+  render: () => <SectionedSidebarDemo />,
 };

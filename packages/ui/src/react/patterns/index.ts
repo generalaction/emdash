@@ -82,6 +82,9 @@ export type {
   PageSidebarProps,
   PageContentProps,
   PageNavItem,
+  PageNavDivider,
+  PageNavSection,
+  PageSidebarMenuItem,
   PageSidebarMenuProps,
   PageHeaderProps,
 } from './page-layout';

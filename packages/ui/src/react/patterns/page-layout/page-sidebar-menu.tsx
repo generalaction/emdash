@@ -8,6 +8,8 @@ type CSSExtra = { [key: string]: string };
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface PageNavItem {
+  /** Distinguishes this item from a divider; may be omitted. */
+  kind?: undefined;
   id: string;
   label: string;
   /** Optional kebab-case Lucide icon name. */
@@ -16,8 +18,18 @@ export interface PageNavItem {
   isExternal?: boolean;
 }
 
+export interface PageNavDivider {
+  kind: 'divider';
+  /** Optional label shown above the divider in small, muted text. */
+  label?: string;
+}
+
+export type PageSidebarMenuItem = PageNavItem | PageNavDivider;
+
+export type PageNavSection = PageNavDivider;
+
 export interface PageSidebarMenuProps {
-  items: PageNavItem[];
+  items: PageSidebarMenuItem[];
   activeId: string;
   onSelect: (item: PageNavItem) => void;
   /**
@@ -64,24 +76,41 @@ function PageSidebarMenu({
   return (
     <div className={cx(styles.wrapper, className)} style={wrapperStyle}>
       <nav className={styles.nav}>
-        {items.map((item) => {
-          const isActive = item.id === activeId && !item.isExternal;
+        {items.map((item, index) => {
+          if (isDivider(item)) {
+            return <NavDivider key={`divider-${index}`} label={item.label} />;
+          }
+
+          const { id, label, icon, isExternal } = item;
+          const isActive = id === activeId && !isExternal;
           return (
             <button
-              key={item.id}
+              key={id}
               type="button"
               onClick={() => onSelect(item)}
               className={styles.navItem({ active: isActive })}
             >
-              {item.icon && <Icon name={item.icon} size="sm" className={styles.navItemIcon} />}
-              <span className={styles.navItemLabel}>{item.label}</span>
-              {item.isExternal && (
+              {icon && <Icon name={icon} size="sm" className={styles.navItemIcon} />}
+              <span className={styles.navItemLabel}>{label}</span>
+              {isExternal && (
                 <Icon name="external-link" size="xs" className={styles.externalIcon} />
               )}
             </button>
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+function isDivider(item: PageSidebarMenuItem): item is PageNavDivider {
+  return item.kind === 'divider';
+}
+
+function NavDivider({ label }: { label?: string }) {
+  return (
+    <div className={styles.divider} role="separator" aria-label={label}>
+      {label && <span className={styles.dividerLabel}>{label}</span>}
     </div>
   );
 }

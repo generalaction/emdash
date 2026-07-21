@@ -5,12 +5,13 @@ import { defineView } from '@core/primitives/views/api';
 export const settingsPageTabSchema = z.enum([
   'general',
   'account',
-  'clis-models',
   'integrations',
-  'connections',
+  'interface',
   'browser',
   'repository',
-  'interface',
+  'clis-models',
+  'workspaces-local',
+  'connections',
   'docs',
 ]);
 
