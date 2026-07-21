@@ -6,6 +6,7 @@ import {
   type ResolvedSshConfig,
 } from '../config/resolve-ssh-config';
 import type { SshConnectDeps } from './resolve-ssh-connect-config';
+import { defaultSshAgentSocket } from './ssh-agent-socket';
 import type { AuthResult } from './ssh-connect-auth';
 
 function expandForwardAgentValue(
@@ -21,6 +22,13 @@ function expandForwardAgentValue(
 }
 
 function agentForForwarding(resolved: ResolvedSshConfig | undefined, deps: SshConnectDeps): string {
+  const agentSocket = resolved
+    ? resolveAgentSocketFromResolved(resolved, deps.env)
+    : ({ kind: 'unset' } satisfies ResolvedAgentSocket);
+  if (agentSocket.kind === 'disabled') {
+    throw new Error('Agent forwarding was requested, but SSH agent is disabled by SSH config');
+  }
+
   if (resolved?.forwardAgentValue) {
     const agent = expandForwardAgentValue(resolved.forwardAgentValue, deps.env);
     if (!agent) {
@@ -29,10 +37,10 @@ function agentForForwarding(resolved: ResolvedSshConfig | undefined, deps: SshCo
     return agent;
   }
 
-  const agentSocket = resolved
-    ? resolveAgentSocketFromResolved(resolved, deps.env)
-    : ({ kind: 'unset' } satisfies ResolvedAgentSocket);
-  const agent = agentSocket.kind === 'socket' ? agentSocket.path : deps.env.SSH_AUTH_SOCK;
+  const agent =
+    agentSocket.kind === 'socket'
+      ? agentSocket.path
+      : defaultSshAgentSocket(deps.env, deps.platform);
   if (!agent) {
     throw new Error('Agent forwarding was requested, but no SSH agent socket is available');
   }

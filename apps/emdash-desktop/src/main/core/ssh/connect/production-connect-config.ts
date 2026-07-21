@@ -28,6 +28,7 @@ export const resolveProductionSshConnectConfig = createSshConnectConfigResolver(
   spawnProxyJump,
   createAgent,
   env: process.env,
+  platform: process.platform,
 });
 
 export type { SshConnectInput, SshConnectResult };
