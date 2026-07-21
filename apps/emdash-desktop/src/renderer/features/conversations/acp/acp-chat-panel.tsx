@@ -1,4 +1,5 @@
 import type { AttachmentMimeType, AttachmentRef } from '@emdash/core/acp/client';
+import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChatComposer, ImageViewerDialog, MermaidViewerDialog } from '@emdash/ui/react/components';
 import type {
   CommandItem,
@@ -19,6 +20,7 @@ import { useConnectedIssueProviders } from '@renderer/features/integrations/use-
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import {
   asMounted,
+  getProjectSshConnectionId,
   getProjectStore,
   getProjectViewStore,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -45,10 +47,13 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { isHeicLikeFile, isUnstableDropPath } from '@renderer/lib/pty/terminal-image-paths';
+import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { log } from '@renderer/utils/logger';
+import { agentSupportsAcp } from '@shared/core/agents/agent-payload';
 import { linkedIssueMentionName, type LinkedIssue } from '@shared/core/linked-issue';
+import { nextDefaultConversationTitle } from '../conversation-title-utils';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
@@ -230,8 +235,10 @@ const ComposerForStore = observer(function ComposerForStore({
   composerSlot: HTMLElement;
   onViewerOpen: (src?: string, alt?: string) => void;
 }) {
+  const { pane, paneId } = usePaneContext();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isCreatingConversationRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const { value: promptLibrary } = usePromptLibrary();
 
@@ -524,20 +531,90 @@ const ComposerForStore = observer(function ComposerForStore({
     issueProviderContext.repositoryUrl,
   ]);
 
+  const conversation = conversationRegistry
+    .get(store.taskId)
+    ?.conversations.get(store.conversationId);
+  const providerId = conversation?.data.providerId ?? null;
+  const connectionId = getProjectSshConnectionId(store.projectId);
   const { data: agents } = useAgents();
+  const { data: agentStatuses } = useAgentInstallationStatuses(connectionId);
+  const installedAgentIds = useMemo(
+    () =>
+      new Set(
+        (agentStatuses ?? [])
+          .filter((status) => status.status === 'available')
+          .map((status) => status.id)
+      ),
+    [agentStatuses]
+  );
   const agentOptions = useMemo<ComposerAgentOption[]>(
     () =>
-      (agents ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        icon: <AgentIcon id={a.id} size={14} className="rounded-sm" />,
-      })),
-    [agents]
+      (agents ?? [])
+        .filter(
+          (agent) =>
+            agent.id === providerId ||
+            (installedAgentIds.has(agent.id) && agentSupportsAcp(agent.capabilities))
+        )
+        .map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          icon: <AgentIcon id={agent.id} size={14} className="rounded-sm" />,
+          disabled: !installedAgentIds.has(agent.id),
+        })),
+    [agents, installedAgentIds, providerId]
   );
 
-  const providerId =
-    conversationRegistry.get(store.taskId)?.conversations.get(store.conversationId)?.data
-      .providerId ?? null;
+  const handleAgentChange = useCallback(
+    async (nextProviderId: string) => {
+      if (
+        isCreatingConversationRef.current ||
+        nextProviderId === providerId ||
+        !installedAgentIds.has(nextProviderId)
+      ) {
+        return;
+      }
+
+      const nextAgent = agents?.find(
+        (agent) => agent.id === nextProviderId && agentSupportsAcp(agent.capabilities)
+      );
+      const conversationManager = conversationRegistry.get(store.taskId);
+      if (!nextAgent || !conversationManager) return;
+
+      isCreatingConversationRef.current = true;
+      const conversationId = crypto.randomUUID();
+      const title = nextDefaultConversationTitle(
+        nextAgent.id,
+        Array.from(conversationManager.conversations.values(), (item) => item.data)
+      );
+
+      try {
+        await conversationManager.createConversation({
+          projectId: store.projectId,
+          taskId: store.taskId,
+          id: conversationId,
+          autoApprove: conversation?.data.autoApprove,
+          provider: nextAgent.id as AgentProviderId,
+          title,
+          type: 'acp',
+        });
+        pane.open('acp-chat', { conversationId }, { preview: false, target: { paneId } });
+      } catch (error) {
+        log.error('Failed to create conversation when changing agents', {
+          providerId: nextProviderId,
+          error,
+        });
+        toast({
+          title: 'Failed to create conversation',
+          description: `Could not start a new chat with ${nextAgent.name}.`,
+          variant: 'destructive',
+        });
+      } finally {
+        isCreatingConversationRef.current = false;
+      }
+    },
+    [agents, conversation?.data.autoApprove, installedAgentIds, pane, paneId, providerId, store]
+  );
+
   const renderMentionIcon = useCallback(({ id, kind }: { id: string; kind: string }) => {
     if (kind !== 'issue') return null;
     const target = parseIssueMentionToken(id);
@@ -608,8 +685,7 @@ const ComposerForStore = observer(function ComposerForStore({
         onPermissionModeChange={handleModeChange}
         agentOptions={agentOptions}
         selectedAgent={providerId ?? undefined}
-        agentLocked
-        onAgentChange={() => {}}
+        onAgentChange={(agentId) => void handleAgentChange(agentId)}
         contextUsage={
           store.usage
             ? {
