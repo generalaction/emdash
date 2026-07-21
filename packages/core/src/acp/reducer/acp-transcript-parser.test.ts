@@ -403,7 +403,7 @@ describe('AcpTranscriptParser', () => {
   it('tool kinds can materialize richer tool rows', () => {
     const p = new AcpTranscriptParser(deps());
     p.push(userChunk('u1', 'use tools'));
-    p.push(toolCallUpdate('search-1', 'Find symbols', 'search'));
+    p.push(toolCallUpdate('search-1', "Search for 'symbols'", 'search'));
     p.push(toolCallUpdate('mcp-1', 'linear.searchIssues', 'mcp-tool'));
     p.push(toolCallUpdate('fetch-1', 'https://example.test', 'web-fetch'));
     p.push(toolCallUpdate('subagent-1', 'Investigate failure', 'subagent'));
@@ -411,7 +411,7 @@ describe('AcpTranscriptParser', () => {
     const items = p.activeTurn?.items ?? [];
     expect(items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
       id: makeToolId(makeTurnId(CID, 0), 'search-1'),
-      query: 'Find symbols',
+      query: "for 'symbols'",
       status: 'running',
     });
     expect(items.find((i) => i.kind === 'mcp-tool-call')).toMatchObject({
@@ -431,14 +431,14 @@ describe('AcpTranscriptParser', () => {
     p.pushEvent({
       kind: 'search',
       toolCallId: 'search-1',
-      query: 'NormalizedEvent',
+      query: 'search engine optimization',
       status: 'completed',
       parentToolCallId: null,
       matchCount: 3,
     });
 
     expect(p.activeTurn?.items.find((i) => i.kind === 'search-tool-call')).toMatchObject({
-      query: 'NormalizedEvent',
+      query: 'search engine optimization',
       status: 'done',
       matchCount: 3,
     });
