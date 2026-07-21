@@ -160,6 +160,7 @@ export class LocalConversationProvider implements ConversationProvider {
         providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
+        platform: process.platform,
       });
 
       const customEnv = providerConfig?.env ?? {};

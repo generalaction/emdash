@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,6 +31,7 @@ export function buildPromptPointerMessage(filePath: string): string {
 
 export type SpillLargePromptDeps = {
   maxChars?: number;
+  maxBytes?: number;
   createTempDir?: () => Promise<string>;
   writeContextFile?: (filePath: string, contents: string) => Promise<void>;
   removeTempDir?: (dir: string) => Promise<void>;
@@ -47,6 +49,7 @@ const noopCleanup = (): Promise<void> => Promise.resolve();
 
 const defaultDeps: Required<SpillLargePromptDeps> = {
   maxChars: MAX_INLINE_PROMPT_CHARS,
+  maxBytes: Number.POSITIVE_INFINITY,
   createTempDir: () => mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX)),
   writeContextFile: (filePath, contents) => writeFile(filePath, contents, 'utf8'),
   removeTempDir: (dir) => rm(dir, { recursive: true, force: true }),
@@ -67,12 +70,14 @@ export async function spillLargePrompt(
   prompt: string,
   deps: SpillLargePromptDeps = {}
 ): Promise<SpillLargePromptResult> {
-  const { maxChars, createTempDir, writeContextFile, removeTempDir, onError } = {
+  const { maxChars, maxBytes, createTempDir, writeContextFile, removeTempDir, onError } = {
     ...defaultDeps,
     ...deps,
   };
 
-  if (prompt.length <= maxChars) return { prompt, cleanup: noopCleanup };
+  if (prompt.length <= maxChars && Buffer.byteLength(prompt, 'utf8') <= maxBytes) {
+    return { prompt, cleanup: noopCleanup };
+  }
 
   let dir: string | undefined;
   try {
