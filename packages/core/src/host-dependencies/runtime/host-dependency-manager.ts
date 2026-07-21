@@ -229,6 +229,37 @@ export class HostDependencyManager {
     return this.hostState.get(id);
   }
 
+  /** Returns the first installed CLI that passes this dependency's version probe. */
+  async resolveAvailablePath(id: DependencyId): Promise<string | null> {
+    const descriptor = this._getDependencyDescriptor(id);
+    if (!descriptor) {
+      throw new Error(`Unknown dependency id: ${id}`);
+    }
+
+    const versionArgs = descriptor.versionArgs ?? ['--version'];
+    for (const command of descriptor.commands) {
+      const paths = await resolveAllCommandPaths(command, this.ctx, this.platform);
+      for (const path of paths) {
+        if (descriptor.skipVersionProbe) {
+          const state = dependencyStateFromProbeResult(descriptor, path, null);
+          this.updateState(state);
+          await this.buildAndStoreHostDependency(id, descriptor, state, null);
+          return path;
+        }
+
+        const probe = await runVersionProbe(command, path, versionArgs, this.ctx);
+        const state = dependencyStateFromProbeResult(descriptor, path, probe);
+        if (state.status === 'available') {
+          this.updateState(state);
+          await this.buildAndStoreHostDependency(id, descriptor, state, probe);
+          return path;
+        }
+      }
+    }
+
+    return null;
+  }
+
   /**
    * Two-phase probe for a single dependency:
    *   1. Resolve path (fast, ~5ms) — fires onStatusUpdated immediately.
@@ -266,6 +297,11 @@ export class HostDependencyManager {
     );
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
+
+    if (fullState.status === 'error') {
+      const availablePath = await this.resolveAvailablePath(id);
+      if (availablePath) return this.state.get(id)!;
+    }
 
     // Phase 3: build HostDependency state.
     await this.buildHostDependencyAfterProbe(id, descriptor, fullState, probeResult);
@@ -336,12 +372,11 @@ export class HostDependencyManager {
       const provenance = await this.detector.detect(realpath);
       const manageable = computeManageable(provenance, descriptor);
 
-      // For the active (first) installation, reuse the already-computed fullState
-      // to avoid a redundant version probe.
+      // Reuse a matching fullState to avoid a redundant version probe.
       let version: string | null = null;
       let status: DependencyStatus = 'available';
 
-      if (isActive && fullState) {
+      if (fullState?.path === pathEntry) {
         version = fullState.version;
         status = fullState.status;
       } else if (!descriptor.skipVersionProbe) {

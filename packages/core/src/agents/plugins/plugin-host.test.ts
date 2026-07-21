@@ -1,6 +1,7 @@
 import { createScope } from '@emdash/wire/util';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '../../exec';
+import { resolveActiveInstallation } from '../../host-dependencies/runtime/types';
 import type { IAcpBehavior } from './capabilities/acp';
 import type { IAgentAuthBehavior } from './capabilities/auth';
 import type { CanonicalHookEvent } from './capabilities/hooks';
@@ -190,15 +191,58 @@ describe('AgentPluginHost', () => {
     await expect(host.readMcpServers('test')).resolves.toEqual({ success: true, data: servers });
     expect(readServers).toHaveBeenCalledWith(expect.any(Object));
   });
+
+  it('skips a broken PATH installation when building an ACP spawn', async () => {
+    const host = createHost(
+      [
+        plugin({
+          acp: { kind: 'supported' },
+          behavior: {
+            acp: {
+              buildSpawn: (ctx) => ({ command: ctx.cli, args: [], env: {} }),
+              connect: vi.fn(),
+            },
+            hostDependency: {
+              resolveStatus: (result) => (result.exitCode === 0 ? 'available' : 'error'),
+            },
+          },
+        }),
+      ],
+      fakeExec({ paths: ['/broken/test', '/working/test'], brokenPaths: ['/broken/test'] })
+    );
+
+    await expect(host.buildAcpSpawn('test', { cwd: '/workspace' })).resolves.toMatchObject({
+      success: true,
+      data: {
+        command: '/working/test',
+      },
+    });
+    expect(host.dependencies.get('test')).toMatchObject({
+      status: 'available',
+      path: '/working/test',
+    });
+    const hostDependency = host.dependencies.getHostDependency('test')!;
+    expect(hostDependency).toMatchObject({
+      installations: expect.arrayContaining([
+        expect.objectContaining({ pathEntry: '/working/test', status: 'available' }),
+      ]),
+    });
+    expect(
+      resolveActiveInstallation(hostDependency.installations, hostDependency.used)?.pathEntry
+    ).toBe('/working/test');
+  });
 });
 
-function createHost(plugins: CLIAgentPluginProvider[]): AgentPluginHost {
+function createHost(
+  plugins: CLIAgentPluginProvider[],
+  exec: IExecutionContext = fakeExec()
+): AgentPluginHost {
   const registry = createPluginRegistry<CLIAgentPluginProvider>();
   for (const item of plugins) registry.register(item);
   return new AgentPluginHost({
     scope: createScope({ label: 'test' }),
     registry,
-    exec: fakeExec(),
+    exec,
     fs: memoryFs(),
     env: { HOME: '/home/test', PATH: '/bin', UNSAFE_ENV: 'nope' },
     homeDir: '/home/test',
@@ -250,11 +294,26 @@ function plugin(
   } as unknown as CLIAgentPluginProvider;
 }
 
-function fakeExec(): IExecutionContext {
+function fakeExec({
+  paths = ['test'],
+  brokenPaths = [],
+}: {
+  paths?: string[];
+  brokenPaths?: string[];
+} = {}): IExecutionContext {
   return {
     supportsLocalSpawn: false,
-    async exec() {
-      throw new Error('missing');
+    async exec(command, args) {
+      if (command === 'which' && args?.join(' ') === '-a test') {
+        return { stdout: paths.join('\n'), stderr: '' };
+      }
+      if (brokenPaths.includes(command)) {
+        throw Object.assign(new Error('broken'), { code: 1, stderr: 'missing dependency' });
+      }
+      if (paths.includes(command)) {
+        return { stdout: 'test 1.0.0', stderr: '' };
+      }
+      throw new Error(`Unexpected command: ${command} ${args?.join(' ') ?? ''}`);
     },
     async execStreaming() {},
     dispose() {},
