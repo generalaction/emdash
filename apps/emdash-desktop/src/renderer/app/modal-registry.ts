@@ -51,7 +51,9 @@ export const modalRegistry = {
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
   confirmExternalLinkModal: createModal(ExternalLinkChoiceDialog, { size: 'sm' }),
   unsavedChangesModal: createModal(UnsavedChangesDialog, { size: 'xs' }),
-  createConversationModal: createModal(CreateConversationModal),
+  createConversationModal: createModal(CreateConversationModal, {
+    ignoreOutsidePressAfterWindowBlur: true,
+  }),
   feedbackModal: createModal(FeedbackModal),
   promptModal: createModal(PromptModal, { size: 'lg' }),
   mcpServerModal: createModal(McpModal),
