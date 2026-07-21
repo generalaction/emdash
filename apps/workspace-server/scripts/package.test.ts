@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   artifactArchiveName,
+  artifactChecksumContents,
   createArtifactManifest,
   createLauncher,
   nodeDistributionArchiveName,
@@ -62,6 +63,14 @@ describe('workspace-server package helpers', () => {
     expect(artifactArchiveName('0.1.0', target)).toBe(
       'emdash-workspace-server-0.1.0-darwin-arm64.tar.gz'
     );
+  });
+
+  it('formats sha256 sidecars for remote verification', () => {
+    const checksum = 'a'.repeat(64);
+    expect(artifactChecksumContents(checksum, 'server.tar.gz')).toBe(
+      `${checksum}  server.tar.gz\n`
+    );
+    expect(() => artifactChecksumContents('not-a-checksum', 'server.tar.gz')).toThrow('sha256');
   });
 
   it('generates a relocatable launcher with a safely quoted app version', () => {

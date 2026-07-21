@@ -101,6 +101,14 @@ export function artifactArchiveName(version: string, target: PackageTarget): str
   return `${artifactRootName}-${version}-${target.os}-${target.arch}.tar.gz`;
 }
 
+export function artifactChecksumContents(checksum: string, archiveName: string): string {
+  if (!/^[a-f\d]{64}$/.test(checksum)) throw new Error('Artifact checksum must be sha256 hex');
+  if (archiveName.length === 0 || /[\s/\\]/.test(archiveName)) {
+    throw new Error('Artifact archive name must be a single non-empty path component');
+  }
+  return `${checksum}  ${archiveName}\n`;
+}
+
 export function createArtifactManifest(options: {
   name: string;
   version: string;

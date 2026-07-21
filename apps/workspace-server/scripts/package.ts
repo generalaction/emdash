@@ -15,10 +15,11 @@ import {
 } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   artifactArchiveName,
+  artifactChecksumContents,
   artifactRootName,
   createArtifactManifest,
   createLauncher,
@@ -136,7 +137,14 @@ async function packageTarget(options: {
       cwd: dirname(artifactDirectory),
       env: { ...process.env, COPYFILE_DISABLE: '1' },
     });
+    const archiveChecksum = await sha256File(archivePath);
+    await writeFile(
+      `${archivePath}.sha256`,
+      artifactChecksumContents(archiveChecksum, basename(archivePath)),
+      'utf8'
+    );
     process.stdout.write(`Created ${archivePath}\n`);
+    process.stdout.write(`Created ${archivePath}.sha256\n`);
 
     if (verify) {
       process.stdout.write(`Smoke-verifying ${target.id} artifact...\n`);

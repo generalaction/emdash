@@ -43,6 +43,15 @@ The packaging process:
 3. Downloads the official Node version pinned by the repository's `.nvmrc`, verifies it against
    Node's published `SHASUMS256.txt`, and copies its `node` executable into the artifact.
 4. Writes the launcher and manifest, then creates the archive under `dist-artifacts/`.
+5. Writes a sibling `<archive>.sha256` file suitable for `sha256sum -c` verification.
+
+Artifact URLs are immutable. Once an archive has been published for a workspace-server version,
+that version must never be rebuilt with different contents. Any change that affects the packaged
+artifact requires a version bump in `apps/workspace-server/package.json` before publication. The
+desktop installer deliberately treats an existing `versions/<version>/` directory as final.
+
+The future R2 publication workflow should upload each archive and sidecar under
+`workspace-server/<version>/<archive-name>[.sha256]`, matching the desktop artifact source.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.
