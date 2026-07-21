@@ -674,16 +674,12 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   // button does not flash on mount before the first frame fires.
   const [atBottom, setAtBottom] = useState(true);
 
-  const handleReady = useCallback(
-    (view: ChatView) => {
-      viewRef.current = view;
-      store?.bindView(view);
-      setComposerSlot(view.composerSlot);
-      setHeroSlot(view.heroSlot);
-      setOverlaySlot(view.contentOverlay);
-    },
-    [store]
-  );
+  const handleReady = useCallback((view: ChatView) => {
+    viewRef.current = view;
+    setComposerSlot(view.composerSlot);
+    setHeroSlot(view.heroSlot);
+    setOverlaySlot(view.contentOverlay);
+  }, []);
 
   const isConversationEmpty = useObserver(() => store?.isEmpty ?? false);
   const activeConversationId = store?.conversationId ?? null;
@@ -709,7 +705,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
     return () => {
       store.bindView(null);
     };
-  }, [store]);
+  }, [store, composerSlot]);
 
   // State-driven notification clearing: mark the active conversation as seen
   // immediately when the panel is showing it. This covers the split-pane case
