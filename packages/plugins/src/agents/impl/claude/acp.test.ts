@@ -30,7 +30,9 @@ describe('claude acp capability', () => {
       'kiro',
       'mimocode',
       'mistral',
+      'oh-my-pi',
       'opencode',
+      'pi',
       'qoder',
       'qwen',
     ]);

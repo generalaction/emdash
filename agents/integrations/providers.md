@@ -13,7 +13,7 @@ codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, am
 
 ## Current ACP-Capable Providers (21)
 
-codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi
+codex, claude, opencode, grok, devin, qwen, qoder, droid, cursor, copilot, hermes, auggie, goose, kimi, kilocode, kiro, cline, mistral, junie, mimocode, oh-my-pi, pi
 
 ## Provider Metadata Includes
 

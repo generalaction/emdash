@@ -1,0 +1,12 @@
+diff --git a/dist/index.js b/dist/index.js
+index d67c4b8f48ac37dfeaa5f18ec60c5aedda8d37e5..3cc77d6f5ffdc7606b6f47d08ba51098118e1066 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1606,6 +1606,7 @@ function getEnableSkillCommands(cwd) {
+   return true;
+ }
+ function getQuietStartup(cwd) {
++  if (process.env.PI_ACP_QUIET_STARTUP === "true") return true;
+   const merged = getMergedSettings(cwd);
+   const direct = merged.quietStartup;
+   if (typeof direct === "boolean") return direct;

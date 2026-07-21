@@ -1,3 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/**'
+
+patchedDependencies:
+  pi-acp@0.0.31: patches/pi-acp@0.0.31.patch
