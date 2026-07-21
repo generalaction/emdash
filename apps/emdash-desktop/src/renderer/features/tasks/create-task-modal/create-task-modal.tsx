@@ -144,6 +144,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             includeIssueContextByDefault={includeIssueContextByDefault}
           >
             <TaskConfigPanel
+              preserveTabContent
               tabs={[
                 {
                   value: 'conversation',
