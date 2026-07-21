@@ -1,8 +1,6 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
-import {
-  SettingsPage,
-  type SettingsPageTab,
-} from '@renderer/features/settings/components/SettingsPage';
+import { SettingsPage } from '@renderer/features/settings/components/SettingsPage';
+import type { SettingsPageTab } from '@renderer/features/settings/settings-tabs';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 
