@@ -170,7 +170,14 @@ export class FileSystem implements IFileSystem {
             code: 'EISDIR',
           });
         }
-        await fs.rm(validated.data, { recursive: true, force: true });
+        // Retry transient EBUSY/EPERM/ENOTEMPTY failures (e.g. a watcher or
+        // antivirus briefly holding a handle, common on Windows).
+        await fs.rm(validated.data, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 100,
+        });
         return ok<void>();
       }
 
