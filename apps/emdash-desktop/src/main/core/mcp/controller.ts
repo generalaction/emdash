@@ -1,7 +1,10 @@
 import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import type { DependencyId } from '@emdash/core/deps/runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
+import {
+  ensureAgentDependenciesProbed,
+  localDependencyManager,
+} from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';
 import type { McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -25,6 +28,16 @@ function mapProviders(): McpProvidersResponse[] {
 }
 
 export const mcpController = createRPCController({
+  searchIntegrationsSh: async ({ query }: { query: string }) => {
+    try {
+      const data = await mcpService.searchIntegrationsSh(query);
+      return { success: true, data };
+    } catch (error) {
+      log.error('Failed to search integrations.sh:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
   loadAll: async () => {
     try {
       const data = await mcpService.loadAll();
@@ -57,6 +70,7 @@ export const mcpController = createRPCController({
 
   getProviders: async () => {
     try {
+      await ensureAgentDependenciesProbed(localDependencyManager);
       return { success: true, data: mapProviders() };
     } catch (error) {
       log.error('Failed to get MCP providers:', error);
@@ -66,7 +80,7 @@ export const mcpController = createRPCController({
 
   refreshProviders: async () => {
     try {
-      await localDependencyManager.probeCategory('agent');
+      await localDependencyManager.probeCategory('agent', { refreshShellEnv: true });
       return { success: true, data: mapProviders() };
     } catch (error) {
       log.error('Failed to refresh MCP providers:', error);

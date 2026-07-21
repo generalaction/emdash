@@ -60,7 +60,11 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
       }}
       className="relative"
     >
-      <McpServerIcon name={name} iconKey={catalogEntry?.key ?? server?.name} />
+      <McpServerIcon
+        name={name}
+        iconKey={catalogEntry?.key ?? server?.name}
+        iconUrl={catalogEntry?.iconUrl}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="text-smd min-w-0 truncate">{name}</h3>

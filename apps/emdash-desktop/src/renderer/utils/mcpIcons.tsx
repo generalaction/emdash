@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import mcpDefaultSvg from '../../assets/images/mcp/mcp_default.svg?raw';
 import { coerceRawSvgContent, prepareInlineSvgMarkup } from './mcp-icon-data';
 
@@ -98,14 +98,30 @@ function renderSvgMarkup(svgContent: string): React.ReactNode {
   return <div className="size-5" dangerouslySetInnerHTML={{ __html: processed }} />;
 }
 
-export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ name, iconKey }) => {
+export const McpServerIcon: React.FC<{ name: string; iconKey?: string; iconUrl?: string }> = ({
+  name,
+  iconKey,
+  iconUrl,
+}) => {
+  const [hasIconError, setHasIconError] = useState(false);
   const resolvedIconKey = resolveMcpIconKey(iconKey, name);
   const icon = resolvedIconKey ? getIcon(resolvedIconKey) : undefined;
   const svgContent = icon ?? fallbackSvg;
+  const showRemoteIcon = iconUrl && !hasIconError;
 
   return (
     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 transition-colors group-hover:bg-background-3">
-      {svgContent ? renderSvgMarkup(svgContent) : null}
+      {showRemoteIcon ? (
+        <img
+          src={iconUrl}
+          alt=""
+          className="size-5 rounded-sm"
+          loading="lazy"
+          onError={() => setHasIconError(true)}
+        />
+      ) : svgContent ? (
+        renderSvgMarkup(svgContent)
+      ) : null}
     </div>
   );
 };
