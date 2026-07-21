@@ -44,6 +44,11 @@ already use: Claude Code, Codex, OpenCode, Amp, and more.
 | Windows | [Installer](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi) · [Portable](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe) |
 | Linux | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage) · [Debian package](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb) |
 
+On Linux, Emdash requires Electron secure storage to use an encrypted keyring backend for
+credentials. If your desktop environment falls back to `basic_text`, install/configure a
+secure keyring such as GNOME libsecret or launch Emdash with
+`--password-store=gnome-libsecret`.
+
 See the [latest release](https://github.com/generalaction/emdash/releases/latest) for
 all desktop builds.
 
