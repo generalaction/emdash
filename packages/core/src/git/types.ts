@@ -179,6 +179,10 @@ export interface IGitWorktree extends IDisposable {
   getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
+  /** Snapshot the whole worktree (tracked + untracked) as a tree oid; see impl (#1635). */
+  snapshotWorktreeTree(): Promise<string>;
+  /** Files changed between two tree oids from {@link snapshotWorktreeTree} (#1635). */
+  getChangedFilesBetweenTrees(baseTree: string, headTree: string): Promise<GitChange[]>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
   getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;

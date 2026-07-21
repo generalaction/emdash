@@ -10,10 +10,14 @@ export interface ExpandedSections {
   pullRequests: boolean;
 }
 
+export type ChangesScope = 'session' | 'last-turn';
+
 export class ChangesViewStore {
   unstagedSelection = observable.set<string>();
   stagedSelection = observable.set<string>();
   expandedSections: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+  /** Whether the "Changed" section shows the whole task diff or only the last turn's (#1635). */
+  scope: ChangesScope = 'session';
 
   private _disposeReactions: Array<() => void> = [];
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
@@ -24,6 +28,7 @@ export class ChangesViewStore {
   ) {
     makeObservable(this, {
       expandedSections: observable,
+      scope: observable,
       unstagedSelectionState: computed,
       stagedSelectionState: computed,
     });
@@ -188,6 +193,12 @@ export class ChangesViewStore {
     for (const path of paths) {
       this.stagedSelection.delete(path);
     }
+  }
+
+  setScope(scope: ChangesScope): void {
+    runInAction(() => {
+      this.scope = scope;
+    });
   }
 
   toggleExpanded(section: keyof ExpandedSections): void {
