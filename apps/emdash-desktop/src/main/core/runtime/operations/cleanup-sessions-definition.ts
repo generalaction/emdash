@@ -23,11 +23,6 @@ import {
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import {
-  getAcpRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-} from '@main/gateway/accessors';
 import { log } from '@main/lib/logger';
 import {
   killLifecycleAcpSessions,
@@ -72,7 +67,7 @@ export type CleanupSessionsDependencies = {
   sessionCleanup: SessionCleanupDependencies;
   resolveLifecycleOperationContext(
     db: AppDb,
-    operation: Parameters<typeof resolveLifecycleSessionTargets>[1]
+    operation: Parameters<typeof resolveLifecycleSessionTargets>[2]
   ): Promise<LifecycleSessionContext>;
   submitReconcilerProjectCleanup(submit: OperationSubmit, projectId: string): Promise<void>;
   submitReconcilerTaskCleanup(submit: OperationSubmit, taskId: string): Promise<void>;
@@ -109,7 +104,12 @@ export function createCleanupSessionsOperationDefinition(
     async run(runContext) {
       const { db, operation } = runContext;
       const context = await dependencies.resolveLifecycleOperationContext(db, operation);
-      const targets = await resolveLifecycleSessionTargets(db, operation, context);
+      const targets = await resolveLifecycleSessionTargets(
+        dependencies.sessionCleanup,
+        db,
+        operation,
+        context
+      );
       const actions = [];
       if (targets.acpConversationIds.length > 0) {
         actions.push({
@@ -186,9 +186,9 @@ export async function sweepLifecycleDrift(
   }
 
   const [acpClient, tuiClient, terminalsClient] = await Promise.all([
-    getAcpRuntimeClient(),
-    getTuiAgentsRuntimeClient(),
-    getTerminalsRuntimeClient(),
+    dependencies.sessionCleanup.getAcpRuntimeClient(),
+    dependencies.sessionCleanup.getTuiAgentsRuntimeClient(),
+    dependencies.sessionCleanup.getTerminalsRuntimeClient(),
   ]);
   const [acpSessions, tuiSessions, terminalSessions] = await Promise.all([
     acpClient.sessions.state(undefined, 'list').snapshot(),

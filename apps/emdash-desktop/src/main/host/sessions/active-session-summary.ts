@@ -1,20 +1,17 @@
 import type { ActiveSessionSummary } from '@core/features/workbench/api';
-import {
-  getAcpRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-} from '@main/gateway/accessors';
+import type { DesktopRuntimeClients } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 
 const SESSION_READ_DEADLINE_MS = 500;
 
-export async function getActiveSessionSummary(): Promise<ActiveSessionSummary> {
+export async function getActiveSessionSummary(
+  clients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'>
+): Promise<ActiveSessionSummary> {
   const [acpSessions, tuiSessions, terminals] = await Promise.all([
     readWithDeadline(
       'acp',
       async () => {
-        const client = await getAcpRuntimeClient();
-        const snapshot = await client.sessions.state(undefined, 'list').snapshot();
+        const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
         return Object.values(snapshot.data).filter(
           (session) => session.lifecycle === 'working' || session.isGenerating
         ).length;
@@ -24,8 +21,7 @@ export async function getActiveSessionSummary(): Promise<ActiveSessionSummary> {
     readWithDeadline(
       'tui-agents',
       async () => {
-        const client = await getTuiAgentsRuntimeClient();
-        const snapshot = await client.sessions.state(undefined, 'list').snapshot();
+        const snapshot = await clients.tuiAgents.sessions.state(undefined, 'list').snapshot();
         const running = Object.values(snapshot.data).filter(
           (session) => session.status === 'running'
         );
@@ -39,8 +35,7 @@ export async function getActiveSessionSummary(): Promise<ActiveSessionSummary> {
     readWithDeadline(
       'terminals',
       async () => {
-        const client = await getTerminalsRuntimeClient();
-        const snapshot = await client.sessions.state(undefined, 'list').snapshot();
+        const snapshot = await clients.terminals.sessions.state(undefined, 'list').snapshot();
         return Object.values(snapshot.data).filter(
           (session) => session.status === 'running' && session.kind === 'terminal'
         ).length;

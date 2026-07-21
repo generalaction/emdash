@@ -6,9 +6,6 @@ import { createDevServerBridgeInstaller } from './dev-server-bridge';
 vi.mock('@main/core/preview-servers/dev-server-bridge', () => ({
   createDevServerBridge: vi.fn(),
 }));
-vi.mock('./runtime-broker', () => ({
-  getDesktopRuntimeBroker: () => ({ session: vi.fn() }),
-}));
 
 describe('createDevServerBridgeInstaller', () => {
   it('cleans up failed attempts, retries, and pins the successful session until disposal', async () => {

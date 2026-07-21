@@ -48,7 +48,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         remoteDirectory: '/opt/emdash-artifacts',
       }),
     });
-    const broker = createDesktopRuntimeBroker(scope, workspaceServer);
+    const broker = createDesktopRuntimeBroker(scope, {} as never, workspaceServer);
     const layout = workspaceServerLayout('/home/devuser');
     const invalidations: unknown[] = [];
     workspaceServer.onInvalidate((event) => invalidations.push(event));

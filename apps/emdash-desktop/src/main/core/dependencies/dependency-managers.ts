@@ -3,17 +3,16 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/api';
 import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
-import { hostDependenciesClient } from '@main/gateway/desktop-workers';
 
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 
-export const localDependencyManager = hostDependenciesClient;
-
-export async function getDependencyManager(
-  connectionId?: string
-): Promise<Result<HostDependenciesClient, RuntimeResolveError>> {
-  if (!connectionId) return ok(localDependencyManager);
-  return err(remoteRuntimeUnavailable(connectionId, 'host-dependencies'));
+export function createDependencyManagerResolver(localDependencyManager: HostDependenciesClient) {
+  return async function getDependencyManager(
+    connectionId?: string
+  ): Promise<Result<HostDependenciesClient, RuntimeResolveError>> {
+    if (!connectionId) return ok(localDependencyManager);
+    return err(remoteRuntimeUnavailable(connectionId, 'host-dependencies'));
+  };
 }
 
 export async function ensureAgentDependenciesProbed(

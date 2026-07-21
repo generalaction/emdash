@@ -3,10 +3,11 @@ import type { EmdashAccountService } from '@core/features/account/node/services/
 import { GitHubAuthServerAdapter } from '@core/features/github/node/accounts/github-auth-server-adapter';
 import { taskProvisionEvents } from '@core/features/tasks/node/task-provision-events';
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
+import type { DesktopControllerContext } from '@core/manifests/node/controllers';
 import { appOperations } from '@main/core/app/controller';
 import {
+  createDependencyManagerResolver,
   ensureAgentDependenciesProbed,
-  getDependencyManager,
 } from '@main/core/dependencies/dependency-managers';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
@@ -16,22 +17,15 @@ import {
 } from '@main/core/terminal-shell/resolver';
 import { withCompensation } from '@main/core/utils/compensation';
 import { legacyPortOperations } from '@main/db/legacy-port/controller';
-import type { InstallDesktopWireOptions } from '@main/gateway/desktop-wire';
-import {
-  getAutomationsRuntimeClient,
-  getFilesRuntimeClient,
-  getGitRuntimeClient,
-  getMementosRuntimeClient,
-  getPullRequestsRuntimeClient,
-  getWorkspaceRuntimeClient,
-} from '@main/gateway/desktop-workers';
+import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { browserOperations } from '@main/host/browser/controller';
 import { updateOperations } from '@main/host/updates/controller-operations';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type { BootContext } from './types';
+import type { DatabaseBundle } from './phases/database';
+import type { ServicesBundle } from './phases/services';
 
 export function wireAccountTelemetry(accountService: EmdashAccountService): void {
   accountService.on('accountChanged', (username, userId, email) => {
@@ -49,21 +43,31 @@ export function registerProviderTokenHandlers(): void {
   );
 }
 
-export function createDesktopWireOptions(context: BootContext): InstallDesktopWireOptions {
-  const taskService = requireBootService(context.taskService, 'task service');
-  const github = requireBootService(context.githubServices, 'GitHub services');
+export type DesktopControllerOptions = Omit<
+  DesktopControllerContext,
+  'runtimes' | 'scope' | 'ssh' | 'workspaceServer'
+>;
+
+export function createDesktopWireOptions(
+  database: DatabaseBundle,
+  services: ServicesBundle,
+  runtimes: DesktopRuntimes
+): DesktopControllerOptions {
+  const taskService = services.taskService;
+  const github = services.github;
+  const getDependencyManager = createDependencyManagerResolver(runtimes.clients.hostDependencies);
   return {
-    accountService: requireBootService(context.accountService, 'account service'),
+    accountService: services.account,
     agentDependencies: {
       ensureAgentDependenciesProbed,
       getDependencyManager,
     },
-    appSettings: requireBootService(context.appSettingsService, 'app settings service'),
-    automations: requireBootService(context.automationsService, 'automations service'),
+    appSettings: database.appSettings,
+    automations: services.automations,
     browserOperations,
     compensation: withCompensation,
-    db: requireBootService(context.db, 'app database'),
-    editorBuffer: requireBootService(context.editorBufferService, 'editor buffer service'),
+    db: database.db,
+    editorBuffer: database.editorBuffer,
     github: {
       accountService: github.account,
       deviceFlowService: github.deviceFlow,
@@ -101,26 +105,23 @@ export function createDesktopWireOptions(context: BootContext): InstallDesktopWi
       getPlatformDisplayName: () => appOperations.getPlatformDisplayName(),
       getDiagnosticLogAttachment: () => appOperations.getDiagnosticLogAttachment(),
     },
-    issueProviders: requireBootService(context.issueProviders, 'issue provider registry'),
+    issueProviders: services.issueProviders,
     legacyPortOperations,
     logger: log,
-    notifications: requireBootService(context.notificationService, 'notification service'),
-    operations: requireBootService(context.operations, 'operations engine'),
-    promptLibrary: requireBootService(context.promptLibraryService, 'prompt library service'),
-    projects: requireBootService(context.projectManager, 'project manager'),
-    projectSettings: requireBootService(context.projectSettingsService, 'project settings service'),
-    providerSettings: requireBootService(
-      context.providerOverrideSettings,
-      'provider settings service'
-    ),
-    search: requireBootService(context.searchService, 'search service'),
+    notifications: services.notifications,
+    operations: services.operations,
+    promptLibrary: services.promptLibrary,
+    projects: services.projects,
+    projectSettings: services.projectSettings,
+    providerSettings: services.providerSettings,
+    search: services.search,
     runtimeClients: {
-      getAutomationsRuntimeClient,
-      getFilesRuntimeClient,
-      getGitRuntimeClient,
-      getMementosRuntimeClient,
-      getPullRequestsRuntimeClient,
-      getWorkspaceRuntimeClient,
+      getAutomationsRuntimeClient: async () => runtimes.clients.automations,
+      getFilesRuntimeClient: async () => runtimes.clients.files,
+      getGitRuntimeClient: async () => runtimes.clients.git,
+      getMementosRuntimeClient: async () => runtimes.clients.mementos,
+      getPullRequestsRuntimeClient: async () => runtimes.clients.pullRequests,
+      getWorkspaceRuntimeClient: async () => runtimes.clients.workspace,
     },
     settingsRuntime: {
       setKeyboardSettings: (settings) => browserWebContentsRegistry.setKeyboardSettings(settings),
@@ -128,15 +129,15 @@ export function createDesktopWireOptions(context: BootContext): InstallDesktopWi
     },
     telemetry: telemetryService,
     taskService,
-    taskSessions: requireBootService(context.taskSessionManager, 'task session manager'),
+    taskSessions: services.taskSessions,
     terminalShell: {
       getColorEnv: getTerminalColorEnv,
       getLocalAvailability: getLocalTerminalShellAvailability,
       resolveWithSystemFallback: resolveTerminalShellWithSystemFallback,
     },
     updateOperations,
-    workspaceIdentity: requireBootService(context.workspaceIdentity, 'workspace identity service'),
-    workspacePlacement: requireBootService(context.workspacePlacement, 'workspace placement'),
+    workspaceIdentity: database.workspaceIdentity,
+    workspacePlacement: services.workspacePlacement,
     workspaces: {
       async provisionTask(taskId) {
         const result = await taskService.provisionWorkspace(taskId);
@@ -154,9 +155,4 @@ export function createDesktopWireOptions(context: BootContext): InstallDesktopWi
       },
     },
   };
-}
-
-function requireBootService<T>(service: T | undefined, name: string): T {
-  if (!service) throw new Error(`${name} was not initialized before the gateway phase`);
-  return service;
 }

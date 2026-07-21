@@ -8,19 +8,28 @@ import {
   PATH_SEARCH_MAX_LIMIT,
   type PathSearchError,
 } from '@emdash/core/runtimes/file-search/api';
-import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
+import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import type { WorkspaceFileHit } from '@core/primitives/search/api';
-import { getDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { log } from '@main/lib/logger';
 
 type FileSearchRuntimeClient = HostRuntimesClient['fileSearch'];
 
-export async function registerFileSearchRoot(
+export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'session'>) {
+  return {
+    registerRoot: (root: HostAbsolutePath, host: HostRef = LOCAL_HOST_REF) =>
+      registerFileSearchRoot(runtimes, root, host),
+    unregisterRoot: (root: HostAbsolutePath, host: HostRef = LOCAL_HOST_REF) =>
+      unregisterFileSearchRoot(runtimes, root, host),
+  };
+}
+
+async function registerFileSearchRoot(
+  runtimes: Pick<RuntimeBroker, 'session'>,
   root: HostAbsolutePath,
   host: HostRef = LOCAL_HOST_REF
 ): Promise<void> {
-  const lease = getDesktopRuntimeBroker().session(host);
+  const lease = runtimes.session(host);
   try {
     const runtime = await lease.ready();
     if (!runtime.success) {
@@ -46,11 +55,12 @@ export async function registerFileSearchRoot(
   }
 }
 
-export async function unregisterFileSearchRoot(
+async function unregisterFileSearchRoot(
+  runtimes: Pick<RuntimeBroker, 'session'>,
   root: HostAbsolutePath,
   host: HostRef = LOCAL_HOST_REF
 ): Promise<void> {
-  const lease = getDesktopRuntimeBroker().session(host);
+  const lease = runtimes.session(host);
   try {
     const runtime = await lease.ready();
     if (!runtime.success) {

@@ -2,11 +2,7 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
-import {
-  registerFileSearchRoot,
-  searchFileSearchRoot,
-  unregisterFileSearchRoot,
-} from './runtime-client';
+import { createFileSearchRuntime, searchFileSearchRoot } from './runtime-client';
 
 const mocks = vi.hoisted(() => ({
   release: vi.fn(),
@@ -17,15 +13,13 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock('@main/gateway/runtime-broker', () => ({
-  getDesktopRuntimeBroker: () => ({ session: mocks.session }),
-}));
-
 vi.mock('@main/lib/logger', () => ({
   log: { warn: mocks.warn },
 }));
 
 describe('file-search runtime client', () => {
+  const runtime = createFileSearchRuntime({ session: mocks.session } as never);
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.session.mockReturnValue({
@@ -47,8 +41,8 @@ describe('file-search runtime client', () => {
   it('registers and unregisters structured workspace roots', async () => {
     const root = hostPathFromNative('/repo');
 
-    await registerFileSearchRoot(root);
-    await unregisterFileSearchRoot(root);
+    await runtime.registerRoot(root);
+    await runtime.unregisterRoot(root);
 
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
@@ -62,7 +56,7 @@ describe('file-search runtime client', () => {
     const root = hostPathFromNative('/repo');
     const remoteHost = hostRef('remote', 'machine-1');
 
-    await registerFileSearchRoot(root, remoteHost);
+    await runtime.registerRoot(root, remoteHost);
 
     expect(mocks.session).toHaveBeenCalledWith(remoteHost);
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });

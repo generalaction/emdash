@@ -3,13 +3,15 @@ import {
   tuiSessionListSchema,
   type TuiAgentState,
   type TuiAgentStateList,
+  type TuiAgentsContract,
   type TuiSessionList,
   type TuiSessionState,
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
+import type { WireWorker } from '@emdash/wire/worker';
 import type { ConversationEvent } from '@core/primitives/conversations/api';
-import { getTuiAgentsRuntimeClient, tuiAgentsWorker } from '@main/gateway/desktop-workers';
+import type { TuiAgentsRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import { agentStatusService } from './agent-status-service';
 import {
@@ -18,6 +20,8 @@ import {
 } from './tui-agent-status-transition';
 
 type TuiAgentStatusBridgeDependencies = {
+  client: TuiAgentsRuntimeClient;
+  onStateChanged: WireWorker<TuiAgentsContract>['onStateChanged'];
   setSessionId(
     conversationId: string,
     sessionId: string
@@ -57,22 +61,22 @@ class TuiAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-      const tuiClient = await getTuiAgentsRuntimeClient();
-      this.workerStateUnsubscribe =
-        tuiAgentsWorker?.onStateChanged((state) => {
-          if (state.kind !== 'failed' && state.kind !== 'disposed') return;
-          this.detach();
-        }) ?? null;
+      const dependencies = this.dependencies;
+      if (!dependencies) throw new Error('TUI agent status runtime has not been configured');
+      this.workerStateUnsubscribe = dependencies.onStateChanged((state) => {
+        if (state.kind !== 'failed' && state.kind !== 'disposed') return;
+        this.detach();
+      });
 
       const agentStatesReplica = new ReplicaState<TuiAgentStateList>(
-        tuiClient.agentStates.state(undefined, 'list'),
+        dependencies.client.agentStates.state(undefined, 'list'),
         {
           schema: tuiAgentStateListSchema,
           onChange: (states) => void this.applyAgentStates(states),
         }
       );
       const sessionsReplica = new ReplicaState<TuiSessionList>(
-        tuiClient.sessions.state(undefined, 'list'),
+        dependencies.client.sessions.state(undefined, 'list'),
         {
           schema: tuiSessionListSchema,
           onChange: (sessions) => void this.applySessions(sessions),

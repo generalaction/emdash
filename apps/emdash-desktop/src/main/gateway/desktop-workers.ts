@@ -2,11 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
-import { type AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
+import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
 import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
-import { type FileSearchContract } from '@emdash/core/runtimes/file-search/api';
+import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesComponent } from '@emdash/core/runtimes/files/node';
@@ -27,7 +27,8 @@ import {
   type HostDependenciesContract,
 } from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import { type ContractClient } from '@emdash/wire/api';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
@@ -37,9 +38,9 @@ import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services
 import { mementoSweepPolicies } from '@core/manifests/shared/memento-catalog';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 import { mementosComponent } from '@core/services/mementos/node';
+import type { PullRequestsContract } from '@core/services/pull-requests/api';
+import { pullRequestsComponent } from '@core/services/pull-requests/node';
 import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
-import { appScope } from '@main/bootstrap/core/app-scope';
-import { getAppSettingsService } from '@main/bootstrap/core/service-instances';
 import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-path';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
@@ -47,14 +48,7 @@ import { getGitExecutable } from '@main/core/utils/exec';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
-import type { PullRequestsContract } from '@root/src/core/services/pull-requests/api';
-import { pullRequestsComponent } from '@root/src/core/services/pull-requests/node';
 import { desktopWorkerPath } from './worker-paths';
-
-const pullRequestsGitHubAuthController = createPullRequestsGitHubAuthController(
-  new GitHubApiAuthService(providerAccountRegistry),
-  githubApiBaseUrlForHost
-);
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
@@ -69,21 +63,37 @@ export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
 
-const workerScope = appScope.child('wire-workers');
-const host = createWireWorkerHost({
-  scope: workerScope,
-  processSpawner: childProcessSpawner(),
-  logger: log,
-});
+export type DesktopRuntimeClients = {
+  readonly acp: AcpRuntimeClient;
+  readonly agentConfig: AgentConfigRuntimeClient;
+  readonly automations: AutomationsRuntimeClient;
+  readonly fileSearch: FileSearchRuntimeClient;
+  readonly files: FilesRuntimeClient;
+  readonly git: GitRuntimeClient;
+  readonly hostDependencies: HostDependenciesClient;
+  readonly mementos: MementosRuntimeClient;
+  readonly pullRequests: PullRequestsRuntimeClient;
+  readonly terminals: TerminalsRuntimeClient;
+  readonly tuiAgents: TuiAgentsRuntimeClient;
+  readonly workspace: WorkspaceRuntimeClient;
+};
 
-const acpComponent = createAcpComponent({ pluginRegistry, logger: log });
-const agentConfigComponent = createAgentConfigComponent({ pluginRegistry, logger: log });
-const automationsComponent = createAutomationsComponent();
-const tuiAgentsComponent = createTuiAgentsComponent({ pluginRegistry, logger: log });
-const hostDependenciesComponent = createHostDependenciesComponent({
-  store: desktopKeyValueStore,
-  exec: new NodeExecutionContext({ env: process.env }),
-});
+export type DesktopRuntimeWorkers = {
+  readonly acp: WireWorker<AcpApiContract>;
+  readonly tuiAgents: WireWorker<TuiAgentsContract>;
+};
+
+export type DesktopWorkersHandle = {
+  readonly clients: DesktopRuntimeClients;
+  readonly workers: DesktopRuntimeWorkers;
+  dispose(): Promise<void>;
+};
+
+export type StartDesktopWorkersDeps = {
+  readonly scope: Scope;
+  getLocalProjectSettings(): Promise<{ writeAgentConfigToGitIgnore?: boolean }>;
+};
+
 const GIT_RUNTIME_ENV = {
   ...process.env,
   ...NON_INTERACTIVE_GIT_ENV,
@@ -93,32 +103,50 @@ const GIT_RUNTIME_ENV = {
 };
 const SESSION_IDLE_MS = 60 * 60_000;
 
-const fsWatchWorker = host.create(fsWatchComponent, {
-  name: 'fs-watch',
-  executable: desktopWorkerPath('fs-watch'),
-  env: process.env,
-  dependencies: {},
-  config: {},
-});
+export async function startDesktopWorkers(
+  deps: StartDesktopWorkersDeps
+): Promise<DesktopWorkersHandle> {
+  const workerScope = deps.scope.child('wire-workers');
+  const host = createWireWorkerHost({
+    scope: workerScope,
+    processSpawner: childProcessSpawner(),
+    logger: log,
+  });
+  try {
+    return await startDesktopWorkersWithHost(deps, workerScope, host);
+  } catch (error) {
+    await workerScope.dispose(error);
+    throw error;
+  }
+}
 
-const hostDependencies = hostDependenciesComponent.create({
-  scope: workerScope,
-  dependencies: {},
-  config: {
-    hostId: 'local',
-    definitions: [
-      ...CORE_DEPENDENCIES,
-      ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
-    ],
-  },
-});
-
-export const hostDependenciesClient: HostDependenciesClient = hostDependencies.client;
-
-let acpWorker: WireWorker<AcpApiContract> | undefined;
-
-export function getAcpWorker(): WireWorker<AcpApiContract> {
-  acpWorker ??= host.create(acpComponent, {
+async function startDesktopWorkersWithHost(
+  deps: StartDesktopWorkersDeps,
+  workerScope: Scope,
+  host: ReturnType<typeof createWireWorkerHost>
+): Promise<DesktopWorkersHandle> {
+  const hostDependencies = createHostDependenciesComponent({
+    store: desktopKeyValueStore,
+    exec: new NodeExecutionContext({ env: process.env }),
+  }).create({
+    scope: workerScope,
+    dependencies: {},
+    config: {
+      hostId: 'local',
+      definitions: [
+        ...CORE_DEPENDENCIES,
+        ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
+      ],
+    },
+  });
+  const fsWatchWorker = host.create(fsWatchComponent, {
+    name: 'fs-watch',
+    executable: desktopWorkerPath('fs-watch'),
+    env: process.env,
+    dependencies: {},
+    config: {},
+  });
+  const acpWorker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
     name: 'acp',
     executable: desktopWorkerPath('acp'),
     env: process.env,
@@ -134,223 +162,19 @@ export function getAcpWorker(): WireWorker<AcpApiContract> {
       },
     },
   });
-  return acpWorker;
-}
-
-let acpClientPromise: Promise<AcpRuntimeClient> | undefined;
-
-export const agentConfigWorker = host.create(agentConfigComponent, {
-  name: 'agent-config',
-  executable: desktopWorkerPath('agent-config'),
-  env: process.env,
-  dependencies: {
-    hostDependencies: hostDependencies.client.resolver,
-  },
-  config: {},
-});
-
-let agentConfigClientPromise: Promise<AgentConfigRuntimeClient> | undefined;
-
-let automationsWorker: WireWorker<AutomationsContract> | undefined;
-let automationsClientPromise: Promise<AutomationsRuntimeClient> | undefined;
-
-let fileSearchWorker: WireWorker<FileSearchContract> | undefined;
-let fileSearchClientPromise: Promise<FileSearchRuntimeClient> | undefined;
-
-let filesWorker: WireWorker<FilesContract> | undefined;
-let filesClientPromise: Promise<FilesRuntimeClient> | undefined;
-
-let gitWorker: WireWorker<GitContract> | undefined;
-let gitClientPromise: Promise<GitRuntimeClient> | undefined;
-
-let mementosWorker: WireWorker<MementosWireContract> | undefined;
-let mementosClientPromise: Promise<MementosRuntimeClient> | undefined;
-
-let pullRequestsWorker: WireWorker<PullRequestsContract> | undefined;
-let pullRequestsClientPromise: Promise<PullRequestsRuntimeClient> | undefined;
-
-let terminalsWorker: WireWorker<TerminalsContract> | undefined;
-let terminalsClientPromise: Promise<TerminalsRuntimeClient> | undefined;
-
-export let tuiAgentsWorker: WireWorker<TuiAgentsContract> | undefined;
-let tuiAgentsClientPromise: Promise<TuiAgentsRuntimeClient> | undefined;
-
-let workspaceWorker: WireWorker<WorkspaceContract> | undefined;
-let workspaceClientPromise: Promise<WorkspaceRuntimeClient> | undefined;
-
-export async function ensureAcpWorkerReady(): Promise<void> {
-  await getAcpRuntimeClient();
-}
-
-export async function ensureFilesWorkerReady(): Promise<void> {
-  await getFilesRuntimeClient();
-}
-
-export async function ensureFileSearchWorkerReady(): Promise<void> {
-  await getFileSearchRuntimeClient();
-}
-
-export async function ensureGitWorkerReady(): Promise<void> {
-  await getGitRuntimeClient();
-}
-
-export async function ensureMementosWorkerReady(): Promise<void> {
-  await getMementosRuntimeClient();
-}
-
-export async function ensureTuiAgentsWorkerReady(): Promise<void> {
-  await getTuiAgentsRuntimeClient();
-}
-
-export async function ensureTerminalsWorkerReady(): Promise<void> {
-  await getTerminalsRuntimeClient();
-}
-
-export async function ensureWorkspaceWorkerReady(): Promise<void> {
-  await getWorkspaceRuntimeClient();
-}
-
-export async function ensureAutomationsWorkerReady(): Promise<void> {
-  await getAutomationsRuntimeClient();
-}
-
-export async function ensurePullRequestsWorkerReady(): Promise<void> {
-  await getPullRequestsRuntimeClient();
-}
-
-export function getAcpRuntimeClient(): Promise<AcpRuntimeClient> {
-  acpClientPromise ??= getAcpWorker().ready();
-  return acpClientPromise;
-}
-
-export function getAgentConfigRuntimeClient(): Promise<AgentConfigRuntimeClient> {
-  agentConfigClientPromise ??= agentConfigWorker.ready();
-  return agentConfigClientPromise;
-}
-
-export function getAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient> {
-  automationsClientPromise ??= createAutomationsRuntimeClient();
-  return automationsClientPromise;
-}
-
-export function getFileSearchRuntimeClient(): Promise<FileSearchRuntimeClient> {
-  fileSearchClientPromise ??= createFileSearchRuntimeClient();
-  return fileSearchClientPromise;
-}
-
-export function getFilesRuntimeClient(): Promise<FilesRuntimeClient> {
-  filesClientPromise ??= createFilesRuntimeClient();
-  return filesClientPromise;
-}
-
-export function getGitRuntimeClient(): Promise<GitRuntimeClient> {
-  gitClientPromise ??= createGitRuntimeClient();
-  return gitClientPromise;
-}
-
-export function getMementosRuntimeClient(): Promise<MementosRuntimeClient> {
-  mementosClientPromise ??= createMementosRuntimeClient();
-  return mementosClientPromise;
-}
-
-export function getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {
-  pullRequestsClientPromise ??= createPullRequestsRuntimeClient();
-  return pullRequestsClientPromise;
-}
-
-export function getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
-  tuiAgentsClientPromise ??= createTuiAgentsRuntimeClient();
-  return tuiAgentsClientPromise;
-}
-
-export function getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
-  terminalsClientPromise ??= createTerminalsRuntimeClient();
-  return terminalsClientPromise;
-}
-
-export function getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
-  workspaceClientPromise ??= createWorkspaceRuntimeClient();
-  return workspaceClientPromise;
-}
-
-export async function disposeDesktopWireWorkers(): Promise<void> {
-  await automationsWorker?.stop();
-  await host.dispose();
-}
-
-async function createAutomationsRuntimeClient(): Promise<AutomationsRuntimeClient> {
-  const paths = automationRuntimePaths(resolveDatabasePath());
-  mkdirSync(paths.stateDirectory, { recursive: true });
-  const [workspace, acpSessions, tuiSessions] = await Promise.all([
-    getWorkspaceRuntimeClient(),
-    getAcpRuntimeClient(),
-    getTuiAgentsRuntimeClient(),
-  ]);
-  automationsWorker ??= host.create(automationsComponent, {
-    name: 'automations',
-    executable: desktopWorkerPath('automations'),
-    env: process.env,
-    dependencies: {
-      workspace,
-      acpSessions,
-      tuiSessions,
-    },
-    config: { dbFile: paths.dbFile },
-    shutdownGraceMs: 3_000,
-  });
-  return await automationsWorker.ready();
-}
-
-async function createFilesRuntimeClient(): Promise<FilesRuntimeClient> {
-  const watcher = await fsWatchWorker.ready();
-  filesWorker ??= host.create(filesComponent, {
-    name: 'files',
-    executable: desktopWorkerPath('files'),
-    env: process.env,
-    dependencies: {
-      watcher,
-    },
-    config: {},
-  });
-  return await filesWorker.ready();
-}
-
-async function createFileSearchRuntimeClient(): Promise<FileSearchRuntimeClient> {
-  const watcher = await fsWatchWorker.ready();
-  fileSearchWorker ??= host.create(fileSearchComponent, {
-    name: 'file-search',
-    executable: desktopWorkerPath('file-search'),
-    env: process.env,
-    dependencies: {
-      watcher,
-    },
-    config: {
-      databasePath: resolveFileSearchDatabasePath(),
-    },
-  });
-  return await fileSearchWorker.ready();
-}
-
-async function createGitRuntimeClient(): Promise<GitRuntimeClient> {
-  const watcher = await fsWatchWorker.ready();
-  gitWorker ??= host.create(gitComponent, {
-    name: 'git',
-    executable: desktopWorkerPath('git'),
-    env: GIT_RUNTIME_ENV,
-    dependencies: {
-      watcher,
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: {
-      executable: getGitExecutable(),
-      env: GIT_RUNTIME_ENV,
-    },
-  });
-  return await gitWorker.ready();
-}
-
-async function createMementosRuntimeClient(): Promise<MementosRuntimeClient> {
-  mementosWorker ??= host.create(mementosComponent, {
+  const agentConfigWorker = host.create(
+    createAgentConfigComponent({ pluginRegistry, logger: log }),
+    {
+      name: 'agent-config',
+      executable: desktopWorkerPath('agent-config'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+      },
+      config: {},
+    }
+  );
+  const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
     executable: desktopWorkerPath('mementos'),
     env: process.env,
@@ -360,49 +184,22 @@ async function createMementosRuntimeClient(): Promise<MementosRuntimeClient> {
       sweepPolicies: mementoSweepPolicies,
     },
   });
-  return await mementosWorker.ready();
-}
-
-async function createPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient> {
-  pullRequestsWorker ??= host.create(pullRequestsComponent, {
+  const pullRequestsWorker = host.create(pullRequestsComponent, {
     name: 'pull-requests',
     executable: desktopWorkerPath('pull-requests'),
     env: process.env,
     dependencies: {
-      githubAuth: pullRequestsGitHubAuthController,
+      githubAuth: createPullRequestsGitHubAuthController(
+        new GitHubApiAuthService(providerAccountRegistry),
+        githubApiBaseUrlForHost
+      ),
     },
     config: {
       databasePath: join(app.getPath('userData'), 'pull-requests.db'),
       incrementalIntervalMs: 5 * 60_000,
     },
   });
-  return await pullRequestsWorker.ready();
-}
-
-async function createTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient> {
-  const localProjectSettings = await getAppSettingsService().get('localProject');
-  tuiAgentsWorker ??= host.create(tuiAgentsComponent, {
-    name: 'tui-agents',
-    executable: desktopWorkerPath('tui-agents'),
-    env: process.env,
-    dependencies: {
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: {
-      intentsFilePath: sessionIntentFilePaths().tuiAgents,
-      lifecycle: {
-        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-      },
-      hookInstall: {
-        writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
-      },
-    },
-  });
-  return await tuiAgentsWorker.ready();
-}
-
-async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
-  terminalsWorker ??= host.create(terminalsComponent, {
+  const terminalsWorker = host.create(terminalsComponent, {
     name: 'terminals',
     executable: desktopWorkerPath('terminals'),
     env: process.env,
@@ -414,25 +211,160 @@ async function createTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient> {
       },
     },
   });
-  return await terminalsWorker.ready();
-}
 
-async function createWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient> {
-  const [terminals, watcher] = await Promise.all([
-    getTerminalsRuntimeClient(),
-    fsWatchWorker.ready(),
-  ]);
-  workspaceWorker ??= host.create(workspaceComponent, {
-    name: 'workspace',
-    executable: desktopWorkerPath('workspace'),
-    env: process.env,
-    dependencies: {
-      terminals,
-      watcher,
-    },
-    config: {},
-    // Consumer leases and active operation ownership are currently process-local.
-    supervision: { restart: 'never' },
+  const watcherReady = fsWatchWorker.ready();
+  const acpReady = acpWorker.ready();
+  const agentConfigReady = agentConfigWorker.ready();
+  const mementosReady = mementosWorker.ready();
+  const pullRequestsReady = pullRequestsWorker.ready();
+  const terminalsReady = terminalsWorker.ready();
+  const filesReady = watcherReady.then(async (watcher) => {
+    const worker = host.create(filesComponent, {
+      name: 'files',
+      executable: desktopWorkerPath('files'),
+      env: process.env,
+      dependencies: { watcher },
+      config: {},
+    });
+    return await worker.ready();
   });
-  return await workspaceWorker.ready();
+  const fileSearchReady = watcherReady.then(async (watcher) => {
+    const worker = host.create(fileSearchComponent, {
+      name: 'file-search',
+      executable: desktopWorkerPath('file-search'),
+      env: process.env,
+      dependencies: { watcher },
+      config: { databasePath: resolveFileSearchDatabasePath() },
+    });
+    return await worker.ready();
+  });
+  const gitReady = watcherReady.then(async (watcher) => {
+    const worker = host.create(gitComponent, {
+      name: 'git',
+      executable: desktopWorkerPath('git'),
+      env: GIT_RUNTIME_ENV,
+      dependencies: {
+        watcher,
+        hostDependencies: hostDependencies.client.resolver,
+      },
+      config: {
+        executable: getGitExecutable(),
+        env: GIT_RUNTIME_ENV,
+      },
+    });
+    return await worker.ready();
+  });
+  const tuiAgentsReady = deps.getLocalProjectSettings().then(async (localProjectSettings) => {
+    const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
+      name: 'tui-agents',
+      executable: desktopWorkerPath('tui-agents'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+      },
+      config: {
+        intentsFilePath: sessionIntentFilePaths().tuiAgents,
+        lifecycle: {
+          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+        },
+        hookInstall: {
+          writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
+        },
+      },
+    });
+    return { client: await worker.ready(), worker };
+  });
+  const workspaceReady = Promise.all([terminalsReady, watcherReady]).then(
+    async ([terminals, watcher]) => {
+      const worker = host.create(workspaceComponent, {
+        name: 'workspace',
+        executable: desktopWorkerPath('workspace'),
+        env: process.env,
+        dependencies: {
+          terminals,
+          watcher,
+        },
+        config: {},
+        // Consumer leases and active operation ownership are currently process-local.
+        supervision: { restart: 'never' },
+      });
+      return await worker.ready();
+    }
+  );
+  const automationsReady = Promise.all([workspaceReady, acpReady, tuiAgentsReady]).then(
+    async ([workspace, acp, tuiAgents]) => {
+      const paths = automationRuntimePaths(resolveDatabasePath());
+      mkdirSync(paths.stateDirectory, { recursive: true });
+      const worker = host.create(createAutomationsComponent(), {
+        name: 'automations',
+        executable: desktopWorkerPath('automations'),
+        env: process.env,
+        dependencies: {
+          workspace,
+          acpSessions: acp,
+          tuiSessions: tuiAgents.client,
+        },
+        config: { dbFile: paths.dbFile },
+        shutdownGraceMs: 3_000,
+      });
+      return { client: await worker.ready(), worker };
+    }
+  );
+
+  const [
+    acp,
+    agentConfig,
+    automationsResult,
+    fileSearch,
+    files,
+    git,
+    mementos,
+    pullRequests,
+    terminals,
+    tuiAgentsResult,
+    workspace,
+  ] = await Promise.all([
+    acpReady,
+    agentConfigReady,
+    automationsReady,
+    fileSearchReady,
+    filesReady,
+    gitReady,
+    mementosReady,
+    pullRequestsReady,
+    terminalsReady,
+    tuiAgentsReady,
+    workspaceReady,
+  ]);
+  const automations = automationsResult.client;
+  const tuiAgents = tuiAgentsResult.client;
+
+  let disposePromise: Promise<void> | undefined;
+  return {
+    clients: {
+      acp,
+      agentConfig,
+      automations,
+      fileSearch,
+      files,
+      git,
+      hostDependencies: hostDependencies.client,
+      mementos,
+      pullRequests,
+      terminals,
+      tuiAgents,
+      workspace,
+    },
+    workers: {
+      acp: acpWorker,
+      tuiAgents: tuiAgentsResult.worker,
+    },
+    dispose() {
+      disposePromise ??= (async () => {
+        await automationsResult.worker.stop();
+        await host.dispose();
+      })();
+      return disposePromise;
+    },
+  };
 }

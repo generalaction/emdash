@@ -20,7 +20,7 @@ import {
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { sshConnections } from '@core/services/app-db/node/schema';
 import { getAppDb } from '@main/db/instance';
-import { acquireDesktopWorkspaceRuntime } from '@main/gateway/workspace-runtime';
+import type { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import {
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
@@ -87,6 +87,8 @@ type TerminalContextMenuEvent = {
   action: 'paste' | 'select-all' | 'clear';
 };
 
+type WorkspaceRuntimeAcquirer = ReturnType<typeof createDesktopWorkspaceRuntimeAcquirer>;
+
 type ShowWorkspaceItemInFolderError =
   | FsError
   | {
@@ -106,8 +108,13 @@ class AppService implements Disposable {
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
   private emitHostEvent: (event: TerminalContextMenuEvent) => void = () => {};
+  private acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer | undefined;
 
-  initialize(options: { emitHostEvent(event: TerminalContextMenuEvent): void }): void {
+  initialize(options: {
+    acquireWorkspaceRuntime: WorkspaceRuntimeAcquirer;
+    emitHostEvent(event: TerminalContextMenuEvent): void;
+  }): void {
+    this.acquireWorkspaceRuntime = options.acquireWorkspaceRuntime;
     this.emitHostEvent = options.emitHostEvent;
     void this.getCachedAppVersion();
   }
@@ -231,7 +238,9 @@ class AppService implements Disposable {
     workspaceId: string;
     relativePath: string;
   }): Promise<Result<void, ShowWorkspaceItemInFolderError>> {
-    const workspace = await acquireDesktopWorkspaceRuntime(args.workspaceId);
+    const acquireWorkspaceRuntime = this.acquireWorkspaceRuntime;
+    if (!acquireWorkspaceRuntime) throw new Error('App service has not been initialized');
+    const workspace = await acquireWorkspaceRuntime(args.workspaceId);
     if (!workspace) {
       return err({
         type: 'not_found',

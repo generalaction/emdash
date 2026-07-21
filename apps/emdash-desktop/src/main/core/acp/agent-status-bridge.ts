@@ -1,9 +1,14 @@
-import { sessionSummarySchema, type SessionSummary } from '@emdash/core/runtimes/acp/api';
+import {
+  sessionSummarySchema,
+  type AcpApiContract,
+  type SessionSummary,
+} from '@emdash/core/runtimes/acp/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { ReplicaState } from '@emdash/wire';
+import type { WireWorker } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import { getAcpRuntimeClient, getAcpWorker } from '@main/gateway/desktop-workers';
+import type { AcpRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import {
   deriveAcpAgentStatusActions,
@@ -16,6 +21,11 @@ export type ConversationCreatedSubscription = (
   handler: (conversation: { id: string }) => void
 ) => Unsubscribe;
 
+type AcpAgentStatusRuntime = {
+  client: AcpRuntimeClient;
+  onStateChanged: WireWorker<AcpApiContract>['onStateChanged'];
+};
+
 const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 
 class AcpAgentStatusBridge {
@@ -25,8 +35,13 @@ class AcpAgentStatusBridge {
   private replica: ReplicaState<SessionSummaryList> | null = null;
   private attaching = false;
   private bootstrapped = false;
+  private runtime: AcpAgentStatusRuntime | undefined;
 
-  initialize(onConversationCreated: ConversationCreatedSubscription): void {
+  initialize(
+    onConversationCreated: ConversationCreatedSubscription,
+    runtime: AcpAgentStatusRuntime
+  ): void {
+    this.runtime = runtime;
     this.conversationCreatedUnsubscribe ??= onConversationCreated((conversation) =>
       this.cacheConversationSnapshot(conversation.id)
     );
@@ -40,6 +55,7 @@ class AcpAgentStatusBridge {
     this.conversationCreatedUnsubscribe = null;
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
+    this.runtime = undefined;
     this.detach();
   }
 
@@ -48,8 +64,9 @@ class AcpAgentStatusBridge {
     this.attaching = true;
     try {
       this.detach();
-      const acpClient = await getAcpRuntimeClient();
-      this.workerStateUnsubscribe = getAcpWorker().onStateChanged((state) => {
+      const runtime = this.runtime;
+      if (!runtime) throw new Error('ACP agent status runtime has not been configured');
+      this.workerStateUnsubscribe = runtime.onStateChanged((state) => {
         if (state.kind !== 'failed' && state.kind !== 'disposed') return;
         void this.resetAll().catch((error) => {
           log.warn('ACP agent status bridge failed to reset statuses on disconnect', {
@@ -59,7 +76,7 @@ class AcpAgentStatusBridge {
         this.detach();
       });
       const replica = new ReplicaState<SessionSummaryList>(
-        acpClient.sessions.state(undefined, 'list'),
+        runtime.client.sessions.state(undefined, 'list'),
         {
           schema: sessionSummaryListSchema,
           onChange: (summaries) => void this.applySummaries(summaries),

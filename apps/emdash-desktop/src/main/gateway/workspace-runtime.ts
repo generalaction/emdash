@@ -1,11 +1,10 @@
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
-import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
-import { getDesktopRuntimeBroker } from './runtime-broker';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 
-export function acquireDesktopWorkspaceRuntime(workspaceId: string) {
-  return acquireWorkspaceRuntime(
-    getDesktopRuntimeBroker(),
-    getWorkspaceIdentityService(),
-    workspaceId
-  );
+export function createDesktopWorkspaceRuntimeAcquirer(
+  runtimes: RuntimeBroker,
+  workspaceIdentity: WorkspaceIdentityService
+) {
+  return (workspaceId: string) => acquireWorkspaceRuntime(runtimes, workspaceIdentity, workspaceId);
 }

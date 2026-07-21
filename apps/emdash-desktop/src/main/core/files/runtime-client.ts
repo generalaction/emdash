@@ -18,7 +18,7 @@ import {
   resolveRelativePath,
 } from '@core/primitives/desktop-runtime/api';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
-import type { FilesRuntimeClient } from '@main/gateway/accessors';
+import type { FilesRuntimeClient } from '@main/gateway/desktop-workers';
 
 export type FilesClientScope = {
   client: FilesRuntimeClient;

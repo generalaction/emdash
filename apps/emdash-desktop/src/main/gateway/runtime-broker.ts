@@ -15,64 +15,36 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { WorkspaceServerServiceHandle } from '@core/services/workspace-server/node';
-import { appScope } from '@main/bootstrap/core/app-scope';
-import {
-  getAcpRuntimeClient,
-  getAgentConfigRuntimeClient,
-  getFileSearchRuntimeClient,
-  getFilesRuntimeClient,
-  getGitRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-  getWorkspaceRuntimeClient,
-  hostDependenciesClient,
-} from './desktop-workers';
+import type { DesktopRuntimeClients } from './desktop-workers';
 
 export function createDesktopRuntimeBroker(
   scope: Scope,
-  remoteRuntimes?: WorkspaceServerServiceHandle
+  clients: DesktopRuntimeClients,
+  remoteRuntimes: WorkspaceServerServiceHandle
 ): RuntimeBroker {
-  return new RuntimeBroker({
+  const broker = new RuntimeBroker({
     scope,
     idleTtlMs: 30_000,
     resolve: (host, sessionScope) =>
-      resolveDesktopRuntimeSession(host, sessionScope, remoteRuntimes ?? configuredRemoteRuntimes),
+      resolveDesktopRuntimeSession(host, sessionScope, clients, remoteRuntimes),
   });
-}
-
-let sharedBroker: RuntimeBroker | undefined;
-let configuredRemoteRuntimes: WorkspaceServerServiceHandle | undefined;
-let stopRemoteInvalidation: (() => void) | undefined;
-
-export function getDesktopRuntimeBroker(): RuntimeBroker {
-  sharedBroker ??= createDesktopRuntimeBroker(appScope.child('runtime-broker'));
-  return sharedBroker;
-}
-
-export function configureRemoteRuntimes(handle: WorkspaceServerServiceHandle): () => void {
-  stopRemoteInvalidation?.();
-  configuredRemoteRuntimes = handle;
-  const stop = handle.onInvalidate(({ connectionId }) => {
-    void getDesktopRuntimeBroker().invalidate(hostRef('remote', connectionId));
-  });
-  stopRemoteInvalidation = stop;
-
-  return () => {
-    if (configuredRemoteRuntimes !== handle) return;
-    stop();
-    stopRemoteInvalidation = undefined;
-    configuredRemoteRuntimes = undefined;
-  };
+  scope.add(
+    remoteRuntimes.onInvalidate(({ connectionId }) => {
+      void broker.invalidate(hostRef('remote', connectionId));
+    })
+  );
+  return broker;
 }
 
 async function resolveDesktopRuntimeSession(
   host: HostRef,
   scope: Scope,
-  remoteRuntimes: WorkspaceServerServiceHandle | undefined
+  clients: DesktopRuntimeClients,
+  remoteRuntimes: WorkspaceServerServiceHandle
 ): Promise<Result<HostRuntimesClient, RuntimeResolveError>> {
   if (!hostRefEquals(host, LOCAL_HOST_REF)) {
     const connectionId = sshConnectionIdOf(host);
-    if (connectionId && remoteRuntimes) {
+    if (connectionId) {
       try {
         const lease = await remoteRuntimes.acquireConnection(connectionId);
         scope.add(() => lease.release());
@@ -94,27 +66,15 @@ async function resolveDesktopRuntimeSession(
     );
   }
 
-  const [git, fileSearch, files, acp, tuiAgents, agentConfig, terminals, workspace] =
-    await Promise.all([
-      getGitRuntimeClient(),
-      getFileSearchRuntimeClient(),
-      getFilesRuntimeClient(),
-      getAcpRuntimeClient(),
-      getTuiAgentsRuntimeClient(),
-      getAgentConfigRuntimeClient(),
-      getTerminalsRuntimeClient(),
-      getWorkspaceRuntimeClient(),
-    ]);
-
   return ok({
-    git,
-    fileSearch,
-    files,
-    acp,
-    tuiAgents,
-    agentConfig,
-    terminals,
-    workspace,
-    hostDependencies: hostDependenciesClient,
+    git: clients.git,
+    fileSearch: clients.fileSearch,
+    files: clients.files,
+    acp: clients.acp,
+    tuiAgents: clients.tuiAgents,
+    agentConfig: clients.agentConfig,
+    terminals: clients.terminals,
+    workspace: clients.workspace,
+    hostDependencies: clients.hostDependencies,
   });
 }

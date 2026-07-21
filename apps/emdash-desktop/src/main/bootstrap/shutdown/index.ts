@@ -1,19 +1,31 @@
 import { app, type BrowserWindow } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
+import type { DesktopRuntimeClients } from '@main/gateway/desktop-workers';
 import { getActiveSessionSummary } from '@main/host/sessions/active-session-summary';
 import { updateService } from '@main/host/updates/update-service';
 import { createShutdownCoordinator } from './coordinator';
 import { runQuitCleanup } from './phases';
 
+let sessionClients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'> | undefined;
+
 const shutdownCoordinator = createShutdownCoordinator({
   emit: (event) => desktopHostEvents.emit(undefined, event),
-  getActiveSessionSummary,
+  getActiveSessionSummary: () => {
+    if (!sessionClients) throw new Error('Shutdown runtime clients have not been configured');
+    return getActiveSessionSummary(sessionClients);
+  },
   isInstallRequested: () => updateService.isInstallRequested,
   runCleanup: runQuitCleanup,
   exit: (code) => app.exit(code),
 });
 
 let registered = false;
+
+export function configureShutdownRuntimeClients(
+  clients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'>
+): void {
+  sessionClients = clients;
+}
 
 export function registerQuitHandler(): void {
   if (registered) return;

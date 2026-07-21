@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as drizzleClientModule from '@main/db/drizzleClient';
 import * as databaseInitializeModule from '@main/db/initialize';
 import { getAppDb, resetAppDbForTests, setAppDb } from '@main/db/instance';
-import { databasePhase } from './database';
+import { bootDatabase } from './database';
 
 const mocks = vi.hoisted(() => {
   const db = {
@@ -21,13 +21,11 @@ const mocks = vi.hoisted(() => {
     cleanupLegacyBrowserPartitions: vi.fn(),
     client,
     createDrizzleClient: vi.fn(() => client),
-    deleteOrphans: vi.fn(async () => ({ success: true, data: { deleted: 0 } })),
     editorBufferPrune: vi.fn(),
     initializeDatabase: vi.fn(async () => sqlite),
     resetStaleAcpAgentStatuses: vi.fn(),
     resetStaleTuiAgentStatuses: vi.fn(),
     runInBackground: vi.fn(),
-    searchInitialize: vi.fn(),
     setWorkspaceIdentityService: vi.fn(),
     writeBootingMarker: vi.fn(),
   };
@@ -36,27 +34,20 @@ const mocks = vi.hoisted(() => {
 vi.mock('@core/features/editor/node/editor-buffer-service', () => ({
   createEditorBufferService: () => ({ pruneStale: mocks.editorBufferPrune }),
 }));
-vi.mock('@core/features/search/node/search-service', () => ({
-  createSearchService: () => ({ initialize: mocks.searchInitialize }),
-}));
 vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
   createWorkspaceIdentityService: () => ({}),
 }));
 vi.mock('@core/features/workspaces/api/node/runtime-access', () => ({
   acquireWorkspaceRuntime: vi.fn(),
 }));
-vi.mock('@core/services/app-db/node/schema', () => ({
-  projects: { id: 'projects.id' },
-  tasks: { id: 'tasks.id' },
+vi.mock('@core/services/settings/node', () => ({
+  createAppSettingsService: () => ({}),
 }));
 vi.mock('@core/features/conversations/node/reset-stale-acp-agent-statuses', () => ({
   resetStaleAcpAgentStatuses: mocks.resetStaleAcpAgentStatuses,
 }));
 vi.mock('@core/features/conversations/node/reset-stale-tui-agent-statuses', () => ({
   resetStaleTuiAgentStatuses: mocks.resetStaleTuiAgentStatuses,
-}));
-vi.mock('@main/gateway/desktop-workers', () => ({
-  getMementosRuntimeClient: async () => ({ deleteOrphans: mocks.deleteOrphans }),
 }));
 vi.mock('@main/host/browser/browser-partition-cleanup', () => ({
   cleanupLegacyBrowserPartitions: mocks.cleanupLegacyBrowserPartitions,
@@ -95,7 +86,7 @@ describe('database boot phase', () => {
   });
 
   it('initializes and publishes one client before startup repairs', async () => {
-    await databasePhase.run({ config: { forceBootFailure: false } } as never);
+    await bootDatabase({ forceBootFailure: false } as never);
 
     expect(mocks.createDrizzleClient).toHaveBeenCalledOnce();
     expect(mocks.initializeDatabase).toHaveBeenCalledWith(mocks.client.sqlite);
@@ -107,9 +98,9 @@ describe('database boot phase', () => {
   it('closes an unpublished client when initialization fails', async () => {
     mocks.initializeDatabase.mockRejectedValue(new Error('migration failed'));
 
-    await expect(
-      databasePhase.run({ config: { forceBootFailure: false } } as never)
-    ).rejects.toThrow('migration failed');
+    await expect(bootDatabase({ forceBootFailure: false } as never)).rejects.toThrow(
+      'migration failed'
+    );
 
     expect(() => getAppDb()).toThrow('App database has not been initialized');
     expect(mocks.client.close).toHaveBeenCalledOnce();
@@ -118,18 +109,18 @@ describe('database boot phase', () => {
   it('closes the new client when publishing fails', async () => {
     setAppDb({ db: {} as never, sqlite: {} as never, close: vi.fn() });
 
-    await expect(
-      databasePhase.run({ config: { forceBootFailure: false } } as never)
-    ).rejects.toThrow('already initialized');
+    await expect(bootDatabase({ forceBootFailure: false } as never)).rejects.toThrow(
+      'already initialized'
+    );
 
     expect(mocks.client.close).toHaveBeenCalledOnce();
     expect(mocks.resetStaleAcpAgentStatuses).not.toHaveBeenCalled();
   });
 
   it('does not create a client for a forced pre-database boot failure', async () => {
-    await expect(
-      databasePhase.run({ config: { forceBootFailure: true } } as never)
-    ).rejects.toThrow('Boot failure forced');
+    await expect(bootDatabase({ forceBootFailure: true } as never)).rejects.toThrow(
+      'Boot failure forced'
+    );
 
     expect(mocks.createDrizzleClient).not.toHaveBeenCalled();
   });

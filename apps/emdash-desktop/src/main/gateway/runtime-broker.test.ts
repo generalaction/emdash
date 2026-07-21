@@ -16,8 +16,9 @@ describe('desktop runtime broker remote sessions', () => {
     }));
     const workspaceServer = {
       acquireConnection,
+      onInvalidate: () => () => {},
     } as unknown as WorkspaceServerServiceHandle;
-    const broker = createDesktopRuntimeBroker(scope, workspaceServer);
+    const broker = createDesktopRuntimeBroker(scope, {} as never, workspaceServer);
     const host = hostRef('remote', 'ssh-1');
     const first = broker.session(host);
     const second = broker.session(host);
@@ -36,14 +37,23 @@ describe('desktop runtime broker remote sessions', () => {
     await scope.dispose();
   });
 
-  it('keeps the previous unavailable behavior until remote runtimes are configured', async () => {
-    const scope = createScope({ label: 'runtime-broker-unconfigured-test' });
-    const broker = createDesktopRuntimeBroker(scope);
+  it('reports unavailable when a remote runtime connection fails', async () => {
+    const scope = createScope({ label: 'runtime-broker-unavailable-test' });
+    const broker = createDesktopRuntimeBroker(
+      scope,
+      {} as never,
+      {
+        acquireConnection: async () => {
+          throw new Error('connection failed');
+        },
+        onInvalidate: () => () => {},
+      } as never
+    );
     const lease = broker.session(hostRef('remote', 'ssh-1'));
 
     await expect(lease.ready()).resolves.toMatchObject({
       success: false,
-      error: { type: 'host-unavailable', message: 'Remote runtime sessions are not enabled' },
+      error: { type: 'host-unavailable', message: 'connection failed' },
     });
 
     await lease.release();

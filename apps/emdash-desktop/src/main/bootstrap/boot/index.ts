@@ -1,31 +1,44 @@
-import { log } from '@main/lib/logger';
-import { runPhase } from '../core/phase';
-import { backgroundPhase } from './phases/background';
-import { databasePhase } from './phases/database';
-import { gatewayPhase } from './phases/gateway';
-import { configureServicesPhase, servicesPhase } from './phases/services';
-import { windowPhase } from './phases/window';
-import type { BootContext } from './types';
+import { closeAppDb } from '@main/db/instance';
+import { appScope } from '../core/app-scope';
+import type { AppConfig } from '../core/config';
+import { step, stepOptional } from '../core/phase';
+import { configureShutdownRuntimeClients } from '../shutdown';
+import { configureQuitCleanupServices } from '../shutdown/phases';
+import { bootBackground } from './phases/background';
+import { bootControllers } from './phases/controllers';
+import { bootDatabase } from './phases/database';
+import { installGateway } from './phases/gateway';
+import { bootInfrastructure } from './phases/infrastructure';
+import { bootRuntimes } from './phases/runtimes';
+import { bootServices } from './phases/services';
+import { bootWindow } from './phases/window';
+import type { BootSignals } from './types';
 
-const bootPhases = [
-  configureServicesPhase,
-  databasePhase,
-  servicesPhase,
-  gatewayPhase,
-  windowPhase,
-  backgroundPhase,
-];
-
-export async function finishBoot(context: BootContext): Promise<void> {
-  for (const phase of bootPhases) {
+export async function finishBoot(config: AppConfig, signals: BootSignals): Promise<void> {
+  const database = await step('database', () => bootDatabase(config));
+  try {
+    const infrastructure = await step('infrastructure', () => bootInfrastructure(database));
+    const runtimes = await step('runtimes', () => bootRuntimes(database, infrastructure));
+    const services = await step('services', () => bootServices(database, infrastructure, runtimes));
+    configureQuitCleanupServices({
+      automations: services.automations,
+      projects: services.projects,
+      pullRequests: services.pullRequestsRegistration,
+      runtimes,
+    });
+    configureShutdownRuntimeClients(runtimes.clients);
+    const controllers = await step('controllers', () =>
+      bootControllers(database, infrastructure, runtimes, services)
+    );
+    await step('gateway', () => installGateway(controllers, database, services, runtimes));
+    await step('window', () => bootWindow(signals));
+    await stepOptional('background-tasks', () => bootBackground(services, runtimes));
+  } catch (error) {
     try {
-      await runPhase(phase, context);
-    } catch (error) {
-      if (phase.critical !== false) throw error;
-      log.warn('Non-critical boot phase failed; continuing', {
-        phase: phase.name,
-        error,
-      });
+      await appScope.dispose(error);
+    } finally {
+      closeAppDb();
     }
+    throw error;
   }
 }

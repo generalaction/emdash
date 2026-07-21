@@ -5,7 +5,7 @@ import { ReplicaState } from '@emdash/wire';
 import { resolveConfiguredRemotes } from '@core/primitives/git/api';
 import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import type { ProjectRemoteState } from '@core/primitives/projects/api';
-import type { GitRuntimeClient } from '@main/gateway/accessors';
+import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
 
 type GitRepositorySettingsProvider = {
   get(): Promise<ProjectSettings>;

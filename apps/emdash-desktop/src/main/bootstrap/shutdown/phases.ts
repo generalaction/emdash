@@ -6,7 +6,6 @@ import { agentStatusService } from '@main/core/agent-status/agent-status-service
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import { disposeOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { closeAppDb } from '@main/db/instance';
-import { disposeDesktopWireWorkers } from '@main/gateway/desktop-workers';
 import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -21,6 +20,7 @@ type QuitCleanupServices = {
   automations: Pick<AutomationsService, 'stop'>;
   projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
   pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
+  runtimes: { dispose(): Promise<void> };
 };
 
 let cleanupServices: QuitCleanupServices | undefined;
@@ -53,7 +53,7 @@ function criticalPhases(services: QuitCleanupServices): Phase<void>[] {
     },
     {
       name: 'desktop-wire-workers',
-      run: () => disposeDesktopWireWorkers(),
+      run: () => services.runtimes.dispose(),
     },
     {
       name: 'app-scope',

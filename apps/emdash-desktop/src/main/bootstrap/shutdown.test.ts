@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   projectsDispose: vi.fn(),
   projectsRelease: vi.fn(),
   pullRequestsDispose: vi.fn(),
+  runtimesDispose: vi.fn(),
   telemetryDispose: vi.fn(),
   updateService: {
     isInstallRequested: false as boolean,
@@ -53,9 +54,6 @@ vi.mock('@main/core/operations/operations-engine-instance', () => ({
 }));
 vi.mock('@core/features/projects/api/node/project-manager', () => ({
   projectManager: { release: vi.fn(), dispose: vi.fn() },
-}));
-vi.mock('@main/gateway/desktop-workers', () => ({
-  disposeDesktopWireWorkers: vi.fn(),
 }));
 vi.spyOn(databaseInstance, 'closeAppDb').mockImplementation(mocks.closeAppDb);
 vi.mock('@main/host/updates/update-service', () => ({
@@ -99,6 +97,7 @@ describe('quit cleanup phases', () => {
         release: mocks.projectsRelease,
       },
       pullRequests: { dispose: mocks.pullRequestsDispose },
+      runtimes: { dispose: mocks.runtimesDispose },
     });
 
     await runQuitCleanup();

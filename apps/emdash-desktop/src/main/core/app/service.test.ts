@@ -75,7 +75,10 @@ vi.mock('@main/lib/childProcessEnv', () => ({
 }));
 
 const { appService } = await import('./service');
-appService.initialize({ emitHostEvent: mocks.eventEmit });
+appService.initialize({
+  acquireWorkspaceRuntime: mocks.workspaceGet,
+  emitHostEvent: mocks.eventEmit,
+});
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
 

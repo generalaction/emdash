@@ -9,15 +9,35 @@ import {
   parentFilePaths,
   type FilesClientScope,
 } from '@main/core/files/runtime-client';
-import { getFilesRuntimeClient } from '@main/gateway/accessors';
 import { isRealPathContained as isRealPathContainedByRealPath } from '../files/realpath-containment';
 
-async function openFilesClientScope(rootPath: string): Promise<Result<FilesClientScope, FsError>> {
+type FilesRuntimeClient = FilesClientScope['client'];
+type GetFilesRuntimeClient = () => Promise<FilesRuntimeClient>;
+
+export function createFilesHelpers(getFilesRuntimeClient: GetFilesRuntimeClient) {
+  return {
+    ensureAbsoluteDir: (rootPath: string, absPath: string, options: { recursive?: boolean } = {}) =>
+      ensureAbsoluteDir(getFilesRuntimeClient, rootPath, absPath, options),
+    realPathAbsolute: (rootPath: string, absPath: string) =>
+      realPathAbsolute(getFilesRuntimeClient, rootPath, absPath),
+    isRealPathContained: (
+      rootPath: string,
+      candidatePath: string,
+      options: { candidateMustExist?: boolean } = {}
+    ) => isRealPathContained(getFilesRuntimeClient, rootPath, candidatePath, options),
+  };
+}
+
+async function openFilesClientScope(
+  getFilesRuntimeClient: GetFilesRuntimeClient,
+  rootPath: string
+): Promise<Result<FilesClientScope, FsError>> {
   if (!path.isAbsolute(rootPath)) return err(expectedAbsolutePath(rootPath));
   return ok(filesClientScope(await getFilesRuntimeClient(), rootPath));
 }
 
-export async function ensureAbsoluteDir(
+async function ensureAbsoluteDir(
+  getFilesRuntimeClient: GetFilesRuntimeClient,
   rootPath: string,
   absPath: string,
   options: { recursive?: boolean } = {}
@@ -41,23 +61,25 @@ export async function ensureAbsoluteDir(
   return ensureDirectory(filesClientScope(client, resolvedRoot), resolvedPath, { recursive });
 }
 
-export async function realPathAbsolute(
+async function realPathAbsolute(
+  getFilesRuntimeClient: GetFilesRuntimeClient,
   rootPath: string,
   absPath: string
 ): Promise<Result<string, FsError>> {
-  const opened = await openFilesClientScope(rootPath);
+  const opened = await openFilesClientScope(getFilesRuntimeClient, rootPath);
   if (!opened.success) return opened;
   if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
   const result = await opened.data.client.fs.realPath(fileKey(opened.data, absPath));
   return result.success ? ok(nativePathFromHost(result.data)) : result;
 }
 
-export async function isRealPathContained(
+async function isRealPathContained(
+  getFilesRuntimeClient: GetFilesRuntimeClient,
   rootPath: string,
   candidatePath: string,
   options: { candidateMustExist?: boolean } = {}
 ): Promise<Result<boolean, FsError>> {
-  const opened = await openFilesClientScope(rootPath);
+  const opened = await openFilesClientScope(getFilesRuntimeClient, rootPath);
   if (!opened.success) return opened;
   if (!path.isAbsolute(candidatePath)) return err(expectedAbsolutePath(candidatePath));
   return isRealPathContainedByRealPath(

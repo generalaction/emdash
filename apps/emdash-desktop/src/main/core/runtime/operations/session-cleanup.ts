@@ -16,11 +16,11 @@ import {
 } from '@core/services/app-db/node/schema';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import {
-  getAcpRuntimeClient,
-  getTerminalsRuntimeClient,
-  getTuiAgentsRuntimeClient,
-} from '@main/gateway/accessors';
+import type {
+  AcpRuntimeClient,
+  TerminalsRuntimeClient,
+  TuiAgentsRuntimeClient,
+} from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 
 export type LifecycleSessionTargets = {
@@ -37,7 +37,10 @@ export type LifecycleSessionContext = {
 
 export type SessionCleanupDependencies = {
   assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationRow): Promise<void>;
+  getAcpRuntimeClient(): Promise<AcpRuntimeClient>;
   getProjectExecutionContext(projectId: string): IExecutionContext | undefined;
+  getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient>;
+  getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient>;
 };
 
 type SessionTargetSets = {
@@ -45,6 +48,7 @@ type SessionTargetSets = {
 };
 
 export async function resolveLifecycleSessionTargets(
+  dependencies: SessionCleanupDependencies,
   db: AppDb,
   operation: LifecycleOperationRow,
   context: LifecycleSessionContext,
@@ -100,7 +104,7 @@ export async function resolveLifecycleSessionTargets(
     operation.kind !== 'delete-task' &&
     context.workspacePath
   ) {
-    await addRuntimePathTargets(targets, operation, context.workspacePath);
+    await addRuntimePathTargets(dependencies, targets, operation, context.workspacePath);
   }
 
   return toArrays(targets);
@@ -114,7 +118,7 @@ export async function killLifecycleAcpSessions(
 ): Promise<void> {
   await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.acpConversationIds.length === 0) return;
-  const client = await getAcpRuntimeClient();
+  const client = await dependencies.getAcpRuntimeClient();
   for (const conversationId of targets.acpConversationIds) {
     const result = await client.killSession({ conversationId });
     if (!result.success && !isMissingError(result.error)) {
@@ -132,7 +136,7 @@ export async function killLifecycleTerminalSessions(
 ): Promise<void> {
   await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.tuiConversationIds.length > 0) {
-    const tui = await getTuiAgentsRuntimeClient();
+    const tui = await dependencies.getTuiAgentsRuntimeClient();
     for (const conversationId of targets.tuiConversationIds) {
       const result = await tui.deleteSession({ conversationId });
       if (!result.success && !isMissingError(result.error)) {
@@ -142,7 +146,7 @@ export async function killLifecycleTerminalSessions(
   }
 
   if (context.workspacePath) {
-    const terminalClient = await getTerminalsRuntimeClient();
+    const terminalClient = await dependencies.getTerminalsRuntimeClient();
     const workspace = hostFileRefFromNativePath(
       context.workspacePath,
       operation.hostRef === 'local' ? undefined : operation.hostRef
@@ -199,11 +203,13 @@ async function taskIdsForOperation(
 }
 
 async function addRuntimePathTargets(
+  dependencies: SessionCleanupDependencies,
   targets: SessionTargetSets,
   operation: LifecycleOperationRow,
   workspacePath: string
 ): Promise<void> {
-  const terminalScan = getTerminalsRuntimeClient()
+  const terminalScan = dependencies
+    .getTerminalsRuntimeClient()
     .then((client) => client.sessions.state(undefined, 'list').snapshot())
     .then((snapshot) => {
       for (const session of Object.values(snapshot.data)) {

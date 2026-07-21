@@ -5,13 +5,12 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { appScope } from '@main/bootstrap/core/app-scope';
-import { getWorkspaceIdentityService } from '@main/bootstrap/core/service-instances';
 import {
   createDevServerBridge,
   type DevServerBridge,
 } from '@main/core/preview-servers/dev-server-bridge';
-import { getDesktopRuntimeBroker } from './runtime-broker';
 
 type DevServerBridgeInstallerOptions = {
   readonly scope: Scope;
@@ -63,13 +62,18 @@ export function createDevServerBridgeInstaller({
 
 const bridgeScope = appScope.child('dev-server-bridge');
 
-export const installDevServerBridge = createDevServerBridgeInstaller({
-  scope: bridgeScope,
-  runtimes: getDesktopRuntimeBroker(),
-  createBridge: (client) =>
-    createDevServerBridge(client, {
-      previewServers: previewServerService,
-      resolveWorkspace: (workspacePath, host) =>
-        getWorkspaceIdentityService().findByPath(workspacePath, host),
-    }),
-});
+export function createDesktopDevServerBridgeInstaller(
+  runtimes: Pick<RuntimeBroker, 'session'>,
+  workspaceIdentity: Pick<WorkspaceIdentityService, 'findByPath'>
+): () => Promise<void> {
+  return createDevServerBridgeInstaller({
+    scope: bridgeScope,
+    runtimes,
+    createBridge: (client) =>
+      createDevServerBridge(client, {
+        previewServers: previewServerService,
+        resolveWorkspace: (workspacePath, host) =>
+          workspaceIdentity.findByPath(workspacePath, host),
+      }),
+  });
+}

@@ -1,49 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getActiveSessionSummary } from './active-session-summary';
 
-const mocks = vi.hoisted(() => ({
-  getAcpRuntimeClient: vi.fn(),
-  getTerminalsRuntimeClient: vi.fn(),
-  getTuiAgentsRuntimeClient: vi.fn(),
-}));
-
-vi.mock('@main/gateway/accessors', () => mocks);
 vi.mock('@main/lib/logger', () => ({
   log: { warn: vi.fn() },
 }));
 
-beforeEach(() => {
-  mocks.getAcpRuntimeClient.mockReset();
-  mocks.getTerminalsRuntimeClient.mockReset();
-  mocks.getTuiAgentsRuntimeClient.mockReset();
-});
-
 describe('getActiveSessionSummary', () => {
   it('counts active ACP, local and remote TUI, and terminal sessions', async () => {
-    mocks.getAcpRuntimeClient.mockResolvedValue(
-      clientWithSessions({
+    const clients = {
+      acp: clientWithSessions({
         working: { lifecycle: 'working', isGenerating: false },
         generating: { lifecycle: 'ready', isGenerating: true },
         idle: { lifecycle: 'ready', isGenerating: false },
-      })
-    );
-    mocks.getTuiAgentsRuntimeClient.mockResolvedValue(
-      clientWithSessions({
+      }),
+      tuiAgents: clientWithSessions({
         local: { status: 'running', isRemote: false },
         remote: { status: 'running', isRemote: true },
         starting: { status: 'starting', isRemote: false },
         exited: { status: 'exited', isRemote: false },
-      })
-    );
-    mocks.getTerminalsRuntimeClient.mockResolvedValue(
-      clientWithSessions({
+      }),
+      terminals: clientWithSessions({
         terminal: { status: 'running', kind: 'terminal' },
         workflow: { status: 'running', kind: 'workflow' },
         exited: { status: 'exited', kind: 'terminal' },
-      })
-    );
+      }),
+    };
 
-    await expect(getActiveSessionSummary()).resolves.toEqual({
+    await expect(getActiveSessionSummary(clients as never)).resolves.toEqual({
       acpSessions: 2,
       localTuiSessions: 1,
       remoteTuiSessions: 1,
@@ -55,15 +38,18 @@ describe('getActiveSessionSummary', () => {
   it('marks the summary incomplete when a worker read misses the deadline', async () => {
     vi.useFakeTimers();
     let rejectLateRead!: (error: Error) => void;
-    mocks.getAcpRuntimeClient.mockReturnValue(
-      new Promise((_, reject) => {
-        rejectLateRead = reject;
-      })
-    );
-    mocks.getTuiAgentsRuntimeClient.mockResolvedValue(clientWithSessions({}));
-    mocks.getTerminalsRuntimeClient.mockResolvedValue(clientWithSessions({}));
+    const clients = {
+      acp: clientWithSnapshot(
+        () =>
+          new Promise((_, reject) => {
+            rejectLateRead = reject;
+          })
+      ),
+      tuiAgents: clientWithSessions({}),
+      terminals: clientWithSessions({}),
+    };
 
-    const pending = getActiveSessionSummary();
+    const pending = getActiveSessionSummary(clients as never);
     await vi.advanceTimersByTimeAsync(500);
 
     await expect(pending).resolves.toEqual({
@@ -79,11 +65,15 @@ describe('getActiveSessionSummary', () => {
   });
 
   it('marks the summary incomplete when a worker read fails', async () => {
-    mocks.getAcpRuntimeClient.mockRejectedValue(new Error('worker unavailable'));
-    mocks.getTuiAgentsRuntimeClient.mockResolvedValue(clientWithSessions({}));
-    mocks.getTerminalsRuntimeClient.mockResolvedValue(clientWithSessions({}));
+    const clients = {
+      acp: clientWithSnapshot(async () => {
+        throw new Error('worker unavailable');
+      }),
+      tuiAgents: clientWithSessions({}),
+      terminals: clientWithSessions({}),
+    };
 
-    await expect(getActiveSessionSummary()).resolves.toEqual({
+    await expect(getActiveSessionSummary(clients as never)).resolves.toEqual({
       acpSessions: 0,
       localTuiSessions: 0,
       remoteTuiSessions: 0,
@@ -94,11 +84,13 @@ describe('getActiveSessionSummary', () => {
 });
 
 function clientWithSessions(data: Record<string, unknown>) {
+  return clientWithSnapshot(async () => ({ data }));
+}
+
+function clientWithSnapshot(snapshot: () => Promise<unknown>) {
   return {
     sessions: {
-      state: () => ({
-        snapshot: async () => ({ data }),
-      }),
+      state: () => ({ snapshot }),
     },
   };
 }
