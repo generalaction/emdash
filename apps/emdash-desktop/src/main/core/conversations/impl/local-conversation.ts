@@ -20,7 +20,8 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { makePtyId } from '@main/core/pty/ptyId';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
+import { makeTmuxSession } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
@@ -165,7 +166,7 @@ export class LocalConversationProvider implements ConversationProvider {
       const customEnv = providerConfig?.env ?? {};
       const providerVars: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
-      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+      const tmuxSession = this.tmux ? makeTmuxSession(sessionId, this.taskPath) : undefined;
 
       const resolved = resolveLocalPtySpawn({
         platform: process.platform,
@@ -176,7 +177,7 @@ export class LocalConversationProvider implements ConversationProvider {
           command: { kind: 'argv', command: agentCommand.command, args: agentCommand.args },
           shellProfile: this.shellProfile,
           shellSetup: this.shellSetup,
-          tmuxSessionName,
+          tmuxSession,
         },
       });
 
@@ -300,7 +301,6 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    this.knownSessionIds.delete(sessionId);
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
@@ -315,8 +315,9 @@ export class LocalConversationProvider implements ConversationProvider {
       }
     }
     if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
+      await killTmuxSessionsByPtyIds(this.ctx, [sessionId]);
     }
+    this.knownSessionIds.delete(sessionId);
     this.supervisor.forget(sessionId);
   }
 
@@ -324,7 +325,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+      await killTmuxSessionsByPtyIds(this.ctx, sessionIds);
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);

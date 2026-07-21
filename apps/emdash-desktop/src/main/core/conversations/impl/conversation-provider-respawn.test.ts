@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONVERSATION_FRESH_RECOVERY_GRACE_MS } from '@main/core/conversations/conversation-session-supervisor';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { makeTmuxSession } from '@main/core/pty/tmux-session-name';
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -911,22 +912,25 @@ describe('conversation provider respawn state', () => {
   it('kills tmux when explicitly stopping a detached local conversation', async () => {
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
     spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
-    const ctx = {
-      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
-    };
-    const provider = localProvider({ tmux: true, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const tmuxSession = makeTmuxSession(sessionId, '/tmp/task-1');
+    const ctx = {
+      exec: vi.fn(async (_command: string, args: string[]) => ({
+        stdout:
+          args[0] === 'list-sessions'
+            ? `${tmuxSession.name}\t${item.projectId}\t${item.taskId}\t${item.id}\n`
+            : '',
+        stderr: '',
+      })),
+    };
+    const provider = localProvider({ tmux: true, ctx: ctx as never });
 
     await provider.startSession(item);
     await provider.detachSession(item.id);
     await provider.stopSession(item.id);
 
-    expect(ctx.exec).toHaveBeenCalledWith('tmux', [
-      'kill-session',
-      '-t',
-      expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
-    ]);
+    expect(ctx.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', tmuxSession.name]);
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
   });
 
@@ -936,23 +940,67 @@ describe('conversation provider respawn state', () => {
       success: true,
       data: fakePty(exitHandlers),
     });
-    const ctx = {
-      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
-    };
-    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const tmuxSession = makeTmuxSession(sessionId, '/tmp/task-1');
+    const ctx = {
+      exec: vi.fn(async (_command: string, args: string[]) => ({
+        stdout:
+          args[0] === 'list-sessions'
+            ? `${tmuxSession.name}\t${item.projectId}\t${item.taskId}\t${item.id}\n`
+            : '',
+        stderr: '',
+      })),
+    };
+    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
 
     await provider.startSession(item);
     await provider.detachSession(item.id);
     await provider.stopSession(item.id);
 
-    expect(ctx.exec).toHaveBeenCalledWith('tmux', [
-      'kill-session',
-      '-t',
-      expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
-    ]);
+    expect(ctx.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', tmuxSession.name]);
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
+  });
+
+  it('keeps a detached local conversation retryable when tmux discovery fails', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('connection timed out');
+      }),
+    };
+    const provider = localProvider({ tmux: true, ctx: ctx as never });
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+
+    await expect(provider.stopSession(item.id)).rejects.toThrow('Failed to discover tmux sessions');
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
+  });
+
+  it('keeps a detached SSH conversation retryable when tmux discovery fails', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+    const ctx = {
+      exec: vi.fn(async () => {
+        throw new Error('connection timed out');
+      }),
+    };
+    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+
+    await expect(provider.stopSession(item.id)).rejects.toThrow('Failed to discover tmux sessions');
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
   });
 
   it('ignores stale local attach exits after a tmux conversation is rehydrated', async () => {

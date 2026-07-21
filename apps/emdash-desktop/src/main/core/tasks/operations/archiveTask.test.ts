@@ -41,6 +41,7 @@ describe('archiveTask', () => {
     vi.clearAllMocks();
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere });
     mocks.updateWhere.mockResolvedValue(undefined);
+    mocks.teardownTask.mockResolvedValue({ success: true });
   });
 
   it('archives by reaping the runtime without deleting workspace assets', async () => {
@@ -71,5 +72,23 @@ describe('archiveTask', () => {
       task_id: 'task-1',
     });
     expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.teardownTask.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateSet.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it('keeps the task unarchived when runtime teardown fails', async () => {
+    mocks.selectLimit.mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }]);
+    mocks.teardownTask.mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'Failed to discover tmux sessions' },
+    });
+
+    await expect(archiveTask('project-1', 'task-1')).rejects.toThrow(
+      'Failed to teardown task before archiving: Failed to discover tmux sessions'
+    );
+
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { TmuxSessionConfig } from '@shared/core/pty/tmux';
 
 export interface AgentSessionConfig {
   taskId: string;
@@ -9,7 +10,7 @@ export interface AgentSessionConfig {
   cwd: string;
   sessionId?: string;
   shellSetup?: string;
-  tmuxSessionName?: string;
+  tmuxSession?: TmuxSessionConfig;
   autoApprove: boolean;
   resume: boolean;
 }

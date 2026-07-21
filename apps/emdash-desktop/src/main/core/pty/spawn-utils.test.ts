@@ -1,9 +1,15 @@
+import { execFileSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RemoteShellProfile } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import type { AgentSessionConfig } from '@shared/core/agents/agent-session';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { GeneralSessionConfig } from '@shared/core/terminals/general-session';
 import { resolveSshCommand } from './spawn-utils';
+import { makeTmuxSession } from './tmux-session-name';
 
 function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {
   return {
@@ -157,17 +163,73 @@ describe('resolveSshCommand', () => {
     const result = resolveSshCommand(
       'agent',
       makeAgentConfig({
-        tmuxSessionName: 'agent-session',
+        tmuxSession: {
+          name: 'agent-session',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          leafId: 'conv-1',
+        },
       }),
       undefined,
       zshProfile
     );
 
-    expect(result).toContain('tmux has-session -t \\"agent-session\\"');
-    expect(result).toContain('tmux -u new-session -d -s \\"agent-session\\"');
-    expect(result).toContain('tmux -u attach-session -t \\"agent-session\\"');
-    expect(result).toContain('/bin/sh -c');
-    expect(result).toContain("'\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\''");
+    expect(result).toContain('preferred_name=$1');
+    expect(result).toContain('find_matching_session');
+    expect(result).toContain('list-sessions -F');
+    expect(result).toContain('new-session -d -s "$session_name"');
+    expect(result).toContain('attach-session -t "$session_name"');
+    expect(result).toContain("'agent-session'");
+    expect(result).toContain('/bin/sh');
+    expect(result).toContain('claude');
+    expect(result).toContain('--resume');
+    expect(result).toContain('conv-1');
+  });
+
+  it('executes the generated SSH command and resumes an identity under its previous label', () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'emdash-ssh-tmux-'));
+    const tmuxStub = path.join(tempDir, 'tmux');
+    const callsFile = path.join(tempDir, 'calls.log');
+    try {
+      writeFileSync(
+        tmuxStub,
+        `#!/bin/sh
+printf '%s\\n' "$*" >> "$TMUX_CALLS"
+if [ "$1" = "list-sessions" ]; then
+  printf '%s\\t%s\\t%s\\t%s\\n' "$TMUX_EXISTING_NAME" "$TMUX_PROJECT" "$TMUX_TASK" "$TMUX_LEAF"
+fi
+exit 0
+`
+      );
+      chmodSync(tmuxStub, 0o755);
+      const sessionId = makePtySessionId('ssh-project', 'ssh-task', 'ssh-leaf');
+      const oldSession = makeTmuxSession(sessionId, '/tmp/old-ssh-label');
+      const currentSession = makeTmuxSession(sessionId, '/tmp/current-ssh-label');
+      const remoteEnv = {
+        PATH: `${tempDir}:/usr/bin:/bin`,
+        TMPDIR: tempDir,
+        TMUX_CALLS: callsFile,
+        TMUX_EXISTING_NAME: oldSession.name,
+        TMUX_PROJECT: oldSession.projectId,
+        TMUX_TASK: oldSession.taskId,
+        TMUX_LEAF: oldSession.leafId,
+      };
+      const command = resolveSshCommand(
+        'agent',
+        makeAgentConfig({ cwd: tempDir, tmuxSession: currentSession }),
+        remoteEnv,
+        { shell: '/bin/sh', env: {} }
+      );
+
+      execFileSync('/bin/sh', ['-c', command], { env: process.env });
+
+      const calls = readFileSync(callsFile, 'utf8');
+      expect(calls).toContain('list-sessions -F');
+      expect(calls).not.toContain('new-session');
+      expect(calls).toContain(`attach-session -t ${oldSession.name}`);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('launches remote general terminals with the captured remote shell', () => {

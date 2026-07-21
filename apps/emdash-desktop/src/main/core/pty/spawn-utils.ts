@@ -37,7 +37,7 @@ function posixShellLineForSsh(
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
-        line: cfg.tmuxSessionName ? buildTmuxShellLine(cfg.tmuxSessionName, line) : line,
+        line: cfg.tmuxSession ? buildTmuxShellLine(cfg.tmuxSession, line, quoteArg) : line,
       };
     }
     case 'general': {
@@ -48,7 +48,7 @@ function posixShellLineForSsh(
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
-        line: cfg.tmuxSessionName ? buildTmuxShellLine(cfg.tmuxSessionName, line) : line,
+        line: cfg.tmuxSession ? buildTmuxShellLine(cfg.tmuxSession, line, quoteArg) : line,
       };
     }
     default:

@@ -1,7 +1,7 @@
 import { LifecycleMap } from '@emdash/shared';
 import { ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
@@ -91,9 +91,7 @@ async function cleanupDetachedSessions(
   const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
     makePtySessionId(projectId, taskId, leafId)
   );
-  await Promise.all(
-    sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
-  );
+  await killTmuxSessionsByPtyIds(ctx, sessionIds);
 }
 
 class TaskSessionManager {
@@ -157,7 +155,8 @@ class TaskSessionManager {
 
   async teardownTask(
     taskId: string,
-    mode: TaskTeardownMode = 'terminate'
+    mode: TaskTeardownMode = 'terminate',
+    options: { retainOnFailure?: boolean } = {}
   ): Promise<Result<void, TeardownTaskError>> {
     const result = this._lifecycle.teardown(
       taskId,
@@ -178,10 +177,11 @@ class TaskSessionManager {
           });
           return { success: false as const, error: toTeardownError(e) };
         }
-      }
+      },
+      { retainOnFailure: options.retainOnFailure ?? true }
     );
 
-    return result ?? ok();
+    return (await result) ?? ok();
   }
 
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
@@ -206,7 +206,15 @@ class TaskSessionManager {
       );
     } else {
       // teardownTask handles _tasksByProject cleanup in onFinally.
-      await Promise.all(taskIds.map((id) => this.teardownTask(id, 'terminate')));
+      await Promise.all(
+        taskIds.map((id) =>
+          this.teardownTask(id, 'terminate', {
+            // Project shutdown disposes the execution context immediately after this
+            // call, so retaining providers would leave unusable fast-path entries.
+            retainOnFailure: false,
+          })
+        )
+      );
     }
   }
 
