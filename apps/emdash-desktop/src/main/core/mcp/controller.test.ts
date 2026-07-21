@@ -205,6 +205,14 @@ describe('saveServer', () => {
     });
   });
 
+  it('saves a new custom emdash-named server as-is instead of hijacking it', async () => {
+    const submitted = foreignEmdashServer();
+    const result = await mcpController.saveServer(submitted);
+    expect(result).toEqual({ success: true });
+    expect(mocks.saveServer).toHaveBeenCalledWith(submitted);
+    expect(mocks.resolveSelfServer).not.toHaveBeenCalled();
+  });
+
   it('saves an unrelated emdash-named server as-is instead of hijacking it', async () => {
     mocks.loadAll.mockResolvedValue({ installed: [foreignEmdashServer()], catalog: [] });
     const edited = { ...foreignEmdashServer(), providers: ['claude', 'codex'] };

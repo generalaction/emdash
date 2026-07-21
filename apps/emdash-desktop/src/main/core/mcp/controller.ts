@@ -40,16 +40,17 @@ function redactManagedServer(server: McpServer): McpServer {
 
 /**
  * The managed emdash entry's connection details come from the live server,
- * not the caller — callers only choose providers. But only when the installed
- * entry (if any) is actually ours: a user's own server that happens to use
- * the managed name is saved as-is instead of being overwritten with loopback
- * connection details.
+ * not the caller — callers only choose providers. But only when the entry is
+ * actually ours: a user's own server that happens to use the managed name,
+ * whether already installed or newly submitted with its own URL, is saved
+ * as-is instead of being overwritten with loopback connection details.
  */
 async function resolveServerForSave(server: McpServer): Promise<McpServer> {
   if (!isManagedCatalogKey(server.name)) return server;
   const { installed } = await mcpService.loadAll();
   const existing = installed.find((entry) => entry.name === server.name);
   if (existing && !isSelfServerEntry(existing)) return server;
+  if (!existing && server.url && !isSelfServerEntry(server)) return server;
   // Spread the existing entry first so user-set fields (enabled, timeout,
   // cwd) survive; connection details are always replaced.
   return { ...existing, ...resolveSelfServer(server.providers) };
