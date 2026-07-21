@@ -77,7 +77,10 @@ export function useInitialConversationState(
   const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
-  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
+    'initial-conversation:auto-approve-enabled',
+    autoApproveByDefault
+  );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
@@ -98,7 +101,6 @@ export function useInitialConversationState(
       setPrompt('');
     }
     setIssueContext(null);
-    setAutoApproveOverride(null);
     setIssueContextEditorOpen(false);
     setModel(null);
     setIssueMentionContexts({});
@@ -109,7 +111,7 @@ export function useInitialConversationState(
 
   const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const autoApproveSupported = agentSupportsAutoApprove(capabilities);
-  const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
+  const autoApprove = autoApproveSupported && autoApprovePreference;
   const acpSupported = agentSupportsAcp(capabilities);
   const useChatUi = acpSupported && useChatUiPreference;
 
@@ -122,7 +124,7 @@ export function useInitialConversationState(
     issueContext,
     setIssueContext,
     autoApprove,
-    setAutoApprove: setAutoApproveOverride,
+    setAutoApprove: setAutoApprovePreference,
     issueContextEditorOpen,
     setIssueContextEditorOpen,
     model,
