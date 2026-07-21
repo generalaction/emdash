@@ -1,4 +1,5 @@
 import { join, normalize, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { net, protocol } from 'electron';
 import { APP_NAME_LOWER } from '@shared/app-identity';
 
@@ -32,9 +33,9 @@ export function setupAppProtocol(rendererRoot: string): void {
     }
 
     try {
-      return await net.fetch(`file://${resolved}`);
+      return await net.fetch(pathToFileURL(resolved).href);
     } catch {
-      return net.fetch(`file://${join(root, 'index.html')}`);
+      return net.fetch(pathToFileURL(join(root, 'index.html')).href);
     }
   });
 }
