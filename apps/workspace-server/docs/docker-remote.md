@@ -35,7 +35,7 @@ ssh -p 2223 devuser@localhost 'node --version'
 # bash: node: command not found
 ```
 
-This is the mode for testing OS and architecture detection, artifact upload and installation,
+This is the mode for testing OS and architecture detection, artifact pull and installation,
 daemon startup, reconnects, and desktop-managed streamlocal forwarding.
 
 ## Preinstall And Autostart Modes
@@ -55,7 +55,7 @@ WORKSPACE_SERVER_PREINSTALL=1 pnpm run run:docker-remote
 ```
 
 The entrypoint extracts it under
-`/home/devuser/.local/share/emdash/workspace-server/<version>/` and updates the `current` symlink.
+`/home/devuser/.emdash/workspace-server/versions/<version>/` and updates the `current` symlink.
 The named home volume preserves this installation and daemon state across container recreation.
 
 Set both toggles to start the installed daemon during container startup:
@@ -68,7 +68,8 @@ Check its health from the host:
 
 ```bash
 ssh -p 2223 devuser@localhost \
-  '~/.local/share/emdash/workspace-server/current/bin/emdash-workspace-server status'
+  '~/.emdash/workspace-server/current/bin/emdash-workspace-server status \
+  --socket ~/.emdash/workspace-server/run/workspace.sock'
 ```
 
 `WORKSPACE_SERVER_AUTOSTART=1` can be used without preinstall after an installation already exists
@@ -81,8 +82,8 @@ pnpm --dir ../emdash-desktop run test:workspace-server-remote
 ```
 
 The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
-starts an isolated daemon socket under `/home/devuser/.emdash-workspace-server-test`, exercises SSH
-reconnection and daemon restart, then stops the daemon and removes its temporary workspace.
+resets the desktop-managed root, installs from the mounted artifact and checksum, exercises a
+runtime call and SSH reconnection, then stops the daemon and removes its temporary workspace.
 
 ## Logs And Socket Forwarding
 

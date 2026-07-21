@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly DEVUSER_HOME=/home/devuser
-readonly INSTALL_ROOT="$DEVUSER_HOME/.local/share/emdash/workspace-server"
+readonly INSTALL_ROOT="$DEVUSER_HOME/.emdash/workspace-server"
 readonly ARTIFACT_ROOT=/opt/emdash-artifacts
 
 fail() {
@@ -51,6 +51,7 @@ preinstall_workspace_server() {
   local version
   local version_directory
   local staging_directory
+  local next_link
 
   architecture="$(artifact_architecture)"
   archive="$(newest_artifact "$architecture")"
@@ -61,9 +62,22 @@ preinstall_workspace_server() {
     fail "could not determine a safe version from $archive_name"
   fi
 
-  version_directory="$INSTALL_ROOT/$version"
-  staging_directory="$INSTALL_ROOT/.install-$version-$$"
-  install -d -o devuser -g devuser "$INSTALL_ROOT"
+  version_directory="$INSTALL_ROOT/versions/$version"
+  staging_directory="$INSTALL_ROOT/staging/.install-$version-$$"
+  next_link="$INSTALL_ROOT/.current-$version-$$"
+  install -d -o devuser -g devuser \
+    "$INSTALL_ROOT" "$INSTALL_ROOT/versions" "$INSTALL_ROOT/staging" "$INSTALL_ROOT/run"
+  if [[ -d "$version_directory" ]]; then
+    if [[ ! -x "$version_directory/bin/emdash-workspace-server" ]]; then
+      fail "existing workspace-server $version installation is incomplete"
+    fi
+    rm -f "$next_link"
+    ln -s "versions/$version" "$next_link"
+    mv -Tf "$next_link" "$INSTALL_ROOT/current"
+    chown -h devuser:devuser "$INSTALL_ROOT/current"
+    printf 'workspace-remote: using existing %s installation\n' "$version"
+    return
+  fi
   rm -rf "$staging_directory"
   mkdir -p "$staging_directory"
   if ! tar \
@@ -81,10 +95,11 @@ preinstall_workspace_server() {
     fail "$archive_name does not contain the workspace-server launcher"
   fi
 
-  rm -rf "$version_directory"
   mv "$staging_directory" "$version_directory"
   chown -R devuser:devuser "$version_directory"
-  ln -sfn "$version_directory" "$INSTALL_ROOT/current"
+  rm -f "$next_link"
+  ln -s "versions/$version" "$next_link"
+  mv -Tf "$next_link" "$INSTALL_ROOT/current"
   chown -h devuser:devuser "$INSTALL_ROOT/current"
   printf 'workspace-remote: installed %s from %s\n' "$version" "$archive_name"
 }
@@ -101,7 +116,7 @@ autostart_workspace_server() {
       HOME="$DEVUSER_HOME" \
       LOGNAME=devuser \
       USER=devuser \
-      "$launcher" start
+      "$launcher" start --socket "$INSTALL_ROOT/run/workspace.sock"
   )
 }
 
