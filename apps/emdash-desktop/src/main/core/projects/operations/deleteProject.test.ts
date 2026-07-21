@@ -92,9 +92,29 @@ describe('deleteProject', () => {
     await deleteProject('project-1');
 
     expect(mocks.closeProject).not.toHaveBeenCalled();
-    expect(mocks.getTasks).not.toHaveBeenCalled();
+    expect(mocks.getTasks).toHaveBeenCalledWith('project-1');
     expect(mocks.teardownTask).not.toHaveBeenCalled();
     expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes aggregate and dedicated tab view state for every task', async () => {
+    mocks.getTasks.mockResolvedValue([{ id: 'task-1' }, { id: 'task-2' }]);
+
+    const deletedTaskIds = await deleteProject('project-1');
+
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1');
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1:tabs');
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-2');
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-2:tabs');
+    expect(mocks.delViewState).toHaveBeenCalledWith('project:project-1');
+    expect(deletedTaskIds).toEqual(['task-1', 'task-2']);
+
+    const projectStateDeleteIndex = mocks.delViewState.mock.calls.findIndex(
+      ([key]) => key === 'project:project-1'
+    );
+    expect(mocks.delViewState.mock.invocationCallOrder[projectStateDeleteIndex]).toBeLessThan(
+      mocks.deleteWhere.mock.invocationCallOrder[0]
+    );
   });
 
   it('cleans PR sync data before deleting the project row', async () => {

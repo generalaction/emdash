@@ -142,6 +142,17 @@ describe('TaskStore frontend runtime lifecycle', () => {
     expect(order).toEqual(['acquire', 'restore', 'initialize']);
   });
 
+  it('restores dedicated view state when the legacy task snapshot is absent', () => {
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    const viewModel = mocks.viewModels[0];
+
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
+
+    expect(viewModel.restoreSnapshot).toHaveBeenCalledWith({});
+    expect(viewModel.restoreSnapshot).toHaveBeenCalledBefore(viewModel.initialize);
+  });
+
   it('recreates registered stores before reprovisioning a dry task', () => {
     const task = makeTask();
     const store = createUnprovisionedTask(task);
