@@ -1,6 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
@@ -17,6 +17,8 @@ import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
+import { PermissionModeIcon } from './permission-mode-icon';
+import type { PermissionModeIconKind } from './permission-mode-icon';
 import { QueuedPromptsBand } from './queued-prompts-band';
 import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
@@ -32,6 +34,7 @@ export type {
 } from '../prompt-editor/types';
 export type { ContextUsage } from './context-usage-indicator';
 export type { ComposerQueuedPrompt } from './queued-prompts-band';
+export type { PermissionModeIconKind } from './permission-mode-icon';
 
 export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
 
@@ -144,6 +147,7 @@ export interface ComposerEffortOption {
 export interface ComposerPermissionModeOption {
   name: string;
   description?: string;
+  iconKind: PermissionModeIconKind;
 }
 
 // ── Agent option types ────────────────────────────────────────────────────────
@@ -706,10 +710,8 @@ export function ChatComposer({
 
   // ── Permission mode items ────────────────────────────────────────────────────
 
-  interface PermissionModeItem {
+  interface PermissionModeItem extends ComposerPermissionModeOption {
     id: string;
-    name: string;
-    description?: string;
   }
 
   const permissionModeItems: PermissionModeItem[] = permissionModeOptions
@@ -953,35 +955,47 @@ export function ChatComposer({
                       lineHeight: 1.25,
                     }}
                   >
-                    <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                    <PermissionModeIcon kind={selected?.iconKind} />
                     {selected?.name ?? 'Permissions…'}
                   </span>
                 )}
                 renderItem={(item) => (
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 'var(--em-text-sm)',
-                      }}
-                    >
-                      {item.name}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.5rem',
+                      minWidth: 0,
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', paddingTop: '0.125rem' }}>
+                      <PermissionModeIcon kind={item.iconKind} size="0.875rem" />
                     </span>
-                    {item.description && (
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                       <span
                         style={{
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          fontSize: 'var(--em-text-xs)',
-                          color: 'var(--em-foreground-muted)',
+                          fontSize: 'var(--em-text-sm)',
                         }}
                       >
-                        {item.description}
+                        {item.name}
                       </span>
-                    )}
+                      {item.description && (
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 'var(--em-text-xs)',
+                            color: 'var(--em-foreground-muted)',
+                          }}
+                        >
+                          {item.description}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               />

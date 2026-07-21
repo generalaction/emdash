@@ -32,6 +32,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from '../stores/conversation-registry';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
+import { permissionModePresentation } from './permission-mode-presentation';
 
 export interface AgentAffordances {
   isWorking: boolean;
@@ -143,10 +144,16 @@ export class AcpChatStore {
   get permissionModeOptions(): Record<string, ComposerPermissionModeOption> | null {
     const options = this.session?.config.current().modeOptions;
     if (!options) return null;
+    const providerId =
+      conversationRegistry.get(this.taskId)?.conversations.get(this.conversationId)?.data
+        .providerId ?? '';
     return Object.fromEntries(
       options.available.map((option) => [
         option.id,
-        { name: option.name, description: option.description },
+        {
+          ...permissionModePresentation(providerId, option.id, option.name),
+          description: option.description,
+        },
       ])
     );
   }
