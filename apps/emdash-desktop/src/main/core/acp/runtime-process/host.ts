@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { acpApiContract, type AcpApiContract } from '@emdash/core/acp';
+import { acpApiContract, type AcpApiContract, type AcpStartInputWire } from '@emdash/core/acp';
 import {
   exposeWireToWindows,
   forwardController,
@@ -10,6 +10,7 @@ import { lazyWorker, type WorkerHandle } from '@emdash/wire/worker';
 import { app, ipcMain, MessageChannelMain } from 'electron';
 import { appScope } from '@main/app/app-scope';
 import { setSessionId } from '@main/core/conversations/set-session-id';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { log } from '@main/lib/logger';
 import { desktopWorkerPath } from '@main/worker-manifest';
 
@@ -31,7 +32,8 @@ const acpWorker = lazyWorker(
     },
   }),
   {
-    onSpawned: (handle) => installRendererWire(withSessionIdPersistence(handle.client)),
+    onSpawned: (handle) =>
+      installRendererWire(withSessionIdPersistence(withProviderEnv(handle.client))),
   }
 );
 
@@ -52,7 +54,29 @@ export async function disposeAcpRuntimeProcess(): Promise<void> {
 }
 
 function decorateAcpRuntimeHandle(handle: WorkerHandle<AcpApiContract>): AcpRuntimeHandle {
-  return { ...handle, client: withSessionIdPersistence(handle.client) };
+  return { ...handle, client: withSessionIdPersistence(withProviderEnv(handle.client)) };
+}
+
+/**
+ * Injects the user's per-provider environment variables (configured in Settings and
+ * stored in the app DB) into ACP session-start inputs. The ACP runtime worker has no
+ * DB access, so this main-process choke point resolves the config and threads it to
+ * the provider spawn. Any env on the incoming (renderer-facing) input is discarded and
+ * replaced, so the spawn environment can only come from trusted main-process settings.
+ */
+function withProviderEnv(client: AcpRuntimeClient): AcpRuntimeClient {
+  const enrich = async <T extends { input: AcpStartInputWire }>(input: T): Promise<T> => {
+    const providerConfig = await providerOverrideSettings.getItem(input.input.providerId);
+    // Spawn env must originate solely from the trusted main-process settings. Overwrite
+    // (never merge) any env supplied by the renderer-facing caller so the renderer cannot
+    // inject variables such as PATH/HOME/proxy vars into provider process spawning.
+    return { ...input, input: { ...input.input, env: providerConfig?.env } };
+  };
+  return {
+    ...client,
+    startSession: async (input, meta) => client.startSession(await enrich(input), meta),
+    resumeSession: async (input, meta) => client.resumeSession(await enrich(input), meta),
+  };
 }
 
 function withSessionIdPersistence(client: AcpRuntimeClient): AcpRuntimeClient {

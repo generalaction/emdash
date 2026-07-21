@@ -251,7 +251,7 @@ export class AgentPluginHost {
 
   async buildAcpSpawn(
     providerId: string,
-    ctx: { cwd: string }
+    ctx: { cwd: string; env?: Record<string, string> }
   ): Promise<Result<AgentHostAcpSpawn, AgentHostError>> {
     const provider = this.resolveAcp(providerId);
     if (!provider) return err({ type: 'capability-unsupported', providerId, capability: 'acp' });
@@ -264,7 +264,9 @@ export class AgentPluginHost {
     });
     return ok({
       ...spawn,
-      env: { ...spawnContext.data.agentEnv, ...spawn.env },
+      // User-configured provider env (from Settings) wins over the allowlisted
+      // agent env and any plugin defaults, mirroring the PTY path's providerVars.
+      env: { ...spawnContext.data.agentEnv, ...spawn.env, ...(ctx.env ?? {}) },
       cwd: ctx.cwd,
     });
   }
