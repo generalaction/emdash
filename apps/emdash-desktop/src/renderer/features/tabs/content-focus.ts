@@ -8,7 +8,10 @@ export function focusActiveContentElement(container: HTMLElement): void {
       bubbles: true,
       cancelable: true,
     });
-    if (!element.dispatchEvent(focusRequest)) return;
+    if (!element.dispatchEvent(focusRequest)) {
+      if (element.contains(document.activeElement)) return;
+      continue;
+    }
 
     element.focus();
     if (document.activeElement === element) return;

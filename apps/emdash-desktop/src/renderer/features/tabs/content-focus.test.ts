@@ -31,4 +31,21 @@ describe('focusActiveContentElement', () => {
     expect(document.activeElement).toBe(textarea);
     container.remove();
   });
+
+  it('skips a hidden editor that handles the request without taking focus', () => {
+    const container = document.createElement('div');
+    const hiddenEditor = document.createElement('div');
+    hiddenEditor.setAttribute('contenteditable', 'true');
+    hiddenEditor.addEventListener(CONTENT_FOCUS_REQUEST_EVENT, (event) => {
+      event.preventDefault();
+    });
+    const activeInput = document.createElement('textarea');
+    container.append(hiddenEditor, activeInput);
+    document.body.appendChild(container);
+
+    focusActiveContentElement(container);
+
+    expect(document.activeElement).toBe(activeInput);
+    container.remove();
+  });
 });
