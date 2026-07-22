@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { PullRequestView } from '@renderer/features/projects/components/pr-view/pr-view';
 import { SettingsPanel } from '@renderer/features/projects/components/settings-view/settings-panel';
+import { SetupSuggestionToast } from '@renderer/features/projects/components/setup-suggestion/setup-suggestion-toast';
 import { TaskList } from '@renderer/features/projects/components/task-view/task-list';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectView } from '@renderer/features/projects/stores/project-view';
@@ -74,6 +75,7 @@ export const ActiveProject = observer(function ActiveProject() {
           </div>
         </div>
       </div>
+      <SetupSuggestionToast projectId={projectId} />
     </div>
   );
 });
