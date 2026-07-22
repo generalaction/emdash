@@ -80,6 +80,7 @@ export const SEMANTIC_TEMPLATE = {
   border: 'neutral.6',
   'border-1': 'neutral.7',
   'border-2': 'neutral.8',
+  'border-subtle': 'neutral.5',
   'border-destructive': 'red.8',
   'border-primary': 'neutral.9',
 

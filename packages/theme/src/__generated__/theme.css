@@ -286,6 +286,7 @@
     --em-border: color(display-p3 0.7703 0.7673 0.7681);
     --em-border-1: color(display-p3 0.8109 0.8067 0.8078);
     --em-border-2: color(display-p3 0.733 0.728 0.7294);
+    --em-border-subtle: color(display-p3 0.8128 0.8107 0.8113);
     --em-border-destructive: color(display-p3 1 0.5988 0.5722);
     --em-border-primary: color(display-p3 0.5582 0.5525 0.554);
     --em-selection: color(display-p3 0.6279 0.7807 0.9926);
@@ -652,6 +653,7 @@
     --em-border: color(display-p3 0.7703 0.7673 0.7681);
     --em-border-1: color(display-p3 0.8109 0.8067 0.8078);
     --em-border-2: color(display-p3 0.733 0.728 0.7294);
+    --em-border-subtle: color(display-p3 0.8128 0.8107 0.8113);
     --em-border-destructive: color(display-p3 1 0.5988 0.5722);
     --em-border-primary: color(display-p3 0.5582 0.5525 0.554);
     --em-selection: color(display-p3 0.6279 0.7807 0.9926);
@@ -995,6 +997,7 @@
     --em-border: color(display-p3 0.2206 0.2181 0.2188);
     --em-border-1: color(display-p3 0.3825 0.3788 0.3798);
     --em-border-2: color(display-p3 0.471 0.4664 0.4677);
+    --em-border-subtle: color(display-p3 0.1878 0.1862 0.1866);
     --em-border-destructive: color(display-p3 0.7226 0.3212 0.31);
     --em-border-primary: color(display-p3 0.5721 0.5663 0.5679);
     --em-selection: color(display-p3 0.087 0.2177 0.3954);
@@ -1338,6 +1341,7 @@
     --em-border: #ccc6ad;
     --em-border-1: #b6b39c;
     --em-border-2: #93a1a1;
+    --em-border-subtle: #ddd6bf;
     --em-border-destructive: color(display-p3 1 0.5628 0.5039);
     --em-border-primary: #839496;
     --em-selection: color(display-p3 0.656 0.7858 0.9228);
@@ -1681,6 +1685,7 @@
     --em-border: #2c5a64;
     --em-border-1: #475c63;
     --em-border-2: #586e75;
+    --em-border-subtle: #164f5d;
     --em-border-destructive: color(display-p3 0.7658 0.3409 0.2957);
     --em-border-primary: #657b83;
     --em-selection: color(display-p3 0.1172 0.2276 0.3407);
