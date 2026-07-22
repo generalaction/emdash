@@ -61,6 +61,7 @@ export const SETTINGS_DEFAULTS = {
     showLeftSidebarPrStatus: true,
     showLeftSidebarTimestamps: true,
     hideContextBar: false,
+    automationsLastReadAt: 0,
   },
   browserPreview: {
     enabled: true,
