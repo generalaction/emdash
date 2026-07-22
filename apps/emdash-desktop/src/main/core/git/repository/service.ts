@@ -53,8 +53,10 @@ export class GitRepositoryService {
     return (await this.getConfiguredRemotes()).pushRemote;
   }
 
-  async getDefaultBranch(): Promise<string> {
-    return this.gitRepository.getDefaultBranch(await this.getBaseRemote());
+  async getDefaultBranch(baseRemote?: string): Promise<string> {
+    // Callers that already resolved the base remote can pass it to avoid a
+    // redundant settings + `git remote` round trip.
+    return this.gitRepository.getDefaultBranch(baseRemote ?? (await this.getBaseRemote()));
   }
 
   async getRemotes(): Promise<{ name: string; url: string }[]> {

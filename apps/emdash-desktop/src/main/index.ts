@@ -29,6 +29,8 @@ import { localDependencyManager } from './core/dependencies/dependency-managers'
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
+import { mcpHttpServer } from './core/mcp/server/mcp-http-server';
+import { refreshSelfServerRegistration } from './core/mcp/server/self-registration';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
@@ -157,6 +159,18 @@ void app.whenReady().then(async () => {
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
+  if (process.env.EMDASH_MCP_SERVER !== 'false') {
+    mcpHttpServer
+      .start()
+      .then(() =>
+        refreshSelfServerRegistration().catch((e) => {
+          log.error('Failed to refresh emdash MCP server registration:', e);
+        })
+      )
+      .catch((e) => {
+        log.error('Failed to start MCP HTTP server:', e);
+      });
+  }
   initializeAcpRuntimeProcess().catch((e) => {
     log.error('Failed to start ACP runtime process:', e);
   });

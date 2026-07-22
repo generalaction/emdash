@@ -46,7 +46,7 @@ export const McpView: React.FC = () => {
     });
   };
 
-  // Filter
+  // Filter. Recommendations keep catalog order, which pins emdash first.
   const lowerSearch = search.toLowerCase();
   const installedNames = new Set(installed.map((s) => s.name));
   const filteredInstalled = installed.filter(

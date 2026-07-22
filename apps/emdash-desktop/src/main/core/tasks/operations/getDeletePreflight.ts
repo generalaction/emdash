@@ -63,8 +63,12 @@ async function getTaskPreflight(
               }
               if (status.kind === 'ok') {
                 hasUncommittedChanges = status.staged.length > 0 || status.unstaged.length > 0;
+              } else {
+                // 'error' and 'too-many-files': the worktree could not be
+                // verified clean — report dirty so callers err toward
+                // preserving it.
+                hasUncommittedChanges = true;
               }
-              hasUncommittedChanges = status.kind === 'too-many-files';
             } finally {
               await worktreeLease.release();
             }
@@ -74,6 +78,7 @@ async function getTaskPreflight(
         }
       } catch (e) {
         log.warn('getDeletePreflight: git status check failed', { taskId, error: String(e) });
+        hasUncommittedChanges = true;
       }
     }
   }

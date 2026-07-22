@@ -57,6 +57,19 @@ function lifecycleScriptSessionId({
   return makePtySessionId(projectId, workspaceId, createLifecycleScriptTerminalId(type));
 }
 
+/** True when a lifecycle script session of this type is currently running. */
+export function isLifecycleScriptSessionActive({
+  projectId,
+  workspaceId,
+  type,
+}: {
+  projectId: string;
+  workspaceId: string;
+  type: LifecycleScriptType;
+}): boolean {
+  return activeSessions.has(lifecycleScriptSessionId({ projectId, workspaceId, type }));
+}
+
 export function stopLifecycleScriptSession({
   projectId,
   taskId,

@@ -1,4 +1,4 @@
-import type { RawServerEntry } from './types';
+import { EMDASH_SELF_SERVER_NAME, type RawServerEntry } from './types';
 
 export interface CredentialKeyDef {
   key: string;
@@ -11,9 +11,22 @@ export interface CatalogEntryDef {
   description: string;
   docsUrl: string;
   credentialKeys: CredentialKeyDef[];
+  /** See {@link import('./types').McpCatalogEntry.managed}. */
+  managed?: boolean;
 }
 
+// Entry order is display order in the catalog UI.
 export const catalogData: Record<string, CatalogEntryDef> = {
+  [EMDASH_SELF_SERVER_NAME]: {
+    // Managed: the real URL and bearer token are injected by the main process
+    // on save; this config is never used directly.
+    config: { type: 'http' },
+    name: 'Emdash',
+    description: 'Create and manage Emdash tasks and projects',
+    docsUrl: '',
+    credentialKeys: [],
+    managed: true,
+  },
   playwright: {
     config: {
       command: 'npx',
