@@ -94,7 +94,7 @@ vi.mock('@renderer/lib/stores/use-agents', () => ({
         capabilities: {
           acp: { kind: 'supported' },
           autoApprove: { kind: 'supported' },
-          models: { kind: 'none' },
+          models: { kind: 'selectable', modelOptions: { opus: { name: 'Opus' } } },
         },
       },
     ],
@@ -241,6 +241,20 @@ describe('useInitialConversationState', () => {
     await renderProbe('project-2');
 
     expect(latestState?.autoApprove).toBe(true);
+  });
+
+  it('persists the model preference', async () => {
+    await renderProbe('project-1');
+
+    await act(async () => {
+      latestState?.setModel('opus');
+    });
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await renderProbe('project-2');
+
+    expect(latestState?.model).toBe('opus');
   });
 
   it('defaults chat UI off when the provider supports ACP', async () => {

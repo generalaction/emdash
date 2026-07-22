@@ -11,6 +11,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
+import { useConversationPreferences } from '@renderer/features/conversations/use-conversation-preferences';
 import { useEffectiveProvider } from '@renderer/features/conversations/use-effective-provider';
 import { IntegrationIcon } from '@renderer/features/integrations/integration-icon';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
@@ -77,12 +78,17 @@ export function useInitialConversationState(
   const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
-  const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
-    'initial-conversation:auto-approve-enabled',
-    autoApproveByDefault
-  );
+  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
+  const modelOptions = capabilities?.models;
+  const selectableModelOptions =
+    modelOptions?.kind === 'selectable' ? modelOptions.modelOptions : null;
+  const {
+    autoApprove: autoApprovePreference,
+    setAutoApprove: setAutoApprovePreference,
+    model,
+    setModel,
+  } = useConversationPreferences(providerId, autoApproveByDefault, selectableModelOptions);
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
-  const [model, setModel] = useState<string | null>(null);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
@@ -90,9 +96,7 @@ export function useInitialConversationState(
   );
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
-  const [prevProviderId, setPrevProviderId] = useState(providerId);
   const projectChanged = projectId !== prevProjectId;
-  const providerChanged = providerId !== prevProviderId;
 
   if (projectChanged) {
     setPrevProjectId(projectId);
@@ -102,14 +106,9 @@ export function useInitialConversationState(
     }
     setIssueContext(null);
     setIssueContextEditorOpen(false);
-    setModel(null);
     setIssueMentionContexts({});
-  } else if (providerChanged) {
-    setPrevProviderId(providerId);
-    setModel(null);
   }
 
-  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const autoApproveSupported = agentSupportsAutoApprove(capabilities);
   const autoApprove = autoApproveSupported && autoApprovePreference;
   const acpSupported = agentSupportsAcp(capabilities);

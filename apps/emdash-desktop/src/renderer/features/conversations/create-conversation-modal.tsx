@@ -28,6 +28,7 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@shared/core/agents/agent-payload';
 import type { ConversationType } from '@shared/core/conversations/conversations';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
+import { useConversationPreferences } from './use-conversation-preferences';
 import { useEffectiveProvider } from './use-effective-provider';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
@@ -44,25 +45,27 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const { data: agents } = useAgents();
+  const selectedAgent = agents?.find((a) => a.id === providerId);
+  const modelsCapability = selectedAgent?.capabilities.models;
+  const modelOptions =
+    modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
+  const {
+    autoApprove,
+    setAutoApprove,
+    model: selectedModel,
+    setModel: setSelectedModel,
+  } = useConversationPreferences(providerId, taskSettings.autoApproveByDefault, modelOptions);
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
     'initial-conversation:chat-ui-enabled',
     false
   );
   useCloseGuard(isSubmitting);
 
-  const { data: agents } = useAgents();
-  const selectedAgent = agents?.find((a) => a.id === providerId);
-  const modelsCapability = selectedAgent?.capabilities.models;
-  const modelOptions =
-    modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
-
   const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
   const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);
   const useAcp = showAcpToggle && useChatUiPreference;
-  const skipPermissions =
-    showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
+  const skipPermissions = showAutoApproveToggle && autoApprove;
   const title = providerId
     ? nextDefaultConversationTitle(
         providerId,
@@ -72,15 +75,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
         )
       )
     : 'Conversation';
-
-  // Reset model when the provider changes (ids are provider-specific).
-  const handleProviderChange = useCallback(
-    (next: typeof providerId) => {
-      setProviderOverride(next);
-      setSelectedModel(null);
-    },
-    [setProviderOverride]
-  );
 
   const handleCreateConversation = useCallback(async () => {
     if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
@@ -131,7 +125,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
             <AgentSelector
               autoFocus
               value={providerId}
-              onChange={handleProviderChange}
+              onChange={setProviderOverride}
               connectionId={connectionId}
             />
           </Field>
@@ -166,7 +160,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
                 <Switch
                   checked={skipPermissions}
                   disabled={!providerId || taskSettings.loading || taskSettings.saving}
-                  onCheckedChange={setAutoApproveOverride}
+                  onCheckedChange={setAutoApprove}
                 />
                 <FieldLabel>Auto-approve permissions</FieldLabel>
               </div>
