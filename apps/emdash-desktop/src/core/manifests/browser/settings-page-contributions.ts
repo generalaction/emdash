@@ -1,6 +1,5 @@
 import { machinesConnectionsPage } from '@core/features/machines/contributions/settings-page';
 import {
-  accountSettingsPage,
   agentsSettingsPage,
   browserSettingsPage,
   generalSettingsPage,
@@ -14,7 +13,6 @@ import type { SettingsPageContribution } from '@core/primitives/settings/api/pag
 
 export const settingsPageContributions = [
   generalSettingsPage,
-  accountSettingsPage,
   integrationsSettingsPage,
   interfaceSettingsPage,
   browserSettingsPage,

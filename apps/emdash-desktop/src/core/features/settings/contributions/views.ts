@@ -4,7 +4,6 @@ import { defineView } from '@core/primitives/views/api';
 
 export const settingsPageTabSchema = z.enum([
   'general',
-  'account',
   'integrations',
   'interface',
   'browser',

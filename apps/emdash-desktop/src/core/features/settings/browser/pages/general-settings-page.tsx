@@ -1,6 +1,7 @@
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import * as React from 'react';
+import { AccountTab } from '../components/AccountTab';
 import NotificationSettingsCard from '../components/NotificationSettingsCard';
 import {
   AutoApproveByDefaultRow,
@@ -24,8 +25,18 @@ export function GeneralSettingsPage() {
     <div className="pb-10">
       <div className="h-10 w-full" style={dragStyle} aria-hidden="true" />
       <div className="space-y-8">
+          <Heading level={1} >
+            General
+          </Heading>
         <div className="space-y-3">
-          <Heading level={2} className="px-4">
+        </div>
+        <div className="space-y-3">
+          <SettingsCard>
+            <AccountTab />
+          </SettingsCard>
+        </div>
+        <div className="space-y-3">
+          <Heading level={3} className="px-4">
             App
           </Heading>
           <SettingsCard>
@@ -36,13 +47,13 @@ export function GeneralSettingsPage() {
           </SettingsCard>
         </div>
         <div className="space-y-3">
-          <Heading level={2} className="px-4">
+          <Heading level={3} className="px-4">
             Notifications
           </Heading>
           <NotificationSettingsCard />
         </div>
         <div className="space-y-3">
-          <Heading level={2} className="px-4">
+          <Heading level={3} className="px-4">
             Preferences
           </Heading>
           <SettingsCard>
