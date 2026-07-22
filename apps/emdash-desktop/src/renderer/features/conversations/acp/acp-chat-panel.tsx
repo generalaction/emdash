@@ -23,6 +23,7 @@ import {
   getProjectViewStore,
 } from '@renderer/features/projects/stores/project-selectors';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
+import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
   openFileInAdjacentPane,
@@ -34,6 +35,10 @@ import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import {
   issueMentionToken,
   parseIssueMentionToken,
@@ -645,7 +650,10 @@ const ComposerForStore = observer(function ComposerForStore({
 // editor state reset on each switch (equivalent to the old remount behavior).
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
+  const { taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
   const { pane } = usePaneContext();
+  const isActive = useIsActiveTask(taskId);
 
   const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
   const store = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
@@ -808,7 +816,13 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   const showHero = showComposer && store.isEmpty;
 
   return (
-    <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
+    <div
+      ref={rootRef}
+      className="relative h-full overflow-hidden bg-background-secondary-1"
+      onFocus={() => {
+        if (isActive) taskView.setFocusedRegion('main');
+      }}
+    >
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
