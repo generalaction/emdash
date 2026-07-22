@@ -11,6 +11,7 @@ import {
   ensureProjectOpen,
   validProviderIds,
 } from './create-task-from-prompt';
+import { runTaskScript, stopTaskScript } from './run-task-script';
 
 function textResult(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] };
@@ -286,6 +287,57 @@ export function buildEmdashMcpServer(): McpServer {
         deleteBranch: false,
       });
       return textResult({ taskId, deleted: true, branchKept: true });
+    })
+  );
+
+  server.registerTool(
+    'run_task_script',
+    {
+      title: 'Run task script',
+      description:
+        "Starts one of a task's configured worktree lifecycle scripts (setup, run, or teardown), " +
+        'the same scripts the Scripts panel in the emdash UI runs, and returns as soon as it has ' +
+        'started rather than waiting for it to finish. Watch the Scripts panel for progress and ' +
+        'stop a still-running script with stop_task_script. Reports already_running when a script ' +
+        'of that type is already running, or no_script when none is configured for the type.',
+      inputSchema: {
+        projectId: z.string().describe('Project id from list_projects'),
+        taskId: z.string().describe('Task id from list_tasks or create_task'),
+        type: z
+          .enum(['setup', 'run', 'teardown'])
+          .describe(
+            'Which lifecycle script to run: setup (prepare the worktree), run (start the dev ' +
+              'server), or teardown (clean up)'
+          ),
+      },
+      annotations: { destructiveHint: false, openWorldHint: false },
+    },
+    guarded('run_task_script', async ({ projectId, taskId, type }) => {
+      const result = await runTaskScript({ projectId, taskId, type });
+      if (result.status === 'not_found') return errorResult(result.message);
+      return textResult(result);
+    })
+  );
+
+  server.registerTool(
+    'stop_task_script',
+    {
+      title: 'Stop task script',
+      description:
+        "Stops a task's running lifecycle script (setup, run, or teardown) started by " +
+        'run_task_script, the same as clicking Stop in the emdash Scripts panel. Reports ' +
+        'not_running when no script of that type is currently running for the task.',
+      inputSchema: {
+        projectId: z.string().describe('Project id from list_projects'),
+        taskId: z.string().describe('Task id from list_tasks or create_task'),
+        type: z.enum(['setup', 'run', 'teardown']).describe('Which lifecycle script to stop'),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    guarded('stop_task_script', async ({ projectId, taskId, type }) => {
+      const result = await stopTaskScript({ projectId, taskId, type });
+      if (result.status === 'not_found') return errorResult(result.message);
+      return textResult(result);
     })
   );
 

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   getDeletePreflight: vi.fn(),
   createTaskFromPrompt: vi.fn(),
   ensureProjectOpen: vi.fn(),
+  runTaskScript: vi.fn(),
+  stopTaskScript: vi.fn(),
   logError: vi.fn(),
 }));
 
@@ -56,6 +58,11 @@ vi.mock('./create-task-from-prompt', () => ({
   createTaskFromPrompt: mocks.createTaskFromPrompt,
   ensureProjectOpen: mocks.ensureProjectOpen,
   validProviderIds: () => 'claude, codex',
+}));
+
+vi.mock('./run-task-script', () => ({
+  runTaskScript: mocks.runTaskScript,
+  stopTaskScript: mocks.stopTaskScript,
 }));
 
 const { buildEmdashMcpServer } = await import('./register-tools');
@@ -106,7 +113,7 @@ beforeEach(() => {
 });
 
 describe('tool registry', () => {
-  it('exposes exactly the six emdash tools', async () => {
+  it('exposes exactly the eight emdash tools', async () => {
     const client = await connectClient();
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
@@ -116,6 +123,8 @@ describe('tool registry', () => {
       'list_projects',
       'list_tasks',
       'rename_task',
+      'run_task_script',
+      'stop_task_script',
     ]);
   });
 
@@ -126,7 +135,13 @@ describe('tool registry', () => {
     expect(byName.get('list_projects')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('list_tasks')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('delete_task')).toMatchObject({ destructiveHint: true });
-    for (const name of ['create_task', 'archive_task', 'rename_task']) {
+    for (const name of [
+      'create_task',
+      'archive_task',
+      'rename_task',
+      'run_task_script',
+      'stop_task_script',
+    ]) {
       expect(byName.get(name)).toMatchObject({ destructiveHint: false });
     }
     for (const [, annotations] of byName) {
@@ -310,6 +325,109 @@ describe('rename_task', () => {
     });
     expect(result.isError).toBe(true);
     expect(result.text).toContain('Task not found in project p1: t1');
+  });
+});
+
+describe('run_task_script', () => {
+  it('returns the started result and forwards the type', async () => {
+    mocks.runTaskScript.mockResolvedValue({ status: 'started', type: 'setup' });
+    const client = await connectClient();
+    const result = await callTool(client, 'run_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'setup',
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toEqual({ status: 'started', type: 'setup' });
+    expect(mocks.runTaskScript).toHaveBeenCalledWith({
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'setup',
+    });
+  });
+
+  it('reports a started dev server without waiting for it to exit', async () => {
+    mocks.runTaskScript.mockResolvedValue({ status: 'started', type: 'run' });
+    const client = await connectClient();
+    const result = await callTool(client, 'run_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'run',
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toEqual({ status: 'started', type: 'run' });
+  });
+
+  it('surfaces a missing task or workspace as a tool error', async () => {
+    mocks.runTaskScript.mockResolvedValue({
+      status: 'not_found',
+      message: 'Task not found in project p1: t1',
+    });
+    const client = await connectClient();
+    const result = await callTool(client, 'run_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'teardown',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toBe('Task not found in project p1: t1');
+  });
+
+  it('rejects an unknown script type before dispatching', async () => {
+    const client = await connectClient();
+    const result = await callTool(client, 'run_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'bogus',
+    });
+    expect(result.isError).toBe(true);
+    expect(mocks.runTaskScript).not.toHaveBeenCalled();
+  });
+});
+
+describe('stop_task_script', () => {
+  it('stops the given script type for the task', async () => {
+    mocks.stopTaskScript.mockResolvedValue({ status: 'stopped', type: 'run' });
+    const client = await connectClient();
+    const result = await callTool(client, 'stop_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'run',
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toEqual({ status: 'stopped', type: 'run' });
+    expect(mocks.stopTaskScript).toHaveBeenCalledWith({
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'run',
+    });
+  });
+
+  it('reports not_running when the script is not up', async () => {
+    mocks.stopTaskScript.mockResolvedValue({ status: 'not_running', type: 'setup' });
+    const client = await connectClient();
+    const result = await callTool(client, 'stop_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'setup',
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toEqual({ status: 'not_running', type: 'setup' });
+  });
+
+  it('surfaces a missing task or workspace as a tool error', async () => {
+    mocks.stopTaskScript.mockResolvedValue({
+      status: 'not_found',
+      message: 'Task not found in project p1: t1',
+    });
+    const client = await connectClient();
+    const result = await callTool(client, 'stop_task_script', {
+      projectId: 'p1',
+      taskId: 't1',
+      type: 'run',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toBe('Task not found in project p1: t1');
   });
 });
 
