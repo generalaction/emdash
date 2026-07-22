@@ -15,11 +15,10 @@ type OpenCodeTodo = {
 /** Convert OpenCode's generic `todowrite` tool calls into canonical ACP plan updates. */
 export function enrichOpenCodeUpdate(update: NormalizedEvent, raw: SessionUpdate): NormalizedEvent {
   if (update.kind !== 'tool_call' && update.kind !== 'tool_update') return update;
+  if (!isTodoWriteTitle(update.title)) return update;
 
   const entries = extractTodoEntries(raw);
-  if (entries !== null) return { kind: 'plan', entries };
-
-  return isTodoWriteTitle(update.title) ? { kind: 'ignored' } : update;
+  return entries !== null ? { kind: 'plan', entries } : { kind: 'ignored' };
 }
 
 function isTodoWriteTitle(title: string | null): boolean {
@@ -28,19 +27,19 @@ function isTodoWriteTitle(title: string | null): boolean {
 
 function extractTodoEntries(raw: SessionUpdate): PlanEntryInput[] | null {
   const value = raw as unknown as { rawInput?: unknown; rawOutput?: unknown };
-  const todos = readTodos(value.rawInput) ?? readTodos(readMetadata(value.rawOutput));
+  const todos = readTodos(readMetadata(value.rawOutput)) ?? readTodos(value.rawInput);
   if (todos === null) return null;
 
   const entries: PlanEntryInput[] = [];
   for (const todo of todos) {
-    if (!todo || typeof todo !== 'object') return null;
+    if (!todo || typeof todo !== 'object') continue;
     const value = todo as OpenCodeTodo;
     const status = readStatus(value.status);
     const priority = readPriority(value.priority);
-    if (typeof value.content !== 'string' || status === null || priority === null) return null;
+    if (typeof value.content !== 'string' || status === null || priority === null) continue;
     entries.push({ content: value.content, status, priority });
   }
-  return entries;
+  return todos.length > 0 && entries.length === 0 ? null : entries;
 }
 
 function readTodos(value: unknown): unknown[] | null {

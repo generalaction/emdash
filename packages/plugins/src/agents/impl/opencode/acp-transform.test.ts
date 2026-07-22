@@ -56,6 +56,7 @@ describe('enrichOpenCodeUpdate', () => {
       sessionUpdate: 'tool_call_update',
       title: '0 todos',
       status: 'completed',
+      rawInput: { todos: pendingTodos },
       rawOutput: {
         metadata: {
           todos: [
@@ -75,12 +76,20 @@ describe('enrichOpenCodeUpdate', () => {
     });
   });
 
-  it('preserves unrelated tool calls and suppresses todo phases without entries', () => {
+  it('preserves unrelated tools even when their payload contains todos', () => {
     const update: NormalizedEvent = {
       ...makeToolCall(),
       title: 'Run command',
     };
-    expect(enrichOpenCodeUpdate(update, makeRaw({ title: 'Run command' }))).toBe(update);
+    expect(
+      enrichOpenCodeUpdate(
+        update,
+        makeRaw({ title: 'Run command', rawInput: { todos: pendingTodos } })
+      )
+    ).toBe(update);
+  });
+
+  it('suppresses todo phases without usable entries', () => {
     expect(enrichOpenCodeUpdate(makeToolCall(), makeRaw())).toEqual({ kind: 'ignored' });
     expect(
       enrichOpenCodeUpdate(
@@ -88,6 +97,24 @@ describe('enrichOpenCodeUpdate', () => {
         makeRaw({ rawInput: { todos: [{ content: 'invalid' }] } })
       )
     ).toEqual({ kind: 'ignored' });
+  });
+
+  it('keeps valid todos when another entry is malformed', () => {
+    expect(
+      enrichOpenCodeUpdate(
+        makeToolCall(),
+        makeRaw({
+          rawInput: {
+            todos: [
+              ...pendingTodos,
+              { content: 'Missing priority', status: 'pending' },
+              { content: 'Unknown status', status: 'blocked', priority: 'low' },
+              { content: 42, status: 'pending', priority: 'low' },
+            ],
+          },
+        })
+      )
+    ).toEqual({ kind: 'plan', entries: pendingTodos });
   });
 
   it('folds repeated todowrite calls into one plan row instead of generic tool rows', () => {
