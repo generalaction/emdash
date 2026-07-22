@@ -115,7 +115,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                           type="button"
                           onClick={(e) => e.preventDefault()}
                           aria-label="About worktree deletion"
-                          className="relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-primary/30"
+                          className="focus-visible:ring-primary/30 relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none"
                         >
                           <InfoIcon className="size-3.5" aria-hidden="true" />
                         </button>
@@ -154,7 +154,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                         type="button"
                         onClick={(e) => e.preventDefault()}
                         aria-label="About branch deletion"
-                        className="relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-primary/30"
+                        className="focus-visible:ring-primary/30 relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none"
                       >
                         <InfoIcon className="size-3.5" aria-hidden="true" />
                       </button>
