@@ -35,7 +35,9 @@ export type BoxProps = React.HTMLAttributes<HTMLElement> &
   };
 
 // Build a set of all Sprinkles property names for fast splitting.
-const sprinklesPropertySet = new Set(Object.keys(sx.properties));
+// `sx.properties` is a Set from @vanilla-extract/sprinkles; Object.keys() would
+// return [] for a Set, so we copy it directly and widen to string for lookups.
+const sprinklesPropertySet = new Set<string>(sx.properties);
 
 function splitProps(props: Record<string, unknown>): [Sprinkles, Record<string, unknown>] {
   const sprinkles: Record<string, unknown> = {};

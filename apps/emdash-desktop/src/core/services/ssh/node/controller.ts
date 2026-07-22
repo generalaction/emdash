@@ -10,6 +10,7 @@ export function createSshWireController(
   return createController(sshContract, {
     connections: connections.host,
     connect: ({ connectionId }) => service.connect(connectionId),
+    ensureConnected: ({ connectionId }) => service.ensureConnected(connectionId),
     disconnect: ({ connectionId }) => service.disconnect(connectionId),
     getSshConfigHosts: () => service.getSshConfigHosts(),
     getSshConfigHost: ({ alias }) => service.getSshConfigHost(alias),

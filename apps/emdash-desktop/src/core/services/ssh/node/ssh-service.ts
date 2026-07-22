@@ -118,6 +118,7 @@ export class SshService {
 
   /** Intentionally close a connection and stop auto-reconnect. */
   async disconnect(connectionId: string): Promise<void> {
+    await this.updateShouldConnect(connectionId, false);
     await this.dropConnection(connectionId);
   }
 
@@ -133,6 +134,21 @@ export class SshService {
 
   /** Ensure a connection is established (no-op if already connected). */
   async connect(connectionId: string): Promise<ConnectionState> {
+    await this.updateShouldConnect(connectionId, true);
+    return await this.connectFromPersistedConfig(connectionId);
+  }
+
+  /**
+   * Ensure a connection for background consumers without changing user intent.
+   * Explicitly disconnected machines remain disconnected until a user connects again.
+   */
+  async ensureConnected(connectionId: string): Promise<ConnectionState> {
+    const row = await this.loadConnectionRow(connectionId);
+    if (row.shouldConnect === 0) return 'disconnected';
+    return await this.connectFromPersistedConfig(connectionId);
+  }
+
+  private async connectFromPersistedConfig(connectionId: string): Promise<ConnectionState> {
     await this.deps.manager.createConnection(connectionId, async () => {
       const row = await this.loadConnectionRow(connectionId);
       return await this.deps.resolveConnectConfig({ kind: 'persisted', row });
@@ -148,5 +164,15 @@ export class SshService {
       .limit(1);
     if (!row) throw new Error(`SSH connection ${connectionId} not found`);
     return row;
+  }
+
+  private async updateShouldConnect(connectionId: string, shouldConnect: boolean): Promise<void> {
+    await this.deps.db
+      .update(sshConnectionsTable)
+      .set({
+        shouldConnect: shouldConnect ? 1 : 0,
+        updatedAt: new Date(this.now()).toISOString(),
+      })
+      .where(eq(sshConnectionsTable.id, connectionId));
   }
 }

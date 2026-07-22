@@ -59,7 +59,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       scope,
       ssh: {
         manager,
-        connect: { connect },
+        connect: { ensureConnected: connect },
       },
       machineEvents: { on: () => () => {} },
       installBaseUrl: 'file:///opt/emdash-artifacts',

@@ -2,8 +2,9 @@ import { generateKeyPairSync } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { Server, type Client, type ConnectConfig } from 'ssh2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SshConfig } from '@core/primitives/ssh/api';
+import type { ConnectionState, SshConfig } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import type { SshConnectionRow } from '@core/services/app-db/node/schema';
 import type { SshConnectResult } from './connect/resolve-ssh-connect-config';
 import { SshConnectionManager } from './lifecycle/ssh-connection-manager';
 import { SshService, type SshServiceDeps } from './ssh-service';
@@ -67,6 +68,142 @@ async function startServer() {
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Expected TCP server address');
   return { server, port: address.port };
+}
+
+describe('SshService connection intent', () => {
+  it('records explicit connect intent before connecting persisted config', async () => {
+    const fixture = createIntentFixture({ shouldConnect: null, now: 1_700_000_000_000 });
+
+    await expect(fixture.service.connect('ssh-1')).resolves.toBe('connected');
+
+    expect(fixture.updateSets).toEqual([
+      {
+        shouldConnect: 1,
+        updatedAt: '2023-11-14T22:13:20.000Z',
+      },
+    ]);
+    expect(fixture.manager.createConnection).toHaveBeenCalledWith('ssh-1', expect.any(Function));
+    expect(fixture.resolveConnectConfig).toHaveBeenCalledWith({
+      kind: 'persisted',
+      row: fixture.row,
+    });
+  });
+
+  it('records explicit disconnect intent before dropping active connections', async () => {
+    const fixture = createIntentFixture({
+      shouldConnect: 1,
+      state: 'connected',
+      now: 1_700_000_000_000,
+    });
+
+    await fixture.service.disconnect('ssh-1');
+
+    expect(fixture.updateSets).toEqual([
+      {
+        shouldConnect: 0,
+        updatedAt: '2023-11-14T22:13:20.000Z',
+      },
+    ]);
+    expect(fixture.manager.dropConnection).toHaveBeenCalledWith('ssh-1');
+  });
+
+  it('refuses implicit connects for deliberately disconnected machines', async () => {
+    const fixture = createIntentFixture({ shouldConnect: 0 });
+
+    await expect(fixture.service.ensureConnected('ssh-1')).resolves.toBe('disconnected');
+
+    expect(fixture.updateSets).toEqual([]);
+    expect(fixture.manager.createConnection).not.toHaveBeenCalled();
+    expect(fixture.resolveConnectConfig).not.toHaveBeenCalled();
+  });
+
+  it('allows implicit connects when intent is unset without changing intent', async () => {
+    const fixture = createIntentFixture({ shouldConnect: null });
+
+    await expect(fixture.service.ensureConnected('ssh-1')).resolves.toBe('connected');
+
+    expect(fixture.updateSets).toEqual([]);
+    expect(fixture.manager.createConnection).toHaveBeenCalledWith('ssh-1', expect.any(Function));
+    expect(fixture.resolveConnectConfig).toHaveBeenCalledWith({
+      kind: 'persisted',
+      row: fixture.row,
+    });
+  });
+});
+
+function createIntentFixture(options: {
+  shouldConnect: number | null;
+  state?: ConnectionState;
+  now?: number;
+}) {
+  const row = {
+    id: 'ssh-1',
+    name: 'Corp',
+    host: 'corp.example.com',
+    port: 22,
+    username: 'alice',
+    authType: 'agent',
+    privateKeyPath: null,
+    useAgent: 1,
+    metadata: {},
+    shouldConnect: options.shouldConnect,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  } as unknown as SshConnectionRow;
+  const updateSets: unknown[] = [];
+  const db = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [row]),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((value: unknown) => {
+        updateSets.push(value);
+        return { where: vi.fn(async () => {}) };
+      }),
+    })),
+  } as unknown as AppDb;
+  const manager = {
+    createConnection: vi.fn(
+      async (_connectionId: string, resolve: () => Promise<SshConnectResult>) => {
+        await resolve();
+      }
+    ),
+    dropConnection: vi.fn(async () => {}),
+    getConnectionState: vi.fn(() => options.state ?? 'connected'),
+  } as unknown as SshConnectionManager;
+  const resolveConnectConfig = vi.fn(
+    async (): Promise<SshConnectResult> => ({
+      config: {
+        host: 'corp.example.com',
+        username: 'alice',
+      },
+      cleanup: () => {},
+      debugLogs: [],
+    })
+  );
+  const service = new SshService({
+    db,
+    manager,
+    runtime: { remove: vi.fn() },
+    resolveConnectConfig,
+    parseSshConfigFile: vi.fn(),
+    resolveSshConfig: vi.fn(),
+    telemetry: { capture: vi.fn() },
+    log: { warn: vi.fn() },
+    now: () => options.now ?? 0,
+  });
+
+  return {
+    service,
+    manager,
+    row,
+    updateSets,
+    resolveConnectConfig,
+  };
 }
 
 describe('SshService.testConnection', () => {

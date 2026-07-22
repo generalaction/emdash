@@ -483,7 +483,7 @@ export class ProjectManagerStore {
       }
       if (state === 'connecting') continue;
       void appState.machines
-        .connect(connectionId, { force: true })
+        .ensureConnected(connectionId, { force: true })
         .then(() => {
           if (appState.machines.stateFor(connectionId) === 'connected') {
             this._mountDisconnectedSshProjects(connectionId);

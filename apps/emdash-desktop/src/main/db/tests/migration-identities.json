@@ -142,5 +142,11 @@
     "tag": "0023_illegal_mongoose",
     "when": 1784569485630,
     "hash": "6667a27803e1daa4ee1c88fe18dac0c90514d7dda3f913e32684a1fb415d3e88"
+  },
+  {
+    "idx": 24,
+    "tag": "0024_short_secret_warriors",
+    "when": 1784761208838,
+    "hash": "2a8c2f0b2bef76ced749ad2057a7cd484549e7103830011554fad8523ca01cff"
   }
 ]

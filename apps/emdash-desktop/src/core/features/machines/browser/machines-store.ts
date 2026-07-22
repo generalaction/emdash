@@ -140,6 +140,20 @@ export class MachinesStore {
     await (await this.getSshClient()).connect({ connectionId });
   }
 
+  async ensureConnected(connectionId: string, options: { force?: boolean } = {}): Promise<void> {
+    await this.ensureConnectionsModel();
+    const state = this.stateFor(connectionId);
+    if (
+      state === 'connected' ||
+      state === 'connecting' ||
+      (!options.force && state === 'reconnecting')
+    ) {
+      return;
+    }
+
+    await (await this.getSshClient()).ensureConnected({ connectionId });
+  }
+
   async disconnect(connectionId: string): Promise<void> {
     await this.ensureConnectionsModel();
     await (await this.getSshClient()).disconnect({ connectionId });

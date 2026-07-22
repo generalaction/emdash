@@ -106,19 +106,6 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     }
   };
 
-  const reconnectMachine = async () => {
-    try {
-      await machinesStore.disconnect(machine.id);
-      await machinesStore.connect(machine.id);
-    } catch (error) {
-      toast({
-        title: 'Failed to reconnect to machine',
-        description: String(error),
-        variant: 'destructive',
-      });
-    }
-  };
-
   const editConnectionSettings = () => {
     void openMachineModal({ dismissControl: 'close', initialConfig: machine });
   };
@@ -231,7 +218,6 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
             onEdit={editConnectionSettings}
             onConnect={connectMachine}
             onDisconnect={disconnectMachine}
-            onReconnect={reconnectMachine}
           />
           <div
             aria-disabled={!connected}

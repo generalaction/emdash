@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   mementoReportError: vi.fn(),
   updateProjectSettings: vi.fn(),
   sshConnect: vi.fn(),
+  sshEnsureConnected: vi.fn(),
   sshStateFor: vi.fn(),
 }));
 
@@ -79,6 +80,7 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
     history: { prune: vi.fn() },
     machines: {
       connect: mocks.sshConnect,
+      ensureConnected: mocks.sshEnsureConnected,
       stateFor: mocks.sshStateFor,
     },
   },
@@ -198,6 +200,7 @@ describe('ProjectManagerStore project creation', () => {
       data: { githubAccountId: 'github.com:42' },
     });
     mocks.sshConnect.mockResolvedValue(undefined);
+    mocks.sshEnsureConnected.mockResolvedValue(undefined);
     mocks.sshStateFor.mockReturnValue('disconnected');
   });
 
@@ -572,7 +575,7 @@ describe('ProjectManagerStore project creation', () => {
     store.retryDisconnectedSshProjects({ force: true });
     await Promise.resolve();
 
-    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1', { force: true });
+    expect(mocks.sshEnsureConnected).toHaveBeenCalledWith('ssh-1', { force: true });
     expect(mocks.openProject).not.toHaveBeenCalled();
   });
 
@@ -606,7 +609,7 @@ describe('ProjectManagerStore project creation', () => {
 
     store.retryDisconnectedSshProjects({ force: true });
 
-    expect(mocks.sshConnect).not.toHaveBeenCalled();
+    expect(mocks.sshEnsureConnected).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
     );

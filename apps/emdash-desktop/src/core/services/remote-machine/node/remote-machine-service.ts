@@ -26,7 +26,7 @@ export type CreateRemoteMachineServiceDeps = {
   scope: Scope;
   ssh: {
     manager: SshConnectionManager;
-    connect: Pick<SshService, 'connect'>;
+    connect: Pick<SshService, 'ensureConnected'>;
   };
   machineEvents: MachineMutationEvents;
   installBaseUrl?: string;
@@ -162,7 +162,7 @@ function createWorkspaceServerSshPort(
 ): WorkspaceServerSshPort {
   return {
     async ensureProxy(connectionId: string): Promise<SshClientProxy> {
-      await ssh.connect.connect(connectionId);
+      await ssh.connect.ensureConnected(connectionId);
       const proxy = ssh.manager.getProxy(connectionId);
       if (!proxy?.isConnected) {
         throw new Error(`SSH connection '${connectionId}' did not provide a live proxy`);

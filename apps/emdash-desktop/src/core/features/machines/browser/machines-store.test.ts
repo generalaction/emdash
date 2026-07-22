@@ -95,6 +95,22 @@ describe('MachinesStore', () => {
     await fixture.dispose();
   });
 
+  it('routes background ensure requests through the intent-aware SSH procedure', async () => {
+    const fixture = setup({
+      runtime: { 'ssh-1': runtimeEntry('reconnecting') },
+    });
+    await fixture.store.start();
+
+    await fixture.store.ensureConnected('ssh-1');
+    expect(fixture.ensureConnected).not.toHaveBeenCalled();
+
+    await fixture.store.ensureConnected('ssh-1', { force: true });
+    expect(fixture.ensureConnected).toHaveBeenCalledWith('ssh-1');
+    expect(fixture.store.stateFor('ssh-1')).toBe('connected');
+
+    await fixture.dispose();
+  });
+
   it('shows only server-authoritative connect and disconnect states', async () => {
     const connectGate = deferred<void>();
     const connectFixture = setup({
@@ -219,6 +235,7 @@ function setup(
     await options.connectGate?.promise;
     if (options.connectError) throw new Error(options.connectError);
   });
+  const ensureConnected = vi.fn(async (_connectionId: string) => {});
   const disconnect = vi.fn(async (_connectionId: string) => {
     await options.disconnectGate?.promise;
   });
@@ -256,6 +273,16 @@ function setup(
       });
       return 'connected' as const;
     },
+    ensureConnected: async ({ connectionId }) => {
+      instance.states.runtime.produce((runtime) => {
+        runtime[connectionId] = runtimeEntry('connecting');
+      });
+      await ensureConnected(connectionId);
+      instance.states.runtime.produce((runtime) => {
+        runtime[connectionId] = runtimeEntry('connected');
+      });
+      return 'connected' as const;
+    },
     disconnect: async ({ connectionId }) => {
       await disconnect(connectionId);
       instance.states.runtime.produce((runtime) => {
@@ -283,6 +310,7 @@ function setup(
     store,
     instance,
     connect,
+    ensureConnected,
     disconnect,
     saveMachine,
     renameMachine,

@@ -1,13 +1,11 @@
-import { Label } from '@core/primitives/ui/browser/label';
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
-import { Surface } from '@emdash/ui/react/primitives';
-import { Field } from '@emdash/ui/react/primitives';
+import { Box, Field } from '@emdash/ui/react/primitives';
 
 export function ResourceUtilizationRow({ metrics }: { metrics: ResourceUsageSample | null }) {
   return (
     <Field.Root className="flex flex-col gap-3">
       <Field.Label>Resource Utilization</Field.Label>
-      <div className="grid grid-cols-3 gap-2 mt-1">
+      <div className="mt-1 grid grid-cols-3 gap-2">
         <ResourceCard
           label="CPU"
           value={metrics ? formatPercent(metrics.cpu.usedPercent) : '—'}
@@ -46,13 +44,13 @@ function ResourceCard({
   description: string;
 }) {
   return (
-    <Surface emphasis className="bg-surface min-w-0 rounded-md border border-border px-3 py-2.5">
+    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
       <div className="text-xs text-foreground-muted">{label}</div>
       <div className="mt-1 text-lg font-medium text-foreground tabular-nums">{value}</div>
       <div className="mt-0.5 truncate text-[11px] text-foreground-passive tabular-nums">
         {description}
       </div>
-    </Surface>
+    </Box>
   );
 }
 

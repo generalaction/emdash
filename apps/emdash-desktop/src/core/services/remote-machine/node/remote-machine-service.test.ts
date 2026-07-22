@@ -188,7 +188,7 @@ function createFixture() {
     scope: parentScope,
     ssh: {
       manager: manager as never,
-      connect: { connect: vi.fn() },
+      connect: { ensureConnected: vi.fn() },
     },
     machineEvents: {
       on: vi.fn((_event, listener) => {

@@ -38,6 +38,7 @@ export const sshConnections = sqliteTable(
     privateKeyPath: text('private_key_path'), // optional, for key auth
     useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
     metadata: versionedJsonColumn(sshConnectionMetadata)('metadata'),
+    shouldConnect: integer('should_connect'), // nullable tri-state: null=auto, 0=off, 1=on
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

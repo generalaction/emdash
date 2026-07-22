@@ -97,6 +97,7 @@ function row(partial: Partial<SshConnectionRow> = {}): SshConnectionRow {
     privateKeyPath: null,
     useAgent: 1,
     metadata: null,
+    shouldConnect: null,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',
     ...partial,

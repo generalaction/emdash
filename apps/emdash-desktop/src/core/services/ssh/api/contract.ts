@@ -33,6 +33,7 @@ export const sshContract = defineContract({
     },
   }),
   connect: procedure({ input: connectionInput, output: connectionStateSchema }),
+  ensureConnected: procedure({ input: connectionInput, output: connectionStateSchema }),
   disconnect: procedure({ input: connectionInput, output: z.void() }),
   getSshConfigHosts: procedure({
     input: voidInput,

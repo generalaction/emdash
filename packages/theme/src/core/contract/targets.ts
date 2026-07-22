@@ -67,7 +67,7 @@ export const STATE_LAYER_DELTA = {
 export const SURFACE_L: Record<Polarity, Record<SurfaceScopeName, number>> = {
   light: {
     sunken: 0.928,
-    base: 0.965,
+    base: 0.972,
     'base-emphasis': 0.982,
     elevated: 0.993,
     'elevated-emphasis': 0.973,
@@ -75,11 +75,11 @@ export const SURFACE_L: Record<Polarity, Record<SurfaceScopeName, number>> = {
   },
   dark: {
     sunken: 0.155,
-    base: 0.195,
+    base: 0.215,
     'base-emphasis': 0.235,
     elevated: 0.265,
     'elevated-emphasis': 0.305,
-    paper: 0.195,
+    paper: 0.215,
   },
 };
 

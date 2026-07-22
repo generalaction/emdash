@@ -169,6 +169,13 @@
       "when": 1784569485630,
       "tag": "0023_illegal_mongoose",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784761208838,
+      "tag": "0024_short_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,6 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
-import { Alert, Button } from '@emdash/ui/react/primitives';
+import { Alert, Button, SplitButton } from '@emdash/ui/react/primitives';
 import { DownloadIcon, LoaderCircleIcon, PlayIcon, RefreshCwIcon } from 'lucide-react';
-import { SplitButton } from '@core/primitives/ui/browser/split-button';
 import type { RemoteMachineServerState } from '@core/services/remote-machine/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
@@ -151,21 +150,25 @@ function WorkspaceServerAction({
   ) {
     return (
       <SplitButton
-        actions={[
+        options={[
           {
-            value: 'restart',
+            id: 'restart',
             label: 'Restart',
-            action: () => void actions.restart(),
           },
           {
-            value: 'shutdown',
+            id: 'shutdown',
             label: 'Shutdown',
-            action: () => void actions.stop(),
           },
         ]}
-        defaultValue="restart"
-        icon={<RefreshCwIcon />}
-        variant="outline"
+        selectedId="restart"
+        onAction={(id) => {
+          if (id === 'shutdown') {
+            void actions.stop();
+            return;
+          }
+          void actions.restart();
+        }}
+        variant="secondary"
         size="sm"
         disabled={transitioning}
       />
