@@ -16,7 +16,7 @@ export const root = style({
       display: 'inline-flex',
       alignItems: 'center',
       gap: '0.375rem',
-      padding: '0.125rem 0.5rem',
+      padding: '0.125rem 0.75rem',
       borderRadius: '9999px',
       fontSize: 'var(--em-text-xs)',
       fontWeight: 500,
@@ -67,7 +67,7 @@ export const variant = {
     '@layer': {
       recipes: {
         color: vars.foregroundMuted,
-        backgroundColor: vars.background3,
+        backgroundColor: `color-mix(in srgb, ${vars.foregroundMuted} 10%, transparent)`,
       },
     },
   }),
@@ -75,7 +75,7 @@ export const variant = {
     '@layer': {
       recipes: {
         color: vars.foregroundSuccess,
-        backgroundColor: vars.backgroundSuccess,
+        backgroundColor: `color-mix(in srgb, ${vars.foregroundSuccess} 12%, transparent)`,
       },
     },
   }),
@@ -83,7 +83,7 @@ export const variant = {
     '@layer': {
       recipes: {
         color: vars.foregroundWarning,
-        backgroundColor: vars.backgroundWarning,
+        backgroundColor: `color-mix(in srgb, ${vars.foregroundWarning} 12%, transparent)`,
       },
     },
   }),
@@ -91,7 +91,7 @@ export const variant = {
     '@layer': {
       recipes: {
         color: vars.foregroundError,
-        backgroundColor: vars.backgroundError,
+        backgroundColor: `color-mix(in srgb, ${vars.foregroundError} 12%, transparent)`,
       },
     },
   }),
@@ -99,7 +99,7 @@ export const variant = {
     '@layer': {
       recipes: {
         color: vars.foregroundInfo,
-        backgroundColor: vars.backgroundInfo,
+        backgroundColor: `color-mix(in srgb, ${vars.foregroundInfo} 12%, transparent)`,
       },
     },
   }),

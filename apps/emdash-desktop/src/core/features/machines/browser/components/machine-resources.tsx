@@ -1,6 +1,6 @@
+import { Label } from '@core/primitives/ui/browser/label';
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
 import { Surface } from '@emdash/ui/react/primitives';
-import { Label } from '@core/primitives/ui/browser/label';
 
 export function ResourceUtilizationRow({ metrics }: { metrics: ResourceUsageSample | null }) {
   return (
