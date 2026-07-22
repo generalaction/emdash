@@ -13,6 +13,10 @@ const platform = detectPlatform();
 const isMac = platform === 'mac';
 const isLinux = platform === 'linux';
 
+export function LinuxTitlebar() {
+  return isLinux ? <Titlebar /> : null;
+}
+
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   return (
