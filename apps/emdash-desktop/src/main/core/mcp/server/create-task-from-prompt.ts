@@ -29,7 +29,7 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 
 export type McpCreateTaskInput = {
   projectId: string;
-  prompt: string;
+  prompt?: string;
   name?: string;
   provider?: string;
   model?: string;
@@ -42,9 +42,11 @@ export type McpCreateTaskResult = {
   taskId: string;
   taskName: string;
   branchName: string;
-  provider: AgentProviderId;
+  // Null when the task was created without a prompt: no agent conversation is
+  // started, so no provider/model is chosen and conversationType is 'none'.
+  provider: AgentProviderId | null;
   model: string | null;
-  conversationType: ConversationType;
+  conversationType: ConversationType | 'none';
   workspacePath: string;
 };
 
@@ -173,19 +175,26 @@ function sessionStartFailure(taskId: string, detail: string): string {
 export async function createTaskFromPrompt(
   input: McpCreateTaskInput
 ): Promise<Result<McpCreateTaskResult, string>> {
-  const prompt = input.prompt.trim();
-  if (!prompt) return err('prompt must not be empty');
+  // Prompt is optional: with one, we start an agent conversation; without one,
+  // the task is provisioned and left idle for the user to drive later.
+  const prompt = input.prompt?.trim() ?? '';
 
   const project = await ensureProjectOpen(input.projectId);
   if (!project) return err(`Project not found: ${input.projectId}`);
 
-  const providerResult = await resolveProvider(input.provider);
-  if (!providerResult.success) return providerResult;
-  const provider = providerResult.data;
+  // Provider/model only matter when a prompt starts a conversation; skip
+  // resolving (and validating) them for a promptless task.
+  let provider: AgentProviderId | null = null;
+  let model: string | undefined;
+  if (prompt) {
+    const providerResult = await resolveProvider(input.provider);
+    if (!providerResult.success) return providerResult;
+    provider = providerResult.data;
 
-  const modelResult = resolveModel(provider, input.model);
-  if (!modelResult.success) return modelResult;
-  const model = modelResult.data;
+    const modelResult = resolveModel(provider, input.model);
+    if (!modelResult.success) return modelResult;
+    model = modelResult.data;
+  }
 
   const taskName = input.name?.trim() || generateRandom();
   const branchName = input.branchName?.trim() || generateTaskName({ title: taskName });
@@ -233,6 +242,20 @@ export async function createTaskFromPrompt(
         ? (provision.error.message ?? provision.error.stepErrorType)
         : provision.error.type;
     return err(`Task ${taskId} was created but workspace provisioning failed: ${detail}`);
+  }
+
+  // No prompt: the worktree is provisioned and the task exists, but no agent
+  // conversation is started. The user drives it later from the UI.
+  if (!prompt || !provider) {
+    return ok({
+      taskId,
+      taskName,
+      branchName,
+      provider: null,
+      model: null,
+      conversationType: 'none',
+      workspacePath: provision.data.path,
+    });
   }
 
   // Matches the new-task modal: chat UI is opt-in and only available when the

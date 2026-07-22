@@ -243,10 +243,36 @@ describe('createTaskFromPrompt', () => {
     mocks.settingsGet.mockResolvedValue('claude');
   });
 
-  it('rejects an empty prompt', async () => {
+  it('creates an idle task without a conversation when no prompt is given', async () => {
+    const result = await createTaskFromPrompt({ projectId: 'p1' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        conversationType: 'none',
+        provider: null,
+        model: null,
+        workspacePath: '/tmp/worktree',
+      });
+    }
+    // The task and worktree are still created, but no agent is started.
+    expect(mocks.prepareCreateTask).toHaveBeenCalled();
+    expect(mocks.launch).toHaveBeenCalled();
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+    expect(mocks.startSession).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace-only prompt as no prompt', async () => {
     const result = await createTaskFromPrompt({ ...INPUT, prompt: '  ' });
-    expect(result).toEqual(err('prompt must not be empty'));
-    expect(mocks.prepareCreateTask).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.conversationType).toBe('none');
+    expect(mocks.createConversation).not.toHaveBeenCalled();
+  });
+
+  it('does not resolve or validate a provider for a promptless task', async () => {
+    const result = await createTaskFromPrompt({ projectId: 'p1', provider: 'not-a-provider' });
+    // Provider is ignored when there is no prompt, so this does not error.
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.provider).toBe(null);
   });
 
   it('rejects an unknown project after trying to open it', async () => {

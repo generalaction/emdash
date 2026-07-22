@@ -128,11 +128,18 @@ export function buildEmdashMcpServer(): McpServer {
     {
       title: 'Create task',
       description:
-        'Creates a new emdash task in an isolated git worktree and starts a coding agent on the given prompt. ' +
-        'Returns the task id, branch name, and worktree path.',
+        'Creates a new emdash task in an isolated git worktree. With a prompt, it also starts a ' +
+        'coding agent on that prompt; without one, the task is left idle for the user to drive ' +
+        'later. Returns the task id, branch name, and worktree path.',
       inputSchema: {
         projectId: z.string().describe('Project id from list_projects'),
-        prompt: z.string().describe('The prompt the coding agent starts with'),
+        prompt: z
+          .string()
+          .optional()
+          .describe(
+            'The prompt the coding agent starts with. Omit to create the task without starting ' +
+              'an agent'
+          ),
         name: z.string().optional().describe('Task name; generated when omitted'),
         provider: z
           .string()
