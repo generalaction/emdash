@@ -64,6 +64,7 @@ const daemonReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 
 
 export class WorkspaceServerProvisioner {
   private readonly runs = new Map<string, EnsureRun>();
+  private readonly targets = new Map<string, SshWorkspaceServerTarget>();
   private readonly dialOnce: WireConnectionManager['dialOnce'];
   private readonly clock: Clock;
 
@@ -73,16 +74,24 @@ export class WorkspaceServerProvisioner {
   }
 
   ensure(connectionId: string): Promise<SshWorkspaceServerTarget> {
+    const cached = this.targets.get(connectionId);
+    if (cached) return Promise.resolve(cached);
     const existing = this.runs.get(connectionId);
     if (existing) return existing.promise;
 
     const runScope = this.deps.scope.child(`ensure:${connectionId}`);
     const run = runScope.run('provision', (signal) => this.runEnsure(connectionId, signal));
     const token = Symbol(connectionId);
-    const promise = run.value().finally(() => {
-      if (this.runs.get(connectionId)?.token === token) this.runs.delete(connectionId);
-      void runScope.dispose();
-    });
+    const promise = run
+      .value()
+      .then((target) => {
+        if (this.runs.get(connectionId)?.token === token) this.targets.set(connectionId, target);
+        return target;
+      })
+      .finally(() => {
+        if (this.runs.get(connectionId)?.token === token) this.runs.delete(connectionId);
+        void runScope.dispose();
+      });
     const entry: EnsureRun = {
       token,
       scope: runScope,
@@ -93,7 +102,17 @@ export class WorkspaceServerProvisioner {
     return entry.promise;
   }
 
+  /**
+   * Forgets a previously provisioned target so the next ensure() re-verifies
+   * the remote daemon. Call whenever the daemon may no longer be running
+   * (connection lost, reconnect failed, explicit lifecycle operations).
+   */
+  drop(connectionId: string): void {
+    this.targets.delete(connectionId);
+  }
+
   async cancel(connectionId: string): Promise<void> {
+    this.targets.delete(connectionId);
     const run = this.runs.get(connectionId);
     if (!run) return;
     this.runs.delete(connectionId);
@@ -106,10 +125,8 @@ export class WorkspaceServerProvisioner {
     signal: AbortSignal
   ): Promise<SshWorkspaceServerTarget> {
     try {
-      this.deps.model.set(connectionId, {
-        status: 'booting',
-        detail: 'Checking workspace server',
-      });
+      // Intentionally quiet until the outcome is known: routine ensures against
+      // an already-running server must not flap the published status.
       let host;
       try {
         host = await this.deps.host.probe(connectionId, signal);

@@ -66,6 +66,7 @@ describe('RemoteMachineServerOperations', () => {
 
     await fixture.operations.stop('ssh-1');
 
+    expect(fixture.provision.drop).toHaveBeenCalledWith('ssh-1');
     expect(fixture.wire.invalidateConnection).toHaveBeenCalledWith('ssh-1');
     expect(fixture.daemon.stop).toHaveBeenCalledOnce();
     expect(fixture.status('ssh-1')).toEqual({ status: 'stopped', version: '1.2.3' });
@@ -91,6 +92,9 @@ function createFixture() {
     dialOnce: vi.fn(async () => handshake()),
     invalidateConnection: vi.fn(async () => {}),
   };
+  const provision = {
+    drop: vi.fn(),
+  };
   const operations = new RemoteMachineServerOperations({
     scope,
     state,
@@ -98,6 +102,7 @@ function createFixture() {
     installer,
     daemon,
     wire,
+    provision,
   });
 
   return {
@@ -105,6 +110,7 @@ function createFixture() {
     installer,
     daemon,
     wire,
+    provision,
     status(connectionId: string) {
       return state.instance.states.runtime.snapshot().data[connectionId];
     },

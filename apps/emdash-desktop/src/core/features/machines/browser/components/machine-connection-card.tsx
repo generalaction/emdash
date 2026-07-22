@@ -8,23 +8,40 @@ export function MachineConnectionCard({
   machine,
   state,
   onEdit,
+  onConnect,
+  onDisconnect,
 }: {
   machine: SshConfig;
   state: ConnectionState;
   onEdit: () => void;
+  onConnect: () => void;
+  onDisconnect: () => void;
 }) {
+  const active = state === 'connected' || state === 'connecting' || state === 'reconnecting';
+
   return (
-    <Surface
-      emphasis
-      className="bg-surface flex items-center gap-4 rounded-md border border-border px-3 py-3"
-    >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-foreground">{machine.host}</div>
-        <div className="mt-0.5 truncate text-xs text-foreground-passive">
-          {machine.username} | {authLabel(machine)}
-        </div>
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">SSH Connection</h3>
+        <Button
+          type="button"
+          variant={active ? 'ghost' : 'primary'}
+          size="sm"
+          onClick={() => void (active ? onDisconnect() : onConnect())}
+        >
+          {active ? 'Disconnect' : 'Connect'}
+        </Button>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <Surface
+        emphasis
+        className="bg-surface flex items-center gap-3 rounded-md border border-border px-3 py-3"
+      >
+        <MachineBadge state={state} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-foreground">
+            {machine.host} | {machine.username} | {authLabel(machine)}
+          </div>
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -35,8 +52,7 @@ export function MachineConnectionCard({
         >
           <SettingsIcon />
         </Button>
-        <MachineBadge state={state} />
-      </div>
-    </Surface>
+      </Surface>
+    </section>
   );
 }

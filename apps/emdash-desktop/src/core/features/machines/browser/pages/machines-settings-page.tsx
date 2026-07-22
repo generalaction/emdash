@@ -4,12 +4,10 @@ import { PlusIcon, ServerIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { SettingsPageProps } from '@core/primitives/settings/api/page-contribution';
 import type { ConnectionState, SshConfig } from '@core/primitives/ssh/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineListRow } from '../components/machine-list-row';
-import { MachineDetailsSheet } from '../machine-details-sheet';
 
 function isRecentlyUsed(state: ConnectionState): boolean {
   return state === 'connected' || state === 'connecting' || state === 'reconnecting';
@@ -24,14 +22,12 @@ function matchesSearch(machine: SshConfig, query: string): boolean {
   );
 }
 
-export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
+export const MachinesSettingsPage = observer(function MachinesSettingsPage({
+  openDetail,
+}: SettingsPageProps) {
   const machinesStore = appState.machines;
-  const openConfirm = useOpenModal('confirmActionModal');
   const openMachineModal = useOpenModal('addSshConnModal');
   const [search, setSearch] = useState('');
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [detailsMachine, setDetailsMachine] = useState<SshConfig | undefined>();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const filteredMachines = useMemo(
     () =>
@@ -49,77 +45,6 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
 
   const openCreateModal = () => {
     void openMachineModal({ dismissControl: 'close' });
-  };
-
-  const openDetails = (machine: SshConfig) => {
-    setDetailsMachine(machine);
-    setDetailsOpen(true);
-  };
-
-  const editConnectionSettings = (machine: SshConfig) => {
-    void openMachineModal({ dismissControl: 'close', initialConfig: machine });
-  };
-
-  const connectMachine = async (machine: SshConfig) => {
-    try {
-      await machinesStore.connect(machine.id);
-    } catch (error) {
-      toast({
-        title: 'Failed to connect to machine',
-        description: String(error),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const disconnectMachine = async (machine: SshConfig) => {
-    try {
-      await machinesStore.disconnect(machine.id);
-    } catch (error) {
-      toast({
-        title: 'Failed to disconnect from machine',
-        description: String(error),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const requestDelete = async (machine: SshConfig) => {
-    setDeletingId(machine.id);
-    try {
-      const usage = await (await getDesktopWireClient()).machines.getMachineUsage(undefined);
-      const projects = usage[machine.id] ?? [];
-
-      if (projects.length > 0) {
-        await openConfirm({
-          title: 'Cannot delete SSH connection',
-          description:
-            'This SSH connection is still used by at least one project. Change those projects to another connection before deleting it.',
-          confirmLabel: 'Close',
-        });
-        return;
-      }
-
-      const outcome = await openConfirm({
-        title: 'Delete SSH connection',
-        description: `This will remove "${machine.name}" and its saved credentials from this device.`,
-        confirmLabel: 'Delete',
-        variant: 'destructive',
-      });
-      if (!outcome.success) return;
-
-      await machinesStore.deleteConnection(machine.id);
-      setDetailsOpen(false);
-      setDetailsMachine(undefined);
-    } catch (error) {
-      toast({
-        title: 'Failed to delete SSH connection',
-        description: String(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setDeletingId(null);
-    }
   };
 
   const hasMachines = machinesStore.connections.length > 0;
@@ -169,7 +94,11 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
                 <ListPage.Section>
                   <ListPage.SectionHeader label="Recently used" count={recentlyUsed.length} />
                   {recentlyUsed.map((machine) => (
-                    <MachineListRow key={machine.id} machine={machine} onSelect={openDetails} />
+                    <MachineListRow
+                      key={machine.id}
+                      machine={machine}
+                      onSelect={() => openDetail(machine.id)}
+                    />
                   ))}
                 </ListPage.Section>
               )}
@@ -180,7 +109,11 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
                 <ListPage.Section>
                   <ListPage.SectionHeader label="Other" count={other.length} />
                   {other.map((machine) => (
-                    <MachineListRow key={machine.id} machine={machine} onSelect={openDetails} />
+                    <MachineListRow
+                      key={machine.id}
+                      machine={machine}
+                      onSelect={() => openDetail(machine.id)}
+                    />
                   ))}
                 </ListPage.Section>
               )}
@@ -188,17 +121,6 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
           )}
         </ListPage.Body>
       </ListPage>
-
-      <MachineDetailsSheet
-        open={detailsOpen}
-        machine={detailsMachine}
-        deleting={deletingId === detailsMachine?.id}
-        onOpenChange={setDetailsOpen}
-        onConnect={connectMachine}
-        onDisconnect={disconnectMachine}
-        onEditConnectionSettings={editConnectionSettings}
-        onDelete={requestDelete}
-      />
     </div>
   );
 });

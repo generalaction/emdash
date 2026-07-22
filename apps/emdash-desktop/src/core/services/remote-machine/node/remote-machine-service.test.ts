@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(async () => {}),
   client: vi.fn(),
   drop: vi.fn(),
+  dropTarget: vi.fn(),
   ensure: vi.fn(),
   invalidateConnection: vi.fn(async () => {}),
   connectionLostListener: undefined as
@@ -41,6 +42,7 @@ vi.mock('../../workspace-server/node/provision/provisioner', () => ({
   WorkspaceServerProvisioner: class {
     ensure = mocks.ensure;
     cancel = mocks.cancel;
+    drop = mocks.dropTarget;
   },
 }));
 

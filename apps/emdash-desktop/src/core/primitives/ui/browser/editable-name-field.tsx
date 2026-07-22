@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { Input } from '@core/primitives/ui/browser/input';
 
@@ -13,28 +14,24 @@ interface EditableNameFieldProps {
   disabled?: boolean;
 }
 
-export function EditableNameField({
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-  maxLength,
-  autoFocus,
-  className,
-  onKeyDown,
-  disabled,
-}: EditableNameFieldProps) {
-  return (
-    <Input
-      autoFocus={autoFocus}
-      value={value}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      className={cn('border-none px-0 text-lg! focus-visible:ring-0', className)}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlur}
-      onKeyDown={onKeyDown}
-    />
-  );
-}
+export const EditableNameField = React.forwardRef<HTMLInputElement, EditableNameFieldProps>(
+  function EditableNameField(
+    { value, onChange, onBlur, placeholder, maxLength, autoFocus, className, onKeyDown, disabled },
+    ref
+  ) {
+    return (
+      <Input
+        ref={ref}
+        autoFocus={autoFocus}
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        className={cn('border-none px-0 text-lg! focus-visible:ring-0', className)}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+      />
+    );
+  }
+);

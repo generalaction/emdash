@@ -26,6 +26,8 @@ type RemoteMachineServerOperationsDeps = {
   installer: Pick<WorkspaceServerInstaller, 'installedVersion' | 'install'>;
   daemon: Pick<RemoteWorkspaceServerDaemon, 'start' | 'stop'>;
   wire: Pick<WireConnectionManager, 'dialOnce' | 'invalidateConnection'>;
+  /** Cached provisioned targets; dropped whenever an operation changes daemon state. */
+  provision: { drop(connectionId: string): void };
   clock?: Clock;
 };
 
@@ -52,6 +54,7 @@ export class RemoteMachineServerOperations {
 
   install(connectionId: string): Promise<void> {
     return this.serialized(connectionId, 'install', async (signal) => {
+      this.deps.provision.drop(connectionId);
       const layout = await this.resolveLayout(connectionId, signal);
       this.deps.state.set(connectionId, {
         status: 'booting',
@@ -71,6 +74,7 @@ export class RemoteMachineServerOperations {
 
   start(connectionId: string): Promise<void> {
     return this.serialized(connectionId, 'start', async (signal) => {
+      this.deps.provision.drop(connectionId);
       const { layout, version } = await this.resolveInstalled(connectionId, signal);
       this.deps.state.set(connectionId, {
         status: 'booting',
@@ -84,6 +88,7 @@ export class RemoteMachineServerOperations {
 
   stop(connectionId: string): Promise<void> {
     return this.serialized(connectionId, 'stop', async (signal) => {
+      this.deps.provision.drop(connectionId);
       const { layout, version } = await this.resolveInstalled(connectionId, signal);
       this.deps.state.set(connectionId, {
         status: 'shutting-down',
@@ -98,6 +103,7 @@ export class RemoteMachineServerOperations {
 
   restart(connectionId: string): Promise<void> {
     return this.serialized(connectionId, 'restart', async (signal) => {
+      this.deps.provision.drop(connectionId);
       const { layout, version } = await this.resolveInstalled(connectionId, signal);
       this.deps.state.set(connectionId, {
         status: 'shutting-down',
@@ -118,6 +124,7 @@ export class RemoteMachineServerOperations {
 
   update(connectionId: string): Promise<void> {
     return this.serialized(connectionId, 'update', async (signal) => {
+      this.deps.provision.drop(connectionId);
       const layout = await this.resolveLayout(connectionId, signal);
       this.deps.state.set(connectionId, {
         status: 'booting',
@@ -143,11 +150,13 @@ export class RemoteMachineServerOperations {
   }
 
   private async refreshUnserialized(connectionId: string, signal: AbortSignal): Promise<void> {
-    this.deps.state.remove(connectionId);
+    // Do not clear the current entry first: every branch below ends with a
+    // full set(), and blanking the state would flicker the UI on each refresh.
     try {
       const layout = await this.resolveLayout(connectionId, signal);
       const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
       if (!version) {
+        this.deps.provision.drop(connectionId);
         this.deps.state.set(connectionId, { status: 'not-installed' });
         return;
       }
@@ -159,6 +168,7 @@ export class RemoteMachineServerOperations {
         );
         this.publishHealthy(connectionId, handshake);
       } catch (error) {
+        this.deps.provision.drop(connectionId);
         if (error instanceof WorkspaceServerProtocolError) {
           this.publishFailure(connectionId, error, version);
         } else {
@@ -166,6 +176,7 @@ export class RemoteMachineServerOperations {
         }
       }
     } catch (error) {
+      this.deps.provision.drop(connectionId);
       this.publishFailure(connectionId, error);
       throw error;
     }

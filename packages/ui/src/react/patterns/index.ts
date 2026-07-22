@@ -88,3 +88,6 @@ export type {
   PageSidebarMenuProps,
   PageHeaderProps,
 } from './page-layout';
+
+export { SettingsCard, type SettingsCardProps } from './settings';
+export { SettingsRow, type SettingsRowProps } from './settings';

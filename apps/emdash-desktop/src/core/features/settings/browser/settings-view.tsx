@@ -10,25 +10,41 @@ import { defineViewRuntime } from '@core/primitives/views/react';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 
-const SettingsTabContext = createContext<{
+interface SettingsTabContextValue {
   tab: SettingsPageTab;
+  detail?: string;
   onTabChange: (tab: SettingsPageTab) => void;
-}>({ tab: 'general', onTabChange: () => {} });
+  openDetail: (detailId: string) => void;
+  closeDetail: () => void;
+}
+
+const SettingsTabContext = createContext<SettingsTabContextValue | null>(null);
 
 export function SettingsViewWrapper({
   children,
   tab = 'general',
+  detail,
 }: {
   children: ReactNode;
   tab?: SettingsPageTab;
+  detail?: string;
 }) {
   const { setParams } = useCurrentViewParams(settingsViewDef);
   const handleTabChange = useCallback(
     (tab: SettingsPageTab) => {
-      setParams({ tab });
+      setParams({ tab, detail: undefined });
     },
     [setParams]
   );
+  const openDetail = useCallback(
+    (detailId: string) => {
+      setParams({ detail: detailId });
+    },
+    [setParams]
+  );
+  const closeDetail = useCallback(() => {
+    setParams({ detail: undefined });
+  }, [setParams]);
   const implementation = {
     'settings.close': () => ({
       execute: () => appState.navigation.toggleSettings(),
@@ -43,7 +59,9 @@ export function SettingsViewWrapper({
   if (!instance) return null;
   return (
     <ViewScopeInstanceProvider instance={instance}>
-      <SettingsTabContext.Provider value={{ tab, onTabChange: handleTabChange }}>
+      <SettingsTabContext.Provider
+        value={{ tab, detail, onTabChange: handleTabChange, openDetail, closeDetail }}
+      >
         {children}
       </SettingsTabContext.Provider>
     </ViewScopeInstanceProvider>
@@ -51,10 +69,11 @@ export function SettingsViewWrapper({
 }
 
 export function useSettingsTab() {
-  if (!useContext(SettingsTabContext)) {
+  const context = useContext(SettingsTabContext);
+  if (!context) {
     throw new Error('useSettingsTab must be used within a SettingsViewWrapper');
   }
-  return useContext(SettingsTabContext);
+  return context;
 }
 
 export function SettingsTitlebar() {
@@ -70,10 +89,16 @@ export function SettingsTitlebar() {
 }
 
 export function SettingsMainPanel() {
-  const { tab, onTabChange } = useSettingsTab();
+  const { tab, detail, onTabChange, openDetail, closeDetail } = useSettingsTab();
   return (
     <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-background">
-      <SettingsPage tab={tab} onTabChange={onTabChange} />
+      <SettingsPage
+        tab={tab}
+        detail={detail}
+        onTabChange={onTabChange}
+        openDetail={openDetail}
+        closeDetail={closeDetail}
+      />
     </div>
   );
 }

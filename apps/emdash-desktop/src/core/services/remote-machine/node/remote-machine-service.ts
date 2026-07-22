@@ -77,12 +77,14 @@ export function createRemoteMachineService(
     installer,
     daemon,
     wire,
+    provision: provisioner,
   });
   const invalidationListeners = new Set<(event: RemoteMachineInvalidation) => void>();
 
   const handleSshEvent = (event: SshConnectionManagerEvent) => {
     if (event.type !== 'reconnect-failed') return;
     host.drop(event.connectionId);
+    provisioner.drop(event.connectionId);
     stateModel.remove(event.connectionId);
     notify({ connectionId: event.connectionId, reason: 'reconnect-failed' });
     void wire.invalidateConnection(event.connectionId).catch((error: unknown) => {
@@ -109,6 +111,7 @@ export function createRemoteMachineService(
   scope.add(
     wire.onConnectionLost((target, error) => {
       if (target.kind !== 'ssh') return;
+      provisioner.drop(target.sshConnectionId);
       stateModel.markConnectionLost(target.sshConnectionId);
       notify({
         connectionId: target.sshConnectionId,

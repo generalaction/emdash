@@ -29,6 +29,34 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
+  it('returns the cached target without re-dialing once provisioned', async () => {
+    const fixture = createProvisionerFixture();
+    const first = await fixture.provisioner.ensure('ssh-1');
+    const second = await fixture.provisioner.ensure('ssh-1');
+
+    expect(second).toBe(first);
+    expect(fixture.dialOnce).toHaveBeenCalledTimes(1);
+    await fixture.dispose();
+  });
+
+  it('re-verifies after drop() without republishing an identical healthy state', async () => {
+    const fixture = createProvisionerFixture();
+    await fixture.provisioner.ensure('ssh-1');
+
+    const updates: unknown[] = [];
+    const unsubscribe = fixture.model.instance.states.runtime.subscribe((update) =>
+      updates.push(update)
+    );
+    fixture.provisioner.drop('ssh-1');
+    await fixture.provisioner.ensure('ssh-1');
+    unsubscribe();
+
+    expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
+    expect(updates).toHaveLength(0);
+    expect(fixture.status('ssh-1')).toMatchObject({ status: 'healthy' });
+    await fixture.dispose();
+  });
+
   it('installs and starts an absent daemon before returning a ready target', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
@@ -163,6 +191,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
     installer,
     daemon,
     dialOnce,
+    model,
     status(connectionId: string) {
       return model.instance.states.runtime.snapshot().data[connectionId];
     },

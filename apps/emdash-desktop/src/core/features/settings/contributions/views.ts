@@ -21,6 +21,7 @@ export const settingsViewDef = defineView({
   id: 'settings',
   params: z.object({
     tab: settingsPageTabSchema.optional(),
+    detail: z.string().optional(),
   }),
   layout: workbenchLayout,
   telemetryEvent: 'settings_viewed',

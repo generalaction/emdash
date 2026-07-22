@@ -1,3 +1,4 @@
+import { isDeepEqual } from '@emdash/shared';
 import { createLiveModelHost, type LiveInstance, type LiveModelHost } from '@emdash/wire';
 import {
   remoteMachineContract,
@@ -16,6 +17,9 @@ export class RemoteMachineStateModel {
 
   set(connectionId: string, state: RemoteMachineServerState): void {
     this.instance.states.runtime.produce((runtime: RemoteMachineServerRuntime) => {
+      // Assigning a fresh deep-equal object would still produce a patch; skip
+      // the write so identical states never emit updates to subscribers.
+      if (isDeepEqual(runtime[connectionId], state)) return;
       runtime[connectionId] = state;
     });
   }

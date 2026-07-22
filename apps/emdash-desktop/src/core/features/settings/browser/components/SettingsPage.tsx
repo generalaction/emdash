@@ -4,6 +4,8 @@ import {
   type PageNavDivider,
   type PageSidebarMenuItem,
 } from '@emdash/ui/react/patterns';
+import { Breadcrumbs } from '@emdash/ui/react/primitives';
+import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import {
   matchedTabsForQuery,
@@ -40,18 +42,27 @@ function toNavItem({ id, label, icon }: PageNavItem): PageNavItem {
   return { id, label, icon };
 }
 
-export function SettingsPage({
+export const SettingsPage = observer(function SettingsPage({
   tab: activeTab,
+  detail,
   onTabChange,
+  openDetail,
+  closeDetail,
 }: {
   tab: SettingsPageTab;
+  detail?: string;
   onTabChange: (tab: SettingsPageTab) => void;
+  openDetail: (detailId: string) => void;
+  closeDetail: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const query = searchQuery.trim();
   const isSearching = query.length > 0;
   const activePage = settingsPageContributions.find(({ id }) => id === activeTab);
   const PageComponent = activePage?.component;
+  const detailContribution = activePage?.detail;
+  const detailLabel =
+    detail && detailContribution ? detailContribution.breadcrumbLabel(detail) : null;
 
   const visiblePages = useMemo(() => {
     if (!isSearching) return [...settingsPageContributions];
@@ -77,6 +88,23 @@ export function SettingsPage({
       onTabChange(visiblePages[0]!.id);
     }
   }, [activeTab, isSearching, onTabChange, visiblePages]);
+
+  useEffect(() => {
+    if (detail && (!detailContribution || detailLabel === null)) {
+      closeDetail();
+    }
+  }, [closeDetail, detail, detailContribution, detailLabel]);
+
+  const detailView =
+    detail && detailContribution && detailLabel !== null && activePage
+      ? {
+          Component: detailContribution.component,
+          detailId: detail,
+          label: detailLabel,
+          pageId: activePage.id,
+          pageLabel: activePage.label,
+        }
+      : null;
 
   return (
     <SettingsSearchProvider query={searchQuery}>
@@ -110,12 +138,28 @@ export function SettingsPage({
           />
         }
       >
-        {PageComponent ? (
+        {detailView ? (
           <PageLayout.Content>
-            <PageComponent />
+            <div className="sticky top-0 z-10 bg-background pt-10 pb-4">
+              <Breadcrumbs
+                items={[
+                  {
+                    id: detailView.pageId,
+                    label: detailView.pageLabel,
+                    onSelect: closeDetail,
+                  },
+                  { id: detailView.detailId, label: detailView.label },
+                ]}
+              />
+            </div>
+            <detailView.Component detailId={detailView.detailId} closeDetail={closeDetail} />
+          </PageLayout.Content>
+        ) : PageComponent ? (
+          <PageLayout.Content>
+            <PageComponent openDetail={openDetail} />
           </PageLayout.Content>
         ) : null}
       </PageLayout>
     </SettingsSearchProvider>
   );
-}
+});

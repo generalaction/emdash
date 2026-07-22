@@ -1,0 +1,228 @@
+import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
+import { EllipsisIcon, PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useEffect, useRef, useState } from 'react';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { appState } from '@renderer/lib/stores/app-state';
+import { MachineConnectionCard } from '../components/machine-connection-card';
+import { MachineResources } from '../components/machine-resources';
+import { MachineWorkspacesByProject } from '../components/machine-workspaces-by-project';
+import { WorkspaceServerCard } from '../components/workspace-server-card';
+import { useMachineMetrics } from '../use-machine-metrics';
+import { useMachineWorkspaces } from '../use-machine-workspaces';
+import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
+
+export const MachineDetailsPage = observer(function MachineDetailsPage({
+  detailId,
+  closeDetail,
+}: SettingsPageDetailProps) {
+  const machinesStore = appState.machines;
+  const machine = machinesStore.connections.find((connection) => connection.id === detailId);
+  const openConfirm = useOpenModal('confirmActionModal');
+  const openMachineModal = useOpenModal('addSshConnModal');
+  const state = machine ? machinesStore.stateFor(machine.id) : 'disconnected';
+  const connected = state === 'connected';
+  const [name, setName] = useState(machine?.name ?? '');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const renameFieldRef = useRef<HTMLInputElement>(null);
+  const workspaceServer = useRemoteMachineServerState({
+    machineId: machine?.id,
+    enabled: !!machine,
+    connected,
+  });
+  const serverHealthy = workspaceServer.state?.status === 'healthy';
+  const metrics = useMachineMetrics(machine?.id, serverHealthy);
+  const workspaces = useMachineWorkspaces(machine?.id, serverHealthy);
+
+  useEffect(() => {
+    setName(machine?.name ?? '');
+  }, [machine?.id, machine?.name]);
+
+  useEffect(() => {
+    if (isRenaming) {
+      renameFieldRef.current?.focus();
+      renameFieldRef.current?.select();
+    }
+  }, [isRenaming]);
+
+  if (!machine) return null;
+
+  const commitName = async (value: string) => {
+    const nextName = value.trim();
+    if (!nextName || nextName === machine.name) {
+      setName(machine.name);
+      setIsRenaming(false);
+      return;
+    }
+
+    try {
+      await machinesStore.renameConnection(machine.id, nextName);
+      setIsRenaming(false);
+    } catch (error) {
+      setName(machine.name);
+      toast({
+        title: 'Failed to rename machine',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const connectMachine = async () => {
+    try {
+      await machinesStore.connect(machine.id);
+    } catch (error) {
+      toast({
+        title: 'Failed to connect to machine',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const disconnectMachine = async () => {
+    try {
+      await machinesStore.disconnect(machine.id);
+    } catch (error) {
+      toast({
+        title: 'Failed to disconnect from machine',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const editConnectionSettings = () => {
+    void openMachineModal({ dismissControl: 'close', initialConfig: machine });
+  };
+
+  const requestDelete = async () => {
+    setDeleting(true);
+    try {
+      const usage = await (await getDesktopWireClient()).machines.getMachineUsage(undefined);
+      const projects = usage[machine.id] ?? [];
+
+      if (projects.length > 0) {
+        await openConfirm({
+          title: 'Cannot delete SSH connection',
+          description:
+            'This SSH connection is still used by at least one project. Change those projects to another connection before deleting it.',
+          confirmLabel: 'Close',
+        });
+        return;
+      }
+
+      const outcome = await openConfirm({
+        title: 'Delete SSH connection',
+        description: `This will remove "${machine.name}" and its saved credentials from this device.`,
+        confirmLabel: 'Delete',
+        variant: 'destructive',
+      });
+      if (!outcome.success) return;
+
+      await machinesStore.deleteConnection(machine.id);
+      closeDetail();
+    } catch (error) {
+      toast({
+        title: 'Failed to delete SSH connection',
+        description: String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6 pb-10">
+      <div className="flex min-w-0 items-center gap-2">
+        {isRenaming ? (
+          <EditableNameField
+            ref={renameFieldRef}
+            value={name}
+            className="min-w-0 flex-1"
+            onChange={setName}
+            onBlur={(event) => void commitName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                event.currentTarget.blur();
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.currentTarget.value = machine.name;
+                setName(machine.name);
+                setIsRenaming(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <ServerIcon className="size-5 shrink-0 text-foreground-muted" />
+            <span className="min-w-0 flex-1 truncate text-lg font-medium text-foreground">
+              {machine.name}
+            </span>
+          </>
+        )}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            render={
+              <Button type="button" variant="ghost" size="sm" icon aria-label="Machine actions" />
+            }
+          >
+            <EllipsisIcon />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            <DropdownMenu.Item onClick={() => setIsRenaming(true)} disabled={isRenaming}>
+              <PencilIcon />
+              Rename
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => void requestDelete()}
+            >
+              <Trash2Icon />
+              {deleting ? 'Deleting…' : 'Delete'}
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      </div>
+
+      <MachineConnectionCard
+        machine={machine}
+        state={state}
+        onEdit={editConnectionSettings}
+        onConnect={connectMachine}
+        onDisconnect={disconnectMachine}
+      />
+
+      <WorkspaceServerCard
+        connected={connected}
+        loading={workspaceServer.loading}
+        state={workspaceServer.state}
+        actions={workspaceServer}
+      />
+
+      {serverHealthy ? (
+        <>
+          <MachineResources metrics={metrics} />
+          <MachineWorkspacesByProject
+            groups={workspaces.data ?? []}
+            loading={workspaces.isLoading}
+            error={workspaces.isError}
+          />
+        </>
+      ) : (
+        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-xs text-foreground-passive">
+          Workspace server not connected
+        </p>
+      )}
+    </div>
+  );
+});
