@@ -6,7 +6,7 @@ import {
   type ViewId,
   type WrapParams,
 } from '@renderer/app/view-registry';
-import { FramelessTitlebarOverlay } from '@renderer/lib/components/titlebar/window-controls';
+import { LinuxTitlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export type NonSettingsViewId = Exclude<ViewId, 'settings'>;
@@ -64,7 +64,7 @@ export function useWorkspaceSlots(): SlotsContextValue {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
       >,
-      TitlebarSlot: def.TitlebarSlot ?? FramelessTitlebarOverlay,
+      TitlebarSlot: def.TitlebarSlot ?? LinuxTitlebar,
       MainPanel: def.MainPanel,
       currentView: resolvedViewId,
       lastNonSettingsView: appState.navigation.lastNonSettingsView,
