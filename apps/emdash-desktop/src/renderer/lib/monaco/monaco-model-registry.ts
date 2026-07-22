@@ -261,11 +261,16 @@ export class MonacoModelRegistry {
     const existing = this.modelMap.get(diskUri);
 
     if (existing?.type === 'disk') {
+      const wasEvictionPending = existing.refs === 0;
       existing.refs += 1;
       const timer = this.evictionTimers.get(diskUri);
       if (timer !== undefined) {
         clearTimeout(timer);
         this.evictionTimers.delete(diskUri);
+      }
+      if (wasEvictionPending) {
+        this.modelStatus.set(diskUri, 'loading');
+        await this.invalidateModel(diskUri);
       }
       return uri;
     }
@@ -340,11 +345,16 @@ export class MonacoModelRegistry {
     const existing = this.modelMap.get(gitUri);
 
     if (existing?.type === 'git') {
+      const wasEvictionPending = existing.refs === 0;
       existing.refs += 1;
       const timer = this.evictionTimers.get(gitUri);
       if (timer !== undefined) {
         clearTimeout(timer);
         this.evictionTimers.delete(gitUri);
+      }
+      if (wasEvictionPending) {
+        this.modelStatus.set(gitUri, 'loading');
+        await this.invalidateModel(gitUri);
       }
       return uri;
     }
@@ -825,7 +835,21 @@ export class MonacoModelRegistry {
         entry.workspaceId,
         entry.filePath
       );
-      if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
+      if (!res.success || res.data.content === null) {
+        this.modelStatus.set(uri, 'error');
+        this.clearUnavailableDiskEntry(uri, entry);
+        return;
+      }
+      if (res.data.truncated) {
+        runInAction(() => {
+          this.modelStatus.set(uri, 'too-large');
+          this.modelTotalSizes.set(uri, res.data.totalSize);
+        });
+        this.clearUnavailableDiskEntry(uri, entry);
+        return;
+      }
+      this.modelStatus.set(uri, 'ready');
+      this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
@@ -840,9 +864,13 @@ export class MonacoModelRegistry {
               entry.filePath,
               gitRefToString(entry.ref)
             );
-      if (res.success) {
-        entry.model.setValue(res.data.content ?? '');
+      if (!res.success) {
+        this.modelStatus.set(uri, 'error');
+        entry.model.setValue('');
+        return;
       }
+      this.modelStatus.set(uri, 'ready');
+      entry.model.setValue(res.data.content ?? '');
     }
   }
 
@@ -891,6 +919,42 @@ export class MonacoModelRegistry {
   // ---------------------------------------------------------------------------
   // Disk update helper (used by invalidateModel)
   // ---------------------------------------------------------------------------
+
+  private clearUnavailableDiskEntry(diskUri: string, entry: DiskModelEntry): void {
+    entry.model.setValue('');
+
+    // Do not propagate a synthetic empty string through applyDiskUpdate(). A normal
+    // first registration for a missing/too-large file never seeds the writable
+    // buffer, so a pending-eviction refresh should not silently overwrite a clean
+    // buffer with empty content either. If a clean buffer is only being kept alive
+    // by the eviction cache, evict it now so a subsequent registerBuffer() follows
+    // the normal seed-from-disk path.
+    const bufferUri = diskUri.replace(/^disk:\/\//, 'file://');
+    const bufEntry = this.modelMap.get(bufferUri);
+    if (bufEntry?.type !== 'buffer' || bufEntry.refs > 0 || this.dirtyUris.has(bufferUri)) return;
+
+    const timer = this.evictionTimers.get(bufferUri);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.evictionTimers.delete(bufferUri);
+    }
+    if (!bufEntry.model.isDisposed()) bufEntry.model.dispose();
+    this.modelMap.delete(bufferUri);
+    this.modelStatus.delete(bufferUri);
+    this.bufferContentDisposables.get(bufferUri)?.dispose();
+    this.bufferContentDisposables.delete(bufferUri);
+    const autosaveTimer = this.bufferAutosaveTimers.get(bufferUri);
+    if (autosaveTimer !== undefined) {
+      clearTimeout(autosaveTimer);
+      this.bufferAutosaveTimers.delete(bufferUri);
+    }
+    this.bufferReadyCallbacks.delete(bufferUri);
+    this.pendingConflicts.delete(bufferUri);
+    runInAction(() => {
+      this.dirtyUris.delete(bufferUri);
+      this.bufferVersions.delete(bufferUri);
+    });
+  }
 
   private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
     const bufferUri = diskUri.replace(/^disk:\/\//, 'file://');
