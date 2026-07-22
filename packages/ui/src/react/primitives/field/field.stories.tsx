@@ -4,7 +4,7 @@ import { Box } from '@/react/primitives/box';
 import { Input } from '@/react/primitives/input';
 import { Switch } from '@/react/primitives/switch';
 import { Textarea } from '@/react/primitives/textarea';
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from './field';
+import { Field } from '.';
 import * as s from '@/react/story-layout.css';
 
 const meta: Meta = {
@@ -19,11 +19,11 @@ type Story = StoryObj;
 export const Default: Story = {
   render: () => (
     <Box className={s.w72}>
-      <Field>
-        <FieldLabel>Email address</FieldLabel>
+      <Field.Root>
+        <Field.Label>Email address</Field.Label>
         <Input type="email" placeholder="you@example.com" />
-        <FieldDescription>We'll never share your email.</FieldDescription>
-      </Field>
+        <Field.Description>We'll never share your email.</Field.Description>
+      </Field.Root>
     </Box>
   ),
 };
@@ -32,11 +32,11 @@ export const Default: Story = {
 export const Invalid: Story = {
   render: () => (
     <Box className={s.w72}>
-      <Field>
-        <FieldLabel>Email address</FieldLabel>
+      <Field.Root>
+        <Field.Label>Email address</Field.Label>
         <Input type="email" defaultValue="not-an-email" aria-invalid="true" />
-        <FieldError>Please enter a valid email address.</FieldError>
-      </Field>
+        <Field.Error>Please enter a valid email address.</Field.Error>
+      </Field.Root>
     </Box>
   ),
 };
@@ -45,11 +45,11 @@ export const Invalid: Story = {
 export const Disabled: Story = {
   render: () => (
     <Box className={s.w72}>
-      <Field>
-        <FieldLabel>Name</FieldLabel>
+      <Field.Root>
+        <Field.Label>Name</Field.Label>
         <Input defaultValue="David Konopka" disabled />
-        <FieldDescription>This field cannot be changed.</FieldDescription>
-      </Field>
+        <Field.Description>This field cannot be changed.</Field.Description>
+      </Field.Root>
     </Box>
   ),
 };
@@ -58,14 +58,14 @@ export const Disabled: Story = {
 export const Sizes: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="4" className={s.w72}>
-      <Field>
-        <FieldLabel>Base (32 px)</FieldLabel>
+      <Field.Root>
+        <Field.Label>Base (32 px)</Field.Label>
         <Input size="base" placeholder="Base size input" />
-      </Field>
-      <Field>
-        <FieldLabel>Small (24 px)</FieldLabel>
+      </Field.Root>
+      <Field.Root>
+        <Field.Label>Small (24 px)</Field.Label>
         <Input size="sm" placeholder="Small size input" />
-      </Field>
+      </Field.Root>
     </Box>
   ),
 };
@@ -74,11 +74,11 @@ export const Sizes: Story = {
 export const WithTextarea: Story = {
   render: () => (
     <Box className={s.w72}>
-      <Field>
-        <FieldLabel>Message</FieldLabel>
+      <Field.Root>
+        <Field.Label>Message</Field.Label>
         <Textarea placeholder="Type your message…" />
-        <FieldDescription>Max 500 characters.</FieldDescription>
-      </Field>
+        <Field.Description>Max 500 characters.</Field.Description>
+      </Field.Root>
     </Box>
   ),
 };
@@ -87,26 +87,26 @@ export const WithTextarea: Story = {
 export const Horizontal: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" className={s.w72}>
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel>Send telemetry</FieldLabel>
-          <FieldDescription>Anonymous usage data helps us improve.</FieldDescription>
-        </FieldContent>
+      <Field.Root orientation="horizontal">
+        <Field.Content>
+          <Field.Label>Send telemetry</Field.Label>
+          <Field.Description>Anonymous usage data helps us improve.</Field.Description>
+        </Field.Content>
         <Switch defaultChecked aria-label="Send telemetry" />
-      </Field>
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel>Beta features</FieldLabel>
-          <FieldDescription>Enable experimental functionality.</FieldDescription>
-        </FieldContent>
+      </Field.Root>
+      <Field.Root orientation="horizontal">
+        <Field.Content>
+          <Field.Label>Beta features</Field.Label>
+          <Field.Description>Enable experimental functionality.</Field.Description>
+        </Field.Content>
         <Switch aria-label="Beta features" />
-      </Field>
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel>Name</FieldLabel>
-        </FieldContent>
+      </Field.Root>
+      <Field.Root orientation="horizontal">
+        <Field.Content>
+          <Field.Label>Name</Field.Label>
+        </Field.Content>
         <Input placeholder="My Server" className={s.w40} />
-      </Field>
+      </Field.Root>
     </Box>
   ),
 };
@@ -137,23 +137,23 @@ export const AcrossSurfaces: Story = {
               {level}
             </span>
             <Box display="grid" className={s.cols2} gap="3">
-              <Field>
-                <FieldLabel>Default</FieldLabel>
+              <Field.Root>
+                <Field.Label>Default</Field.Label>
                 <Input placeholder="Placeholder" />
-              </Field>
-              <Field>
-                <FieldLabel>Invalid</FieldLabel>
+              </Field.Root>
+              <Field.Root>
+                <Field.Label>Invalid</Field.Label>
                 <Input defaultValue="bad value" aria-invalid="true" />
-                <FieldError>Error message</FieldError>
-              </Field>
-              <Field>
-                <FieldLabel>Disabled</FieldLabel>
+                <Field.Error>Error message</Field.Error>
+              </Field.Root>
+              <Field.Root>
+                <Field.Label>Disabled</Field.Label>
                 <Input placeholder="Disabled" disabled />
-              </Field>
-              <Field>
-                <FieldLabel>Small</FieldLabel>
+              </Field.Root>
+              <Field.Root>
+                <Field.Label>Small</Field.Label>
                 <Input size="sm" placeholder="Small" />
-              </Field>
+              </Field.Root>
             </Box>
           </Box>
         )

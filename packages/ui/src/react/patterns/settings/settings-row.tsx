@@ -1,11 +1,5 @@
+import { Field } from '@react/primitives/field';
 import * as React from 'react';
-import {
-  Field,
-  FieldContent,
-  FieldControlSlot,
-  FieldDescription,
-  FieldLabel,
-} from '../form/field/field';
 
 export interface SettingsRowProps {
   label: React.ReactNode;
@@ -31,12 +25,12 @@ export function SettingsRow({
   className,
 }: SettingsRowProps) {
   return (
-    <Field orientation="horizontal" className={className}>
-      <FieldContent>
-        <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
-        {description != null && <FieldDescription>{description}</FieldDescription>}
-      </FieldContent>
-      <FieldControlSlot className={controlClassName}>{control}</FieldControlSlot>
-    </Field>
+    <Field.Root orientation="horizontal" className={className}>
+      <Field.Content>
+        <Field.Label htmlFor={htmlFor}>{label}</Field.Label>
+        {description != null && <Field.Description>{description}</Field.Description>}
+      </Field.Content>
+      <Field.ControlSlot className={controlClassName}>{control}</Field.ControlSlot>
+    </Field.Root>
   );
 }

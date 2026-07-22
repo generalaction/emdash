@@ -16,7 +16,7 @@ import type { FieldVariants } from './field.css';
  *  - `horizontal`: label/description on the left, control pinned to the right —
  *    used for settings-style rows.
  */
-function Field({
+function FieldRoot({
   className,
   orientation = 'vertical',
   ...props
@@ -100,5 +100,13 @@ function FieldError({ className, ...props }: FieldPrimitive.Error.Props) {
   );
 }
 
-export { Field, FieldContent, FieldControlSlot, FieldDescription, FieldError, FieldLabel };
+export const Field = {
+  Root: FieldRoot,
+  Content: FieldContent,
+  ControlSlot: FieldControlSlot,
+  Label: FieldLabel,
+  Description: FieldDescription,
+  Error: FieldError,
+};
+
 export type { FieldVariants };

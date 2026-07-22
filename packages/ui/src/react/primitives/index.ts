@@ -30,6 +30,7 @@ export { Tabs, type TabsTabProps } from './tabs/tabs';
 export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
 export { InputGroup, type InputGroupAddonAlign } from './input-group';
 export { Alert, type AlertProps } from './alert';
+export { Field, type FieldVariants } from './field';
 
 // ── Non-namespaced compound helpers (remain as named exports) ─────────────────
 export {
