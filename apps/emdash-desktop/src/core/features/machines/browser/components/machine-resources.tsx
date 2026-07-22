@@ -1,10 +1,11 @@
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
 import { Surface } from '@emdash/ui/react/primitives';
+import { Label } from '@core/primitives/ui/browser/label';
 
 export function ResourceUtilizationRow({ metrics }: { metrics: ResourceUsageSample | null }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-sm leading-none font-medium text-foreground">Resource Utilization</div>
+      <Label>Resource Utilization</Label>
       <div className="grid grid-cols-3 gap-2">
         <ResourceCard
           label="CPU"

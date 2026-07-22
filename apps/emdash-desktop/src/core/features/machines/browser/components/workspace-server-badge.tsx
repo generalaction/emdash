@@ -1,5 +1,4 @@
-import { Badge } from '@core/primitives/ui/browser/badge';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { Pill } from '@emdash/ui/react/components';
 import type { RemoteMachineServerStatus } from '@core/services/remote-machine/api';
 
 const statusLabels: Record<RemoteMachineServerStatus, string> = {
@@ -11,30 +10,28 @@ const statusLabels: Record<RemoteMachineServerStatus, string> = {
   failed: 'Error',
 };
 
+function variantForStatus(status: RemoteMachineServerStatus): {
+  variant: 'neutral' | 'success' | 'info' | 'error';
+  pulsing: boolean;
+} {
+  if (status === 'healthy') {
+    return { variant: 'success', pulsing: false };
+  }
+  if (status === 'booting' || status === 'shutting-down') {
+    return { variant: 'info', pulsing: true };
+  }
+  if (status === 'failed') {
+    return { variant: 'error', pulsing: false };
+  }
+  return { variant: 'neutral', pulsing: false };
+}
+
 export function WorkspaceServerBadge({ status }: { status: RemoteMachineServerStatus }) {
-  const active = status === 'healthy';
-  const pending = status === 'booting' || status === 'shutting-down';
-  const failed = status === 'failed';
+  const { variant, pulsing } = variantForStatus(status);
 
   return (
-    <Badge
-      variant={failed ? 'destructive' : 'secondary'}
-      className={cn(
-        'gap-1.5',
-        active && 'text-foreground-success',
-        pending && 'text-foreground-info',
-        (status === 'not-installed' || status === 'stopped') && 'text-foreground-muted'
-      )}
-    >
-      <span
-        className={cn(
-          'size-1.5 rounded-full bg-foreground-muted',
-          active && 'bg-foreground-success',
-          pending && 'animate-pulse bg-foreground-info',
-          failed && 'bg-destructive'
-        )}
-      />
+    <Pill variant={variant} dot pulsing={pulsing}>
       {statusLabels[status]}
-    </Badge>
+    </Pill>
   );
 }

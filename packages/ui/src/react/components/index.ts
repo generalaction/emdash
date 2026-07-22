@@ -42,6 +42,7 @@ export {
   type MachineStatusKind,
   type MachineStatusProps,
 } from './machine-status/machine-status';
+export { Pill, type PillProps, type PillVariant } from './pill/pill';
 export {
   ScriptStatus,
   type ScriptStatusKind,

@@ -25,11 +25,8 @@ export function GeneralSettingsPage() {
     <div className="pb-10">
       <div className="h-10 w-full" style={dragStyle} aria-hidden="true" />
       <div className="space-y-8">
-          <Heading level={1} >
-            General
-          </Heading>
-        <div className="space-y-3">
-        </div>
+        <Heading level={1}>General</Heading>
+        <div className="space-y-3"></div>
         <div className="space-y-3">
           <SettingsCard>
             <AccountTab />

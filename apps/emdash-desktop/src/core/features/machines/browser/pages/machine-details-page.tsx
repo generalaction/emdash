@@ -193,7 +193,14 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         <DropdownMenu.Root>
           <DropdownMenu.Trigger
             render={
-              <Button type="button" variant="secondary" size="sm" icon aria-label="Machine actions" className="ml-auto" />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon
+                aria-label="Machine actions"
+                className="ml-auto"
+              />
             }
           >
             <EllipsisIcon />
