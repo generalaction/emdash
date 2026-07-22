@@ -14,8 +14,9 @@ import { RemoteWorkspaceServerDaemon } from '../../workspace-server/node/provisi
 import { RemoteHostProbe } from '../../workspace-server/node/provision/host-probe';
 import { WorkspaceServerInstaller } from '../../workspace-server/node/provision/installer';
 import { WorkspaceServerProvisioner } from '../../workspace-server/node/provision/provisioner';
-import { WorkspaceServerProvisioningModel } from '../../workspace-server/node/provision/provisioning-model';
 import type { MachineMutationEvents, RemoteMachineInvalidation } from '../api';
+import { RemoteMachineServerOperations } from './server-operations';
+import { RemoteMachineStateModel } from './state-model';
 
 type RemoteMachineServiceLog = {
   warn(message: string, metadata?: Record<string, unknown>): void;
@@ -38,8 +39,14 @@ export type CreateRemoteMachineServiceDeps = {
  * Machine persistence and CRUD remain owned by the feature-level MachinesService.
  */
 export interface RemoteMachineService {
-  readonly provisioningModel: WorkspaceServerProvisioningModel;
+  readonly stateModel: RemoteMachineStateModel;
   client(connectionId: string): Promise<WorkspaceServerConnection>;
+  refreshServerState(connectionId: string): Promise<void>;
+  installServer(connectionId: string): Promise<void>;
+  startServer(connectionId: string): Promise<void>;
+  stopServer(connectionId: string): Promise<void>;
+  restartServer(connectionId: string): Promise<void>;
+  updateServer(connectionId: string): Promise<void>;
   onInvalidate(listener: (event: RemoteMachineInvalidation) => void): () => void;
   dispose(): Promise<void>;
 }
@@ -48,7 +55,7 @@ export function createRemoteMachineService(
   deps: CreateRemoteMachineServiceDeps
 ): RemoteMachineService {
   const scope = deps.scope.child('remote-machine-service');
-  const provisioningModel = scope.use(new WorkspaceServerProvisioningModel());
+  const stateModel = scope.use(new RemoteMachineStateModel());
   const ssh = createWorkspaceServerSshPort(deps.ssh);
   const host = new RemoteHostProbe(ssh);
   const wire = createWireConnectionManager({ scope, ssh });
@@ -60,7 +67,15 @@ export function createRemoteMachineService(
     host,
     installer,
     daemon,
-    model: provisioningModel,
+    model: stateModel,
+    wire,
+  });
+  const serverOperations = new RemoteMachineServerOperations({
+    scope,
+    state: stateModel,
+    host,
+    installer,
+    daemon,
     wire,
   });
   const invalidationListeners = new Set<(event: RemoteMachineInvalidation) => void>();
@@ -68,6 +83,7 @@ export function createRemoteMachineService(
   const handleSshEvent = (event: SshConnectionManagerEvent) => {
     if (event.type !== 'reconnect-failed') return;
     host.drop(event.connectionId);
+    stateModel.remove(event.connectionId);
     notify({ connectionId: event.connectionId, reason: 'reconnect-failed' });
     void wire.invalidateConnection(event.connectionId).catch((error: unknown) => {
       deps.logger?.warn('Remote-machine SSH lifecycle handling failed', { error });
@@ -80,6 +96,7 @@ export function createRemoteMachineService(
   scope.add(
     deps.machineEvents.on('machine:mutated', (event) => {
       host.drop(event.connectionId);
+      stateModel.remove(event.connectionId);
       notify({ connectionId: event.connectionId, reason: 'machine-mutation' });
       void Promise.all([
         provisioner.cancel(event.connectionId),
@@ -92,6 +109,7 @@ export function createRemoteMachineService(
   scope.add(
     wire.onConnectionLost((target, error) => {
       if (target.kind !== 'ssh') return;
+      stateModel.markConnectionLost(target.sshConnectionId);
       notify({
         connectionId: target.sshConnectionId,
         reason: 'connection-lost',
@@ -104,11 +122,17 @@ export function createRemoteMachineService(
 
   let disposePromise: Promise<void> | undefined;
   return {
-    provisioningModel,
+    stateModel,
     async client(connectionId) {
       const target = await provisioner.ensure(connectionId);
       return wire.client(target);
     },
+    refreshServerState: (connectionId) => serverOperations.refresh(connectionId),
+    installServer: (connectionId) => serverOperations.install(connectionId),
+    startServer: (connectionId) => serverOperations.start(connectionId),
+    stopServer: (connectionId) => serverOperations.stop(connectionId),
+    restartServer: (connectionId) => serverOperations.restart(connectionId),
+    updateServer: (connectionId) => serverOperations.update(connectionId),
     onInvalidate(listener) {
       invalidationListeners.add(listener);
       return () => invalidationListeners.delete(listener);

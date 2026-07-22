@@ -80,6 +80,7 @@ import { createNotificationsWireController } from '@core/services/notifications/
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
+import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
 import type {
   FilesRuntimeClient,
   MementosRuntimeClient,
@@ -92,7 +93,6 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
-import { createWorkspaceServerWireController } from '@core/services/workspace-server/node/wire-controller';
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
@@ -361,9 +361,8 @@ export const desktopNodeControllers = {
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
-  workspaceServer: {
-    create: ({ remoteMachine }) =>
-      createWorkspaceServerWireController(remoteMachine.provisioningModel),
+  remoteMachine: {
+    create: ({ remoteMachine }) => createRemoteMachineWireController(remoteMachine),
   },
   tasks: {
     create: ({ db, operations, runtimes, scope, taskService, telemetry, workspaceIdentity }) =>

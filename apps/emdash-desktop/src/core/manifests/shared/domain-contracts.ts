@@ -29,9 +29,9 @@ import {
   workspacesWireContract,
 } from '@core/features/workspaces/api';
 import { mementosWireContract } from '@core/primitives/mementos/api';
+import { remoteMachineContract } from '@core/services/remote-machine/api';
 import { appSettingsContract } from '@core/services/settings/api';
 import { sshContract } from '@core/services/ssh/api';
-import { workspaceServerDesktopContract } from '@core/services/workspace-server/api';
 import { notificationsContract } from '@root/src/core/services/notifications/api';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 
@@ -66,7 +66,7 @@ export const desktopDomainContracts = {
   integrations: integrationsContract,
   issues: issuesContract,
   ssh: sshContract,
-  workspaceServer: workspaceServerDesktopContract,
+  remoteMachine: remoteMachineContract,
   tasks: tasksWireContract,
   updates: updatesContract,
   host: desktopHostContract,

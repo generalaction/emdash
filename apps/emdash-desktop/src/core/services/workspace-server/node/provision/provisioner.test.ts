@@ -1,10 +1,10 @@
 import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
+import { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import { WorkspaceServerInstallError } from './installer';
 import { WorkspaceServerProvisioner } from './provisioner';
-import { WorkspaceServerProvisioningModel } from './provisioning-model';
 
 describe('WorkspaceServerProvisioner', () => {
   it('coalesces compatible fast-path ensures without installing or starting', async () => {
@@ -21,7 +21,11 @@ describe('WorkspaceServerProvisioner', () => {
     expect(first).toBe(second);
     expect(fixture.installer.install).not.toHaveBeenCalled();
     expect(fixture.daemon.start).not.toHaveBeenCalled();
-    expect(fixture.status('ssh-1')).toEqual({ phase: 'ready' });
+    expect(fixture.status('ssh-1')).toEqual({
+      status: 'healthy',
+      version: '1.2.3',
+      startedAt: 1,
+    });
     await fixture.dispose();
   });
 
@@ -35,7 +39,11 @@ describe('WorkspaceServerProvisioner', () => {
     expect(fixture.daemon.start).toHaveBeenCalledOnce();
     expect(fixture.daemon.restart).not.toHaveBeenCalled();
     expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
-    expect(fixture.status('ssh-1')).toEqual({ phase: 'ready' });
+    expect(fixture.status('ssh-1')).toEqual({
+      status: 'healthy',
+      version: '1.2.3',
+      startedAt: 1,
+    });
     await fixture.dispose();
   });
 
@@ -69,7 +77,7 @@ describe('WorkspaceServerProvisioner', () => {
       code: 'unsupported-platform',
     });
     expect(fixture.status('ssh-1')).toMatchObject({
-      phase: 'failed',
+      status: 'failed',
       error: { code: 'unsupported-platform' },
     });
     await fixture.dispose();
@@ -105,7 +113,7 @@ describe('WorkspaceServerProvisioner', () => {
 
 function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe?: boolean } = {}) {
   const scope = createScope({ label: 'workspace-server-provisioner-test' });
-  const model = new WorkspaceServerProvisioningModel();
+  const model = new RemoteMachineStateModel();
   const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
     if (!options.blockHostProbe) {
       return Promise.resolve({ home: '/home/devuser' });

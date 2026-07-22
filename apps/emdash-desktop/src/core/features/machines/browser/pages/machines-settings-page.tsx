@@ -72,6 +72,18 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
     }
   };
 
+  const disconnectMachine = async (machine: SshConfig) => {
+    try {
+      await machinesStore.disconnect(machine.id);
+    } catch (error) {
+      toast({
+        title: 'Failed to disconnect from machine',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const requestDelete = async (machine: SshConfig) => {
     setDeletingId(machine.id);
     try {
@@ -183,6 +195,7 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage() {
         deleting={deletingId === detailsMachine?.id}
         onOpenChange={setDetailsOpen}
         onConnect={connectMachine}
+        onDisconnect={disconnectMachine}
         onEditConnectionSettings={editConnectionSettings}
         onDelete={requestDelete}
       />

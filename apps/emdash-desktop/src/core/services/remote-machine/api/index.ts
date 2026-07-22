@@ -1,5 +1,14 @@
 import type { WorkspaceServerTarget } from '../../workspace-server/node/targets';
 
+export {
+  remoteMachineContract,
+  remoteMachineServerStateSchema,
+  remoteMachineServerStatusSchema,
+  type RemoteMachineServerRuntime,
+  type RemoteMachineServerState,
+  type RemoteMachineServerStatus,
+} from './contract';
+
 export type RemoteMachineInvalidation = {
   connectionId: string;
   reason: 'reconnect-failed' | 'machine-mutation' | 'connection-lost';

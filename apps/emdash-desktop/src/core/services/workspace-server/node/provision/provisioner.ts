@@ -1,3 +1,4 @@
+import type { WireInitializeResult } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import {
   retry,
@@ -6,6 +7,7 @@ import {
   throwIfAborted,
   type Clock,
 } from '@emdash/shared/scheduling';
+import type { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import type { WireConnectionManager } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
@@ -14,7 +16,6 @@ import { sshWorkspaceServerTarget, type SshWorkspaceServerTarget } from '../targ
 import type { RemoteWorkspaceServerDaemon } from './daemon-control';
 import type { RemoteHostProbe } from './host-probe';
 import { WorkspaceServerInstallError, type WorkspaceServerInstaller } from './installer';
-import type { WorkspaceServerProvisioningModel } from './provisioning-model';
 
 export type WorkspaceServerProvisionErrorCode =
   | 'connection-failed'
@@ -42,7 +43,7 @@ type WorkspaceServerProvisionerDeps = {
   host: RemoteHostProbe;
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
-  model: WorkspaceServerProvisioningModel;
+  model: RemoteMachineStateModel;
   wire: Pick<WireConnectionManager, 'dialOnce'>;
   clock?: Clock;
 };
@@ -54,7 +55,7 @@ type EnsureRun = {
 };
 
 type DialOutcome =
-  | { kind: 'ready' }
+  | { kind: 'ready'; handshake: WireInitializeResult }
   | { kind: 'client-outdated'; error: WorkspaceServerProtocolError }
   | { kind: 'server-outdated'; error: WorkspaceServerProtocolError }
   | { kind: 'unreachable'; error: unknown };
@@ -105,7 +106,10 @@ export class WorkspaceServerProvisioner {
     signal: AbortSignal
   ): Promise<SshWorkspaceServerTarget> {
     try {
-      this.deps.model.set(connectionId, { phase: 'probing' });
+      this.deps.model.set(connectionId, {
+        status: 'booting',
+        detail: 'Checking workspace server',
+      });
       let host;
       try {
         host = await this.deps.host.probe(connectionId, signal);
@@ -120,15 +124,14 @@ export class WorkspaceServerProvisioner {
       const outcome = await this.tryDial(target, signal);
       switch (outcome.kind) {
         case 'ready':
-          this.deps.model.set(connectionId, { phase: 'ready' });
+          this.publishHealthy(connectionId, outcome.handshake);
           return target;
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
           await this.install(connectionId, signal);
           await this.restart(connectionId, layout, signal);
-          await this.waitUntilReady(target, signal);
-          this.deps.model.set(connectionId, { phase: 'ready' });
+          this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
           return target;
         case 'unreachable':
           break;
@@ -137,8 +140,7 @@ export class WorkspaceServerProvisioner {
       await this.install(connectionId, signal);
       await this.start(connectionId, layout, signal);
 
-      await this.waitUntilReady(target, signal);
-      this.deps.model.set(connectionId, { phase: 'ready' });
+      this.publishHealthy(connectionId, await this.waitUntilReady(target, signal));
       return target;
     } catch (error) {
       if (signal.aborted) throw error;
@@ -147,7 +149,7 @@ export class WorkspaceServerProvisioner {
           ? error
           : provisionError('connection-failed', 'Workspace-server provisioning failed', error);
       this.deps.model.set(connectionId, {
-        phase: 'failed',
+        status: 'failed',
         error: { code: failure.code, message: failure.message },
       });
       throw failure;
@@ -156,7 +158,7 @@ export class WorkspaceServerProvisioner {
 
   private async install(connectionId: string, signal: AbortSignal): Promise<void> {
     this.deps.model.set(connectionId, {
-      phase: 'installing',
+      status: 'booting',
       detail: 'Installing workspace server',
     });
     try {
@@ -174,7 +176,10 @@ export class WorkspaceServerProvisioner {
     layout: WorkspaceServerLayout,
     signal: AbortSignal
   ): Promise<void> {
-    this.deps.model.set(connectionId, { phase: 'starting' });
+    this.deps.model.set(connectionId, {
+      status: 'booting',
+      detail: 'Starting workspace server',
+    });
     try {
       await this.deps.daemon.start(connectionId, layout, signal);
     } catch (error) {
@@ -187,7 +192,10 @@ export class WorkspaceServerProvisioner {
     layout: WorkspaceServerLayout,
     signal: AbortSignal
   ): Promise<void> {
-    this.deps.model.set(connectionId, { phase: 'starting', detail: 'Restarting workspace server' });
+    this.deps.model.set(connectionId, {
+      status: 'booting',
+      detail: 'Restarting workspace server',
+    });
     try {
       await this.deps.daemon.restart(connectionId, layout, signal);
     } catch (error) {
@@ -198,9 +206,9 @@ export class WorkspaceServerProvisioner {
   private async waitUntilReady(
     target: SshWorkspaceServerTarget,
     signal: AbortSignal
-  ): Promise<void> {
+  ): Promise<WireInitializeResult> {
     try {
-      await retry(() => this.dialOnce(target, { signal }), {
+      return await retry(() => this.dialOnce(target, { signal }), {
         clock: this.clock,
         schedule: daemonReadyRetrySchedule,
         signal,
@@ -222,8 +230,8 @@ export class WorkspaceServerProvisioner {
     signal: AbortSignal
   ): Promise<DialOutcome> {
     try {
-      await this.dialOnce(target, { signal });
-      return { kind: 'ready' };
+      const handshake = await this.dialOnce(target, { signal });
+      return { kind: 'ready', handshake };
     } catch (error) {
       throwIfAborted(signal);
       if (!(error instanceof WorkspaceServerProtocolError)) {
@@ -233,6 +241,14 @@ export class WorkspaceServerProvisioner {
         ? { kind: 'client-outdated', error }
         : { kind: 'server-outdated', error };
     }
+  }
+
+  private publishHealthy(connectionId: string, handshake: WireInitializeResult): void {
+    this.deps.model.set(connectionId, {
+      status: 'healthy',
+      version: handshake.server.appVersion,
+      startedAt: handshake.server.startedAt,
+    });
   }
 }
 

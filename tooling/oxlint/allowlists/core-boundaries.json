@@ -37,12 +37,14 @@
     "apps/emdash-desktop/src/core/features/library/api/browser/prompts/use-prompt-library.ts",
     "apps/emdash-desktop/src/core/features/library/browser/library-view.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/components/machine-list-row.tsx",
+    "apps/emdash-desktop/src/core/features/machines/browser/components/workspace-server-card.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/machine-details-sheet.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/machine-form.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/machines-store.ts",
     "apps/emdash-desktop/src/core/features/machines/browser/pages/machines-settings-page.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/use-machine-metrics.ts",
     "apps/emdash-desktop/src/core/features/machines/browser/use-machine-workspaces.ts",
+    "apps/emdash-desktop/src/core/features/machines/browser/use-remote-machine-server-state.ts",
     "apps/emdash-desktop/src/core/features/machines/browser/use-ssh-config-hosts.ts",
     "apps/emdash-desktop/src/core/features/mcp/api/browser/client.ts",
     "apps/emdash-desktop/src/core/features/mcp/browser/components/KeyValueSection.tsx",
@@ -193,9 +195,13 @@
     "apps/emdash-desktop/src/core/services/remote-machine/api/index.ts",
     "apps/emdash-desktop/src/core/services/remote-machine/node/remote-machine-service.test.ts",
     "apps/emdash-desktop/src/core/services/remote-machine/node/remote-machine-service.ts",
+    "apps/emdash-desktop/src/core/services/remote-machine/node/server-operations.test.ts",
+    "apps/emdash-desktop/src/core/services/remote-machine/node/server-operations.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/connect/ssh-streamlocal-transport.test.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/ports.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/provision/host-probe.test.ts",
+    "apps/emdash-desktop/src/core/services/workspace-server/node/provision/provisioner.test.ts",
+    "apps/emdash-desktop/src/core/services/workspace-server/node/provision/provisioner.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/workspace-server.remote.test.ts"
   ]
 }
