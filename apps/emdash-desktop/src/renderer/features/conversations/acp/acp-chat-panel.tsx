@@ -237,7 +237,7 @@ const ComposerForStore = observer(function ComposerForStore({
 
   // Autofocus when the slot becomes available.
   useEffect(() => {
-    editorApiRef.current?.focus();
+    editorApiRef.current?.focus({ scrollIntoView: false });
   }, []);
 
   useEffect(() => {
