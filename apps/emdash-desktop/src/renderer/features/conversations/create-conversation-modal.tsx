@@ -45,23 +45,22 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {
-    autoApprove,
-    setAutoApprove,
-    model: selectedModel,
-    setModel: setSelectedModel,
-  } = useConversationPreferences(providerId, taskSettings.autoApproveByDefault);
-  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
-    'initial-conversation:chat-ui-enabled',
-    false
-  );
-  useCloseGuard(isSubmitting);
-
   const { data: agents } = useAgents();
   const selectedAgent = agents?.find((a) => a.id === providerId);
   const modelsCapability = selectedAgent?.capabilities.models;
   const modelOptions =
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
+  const {
+    autoApprove,
+    setAutoApprove,
+    model: selectedModel,
+    setModel: setSelectedModel,
+  } = useConversationPreferences(providerId, taskSettings.autoApproveByDefault, modelOptions);
+  const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
+    'initial-conversation:chat-ui-enabled',
+    false
+  );
+  useCloseGuard(isSubmitting);
 
   const showAutoApproveToggle = agentSupportsAutoApprove(selectedAgent?.capabilities);
   const showAcpToggle = agentSupportsAcp(selectedAgent?.capabilities);

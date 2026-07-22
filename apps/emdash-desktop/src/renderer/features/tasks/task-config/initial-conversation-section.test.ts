@@ -94,7 +94,7 @@ vi.mock('@renderer/lib/stores/use-agents', () => ({
         capabilities: {
           acp: { kind: 'supported' },
           autoApprove: { kind: 'supported' },
-          models: { kind: 'none' },
+          models: { kind: 'selectable', modelOptions: { opus: { name: 'Opus' } } },
         },
       },
     ],

@@ -78,12 +78,16 @@ export function useInitialConversationState(
   const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
+  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
+  const modelOptions = capabilities?.models;
+  const selectableModelOptions =
+    modelOptions?.kind === 'selectable' ? modelOptions.modelOptions : null;
   const {
     autoApprove: autoApprovePreference,
     setAutoApprove: setAutoApprovePreference,
     model,
     setModel,
-  } = useConversationPreferences(providerId, autoApproveByDefault);
+  } = useConversationPreferences(providerId, autoApproveByDefault, selectableModelOptions);
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
   const [useChatUiPreference, setUseChatUiPreference] = useLocalStorage(
@@ -105,7 +109,6 @@ export function useInitialConversationState(
     setIssueMentionContexts({});
   }
 
-  const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const autoApproveSupported = agentSupportsAutoApprove(capabilities);
   const autoApprove = autoApproveSupported && autoApprovePreference;
   const acpSupported = agentSupportsAcp(capabilities);
