@@ -52,22 +52,12 @@ export function MachineConnectionRow({
           <span className="flex items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive"
               size="sm"
               disabled={transitioning}
               onClick={onDisconnect}
             >
               Disconnect
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={transitioning}
-              onClick={onReconnect}
-            >
-              <RefreshCwIcon />
-              Reconnect
             </Button>
           </span>
         ) : (
