@@ -1,5 +1,6 @@
-import { PageLayout, SettingsCard } from '@emdash/ui/react/patterns';
-import { SeparatedList } from '@emdash/ui/react/primitives';
+import { SettingsCard } from '@emdash/ui/react/patterns';
+import { Heading, SeparatedList } from '@emdash/ui/react/primitives';
+import * as React from 'react';
 import NotificationSettingsCard from '../components/NotificationSettingsCard';
 import {
   AutoApproveByDefaultRow,
@@ -14,33 +15,50 @@ import {
 import TelemetryCard from '../components/TelemetryCard';
 import { UpdateCard } from '../components/UpdateCard';
 
+const dragStyle: React.CSSProperties & { WebkitAppRegion: string } = {
+  WebkitAppRegion: 'drag',
+};
+
 export function GeneralSettingsPage() {
   return (
-    <div className="space-y-8 pb-10">
-      <PageLayout.Header
-        sticky
-        title="General"
-        description="Manage your account, privacy settings, notifications, and app updates."
-      />
-      <SettingsCard>
-        <SeparatedList gap="1rem" direction="column">
-          <UpdateCard />
-          <TelemetryCard />
-        </SeparatedList>
-      </SettingsCard>
-      <SettingsCard>
-        <SeparatedList gap="1rem" direction="column">
-          <AutoGenerateTaskNamesRow />
-          <AutoApproveByDefaultRow />
-          <AutoTrustWorktreesRow />
-          <CreateBranchAndWorktreeRow />
-          <DeleteBranchByDefaultRow />
-          <PreserveTaskNameCapitalizationRow />
-          <IncludeIssueContextByDefaultRow />
-          <EnableTmuxRow />
-        </SeparatedList>
-      </SettingsCard>
-      <NotificationSettingsCard />
+    <div className="pb-10">
+      <div className="h-10 w-full" style={dragStyle} aria-hidden="true" />
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <Heading level={2} className="px-4">
+            App
+          </Heading>
+          <SettingsCard>
+            <SeparatedList gap="1rem" direction="column">
+              <UpdateCard />
+              <TelemetryCard />
+            </SeparatedList>
+          </SettingsCard>
+        </div>
+        <div className="space-y-3">
+          <Heading level={2} className="px-4">
+            Notifications
+          </Heading>
+          <NotificationSettingsCard />
+        </div>
+        <div className="space-y-3">
+          <Heading level={2} className="px-4">
+            Preferences
+          </Heading>
+          <SettingsCard>
+            <SeparatedList gap="1rem" direction="column">
+              <AutoGenerateTaskNamesRow />
+              <AutoApproveByDefaultRow />
+              <AutoTrustWorktreesRow />
+              <CreateBranchAndWorktreeRow />
+              <DeleteBranchByDefaultRow />
+              <PreserveTaskNameCapitalizationRow />
+              <IncludeIssueContextByDefaultRow />
+              <EnableTmuxRow />
+            </SeparatedList>
+          </SettingsCard>
+        </div>
+      </div>
     </div>
   );
 }
