@@ -6,6 +6,7 @@ import {
   opencodeMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { enrichOpenCodeUpdate } from './acp-transform';
 import { opencodeAuthStatus } from './auth';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
@@ -88,6 +89,7 @@ export const provider = registerPluginBehavior(plugin, {
     connect: (io, toClient) => {
       return connectStdioAcp(io, toClient);
     },
+    enrich: enrichOpenCodeUpdate,
   },
   prompt: {
     buildCommand: (ctx) =>
