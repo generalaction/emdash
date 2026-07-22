@@ -38,6 +38,11 @@ export {
   type AgentStatusProps,
 } from './agent-status/agent-status';
 export {
+  MachineStatus,
+  type MachineStatusKind,
+  type MachineStatusProps,
+} from './machine-status/machine-status';
+export {
   ScriptStatus,
   type ScriptStatusKind,
   type ScriptStatusProps,

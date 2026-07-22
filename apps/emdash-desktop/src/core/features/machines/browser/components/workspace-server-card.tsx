@@ -1,15 +1,8 @@
-import { Button, DropdownMenu, Surface } from '@emdash/ui/react/primitives';
-import {
-  ArrowUpRightIcon,
-  DownloadIcon,
-  EllipsisIcon,
-  LoaderCircleIcon,
-  PlayIcon,
-  PowerIcon,
-  RefreshCwIcon,
-} from 'lucide-react';
+import { SettingsRow } from '@emdash/ui/react/patterns';
+import { Alert, Button } from '@emdash/ui/react/primitives';
+import { DownloadIcon, LoaderCircleIcon, PlayIcon, RefreshCwIcon } from 'lucide-react';
+import { SplitButton } from '@core/primitives/ui/browser/split-button';
 import type { RemoteMachineServerState } from '@core/services/remote-machine/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
 type WorkspaceServerActions = {
@@ -20,7 +13,7 @@ type WorkspaceServerActions = {
   update(): Promise<void>;
 };
 
-export function WorkspaceServerCard({
+export function WorkspaceRuntimeRow({
   connected,
   loading,
   state,
@@ -31,55 +24,83 @@ export function WorkspaceServerCard({
   state: RemoteMachineServerState | undefined;
   actions: WorkspaceServerActions;
 }) {
+  const updateAvailable =
+    state?.version !== undefined &&
+    state.latestVersion !== undefined &&
+    state.version !== state.latestVersion;
+
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-foreground">Workspace server</h3>
-        {connected && !loading && state && (
-          <WorkspaceServerAction state={state} actions={actions} />
-        )}
-      </div>
-      <Surface emphasis className="bg-surface rounded-md border border-border px-3 py-3">
-        {!connected ? (
-          <p className="text-xs text-foreground-passive">
-            Connect to this machine to inspect its workspace server.
-          </p>
-        ) : loading || !state ? (
-          <div className="flex items-center gap-2 text-xs text-foreground-passive">
-            <LoaderCircleIcon className="size-3.5 animate-spin" />
-            Checking workspace server…
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <WorkspaceServerBadge status={state.status} />
-              {state.version && (
-                <span className="text-xs text-foreground-passive tabular-nums">
-                  v{state.version}
-                </span>
-              )}
-            </div>
-            {state.startedAt !== undefined && state.status === 'healthy' && (
-              <p className="mt-2 text-xs text-foreground-passive">
-                Started {new Date(state.startedAt).toLocaleString()}
-              </p>
-            )}
-            {state.detail && <p className="mt-2 text-xs text-foreground-passive">{state.detail}</p>}
-            {state.error && <p className="text-destructive mt-2 text-xs">{state.error.message}</p>}
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="mt-2 h-auto gap-1 px-0 text-xs"
-              onClick={() => void rpc.app.openExternal('https://docs.emdash.sh')}
-            >
-              Learn More
-              <ArrowUpRightIcon className="size-3" />
+    <div className="flex flex-col gap-3">
+      <SettingsRow
+        label={
+          <span className="flex items-center gap-2">
+            Workspace Runtime
+            {connected && !loading && state && <WorkspaceServerBadge status={state.status} />}
+          </span>
+        }
+        description={
+          <WorkspaceRuntimeDetails connected={connected} loading={loading} state={state} />
+        }
+        control={
+          connected && !loading && state ? (
+            <WorkspaceServerAction state={state} actions={actions} />
+          ) : null
+        }
+      />
+      {state && updateAvailable && (
+        <Alert.Root status="warning" icon={<RefreshCwIcon />}>
+          <Alert.Title>Update Available</Alert.Title>
+          <div className="flex items-center gap-3">
+            <Alert.Description className="min-w-0 flex-1 tabular-nums">
+              v{state.version} → v{state.latestVersion}
+            </Alert.Description>
+            <Button type="button" variant="primary" size="sm" onClick={() => void actions.update()}>
+              Update
             </Button>
-          </>
-        )}
-      </Surface>
-    </section>
+          </div>
+        </Alert.Root>
+      )}
+    </div>
+  );
+}
+
+function WorkspaceRuntimeDetails({
+  connected,
+  loading,
+  state,
+}: {
+  connected: boolean;
+  loading: boolean;
+  state: RemoteMachineServerState | undefined;
+}) {
+  if (!connected) return 'Connect to this machine to inspect its workspace runtime.';
+
+  if (loading || !state) {
+    return (
+      <span className="flex items-center gap-2">
+        <LoaderCircleIcon className="size-3.5 animate-spin" />
+        Checking workspace runtime…
+      </span>
+    );
+  }
+
+  const startedAt =
+    state.startedAt !== undefined && state.status === 'healthy'
+      ? new Date(state.startedAt).toLocaleString()
+      : undefined;
+
+  return (
+    <span className="flex flex-col gap-1">
+      {(state.version || startedAt) && (
+        <span className="flex flex-wrap items-center gap-2">
+          {state.version && <span className="tabular-nums">Runtime v{state.version}</span>}
+          {state.version && startedAt && <span aria-hidden>·</span>}
+          {startedAt && <span>Started {startedAt}</span>}
+        </span>
+      )}
+      {state.detail && <span>{state.detail}</span>}
+      {state.error && <span className="text-destructive">{state.error.message}</span>}
+    </span>
   );
 }
 
@@ -122,43 +143,34 @@ function WorkspaceServerAction({
     );
   }
 
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
+  if (
+    state.status === 'healthy' ||
+    state.status === 'failed' ||
+    state.status === 'booting' ||
+    state.status === 'shutting-down'
+  ) {
+    return (
+      <SplitButton
+        actions={[
+          {
+            value: 'restart',
+            label: 'Restart',
+            action: () => void actions.restart(),
+          },
+          {
+            value: 'shutdown',
+            label: 'Shutdown',
+            action: () => void actions.stop(),
+          },
+        ]}
+        defaultValue="restart"
+        icon={<RefreshCwIcon />}
+        variant="outline"
+        size="sm"
         disabled={transitioning}
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon
-            aria-label="Workspace server actions"
-          />
-        }
-      >
-        <EllipsisIcon />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end">
-        {(state.status === 'healthy' || state.status === 'failed') && (
-          <DropdownMenu.Item onClick={() => void actions.restart()}>
-            <RefreshCwIcon />
-            Restart
-          </DropdownMenu.Item>
-        )}
-        <DropdownMenu.Item onClick={() => void actions.update()}>
-          <DownloadIcon />
-          Update
-        </DropdownMenu.Item>
-        {state.status === 'healthy' && (
-          <>
-            <DropdownMenu.Separator />
-            <DropdownMenu.Item onClick={() => void actions.stop()}>
-              <PowerIcon />
-              Shutdown
-            </DropdownMenu.Item>
-          </>
-        )}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  );
+      />
+    );
+  }
+
+  return null;
 }

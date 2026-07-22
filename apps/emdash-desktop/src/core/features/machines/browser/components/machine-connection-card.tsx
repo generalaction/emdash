@@ -1,58 +1,82 @@
-import { Button, Surface } from '@emdash/ui/react/primitives';
-import { SettingsIcon } from 'lucide-react';
+import { SettingsRow } from '@emdash/ui/react/patterns';
+import { Button } from '@emdash/ui/react/primitives';
+import { PlugIcon, RefreshCwIcon } from 'lucide-react';
 import type { ConnectionState, SshConfig } from '@core/primitives/ssh/api';
 import { authLabel } from './machine-formatters';
 import { MachineBadge } from './MachineBadge';
 
-export function MachineConnectionCard({
+export function MachineConnectionRow({
   machine,
   state,
   onEdit,
   onConnect,
   onDisconnect,
+  onReconnect,
 }: {
   machine: SshConfig;
   state: ConnectionState;
   onEdit: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
+  onReconnect: () => void;
 }) {
   const active = state === 'connected' || state === 'connecting' || state === 'reconnecting';
+  const transitioning = state === 'connecting' || state === 'reconnecting';
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-foreground">SSH Connection</h3>
-        <Button
-          type="button"
-          variant={active ? 'ghost' : 'primary'}
-          size="sm"
-          onClick={() => void (active ? onDisconnect() : onConnect())}
-        >
-          {active ? 'Disconnect' : 'Connect'}
-        </Button>
-      </div>
-      <Surface
-        emphasis
-        className="bg-surface flex items-center gap-3 rounded-md border border-border px-3 py-3"
-      >
-        <MachineBadge state={state} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm text-foreground">
-            {machine.host} | {machine.username} | {authLabel(machine)}
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          icon
-          aria-label="Edit connection settings"
-          onClick={onEdit}
-        >
-          <SettingsIcon />
-        </Button>
-      </Surface>
-    </section>
+    <SettingsRow
+      label={
+        <span className="flex items-center gap-2">
+          SSH Connection
+          <MachineBadge state={state} />
+        </span>
+      }
+      description={
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>
+            {machine.host} · {machine.username} · {authLabel(machine)}
+          </span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto px-0 text-xs"
+            onClick={onEdit}
+          >
+            Edit Connection Settings
+          </Button>
+        </span>
+      }
+      control={
+        active ? (
+          <span className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={transitioning}
+              onClick={onDisconnect}
+            >
+              Disconnect
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={transitioning}
+              onClick={onReconnect}
+            >
+              <RefreshCwIcon />
+              Reconnect
+            </Button>
+          </span>
+        ) : (
+          <Button type="button" variant="primary" size="sm" onClick={onConnect}>
+            <PlugIcon />
+            Connect
+          </Button>
+        )
+      }
+    />
   );
 }

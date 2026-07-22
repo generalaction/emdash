@@ -13,6 +13,7 @@ export const remoteMachineServerStatusSchema = z.enum([
 export const remoteMachineServerStateSchema = z.object({
   status: remoteMachineServerStatusSchema,
   version: z.string().optional(),
+  latestVersion: z.string().optional(),
   startedAt: z.number().optional(),
   detail: z.string().optional(),
   error: z

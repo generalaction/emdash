@@ -1,17 +1,21 @@
-import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
-import { EllipsisIcon, PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
+import { MachineStatus } from '@emdash/ui/react/components';
+import { SettingsCard } from '@emdash/ui/react/patterns';
+import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
+import { EllipsisIcon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
+import { cn } from '@core/primitives/ui/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
-import { MachineConnectionCard } from '../components/machine-connection-card';
-import { MachineResources } from '../components/machine-resources';
+import { MachineConnectionRow } from '../components/machine-connection-card';
+import { ResourceUtilizationRow } from '../components/machine-resources';
+import { deriveMachineStatusKind } from '../components/machine-status-kind';
 import { MachineWorkspacesByProject } from '../components/machine-workspaces-by-project';
-import { WorkspaceServerCard } from '../components/workspace-server-card';
+import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
 import { useMachineWorkspaces } from '../use-machine-workspaces';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
@@ -34,6 +38,11 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     machineId: machine?.id,
     enabled: !!machine,
     connected,
+  });
+  const machineStatus = deriveMachineStatusKind({
+    connectionState: state,
+    workspaceServerStatus: workspaceServer.state?.status,
+    workspaceServerLoading: workspaceServer.loading,
   });
   const serverHealthy = workspaceServer.state?.status === 'healthy';
   const metrics = useMachineMetrics(machine?.id, serverHealthy);
@@ -91,6 +100,19 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     } catch (error) {
       toast({
         title: 'Failed to disconnect from machine',
+        description: String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const reconnectMachine = async () => {
+    try {
+      await machinesStore.disconnect(machine.id);
+      await machinesStore.connect(machine.id);
+    } catch (error) {
+      toast({
+        title: 'Failed to reconnect to machine',
         description: String(error),
         variant: 'destructive',
       });
@@ -161,17 +183,17 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
             }}
           />
         ) : (
-          <>
-            <ServerIcon className="size-5 shrink-0 text-foreground-muted" />
-            <span className="min-w-0 flex-1 truncate text-lg font-medium text-foreground">
+          <div className="flex items-center gap-2">
+            <MachineStatus size="2rem" status={machineStatus} />
+            <Heading level={1} tone="default">
               {machine.name}
-            </span>
-          </>
+            </Heading>
+          </div>
         )}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger
             render={
-              <Button type="button" variant="ghost" size="sm" icon aria-label="Machine actions" />
+              <Button type="button" variant="secondary" size="sm" icon aria-label="Machine actions" className="ml-auto" />
             }
           >
             <EllipsisIcon />
@@ -194,34 +216,42 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         </DropdownMenu.Root>
       </div>
 
-      <MachineConnectionCard
-        machine={machine}
-        state={state}
-        onEdit={editConnectionSettings}
-        onConnect={connectMachine}
-        onDisconnect={disconnectMachine}
-      />
-
-      <WorkspaceServerCard
-        connected={connected}
-        loading={workspaceServer.loading}
-        state={workspaceServer.state}
-        actions={workspaceServer}
-      />
-
-      {serverHealthy ? (
-        <>
-          <MachineResources metrics={metrics} />
-          <MachineWorkspacesByProject
-            groups={workspaces.data ?? []}
-            loading={workspaces.isLoading}
-            error={workspaces.isError}
+      <SettingsCard>
+        <SeparatedList gap="1rem" direction="column">
+          <MachineConnectionRow
+            machine={machine}
+            state={state}
+            onEdit={editConnectionSettings}
+            onConnect={connectMachine}
+            onDisconnect={disconnectMachine}
+            onReconnect={reconnectMachine}
           />
-        </>
-      ) : (
-        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-xs text-foreground-passive">
-          Workspace server not connected
-        </p>
+          <div
+            aria-disabled={!connected}
+            className={cn(!connected && 'pointer-events-none opacity-33')}
+          >
+            <WorkspaceRuntimeRow
+              connected={connected}
+              loading={workspaceServer.loading}
+              state={workspaceServer.state}
+              actions={workspaceServer}
+            />
+          </div>
+          <div
+            aria-disabled={!connected}
+            className={cn(!connected && 'pointer-events-none opacity-33')}
+          >
+            <ResourceUtilizationRow metrics={metrics} />
+          </div>
+        </SeparatedList>
+      </SettingsCard>
+
+      {serverHealthy && (
+        <MachineWorkspacesByProject
+          groups={workspaces.data ?? []}
+          loading={workspaces.isLoading}
+          error={workspaces.isError}
+        />
       )}
     </div>
   );
