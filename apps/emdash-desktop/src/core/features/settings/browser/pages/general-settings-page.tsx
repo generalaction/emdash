@@ -1,4 +1,5 @@
-import { PageLayout } from '@emdash/ui/react/patterns';
+import { PageLayout, SettingsCard } from '@emdash/ui/react/patterns';
+import { SeparatedList } from '@emdash/ui/react/primitives';
 import NotificationSettingsCard from '../components/NotificationSettingsCard';
 import {
   AutoApproveByDefaultRow,
@@ -21,16 +22,24 @@ export function GeneralSettingsPage() {
         title="General"
         description="Manage your account, privacy settings, notifications, and app updates."
       />
-      <UpdateCard />
-      <TelemetryCard />
-      <AutoGenerateTaskNamesRow />
-      <AutoApproveByDefaultRow />
-      <AutoTrustWorktreesRow />
-      <CreateBranchAndWorktreeRow />
-      <DeleteBranchByDefaultRow />
-      <PreserveTaskNameCapitalizationRow />
-      <IncludeIssueContextByDefaultRow />
-      <EnableTmuxRow />
+      <SettingsCard>
+        <SeparatedList gap="1rem" direction="column">
+          <UpdateCard />
+          <TelemetryCard />
+        </SeparatedList>
+      </SettingsCard>
+      <SettingsCard>
+        <SeparatedList gap="1rem" direction="column">
+          <AutoGenerateTaskNamesRow />
+          <AutoApproveByDefaultRow />
+          <AutoTrustWorktreesRow />
+          <CreateBranchAndWorktreeRow />
+          <DeleteBranchByDefaultRow />
+          <PreserveTaskNameCapitalizationRow />
+          <IncludeIssueContextByDefaultRow />
+          <EnableTmuxRow />
+        </SeparatedList>
+      </SettingsCard>
       <NotificationSettingsCard />
     </div>
   );

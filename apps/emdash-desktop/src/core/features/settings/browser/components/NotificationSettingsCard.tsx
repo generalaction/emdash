@@ -1,3 +1,5 @@
+import { SettingsCard } from '@emdash/ui/react/patterns';
+import { SeparatedList } from '@emdash/ui/react/primitives';
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -101,145 +103,153 @@ const NotificationSettingsCard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <SettingRow
-        title="Notifications"
-        description="Get notified when agents need your attention."
-        control={
-          <>
-            <ResetToDefaultButton
-              visible={isFieldOverridden('enabled')}
-              defaultLabel="on"
-              onReset={() => resetField('enabled')}
-              disabled={loading}
-            />
-            <Switch
-              checked={notifications?.enabled ?? true}
-              disabled={loading}
-              onCheckedChange={(next) => updateNotifications({ enabled: next })}
-            />
-          </>
-        }
-      />
-      <div
-        className={cn(
-          'flex flex-col gap-3',
-          !notifications?.enabled && 'pointer-events-none opacity-33'
-        )}
-      >
+    <SettingsCard>
+      <SeparatedList gap="0.75rem" direction="column">
         <SettingRow
-          title="Sound"
-          description="Play audio cues for agent events."
+          title="Notifications"
+          description="Get notified when agents need your attention."
           control={
             <>
               <ResetToDefaultButton
-                visible={isFieldOverridden('sound')}
+                visible={isFieldOverridden('enabled')}
                 defaultLabel="on"
-                onReset={() => resetNotificationField('sound', true)}
+                onReset={() => resetField('enabled')}
                 disabled={loading}
               />
-              {!customSoundPath && <PreviewSoundButton path="" disabled={loading} />}
               <Switch
-                checked={notifications?.sound ?? true}
+                checked={notifications?.enabled ?? true}
                 disabled={loading}
-                onCheckedChange={(next) => updateNotifications({ sound: next })}
+                onCheckedChange={(next) => updateNotifications({ enabled: next })}
               />
             </>
           }
         />
+        <div
+          className={cn(
+            'flex flex-col gap-3',
+            !notifications?.enabled && 'pointer-events-none opacity-33'
+          )}
+        >
+          <SeparatedList gap="0.75rem" direction="column">
+            <SettingRow
+              title="Sound"
+              description="Play audio cues for agent events."
+              control={
+                <>
+                  <ResetToDefaultButton
+                    visible={isFieldOverridden('sound')}
+                    defaultLabel="on"
+                    onReset={() => resetNotificationField('sound', true)}
+                    disabled={loading}
+                  />
+                  {!customSoundPath && <PreviewSoundButton path="" disabled={loading} />}
+                  <Switch
+                    checked={notifications?.sound ?? true}
+                    disabled={loading}
+                    onCheckedChange={(next) => updateNotifications({ sound: next })}
+                  />
+                </>
+              }
+            />
 
-        <SettingRow
-          title="Custom sound"
-          description="Use an audio file instead of the built-in cue."
-          control={
-            <>
-              <ResetToDefaultButton
-                visible={isFieldOverridden('customSoundPath')}
-                defaultLabel="built-in"
-                onReset={() => resetNotificationField('customSoundPath', '')}
-                disabled={loading}
-              />
-              {customSoundPath && <PreviewSoundButton path={customSoundPath} disabled={loading} />}
-              <TooltipProvider delay={150}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="text-muted-foreground max-w-56 bg-transparent font-normal"
-                        disabled={loading}
-                        onClick={chooseCustomSound}
-                        aria-label={customSoundPath ? 'Change custom sound' : 'Choose custom sound'}
-                      >
-                        <FolderOpen className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                          {customSoundPath ? getFileName(customSoundPath) : 'Choose file…'}
-                        </span>
-                      </Button>
-                    }
+            <SettingRow
+              title="Custom sound"
+              description="Use an audio file instead of the built-in cue."
+              control={
+                <>
+                  <ResetToDefaultButton
+                    visible={isFieldOverridden('customSoundPath')}
+                    defaultLabel="built-in"
+                    onReset={() => resetNotificationField('customSoundPath', '')}
+                    disabled={loading}
                   />
                   {customSoundPath && (
-                    <TooltipContent side="top" className="break-all">
-                      {customSoundPath}
-                    </TooltipContent>
+                    <PreviewSoundButton path={customSoundPath} disabled={loading} />
                   )}
-                </Tooltip>
-              </TooltipProvider>
-            </>
-          }
-        />
+                  <TooltipProvider delay={150}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="text-muted-foreground max-w-56 bg-transparent font-normal"
+                            disabled={loading}
+                            onClick={chooseCustomSound}
+                            aria-label={
+                              customSoundPath ? 'Change custom sound' : 'Choose custom sound'
+                            }
+                          >
+                            <FolderOpen className="size-3.5 shrink-0" />
+                            <span className="truncate">
+                              {customSoundPath ? getFileName(customSoundPath) : 'Choose file…'}
+                            </span>
+                          </Button>
+                        }
+                      />
+                      {customSoundPath && (
+                        <TooltipContent side="top" className="break-all">
+                          {customSoundPath}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </>
+              }
+            />
 
-        <SettingRow
-          title="Sound timing"
-          description="When to play sounds."
-          control={
-            <>
-              <ResetToDefaultButton
-                visible={isFieldOverridden('soundFocusMode')}
-                defaultLabel="always"
-                onReset={() => resetNotificationField('soundFocusMode', 'always')}
-                disabled={loading}
-              />
-              <Select
-                value={notifications?.soundFocusMode ?? 'always'}
-                onValueChange={(next) =>
-                  updateNotifications({ soundFocusMode: next as 'always' | 'unfocused' })
-                }
-              >
-                <SelectTrigger className="w-auto shrink-0 gap-2 capitalize [&>span]:line-clamp-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="min-w-max">
-                  <SelectItem value="always">Always</SelectItem>
-                  <SelectItem value="unfocused">Only when unfocused</SelectItem>
-                </SelectContent>
-              </Select>
-            </>
-          }
-        />
+            <SettingRow
+              title="Sound timing"
+              description="When to play sounds."
+              control={
+                <>
+                  <ResetToDefaultButton
+                    visible={isFieldOverridden('soundFocusMode')}
+                    defaultLabel="always"
+                    onReset={() => resetNotificationField('soundFocusMode', 'always')}
+                    disabled={loading}
+                  />
+                  <Select
+                    value={notifications?.soundFocusMode ?? 'always'}
+                    onValueChange={(next) =>
+                      updateNotifications({ soundFocusMode: next as 'always' | 'unfocused' })
+                    }
+                  >
+                    <SelectTrigger className="w-auto shrink-0 gap-2 capitalize [&>span]:line-clamp-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="min-w-max">
+                      <SelectItem value="always">Always</SelectItem>
+                      <SelectItem value="unfocused">Only when unfocused</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              }
+            />
 
-        <SettingRow
-          title="OS notifications"
-          description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
-          control={
-            <>
-              <ResetToDefaultButton
-                visible={isFieldOverridden('osNotifications')}
-                defaultLabel="on"
-                onReset={() => resetNotificationField('osNotifications', true)}
-                disabled={loading}
-              />
-              <Switch
-                checked={notifications?.osNotifications ?? true}
-                disabled={loading}
-                onCheckedChange={(next) => updateNotifications({ osNotifications: next })}
-              />
-            </>
-          }
-        />
-      </div>
-    </div>
+            <SettingRow
+              title="OS notifications"
+              description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
+              control={
+                <>
+                  <ResetToDefaultButton
+                    visible={isFieldOverridden('osNotifications')}
+                    defaultLabel="on"
+                    onReset={() => resetNotificationField('osNotifications', true)}
+                    disabled={loading}
+                  />
+                  <Switch
+                    checked={notifications?.osNotifications ?? true}
+                    disabled={loading}
+                    onCheckedChange={(next) => updateNotifications({ osNotifications: next })}
+                  />
+                </>
+              }
+            />
+          </SeparatedList>
+        </div>
+      </SeparatedList>
+    </SettingsCard>
   );
 };
 

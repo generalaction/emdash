@@ -147,7 +147,7 @@ export const card = recipe({
       none: { padding: 0 },
       sm: { padding: '0.5rem' },
       md: { padding: '0.75rem' },
-      lg: { padding: '1rem' },
+      lg: { padding: '1.25rem' },
     },
 
     interactive: {
