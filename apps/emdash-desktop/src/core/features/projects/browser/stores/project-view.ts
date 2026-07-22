@@ -1,5 +1,8 @@
 import { makeAutoObservable } from 'mobx';
-import type { ProjectViewState } from '@core/features/projects/contributions/mementos';
+import type {
+  ProjectTaskSortBy,
+  ProjectViewState,
+} from '@core/features/projects/contributions/mementos';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 
@@ -46,8 +49,16 @@ class TaskViewStore {
     return this.handle.value.taskViewTab;
   }
 
+  get sortBy(): ProjectTaskSortBy {
+    return this.handle.value.taskSortBy ?? 'updated-at';
+  }
+
   setTab(tab: 'active' | 'archived') {
     this.handle.update((current) => ({ ...current, taskViewTab: tab }));
+  }
+
+  setSortBy(sortBy: ProjectTaskSortBy) {
+    this.handle.update((current) => ({ ...current, taskSortBy: sortBy }));
   }
 
   setSearchQuery(query: string) {

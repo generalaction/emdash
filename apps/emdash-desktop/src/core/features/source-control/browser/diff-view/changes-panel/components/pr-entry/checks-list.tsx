@@ -6,6 +6,7 @@ import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   computeCheckBucket,
   formatCheckDuration,
+  sortCheckRunsByLatest,
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
@@ -16,14 +17,6 @@ import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
 
 const EMPTY_COMMENTS: PullRequestComment[] = [];
-
-const bucketOrder: Record<CheckRunBucket, number> = {
-  fail: 0,
-  pending: 1,
-  pass: 2,
-  skipping: 3,
-  cancel: 4,
-};
 
 export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
@@ -85,13 +78,7 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
 }
 
 export function ChecksList({ checks }: { checks: CheckRun[] }) {
-  const sorted = useMemo(
-    () =>
-      [...checks].sort(
-        (a, b) => bucketOrder[computeCheckBucket(a)] - bucketOrder[computeCheckBucket(b)]
-      ),
-    [checks]
-  );
+  const sorted = useMemo(() => sortCheckRunsByLatest(checks), [checks]);
 
   if (sorted.length === 0) {
     return <div className="px-3 py-2 text-xs text-foreground-passive">No checks available</div>;

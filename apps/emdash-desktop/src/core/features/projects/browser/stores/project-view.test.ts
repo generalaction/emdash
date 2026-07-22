@@ -24,13 +24,21 @@ describe('ProjectViewStore memento state', () => {
 
     store.setProjectView('settings');
     store.taskView.setTab('archived');
+    store.taskView.setSortBy('unread');
     store.setSelectedIssueProvider('github');
 
     expect(handle.value).toMatchObject({
       activeView: 'settings',
       taskViewTab: 'archived',
+      taskSortBy: 'unread',
       selectedIssueProvider: 'github',
     });
+  });
+
+  it('uses last-used ordering when no persisted sort exists', () => {
+    const store = new ProjectViewStore(createHandle());
+
+    expect(store.taskView.sortBy).toBe('updated-at');
   });
 });
 

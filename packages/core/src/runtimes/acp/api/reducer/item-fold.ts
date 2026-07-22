@@ -71,6 +71,10 @@ function isSearchKind(toolKind: string | null | undefined): boolean {
   return toolKind === 'search' || toolKind === 'grep';
 }
 
+function searchQueryFromTitle(title: string): string {
+  return title.replace(/^search\s+/i, '');
+}
+
 function isReadKind(toolKind: string | null | undefined, title?: string | null): boolean {
   return toolKind === 'read' || toolKind === 'read_file' || title?.startsWith('Read ') === true;
 }
@@ -178,7 +182,7 @@ export function createToolCallItem(params: {
     return { kind: 'spawn-subagent-tool-call', ...base, name: title };
   }
   if (isSearchKind(toolKind)) {
-    return { kind: 'search-tool-call', ...base, query: title };
+    return { kind: 'search-tool-call', ...base, query: searchQueryFromTitle(title) };
   }
   if (isMcpToolKind(toolKind)) {
     return { kind: 'mcp-tool-call', ...base, tool: title };
@@ -239,7 +243,10 @@ function updateToolCallItem(
     case 'delete-file-tool-call':
       return common;
     case 'search-tool-call':
-      return { ...common, ...(title !== null ? { query: nextTitle } : {}) };
+      return {
+        ...common,
+        ...(title !== null ? { query: searchQueryFromTitle(nextTitle) } : {}),
+      };
     case 'mcp-tool-call':
       return { ...common, ...(title !== null ? { tool: nextTitle } : {}) };
     case 'web-fetch-tool-call':

@@ -80,6 +80,21 @@ describe('createAcpConnectionSource', () => {
     expect(host.allHandles).toHaveLength(2);
   });
 
+  it('forwards provider environment settings to spawn resolution', async () => {
+    const host = new FakeAcpProcessHost();
+    const deps = sourceDeps(host);
+    const buildAcpSpawn = vi.spyOn(deps.agentHost, 'buildAcpSpawn');
+    const source = createAcpConnectionSource(deps);
+    const env = { PROVIDER_API_URL: 'https://provider.example.test' };
+
+    await acquireResourceAsResult(source, { ...connectionKey(), env }, isAcpConnectionError);
+
+    expect(buildAcpSpawn).toHaveBeenCalledWith('claude', {
+      cwd: '/tmp/workspace',
+      env,
+    });
+  });
+
   it('forwards process close and invalidates closed entries', async () => {
     const agent = new FakeAcpAgent();
     const host = new FakeAcpProcessHost();

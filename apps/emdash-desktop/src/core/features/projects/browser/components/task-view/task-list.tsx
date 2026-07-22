@@ -2,7 +2,9 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
+import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import { getProjectViewStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import type { ProjectTaskSortBy } from '@core/features/projects/contributions/mementos';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-selected-tasks';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
@@ -13,13 +15,64 @@ import { cn } from '@core/primitives/ui/browser/cn';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@core/primitives/ui/browser/select';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
+import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
+
+const SORT_OPTIONS: { value: ProjectTaskSortBy; label: string }[] = [
+  { value: 'updated-at', label: 'Last used' },
+  { value: 'created-at', label: 'Created at' },
+  { value: 'pr-status', label: 'PR status' },
+  { value: 'unread', label: 'Unread first' },
+];
+
+function latestInstant(task: ReadyTask) {
+  return task.data.lastInteractedAt ?? task.data.updatedAt;
+}
+
+function prStatusRank(task: ReadyTask) {
+  const pr = selectCurrentPr(task.data.prs);
+  if (!pr) return 4;
+  if (pr.status === 'merged') return 0;
+  if (pr.status === 'open' && !pr.isDraft) return 1;
+  if (pr.status === 'closed') return 2;
+  return 3;
+}
+
+function isUnread(task: ReadyTask) {
+  const status = taskAgentStatus(task);
+  return status === 'awaiting-input' || status === 'error' || status === 'completed';
+}
+
+function sortTasks(tasks: ReadyTask[], sortBy: ProjectTaskSortBy) {
+  return [...tasks].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'created-at') {
+      comparison = b.data.createdAt.localeCompare(a.data.createdAt);
+    } else if (sortBy === 'pr-status') {
+      comparison = prStatusRank(a) - prStatusRank(b);
+    } else if (sortBy === 'unread') {
+      comparison = Number(isUnread(b)) - Number(isUnread(a));
+    }
+
+    if (comparison !== 0) return comparison;
+
+    const latestComparison = latestInstant(b).localeCompare(latestInstant(a));
+    return latestComparison || a.data.id.localeCompare(b.data.id);
+  });
+}
 
 function TaskVirtualList({
   tasks,
@@ -179,7 +232,10 @@ export const TaskList = observer(function TaskList() {
 
   if (!taskView) return null;
 
-  const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
+  const displayTasks = sortTasks(
+    taskView.tab === 'active' ? activeTasks : archivedTasks,
+    taskView.sortBy
+  );
   const q = taskView.searchQuery.trim().toLowerCase();
   const filteredTasks = q
     ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
@@ -216,6 +272,29 @@ export const TaskList = observer(function TaskList() {
                 Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
               </Button>
             </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-foreground-passive">Sort</span>
+            <Select
+              value={taskView.sortBy}
+              onValueChange={(value) => taskView.setSortBy(value as ProjectTaskSortBy)}
+            >
+              <SelectTrigger
+                size="sm"
+                className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
+              >
+                <SelectValue>
+                  {SORT_OPTIONS.find(({ value }) => value === taskView.sortBy)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                {SORT_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

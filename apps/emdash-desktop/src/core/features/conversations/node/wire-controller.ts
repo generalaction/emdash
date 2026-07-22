@@ -57,6 +57,7 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   workspaceIdentity: WorkspaceIdentityResolver;
   resolveTarget?: (conversationId: string) => Promise<ConversationRuntimeTarget>;
   hooks?: ConversationRuntimeHooks;
+  getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>;
   logger: Logger;
   projects: Pick<ProjectSessionManager, 'getProject'>;
   telemetry: TelemetryService;
@@ -70,7 +71,12 @@ export function createConversationsWireController(
   const resolveTarget =
     options.resolveTarget ??
     ((conversationId) =>
-      resolveConversationRuntimeTarget(conversationId, options.workspaceIdentity, options.db));
+      resolveConversationRuntimeTarget(
+        conversationId,
+        options.workspaceIdentity,
+        options.db,
+        options.getProviderEnv
+      ));
   const hooks = options.hooks ?? createDefaultRuntimeHooks(options);
   const conversationOperations = createConversationOperations({
     db: options.db,
@@ -349,7 +355,8 @@ function createDefaultRuntimeHooks(
 async function resolveConversationRuntimeTarget(
   conversationId: string,
   workspaceIdentity: WorkspaceIdentityResolver,
-  db: AppDb
+  db: AppDb,
+  getProviderEnv?: (providerId: string) => Promise<Record<string, string> | undefined>
 ): Promise<ConversationRuntimeTarget> {
   const [row] = await db
     .select({
@@ -381,6 +388,10 @@ async function resolveConversationRuntimeTarget(
           : undefined
       : undefined;
   const workspacePath = identity?.path;
+  // Provider process env originates solely from trusted main-process settings.
+  // The renderer only supplies a conversation id and cannot inject spawn variables.
+  const providerEnv =
+    row.providerId && getProviderEnv ? await getProviderEnv(row.providerId) : undefined;
   const acpInput =
     row.type === 'acp' && workspacePath && row.providerId
       ? {
@@ -391,6 +402,7 @@ async function resolveConversationRuntimeTarget(
           model: acpConfig?.model ?? null,
           modeId: acpConfig?.modeId ?? null,
           ...(initialQueue && { initialQueue }),
+          ...(providerEnv && { env: providerEnv }),
         }
       : undefined;
 

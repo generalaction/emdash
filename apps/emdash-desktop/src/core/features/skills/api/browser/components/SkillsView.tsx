@@ -126,7 +126,7 @@ export const SkillsView: React.FC = () => {
           </CardGridSection>
         )}
         {(isSearchingSkillSh || skillShSearchSkills.length > 0) && (
-          <CardGridSection title={isSearchingSkillSh ? 'Searching Skills.SH...' : 'Skills.SH'}>
+          <CardGridSection title={isSearchingSkillSh ? 'Searching Skills.sh...' : 'Skills.sh'}>
             {skillShSearchSkills.map((skill) => (
               <SkillCard
                 key={skill.id}

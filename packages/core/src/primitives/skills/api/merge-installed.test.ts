@@ -15,7 +15,7 @@ describe('mergeSkillsInstalledState', () => {
     });
   });
 
-  it('matches Skills.SH catalog entries by pre-computed installId', () => {
+  it('matches Skills.sh catalog entries by pre-computed installId', () => {
     // The main-process catalog service pre-computes installId before sending to the renderer.
     const installId = 'skillssh-owner-repo-skills-react-ab12cd34';
     const merged = mergeSkillsInstalledState(

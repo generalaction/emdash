@@ -16,6 +16,8 @@ export interface PageNavItem {
   icon?: IconName;
   /** When true an external-link icon is shown and the active state is suppressed. */
   isExternal?: boolean;
+  /** Optional compact value displayed at the trailing edge. */
+  badge?: string;
 }
 
 export interface PageNavDivider {
@@ -39,6 +41,8 @@ export interface PageSidebarMenuProps {
    */
   draggable?: boolean;
   className?: string;
+  header?: React.ReactNode;
+  emptyMessage?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -68,6 +72,8 @@ function PageSidebarMenu({
   onSelect,
   draggable = false,
   className,
+  header,
+  emptyMessage,
 }: PageSidebarMenuProps) {
   // Inline style type-cast for Electron drag region so vanilla-extract is not
   // involved (no CSS file needed for this runtime-conditional style).
@@ -75,13 +81,17 @@ function PageSidebarMenu({
 
   return (
     <div className={cx(styles.wrapper, className)} style={wrapperStyle}>
+      {header && <div className={styles.header}>{header}</div>}
       <nav className={styles.nav}>
+        {items.length === 0 && emptyMessage && (
+          <div className={styles.emptyMessage}>{emptyMessage}</div>
+        )}
         {items.map((item, index) => {
           if (isDivider(item)) {
             return <NavDivider key={`divider-${index}`} label={item.label} />;
           }
 
-          const { id, label, icon, isExternal } = item;
+          const { id, label, icon, isExternal, badge } = item;
           const isActive = id === activeId && !isExternal;
           return (
             <button
@@ -92,6 +102,7 @@ function PageSidebarMenu({
             >
               {icon && <Icon name={icon} size="sm" className={styles.navItemIcon} />}
               <span className={styles.navItemLabel}>{label}</span>
+              {badge && <span className={styles.badge}>{badge}</span>}
               {isExternal && (
                 <Icon name="external-link" size="xs" className={styles.externalIcon} />
               )}

@@ -46,6 +46,7 @@ export interface CreateAcpConnectionSourceDeps {
 export interface AcpConnectionKey {
   providerId: string;
   cwd: string;
+  env?: Record<string, string>;
 }
 
 export type AcpConnectionSource = ResourceCache<AcpConnectionKey, PooledAcpProcess>;
@@ -95,7 +96,10 @@ async function provisionAcpConnection(
   }
 
   const routeKey = makeAcpConnectionKey(key.providerId, key.cwd);
-  const spawn = await deps.agentHost.buildAcpSpawn(key.providerId, { cwd: key.cwd });
+  const spawn = await deps.agentHost.buildAcpSpawn(key.providerId, {
+    cwd: key.cwd,
+    env: key.env,
+  });
   if (!spawn.success) {
     throw acpErr.spawnFailed(toSerializedError(new Error(agentHostErrorMessage(spawn.error))))
       .error;

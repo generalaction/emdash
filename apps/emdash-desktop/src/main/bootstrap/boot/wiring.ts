@@ -22,6 +22,7 @@ import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-pro
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { browserOperations } from '@main/host/browser/controller';
 import { updateOperations } from '@main/host/updates/controller-operations';
+import { applyNativeTheme } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DatabaseBundle } from './phases/database';
@@ -124,6 +125,7 @@ export function createDesktopWireOptions(
     settingsRuntime: {
       setKeyboardSettings: (settings) => browserWebContentsRegistry.setKeyboardSettings(settings),
       setBrowserSettings: setBrowserCorsRelaxationSettings,
+      setTheme: applyNativeTheme,
     },
     telemetry: telemetryService,
     taskService,

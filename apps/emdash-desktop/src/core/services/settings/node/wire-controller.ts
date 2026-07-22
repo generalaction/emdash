@@ -5,6 +5,7 @@ import type { AppSettingsService } from './app-settings-service';
 export type SettingsRuntimePort = {
   setKeyboardSettings(settings: AppSettings['keyboard']): void;
   setBrowserSettings(settings: AppSettings['browser']): void;
+  setTheme(theme: AppSettings['theme']): void;
 };
 
 async function reconcileSettingsRuntimeState(
@@ -12,6 +13,9 @@ async function reconcileSettingsRuntimeState(
   runtime: SettingsRuntimePort,
   key: AppSettingsKey
 ): Promise<void> {
+  if (key === 'theme') {
+    runtime.setTheme(await service.get('theme'));
+  }
   if (key === 'keyboard') {
     runtime.setKeyboardSettings(await service.get('keyboard'));
   }

@@ -59,6 +59,16 @@ export function computeCheckRunsSummary(checks: CheckRun[]): CheckRunsSummary {
   return summary;
 }
 
+export function sortCheckRunsByLatest(checks: CheckRun[]): CheckRun[] {
+  return [...checks].sort((a, b) => {
+    const aTimestamp = Date.parse(a.startedAt ?? a.completedAt ?? '');
+    const bTimestamp = Date.parse(b.startedAt ?? b.completedAt ?? '');
+    const aTime = Number.isNaN(aTimestamp) ? Number.NEGATIVE_INFINITY : aTimestamp;
+    const bTime = Number.isNaN(bTimestamp) ? Number.NEGATIVE_INFINITY : bTimestamp;
+    return bTime - aTime;
+  });
+}
+
 export function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';

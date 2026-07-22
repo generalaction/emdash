@@ -141,6 +141,41 @@ describe('AgentPluginHost', () => {
     });
   });
 
+  it('builds ACP spawn with allowlisted env merged under caller env', async () => {
+    const buildSpawn = vi.fn(({ cwd, cli }: { cwd: string; cli: string }) => ({
+      command: cli,
+      args: [],
+      cwd,
+      env: { SPAWN_ENV: 'base', ANTHROPIC_API_KEY: 'plugin-default' },
+    }));
+    const host = createHost([
+      plugin({
+        acp: { kind: 'supported' },
+        behavior: { acp: { buildSpawn } as unknown as IAcpBehavior },
+      }),
+    ]);
+
+    const result = await host.buildAcpSpawn('test', {
+      cwd: '/work',
+      env: { ANTHROPIC_API_KEY: 'user-key', ANTHROPIC_BASE_URL: 'https://proxy' },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        cwd: '/work',
+        env: expect.objectContaining({
+          HOME: '/home/test',
+          PATH: '/bin',
+          SPAWN_ENV: 'base',
+          ANTHROPIC_BASE_URL: 'https://proxy',
+          // caller (user settings) env wins over allowlist and plugin defaults
+          ANTHROPIC_API_KEY: 'user-key',
+        }),
+      },
+    });
+  });
+
   it('binds machine dependencies for auth status checks', async () => {
     const checkStatus = vi.fn(async () => ({ kind: 'authenticated' as const, account: 'ada' }));
     const host = createHost([

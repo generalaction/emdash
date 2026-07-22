@@ -16,12 +16,24 @@ export const wrapper = style({
   paddingBottom: '2.5rem',
 });
 
+export const header = style({
+  width: '13rem',
+  marginBottom: '0.75rem',
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
+
 export const nav = style({
   display: 'flex',
   width: '13rem',
   flexDirection: 'column',
   gap: '0.125rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
+
+export const emptyMessage = style({
+  padding: '0.5rem 0.75rem',
+  fontSize: tokenVars.textSm,
+  color: vars.foregroundPassive,
 });
 
 // ── Nav item button recipe ────────────────────────────────────────────────────
@@ -85,6 +97,13 @@ export const navItemLabel = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+});
+
+export const badge = style({
+  marginLeft: 'auto',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundPassive,
+  fontVariantNumeric: 'tabular-nums',
 });
 
 export const externalIcon = style({

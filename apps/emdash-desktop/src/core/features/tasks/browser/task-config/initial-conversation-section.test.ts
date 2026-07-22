@@ -229,6 +229,20 @@ describe('useInitialConversationState', () => {
     expect(latestState?.prompt).toBe('Keep this automation prompt');
   });
 
+  it('persists the auto-approve preference', async () => {
+    await renderProbe('project-1');
+
+    await act(async () => {
+      latestState?.setAutoApprove(true);
+    });
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await renderProbe('project-2');
+
+    expect(latestState?.autoApprove).toBe(true);
+  });
+
   it('defaults chat UI off when the provider supports ACP', async () => {
     await renderProbe('project-1');
 

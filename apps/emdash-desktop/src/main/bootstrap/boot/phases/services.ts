@@ -123,7 +123,7 @@ import { browserWebContentsRegistry } from '@main/host/browser/browser-webconten
 import { createSystemNotificationSink } from '@main/host/notifications/system-notification-sink';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { installUpdateNotifications } from '@main/host/updates/update-notifications';
-import { isAppFocused } from '@main/host/window';
+import { applyNativeTheme, isAppFocused } from '@main/host/window';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { appScope } from '../../core/app-scope';
@@ -469,6 +469,7 @@ export async function bootServices(
     emitHostEvent: (event) => desktopHostEvents.emit(undefined, event),
   });
   await appSettingsService.initialize();
+  applyNativeTheme(await appSettingsService.get('theme'));
   await automationsService.initialize();
   await notificationService.initialize();
   installUpdateNotifications(notificationService);

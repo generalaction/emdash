@@ -29,6 +29,11 @@ export function StickyDiffEditor({
   const modifiedUriRef = useRef(modifiedUri);
   modifiedUriRef.current = modifiedUri;
 
+  // URI pair of the models currently attached to the editor. The unmount save
+  // must key by this, not the URI props: the props can already point at a new
+  // diff whose models never attached.
+  const attachedUrisRef = useRef<{ original: string; modified: string } | null>(null);
+
   // Observable box so the autorun can react to the editor arriving after async mount.
   const editorBox = useRef(
     observable.box<monaco.editor.IStandaloneDiffEditor | null>(null)
@@ -75,6 +80,12 @@ export function StickyDiffEditor({
     return () => {
       onEditorChangeRef.current?.(null);
       heightDisposable.dispose();
+      // Save the viewport before disposal. The URI effect's cleanup can't cover
+      // unmount: it runs after this one, when editorBox is already null.
+      const attached = attachedUrisRef.current;
+      if (attached) {
+        modelRegistry.saveDiffViewState(attached.original, attached.modified, editor);
+      }
       runInAction(() => editorBox.set(null));
       editor.dispose();
     };
@@ -107,6 +118,7 @@ export function StickyDiffEditor({
       const prev = current.getModel();
       if (prev) {
         current.setModel(null);
+        attachedUrisRef.current = null;
         if (prev.original.uri.scheme === 'inmemory') prev.original.dispose();
         if (prev.modified.uri.scheme === 'inmemory') prev.modified.dispose();
       }
@@ -135,6 +147,7 @@ export function StickyDiffEditor({
       }
 
       editor.setModel({ original: origModel, modified: modModel });
+      attachedUrisRef.current = { original: originalUri, modified: modifiedUri };
       editor.layout();
       // Restore scroll/cursor for the incoming URI pair.
       modelRegistry.restoreDiffViewState(originalUri, modifiedUri, editor);

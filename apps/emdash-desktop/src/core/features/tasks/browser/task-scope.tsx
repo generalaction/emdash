@@ -32,6 +32,7 @@ import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-s
 import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { toggleTaskSidebarTab } from './toggle-task-sidebar';
 
 type TaskScopeParams = { readonly projectId: string; readonly taskId: string };
 
@@ -86,24 +87,21 @@ const taskScopeImplementation = {
     availability: () => taskAvailability(params),
     execute: () => {
       const taskView = getTaskComposition(params.projectId, params.taskId);
-      taskView?.setSidebarTab('changes');
-      taskView?.setSidebarCollapsed(false);
+      if (taskView) toggleTaskSidebarTab(taskView, 'changes');
     },
   }),
   'task.sidebarConversations': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
       const taskView = getTaskComposition(params.projectId, params.taskId);
-      taskView?.setSidebarTab('conversations');
-      taskView?.setSidebarCollapsed(false);
+      if (taskView) toggleTaskSidebarTab(taskView, 'conversations');
     },
   }),
   'task.sidebarFiles': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
       const taskView = getTaskComposition(params.projectId, params.taskId);
-      taskView?.setSidebarTab('files');
-      taskView?.setSidebarCollapsed(false);
+      if (taskView) toggleTaskSidebarTab(taskView, 'files');
     },
   }),
   'task.fileContentSearch': (params) => ({

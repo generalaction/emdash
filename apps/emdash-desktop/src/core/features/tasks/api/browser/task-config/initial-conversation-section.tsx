@@ -4,6 +4,7 @@ import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -29,7 +30,7 @@ import {
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/ui/browser/cn';
-import { Field, FieldDescription } from '@core/primitives/ui/browser/field';
+import { Field, FieldDescription, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { buildIssueContextText } from '../../../browser/context-bar/context-actions';
@@ -79,7 +80,10 @@ export function useInitialConversationState(
   const { data: agents } = useAgents();
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
-  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
+    'initial-conversation:auto-approve-enabled',
+    autoApproveByDefault
+  );
   const [issueContextEditorOpen, setIssueContextEditorOpen] = useState(false);
   const [model, setModel] = useState<string | null>(null);
   const [issueMentionContexts, setIssueMentionContexts] = useState<Record<string, string>>({});
@@ -100,7 +104,6 @@ export function useInitialConversationState(
       setPrompt('');
     }
     setIssueContext(null);
-    setAutoApproveOverride(null);
     setIssueContextEditorOpen(false);
     setModel(null);
     setIssueMentionContexts({});
@@ -111,7 +114,7 @@ export function useInitialConversationState(
 
   const capabilities = agents?.find((agent) => agent.id === providerId)?.capabilities;
   const autoApproveSupported = agentSupportsAutoApprove(capabilities);
-  const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
+  const autoApprove = autoApproveSupported && autoApprovePreference;
   const acpSupported = agentSupportsAcp(capabilities);
   const useChatUi = acpSupported && useChatUiPreference;
   const initialPromptSupported = useChatUi || agentSupportsInitialPromptDelivery(capabilities);
@@ -125,7 +128,7 @@ export function useInitialConversationState(
     issueContext,
     setIssueContext,
     autoApprove,
-    setAutoApprove: setAutoApproveOverride,
+    setAutoApprove: setAutoApprovePreference,
     issueContextEditorOpen,
     setIssueContextEditorOpen,
     model,
@@ -199,6 +202,8 @@ export function InitialConversationField({
   showAutoApproveToggle = true,
   requirePromptDelivery = false,
 }: InitialConversationFieldProps) {
+  const autoApproveSwitchId = useId();
+  const chatUiSwitchId = useId();
   const editorApiRef = useRef<PromptEditorRef | null>(null);
   const syncingEditorTextRef = useRef(false);
   const { value: promptLibrary } = usePromptLibrary();
@@ -305,17 +310,6 @@ export function InitialConversationField({
     [promptLibrary]
   );
 
-  const permissionModeOptions =
-    showAutoApproveToggle && canToggleAutoApprove && !state.useChatUi
-      ? {
-          ask: { name: 'Ask' },
-          bypass: {
-            name: 'Bypass Permissions',
-            description: 'Let the agent approve supported actions automatically.',
-          },
-        }
-      : null;
-
   const handleComposerInputChange = useCallback(
     (text: string) => {
       if (!canDeliverInitialPrompt) return;
@@ -349,16 +343,26 @@ export function InitialConversationField({
           />
         </div>
 
-        {canToggleChatUi ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border-1 bg-background-1 px-3 py-2">
-            <div className="min-w-0">
-              <div className="text-xs text-foreground">Use Chat UI (Beta)</div>
-            </div>
+        {showAutoApproveToggle && canToggleAutoApprove ? (
+          <div className="flex items-center gap-2">
             <Switch
-              checked={state.useChatUi}
-              onCheckedChange={state.setUseChatUi}
+              id={autoApproveSwitchId}
+              checked={state.autoApprove}
+              onCheckedChange={state.setAutoApprove}
               disabled={!state.provider}
             />
+            <FieldLabel htmlFor={autoApproveSwitchId}>Auto-approve permissions</FieldLabel>
+          </div>
+        ) : null}
+
+        {canToggleChatUi ? (
+          <div className="flex items-center gap-2">
+            <Switch
+              id={chatUiSwitchId}
+              checked={state.useChatUi}
+              onCheckedChange={state.setUseChatUi}
+            />
+            <FieldLabel htmlFor={chatUiSwitchId}>Use chat UI</FieldLabel>
           </div>
         ) : null}
 
@@ -377,11 +381,6 @@ export function InitialConversationField({
           modelOptions={modelOptions}
           selectedModel={state.model ?? undefined}
           onModelChange={(modelId) => state.setModel(modelId || null)}
-          permissionModeOptions={permissionModeOptions}
-          selectedPermissionMode={
-            permissionModeOptions ? (state.autoApprove ? 'bypass' : 'ask') : undefined
-          }
-          onPermissionModeChange={(modeId) => state.setAutoApprove(modeId === 'bypass')}
           className={textareaClassName}
         />
         {initialPromptInfo ? <FieldDescription>{initialPromptInfo}</FieldDescription> : null}

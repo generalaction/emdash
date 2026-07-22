@@ -168,6 +168,7 @@ export class SessionManager implements InboundRouter {
     const connectionKey: AcpConnectionKey = {
       providerId: input.providerId,
       cwd: input.cwd,
+      env: input.env,
     };
     const acquire = await acquireResourceAsResult(
       this.connections,

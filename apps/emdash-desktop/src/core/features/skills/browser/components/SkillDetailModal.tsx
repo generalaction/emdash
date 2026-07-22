@@ -18,7 +18,7 @@ import { SkillIconRenderer } from './SkillIconRenderer';
 const sourceMeta = {
   openai: { name: 'OpenAI', icon: 'https://github.com/openai.png' },
   anthropic: { name: 'Anthropic', icon: 'https://github.com/anthropics.png' },
-  skillssh: { name: 'Skills.SH', icon: 'https://skills.sh/favicon.ico' },
+  skillssh: { name: 'Skills.sh', icon: 'https://skills.sh/favicon.ico' },
 } as const;
 
 interface SkillDetailModalProps {

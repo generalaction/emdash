@@ -242,10 +242,10 @@ export class CatalogService {
       return skills;
     } catch (error) {
       if (cached) {
-        log.warn(`Skills.SH search failed for "${trimmed}", using stale cache`, { error });
+        log.warn(`Skills.sh search failed for "${trimmed}", using stale cache`, { error });
         return cached.skills;
       }
-      log.warn(`Skills.SH search failed for "${trimmed}"`, { error });
+      log.warn(`Skills.sh search failed for "${trimmed}"`, { error });
       return [];
     }
   }
@@ -467,7 +467,7 @@ export class CatalogService {
     try {
       return await this.fetchSkillShSkillMd(skill);
     } catch (error) {
-      log.warn(`Failed to fetch Skills.SH SKILL.md for ${skill.id}, using page metadata`, {
+      log.warn(`Failed to fetch Skills.sh SKILL.md for ${skill.id}, using page metadata`, {
         error,
       });
       const description = await this.fetchSkillShDescription(skill).catch(() => skill.description);
@@ -477,15 +477,15 @@ export class CatalogService {
 
   private async fetchSkillShSkillMd(skill: CatalogSkill): Promise<string> {
     if (!skill.sourceRef || !skill.catalogSkillId || !skill.skillShPath) {
-      throw new Error('Invalid Skills.SH skill reference');
+      throw new Error('Invalid Skills.sh skill reference');
     }
     const [owner, repo] = skill.sourceRef.split('/');
     if (!owner || !repo || skill.sourceRef.split('/').length !== 2) {
-      throw new Error(`Skills.SH source "${skill.sourceRef}" is not a GitHub repository`);
+      throw new Error(`Skills.sh source "${skill.sourceRef}" is not a GitHub repository`);
     }
     if (!isSafeSkillShPath(skill.skillShPath)) {
       throw new Error(
-        `Invalid Skills.SH skill path for ${skill.sourceRef}/${skill.catalogSkillId}`
+        `Invalid Skills.sh skill path for ${skill.sourceRef}/${skill.catalogSkillId}`
       );
     }
 
