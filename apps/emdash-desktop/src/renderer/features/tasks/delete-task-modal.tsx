@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { TriangleAlert } from 'lucide-react';
+import { InfoIcon, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { useTaskSettings } from './hooks/useTaskSettings';
 
 export type DeleteTaskModalArgs = {
@@ -67,8 +68,8 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const title = isBulk ? `Delete ${count} tasks` : 'Delete task';
 
   const description = isBulk
-    ? `${count} tasks will be permanently deleted. This action cannot be undone.`
-    : `"${tasks[0]!.taskName}" will be permanently deleted. This action cannot be undone.`;
+    ? `${count} tasks will be permanently removed from Emdash. This cannot be undone. Choose whether to also delete their local Git assets.`
+    : `"${tasks[0]!.taskName}" will be permanently removed from Emdash. This cannot be undone. Choose whether to also delete its local Git assets.`;
 
   const worktreeLabel = isBulk
     ? `Delete worktrees (${worktreeTasks.length} of ${count} tasks)`
@@ -106,7 +107,25 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                     checked={deleteWorktree}
                     onCheckedChange={(checked) => handleWorktreeChange(Boolean(checked))}
                   />
-                  {worktreeLabel}
+                  <span>{worktreeLabel}</span>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          onClick={(e) => e.preventDefault()}
+                          aria-label="About worktree deletion"
+                          className="focus-visible:ring-primary/30 relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          <InfoIcon className="size-3.5" aria-hidden="true" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent className="max-w-[240px] items-start text-left leading-relaxed whitespace-normal">
+                      Removes the local worktree and its files. Leave unchecked to keep them on
+                      disk.
+                    </TooltipContent>
+                  </Tooltip>
                 </label>
                 {deleteWorktree && dirtyWarning && (
                   <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
@@ -127,7 +146,24 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                   onCheckedChange={(checked) => setDeleteBranchOverride(Boolean(checked))}
                   disabled={!deleteWorktree}
                 />
-                {branchLabel}
+                <span>{branchLabel}</span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        aria-label="About branch deletion"
+                        className="focus-visible:ring-primary/30 relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        <InfoIcon className="size-3.5" aria-hidden="true" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent className="max-w-[240px] items-start text-left leading-relaxed whitespace-normal">
+                    Deletes the local branch after removing its worktree. The remote branch is kept.
+                  </TooltipContent>
+                </Tooltip>
               </label>
             )}
           </div>
