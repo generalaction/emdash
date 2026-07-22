@@ -14,6 +14,7 @@
     "build": "tsdown --config-loader tsx",
     "dev": "node --watch --experimental-strip-types src/index.ts",
     "package": "node --experimental-strip-types scripts/package.ts",
+    "upload:r2": "node --experimental-strip-types scripts/upload-r2.ts",
     "run:docker-remote": "docker compose up --build -d workspace-remote",
     "start": "node dist/index.mjs",
     "test": "vitest run",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@types/node": "^24.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "s3mini": "^0.9.5",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"
   },

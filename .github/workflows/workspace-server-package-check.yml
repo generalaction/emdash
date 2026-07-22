@@ -1,0 +1,62 @@
+name: Workspace Server Package Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/workspace-server/**'
+      - 'packages/core/**'
+      - 'packages/plugins/**'
+      - 'packages/shared/**'
+      - 'packages/wire/**'
+      - '.nvmrc'
+      - 'pnpm-lock.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/workspace-server/**'
+      - 'packages/core/**'
+      - 'packages/plugins/**'
+      - 'packages/shared/**'
+      - 'packages/wire/**'
+      - '.nvmrc'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-server-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Cache packaged Node distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/emdash/workspace-server
+          key: workspace-server-node-linux-x64-${{ hashFiles('.nvmrc') }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build and verify Linux x64 package
+        working-directory: apps/workspace-server
+        run: pnpm run package --target linux-x64 --verify

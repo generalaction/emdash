@@ -1,0 +1,183 @@
+name: Release Workspace Server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-server-release
+  cancel-in-progress: false
+
+jobs:
+  version-guard:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Read release metadata
+        id: metadata
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/workspace-server/package.json').version")
+          protocol_version=$(node <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const source = readFileSync(
+            'packages/core/src/workspace-server/versions/index.ts',
+            'utf8'
+          );
+          const match = /export const PROTOCOL_VERSION = '([^']+)'/.exec(source);
+          if (!match) throw new Error('Could not read workspace-server protocol version');
+          process.stdout.write(match[1]);
+          NODE
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Workspace-server release"
+            echo
+            echo "- App version: \`$version\`"
+            echo "- Protocol version: \`$protocol_version\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Reject an existing immutable release
+        shell: bash
+        run: |
+          version="${{ steps.metadata.outputs.version }}"
+          artifact="emdash-workspace-server-$version-linux-x64.tar.gz"
+          url="https://releases.emdash.sh/workspace-server/$version/$artifact"
+          if ! status=$(curl --silent --show-error --head --output /dev/null \
+            --write-out '%{http_code}' "$url"); then
+            echo "Could not check existing release at $url" >&2
+            exit 1
+          fi
+          case "$status" in
+            404)
+              echo "Release $version is available for publication."
+              ;;
+            200)
+              echo "Release $version already exists at $url; bump the workspace-server version." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unexpected HTTP $status while checking $url" >&2
+              exit 1
+              ;;
+          esac
+
+  build:
+    needs: version-guard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Cache packaged Node distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/emdash/workspace-server
+          key: workspace-server-node-${{ matrix.target }}-${{ hashFiles('.nvmrc') }}
+
+      - name: Set up Docker Buildx
+        if: startsWith(matrix.target, 'linux-')
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build and verify ${{ matrix.target }}
+        working-directory: apps/workspace-server
+        run: pnpm run package --target "${{ matrix.target }}" --verify
+
+      - name: Upload ${{ matrix.target }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-server-${{ matrix.target }}
+          path: |
+            apps/workspace-server/dist-artifacts/*.tar.gz
+            apps/workspace-server/dist-artifacts/*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [version-guard, build]
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: workspace-server-*
+          path: apps/workspace-server/dist-artifacts
+          merge-multiple: true
+
+      - name: Verify installation from the release mirror
+        shell: bash
+        run: |
+          version="${{ needs.version-guard.outputs.version }}"
+          mirror="$RUNNER_TEMP/workspace-server-mirror"
+          mkdir -p "$mirror/$version"
+          printf '%s\n' "$version" > "$mirror/latest.txt"
+          cp apps/workspace-server/dist-artifacts/* "$mirror/$version/"
+
+          docker run --rm --platform linux/amd64 \
+            --env HOME=/tmp/emdash-home \
+            --env "VERSION=$version" \
+            --volume "$mirror:/mirror:ro" \
+            --volume "$GITHUB_WORKSPACE/apps/workspace-server/install.sh:/install.sh:ro" \
+            debian:bookworm-slim \
+            sh -c '
+              set -eu
+              apt-get update
+              apt-get install -y --no-install-recommends ca-certificates coreutils curl gzip tar
+              sh /install.sh --base-url file:///mirror
+              test -x "$HOME/.emdash/workspace-server/current/bin/emdash-workspace-server"
+              test "$(readlink "$HOME/.emdash/workspace-server/current")" = "versions/$VERSION"
+            '
+
+      - name: Publish workspace-server release to R2
+        working-directory: apps/workspace-server
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: pnpm run upload:r2

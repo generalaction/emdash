@@ -50,8 +50,44 @@ that version must never be rebuilt with different contents. Any change that affe
 artifact requires a version bump in `apps/workspace-server/package.json` before publication. The
 desktop installer deliberately treats an existing `versions/<version>/` directory as final.
 
-The future R2 publication workflow should upload each archive and sidecar under
-`workspace-server/<version>/<archive-name>[.sha256]`, matching the desktop artifact source.
+## Publish a Release
+
+Workspace-server releases use the same Cloudflare R2 bucket and credentials as desktop releases.
+All workspace-server objects live under the `workspace-server/` prefix:
+
+```text
+workspace-server/
+  install.sh
+  latest.txt
+  <version>/
+    emdash-workspace-server-<version>-linux-x64.tar.gz
+    emdash-workspace-server-<version>-linux-x64.tar.gz.sha256
+    emdash-workspace-server-<version>-linux-arm64.tar.gz
+    emdash-workspace-server-<version>-linux-arm64.tar.gz.sha256
+    emdash-workspace-server-<version>-darwin-arm64.tar.gz
+    emdash-workspace-server-<version>-darwin-arm64.tar.gz.sha256
+```
+
+The release workflow builds and smoke-verifies all three targets, tests `install.sh` against a
+local `file://` mirror of the assembled release, and publishes the versioned artifacts. Existing
+versioned objects may only be skipped when their contents have the same SHA-256; the uploader
+refuses to replace different contents. It uploads `latest.txt` last so an incomplete release is
+never selected by a new installation.
+
+To release:
+
+1. Bump `version` in `apps/workspace-server/package.json`. Never reuse a published version.
+2. Merge the change to `main`.
+3. Dispatch `.github/workflows/release-workspace-server.yml` from GitHub Actions, or run:
+
+```bash
+gh workflow run release-workspace-server.yml --ref main
+```
+
+The workflow fails before building if the version's Linux x64 archive already exists at
+`https://releases.emdash.sh/workspace-server/`. Pull requests and pushes to `main` that affect the
+workspace server or its bundled workspace packages also run
+`.github/workflows/workspace-server-package-check.yml`, which packages and verifies Linux x64.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.
