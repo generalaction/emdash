@@ -1,31 +1,37 @@
 import { observer } from 'mobx-react-lite';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentSettings } from '@core/features/agents/api/browser/use-agent-settings';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
-import { InstallSection } from '@core/features/settings/api/browser/agents-page/InstallSection';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Label } from '@core/primitives/ui/browser/label';
 import { Sheet, SheetContent, SheetHeader } from '@core/primitives/ui/browser/sheet';
-import { AgentMcpSection } from './AgentMcpSection';
-import { AgentSheetHeaderSection } from './AgentSheetHeaderSection';
-import { InstalledAgentContent } from './InstalledAgentContent';
+import { AgentMcpSection } from '../../../browser/agents-page/AgentMcpSection';
+import { AgentSheetHeaderSection } from '../../../browser/agents-page/AgentSheetHeaderSection';
+import { InstalledAgentContent } from '../../../browser/agents-page/InstalledAgentContent';
+import { InstallSection } from './InstallSection';
 
 interface AgentDetailSheetProps {
   agentId: string | null;
+  connectionId?: string;
   onClose: () => void;
 }
 
 const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   agentId,
+  connectionId,
 }: {
   agentId: string;
+  connectionId?: string;
   onClose: () => void;
 }) {
-  const { data: agents } = useAgents();
+  const host = hostRefFromConnectionId(connectionId);
+  const { data: agents } = useAgents(host);
   const agentPayload = agents?.find((a) => a.id === agentId);
 
   const { value: storedConfig, isOverridden, isLoading, update, reset } = useAgentSettings(agentId);
 
   const isInstalled = agentPayload?.status === 'available';
+  const isRemote = !!connectionId;
 
   return (
     <>
@@ -38,16 +44,17 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
               <Label>Installation</Label>
               <InstallSection
                 agentId={agentId}
+                connectionId={connectionId}
                 agentPayload={agentPayload}
                 installOptions={agentPayload.installOptions}
-                hideOverrideOptions={!isInstalled}
+                hideOverrideOptions={!isInstalled || isRemote}
               />
             </Field>
-            {isInstalled && <AgentMcpSection agentId={agentId} />}
+            {isInstalled && !isRemote && <AgentMcpSection agentId={agentId} />}
           </div>
         )}
       </div>
-      {agentPayload && isInstalled && (
+      {agentPayload && isInstalled && !isRemote && (
         <InstalledAgentContent
           storedConfig={storedConfig}
           isOverridden={isOverridden}
@@ -60,11 +67,17 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   );
 });
 
-export function AgentDetailSheet({ agentId, onClose }: AgentDetailSheetProps) {
+export function AgentDetailSheet({ agentId, connectionId, onClose }: AgentDetailSheetProps) {
   return (
     <Sheet open={agentId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex flex-col gap-0 p-0">
-        {agentId && <AgentDetailSheetContent agentId={agentId} onClose={onClose} />}
+        {agentId && (
+          <AgentDetailSheetContent
+            agentId={agentId}
+            connectionId={connectionId}
+            onClose={onClose}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );

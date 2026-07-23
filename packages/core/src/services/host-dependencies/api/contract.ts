@@ -6,6 +6,7 @@ import {
   hostDependencySelectionSchema,
   hostDependencySnapshotSchema,
   hostDependencyViewSchema,
+  installMethodSchema,
 } from '@primitives/host-dependencies/api';
 import { z } from 'zod';
 
@@ -40,6 +41,12 @@ export const hostDependenciesContract = defineContract({
   }),
   runUpdateCommand: liveJob({
     input: depInput,
+    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    result: hostDependencyViewSchema,
+    error: hostDependencyErrorSchema,
+  }),
+  runInstallCommand: liveJob({
+    input: depInput.extend({ method: installMethodSchema.optional() }),
     progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,

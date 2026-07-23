@@ -1,15 +1,21 @@
 import type {
   HostDependencyDescriptor,
+  InstallCommands,
+  InstallCommandOption,
   HostDependencyUpdateCommand,
 } from '@primitives/host-dependencies/api';
 
-/** @deprecated Package-manager install options are no longer used by HostDependencies. */
-export function homebrewOption(_opts: {
+export function homebrewOption(opts: {
   formula: string;
   cask?: boolean;
   recommended?: boolean;
-}): Record<string, never> {
-  return {};
+}): InstallCommandOption {
+  const caskFlag = opts.cask ? ' --cask' : '';
+  return {
+    method: 'homebrew',
+    command: `brew install${caskFlag} ${opts.formula}`,
+    recommended: opts.recommended,
+  };
 }
 
 /** Build a full HostDependencyDescriptor for a globally-installed npm package. */
@@ -18,11 +24,9 @@ export function npmDependency(opts: {
   package: string;
   /** Binary names to probe; defaults to [opts.id]. */
   binaryNames?: string[];
-  /** @deprecated Package-manager install metadata is no longer used. */
   installFlags?: string;
   /** @deprecated Package-manager install metadata is no longer used. */
   versionSuffix?: string;
-  /** @deprecated Package-manager install metadata is no longer used. */
   recommended?: boolean;
   /** Optional link to documentation shown in the UI. */
   installDocs?: string;
@@ -30,14 +34,26 @@ export function npmDependency(opts: {
   skipVersionProbe?: boolean;
   /** @deprecated Version probes are no longer part of HostDependencies. */
   versionArgs?: string[];
-  /** @deprecated Package-manager install metadata is no longer used. */
-  extraOptions?: unknown;
+  extraOptions?: InstallCommands;
   updateCommand?: HostDependencyUpdateCommand;
 }): HostDependencyDescriptor {
+  const installFlags = opts.installFlags ? ` ${opts.installFlags}` : '';
+  const npmInstall: InstallCommandOption = {
+    method: 'npm',
+    command: `npm install -g ${opts.package}${installFlags}`,
+    recommended: opts.recommended,
+  };
+  const installCommands: InstallCommands = {
+    macos: [npmInstall, ...(opts.extraOptions?.macos ?? [])],
+    linux: [npmInstall, ...(opts.extraOptions?.linux ?? [])],
+    windows: [npmInstall, ...(opts.extraOptions?.windows ?? [])],
+  };
+
   return {
     id: opts.id,
     binaryNames: opts.binaryNames ?? [opts.id],
     ...(opts.installDocs ? { installDocs: opts.installDocs } : {}),
+    installCommands,
     ...(opts.updateCommand ? { updateCommand: opts.updateCommand } : {}),
   };
 }

@@ -6,6 +6,7 @@ import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Trash2Icon, User } fro
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { CliAgentsList } from '@core/features/settings/api/browser/agents-page/CliAgentsList';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/ui/browser/cn';
@@ -305,6 +306,18 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           connectionId={machine.id}
           enabled={serverHealthy}
         />
+      )}
+
+      {section === 'agents' && (
+        <SettingsCard>
+          {serverHealthy ? (
+            <CliAgentsList connectionId={machine.id} />
+          ) : (
+            <div className="p-4 text-sm text-foreground-muted">
+              Agent detection is available when the workspace server is healthy.
+            </div>
+          )}
+        </SettingsCard>
       )}
     </div>
   );

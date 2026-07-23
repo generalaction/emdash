@@ -93,6 +93,23 @@ describe('createAgentsWireController', () => {
     ).resolves.toEqual(err(resolveError));
   });
 
+  it('passes the active host dependency client to install operations', async () => {
+    const hostDependencies = {};
+    const install = vi.fn(async () => ({ success: true as const, data: {} }));
+    const client = vi.fn(async () => ok({ hostDependencies }));
+    const controller = createAgentsWireController({
+      operations: { install } as never,
+      runtimes: { client } as never,
+    });
+
+    await expect(
+      controller.call('install', { host: remoteHost, id: 'claude', method: 'curl' })
+    ).resolves.toEqual(ok({ success: true, data: {} }));
+
+    expect(client).toHaveBeenCalledWith(remoteHost);
+    expect(install).toHaveBeenCalledWith('claude', 'ssh-1', 'curl', hostDependencies);
+  });
+
   it('forwards login output without copying', async () => {
     const update = {
       generation: 1,

@@ -3,6 +3,7 @@ import type { Result } from '@emdash/shared';
 import { z } from 'zod';
 import {
   hostDependencyDescriptorSchema,
+  installCommandOptionSchema,
   type DependencyStatus,
   type Platform,
   type ProbeResult,
@@ -58,6 +59,8 @@ export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('missing'), id: dependencyIdSchema }),
   z.object({ type: z.literal('stale-selection'), id: dependencyIdSchema, path: z.string() }),
   z.object({ type: z.literal('invalid-selection'), id: dependencyIdSchema, message: z.string() }),
+  z.object({ type: z.literal('no-install-command'), id: dependencyIdSchema }),
+  z.object({ type: z.literal('not-detected-after-install'), id: dependencyIdSchema }),
   z.object({ type: z.literal('no-update-command'), id: dependencyIdSchema }),
   z.object({ type: z.literal('command-failed'), message: z.string(), output: z.string() }),
   z.object({ type: z.literal('io'), message: z.string() }),
@@ -67,6 +70,7 @@ export type HostDependencyError = z.output<typeof hostDependencyErrorSchema>;
 export const hostDependencyViewSchema = z.object({
   hostId: z.string(),
   definition: hostDependencyDefinitionSchema,
+  installOptions: z.array(installCommandOptionSchema),
   selection: hostDependencySelectionSchema,
   candidates: z.array(pathCandidateSchema),
   resolved: resolvedHostDependencySchema.nullable(),

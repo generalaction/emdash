@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { Label } from '@core/primitives/ui/browser/label';
 import { Separator } from '@core/primitives/ui/browser/separator';
@@ -25,14 +26,17 @@ type CliAgentsListProps = {
   searchQuery?: string;
   filter?: AgentFilter;
   onFilterChange?: (filter: AgentFilter) => void;
+  connectionId?: string;
 };
 
 export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   searchQuery = '',
   filter = 'all',
+  connectionId,
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const { data: agentPayloads } = useAgents();
+  const host = hostRefFromConnectionId(connectionId);
+  const { data: agentPayloads } = useAgents(host);
   const normalizedQuery = searchQuery.toLowerCase();
 
   const allAgents = useMemo(
@@ -47,14 +51,14 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
 
   const uninstalled = useMemo(() => allAgents.filter((a) => a.status !== 'available'), [allAgents]);
 
-  // "All" tab: recommended agents (any install status) + all others alphabetically
+  // "All" tab: recommended agents (any install status) + all others alphabetically.
   const allRecommended = useMemo(
     () => allAgents.filter((a) => RECOMMENDED_IDS.has(a.id)),
     [allAgents]
   );
   const allOthers = useMemo(() => allAgents.filter((a) => !RECOMMENDED_IDS.has(a.id)), [allAgents]);
 
-  // "Uninstalled" tab: recommended uninstalled first, then the rest
+  // "Uninstalled" tab: recommended uninstalled first, then the rest.
   const uninstalledRecommended = useMemo(
     () => uninstalled.filter((a) => RECOMMENDED_IDS.has(a.id)),
     [uninstalled]
@@ -87,7 +91,11 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
             ))}
           </div>
         )}
-        <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
+        <AgentDetailSheet
+          agentId={selectedAgentId}
+          connectionId={connectionId}
+          onClose={() => setSelectedAgentId(null)}
+        />
       </div>
     );
   }
@@ -105,7 +113,11 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
             ))}
           </div>
         )}
-        <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
+        <AgentDetailSheet
+          agentId={selectedAgentId}
+          connectionId={connectionId}
+          onClose={() => setSelectedAgentId(null)}
+        />
       </div>
     );
   }
@@ -136,7 +148,11 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
           </div>
         </>
       )}
-      <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
+      <AgentDetailSheet
+        agentId={selectedAgentId}
+        connectionId={connectionId}
+        onClose={() => setSelectedAgentId(null)}
+      />
     </div>
   );
 };

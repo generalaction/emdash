@@ -18,7 +18,10 @@ import {
   type HostDependencySnapshot,
   type HostDependencyView,
   type HostDependencyViewResult,
+  type InstallCommandOption,
+  type InstallMethod,
   type PathCandidate,
+  type Platform,
 } from '@primitives/host-dependencies/api';
 import type { KeyValueStore } from '@primitives/kv/api';
 import { hostDependenciesContract } from '@services/host-dependencies/api';
@@ -90,6 +93,14 @@ export function createHostDependenciesController(runtime: HostDependenciesRuntim
     snapshot: runtime.liveHost(),
     runUpdateCommand: {
       run: ({ id }, ctx) => runtime.runUpdateCommand(id, ctx),
+      toError: (error) => ({
+        type: 'command-failed' as const,
+        message: error instanceof Error ? error.message : String(error),
+        output: '',
+      }),
+    },
+    runInstallCommand: {
+      run: ({ id, method }, ctx) => runtime.runInstallCommand(id, method, ctx),
       toError: (error) => ({
         type: 'command-failed' as const,
         message: error instanceof Error ? error.message : String(error),
@@ -233,6 +244,54 @@ export class HostDependenciesRuntime {
     }
   }
 
+  async runInstallCommand(
+    id: DependencyId,
+    method: InstallMethod | undefined,
+    ctx: {
+      signal: AbortSignal;
+      progress: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
+    }
+  ): Promise<HostDependencyViewResult> {
+    const definition = this.definitions.get(id);
+    if (!definition) return err({ type: 'unknown-dependency', id });
+
+    ctx.progress({ phase: 'resolving' });
+    const option = selectInstallOption(installOptionsForPlatform(definition), method);
+    if (!option) return err({ type: 'no-install-command', id });
+
+    let output = '';
+    try {
+      ctx.progress({ phase: 'running' });
+      const shell = shellCommand(option.command);
+      await this.deps.exec.execStreaming(
+        shell.command,
+        shell.args,
+        (chunk) => {
+          output = `${output}${chunk}`.slice(-20_000);
+          return true;
+        },
+        { signal: ctx.signal }
+      );
+    } catch (error) {
+      return err({
+        type: 'command-failed',
+        message: error instanceof Error ? error.message : String(error),
+        output,
+      });
+    }
+
+    try {
+      ctx.progress({ phase: 'refreshing' });
+      await this.deps.exec.refreshShellEnv?.();
+      const view = await this.getView(id, { force: true });
+      if (!view.success) return view;
+      if (view.data.status !== 'available') return err({ type: 'not-detected-after-install', id });
+      return view;
+    } catch (error) {
+      return err({ type: 'io', message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
   private snapshot(): HostDependencySnapshot {
     return this.model.states.current.snapshot().data;
   }
@@ -256,6 +315,7 @@ export class HostDependenciesRuntime {
     const view: HostDependencyView = {
       hostId: this.deps.hostId,
       definition,
+      installOptions: installOptionsForPlatform(definition),
       selection,
       candidates,
       resolved: resolved.success ? resolved.data : null,
@@ -323,6 +383,31 @@ export class HostDependenciesRuntime {
   private storeKey(): string {
     return `${STORE_KEY_PREFIX}:${this.deps.hostId}:selections`;
   }
+}
+
+function installOptionsForPlatform(definition: HostDependencyDefinition): InstallCommandOption[] {
+  return definition.installCommands?.[currentPlatform()] ?? [];
+}
+
+function selectInstallOption(
+  options: InstallCommandOption[],
+  method: InstallMethod | undefined
+): InstallCommandOption | undefined {
+  if (method) return options.find((option) => option.method === method);
+  return options.find((option) => option.recommended) ?? options[0];
+}
+
+function currentPlatform(): Platform {
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'win32') return 'windows';
+  return 'linux';
+}
+
+function shellCommand(command: string): { command: string; args: string[] } {
+  if (process.platform === 'win32') {
+    return { command: 'cmd.exe', args: ['/d', '/s', '/c', command] };
+  }
+  return { command: '/bin/sh', args: ['-c', command] };
 }
 
 function resolveSelection(

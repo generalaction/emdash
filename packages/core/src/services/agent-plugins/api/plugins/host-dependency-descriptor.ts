@@ -14,6 +14,7 @@ export function buildDescriptorFromProvider(
     category: 'agent',
     binaryNames: binaryNames.length > 0 ? binaryNames : [metadata.id],
     installDocs: hostDep.installDocs ?? metadata.websiteUrl,
+    installCommands: hostDep.installCommands,
     updateCommand: hostDep.updateCommand,
     status: 'active',
   };

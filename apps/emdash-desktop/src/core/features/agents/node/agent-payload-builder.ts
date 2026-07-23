@@ -94,7 +94,7 @@ async function buildOne(
     updateAvailable: false,
     command: view?.resolved?.path ?? null,
     settings: settingsMeta,
-    installOptions: [],
+    installOptions: view?.installOptions ?? [],
     installations: view ? installationsFromView(view) : [],
     used,
     usedId: sourceKey(used),
@@ -144,7 +144,7 @@ export function toAgentInstallationStatus(
     installations: view ? installationsFromView(view) : [],
     used,
     usedId: sourceKey(used),
-    installOptions: [],
+    installOptions: view?.installOptions ?? [],
   };
 }
 

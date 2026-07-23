@@ -2,11 +2,14 @@ import { PageLayout } from '@emdash/ui/react/patterns';
 import { RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
+import {
+  CliAgentsList,
+  type AgentFilter,
+} from '@core/features/settings/api/browser/agents-page/CliAgentsList';
 import { useSettingsSearch } from '@core/features/settings/browser/search/settings-search-context';
 import { Button } from '@core/primitives/ui/browser/button';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { CliAgentsList, type AgentFilter } from './CliAgentsList';
 
 export function AgentsSettingsPage() {
   const { query: settingsSearchQuery } = useSettingsSearch();
