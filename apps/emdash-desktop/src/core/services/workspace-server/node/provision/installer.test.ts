@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { workspaceServerLayout } from '../layout';
-import { buildWorkspaceServerInstallCommand, WorkspaceServerInstaller } from './installer';
+import {
+  buildWorkspaceServerAvailableVersionCommand,
+  buildWorkspaceServerInstallCommand,
+  WorkspaceServerInstaller,
+} from './installer';
 
 describe('workspace-server installer command', () => {
   it('downloads the hosted script to a temporary file before executing it', () => {
@@ -24,6 +28,15 @@ describe('workspace-server installer command', () => {
     );
   });
 
+  it('builds latest-version commands for hosted and file artifact URLs', () => {
+    expect(
+      buildWorkspaceServerAvailableVersionCommand('https://releases.example.test/workspace-server')
+    ).toContain('curl -fsSL -- https://releases.example.test/workspace-server/latest.txt');
+    expect(buildWorkspaceServerAvailableVersionCommand("file:///opt/emdash artifact's")).toContain(
+      "cat -- '/opt/emdash artifact'\\''s/latest.txt'"
+    );
+  });
+
   it('executes the hosted installer through the SSH proxy', async () => {
     const execScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     const ensureProxy = vi.fn(async () => ({ execScript }) as never);
@@ -36,6 +49,40 @@ describe('workspace-server installer command', () => {
       expect.stringContaining('file:///opt/emdash-artifacts/install.sh'),
       expect.objectContaining({ timeoutMs: 300_000 })
     );
+  });
+
+  it('resolves the available version through the SSH proxy', async () => {
+    const execScript = vi.fn().mockResolvedValue({
+      stdout: '0.1.0-dev.abc123\n',
+      stderr: '',
+      exitCode: 0,
+    });
+    const ensureProxy = vi.fn(async () => ({ execScript }) as never);
+    const installer = new WorkspaceServerInstaller({ ensureProxy }, 'file:///opt/emdash-artifacts');
+
+    await expect(installer.availableVersion('ssh-1')).resolves.toBe('0.1.0-dev.abc123');
+
+    expect(ensureProxy).toHaveBeenCalledWith('ssh-1');
+    expect(execScript).toHaveBeenCalledWith(
+      expect.stringContaining('cat -- /opt/emdash-artifacts/latest.txt'),
+      expect.objectContaining({ timeoutMs: 10_000 })
+    );
+  });
+
+  it('rejects invalid available versions', async () => {
+    const execScript = vi.fn().mockResolvedValue({
+      stdout: 'not a version\n',
+      stderr: '',
+      exitCode: 0,
+    });
+    const installer = new WorkspaceServerInstaller({
+      ensureProxy: vi.fn(async () => ({ execScript }) as never),
+    });
+
+    await expect(installer.availableVersion('ssh-1')).rejects.toMatchObject({
+      code: 'artifact-download-failed',
+      message: expect.stringContaining('invalid'),
+    });
   });
 
   it('uses a custom install command with substituted placeholders when configured', async () => {

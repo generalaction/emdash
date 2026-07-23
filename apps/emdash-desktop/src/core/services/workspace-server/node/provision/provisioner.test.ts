@@ -94,6 +94,67 @@ describe('WorkspaceServerProvisioner', () => {
     await fixture.dispose();
   });
 
+  it('dev auto-updates a compatible running daemon when latest.txt advertises a newer version', async () => {
+    const fixture = createProvisionerFixture({ devAutoUpdate: true });
+    fixture.installer.availableVersion.mockResolvedValue('1.2.4-dev.abc123');
+    fixture.dialOnce
+      .mockResolvedValueOnce(handshake('1.2.3'))
+      .mockResolvedValueOnce(handshake('1.2.4-dev.abc123'));
+
+    await fixture.provisioner.ensure('ssh-1');
+
+    expect(fixture.installer.availableVersion).toHaveBeenCalledWith(
+      'ssh-1',
+      expect.any(AbortSignal)
+    );
+    expect(fixture.installer.install).toHaveBeenCalledOnce();
+    expect(fixture.daemon.restart).toHaveBeenCalledOnce();
+    expect(fixture.daemon.start).not.toHaveBeenCalled();
+    expect(fixture.status('ssh-1')).toMatchObject({
+      status: 'healthy',
+      version: '1.2.4-dev.abc123',
+    });
+    await fixture.dispose();
+  });
+
+  it('dev auto-update leaves matching running daemons alone', async () => {
+    const fixture = createProvisionerFixture({ devAutoUpdate: true });
+    fixture.installer.availableVersion.mockResolvedValue('1.2.3');
+
+    await fixture.provisioner.ensure('ssh-1');
+
+    expect(fixture.installer.availableVersion).toHaveBeenCalledOnce();
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
+    await fixture.dispose();
+  });
+
+  it('dev auto-update bypasses the provisioned target cache', async () => {
+    const fixture = createProvisionerFixture({ devAutoUpdate: true });
+    await fixture.provisioner.ensure('ssh-1');
+    await fixture.provisioner.ensure('ssh-1');
+
+    expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
+    expect(fixture.installer.availableVersion).toHaveBeenCalledTimes(2);
+    await fixture.dispose();
+  });
+
+  it('dev auto-update treats latest-version resolution failures as non-fatal', async () => {
+    const fixture = createProvisionerFixture({ devAutoUpdate: true });
+    fixture.installer.availableVersion.mockRejectedValue(new Error('metadata unavailable'));
+
+    await fixture.provisioner.ensure('ssh-1');
+
+    expect(fixture.installer.install).not.toHaveBeenCalled();
+    expect(fixture.daemon.restart).not.toHaveBeenCalled();
+    expect(fixture.logger.warn).toHaveBeenCalledWith(
+      'Could not resolve latest workspace-server dev version',
+      expect.objectContaining({ connectionId: 'ssh-1' })
+    );
+    expect(fixture.status('ssh-1')).toMatchObject({ status: 'healthy', version: '1.2.3' });
+    await fixture.dispose();
+  });
+
   it('publishes typed failures and keeps them observable', async () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(new Error('socket missing'));
@@ -139,7 +200,9 @@ describe('WorkspaceServerProvisioner', () => {
   });
 });
 
-function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe?: boolean } = {}) {
+function createProvisionerFixture(
+  options: { blockDial?: boolean; blockHostProbe?: boolean; devAutoUpdate?: boolean } = {}
+) {
   const scope = createScope({ label: 'workspace-server-provisioner-test' });
   const model = new RemoteMachineStateModel();
   const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
@@ -156,6 +219,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
   });
   const installer = {
     install: vi.fn(async () => {}),
+    availableVersion: vi.fn(async () => '1.2.3'),
   };
   const daemon = {
     start: vi.fn(async () => {}),
@@ -176,6 +240,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
       );
     });
   });
+  const logger = { warn: vi.fn() };
   const provisioner = new WorkspaceServerProvisioner({
     scope,
     ssh: { ensureProxy: vi.fn() },
@@ -184,6 +249,8 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
     daemon: daemon as never,
     model,
     wire: { dialOnce },
+    devAutoUpdate: options.devAutoUpdate,
+    logger,
   });
 
   return {
@@ -191,6 +258,7 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
     installer,
     daemon,
     dialOnce,
+    logger,
     model,
     status(connectionId: string) {
       return model.instance.states.runtime.snapshot().data[connectionId];
@@ -202,11 +270,11 @@ function createProvisionerFixture(options: { blockDial?: boolean; blockHostProbe
   };
 }
 
-function handshake(): WireInitializeResult {
+function handshake(appVersion = '1.2.3'): WireInitializeResult {
   return {
     protocolVersion: PROTOCOL_VERSION,
     agreedVersion: PROTOCOL_VERSION,
     agreedMinor: 0,
-    server: { appVersion: '1.2.3', daemonId: 'daemon', startedAt: 1 },
+    server: { appVersion, daemonId: 'daemon', startedAt: 1 },
   };
 }

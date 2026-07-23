@@ -39,6 +39,9 @@ export type WorkspaceServerArtifactManifest = {
   nodeVersion: string;
 };
 
+const workspaceServerVersionPattern =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/;
+
 export function parsePackageTarget(value: string): PackageTarget {
   if (value in targetDefinitions) {
     return targetDefinitions[value as PackageTargetId];
@@ -99,6 +102,27 @@ export function nodeDistributionUrl(nodeVersion: string, target: PackageTarget):
 
 export function artifactArchiveName(version: string, target: PackageTarget): string {
   return `${artifactRootName}-${version}-${target.os}-${target.arch}.tar.gz`;
+}
+
+export function createDevPackageVersion(baseVersion: string, identifier: string): string {
+  validatePackageVersion(baseVersion);
+  const normalizedIdentifier = identifier.trim();
+  if (normalizedIdentifier.length === 0) {
+    throw new Error('Dev package version identifier cannot be empty');
+  }
+  if (workspaceServerVersionPattern.test(normalizedIdentifier)) {
+    return normalizedIdentifier;
+  }
+  const version = `${baseVersion}-dev.${normalizedIdentifier}`;
+  validatePackageVersion(version);
+  return version;
+}
+
+export function validatePackageVersion(version: string): string {
+  if (!workspaceServerVersionPattern.test(version)) {
+    throw new Error(`Invalid workspace-server package version '${version}'`);
+  }
+  return version;
 }
 
 export function artifactChecksumContents(checksum: string, archiveName: string): string {

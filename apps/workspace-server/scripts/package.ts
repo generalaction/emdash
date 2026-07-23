@@ -21,6 +21,7 @@ import {
   artifactArchiveName,
   artifactChecksumContents,
   artifactRootName,
+  createDevPackageVersion,
   createArtifactManifest,
   createLauncher,
   nodeDistributionArchiveName,
@@ -53,6 +54,7 @@ const artifactsDirectory = join(appDirectory, 'dist-artifacts');
 type PackageMetadata = {
   name: string;
   version: string;
+  devBuild: boolean;
 };
 
 async function main(): Promise<void> {
@@ -93,6 +95,9 @@ async function main(): Promise<void> {
       bundleNames,
       verify: options.verify,
     });
+  }
+  if (packageMetadata.devBuild) {
+    await emitDevInstallMetadata(packageMetadata.version);
   }
 }
 
@@ -161,7 +166,46 @@ async function readPackageMetadata(): Promise<PackageMetadata> {
   if (!isRecord(raw) || typeof raw['name'] !== 'string' || typeof raw['version'] !== 'string') {
     throw new Error('workspace-server package.json must contain string name and version fields');
   }
-  return { name: raw['name'], version: raw['version'] };
+  const version = await resolvePackageVersion(raw['version']);
+  return { name: raw['name'], version: version.value, devBuild: version.devBuild };
+}
+
+async function resolvePackageVersion(
+  baseVersion: string
+): Promise<{ value: string; devBuild: boolean }> {
+  const explicitDevVersion = process.env['EMDASH_WS_DEV_VERSION']?.trim();
+  if (explicitDevVersion !== undefined && explicitDevVersion.length > 0) {
+    return { value: createDevPackageVersion(baseVersion, explicitDevVersion), devBuild: true };
+  }
+  if (process.env['EMDASH_WS_DEV_BUILD'] !== '1') {
+    return { value: baseVersion, devBuild: false };
+  }
+  return {
+    value: createDevPackageVersion(baseVersion, await devBuildIdentifier()),
+    devBuild: true,
+  };
+}
+
+async function devBuildIdentifier(): Promise<string> {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  try {
+    const sha = (
+      await runCommandOutput('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd: repositoryDirectory,
+      })
+    ).trim();
+    if (/^[0-9A-Za-z]+$/.test(sha)) return `${sha}.${timestamp}`;
+  } catch {
+    // Fall back below when this source tree is not a git checkout.
+  }
+  return timestamp;
+}
+
+async function emitDevInstallMetadata(version: string): Promise<void> {
+  await writeFile(join(artifactsDirectory, 'latest.txt'), `${version}\n`, 'utf8');
+  await copyFile(join(appDirectory, 'install.sh'), join(artifactsDirectory, 'install.sh'));
+  process.stdout.write(`Created ${join(artifactsDirectory, 'latest.txt')}\n`);
+  process.stdout.write(`Created ${join(artifactsDirectory, 'install.sh')}\n`);
 }
 
 async function readProtocolVersion(): Promise<string> {
@@ -561,6 +605,48 @@ async function runCommand(
       rejectPromise(
         new Error(
           `${command} exited ${signal === null ? `with code ${String(code)}` : `on signal ${signal}`}`
+        )
+      );
+    });
+  });
+}
+
+async function runCommandOutput(
+  command: string,
+  args: string[],
+  options: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+  } = {}
+): Promise<string> {
+  return await new Promise<string>((resolvePromise, rejectPromise) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once('error', rejectPromise);
+    child.once('exit', (code, signal) => {
+      if (code === 0) {
+        resolvePromise(stdout);
+        return;
+      }
+      const output = stderr.trim();
+      rejectPromise(
+        new Error(
+          `${command} exited ${signal === null ? `with code ${String(code)}` : `on signal ${signal}`}${
+            output ? `: ${output}` : ''
+          }`
         )
       );
     });

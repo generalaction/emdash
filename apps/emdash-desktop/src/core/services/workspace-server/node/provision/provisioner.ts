@@ -45,6 +45,8 @@ type WorkspaceServerProvisionerDeps = {
   daemon: RemoteWorkspaceServerDaemon;
   model: RemoteMachineStateModel;
   wire: Pick<WireConnectionManager, 'dialOnce'>;
+  devAutoUpdate?: boolean;
+  logger?: { warn(message: string, metadata?: Record<string, unknown>): void };
   clock?: Clock;
 };
 
@@ -75,7 +77,7 @@ export class WorkspaceServerProvisioner {
 
   ensure(connectionId: string): Promise<SshWorkspaceServerTarget> {
     const cached = this.targets.get(connectionId);
-    if (cached) return Promise.resolve(cached);
+    if (cached && !this.deps.devAutoUpdate) return Promise.resolve(cached);
     const existing = this.runs.get(connectionId);
     if (existing) return existing.promise;
 
@@ -85,7 +87,9 @@ export class WorkspaceServerProvisioner {
     const promise = run
       .value()
       .then((target) => {
-        if (this.runs.get(connectionId)?.token === token) this.targets.set(connectionId, target);
+        if (this.runs.get(connectionId)?.token === token && !this.deps.devAutoUpdate) {
+          this.targets.set(connectionId, target);
+        }
         return target;
       })
       .finally(() => {
@@ -140,9 +144,18 @@ export class WorkspaceServerProvisioner {
 
       const outcome = await this.tryDial(target, signal);
       switch (outcome.kind) {
-        case 'ready':
-          this.publishHealthy(connectionId, outcome.handshake);
+        case 'ready': {
+          const handshake =
+            (await this.maybeDevUpdateRunningDaemon(
+              connectionId,
+              layout,
+              target,
+              outcome.handshake,
+              signal
+            )) ?? outcome.handshake;
+          this.publishHealthy(connectionId, handshake);
           return target;
+        }
         case 'client-outdated':
           throw protocolError(outcome.error);
         case 'server-outdated':
@@ -171,6 +184,32 @@ export class WorkspaceServerProvisioner {
       });
       throw failure;
     }
+  }
+
+  private async maybeDevUpdateRunningDaemon(
+    connectionId: string,
+    layout: WorkspaceServerLayout,
+    target: SshWorkspaceServerTarget,
+    handshake: WireInitializeResult,
+    signal: AbortSignal
+  ): Promise<WireInitializeResult | null> {
+    if (!this.deps.devAutoUpdate) return null;
+
+    let availableVersion: string;
+    try {
+      availableVersion = await this.deps.installer.availableVersion(connectionId, signal);
+    } catch (error) {
+      this.deps.logger?.warn('Could not resolve latest workspace-server dev version', {
+        connectionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+
+    if (availableVersion === handshake.server.appVersion) return null;
+    await this.install(connectionId, signal);
+    await this.restart(connectionId, layout, signal);
+    return await this.waitUntilReady(target, signal);
   }
 
   private async install(connectionId: string, signal: AbortSignal): Promise<void> {

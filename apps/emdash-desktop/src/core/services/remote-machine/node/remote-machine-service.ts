@@ -31,6 +31,7 @@ export type CreateRemoteMachineServiceDeps = {
   machineEvents: MachineMutationEvents;
   installBaseUrl?: string;
   installCommand?: string;
+  devAutoUpdate?: boolean;
   logger?: RemoteMachineServiceLog;
 };
 
@@ -69,6 +70,8 @@ export function createRemoteMachineService(
     daemon,
     model: stateModel,
     wire,
+    devAutoUpdate: deps.devAutoUpdate,
+    logger: deps.logger,
   });
   const serverOperations = new RemoteMachineServerOperations({
     scope,

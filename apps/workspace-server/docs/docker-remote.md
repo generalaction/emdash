@@ -38,6 +38,33 @@ ssh -p 2223 devuser@localhost 'node --version'
 This is the mode for testing OS and architecture detection, artifact pull and installation,
 daemon startup, reconnects, and desktop-managed streamlocal forwarding.
 
+## Dev Artifact Loop
+
+For day-to-day development, build a dev-versioned artifact and start the remote with one command:
+
+```bash
+pnpm run dev:remote
+```
+
+The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
+Silicon, `linux-x64` otherwise), writes `dist-artifacts/latest.txt`, copies `install.sh`, and starts
+the Compose service with preinstall and autostart enabled. Override the target with
+`EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
+
+When testing the desktop app interactively against this remote, launch it with:
+
+```bash
+EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts \
+  EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 \
+  pnpm --dir ../emdash-desktop run dev
+```
+
+`EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
+`appVersion` with `latest.txt` from the configured artifact URL. If they differ, the desktop
+reinstalls and restarts the remote daemon during the next ensure/reconnect. This is development-only;
+production provisioning still keeps compatible running daemons installed until an explicit update or
+protocol upgrade.
+
 ## Preinstall And Autostart Modes
 
 First build an artifact matching the container architecture. Apple Silicon uses `linux-arm64`
@@ -88,7 +115,8 @@ resets the desktop-managed root, invokes the mounted `install.sh` against
 `file:///opt/emdash-artifacts`, installs from the mounted artifact and checksum, exercises a runtime
 call and SSH reconnection, then stops the daemon and removes its temporary workspace. When testing
 the desktop app interactively, launch it with
-`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts`.
+`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts`. For the dev artifact loop, also
+set `EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1`.
 
 ## Logs And Socket Forwarding
 
@@ -122,6 +150,8 @@ docker compose down -v
 
 This removes only the workspace remote container, network, and its `emdash-workspace-remote-home`
 volume. The legacy desktop `ssh-dev` Compose project and its `projects` volume are separate.
+This is no longer required for normal dev artifact refreshes; use it only when you need a bare
+machine or want to remove persisted daemon state.
 
 ## Testing Another Architecture
 

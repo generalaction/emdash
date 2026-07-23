@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   artifactArchiveName,
   artifactChecksumContents,
+  createDevPackageVersion,
   createArtifactManifest,
   createLauncher,
   nodeDistributionArchiveName,
@@ -62,6 +63,14 @@ describe('workspace-server package helpers', () => {
     });
     expect(artifactArchiveName('0.1.0', target)).toBe(
       'emdash-workspace-server-0.1.0-darwin-arm64.tar.gz'
+    );
+  });
+
+  it('derives semver-compatible dev package versions', () => {
+    expect(createDevPackageVersion('0.1.0', 'abc123')).toBe('0.1.0-dev.abc123');
+    expect(createDevPackageVersion('0.1.0', '0.1.0-dev.manual')).toBe('0.1.0-dev.manual');
+    expect(() => createDevPackageVersion('0.1.0', 'not valid')).toThrow(
+      /Invalid workspace-server package version/
     );
   });
 

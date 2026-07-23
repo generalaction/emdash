@@ -36,6 +36,7 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     machineEvents: ssh.machines,
     installBaseUrl: remoteMachineSettings.installBaseUrl,
     installCommand: remoteMachineSettings.installCommand ?? undefined,
+    devAutoUpdate: process.env['EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE'] === '1',
     logger: log,
   });
   return { ssh, remoteMachine };
