@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type {
   GitBranchRef,
   GitRemotesState,
@@ -18,7 +19,11 @@ import {
   nativePathFromHost,
 } from '@core/primitives/desktop-runtime/api';
 import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
-import type { Project, ProjectRemoteState } from '@core/primitives/projects/api';
+import {
+  projectHostRef,
+  type Project,
+  type ProjectRemoteState,
+} from '@core/primitives/projects/api';
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type {
   GitRuntimeClient,
@@ -131,6 +136,10 @@ export class ProjectProvider implements Disposable {
 
   get ctx(): IExecutionContext {
     return this._ctx;
+  }
+
+  get host(): HostRef {
+    return projectHostRef(this.project);
   }
 
   /**

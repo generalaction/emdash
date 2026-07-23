@@ -1,16 +1,21 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
-import { err, ok, type Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { Workspace } from '@core/features/workspaces/api/node/workspace';
 import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
-import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 import type { Task } from '@core/primitives/tasks/api';
+import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
+import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 
 export type TaskProviderOpts = {
+  host: HostRef;
+  files: FilesClientScope;
+  tuiAgents: TuiAgentsRuntimeClient;
   projectId: string;
   taskId: string;
   workspaceId: string;
@@ -21,13 +26,9 @@ export type TaskProviderOpts = {
 };
 
 export async function buildTaskProviders(
-  type: WorkspaceType,
   opts: TaskProviderOpts,
   createConversationProvider: (options: TaskProviderOpts) => ConversationProvider
 ): Promise<Result<{ conversations: ConversationProvider }, RuntimeResolveError>> {
-  if (type.kind === 'ssh') {
-    return err(remoteRuntimeUnavailable(type.connectionId, 'workspaces'));
-  }
   return ok({
     conversations: createConversationProvider(opts),
   });

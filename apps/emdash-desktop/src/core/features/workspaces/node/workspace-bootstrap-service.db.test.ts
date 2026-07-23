@@ -111,6 +111,7 @@ describe('WorkspaceBootstrapService', () => {
           host: { type: 'local', id: 'local' },
           path: '/repo/task',
         },
+        client: { tuiAgents: {} },
         files: {},
         release: mocks.releaseWorkspace,
       })
@@ -244,6 +245,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        host: { type: 'local', id: 'local' },
         configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {
@@ -298,6 +300,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        host: { type: 'local', id: 'local' },
         defaultWorkspaceType: { kind: 'local' },
         settings: {
           get: vi.fn(),
@@ -337,6 +340,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        host: { type: 'local', id: 'local' },
         configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {
@@ -395,6 +399,7 @@ describe('WorkspaceBootstrapService', () => {
         projectId: 'proj-1',
         type: 'local',
         repoPath: '/repo',
+        host: { type: 'local', id: 'local' },
         configPathForDirectory: (directory: string) => `${directory}/.emdash.json`,
         defaultWorkspaceType: { kind: 'local' },
         settings: {

@@ -11,7 +11,6 @@ import {
   buildTaskProviders,
   resolveTaskEnv,
   type TaskProviderOpts,
-  type WorkspaceType,
 } from '@core/features/workspaces/api/node/workspace-factory';
 import type { Task } from '@core/primitives/tasks/api';
 import { taskProvisionEvents } from '../../node/task-provision-events';
@@ -44,7 +43,6 @@ export type BuildTaskResult = {
 export async function buildTaskFromWorkspace(
   task: Task,
   workspace: Workspace,
-  type: WorkspaceType,
   projectId: string,
   projectPath: string,
   settings: ProjectSettingsProvider,
@@ -60,8 +58,10 @@ export async function buildTaskFromWorkspace(
   );
 
   const providers = await buildTaskProviders(
-    type,
     {
+      host: workspace.host,
+      files: workspace.files,
+      tuiAgents: workspace.tuiAgents,
       projectId,
       taskId: task.id,
       workspaceId: workspace.id,

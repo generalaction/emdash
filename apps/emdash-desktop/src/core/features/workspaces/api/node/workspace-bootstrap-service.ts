@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH, type HostFileRef } from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
@@ -175,10 +175,7 @@ export class WorkspaceBootstrapService {
     const isWorktreeWorkspace = wsKind === 'worktree' || (!wsKind && !!workspaceBranchName);
     const workspaceSourceBranch: GitBranchRef | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
-    const connectionId =
-      project.defaultWorkspaceType.kind === 'ssh'
-        ? project.defaultWorkspaceType.connectionId
-        : undefined;
+    const connectionId = sshConnectionIdOf(project.host);
 
     // project-root fast-path: use the project repo path directly.
     // Path is set by ensureRepositoryWorkspace at mount time.
@@ -493,8 +490,6 @@ export class WorkspaceBootstrapService {
     workspaceBranchName?: string,
     workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
-    const type = project.defaultWorkspaceType;
-
     emitTaskProvisionProgress({
       taskId: task.id,
       projectId: project.projectId,
@@ -563,8 +558,8 @@ export class WorkspaceBootstrapService {
           configPath: project.configPathForDirectory(workDir),
           files: access.files,
           settings: project.settings,
+          tuiAgents: access.client.tuiAgents,
         },
-        type,
         project.projectId,
         project.repoPath,
         project.settings,
@@ -583,7 +578,7 @@ export class WorkspaceBootstrapService {
         path: workDir,
         workspaceId,
         runtimeWorkspace: runtimePlan.workspace,
-        sshConnectionId: type.kind === 'ssh' ? type.connectionId : undefined,
+        sshConnectionId: sshConnectionIdOf(project.host),
         worktreeGitDir: undefined,
         taskProvider: buildResult.data.taskProvider,
         postActivationAutomation: automation,
@@ -626,10 +621,7 @@ export class WorkspaceBootstrapService {
 
     try {
       const result = await provisionBYOITask({
-        host:
-          project.defaultWorkspaceType.kind === 'ssh'
-            ? hostRef('remote', project.defaultWorkspaceType.connectionId)
-            : LOCAL_HOST_REF,
+        host: project.host,
       });
       if (!result.success) return result;
       return ok({

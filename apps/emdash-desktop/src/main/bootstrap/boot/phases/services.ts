@@ -208,7 +208,6 @@ export async function bootServices(
     getLocalProjectSettings: () => appSettingsService.get('localProject'),
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
     getTerminalColorEnv,
-    getTuiAgentsRuntimeClient,
     workspaceTrust,
   };
   const githubAccountBackfill = new ProjectGitHubAccountBackfillService(providerAccountRegistry);
@@ -251,6 +250,9 @@ export async function bootServices(
           projectId: options.projectId,
           taskId: options.taskId,
           taskPath: options.taskPath,
+          host: options.host,
+          files: options.files,
+          tuiAgents: options.tuiAgents,
           tmux: options.tmuxEnabled,
           shellSetup: options.shellSetup,
           taskEnvVars: options.taskEnvVars,
