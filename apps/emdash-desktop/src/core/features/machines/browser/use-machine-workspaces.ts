@@ -52,3 +52,16 @@ export function useMachineWorkspaces(machineId: string | undefined, enabled: boo
     staleTime: 60_000,
   });
 }
+
+export async function deleteMachineProjectWorkspaces({
+  projectId,
+  paths,
+}: {
+  projectId: string;
+  paths: string[];
+}) {
+  return (await getDesktopWireClient()).projectWorkspaces.deleteProjectWorkspaces({
+    projectId,
+    paths,
+  });
+}

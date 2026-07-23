@@ -4,32 +4,52 @@ import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/p
 import { SelectableCard } from '@emdash/ui/react/primitives';
 import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { ResourceUtilizationRow } from '../components/machine-resources';
 import { deriveMachineStatusKind } from '../components/machine-status-kind';
-import { MachineWorkspacesByProject } from '../components/machine-workspaces-by-project';
+import { MachineWorkspacesList } from '../components/machine-workspaces-list';
 import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
-import { useMachineWorkspaces } from '../use-machine-workspaces';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
 
-function MachineDetailsCard({ children, icon, title, selected }: { children?: React.ReactNode, icon: React.ReactNode, title: string | React.ReactNode, selected?: boolean }) {
+type MachineDetailsSection = 'workspaces' | 'agents' | 'mcp' | 'skills';
+
+function MachineDetailsCard({
+  children,
+  icon,
+  title,
+  selected,
+  onClick,
+}: {
+  children?: React.ReactNode;
+  icon: React.ReactNode;
+  title: string | React.ReactNode;
+  selected?: boolean;
+  onClick?: () => void;
+}) {
   return (
-    <SelectableCard padding="2" borderRadius="md" className="flex-1" selected={selected}>
-          <span className="flex items-center gap-2 w-full justify-center">
-            {icon}
-            <span className="text-sm">{title}</span>
-          </span>
-        </SelectableCard>
+    <SelectableCard
+      padding="2"
+      borderRadius="md"
+      className="flex-1"
+      selected={selected}
+      onClick={onClick}
+    >
+      <span className="flex w-full items-center justify-center gap-2">
+        {icon}
+        <span className="text-sm">{title}</span>
+      </span>
+      {children}
+    </SelectableCard>
   );
 }
 
@@ -46,6 +66,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const [name, setName] = useState(machine?.name ?? '');
   const [isRenaming, setIsRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [section, setSection] = useState<MachineDetailsSection>('workspaces');
   const renameFieldRef = useRef<HTMLInputElement>(null);
   const workspaceServer = useRemoteMachineServerState({
     machineId: machine?.id,
@@ -59,7 +80,6 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   });
   const serverHealthy = workspaceServer.state?.status === 'healthy';
   const metrics = useMachineMetrics(machine?.id, serverHealthy);
-  const workspaces = useMachineWorkspaces(machine?.id, serverHealthy);
 
   useEffect(() => {
     setName(machine?.name ?? '');
@@ -253,12 +273,39 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       </SettingsCard>
 
       <div className="grid grid-cols-4 gap-2">
-        <MachineDetailsCard icon={<Folder size={14} />} title="Workspaces" selected />
-        <MachineDetailsCard icon={<User size={14} />} title="Agents" />
-        <MachineDetailsCard icon={<Server size={14} />} title="MCP Servers" />
-        <MachineDetailsCard icon={<Brain size={14} />} title="Skills" />
+        <MachineDetailsCard
+          icon={<Folder size={14} />}
+          title="Workspaces"
+          selected={section === 'workspaces'}
+          onClick={() => setSection('workspaces')}
+        />
+        <MachineDetailsCard
+          icon={<User size={14} />}
+          title="Agents"
+          selected={section === 'agents'}
+          onClick={() => setSection('agents')}
+        />
+        <MachineDetailsCard
+          icon={<Server size={14} />}
+          title="MCP Servers"
+          selected={section === 'mcp'}
+          onClick={() => setSection('mcp')}
+        />
+        <MachineDetailsCard
+          icon={<Brain size={14} />}
+          title="Skills"
+          selected={section === 'skills'}
+          onClick={() => setSection('skills')}
+        />
       </div>
+
+      {section === 'workspaces' && (
+        <MachineWorkspacesList
+          machineId={machine.id}
+          connectionId={machine.id}
+          enabled={serverHealthy}
+        />
+      )}
     </div>
   );
 });
-
