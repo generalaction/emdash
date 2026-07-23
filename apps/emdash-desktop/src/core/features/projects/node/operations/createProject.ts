@@ -36,7 +36,7 @@ export async function inspectProjectPath(
   }
 
   const [status, existingProject] = await Promise.all([
-    getSshProjectPathStatus(params.path, params.connectionId),
+    getSshProjectPathStatus(dependencies, params.path, params.connectionId),
     getProjectByPath(dependencies.db, hostRef('remote', params.connectionId), params.path),
   ]);
   return { ...status, existingProject };

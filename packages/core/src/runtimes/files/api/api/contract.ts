@@ -96,7 +96,10 @@ export const filesContract = defineContract({
       },
       mutations: {
         expand: mutation({
-          input: z.object({ path: portableRelativePathSchema }),
+          input: z.object({
+            path: portableRelativePathSchema,
+            depth: z.number().int().min(1).max(2).optional(),
+          }),
           data: z.void(),
           error: fsErrorSchema,
         }),
@@ -106,7 +109,10 @@ export const filesContract = defineContract({
           error: fsErrorSchema,
         }),
         reveal: mutation({
-          input: z.object({ path: portableRelativePathSchema }),
+          input: z.object({
+            path: portableRelativePathSchema,
+            depth: z.number().int().min(1).max(2).optional(),
+          }),
           data: z.void(),
           error: fsErrorSchema,
         }),

@@ -30,6 +30,7 @@ type TreeMutationContext<Name extends TreeMutationName> = ResourceMutationContex
   TreeResource,
   Name
 >;
+type ExpansionDepth = 1 | 2;
 
 export type TreeResourceOptions = {
   identity: TreeIdentity;
@@ -64,7 +65,11 @@ export class TreeResource {
 
   expand(context: TreeMutationContext<'expand'>): Promise<Result<void, FsError>> {
     return this.run(async () => {
-      const result = await this.expandPath(context.input.path, context.mutationId);
+      const result = await this.expandPath(
+        context.input.path,
+        context.mutationId,
+        normalizeExpansionDepth(context.input.depth)
+      );
       if (!result.success) return result;
       await context.settle('tree', result.data);
       return ok<void>();
@@ -105,19 +110,23 @@ export class TreeResource {
       if (!validated.success) return validated;
       const target = validated.data.path;
       let cursor = this.state.cursor;
-      const segments = target === '' ? [] : target.split('/');
-      const ancestors: PortableRelativePath[] = [ROOT_RELATIVE_PATH];
-      for (let index = 1; index < segments.length; index += 1) {
-        const ancestor = parsePortableRelativePath(segments.slice(0, index).join('/'));
-        if (ancestor.success) ancestors.push(ancestor.data);
-      }
-      for (const ancestor of ancestors) {
+      for (const ancestor of ancestorPaths(target)) {
         const expanded = await this.expandPath(ancestor, context.mutationId);
         if (!expanded.success) return expanded;
         cursor = expanded.data;
       }
-      if (!this.current().entries[target]) {
+      const targetEntry = this.current().entries[target];
+      if (!targetEntry) {
         return { success: false, error: { type: 'not-found', path: target } };
+      }
+      if (isExpandableFileEntry(targetEntry)) {
+        const expanded = await this.expandPath(
+          target,
+          context.mutationId,
+          normalizeExpansionDepth(context.input.depth)
+        );
+        if (!expanded.success) return expanded;
+        cursor = expanded.data;
       }
       await context.settle('tree', cursor);
       return ok<void>();
@@ -135,7 +144,8 @@ export class TreeResource {
 
   private async expandPath(
     entryPath: PortableRelativePath,
-    mutationId?: string
+    mutationId?: string,
+    depth: ExpansionDepth = 1
   ): Promise<Result<LiveCursor, FsError>> {
     const validated = this.options.root.paths.resolveEntry(entryPath);
     if (!validated.success) return validated;
@@ -152,11 +162,32 @@ export class TreeResource {
     const children = await this.reader.readChildren(entry.path);
     if (!children.success) return children;
     reconcileDirectory(model, entry.path, children.data);
+    if (depth > 1) {
+      await this.expandLoadedChildren(model, entry.path);
+    }
     return ok(
       this.state.replace(model, {
         mutationIds: mutationId === undefined ? undefined : [mutationId],
       })
     );
+  }
+
+  private async expandLoadedChildren(
+    model: FileTreeModel,
+    entryPath: PortableRelativePath
+  ): Promise<void> {
+    const entry = model.entries[entryPath];
+    if (!entry) return;
+    for (const childPath of entry.children) {
+      const child = model.entries[childPath];
+      if (!child || !isExpandableFileEntry(child)) continue;
+      const children = await this.reader.readChildren(child.path);
+      if (!children.success) {
+        this.onError(`files tree eager expand ${child.path}`, children.error);
+        continue;
+      }
+      reconcileDirectory(model, child.path, children.data);
+    }
   }
 
   private onRootChanges(changes: RootChange[]): void {
@@ -278,6 +309,24 @@ function initialTree(root: FileTreeModel['root']): FileTreeModel {
       },
     },
   };
+}
+
+function normalizeExpansionDepth(depth: number | undefined): ExpansionDepth {
+  return depth === 2 ? 2 : 1;
+}
+
+function ancestorPaths(target: PortableRelativePath): PortableRelativePath[] {
+  const segments = target === '' ? [] : target.split('/');
+  const ancestors: PortableRelativePath[] = [];
+  for (let index = 0; index < segments.length; index += 1) {
+    if (index === 0) {
+      ancestors.push(ROOT_RELATIVE_PATH);
+      continue;
+    }
+    const ancestor = parsePortableRelativePath(segments.slice(0, index).join('/'));
+    if (ancestor.success) ancestors.push(ancestor.data);
+  }
+  return ancestors;
 }
 
 function reconcileDirectory(

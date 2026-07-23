@@ -95,10 +95,10 @@ function WorkspaceRuntimeDetails({
           {state.version && <span className="tabular-nums">Runtime v{state.version}</span>}
           {state.version && startedAt && <span aria-hidden>·</span>}
           {startedAt && <span>Started {startedAt}</span>}
+          {state.detail && <span>{state.detail}</span>}
+          {state.error && <span className="text-destructive">{state.error.message}</span>}
         </span>
       )}
-      {state.detail && <span>{state.detail}</span>}
-      {state.error && <span className="text-destructive">{state.error.message}</span>}
     </span>
   );
 }

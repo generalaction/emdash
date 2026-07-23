@@ -1,12 +1,23 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { filesContract } from '@emdash/core/runtimes/files/api';
+import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { LiveState } from '@emdash/wire';
 import type {
   Contract,
   ContractImpl,
+  GroupMutationEnvelope,
   LeasedLiveModelProvider,
   LiveModelProvider,
+  LiveSource,
 } from '@emdash/wire';
-import { projectsWireContract, type ProjectCreationState } from '@core/features/projects/api';
+import {
+  projectsWireContract,
+  type ProjectCreationState,
+  type ProjectHostParams,
+} from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
@@ -55,8 +66,13 @@ export function createProjectsWireController(
       updateProjectConnection: ({ projectId, connectionId }) =>
         projectOperations.updateProjectConnection(projectId, connectionId),
       openProject: ({ projectId }) => projectOperations.openProject(projectId),
+      getHostHomeDir: async (input) => {
+        const runtime = await acquireHostRuntime(dependencies, input);
+        return nativePathFromHost(await runtime.files.getHomeDir());
+      },
       events: projectEvents,
       creation: createCreationProvider(),
+      directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {
         run: (input, ctx) =>
           createProjectFromRemote(dependencies, input, ctx, publishCreationState),
@@ -69,6 +85,49 @@ export function createProjectsWireController(
     },
     async dispose() {
       creationStates.clear();
+    },
+  };
+}
+
+function createDirectoryTreeModelProvider(
+  dependencies: ProjectOperationDependencies
+): LiveModelProvider<typeof projectsWireContract.directoryTree> {
+  const contract = projectsWireContract.directoryTree;
+  return {
+    kind: 'liveModelProvider',
+    contract,
+    resolveState: (key, name) =>
+      resolveHostRuntimeSource(dependencies, key, (runtime) =>
+        runtime.files.tree.model
+          .state(
+            {
+              root: key.root,
+              sessionId: key.sessionId,
+            },
+            name
+          )
+          .asLiveSource()
+      ),
+    async runMutation(name, envelope) {
+      const runtimeResult = await dependencies.runtimes.client(hostRefForProjectHost(envelope.key));
+      if (!runtimeResult.success) {
+        return err(runtimeResult.error) as unknown as Awaited<
+          ReturnType<LiveModelProvider<typeof contract>['runMutation']>
+        >;
+      }
+      const result = await runtimeResult.data.files.tree.model.mutate(name, {
+        ...envelope,
+        key: {
+          root: envelope.key.root,
+          sessionId: envelope.key.sessionId,
+        },
+      } as unknown as GroupMutationEnvelope<typeof filesContract.tree.model, typeof name>);
+      return rebindMutationCursors(
+        result,
+        filesContract.tree.model,
+        projectsWireContract.directoryTree,
+        envelope.key
+      ) as unknown as Awaited<ReturnType<LiveModelProvider<typeof contract>['runMutation']>>;
     },
   };
 }
@@ -122,6 +181,28 @@ function createCreationProvider(): LiveModelProvider<typeof projectsWireContract
   };
 }
 
+async function acquireHostRuntime(
+  dependencies: ProjectOperationDependencies,
+  host: ProjectHostParams
+) {
+  const runtime = await dependencies.runtimes.client(hostRefForProjectHost(host));
+  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+  return runtime.data;
+}
+
+async function resolveHostRuntimeSource(
+  dependencies: ProjectOperationDependencies,
+  host: ProjectHostParams,
+  source: (runtime: Awaited<ReturnType<typeof acquireHostRuntime>>) => LiveSource
+): Promise<LiveSource> {
+  const runtime = await acquireHostRuntime(dependencies, host);
+  return source(runtime);
+}
+
+function hostRefForProjectHost(host: ProjectHostParams) {
+  return host.type === 'ssh' ? hostRef('remote', host.connectionId) : LOCAL_HOST_REF;
+}
+
 function ensureCreationState(key: CreationKey): CreationState {
   const existing = creationStates.get(key.projectId);
   if (existing) return existing;
@@ -135,4 +216,29 @@ function ensureCreationState(key: CreationKey): CreationState {
 
 function publishCreationState(projectId: string, next: ProjectCreationState): void {
   ensureCreationState({ projectId }).replace(next);
+}
+
+function rebindMutationCursors<
+  ResultType extends Result<{ data: unknown; cursors: readonly { model: string }[] }, unknown>,
+>(
+  result: ResultType,
+  source: { states: Record<string, { id: string }> },
+  target: { states: Record<string, { id: string }> },
+  key: unknown
+): ResultType {
+  if (!result.success) return result;
+  const ids = new Map(
+    Object.entries(source.states).flatMap(([name, state]) => {
+      const targetState = target.states[name];
+      return targetState ? [[state.id, targetState.id] as const] : [];
+    })
+  );
+  return ok({
+    ...result.data,
+    cursors: result.data.cursors.map((cursor) => ({
+      ...cursor,
+      model: ids.get(cursor.model) ?? cursor.model,
+      key,
+    })),
+  }) as unknown as ResultType;
 }

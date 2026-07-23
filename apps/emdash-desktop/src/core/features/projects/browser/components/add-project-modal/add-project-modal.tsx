@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Github, Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
@@ -78,6 +78,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const openAddProjectModal = useOpenModal('addProjectModal');
   const openConfirm = useOpenModal('confirmActionModal');
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
+  const getProjectsClient = useCallback(async () => (await getDesktopWireClient()).projects, []);
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
     const projectManager = getProjectManagerStore();
@@ -429,6 +430,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             strategy={strategy}
             connectionId={selectedConnectionId}
             state={pickState}
+            getProjectsClient={getProjectsClient}
             inspectionError={pickPathInspectionError?.message}
             showInitializeGitPrompt={requiresGitInitialization}
           />
@@ -438,12 +440,18 @@ export const AddProjectModal = observer(function AddProjectModal({
             strategy={strategy}
             connectionId={selectedConnectionId}
             state={newState}
+            getProjectsClient={getProjectsClient}
             showGithubAuthDisclaimer={showGithubAuthDisclaimer}
             onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
           />
         )}
         {mode === 'clone' && (
-          <ClonePanel strategy={strategy} connectionId={selectedConnectionId} state={cloneState} />
+          <ClonePanel
+            strategy={strategy}
+            connectionId={selectedConnectionId}
+            state={cloneState}
+            getProjectsClient={getProjectsClient}
+          />
         )}
       </DialogContentArea>
     </ModalLayout>

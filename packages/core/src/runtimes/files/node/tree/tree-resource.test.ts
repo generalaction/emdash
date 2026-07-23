@@ -1,7 +1,8 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { deferred } from '@emdash/shared/testing';
+import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
 import type { FileTreeModel } from '@runtimes/files/api';
 import { resolveRootIdentity, treeIdentity } from '@runtimes/files/node/allocation/identity';
 import { RootResource } from '@runtimes/files/node/root/root-resource';
@@ -17,6 +18,36 @@ afterEach(async () => {
 });
 
 describe('TreeResource', () => {
+  it('eagerly expands one child layer when depth is 2', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'repo', '.git'), { recursive: true });
+    await mkdir(path.join(rootPath, 'plain', 'src'), { recursive: true });
+
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    const result = await diagnostic.expandPath(ROOT_RELATIVE_PATH, undefined, 2);
+
+    expect(result.success).toBe(true);
+    const model = diagnostic.current();
+    expect(model.entries.repo?.childrenLoaded).toBe(true);
+    expect(model.entries.repo?.children).toContain('repo/.git');
+    expect(model.entries.plain?.childrenLoaded).toBe(true);
+    expect(model.entries.plain?.children).toContain('plain/src');
+    expect(model.entries['repo/.git']?.childrenLoaded).toBe(false);
+  });
+
+  it('keeps expand shallow when depth is omitted', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'repo', '.git'), { recursive: true });
+
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    const result = await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+
+    expect(result.success).toBe(true);
+    const model = diagnostic.current();
+    expect(model.entries.repo?.childrenLoaded).toBe(false);
+    expect(model.entries.repo?.children).toEqual([]);
+  });
+
   it('coalesces a resync burst to one active and one trailing rebuild', async () => {
     const { tree, watcher } = await createHarness();
     const diagnostic = tree as unknown as DiagnosticTreeResource;
@@ -69,6 +100,12 @@ describe('TreeResource', () => {
 
 type DiagnosticTreeResource = {
   lane: Promise<void>;
+  current(): FileTreeModel;
+  expandPath(
+    entryPath: PortableRelativePath,
+    mutationId?: string,
+    depth?: 1 | 2
+  ): Promise<{ success: boolean }>;
   resync(previous: FileTreeModel): Promise<void>;
 };
 
@@ -94,7 +131,11 @@ class ManualWatcher implements IWatchService {
   }
 }
 
-async function createHarness(): Promise<{ tree: TreeResource; watcher: ManualWatcher }> {
+async function createHarness(): Promise<{
+  rootPath: string;
+  tree: TreeResource;
+  watcher: ManualWatcher;
+}> {
   const rootPath = await realpath(await mkdtemp(path.join(tmpdir(), 'emdash-tree-resource-')));
   cleanups.push(() => rm(rootPath, { recursive: true, force: true }));
 
@@ -111,5 +152,5 @@ async function createHarness(): Promise<{ tree: TreeResource; watcher: ManualWat
   });
   const tree = new TreeResource({ identity, root });
   cleanups.push(() => tree.dispose());
-  return { tree, watcher };
+  return { rootPath, tree, watcher };
 }

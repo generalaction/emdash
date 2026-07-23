@@ -1,3 +1,8 @@
+import {
+  hostAbsolutePathSchema,
+  portableRelativePathSchema,
+} from '@emdash/core/primitives/path/api';
+import { fileTreeModelSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
 import { workspaceErrorSchema } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
 import {
@@ -7,6 +12,7 @@ import {
   liveJob,
   liveModel,
   liveState,
+  mutation,
   procedure,
 } from '@emdash/wire';
 import z from 'zod';
@@ -76,6 +82,25 @@ export const createProjectFromRemoteInputSchema = z.object({
   description: z.string().optional(),
 });
 
+export const projectHostParamsSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('local') }),
+  z.object({ type: z.literal('ssh'), connectionId: z.string().min(1) }),
+]);
+
+export const projectDirectoryTreeKeySchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('local'),
+    root: hostAbsolutePathSchema,
+    sessionId: z.string(),
+  }),
+  z.object({
+    type: z.literal('ssh'),
+    connectionId: z.string().min(1),
+    root: hostAbsolutePathSchema,
+    sessionId: z.string(),
+  }),
+]);
+
 const projectIdInputSchema = z.object({
   projectId: z.string(),
 });
@@ -88,6 +113,10 @@ export const projectsWireContract = defineContract({
   inspectProjectPath: procedure({
     input: z.custom<InspectProjectPathParams>(),
     output: z.custom<ProjectPathInspection>(),
+  }),
+  getHostHomeDir: procedure({
+    input: projectHostParamsSchema,
+    output: z.string(),
   }),
   resolveRepositoryDestination: procedure({
     input: z.custom<ResolveRepositoryDestinationParams>(),
@@ -155,6 +184,35 @@ export const projectsWireContract = defineContract({
       state: liveState({ data: projectCreationStateSchema }),
     },
   }),
+  directoryTree: liveModel({
+    key: projectDirectoryTreeKeySchema,
+    states: {
+      tree: liveState({ data: fileTreeModelSchema }),
+    },
+    mutations: {
+      expand: mutation({
+        input: z.object({
+          path: portableRelativePathSchema,
+          depth: z.number().int().min(1).max(2).optional(),
+        }),
+        data: z.void(),
+        error: fsErrorSchema,
+      }),
+      collapse: mutation({
+        input: z.object({ path: portableRelativePathSchema }),
+        data: z.void(),
+        error: fsErrorSchema,
+      }),
+      reveal: mutation({
+        input: z.object({
+          path: portableRelativePathSchema,
+          depth: z.number().int().min(1).max(2).optional(),
+        }),
+        data: z.void(),
+        error: fsErrorSchema,
+      }),
+    },
+  }),
   create: liveJob({
     input: createProjectFromRemoteInputSchema,
     progress: workspaceBootstrapProgressSchema,
@@ -186,4 +244,5 @@ export const projectsWireContract = defineContract({
 
 export type ProjectCreationState = z.infer<typeof projectCreationStateSchema>;
 export type CreateProjectFromRemoteInput = z.infer<typeof createProjectFromRemoteInputSchema>;
+export type ProjectHostParams = z.infer<typeof projectHostParamsSchema>;
 export type ProjectsWireContract = typeof projectsWireContract;

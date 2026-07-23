@@ -31,7 +31,7 @@ const dependencies = {
   db: { insert: mocks.insertMock } as never,
   getFilesRuntimeClient: async () => clients.files as never,
   runtimes: {
-    client: async () => ok({ git: clients.git } as never),
+    client: async () => ok({ files: clients.files, git: clients.git } as never),
   },
   projects: { openProject: mocks.openProjectMock },
 };
@@ -451,18 +451,14 @@ describe('createSshProject', () => {
 describe('getSshProjectPathStatus', () => {
   const projectPath = '/remote/worktree';
 
-  it('reports a typed host-unavailable error', async () => {
-    const status = await getSshProjectPathStatus(projectPath, 'connection-id');
+  it('inspects the remote path through the host runtime', async () => {
+    const status = await getSshProjectPathStatus(dependencies, projectPath, 'connection-id');
 
     expect(status).toEqual({
-      isDirectory: false,
-      isGitRepo: false,
-      error: {
-        type: 'host-unavailable',
-        host: { type: 'remote', id: 'connection-id' },
-        message: 'Remote projects require the workspace server and are not supported by this build',
-      },
+      isDirectory: true,
+      isGitRepo: true,
     });
-    expect(mocks.inspectPathMock).not.toHaveBeenCalled();
+    expect(mocks.statMock).toHaveBeenCalledWith(projectPath);
+    expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
   });
 });

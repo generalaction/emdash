@@ -12,18 +12,24 @@ import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
 import { LocalDirectorySelector } from './local-directory-selector';
 import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
+import {
+  ProjectDirectoryPicker,
+  type ProjectDirectoryPickerClient,
+} from './project-directory-picker';
 import { RemoteDirectorySelector } from './remote-directory-selector';
 
 export function PickExistingPanel({
   strategy,
   connectionId,
   state,
+  getProjectsClient,
   inspectionError,
   showInitializeGitPrompt,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: PickModeState;
+  getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   inspectionError?: string;
   showInitializeGitPrompt: boolean;
 }) {
@@ -40,11 +46,20 @@ export function PickExistingPanel({
             message="Select a project directory to open"
           />
         ) : (
-          <RemoteDirectorySelector
-            connectionId={connectionId}
-            value={state.path}
-            onChange={state.handlePathChange}
-          />
+          <div className="flex flex-col gap-2">
+            <ProjectDirectoryPicker
+              strategy={strategy}
+              connectionId={connectionId}
+              value={state.path}
+              getProjectsClient={getProjectsClient}
+              onSelect={state.handlePathChange}
+            />
+            <RemoteDirectorySelector
+              connectionId={connectionId}
+              value={state.path}
+              onChange={state.handlePathChange}
+            />
+          </div>
         )}
       </Field>
       <Field>
@@ -88,12 +103,14 @@ export function CreateNewPanel({
   strategy,
   connectionId,
   state,
+  getProjectsClient,
   showGithubAuthDisclaimer,
   onOpenAccountSettings,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: NewModeState;
+  getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   showGithubAuthDisclaimer: boolean;
   onOpenAccountSettings: () => void;
 }) {
@@ -174,11 +191,20 @@ export function CreateNewPanel({
               message="Select a project directory to open"
             />
           ) : (
-            <RemoteDirectorySelector
-              connectionId={connectionId}
-              value={state.path}
-              onChange={state.setPath}
-            />
+            <div className="flex flex-col gap-2">
+              <ProjectDirectoryPicker
+                strategy={strategy}
+                connectionId={connectionId}
+                value={state.path}
+                getProjectsClient={getProjectsClient}
+                onSelect={state.setPath}
+              />
+              <RemoteDirectorySelector
+                connectionId={connectionId}
+                value={state.path}
+                onChange={state.setPath}
+              />
+            </div>
           )}
         </Field>
       </FieldGroup>
@@ -190,10 +216,12 @@ export function ClonePanel({
   strategy,
   connectionId,
   state,
+  getProjectsClient,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: CloneModeState;
+  getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
 }) {
   const repositoryUrlId = useId();
   const projectNameId = useId();
@@ -232,11 +260,20 @@ export function ClonePanel({
               message="Select a project directory to open"
             />
           ) : (
-            <RemoteDirectorySelector
-              connectionId={connectionId}
-              value={state.path}
-              onChange={state.setPath}
-            />
+            <div className="flex flex-col gap-2">
+              <ProjectDirectoryPicker
+                strategy={strategy}
+                connectionId={connectionId}
+                value={state.path}
+                getProjectsClient={getProjectsClient}
+                onSelect={state.setPath}
+              />
+              <RemoteDirectorySelector
+                connectionId={connectionId}
+                value={state.path}
+                onChange={state.setPath}
+              />
+            </div>
           )}
         </Field>
       </FieldGroup>
