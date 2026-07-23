@@ -16,67 +16,58 @@ export default meta;
 
 type Story = StoryObj<typeof DirectorySelector>;
 
+const DAY = 86_400_000;
+const MOCK_NOW = Date.UTC(2026, 6, 22);
+
+function folder(name: string, daysAgo: number): DirectoryEntry {
+  return { name, kind: 'directory', addedAtMs: MOCK_NOW - daysAgo * DAY };
+}
+
+function repo(name: string, daysAgo: number): DirectoryEntry {
+  return { name, kind: 'repository', addedAtMs: MOCK_NOW - daysAgo * DAY };
+}
+
+function file(name: string, sizeBytes: number, daysAgo: number): DirectoryEntry {
+  return { name, kind: 'file', sizeBytes, addedAtMs: MOCK_NOW - daysAgo * DAY };
+}
+
+function symlink(name: string, daysAgo: number): DirectoryEntry {
+  return { name, kind: 'symlink', addedAtMs: MOCK_NOW - daysAgo * DAY };
+}
+
 const mockFs: Record<string, DirectoryEntry[]> = {
   '/home/user': [
-    { name: 'repos', kind: 'directory' },
-    { name: 'emdash', kind: 'repository' },
-    { name: 'Downloads', kind: 'directory' },
-    { name: 'empty-folder', kind: 'directory' },
-    { name: '.zshrc', kind: 'file' },
+    folder('repos', 64),
+    repo('emdash', 14),
+    folder('Downloads', 3),
+    folder('empty-folder', 1),
+    file('.zshrc', 3_421, 90),
   ],
-  '/home/user/repos': [
-    { name: 'emdash', kind: 'repository' },
-    { name: 'plugins', kind: 'directory' },
-    { name: 'README.md', kind: 'file' },
-  ],
+  '/home/user/repos': [repo('emdash', 14), folder('plugins', 22), file('README.md', 12_420, 21)],
   '/home/user/repos/emdash': [
-    { name: 'apps', kind: 'directory' },
-    { name: 'packages', kind: 'directory' },
-    { name: '.git', kind: 'directory' },
-    { name: 'package.json', kind: 'file' },
-    { name: 'pnpm-lock.yaml', kind: 'file' },
+    folder('apps', 13),
+    folder('packages', 13),
+    folder('.git', 14),
+    file('package.json', 5_125, 2),
+    file('pnpm-lock.yaml', 643_220, 2),
   ],
-  '/home/user/repos/emdash/apps': [
-    { name: 'emdash-desktop', kind: 'repository' },
-    { name: 'README.md', kind: 'file' },
-  ],
-  '/home/user/repos/emdash/packages': [
-    { name: 'ui', kind: 'repository' },
-    { name: 'core', kind: 'directory' },
-    { name: 'shared', kind: 'directory' },
-  ],
-  '/home/user/repos/plugins': [
-    { name: 'providers', kind: 'directory' },
-    { name: 'current', kind: 'symlink' },
-  ],
-  '/home/user/emdash': [
-    { name: 'src', kind: 'directory' },
-    { name: '.git', kind: 'directory' },
-    { name: 'README.md', kind: 'file' },
-  ],
-  '/home/user/Downloads': [
-    { name: 'archive.zip', kind: 'file' },
-    { name: 'screenshots', kind: 'directory' },
-  ],
+  '/home/user/repos/emdash/apps': [repo('emdash-desktop', 13), file('README.md', 8_032, 12)],
+  '/home/user/repos/emdash/packages': [repo('ui', 13), folder('core', 13), folder('shared', 13)],
+  '/home/user/repos/plugins': [folder('providers', 20), symlink('current', 4)],
+  '/home/user/emdash': [folder('src', 14), folder('.git', 14), file('README.md', 15_248, 9)],
+  '/home/user/Downloads': [file('archive.zip', 4_932_812, 8), folder('screenshots', 3)],
   '/home/user/Downloads/screenshots': [
-    { name: 'settings.png', kind: 'file' },
-    { name: 'workbench.png', kind: 'file' },
+    file('settings.png', 812_400, 3),
+    file('workbench.png', 1_284_330, 3),
   ],
   '/home/user/empty-folder': [],
 };
 
 const windowsFs: Record<string, DirectoryEntry[]> = {
-  'C:': [{ name: 'Users', kind: 'directory' }],
-  'C:\\Users': [{ name: 'david', kind: 'directory' }],
-  'C:\\Users\\david': [
-    { name: 'Documents', kind: 'directory' },
-    { name: 'emdash', kind: 'repository' },
-    { name: 'notes.txt', kind: 'file' },
-  ],
-  'C:\\Users\\david\\Documents': [
-    { name: 'repos', kind: 'directory' },
-    { name: 'designs', kind: 'directory' },
-  ],
+  'C:': [folder('Users', 200)],
+  'C:\\Users': [folder('david', 180)],
+  'C:\\Users\\david': [folder('Documents', 120), repo('emdash', 6), file('notes.txt', 3_104, 11)],
+  'C:\\Users\\david\\Documents': [folder('repos', 60), folder('designs', 15)],
 };
 
 export const Interactive: Story = {
@@ -151,6 +142,9 @@ export const WithSelection: Story = {
     onForward: noop,
     onNavigate: noop,
     onSelect: noop,
+    onCreateFolder: noop,
+    onCancel: noop,
+    onConfirm: noop,
   },
   render: (args) => (
     <div style={{ width: '34rem' }}>
@@ -175,14 +169,16 @@ function MockDirectorySelector({
   separator?: '/' | '\\';
 }) {
   const history = useDirectoryHistory(initialPath);
+  const [fsState, setFsState] = React.useState(() => cloneFs(fs));
   const [selectedPath, setSelectedPath] = React.useState<string | null>(null);
   const [listing, setListing] = React.useState<DirectoryListing>({ status: 'loading' });
+  const [confirmedPath, setConfirmedPath] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setSelectedPath(null);
     setListing({ status: 'loading' });
     const timer = window.setTimeout(() => {
-      const entries = fs[history.path];
+      const entries = fsState[history.path];
       setListing(
         entries
           ? { status: 'ready', entries }
@@ -190,10 +186,30 @@ function MockDirectorySelector({
       );
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [fs, history.path]);
+  }, [fsState, history.path]);
+
+  React.useEffect(() => {
+    setFsState(cloneFs(fs));
+  }, [fs]);
+
+  function createFolder(parentPath: string) {
+    setFsState((current) => {
+      const currentEntries = current[parentPath] ?? [];
+      const name = uniqueNewFolderName(currentEntries);
+      const newPath = joinStoryPath(parentPath, name, separator);
+      return {
+        ...current,
+        [parentPath]: [
+          ...currentEntries,
+          { name, kind: 'directory', addedAtMs: Date.now() } satisfies DirectoryEntry,
+        ],
+        [newPath]: [],
+      };
+    });
+  }
 
   return (
-    <div style={{ width: '34rem' }}>
+    <div style={{ display: 'grid', width: '34rem', gap: '0.5rem' }}>
       <DirectorySelector
         path={history.path}
         listing={listing}
@@ -204,10 +220,39 @@ function MockDirectorySelector({
         onForward={history.forward}
         onNavigate={history.navigate}
         onSelect={setSelectedPath}
+        onCreateFolder={createFolder}
+        onCancel={() => setSelectedPath(null)}
+        onConfirm={setConfirmedPath}
         separator={separator}
       />
+      {confirmedPath && (
+        <p style={{ margin: 0, fontSize: '0.75rem', opacity: 0.7 }}>Confirmed: {confirmedPath}</p>
+      )}
     </div>
   );
+}
+
+function cloneFs(fs: Record<string, DirectoryEntry[]>): Record<string, DirectoryEntry[]> {
+  return Object.fromEntries(Object.entries(fs).map(([path, entries]) => [path, [...entries]]));
+}
+
+function uniqueNewFolderName(entries: DirectoryEntry[]): string {
+  let index = 0;
+  let name = 'New Folder';
+  while (entries.some((entry) => entry.name === name)) {
+    index += 1;
+    name = `New Folder ${index}`;
+  }
+  return name;
+}
+
+function joinStoryPath(parent: string, name: string, separator: '/' | '\\'): string {
+  if (!parent || parent === separator) return `${separator}${name}`;
+  return `${parent.replace(new RegExp(`${escapeRegExp(separator)}+$`), '')}${separator}${name}`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function noop() {}

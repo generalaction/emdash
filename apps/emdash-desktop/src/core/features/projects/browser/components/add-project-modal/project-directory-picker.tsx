@@ -8,6 +8,7 @@ import {
   type FileTreeModel,
   isExpandableFileEntry,
 } from '@emdash/core/runtimes/files/api';
+import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import {
   DirectorySelector,
   useDirectoryHistory,
@@ -34,6 +35,7 @@ import { type Strategy } from './add-project-modal';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
+const DIRECTORY_TREE_READY_TIMEOUT_MS = 30_000;
 export type ProjectDirectoryPickerClient = ContractClient<
   ContractDefinitionsOf<ProjectsWireContract>
 >;
@@ -64,7 +66,7 @@ export function ProjectDirectoryPicker({
   });
   const homePath = homeQuery.data ?? '';
   const history = useDirectoryHistory(homePath);
-  const root = useMemo(() => (homePath ? rootForPath(homePath) : null), [homePath]);
+  const root = useMemo(() => (homePath ? hostPathFromNative(homePath) : null), [homePath]);
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const tree = useProjectDirectoryTree(host, root, sessionId, getProjectsClient);
   const currentRelativePath = useMemo(() => {
@@ -93,6 +95,7 @@ export function ProjectDirectoryPicker({
   return (
     <DirectorySelector
       path={history.path || homePath}
+      navigationRoot={homePath}
       listing={listing}
       selectedPath={value || null}
       canGoBack={history.canGoBack}
@@ -133,9 +136,21 @@ function useProjectDirectoryTree(
     let replica: LiveModelReplica<DirectoryTreeModel> | null = null;
     let release: (() => Promise<void>) | null = null;
 
+    async function disposeResources() {
+      const currentRelease = release;
+      const currentReplica = replica;
+      release = null;
+      replica = null;
+      await Promise.allSettled([
+        ...(currentRelease ? [currentRelease()] : []),
+        ...(currentReplica ? [currentReplica.dispose()] : []),
+      ]);
+    }
+
     async function start() {
       try {
         const client = await getProjectsClient();
+        if (disposed) return;
         replica = createLiveModelReplica(projectsWireContract.directoryTree, client.directoryTree, {
           stores: { tree: createImmutableMobxStore },
           onChange: {
@@ -153,17 +168,22 @@ function useProjectDirectoryTree(
             : { type: 'local', root: currentRoot, sessionId }
         );
         release = () => lease.release();
-        const readyModel = await lease.ready();
-        if (disposed) {
-          await lease.release();
-          await replica.dispose();
-          return;
-        }
+        const readyModel = await runWithTimeout(() => lease.ready(), {
+          timeoutMs: DIRECTORY_TREE_READY_TIMEOUT_MS,
+        });
+        if (disposed) return;
         setModel(readyModel);
         setError(null);
         setRevision((current) => current + 1);
       } catch (caught) {
-        if (!disposed) setError(errorMessage(caught));
+        if (!disposed) {
+          setError(
+            caught instanceof TimeoutError
+              ? 'The folder browser did not become ready within 30 seconds. The home directory may be too large to monitor.'
+              : errorMessage(caught)
+          );
+        }
+        void disposeResources();
       }
     }
 
@@ -172,8 +192,7 @@ function useProjectDirectoryTree(
       disposed = true;
       setModel(null);
       setError(null);
-      void release?.();
-      void replica?.dispose();
+      void disposeResources();
     };
   }, [getProjectsClient, host, root, sessionId]);
 
@@ -233,9 +252,9 @@ function directoryListing({
   model: FileTreeModel | null;
   path: PortableRelativePath;
 }): DirectoryListing {
-  if (homePending || pending || !model) return { status: 'loading' };
   if (homeError) return { status: 'error', message: errorMessage(homeError) };
   if (syncError) return { status: 'error', message: syncError };
+  if (homePending || pending || !model) return { status: 'loading' };
   const entry = model.entries[path];
   if (!entry) return { status: 'loading' };
   if (!entry.childrenLoaded) return { status: 'loading' };
@@ -249,13 +268,14 @@ function directoryListing({
 }
 
 function directoryEntry(entry: FileEntry, model: FileTreeModel): DirectoryEntry {
+  const metadata = { sizeBytes: entry.size, addedAtMs: entry.mtimeMs };
   if (entry.kind === 'directory' && hasGitChild(entry, model)) {
-    return { name: entry.name, kind: 'repository' };
+    return { name: entry.name, kind: 'repository', ...metadata };
   }
   if (entry.kind === 'symlink' && entry.symlinkTargetKind === 'directory') {
-    return { name: entry.name, kind: 'directory' };
+    return { name: entry.name, kind: 'directory', ...metadata };
   }
-  return { name: entry.name, kind: entry.kind };
+  return { name: entry.name, kind: entry.kind, ...metadata };
 }
 
 function hasGitChild(entry: FileEntry, model: FileTreeModel): boolean {
@@ -269,11 +289,6 @@ function projectHostParams(
 ): ProjectHostParams | null {
   if (strategy === 'local') return { type: 'local' };
   return connectionId ? { type: 'ssh', connectionId } : null;
-}
-
-function rootForPath(path: string): HostAbsolutePath {
-  const parsed = hostPathFromNative(path);
-  return { root: parsed.root, segments: [] };
 }
 
 function fsErrorMessage(error: { type: string; path?: string; message?: string }): string {

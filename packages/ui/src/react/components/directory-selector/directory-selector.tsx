@@ -3,6 +3,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   FileIcon,
+  FolderPlusIcon,
   FolderGit2Icon,
   FolderIcon,
   Link2Icon,
@@ -18,6 +19,8 @@ import * as styles from './directory-selector.css';
 export interface DirectoryEntry {
   name: string;
   kind: 'directory' | 'repository' | 'file' | 'symlink';
+  sizeBytes?: number;
+  addedAtMs?: number;
 }
 
 export type DirectoryListing =
@@ -27,6 +30,7 @@ export type DirectoryListing =
 
 export interface DirectorySelectorProps {
   path: string;
+  navigationRoot?: string;
   listing: DirectoryListing;
   selectedPath?: string | null;
   canGoBack: boolean;
@@ -35,12 +39,16 @@ export interface DirectorySelectorProps {
   onForward(): void;
   onNavigate(path: string): void;
   onSelect(path: string | null): void;
+  onCreateFolder?(parentPath: string): void;
+  onCancel?(): void;
+  onConfirm?(path: string): void;
   separator?: '/' | '\\';
   className?: string;
 }
 
 export function DirectorySelector({
   path,
+  navigationRoot,
   listing,
   selectedPath,
   canGoBack,
@@ -49,6 +57,9 @@ export function DirectorySelector({
   onForward,
   onNavigate,
   onSelect,
+  onCreateFolder,
+  onCancel,
+  onConfirm,
   separator = '/',
   className,
 }: DirectorySelectorProps) {
@@ -64,9 +75,10 @@ export function DirectorySelector({
       ? listing.entries.filter((entry) => matchesQuery(entry.name, query))
       : [];
   const breadcrumbs = React.useMemo(
-    () => pathToBreadcrumbs(path, separator, onNavigate),
-    [onNavigate, path, separator]
+    () => pathToBreadcrumbs(path, separator, onNavigate, navigationRoot),
+    [navigationRoot, onNavigate, path, separator]
   );
+  const hasFooterActions = !!onCreateFolder || !!onCancel || !!onConfirm;
 
   return (
     <section className={cx(styles.root, className)} aria-label="Directory selector">
@@ -110,6 +122,14 @@ export function DirectorySelector({
         </div>
       </header>
 
+      <div className={styles.columnHeader} aria-hidden>
+        <span />
+        <span>Name</span>
+        <span className={styles.rowMetaEnd}>Size</span>
+        <span>Kind</span>
+        <span>Date Added</span>
+      </div>
+
       <ScrollContainer maxHeight={320} topFade={false} viewportClassName={styles.list}>
         {listing.status === 'loading' ? (
           <DirectoryState>
@@ -144,6 +164,36 @@ export function DirectorySelector({
 
       <footer className={styles.footer}>
         <Breadcrumbs items={breadcrumbs} label="Current directory path" />
+        {hasFooterActions && (
+          <div className={styles.footerActions}>
+            {onCreateFolder && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onCreateFolder(path)}>
+                <FolderPlusIcon aria-hidden />
+                New Folder
+              </Button>
+            )}
+            <div className={styles.footerActionsRight}>
+              {onCancel && (
+                <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+                  Cancel
+                </Button>
+              )}
+              {onConfirm && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!selectedPath}
+                  onClick={() => {
+                    if (selectedPath) onConfirm(selectedPath);
+                  }}
+                >
+                  Confirm
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </footer>
     </section>
   );
@@ -190,7 +240,9 @@ function DirectoryRow({
     >
       <EntryIcon entry={entry} />
       <span className={styles.rowName}>{entry.name}</span>
-      <span className={styles.rowKind}>{label}</span>
+      <span className={cx(styles.rowMeta, styles.rowMetaEnd)}>{formatBytes(entry.sizeBytes)}</span>
+      <span className={styles.rowMeta}>{label}</span>
+      <span className={styles.rowMeta}>{formatDate(entry.addedAtMs)}</span>
     </button>
   );
 }
@@ -242,6 +294,22 @@ function matchesQuery(name: string, query: string): boolean {
   return name.toLowerCase().includes(trimmed.toLowerCase());
 }
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+
+function formatBytes(bytes: number | undefined): string {
+  if (bytes == null) return '—';
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** unitIndex;
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDate(ms: number | undefined): string {
+  if (ms == null) return '—';
+  return dateFormatter.format(new Date(ms));
+}
+
 function basename(path: string, separator: '/' | '\\'): string {
   const parts = splitPath(path, separator);
   return parts.at(-1)?.label || path || separator;
@@ -255,16 +323,31 @@ function joinPath(parent: string, name: string, separator: '/' | '\\'): string {
 function pathToBreadcrumbs(
   path: string,
   separator: '/' | '\\',
-  onNavigate: (path: string) => void
+  onNavigate: (path: string) => void,
+  navigationRoot?: string
 ): BreadcrumbItem[] {
-  return splitPath(path, separator).map((part, index, parts) => {
+  const parts = splitPath(path, separator);
+  const navigationRootIndex = navigationRoot
+    ? parts.findIndex((part) => pathsEqual(part.path, navigationRoot, separator))
+    : 0;
+  return parts.map((part, index) => {
     const current = index === parts.length - 1;
+    const withinNavigationRoot = navigationRootIndex >= 0 && index >= navigationRootIndex;
     return {
       id: part.path,
       label: part.label,
-      onSelect: current ? undefined : () => onNavigate(part.path),
+      onSelect: current || !withinNavigationRoot ? undefined : () => onNavigate(part.path),
     };
   });
+}
+
+function pathsEqual(left: string, right: string, separator: '/' | '\\'): boolean {
+  const normalize = (value: string) => {
+    const withoutTrailingSeparators =
+      value.replace(new RegExp(`${escapeRegExp(separator)}+$`), '') || separator;
+    return separator === '\\' ? withoutTrailingSeparators.toLowerCase() : withoutTrailingSeparators;
+  };
+  return normalize(left) === normalize(right);
 }
 
 function splitPath(path: string, separator: '/' | '\\'): Array<{ label: string; path: string }> {

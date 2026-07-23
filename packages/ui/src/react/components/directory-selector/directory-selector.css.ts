@@ -2,6 +2,8 @@ import { keyframes, style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
+const columns = '1rem minmax(0, 1fr) 5rem 7rem 7.5rem';
+
 export const root = style({
   display: 'flex',
   minWidth: 0,
@@ -52,10 +54,21 @@ export const list = style({
   minHeight: '12rem',
 });
 
+export const columnHeader = style({
+  display: 'grid',
+  gridTemplateColumns: columns,
+  alignItems: 'center',
+  gap: '0.625rem',
+  borderBottom: `1px solid ${vars.border}`,
+  padding: '0.375rem 0.75rem',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundMuted,
+});
+
 export const row = style({
   display: 'grid',
   width: '100%',
-  gridTemplateColumns: '1rem minmax(0, 1fr) max-content',
+  gridTemplateColumns: columns,
   alignItems: 'center',
   gap: '0.625rem',
   border: 0,
@@ -100,10 +113,15 @@ export const rowName = style({
   fontSize: tokenVars.textSm,
 });
 
-export const rowKind = style({
+export const rowMeta = style({
   flexShrink: 0,
   fontSize: tokenVars.textXs,
   color: vars.foregroundMuted,
+  fontVariantNumeric: 'tabular-nums',
+});
+
+export const rowMetaEnd = style({
+  textAlign: 'right',
 });
 
 export const state = style({
@@ -135,4 +153,18 @@ export const footer = style({
   minWidth: 0,
   borderTop: `1px solid ${vars.border}`,
   padding: '0.5rem 0.75rem',
+});
+
+export const footerActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  marginTop: '0.5rem',
+});
+
+export const footerActionsRight = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  marginLeft: 'auto',
 });
