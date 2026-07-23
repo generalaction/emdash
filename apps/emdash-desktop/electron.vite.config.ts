@@ -1,3 +1,4 @@
+import { cp, rm } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -11,6 +12,27 @@ function desktopWorkerBuildInputs(): Record<string, string> {
       resolve(worker.entry),
     ])
   );
+}
+
+function copyAdapterAssetsPlugin() {
+  return {
+    name: 'copy-plugin-adapter-assets',
+    async closeBundle(): Promise<void> {
+      const source = resolve('../../packages/plugins/dist/adapters');
+      const target = resolve('out/main/adapters');
+      try {
+        await rm(target, { recursive: true, force: true });
+        await cp(source, target, { recursive: true });
+      } catch (error) {
+        if (isNodeError(error) && error.code === 'ENOENT') return;
+        throw error;
+      }
+    },
+  };
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 const workspaceAliases = {
@@ -61,6 +83,7 @@ export default defineConfig({
   main: {
     root: 'src/main',
     envDir: resolve('.'),
+    plugins: [copyAdapterAssetsPlugin()],
     build: {
       rollupOptions: {
         input: {

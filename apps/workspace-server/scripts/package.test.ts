@@ -7,6 +7,7 @@ import {
   createLauncher,
   nodeDistributionArchiveName,
   nodeDistributionUrl,
+  parseAdapterAssetInfos,
   parsePackageArgs,
   parsePackageTarget,
 } from './package-helpers';
@@ -88,5 +89,22 @@ describe('workspace-server package helpers', () => {
     expect(launcher).toContain("export EMDASH_WS_APP_VERSION='0.1.0-canary'\\''1'");
     expect(launcher).toContain('exec "$root_dir/node" "$root_dir/dist/index.mjs" "$@"');
     expect(launcher.endsWith('\n')).toBe(true);
+  });
+
+  it('parses adapter assets from the built plugins manifest', () => {
+    expect(
+      parseAdapterAssetInfos([
+        { name: 'claude-acp', format: 'esm', specifier: '@agentclientprotocol/claude-agent-acp' },
+        { name: 'codex-acp', format: 'cjs', external: ['@openai/codex'] },
+      ])
+    ).toEqual([
+      { name: 'claude-acp', format: 'esm' },
+      { name: 'codex-acp', format: 'cjs' },
+    ]);
+
+    expect(() => parseAdapterAssetInfos({})).toThrow(/adapterAssets array/);
+    expect(() => parseAdapterAssetInfos([{ name: 'bad', format: 'iife' }])).toThrow(
+      /invalid adapter asset/
+    );
   });
 });

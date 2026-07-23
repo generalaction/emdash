@@ -16,7 +16,7 @@ import {
 import { builtinModules } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   artifactArchiveName,
   artifactChecksumContents,
@@ -26,8 +26,10 @@ import {
   createLauncher,
   nodeDistributionArchiveName,
   nodeDistributionUrl,
+  parseAdapterAssetInfos,
   parsePackageArgs,
   type PackageTarget,
+  type PackageAdapterAssetInfo,
 } from './package-helpers.ts';
 
 const nativePackages = ['@parcel/watcher', 'better-sqlite3', 'node-pty'] as const;
@@ -57,6 +59,13 @@ type PackageMetadata = {
   devBuild: boolean;
 };
 
+type AdapterValidationModule = {
+  validateAdapterBundleAssets: (options: {
+    adapterDirectory: string;
+    assets: readonly PackageAdapterAssetInfo[];
+  }) => Promise<void>;
+};
+
 async function main(): Promise<void> {
   const options = parsePackageArgs(process.argv.slice(2));
   if (options.help) {
@@ -81,6 +90,12 @@ async function main(): Promise<void> {
   });
   const protocolVersion = await readProtocolVersion();
 
+  process.stdout.write('Building plugin adapter assets...\n');
+  await runCommand('pnpm', ['--filter', '@emdash/plugins', 'run', 'build'], {
+    cwd: repositoryDirectory,
+  });
+  const adapterAssets = await readBuiltAdapterAssets();
+
   process.stdout.write('Building platform-independent workspace-server bundles...\n');
   await runCommand('pnpm', ['run', 'build'], { cwd: appDirectory });
   const bundleNames = await inspectBundles();
@@ -93,6 +108,7 @@ async function main(): Promise<void> {
       protocolVersion,
       nodeVersion,
       bundleNames,
+      adapterAssets,
       verify: options.verify,
     });
   }
@@ -107,9 +123,18 @@ async function packageTarget(options: {
   protocolVersion: string;
   nodeVersion: string;
   bundleNames: string[];
+  adapterAssets: readonly PackageAdapterAssetInfo[];
   verify: boolean;
 }): Promise<void> {
-  const { target, packageMetadata, protocolVersion, nodeVersion, bundleNames, verify } = options;
+  const {
+    target,
+    packageMetadata,
+    protocolVersion,
+    nodeVersion,
+    bundleNames,
+    adapterAssets,
+    verify,
+  } = options;
   const temporaryDirectory = await mkdtemp(join(tmpdir(), `emdash-ws-package-${target.id}-`));
 
   try {
@@ -131,6 +156,7 @@ async function packageTarget(options: {
       nodeDistributionDirectory,
       runtimeNodeModules,
       bundleNames,
+      adapterAssets,
       temporaryDirectory,
     });
     const archivePath = join(
@@ -217,6 +243,38 @@ async function readProtocolVersion(): Promise<string> {
     throw new Error('@emdash/core/workspace-server must export a string PROTOCOL_VERSION');
   }
   return workspaceServerModule['PROTOCOL_VERSION'];
+}
+
+async function readBuiltAdapterAssets(): Promise<readonly PackageAdapterAssetInfo[]> {
+  const manifestPath = join(
+    repositoryDirectory,
+    'packages/plugins/dist/agents/adapter-manifest.mjs'
+  );
+  const manifestModule: unknown = await import(pathToFileURL(manifestPath).href);
+  if (!isRecord(manifestModule)) {
+    throw new Error('@emdash/plugins adapter manifest did not export adapterAssets');
+  }
+
+  return parseAdapterAssetInfos(manifestModule['adapterAssets']);
+}
+
+async function validateBuiltAdapterDirectory(
+  adapterDirectory: string,
+  assets: readonly PackageAdapterAssetInfo[]
+): Promise<void> {
+  const validationPath = join(
+    repositoryDirectory,
+    'packages/plugins/dist/agents/helpers/adapter-validation.mjs'
+  );
+  const validationModule: unknown = await import(pathToFileURL(validationPath).href);
+  if (
+    !isRecord(validationModule) ||
+    typeof validationModule['validateAdapterBundleAssets'] !== 'function'
+  ) {
+    throw new Error('@emdash/plugins adapter validation helper was not built');
+  }
+  const { validateAdapterBundleAssets } = validationModule as AdapterValidationModule;
+  await validateAdapterBundleAssets({ adapterDirectory, assets });
 }
 
 function validateTargetHosts(targets: PackageTarget[]): void {
@@ -466,6 +524,7 @@ async function assembleArtifact(options: {
   nodeDistributionDirectory: string;
   runtimeNodeModules: string;
   bundleNames: string[];
+  adapterAssets: readonly PackageAdapterAssetInfo[];
   temporaryDirectory: string;
 }): Promise<string> {
   const {
@@ -476,6 +535,7 @@ async function assembleArtifact(options: {
     nodeDistributionDirectory,
     runtimeNodeModules,
     bundleNames,
+    adapterAssets,
     temporaryDirectory,
   } = options;
   const artifactDirectory = join(temporaryDirectory, 'artifact', artifactRootName);
@@ -493,6 +553,14 @@ async function assembleArtifact(options: {
   for (const bundleName of bundleNames) {
     await copyFile(join(appDirectory, 'dist', bundleName), join(distDirectory, bundleName));
   }
+  await cp(
+    join(repositoryDirectory, 'packages/plugins/dist/adapters'),
+    join(distDirectory, 'adapters'),
+    {
+      recursive: true,
+    }
+  );
+  await validateBuiltAdapterDirectory(join(distDirectory, 'adapters'), adapterAssets);
 
   await writeFile(launcherPath, createLauncher(packageMetadata.version));
   await chmod(launcherPath, 0o755);

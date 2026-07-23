@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import {
   definePlugin,
   registerPluginBehavior,
@@ -10,15 +9,11 @@ import {
   npmDependency,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { authenticatedFromEnv, commandAuthStatus } from '../../helpers/auth';
+import { codexAdapter } from './adapter';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
-
-const _require = createRequire(import.meta.url);
-
-function resolveCodexAcpEntry(): string {
-  return _require.resolve('@agentclientprotocol/codex-acp/dist/index.js');
-}
 
 export const plugin = definePlugin(
   {
@@ -131,7 +126,7 @@ export const provider = registerPluginBehavior(plugin, {
   acp: {
     buildSpawn: (ctx) => ({
       command: process.execPath,
-      args: [resolveCodexAcpEntry()],
+      args: [resolveAdapterAsset(codexAdapter)],
       env: {
         ELECTRON_RUN_AS_NODE: '1',
         CODEX_PATH: ctx.cli,

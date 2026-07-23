@@ -573,12 +573,6 @@ importers:
 
   packages/plugins:
     dependencies:
-      '@agentclientprotocol/claude-agent-acp':
-        specifier: ^0.54.1
-        version: 0.54.1(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
-      '@agentclientprotocol/codex-acp':
-        specifier: ^1.0.2
-        version: 1.0.2
       '@agentclientprotocol/sdk':
         specifier: ^1.1.0
         version: 1.1.0(zod@4.4.3)
@@ -631,6 +625,12 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@agentclientprotocol/claude-agent-acp':
+        specifier: ^0.54.1
+        version: 0.54.1(@anthropic-ai/sdk@0.106.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
+      '@agentclientprotocol/codex-acp':
+        specifier: ^1.0.2
+        version: 1.0.2
       '@emdash/wire':
         specifier: workspace:*
         version: link:../wire

@@ -39,6 +39,11 @@ export type WorkspaceServerArtifactManifest = {
   nodeVersion: string;
 };
 
+export type PackageAdapterAssetInfo = {
+  name: string;
+  format: 'esm' | 'cjs';
+};
+
 const workspaceServerVersionPattern =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/;
 
@@ -148,6 +153,27 @@ export function createArtifactManifest(options: {
     arch: options.target.arch,
     nodeVersion: options.nodeVersion,
   };
+}
+
+export function parseAdapterAssetInfos(value: unknown): PackageAdapterAssetInfo[] {
+  if (!Array.isArray(value)) {
+    throw new Error('@emdash/plugins adapter manifest did not export an adapterAssets array');
+  }
+
+  return value.map((asset) => {
+    if (
+      !isRecord(asset) ||
+      typeof asset['name'] !== 'string' ||
+      (asset['format'] !== 'esm' && asset['format'] !== 'cjs')
+    ) {
+      throw new Error('@emdash/plugins adapter manifest contains an invalid adapter asset');
+    }
+    return { name: asset['name'], format: asset['format'] };
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 export function createLauncher(version: string): string {
