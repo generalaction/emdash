@@ -34,7 +34,6 @@ export function MachineConnectionRow({
           <span>
             {machine.host} · {machine.username} · {authLabel(machine)}
           </span>
-
         </span>
       }
       control={
@@ -49,15 +48,19 @@ export function MachineConnectionRow({
             >
               Disconnect
             </Button>
-            <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}><Cog /></Button>
+            <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}>
+              <Cog />
+            </Button>
           </span>
         ) : (
           <span className="flex items-center gap-2">
-          <Button type="button" variant="primary" size="sm" onClick={onConnect}>
-            <PlugIcon />
-            Connect
-          </Button>
-          <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}><Cog /></Button>
+            <Button type="button" variant="primary" size="sm" onClick={onConnect}>
+              <PlugIcon />
+              Connect
+            </Button>
+            <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}>
+              <Cog />
+            </Button>
           </span>
         )
       }

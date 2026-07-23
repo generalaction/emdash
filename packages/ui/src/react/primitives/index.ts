@@ -9,6 +9,7 @@ export { Switch, type SwitchProps } from './switch';
 export { SearchInput, type SearchInputProps } from './search-input';
 export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { SeparatedList, type SeparatedListProps } from './separated-list';
+export { SelectableCard, type SelectableCardProps } from './selectable-card';
 export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Text, type TextProps } from './typography/Text';

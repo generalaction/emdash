@@ -1,13 +1,15 @@
 import { MachineStatus } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
-import { EllipsisIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { SelectableCard } from '@emdash/ui/react/primitives';
+import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
+import { Separator } from '@core/primitives/ui/browser/separator';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -19,6 +21,17 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
 import { useMachineWorkspaces } from '../use-machine-workspaces';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
+
+function MachineDetailsCard({ children, icon, title, selected }: { children?: React.ReactNode, icon: React.ReactNode, title: string | React.ReactNode, selected?: boolean }) {
+  return (
+    <SelectableCard padding="2" borderRadius="md" className="flex-1" selected={selected}>
+          <span className="flex items-center gap-2 w-full justify-center">
+            {icon}
+            <span className="text-sm">{title}</span>
+          </span>
+        </SelectableCard>
+  );
+}
 
 export const MachineDetailsPage = observer(function MachineDetailsPage({
   detailId,
@@ -239,13 +252,13 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         </SeparatedList>
       </SettingsCard>
 
-      {serverHealthy && (
-        <MachineWorkspacesByProject
-          groups={workspaces.data ?? []}
-          loading={workspaces.isLoading}
-          error={workspaces.isError}
-        />
-      )}
+      <div className="grid grid-cols-4 gap-2">
+        <MachineDetailsCard icon={<Folder size={14} />} title="Workspaces" selected />
+        <MachineDetailsCard icon={<User size={14} />} title="Agents" />
+        <MachineDetailsCard icon={<Server size={14} />} title="MCP Servers" />
+        <MachineDetailsCard icon={<Brain size={14} />} title="Skills" />
+      </div>
     </div>
   );
 });
+
