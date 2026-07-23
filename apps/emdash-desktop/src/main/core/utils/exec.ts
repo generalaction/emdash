@@ -6,7 +6,11 @@ import type { CommandRunner } from '@core/primitives/command-runner/api/command-
 
 const execFileAsync = promisify(execFile);
 
-export type { CommandRunner, CommandRunnerOptions, CommandRunnerResult } from '@core/primitives/command-runner/api/command-runner';
+export type {
+  CommandRunner,
+  CommandRunnerOptions,
+  CommandRunnerResult,
+} from '@core/primitives/command-runner/api/command-runner';
 
 export const runLocalCommand: CommandRunner = async (command, args = [], opts = {}) => {
   const { stdout, stderr } = await execFileAsync(command, args, {

@@ -9,6 +9,7 @@ import {
   type LiveModelHost,
   type LiveSource,
 } from '@emdash/wire';
+import type { IExecutionContext } from '@primitives/exec/api';
 import {
   compileIdlePolicy,
   createIdleSweeper,
@@ -44,7 +45,6 @@ import {
   type DetectedPreviewUrl,
   type TerminalPortProbe,
 } from '@runtimes/terminals/node/preview/url-detector';
-import type { IExecutionContext } from '@primitives/exec/api';
 import {
   buildTerminalEnv,
   killTmuxSession,

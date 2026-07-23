@@ -58,9 +58,7 @@ export async function deleteConversation(
     const project = projects.getProject(projectId);
     if (project) {
       await project.terminals.killTmuxSessions({
-        sessionNames: [
-          makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId)),
-        ],
+        sessionNames: [makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId))],
       });
     }
   }

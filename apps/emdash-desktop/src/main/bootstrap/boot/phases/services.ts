@@ -96,7 +96,6 @@ import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
-import { runLocalCommand } from '@main/core/utils/exec';
 import {
   createFileSearchRuntime,
   searchFileSearchRoot,
@@ -115,6 +114,7 @@ import {
 } from '@main/core/runtime/operations/session-cleanup';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
+import { runLocalCommand } from '@main/core/utils/exec';
 import { KV } from '@main/db/kv';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
@@ -598,4 +598,3 @@ export async function bootServices(
     workspacePlacement,
   };
 }
-

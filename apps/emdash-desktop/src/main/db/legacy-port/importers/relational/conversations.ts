@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { conversations, tasks } from '@core/services/app-db/node/schema';
-import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
 import { insertWithRegeneratedId } from './insert';

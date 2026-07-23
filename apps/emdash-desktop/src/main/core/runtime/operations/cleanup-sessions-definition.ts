@@ -6,7 +6,6 @@ import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { TerminalsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   lifecycleOperations,
   conversations,
@@ -21,6 +20,7 @@ import {
   type OperationReconcileContext,
   type OperationSubmit,
 } from '@core/services/operations/node';
+import type { TerminalsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { log } from '@main/lib/logger';

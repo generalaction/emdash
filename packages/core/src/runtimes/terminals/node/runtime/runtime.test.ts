@@ -1,7 +1,7 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
 import type { IExecutionContext } from '@primitives/exec/api';
+import { LOCAL_HOST_REF } from '@primitives/host/api';
 import {
   hostFileRef,
   parseAbsolute,

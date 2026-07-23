@@ -1,7 +1,7 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubUser } from '@core/primitives/github/api';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
+import type { GitHubUser } from '@core/primitives/github/api';
 import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from './github-accounts';
 import { GitHubCliAccountImportService } from './github-cli-account-import';
 
@@ -94,11 +94,9 @@ describe('GitHubCliAccountImportService', () => {
 
     await service.importAccounts();
 
-    expect(exec).toHaveBeenCalledWith(
-      'gh',
-      ['auth', 'status', '--json', 'hosts', '--show-token'],
-      { timeout: 5_000 }
-    );
+    expect(exec).toHaveBeenCalledWith('gh', ['auth', 'status', '--json', 'hosts', '--show-token'], {
+      timeout: 5_000,
+    });
   });
 
   it('keeps existing linked accounts that are no longer reported by GitHub CLI', async () => {

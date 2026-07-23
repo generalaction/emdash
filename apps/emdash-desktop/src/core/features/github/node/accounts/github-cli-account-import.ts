@@ -1,5 +1,5 @@
-import type { GitHubUser } from '@core/primitives/github/api';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
+import type { GitHubUser } from '@core/primitives/github/api';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {
   upsertGitHubAccount,
