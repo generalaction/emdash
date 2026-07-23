@@ -1,6 +1,7 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
+import type { IExecutionContext } from '@primitives/exec/api';
 import {
   hostFileRef,
   parseAbsolute,
@@ -8,7 +9,7 @@ import {
   type HostFileRef,
 } from '@primitives/path/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TerminalsRuntime } from './runtime';
 
 class FakePtyProcess implements PtyProcess {
@@ -244,6 +245,107 @@ describe('TerminalsRuntime', () => {
     await scope.dispose();
   });
 
+  it('killTmuxSessions calls killTmuxSession for each session name', async () => {
+    const exec = fakeExec();
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+
+    const result = await runtime.killTmuxSessions({
+      sessionNames: ['emdash-session1', 'emdash-session2'],
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(exec.exec).toHaveBeenCalledTimes(2);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-session1']);
+    expect(exec.exec).toHaveBeenCalledWith('tmux', ['kill-session', '-t', 'emdash-session2']);
+    await scope.dispose();
+  });
+
+  it('killTmuxSessions succeeds even when sessions are missing', async () => {
+    const exec = fakeExec();
+    exec.exec.mockRejectedValue(new Error('no session'));
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+
+    const result = await runtime.killTmuxSessions({
+      sessionNames: ['emdash-missing'],
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    await scope.dispose();
+  });
+
+  it('killTmuxSessions returns ok without calling exec when no exec is injected', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+
+    const result = await runtime.killTmuxSessions({
+      sessionNames: ['emdash-session1'],
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    await scope.dispose();
+  });
+
+  it('listTmuxSessions returns parsed session activity', async () => {
+    const exec = fakeExec();
+    exec.exec.mockResolvedValue({
+      stdout: 'emdash-aaa\t1700000000\nemdash-bbb\t1700000100\n',
+      stderr: '',
+    });
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+
+    const result = await runtime.listTmuxSessions();
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual([
+        { sessionName: 'emdash-aaa', activityMs: 1700000000_000 },
+        { sessionName: 'emdash-bbb', activityMs: 1700000100_000 },
+      ]);
+    }
+    await scope.dispose();
+  });
+
+  it('listTmuxSessions returns empty when no tmux server is running', async () => {
+    const exec = fakeExec();
+    const error = Object.assign(new Error('no server running on /tmp/tmux'), {
+      exitCode: 1,
+      stderr: 'no server running on /tmp/tmux',
+    });
+    exec.exec.mockRejectedValue(error);
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, exec, scope });
+
+    const result = await runtime.listTmuxSessions();
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual([]);
+    }
+    await scope.dispose();
+  });
+
+  it('listTmuxSessions returns empty when no exec is injected', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+
+    const result = await runtime.listTmuxSessions();
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual([]);
+    }
+    await scope.dispose();
+  });
+
   it('keeps completable workflow nodes while reaping background nodes by policy', async () => {
     const clock = createManualClock(0);
     const spawner = new FakePtySpawner();
@@ -312,6 +414,16 @@ function parseAbsoluteWorkspace(path: string) {
   const parsed = parseAbsolute(path, { profile: { style: 'posix' } });
   if (!parsed.success) throw new Error(parsed.error.message);
   return parsed.data;
+}
+
+function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
+  return {
+    root: '',
+    supportsLocalSpawn: true,
+    exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
+    execStreaming: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn(),
+  };
 }
 
 function devServers(runtime: TerminalsRuntime) {

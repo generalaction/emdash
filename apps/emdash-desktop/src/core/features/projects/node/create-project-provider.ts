@@ -1,5 +1,4 @@
 import path from 'node:path';
-import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import {
   isRuntimeResolveError,
@@ -18,7 +17,6 @@ import {
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -43,7 +41,6 @@ export type CreateProviderError = { type: 'error'; message: string } | RuntimeRe
 
 export type CreateProjectProviderDependencies = {
   db: AppDb;
-  createExecutionContext(host: HostRef, root: string): IExecutionContext;
   createGitRepository(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
@@ -78,10 +75,10 @@ export async function createProvider(
     const host = projectHostRef(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const ctx = dependencies.createExecutionContext(host, project.path);
     const git = runtime.data.git;
     const filesClient = runtime.data.files;
     const workspace = runtime.data.workspace;
+    const terminals = runtime.data.terminals;
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);
@@ -142,7 +139,6 @@ export async function createProvider(
         project.type === 'ssh'
           ? { kind: 'ssh', connectionId: project.connectionId }
           : { kind: 'local' },
-      ctx,
       files: projectFiles,
       projectConfigPath: path.join(project.path, '.emdash.json'),
       resolveProjectPath: (relativePath) => path.join(project.path, relativePath),
@@ -161,6 +157,7 @@ export async function createProvider(
       fetchService,
       git,
       workspace,
+      terminals,
       repository,
       dependencies.taskSessions,
       dependencies.workspacePlacement,

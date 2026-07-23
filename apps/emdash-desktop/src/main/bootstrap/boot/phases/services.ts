@@ -1,4 +1,3 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -90,7 +89,6 @@ import {
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
 import { shouldProposeWorkspaceCleanup } from '@core/features/workspaces/node/operations/workspace-reconciliation-policy';
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
@@ -98,7 +96,7 @@ import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { runLocalCommand } from '@main/core/utils/exec';
 import {
   createFileSearchRuntime,
   searchFileSearchRoot,
@@ -214,7 +212,6 @@ export async function bootServices(
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createExecutionContext: createProjectExecutionContext,
     createGitRepository: (client, repository, settings) =>
       new GitRepositoryService(client, repository, settings),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
@@ -355,7 +352,7 @@ export async function bootServices(
   setLegacyGitHubTokenMigrationStore(legacyGitHubTokens);
   const githubCliImporter = new GitHubCliAccountImportService(
     providerAccountRegistry,
-    new LocalExecutionContext(),
+    runLocalCommand,
     githubIdentityClient
   );
   const githubAccountService = new GitHubAccountService(
@@ -488,7 +485,7 @@ export async function bootServices(
       }
     },
     getAcpRuntimeClient: async () => clients.acp,
-    getProjectExecutionContext: (projectId: string) => projectManager.getProject(projectId)?.ctx,
+    getProjectTerminals: (projectId: string) => projectManager.getProject(projectId)?.terminals,
     getTerminalsRuntimeClient,
     getTuiAgentsRuntimeClient,
   };
@@ -576,7 +573,7 @@ export async function bootServices(
             projectId
           ),
         shouldProposeWorkspaceCleanup,
-        getProjectExecutionContext: (projectId) => projectManager.getProject(projectId)?.ctx,
+        getProjectTerminals: (projectId) => projectManager.getProject(projectId)?.terminals,
       }),
     ],
   });
@@ -602,19 +599,3 @@ export async function bootServices(
   };
 }
 
-function createProjectExecutionContext(host: HostRef, root: string): IExecutionContext {
-  if (host.type === 'local') return new LocalExecutionContext({ root });
-
-  const unsupported = async (): Promise<never> => {
-    throw new Error(
-      `Remote execution for ${host.id} is not yet routed through the workspace server`
-    );
-  };
-  return {
-    root,
-    supportsLocalSpawn: false,
-    exec: unsupported,
-    execStreaming: unsupported,
-    dispose() {},
-  };
-}

@@ -1,4 +1,4 @@
-import { decodeTmuxSessionName, listTmuxSessionActivity } from '@emdash/core/services/pty/api';
+import { decodeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { ok } from '@emdash/shared';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
@@ -6,6 +6,7 @@ import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import type { TerminalsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   lifecycleOperations,
   conversations,
@@ -21,7 +22,6 @@ import {
   type OperationSubmit,
 } from '@core/services/operations/node';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { log } from '@main/lib/logger';
 import {
@@ -85,7 +85,9 @@ export type CleanupSessionsDependencies = {
     row: Pick<ProjectWorkspaceRow, 'kind' | 'path' | 'tasks'>,
     projectPath: string
   ): boolean;
-  getProjectExecutionContext(projectId: string): IExecutionContext | undefined;
+  getProjectTerminals(
+    projectId: string
+  ): Pick<TerminalsRuntimeClient, 'killTmuxSessions' | 'listTmuxSessions'> | undefined;
 };
 
 export function createCleanupSessionsOperationDefinition(
@@ -236,11 +238,12 @@ export async function sweepLifecycleDrift(
     ...validTerminalSessionIds,
   ]);
   for (const project of await loadActiveProjects(db)) {
-    const projectContext = dependencies.getProjectExecutionContext(project.id);
-    if (!projectContext) continue;
+    const projectTerminals = dependencies.getProjectTerminals(project.id);
+    if (!projectTerminals) continue;
     try {
-      const activity = await listTmuxSessionActivity(projectContext);
-      for (const sessionName of activity.keys()) {
+      const result = await projectTerminals.listTmuxSessions();
+      if (!result.success) continue;
+      for (const { sessionName } of result.data) {
         const sessionId = decodeTmuxSessionName(sessionName);
         if (!sessionId || wantedTmuxSessionIds.has(sessionId)) continue;
         const parsed = parsePtySessionId(sessionId);

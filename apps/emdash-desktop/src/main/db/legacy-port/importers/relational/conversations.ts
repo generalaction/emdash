@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { conversations, tasks } from '@core/services/app-db/node/schema';
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
 import { insertWithRegeneratedId } from './insert';
@@ -313,7 +313,7 @@ function pickLegacyPtyIdForConversation(params: {
 }
 
 async function renameLegacyTmuxSession(params: {
-  tmuxExec: IExecutionContext | undefined;
+  tmuxExec: CommandRunner | undefined;
   legacyPtyId: string | undefined;
   mappedProjectId: string;
   mappedTaskId: string;
@@ -329,20 +329,20 @@ async function renameLegacyTmuxSession(params: {
   if (oldName === newName) return;
 
   try {
-    await tmuxExec.exec('tmux', ['has-session', '-t', oldName]);
+    await tmuxExec('tmux', ['has-session', '-t', oldName]);
   } catch {
     return;
   }
 
   try {
-    await tmuxExec.exec('tmux', ['has-session', '-t', newName]);
+    await tmuxExec('tmux', ['has-session', '-t', newName]);
     return;
   } catch {
     // Expected when the v1 session name has not been created yet.
   }
 
   try {
-    await tmuxExec.exec('tmux', ['rename-session', '-t', oldName, newName]);
+    await tmuxExec('tmux', ['rename-session', '-t', oldName, newName]);
   } catch (error) {
     log.debug('legacy-port: conversations: failed to rename legacy tmux session', {
       legacyPtyId,
@@ -409,7 +409,7 @@ export async function portConversations({
 }: PortContext & {
   mergedLegacyTaskIds: Set<string>;
   userDataPath?: string;
-  tmuxExec?: IExecutionContext;
+  tmuxExec?: CommandRunner;
 }): Promise<PortSummary> {
   const summary = createPortSummary('conversations');
   const nowIso = new Date().toISOString();

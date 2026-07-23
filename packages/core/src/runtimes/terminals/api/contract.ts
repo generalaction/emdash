@@ -8,6 +8,8 @@ import { z } from 'zod';
 import {
   startTerminalInputSchema,
   scriptWorkflowStateSchema,
+  killTmuxSessionsInputSchema,
+  tmuxSessionListSchema,
   terminalControlInputSchema,
   terminalDataInputSchema,
   terminalDevServerListSchema,
@@ -57,6 +59,16 @@ export const terminalsContract = defineContract({
   kill: fallible({
     input: terminalControlInputSchema,
     data: z.void(),
+    error: terminalErrorSchema,
+  }),
+  killTmuxSessions: fallible({
+    input: killTmuxSessionsInputSchema,
+    data: z.void(),
+    error: terminalErrorSchema,
+  }),
+  listTmuxSessions: fallible({
+    input: z.void().optional(),
+    data: tmuxSessionListSchema,
     error: terminalErrorSchema,
   }),
 });

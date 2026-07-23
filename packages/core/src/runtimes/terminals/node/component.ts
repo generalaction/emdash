@@ -1,6 +1,7 @@
 import { defineWireComponent } from '@emdash/wire/component';
 import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { terminalsContract } from '@runtimes/terminals/api';
+import { NodeExecutionContext } from '@services/exec/api';
 import { NodePtySpawner } from '@services/pty/node';
 import { z } from 'zod';
 import { createTerminalsController } from './api/controller';
@@ -22,8 +23,10 @@ export const terminalsComponent = defineWireComponent({
   requirements: {},
   configSchema: terminalsComponentConfigSchema,
   create: ({ config, instance, scope }) => {
+    const exec = new NodeExecutionContext({ env: process.env });
     const runtime = new TerminalsRuntime({
       spawner: new NodePtySpawner(),
+      exec,
       scope,
       lifecycle: config.lifecycle,
     });

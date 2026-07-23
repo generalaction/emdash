@@ -18,7 +18,6 @@ import {
   hostFileRefFromNativePath,
   nativePathFromHost,
 } from '@core/primitives/desktop-runtime/api';
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import {
   projectHostRef,
   type Project,
@@ -27,6 +26,7 @@ import {
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type {
   GitRuntimeClient,
+  TerminalsRuntimeClient,
   WorkspaceRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
@@ -70,7 +70,6 @@ export interface TaskProvider {
 export type ProjectProviderTransport = {
   readonly kind: string;
   readonly defaultWorkspaceType: WorkspaceType;
-  readonly ctx: IExecutionContext;
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   /**
@@ -98,10 +97,10 @@ export class ProjectProvider implements Disposable {
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   readonly workspace: WorkspaceRuntimeClient;
+  readonly terminals: TerminalsRuntimeClient;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
 
-  private readonly _ctx: IExecutionContext;
   private readonly _resolveProjectPath: (relativePath: string) => string;
   private readonly _configPathForDirectory: (directoryPath: string) => string;
 
@@ -112,6 +111,7 @@ export class ProjectProvider implements Disposable {
     private readonly gitRepositoryFetchService: GitRepositoryFetchPort,
     git: GitRuntimeClient,
     workspace: WorkspaceRuntimeClient,
+    terminals: TerminalsRuntimeClient,
     repository: RepositorySelector,
     private readonly taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>,
     private readonly workspacePlacement: WorkspacePlacementResolver,
@@ -121,7 +121,6 @@ export class ProjectProvider implements Disposable {
     this.project = project;
     this.projectId = project.id;
     this.repoPath = project.path;
-    this._ctx = transport.ctx;
     this.settings = transport.settings;
     this.files = transport.files;
     this.projectConfigPath = transport.projectConfigPath;
@@ -129,13 +128,10 @@ export class ProjectProvider implements Disposable {
     this._configPathForDirectory = transport.configPathForDirectory;
     this.git = git;
     this.workspace = workspace;
+    this.terminals = terminals;
     this.repository = repository;
     this.gitRepository = gitRepository;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
-  }
-
-  get ctx(): IExecutionContext {
-    return this._ctx;
   }
 
   get host(): HostRef {

@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
 import * as schema from '@core/services/app-db/node/schema';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { runLocalCommand } from '@main/core/utils/exec';
 import { getAppDb, getSqlite } from '@main/db/instance';
 import { log } from '../../lib/logger';
 import {
@@ -224,7 +224,7 @@ export async function runLegacyPort(
         remap,
         mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
         userDataPath: legacyUserDataPath,
-        tmuxExec: new LocalExecutionContext(),
+        tmuxExec: runLocalCommand,
       });
 
       return { sshSummary, projectsSummary, taskResult, conversationsSummary };

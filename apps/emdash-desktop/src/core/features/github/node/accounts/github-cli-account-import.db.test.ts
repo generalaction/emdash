@@ -1,7 +1,7 @@
 import { openRegistryFixture, type RegistryFixture } from '@tooling/utils/provider-accounts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import type { GitHubUser } from '@core/primitives/github/api';
+import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { GITHUB_PROVIDER_ID, upsertGitHubAccount } from './github-accounts';
 import { GitHubCliAccountImportService } from './github-cli-account-import';
 
@@ -15,10 +15,8 @@ function makeGitHubUser(id: number, login: string): GitHubUser {
   };
 }
 
-function makeCtx(stdout: string): Pick<IExecutionContext, 'exec'> {
-  return {
-    exec: vi.fn().mockResolvedValue({ stdout, stderr: '' }),
-  };
+function makeExec(stdout: string): CommandRunner {
+  return vi.fn().mockResolvedValue({ stdout, stderr: '' });
 }
 
 describe('GitHubCliAccountImportService', () => {
@@ -45,7 +43,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   function makeService(stdout: string) {
-    return new GitHubCliAccountImportService(fixture.registry, makeCtx(stdout), {
+    return new GitHubCliAccountImportService(fixture.registry, makeExec(stdout), {
       getAuthenticatedUser,
     });
   }
@@ -89,14 +87,14 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   it('bounds the GitHub CLI status call so startup cannot hang indefinitely', async () => {
-    const ctx = makeCtx(JSON.stringify({ hosts: {} }));
-    const service = new GitHubCliAccountImportService(fixture.registry, ctx, {
+    const exec = makeExec(JSON.stringify({ hosts: {} }));
+    const service = new GitHubCliAccountImportService(fixture.registry, exec, {
       getAuthenticatedUser,
     });
 
     await service.importAccounts();
 
-    expect(ctx.exec).toHaveBeenCalledWith(
+    expect(exec).toHaveBeenCalledWith(
       'gh',
       ['auth', 'status', '--json', 'hosts', '--show-token'],
       { timeout: 5_000 }

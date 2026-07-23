@@ -1,7 +1,7 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -24,7 +24,6 @@ import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets
 import type { WorkspaceBootstrapResult } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
@@ -47,7 +46,7 @@ export type WorkspaceHint = {
 
 type TeardownMode = 'detach' | 'terminate';
 
-type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
+type StoredTask = ProvisionResult & { projectId: string };
 type RuntimeStoredTask = StoredTask & {
   runtimeWorkspace?: HostFileRef;
   automation?: WorkspaceBootstrapResult['postActivationAutomation'];
@@ -130,18 +129,30 @@ export async function executeTeardown(
 }
 
 async function cleanupDetachedSessions(
+  runtimes: RuntimeBroker,
   db: AppDb,
   projectId: string,
   taskId: string,
-  ctx: IExecutionContext
+  runtimeWorkspace?: HostFileRef
 ): Promise<void> {
+  const host = runtimeWorkspace?.host;
+  if (!host) return;
+  const runtime = await runtimes.client(host);
+  if (!runtime.success) {
+    log.warn('cleanupDetachedSessions: could not resolve runtime', {
+      projectId,
+      taskId,
+      error: runtimeResolveErrorAsError(runtime.error).message,
+    });
+    return;
+  }
   const { conversationIds, terminalIds } = await getTaskSessionLeafIds(db, projectId, taskId);
-  const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
-    makePtySessionId(projectId, taskId, leafId)
+  const sessionNames = [...conversationIds, ...terminalIds].map((leafId) =>
+    makeTmuxSessionName(makePtySessionId(projectId, taskId, leafId))
   );
-  await Promise.all(
-    sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
-  );
+  if (sessionNames.length > 0) {
+    await runtime.data.terminals.killTmuxSessions({ sessionNames });
+  }
 }
 
 async function deactivateWorkspaceConsumer(
@@ -249,8 +260,7 @@ export class TaskSessionManager {
   async registerTask(
     taskId: string,
     result: WorkspaceBootstrapResult,
-    projectId: string,
-    ctx: IExecutionContext
+    projectId: string
   ): Promise<void> {
     const stored: RuntimeStoredTask = {
       taskProvider: result.taskProvider,
@@ -263,7 +273,6 @@ export class TaskSessionManager {
         workspaceProviderData: result.workspaceProviderData as WorkspaceProviderData | undefined,
       },
       projectId,
-      ctx,
     };
 
     await this._lifecycle.register(taskId, stored);
@@ -344,7 +353,7 @@ export class TaskSessionManager {
 
   private async stopTask(
     taskId: string,
-    { taskProvider, persistData, projectId, ctx, runtimeWorkspace, automation }: RuntimeStoredTask,
+    { taskProvider, persistData, projectId, runtimeWorkspace, automation }: RuntimeStoredTask,
     mode: TaskTeardownMode
   ): Promise<Result<void, TeardownTaskError>> {
     try {
@@ -365,14 +374,18 @@ export class TaskSessionManager {
       return ok();
     } catch (e) {
       log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
-      await cleanupDetachedSessions(this.dependencies.db, projectId, taskId, ctx).catch(
-        (cleanupError) => {
-          log.warn('TaskManager: fallback cleanup failed', {
-            taskId,
-            error: String(cleanupError),
-          });
-        }
-      );
+      await cleanupDetachedSessions(
+        this.dependencies.runtimes,
+        this.dependencies.db,
+        projectId,
+        taskId,
+        runtimeWorkspace
+      ).catch((cleanupError) => {
+        log.warn('TaskManager: fallback cleanup failed', {
+          taskId,
+          error: String(cleanupError),
+        });
+      });
       return { success: false as const, error: toTeardownError(e) };
     }
   }

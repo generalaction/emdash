@@ -1,5 +1,5 @@
-import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import type { GitHubUser } from '@core/primitives/github/api';
+import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {
   upsertGitHubAccount,
@@ -49,7 +49,7 @@ function cliEntries(status: GitHubCliAuthStatus): GitHubCliAuthStatusEntry[] {
 export class GitHubCliAccountImportService {
   constructor(
     private readonly accountStore: Pick<GitHubAccountStore, 'upsertAccount'>,
-    private readonly ctx: Pick<IExecutionContext, 'exec'>,
+    private readonly exec: CommandRunner,
     private readonly identityClient: GitHubIdentityClient
   ) {}
 
@@ -86,12 +86,10 @@ export class GitHubCliAccountImportService {
 
   private async readCliStatus(): Promise<string | null> {
     try {
-      const { stdout } = await this.ctx.exec(
+      const { stdout } = await this.exec(
         'gh',
         ['auth', 'status', '--json', 'hosts', '--show-token'],
-        {
-          timeout: GITHUB_CLI_AUTH_STATUS_TIMEOUT_MS,
-        }
+        { timeout: GITHUB_CLI_AUTH_STATUS_TIMEOUT_MS }
       );
       return stdout;
     } catch {

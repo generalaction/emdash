@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { Clock } from '@emdash/shared/scheduling';
@@ -30,6 +29,7 @@ import {
 } from '@primitives/workflow/api';
 import {
   terminalsContract,
+  type KillTmuxSessionsInput,
   type ScriptNodeState,
   type ScriptWorkflowState,
   type StartTerminalInput,
@@ -37,14 +37,18 @@ import {
   type TerminalDevServer,
   type TerminalKey,
   type TerminalSessionState,
+  type TmuxSessionActivity,
 } from '@runtimes/terminals/api';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type TerminalPortProbe,
 } from '@runtimes/terminals/node/preview/url-detector';
+import type { IExecutionContext } from '@primitives/exec/api';
 import {
   buildTerminalEnv,
+  killTmuxSession,
+  listTmuxSessionActivity,
   makeTmuxSessionName,
   resolveLocalPtySpawn,
   PtyRegistry,
@@ -107,6 +111,7 @@ type PreviewOutputSource = {
 
 export type TerminalsRuntimeOptions = {
   spawner: PtySpawner;
+  exec?: IExecutionContext;
   scope?: Scope;
   now?: () => number;
   clock?: Clock;
@@ -126,6 +131,7 @@ export class TerminalsRuntime {
   readonly devServersHost = createLiveModelHost(terminalsContract.devServers);
 
   private readonly registry: PtyRegistry;
+  private readonly exec: IExecutionContext | undefined;
   private readonly scope: Scope;
   private readonly now: () => number;
   private readonly clock: Clock | undefined;
@@ -153,6 +159,7 @@ export class TerminalsRuntime {
     this.registry = new PtyRegistry(options.spawner, {
       onSessionChanged: (key, session) => this.syncSession(key, session),
     });
+    this.exec = options.exec;
     this.scope = options.scope ?? createScope({ label: 'terminals-runtime' });
     this.clock = options.clock;
     this.now = options.now ?? options.clock?.now.bind(options.clock) ?? Date.now;
@@ -280,6 +287,24 @@ export class TerminalsRuntime {
     return ok(undefined);
   }
 
+  async killTmuxSessions(input: KillTmuxSessionsInput): Promise<Result<void, TerminalError>> {
+    if (process.platform === 'win32' || !this.exec) return ok(undefined);
+    for (const name of input.sessionNames) {
+      await killTmuxSession(this.exec, name);
+    }
+    return ok(undefined);
+  }
+
+  async listTmuxSessions(): Promise<Result<TmuxSessionActivity[], TerminalError>> {
+    if (process.platform === 'win32' || !this.exec) return ok([]);
+    const activity = await listTmuxSessionActivity(this.exec);
+    const result: TmuxSessionActivity[] = [];
+    for (const [sessionName, activityMs] of activity) {
+      result.push({ sessionName, activityMs });
+    }
+    return ok(result);
+  }
+
   async killScope(workspace: HostFileRef): Promise<Result<void, TerminalError>> {
     const prefix = `${scopeKeyFor(workspace)}:`;
     for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
@@ -373,8 +398,8 @@ export class TerminalsRuntime {
 
   private async killTmuxForSession(sessionKey: string): Promise<void> {
     const config = this.interactiveConfigs.get(sessionKey);
-    if (!config?.spec.tmux || process.platform === 'win32') return;
-    await killLocalTmuxSession(makeTmuxSessionName(sessionKey));
+    if (!config?.spec.tmux || process.platform === 'win32' || !this.exec) return;
+    await killTmuxSession(this.exec, makeTmuxSessionName(sessionKey));
   }
 
   private startWorkflow(
@@ -869,16 +894,6 @@ function workflowErrorToTerminalError(error: WorkflowError): TerminalError {
     message: error.message,
     resolutions: error.resolutions,
   };
-}
-
-function killLocalTmuxSession(sessionName: string): Promise<void> {
-  return new Promise((resolve) => {
-    const child = spawn('tmux', ['kill-session', '-t', sessionName], {
-      stdio: 'ignore',
-    });
-    child.on('error', () => resolve());
-    child.on('exit', () => resolve());
-  });
 }
 
 export function terminalJobError(error: unknown): TerminalError {

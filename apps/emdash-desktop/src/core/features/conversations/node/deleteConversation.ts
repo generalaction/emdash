@@ -1,4 +1,4 @@
-import { killTmuxSession, makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
@@ -57,10 +57,11 @@ export async function deleteConversation(
   } else {
     const project = projects.getProject(projectId);
     if (project) {
-      await killTmuxSession(
-        project.ctx,
-        makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId))
-      );
+      await project.terminals.killTmuxSessions({
+        sessionNames: [
+          makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId)),
+        ],
+      });
     }
   }
   telemetry.capture('conversation_deleted', {

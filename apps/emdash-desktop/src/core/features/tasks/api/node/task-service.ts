@@ -168,7 +168,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const project = this.dependencies.projects.getProject(task.projectId);
     if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-    await this.dependencies.sessions.registerTask(taskId, data, task.projectId, project.ctx);
+    await this.dependencies.sessions.registerTask(taskId, data, task.projectId);
 
     await this.dependencies.db
       .update(tasks)

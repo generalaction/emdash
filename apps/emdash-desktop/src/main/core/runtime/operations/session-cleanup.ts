@@ -1,5 +1,4 @@
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
-import { killTmuxSession } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import {
   hostFileRefFromNativePath,
@@ -14,7 +13,6 @@ import {
   type LifecycleOperationRow,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import type {
   AcpRuntimeClient,
@@ -38,7 +36,9 @@ export type LifecycleSessionContext = {
 export type SessionCleanupDependencies = {
   assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationRow): Promise<void>;
   getAcpRuntimeClient(): Promise<AcpRuntimeClient>;
-  getProjectExecutionContext(projectId: string): IExecutionContext | undefined;
+  getProjectTerminals(
+    projectId: string
+  ): Pick<TerminalsRuntimeClient, 'killTmuxSessions' | 'listTmuxSessions'> | undefined;
   getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient>;
   getTuiAgentsRuntimeClient(): Promise<TuiAgentsRuntimeClient>;
 };
@@ -159,12 +159,10 @@ export async function killLifecycleTerminalSessions(
     }
   }
 
-  if (!operation.projectId) return;
-  const projectContext = dependencies.getProjectExecutionContext(operation.projectId);
-  if (!projectContext) return;
-  await Promise.all(
-    targets.tmuxSessionNames.map((sessionName) => killTmuxSession(projectContext, sessionName))
-  );
+  if (!operation.projectId || targets.tmuxSessionNames.length === 0) return;
+  const projectTerminals = dependencies.getProjectTerminals(operation.projectId);
+  if (!projectTerminals) return;
+  await projectTerminals.killTmuxSessions({ sessionNames: targets.tmuxSessionNames });
 }
 
 function payloadTargets(operation: LifecycleOperationRow): SessionTargetSets {
