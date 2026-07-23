@@ -29,6 +29,17 @@ export type {
   ComposerPermissionOption,
 } from './chat-composer/permission-band';
 export { ConfirmationDialog, type ConfirmationDialogProps } from './confirmation-dialog';
+export {
+  DirectorySelector,
+  type DirectoryEntry,
+  type DirectoryListing,
+  type DirectorySelectorProps,
+} from './directory-selector/directory-selector';
+export {
+  useDirectoryHistory,
+  type DirectoryHistory,
+  type DirectoryHistoryState,
+} from './directory-selector/use-directory-history';
 export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
