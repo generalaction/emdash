@@ -163,6 +163,23 @@ describe('wire serve/connect', () => {
     await expect(connection.call('load', { id: 'missing' })).resolves.toEqual(
       err({ type: 'missing' })
     );
+    expect(fallibleContract.load.output.safeParse({ success: true }).success).toBe(false);
+  });
+
+  it('supports no-data fallible procedures across JSON transports', () => {
+    const fallibleContract = defineContract({
+      touch: fallible({
+        input: z.object({ id: z.string() }),
+        error: z.object({ type: z.literal('missing') }),
+      }),
+    });
+    const jsonRoundTrippedSuccess = JSON.parse(JSON.stringify(ok())) as unknown;
+
+    expect(jsonRoundTrippedSuccess).toEqual({ success: true });
+    expect(fallibleContract.touch.output.parse(jsonRoundTrippedSuccess)).toEqual(ok());
+    expect(fallibleContract.touch.output.parse(err({ type: 'missing' as const }))).toEqual(
+      err({ type: 'missing' })
+    );
   });
 
   it('snapshots and subscribes to live sources with refcounted detach', async () => {

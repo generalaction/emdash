@@ -84,12 +84,10 @@ export const acpApiContract = defineContract({
   }),
   stopSession: fallible({
     input: stopSessionCommandSchema,
-    data: z.void(),
     error: acpStopSessionErrorSchema,
   }),
   killSession: fallible({
     input: killSessionCommandSchema,
-    data: z.void(),
     error: acpStopSessionErrorSchema,
   }),
   sendPrompt: fallible({
@@ -104,42 +102,34 @@ export const acpApiContract = defineContract({
   }),
   editQueuedPrompt: fallible({
     input: editQueuedPromptCommandSchema,
-    data: z.void(),
     error: acpEditQueuedPromptErrorSchema,
   }),
   deleteQueuedPrompt: fallible({
     input: deleteQueuedPromptCommandSchema,
-    data: z.void(),
     error: acpDeleteQueuedPromptErrorSchema,
   }),
   changeQueuePromptOrder: fallible({
     input: changeQueuePromptOrderCommandSchema,
-    data: z.void(),
     error: acpChangeQueuePromptOrderErrorSchema,
   }),
   cancelTurn: fallible({
     input: cancelTurnCommandSchema,
-    data: z.void(),
     error: acpCancelTurnErrorSchema,
   }),
   setModelOption: fallible({
     input: setModelOptionCommandSchema,
-    data: z.void(),
     error: acpSetModelOptionErrorSchema,
   }),
   setModeOption: fallible({
     input: setModeOptionCommandSchema,
-    data: z.void(),
     error: acpSetModeOptionErrorSchema,
   }),
   resolvePermission: fallible({
     input: resolvePermissionCommandSchema,
-    data: z.void(),
     error: acpResolvePermissionErrorSchema,
   }),
   setPromptDraft: fallible({
     input: setPromptDraftCommandSchema,
-    data: z.void(),
     error: acpSetPromptDraftErrorSchema,
   }),
   exportACPTranscript: fallible({
@@ -165,7 +155,6 @@ export const acpApiContract = defineContract({
   }),
   deleteAttachment: fallible({
     input: deleteAttachmentCommandSchema,
-    data: z.void(),
     error: acpAttachmentErrorSchema,
   }),
   getHistory: fallible({

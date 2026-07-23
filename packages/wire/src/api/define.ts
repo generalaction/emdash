@@ -257,6 +257,10 @@ export function procedure<
   return { kind: 'procedure', ...def };
 }
 
+export function fallible<InputSchema extends z.ZodTypeAny, ErrorSchema extends z.ZodTypeAny>(def: {
+  input: InputSchema;
+  error: ErrorSchema;
+}): ProcedureDef<InputSchema, z.ZodType<Result<void, z.output<ErrorSchema>>>>;
 export function fallible<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
@@ -265,10 +269,23 @@ export function fallible<
   input: InputSchema;
   data: DataSchema;
   error: ErrorSchema;
-}): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>> {
+}): ProcedureDef<InputSchema, ReturnType<typeof resultSchema<DataSchema, ErrorSchema>>>;
+export function fallible(def: {
+  input: z.ZodTypeAny;
+  data?: z.ZodTypeAny;
+  error: z.ZodTypeAny;
+}): ProcedureDef {
+  // JSON transports omit properties whose value is undefined. No-data results accept an absent
+  // data property at the wire boundary and normalize it back to the in-memory Result<void, E>.
+  const output =
+    def.data === undefined
+      ? resultSchema(z.void().optional(), def.error).transform((result) =>
+          result.success ? { success: true as const, data: undefined } : result
+        )
+      : resultSchema(def.data, def.error);
   return procedure({
     input: def.input,
-    output: resultSchema(def.data, def.error),
+    output,
   });
 }
 
