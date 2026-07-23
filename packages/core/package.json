@@ -105,6 +105,10 @@
       "types": "./dist/services-exec-node.d.mts",
       "default": "./dist/services-exec-node.mjs"
     },
+    "./services/shell-env/node": {
+      "types": "./dist/services-shell-env-node.d.mts",
+      "default": "./dist/services-shell-env-node.mjs"
+    },
     "./services/pty/api": {
       "types": "./dist/services-pty-api.d.mts",
       "default": "./dist/services-pty-api.mjs"

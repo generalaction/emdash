@@ -116,15 +116,16 @@ export type HostDependencySelection = InstallOverride | null;
 // ---------------------------------------------------------------------------
 
 type InstallCommandError =
-  | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
-  | { type: 'command-failed'; message: string; output: string; exitCode?: number }
+  | { type: 'permission-denied'; message: string; output: string; exitCode?: number | null }
+  | { type: 'command-failed'; message: string; output: string; exitCode?: number | null }
   | { type: 'pty-open-failed'; message: string };
 
 export type AgentInstallError =
   | { type: 'unknown-dependency'; id: string }
   | { type: 'no-install-command'; id: string }
+  | { type: 'installer-missing'; id: string; tool: string; method: InstallMethod }
   | InstallCommandError
-  | { type: 'not-detected-after-install'; id: string };
+  | { type: 'not-detected-after-install'; id: string; output?: string };
 
 export type AgentUpdateError =
   | { type: 'unknown-dependency'; id: string }

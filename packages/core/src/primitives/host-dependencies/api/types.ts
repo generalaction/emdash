@@ -4,7 +4,9 @@ import { z } from 'zod';
 import {
   hostDependencyDescriptorSchema,
   installCommandOptionSchema,
+  installMethodSchema,
   type DependencyStatus,
+  type InstallMethod,
   type Platform,
   type ProbeResult,
   type hostDependencyUpdateCommandSchema,
@@ -60,9 +62,24 @@ export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('stale-selection'), id: dependencyIdSchema, path: z.string() }),
   z.object({ type: z.literal('invalid-selection'), id: dependencyIdSchema, message: z.string() }),
   z.object({ type: z.literal('no-install-command'), id: dependencyIdSchema }),
-  z.object({ type: z.literal('not-detected-after-install'), id: dependencyIdSchema }),
+  z.object({
+    type: z.literal('not-detected-after-install'),
+    id: dependencyIdSchema,
+    output: z.string().optional(),
+  }),
   z.object({ type: z.literal('no-update-command'), id: dependencyIdSchema }),
-  z.object({ type: z.literal('command-failed'), message: z.string(), output: z.string() }),
+  z.object({
+    type: z.literal('installer-missing'),
+    id: dependencyIdSchema,
+    tool: z.string().min(1),
+    method: installMethodSchema,
+  }),
+  z.object({
+    type: z.literal('command-failed'),
+    message: z.string(),
+    output: z.string(),
+    exitCode: z.number().nullable().optional(),
+  }),
   z.object({ type: z.literal('io'), message: z.string() }),
 ]);
 export type HostDependencyError = z.output<typeof hostDependencyErrorSchema>;
@@ -118,15 +135,16 @@ export interface DependencyState {
 export type DependencyStatusMap = Record<string, DependencyState>;
 
 export type InstallCommandError =
-  | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
-  | { type: 'command-failed'; message: string; output: string; exitCode?: number }
+  | { type: 'permission-denied'; message: string; output: string; exitCode?: number | null }
+  | { type: 'command-failed'; message: string; output: string; exitCode?: number | null }
   | { type: 'pty-open-failed'; message: string };
 
 export type DependencyInstallError =
   | { type: 'unknown-dependency'; id: string }
   | { type: 'no-install-command'; id: string }
+  | { type: 'installer-missing'; id: string; tool: string; method: InstallMethod }
   | InstallCommandError
-  | { type: 'not-detected-after-install'; id: string };
+  | { type: 'not-detected-after-install'; id: string; output?: string };
 
 export type DependencyInstallResult = Result<DependencyState, DependencyInstallError>;
 

@@ -49,6 +49,7 @@ import { getGitExecutable } from '@main/core/utils/exec';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
+import { refreshUserEnv } from '@main/lib/userEnv';
 import { desktopWorkerPath } from './worker-paths';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
@@ -130,7 +131,7 @@ async function startDesktopWorkersWithHost(
 ): Promise<DesktopWorkersHandle> {
   const hostDependencies = createHostDependenciesComponent({
     store: desktopKeyValueStore,
-    exec: new NodeExecutionContext({ env: process.env }),
+    exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),
   }).create({
     scope: workerScope,
     dependencies: {},

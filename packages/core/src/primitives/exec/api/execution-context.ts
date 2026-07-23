@@ -8,6 +8,10 @@ export type ExecContextOptions = {
   signal?: AbortSignal;
 };
 
+export type ExecStreamingResult = {
+  exitCode: number | null;
+};
+
 /**
  * An execution context represents a host + optional working directory where
  * commands run. Implementations abstract the transport (local spawn vs SSH exec)
@@ -38,7 +42,9 @@ export interface IExecutionContext {
   refreshShellEnv?(): Promise<void>;
 
   /**
-   * Run a command and stream stdout chunks to `onChunk`.
+   * Run a command and stream stdout/stderr chunks to `onChunk`.
+   * Resolves with the process exit code even when it is non-zero; callers
+   * decide whether a non-zero exit is an error.
    * Return false from `onChunk` to abort the process early (resolves normally).
    * Passing `signal` rejects with an AbortError when the signal fires.
    */
@@ -47,7 +53,7 @@ export interface IExecutionContext {
     args: string[],
     onChunk: (chunk: string) => boolean,
     opts?: { signal?: AbortSignal }
-  ): Promise<void>;
+  ): Promise<ExecStreamingResult>;
 
   /**
    * Abort all in-flight exec/execStreaming calls and release resources.

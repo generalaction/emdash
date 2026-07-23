@@ -421,7 +421,7 @@ function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
     root: '',
     supportsLocalSpawn: true,
     exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
-    execStreaming: vi.fn().mockResolvedValue(undefined),
+    execStreaming: vi.fn().mockResolvedValue({ exitCode: 0 }),
     dispose: vi.fn(),
   };
 }

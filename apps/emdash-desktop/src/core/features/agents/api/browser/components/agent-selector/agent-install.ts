@@ -16,6 +16,11 @@ export function getAgentInstallErrorMessage(error: AgentInstallError): string {
     .with({ type: 'unknown-dependency' }, (e) => `Unknown dependency: ${e.id}`)
     .with({ type: 'no-install-command' }, (e) => `No install command is available for ${e.id}.`)
     .with(
+      { type: 'installer-missing' },
+      (e) =>
+        `The installer \`${e.tool}\` is not installed on this machine, so ${e.id} cannot be installed. Install \`${e.tool}\` or choose a different install method.`
+    )
+    .with(
       { type: 'not-detected-after-install' },
       () => 'The agent was not detected after installation.'
     )

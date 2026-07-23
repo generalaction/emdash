@@ -28,3 +28,16 @@ export function prependWindowsPathEntry(env: NodeJS.ProcessEnv, entry: string): 
   env[pathKey] = [entry, ...entries].join(path.win32.delimiter);
   return true;
 }
+
+export function windowsNpmGlobalBin(env: NodeJS.ProcessEnv): string | null {
+  const appData = getWindowsEnvValue(env, 'APPDATA');
+  return appData ? path.win32.join(appData, 'npm') : null;
+}
+
+export function ensureWindowsNpmGlobalBinInPath(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  const npmPath = windowsNpmGlobalBin(env);
+  if (!npmPath) return null;
+  return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
+}

@@ -1,10 +1,14 @@
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  createShellEnvManager,
+  ensureUserBinDirsInPath as ensureCoreUserBinDirsInPath,
+  ensureWindowsNpmGlobalBinInPath as ensureCoreWindowsNpmGlobalBinInPath,
+  parseEnvOutput,
+  SHELL_ENV_CAPTURE_GUARD,
+} from '@emdash/core/services/shell-env/node';
 import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from './childProcessEnv';
-import { getWindowsEnvValue, prependWindowsPathEntry } from './windows-env';
 
 /**
  * Keys that must never be overwritten from the shell env capture.
@@ -31,71 +35,28 @@ const PRESERVE_KEYS = new Set([
   'NODE_ENV',
 ]);
 
-export const SHELL_ENV_CAPTURE_GUARD: Record<string, string> = {
-  DISABLE_AUTO_UPDATE: 'true',
-  ZSH_TMUX_AUTOSTART: 'false',
-  ZSH_TMUX_AUTOSTARTED: 'true',
-};
+export { SHELL_ENV_CAPTURE_GUARD };
 
 const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
 
-function pathEntryExists(entry: string): boolean {
-  try {
-    return fs.statSync(entry).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function parseEnvOutput(raw: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const line of raw.split('\n')) {
-    const eq = line.indexOf('=');
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    const value = line.slice(eq + 1);
-    if (key && /^[A-Za-z_]\w*$/.test(key)) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function mergePath(shellPath: string, currentPath: string): string {
-  const sep = process.platform === 'win32' ? ';' : ':';
-  const shellEntries = shellPath.split(sep).filter(Boolean);
-  const currentEntries = currentPath.split(sep).filter(Boolean);
-
-  // Shell entries first (user's full PATH), then any Electron-only entries not in shell PATH
-  const seen = new Set(shellEntries);
-  const extra = currentEntries.filter((p) => !seen.has(p));
-  return [...shellEntries, ...extra].join(sep);
-}
+const userShellEnv = createShellEnvManager({
+  target: process.env,
+  baseEnvForProbe: buildExternalToolEnv,
+  policy: {
+    preserveKeys: PRESERVE_KEYS,
+    userBinDirs: USER_BIN_DIRS,
+  },
+  logger: log,
+});
 
 export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): string[] {
-  const currentPath = process.env.PATH ?? '';
-  const entries = currentPath.split(path.delimiter).filter(Boolean);
-  const existing = new Set(entries);
-  const additions = candidates.filter(
-    (candidate) => pathEntryExists(candidate) && !existing.has(candidate)
-  );
-
-  if (additions.length === 0) {
-    return [];
-  }
-
-  process.env.PATH = [...additions, ...entries].join(path.delimiter);
-  return additions;
+  return ensureCoreUserBinDirsInPath(process.env, candidates);
 }
 
 export function ensureWindowsNpmGlobalBinInPath(
   env: NodeJS.ProcessEnv = process.env
 ): string | null {
-  const appData = getWindowsEnvValue(env, 'APPDATA');
-  if (!appData) return null;
-
-  const npmPath = path.win32.join(appData, 'npm');
-  return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
+  return ensureCoreWindowsNpmGlobalBinInPath(env);
 }
 
 /**
@@ -108,61 +69,22 @@ export function ensureWindowsNpmGlobalBinInPath(
  * full PATH, SSH_AUTH_SOCK, and other variables the user's shell init sets.
  */
 export async function resolveUserEnv(): Promise<void> {
+  await refreshUserEnv();
+}
+
+export async function refreshUserEnv(): Promise<void> {
   if (process.platform === 'win32') {
     // Windows PATH is managed differently; no login-shell capture needed.
     ensureWindowsNpmGlobalBinInPath();
     return;
   }
 
-  const shell = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-  const baseEnv = buildExternalToolEnv();
-
-  try {
-    // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
-    // APPDIR, ARGV0, ...) and `/tmp/.mount_*` PATH entries don't leak into
-    // the probe shell. Otherwise login-shell hooks that resolve a binary by
-    // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
-    // and fork-bomb the app on Linux. See #1679.
-    const shellEnvProbeOptions = {
-      encoding: 'utf8' as const,
-      timeout: 5_000,
-      maxBuffer: 1024 * 1024,
-      env: {
-        ...baseEnv,
-        ...SHELL_ENV_CAPTURE_GUARD,
-      },
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
-    };
-    const result = spawnSync(shell, ['-ilc', 'env'], shellEnvProbeOptions);
-    if (result.error) {
-      throw result.error;
-    }
-    const raw = result.stdout;
-    const shellEnv = parseEnvOutput(raw);
-
-    for (const [key, value] of Object.entries(shellEnv)) {
-      if (PRESERVE_KEYS.has(key)) continue;
-
-      if (key === 'PATH') {
-        const current = baseEnv.PATH ?? '';
-        process.env.PATH = mergePath(value, current);
-      } else {
-        process.env[key] = value;
-      }
-    }
-
-    log.info('[userEnv] Resolved login-shell env', {
-      shell,
-      pathEntries: process.env.PATH?.split(':').length ?? 0,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.warn('[userEnv] Failed to resolve login-shell env, falling back to process.env', {
-      shell,
-      error: message,
-    });
-  }
+  // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
+  // APPDIR, ARGV0, ...) and `/tmp/.mount_*` PATH entries don't leak into
+  // the probe shell. Otherwise login-shell hooks that resolve a binary by
+  // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
+  // and fork-bomb the app on Linux. See #1679.
+  await userShellEnv.refresh();
 }
 
 /**

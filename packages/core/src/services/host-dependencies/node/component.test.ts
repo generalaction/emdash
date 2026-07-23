@@ -71,6 +71,42 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
     });
   });
 
+  it('returns command-failed when the install command exits non-zero', async () => {
+    const { exec } = createFakeExec({ exitCode: 127 });
+    const runtime = createRuntime(exec);
+
+    const result = await runtime.runInstallCommand('fake-agent', 'npm', {
+      signal: new AbortController().signal,
+      progress: vi.fn(),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'command-failed',
+        message: 'Install command exited with code 127',
+        output: 'install output',
+        exitCode: 127,
+      },
+    });
+  });
+
+  it('returns installer-missing when the installer tool cannot be resolved', async () => {
+    const { exec } = createFakeExec({ installerMissing: true });
+    const runtime = createRuntime(exec);
+
+    const result = await runtime.runInstallCommand('fake-agent', 'npm', {
+      signal: new AbortController().signal,
+      progress: vi.fn(),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'installer-missing', id: 'fake-agent', tool: 'npm', method: 'npm' },
+    });
+    expect(exec.execStreaming).not.toHaveBeenCalled();
+  });
+
   it('returns not-detected-after-install when the agent is still missing', async () => {
     const { exec } = createFakeExec({ installedAfterStreaming: false });
     const runtime = createRuntime(exec);
@@ -82,7 +118,7 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
 
     expect(result).toEqual({
       success: false,
-      error: { type: 'not-detected-after-install', id: 'fake-agent' },
+      error: { type: 'not-detected-after-install', id: 'fake-agent', output: 'install output' },
     });
   });
 });
@@ -96,7 +132,12 @@ function createRuntime(exec: IExecutionContext): HostDependenciesRuntime {
   });
 }
 
-function createFakeExec(options: { installedAfterStreaming?: boolean; failStreaming?: boolean }): {
+function createFakeExec(options: {
+  installedAfterStreaming?: boolean;
+  failStreaming?: boolean;
+  exitCode?: number;
+  installerMissing?: boolean;
+}): {
   exec: IExecutionContext;
 } {
   let installed = false;
@@ -104,6 +145,10 @@ function createFakeExec(options: { installedAfterStreaming?: boolean; failStream
     root: '',
     supportsLocalSpawn: true,
     exec: vi.fn(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'npm') {
+        if (options.installerMissing) throw new Error('not found');
+        return { stdout: '/usr/bin/npm\n', stderr: '' };
+      }
       if (command === 'which' && args[0] === '-a' && args[1] === 'fake-agent') {
         if (!installed) throw new Error('not found');
         return { stdout: '/usr/local/bin/fake-agent\n', stderr: '' };
@@ -116,7 +161,9 @@ function createFakeExec(options: { installedAfterStreaming?: boolean; failStream
     execStreaming: vi.fn(async (_command, _args, onChunk) => {
       onChunk('install output');
       if (options.failStreaming) throw new Error('installer failed');
-      installed = !!options.installedAfterStreaming;
+      const exitCode = options.exitCode ?? 0;
+      if (exitCode === 0) installed = !!options.installedAfterStreaming;
+      return { exitCode };
     }),
     refreshShellEnv: vi.fn(async () => {}),
     dispose: vi.fn(),

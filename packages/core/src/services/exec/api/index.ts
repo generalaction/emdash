@@ -1,6 +1,10 @@
 export { createBoundExec, type CreateBoundExecOptions } from './bound-exec';
-export { type ExecContextOptions, type IExecutionContext } from './execution-context';
-export { NodeExecutionContext } from './node-execution-context';
+export {
+  type ExecContextOptions,
+  type ExecStreamingResult,
+  type IExecutionContext,
+} from './execution-context';
+export { NodeExecutionContext, type NodeExecutionContextOptions } from './node-execution-context';
 export {
   ExecError,
   type BoundExec,

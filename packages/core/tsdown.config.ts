@@ -25,6 +25,7 @@ export default defineConfig({
     'primitives-sqlite-store-testing': 'src/primitives/sqlite-store/testing/index.ts',
     'services-exec-api': 'src/services/exec/api/index.ts',
     'services-exec-node': 'src/services/exec/node/index.ts',
+    'services-shell-env-node': 'src/services/shell-env/node/index.ts',
     'services-pty-api': 'src/services/pty/api/index.ts',
     'services-pty-node': 'src/services/pty/node/index.ts',
     'services-host-dependencies-api': 'src/services/host-dependencies/api/index.ts',

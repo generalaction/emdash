@@ -311,7 +311,9 @@ function fakeExec(): IExecutionContext {
     async exec() {
       throw new Error('missing');
     },
-    async execStreaming() {},
+    async execStreaming() {
+      return { exitCode: 0 };
+    },
     dispose() {},
   };
 }

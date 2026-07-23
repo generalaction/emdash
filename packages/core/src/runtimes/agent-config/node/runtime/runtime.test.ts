@@ -38,7 +38,7 @@ class FakeExecutionContext implements IExecutionContext {
       _args: string[],
       _onChunk: (chunk: string) => boolean,
       _opts: { signal?: AbortSignal } = {}
-    ) => {}
+    ) => ({ exitCode: 0 })
   );
   readonly dispose = vi.fn();
 }

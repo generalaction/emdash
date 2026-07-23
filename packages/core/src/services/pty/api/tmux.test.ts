@@ -44,7 +44,9 @@ function stubExecContext(exec: IExecutionContext['exec']): IExecutionContext {
     root: undefined,
     supportsLocalSpawn: false,
     exec,
-    async execStreaming() {},
+    async execStreaming() {
+      return { exitCode: 0 };
+    },
     dispose() {},
   };
 }

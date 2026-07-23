@@ -27,6 +27,7 @@ import type { KeyValueStore } from '@primitives/kv/api';
 import { hostDependenciesContract } from '@services/host-dependencies/api';
 import {
   resolveAllCommandPaths,
+  resolveCommandPath,
   resolveRealpath,
 } from '@services/host-dependencies/api/runtime/probe';
 import { z } from 'zod';
@@ -258,12 +259,21 @@ export class HostDependenciesRuntime {
     ctx.progress({ phase: 'resolving' });
     const option = selectInstallOption(installOptionsForPlatform(definition), method);
     if (!option) return err({ type: 'no-install-command', id });
+    const installerProbe = await resolveInstallerTool(option.method, this.deps.exec);
+    if (installerProbe && !installerProbe.found) {
+      return err({
+        type: 'installer-missing',
+        id,
+        tool: installerProbe.label,
+        method: option.method,
+      });
+    }
 
     let output = '';
     try {
       ctx.progress({ phase: 'running' });
       const shell = shellCommand(option.command);
-      await this.deps.exec.execStreaming(
+      const result = await this.deps.exec.execStreaming(
         shell.command,
         shell.args,
         (chunk) => {
@@ -272,6 +282,14 @@ export class HostDependenciesRuntime {
         },
         { signal: ctx.signal }
       );
+      if (result.exitCode !== 0) {
+        return err({
+          type: 'command-failed',
+          message: `Install command exited with code ${result.exitCode ?? 'unknown'}`,
+          output,
+          exitCode: result.exitCode,
+        });
+      }
     } catch (error) {
       return err({
         type: 'command-failed',
@@ -285,7 +303,9 @@ export class HostDependenciesRuntime {
       await this.deps.exec.refreshShellEnv?.();
       const view = await this.getView(id, { force: true });
       if (!view.success) return view;
-      if (view.data.status !== 'available') return err({ type: 'not-detected-after-install', id });
+      if (view.data.status !== 'available') {
+        return err({ type: 'not-detected-after-install', id, output });
+      }
       return view;
     } catch (error) {
       return err({ type: 'io', message: error instanceof Error ? error.message : String(error) });
@@ -395,6 +415,47 @@ function selectInstallOption(
 ): InstallCommandOption | undefined {
   if (method) return options.find((option) => option.method === method);
   return options.find((option) => option.recommended) ?? options[0];
+}
+
+async function resolveInstallerTool(
+  method: InstallMethod,
+  exec: IExecutionContext
+): Promise<{ found: boolean; label: string } | null> {
+  const candidates = installerToolCandidates(method);
+  if (candidates.length === 0) return null;
+
+  for (const candidate of candidates) {
+    const resolved = await resolveCommandPath(candidate, exec);
+    if (resolved) return { found: true, label: candidate };
+  }
+
+  return { found: false, label: candidates.join(' or ') };
+}
+
+function installerToolCandidates(method: InstallMethod): string[] {
+  switch (method) {
+    case 'homebrew':
+      return ['brew'];
+    case 'winget':
+      return ['winget'];
+    case 'powershell':
+      return ['pwsh', 'powershell'];
+    case 'npm':
+      return ['npm'];
+    case 'apt':
+      return ['apt-get'];
+    case 'curl':
+      return ['curl'];
+    case 'pip':
+      return ['pip', 'pip3'];
+    case 'cargo':
+      return ['cargo'];
+    case 'installer-macos':
+    case 'installer-windows':
+    case 'installer-linux':
+    case 'other':
+      return [];
+  }
 }
 
 function currentPlatform(): Platform {

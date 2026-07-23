@@ -162,6 +162,19 @@ describe('buildAgentGroups', () => {
     ).toBe('User does not have sufficient permissions.');
   });
 
+  it('maps missing installer errors to friendly copy', () => {
+    expect(
+      getAgentInstallErrorMessage({
+        type: 'installer-missing',
+        id: 'codex',
+        tool: 'npm',
+        method: 'npm',
+      })
+    ).toBe(
+      'The installer `npm` is not installed on this machine, so codex cannot be installed. Install `npm` or choose a different install method.'
+    );
+  });
+
   it('supports non-combobox install actions', () => {
     expect(
       getAgentInstallActionState({

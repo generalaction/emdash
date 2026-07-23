@@ -1,19 +1,31 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { ExecContextOptions, IExecutionContext } from './execution-context';
+import type {
+  ExecContextOptions,
+  ExecStreamingResult,
+  IExecutionContext,
+} from './execution-context';
 import type { ExecResult } from './types';
 
 const execFileAsync = promisify(execFile);
+
+export type NodeExecutionContextOptions = {
+  root?: string;
+  env?: NodeJS.ProcessEnv;
+  refreshShellEnv?: () => Promise<void>;
+};
 
 export class NodeExecutionContext implements IExecutionContext {
   readonly supportsLocalSpawn = true;
   readonly root: string;
 
   private readonly lifetime = new AbortController();
+  private readonly refreshShellEnvDelegate: (() => Promise<void>) | undefined;
 
-  constructor(options: { root?: string; env?: NodeJS.ProcessEnv } = {}) {
+  constructor(options: NodeExecutionContextOptions = {}) {
     this.root = options.root ?? '';
     this.env = options.env;
+    this.refreshShellEnvDelegate = options.refreshShellEnv;
   }
 
   private readonly env: NodeJS.ProcessEnv | undefined;
@@ -33,7 +45,7 @@ export class NodeExecutionContext implements IExecutionContext {
     args: string[],
     onChunk: (chunk: string) => boolean,
     opts: { signal?: AbortSignal } = {}
-  ): Promise<void> {
+  ): Promise<ExecStreamingResult> {
     return new Promise((resolve, reject) => {
       const signal = this.signal(opts.signal);
       if (signal.aborted) {
@@ -70,17 +82,21 @@ export class NodeExecutionContext implements IExecutionContext {
         settled = true;
         reject(error);
       });
-      child.on('close', () => {
+      child.on('close', (code) => {
         signal.removeEventListener('abort', onAbort);
         if (settled) return;
         settled = true;
-        resolve();
+        resolve({ exitCode: code });
       });
     });
   }
 
   dispose(): void {
     this.lifetime.abort();
+  }
+
+  async refreshShellEnv(): Promise<void> {
+    await this.refreshShellEnvDelegate?.();
   }
 
   private signal(callerSignal?: AbortSignal): AbortSignal {

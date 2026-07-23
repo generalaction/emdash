@@ -77,7 +77,7 @@ function createRuntime(
     root: '',
     supportsLocalSpawn: true,
     exec: vi.fn(() => Promise.resolve({ stdout: '', stderr: '' })),
-    execStreaming: vi.fn(() => Promise.resolve()),
+    execStreaming: vi.fn(() => Promise.resolve({ exitCode: 0 })),
     dispose: vi.fn(),
     ...options.exec,
   } satisfies IExecutionContext;

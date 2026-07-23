@@ -1,1 +1,5 @@
-export type { ExecContextOptions, IExecutionContext } from '@primitives/exec/api';
+export type {
+  ExecContextOptions,
+  ExecStreamingResult,
+  IExecutionContext,
+} from '@primitives/exec/api';

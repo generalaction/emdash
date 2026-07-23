@@ -1,5 +1,7 @@
+import { createShellEnvManager } from '@emdash/core/services/shell-env/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { createWorkspaceWireController } from './api/controller';
@@ -22,7 +24,7 @@ type Disposable = {
 };
 
 async function main(): Promise<void> {
-  initProcessLogging({ name: 'workspace-server' });
+  const logger = initProcessLogging({ name: 'workspace-server' });
   const config = loadWorkspaceServerConfig();
   if (!config.success) {
     throw new Error(formatWorkspaceServerConfigError(config.error));
@@ -30,7 +32,7 @@ async function main(): Promise<void> {
 
   switch (config.data.command) {
     case 'serve': {
-      const active = await serve(config.data);
+      const active = await serve(config.data, logger);
       installSignalHandlers(active);
       break;
     }
@@ -46,14 +48,18 @@ async function main(): Promise<void> {
   }
 }
 
-async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
+async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Disposable> {
   const scope = createScope({
     label: config.serve.kind === 'socket' ? 'workspace-server' : 'workspace-server-stdio',
   });
   try {
+    const shellEnv = createShellEnvManager({ target: process.env, logger });
+    await shellEnv.refresh();
     const runtimeHost = await createWorkspaceServerRuntimeHost({
       scope,
       socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
+      env: shellEnv.env,
+      refreshShellEnv: () => shellEnv.refresh(),
       validate: workspaceServerWireValidationPolicy(),
     });
     const controller = withValidation(

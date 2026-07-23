@@ -59,6 +59,7 @@ export type CreateWorkspaceServerRuntimeHostOptions = {
   scope: Scope;
   socketPath?: string;
   env?: NodeJS.ProcessEnv;
+  refreshShellEnv?: () => Promise<void>;
   validate?: ValidatePolicy;
 };
 
@@ -88,7 +89,7 @@ export async function createWorkspaceServerRuntimeHost(
   });
   const hostDependencies = createHostDependenciesComponent({
     store: createJsonFileKeyValueStore({ path: paths.hostDependenciesStore }),
-    exec: new NodeExecutionContext({ env }),
+    exec: new NodeExecutionContext({ env, refreshShellEnv: options.refreshShellEnv }),
   }).create({
     scope: options.scope.child('host-dependencies'),
     dependencies: {},

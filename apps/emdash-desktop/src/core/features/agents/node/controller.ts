@@ -213,12 +213,22 @@ function toAgentInstallError(error: HostDependencyError, id: AgentProviderId): A
   switch (error.type) {
     case 'unknown-dependency':
     case 'no-install-command':
-    case 'not-detected-after-install':
+    case 'installer-missing':
       return error;
+    case 'not-detected-after-install':
+      return {
+        type: 'command-failed',
+        message: `Installed ${id}, but the binary was not detected on PATH.`,
+        output: error.output ?? '',
+      };
     case 'command-failed':
       return error;
     case 'missing':
-      return { type: 'not-detected-after-install', id: error.id };
+      return {
+        type: 'command-failed',
+        message: `Installed ${id}, but the binary was not detected on PATH.`,
+        output: '',
+      };
     case 'stale-selection':
       return {
         type: 'command-failed',
