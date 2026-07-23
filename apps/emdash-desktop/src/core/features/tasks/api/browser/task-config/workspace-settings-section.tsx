@@ -36,13 +36,18 @@ interface WorkspaceSettingsSectionProps {
 }
 
 export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
-  const { workspaceConfig, projectId, isUnborn, hasPR, isWorkspaceProviderEnabled } =
+  const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR, isWorkspaceProviderEnabled } =
     useTaskState();
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;
   const { createBranchAndWorktree, setCreateBranchAndWorktree } = branchSelection;
 
+  const worktreesDisabledReason = !hasRepository
+    ? 'Folder is not a Git repository'
+    : isUnborn
+      ? 'Repository has no commits yet'
+      : undefined;
   const hasSettings = !PRESETS_WITHOUT_SETTINGS.has(presetId);
   const Panel = PRESET_PANELS[presetId as Exclude<WorkspacePresetId, 'repo-root'>];
 
@@ -54,6 +59,7 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         hasPR={hasPR}
         isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
         hasExistingWorkspaces={existingWorkspaces.length > 0}
+        worktreesDisabledReason={worktreesDisabledReason}
       />
       <Collapsible
         key={presetId}

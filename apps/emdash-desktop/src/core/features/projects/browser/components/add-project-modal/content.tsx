@@ -92,6 +92,9 @@ export function PickExistingPanel({
               />
               <FieldLabel>Initialize git repository</FieldLabel>
             </Field>
+            <p className="mt-1.5 text-xs text-foreground-muted">
+              You can also open this folder now and initialize Git later from the changes view.
+            </p>
           </div>
         </div>
       )}

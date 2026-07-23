@@ -35,6 +35,7 @@ import {
   localProjectSchema,
   type CreateProjectParams,
   type CreateProjectResult,
+  type InitializeRepositoryResult,
   type InspectProjectPathParams,
   type OpenProjectError,
   type OpenProjectSuccess,
@@ -113,6 +114,10 @@ export const projectsWireContract = defineContract({
   inspectProjectPath: procedure({
     input: z.custom<InspectProjectPathParams>(),
     output: z.custom<ProjectPathInspection>(),
+  }),
+  initializeRepository: procedure({
+    input: projectIdInputSchema,
+    output: z.custom<InitializeRepositoryResult>(),
   }),
   getHostHomeDir: procedure({
     input: projectHostParamsSchema,

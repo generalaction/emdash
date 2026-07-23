@@ -31,10 +31,10 @@
     --em-background-quaternary-2: color(display-p3 0.8995 0.8987 0.8989);
     --em-background-neutral: color(display-p3 0.1329 0.1309 0.1314);
     --em-foreground-neutral: color(display-p3 0.9884 0.988 0.9881);
-    --em-primary-button-background: color(display-p3 0 0.6298 0.4648);
-    --em-primary-button-background-hover: color(display-p3 0 0.5868 0.4314);
+    --em-primary-button-background: color(display-p3 0 0.5313 0.3225);
+    --em-primary-button-background-hover: color(display-p3 0 0.5144 0.3149);
     --em-primary-button-foreground: color(display-p3 1 1 1);
-    --em-primary-button-border: color(display-p3 0.5072 0.8816 0.7469);
+    --em-primary-button-border: color(display-p3 0.5847 0.8735 0.7101);
     --em-background-destructive: color(display-p3 0.9541 0.8772 0.8687);
     --em-background-destructive-1: color(display-p3 0.9756 0.931 0.926);
     --em-foreground-destructive: color(display-p3 0.5963 0.2559 0.2471);
@@ -104,10 +104,10 @@
     --em-background-quaternary-2: color(display-p3 0.1252 0.1246 0.1248);
     --em-background-neutral: color(display-p3 0.9151 0.9123 0.913);
     --em-foreground-neutral: color(display-p3 0.0671 0.0669 0.067);
-    --em-primary-button-background: color(display-p3 0 0.6515 0.4817);
-    --em-primary-button-background-hover: color(display-p3 0 0.7093 0.5371);
+    --em-primary-button-background: color(display-p3 0 0.5502 0.3398);
+    --em-primary-button-background-hover: color(display-p3 0.1724 0.6286 0.4196);
     --em-primary-button-foreground: color(display-p3 1 1 1);
-    --em-primary-button-border: color(display-p3 0 0.4243 0.3136);
+    --em-primary-button-border: color(display-p3 0.1352 0.4233 0.2848);
     --em-background-destructive: color(display-p3 0.1618 0.1078 0.1029);
     --em-background-destructive-1: color(display-p3 0.1163 0.0863 0.0833);
     --em-foreground-destructive: color(display-p3 0.9855 0.6116 0.5853);

@@ -93,8 +93,19 @@ async function createProjectOnHost(
     params.path,
     params.initGitRepository
   );
-  if (!repositoryResult.success) return repositoryResult;
-  const gitInfo = repositoryResult.data;
+  if (
+    !repositoryResult.success &&
+    (repositoryResult.error.type !== 'not-repository' || params.initGitRepository)
+  ) {
+    return repositoryResult;
+  }
+
+  const gitInfo = repositoryResult.success
+    ? repositoryResult.data
+    : {
+        rootPath: params.path,
+        baseRef: null,
+      };
 
   const [row] = await dependencies.db
     .insert(projects)

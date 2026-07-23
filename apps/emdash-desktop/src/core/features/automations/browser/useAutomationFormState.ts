@@ -127,7 +127,7 @@ export function useAutomationFormState(
     initialConversation.setUseChatUi(true);
   }
 
-  const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
+  const { defaultBranch, isUnborn, hasRepository, currentBranch, repositoryWorkspaceId } =
     useProjectGitContext(effectiveProjectId);
 
   // Derive initial workspace config state from stored automation (for edit mode).
@@ -142,6 +142,7 @@ export function useAutomationFormState(
     projectId: effectiveProjectId,
     defaultBranch,
     isUnborn,
+    hasRepository,
     currentBranch,
     repositoryWorkspaceId,
     pr: null, // automations don't link PRs
@@ -239,6 +240,7 @@ export function useAutomationFormState(
     initialConversation,
     workspaceConfig,
     isUnborn,
+    hasRepository,
     currentBranch,
     prompt,
     provider,

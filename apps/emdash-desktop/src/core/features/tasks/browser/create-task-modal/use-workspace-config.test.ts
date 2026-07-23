@@ -33,11 +33,20 @@ const { useWorkspaceConfig } =
 
 let latestState: WorkspaceConfigState | undefined;
 
-function Probe({ initial }: { initial: Parameters<typeof useWorkspaceConfig>[0]['initial'] }) {
+function Probe({
+  initial,
+  isUnborn = false,
+  hasRepository = true,
+}: {
+  initial: Parameters<typeof useWorkspaceConfig>[0]['initial'];
+  isUnborn?: boolean;
+  hasRepository?: boolean;
+}) {
   latestState = useWorkspaceConfig({
     projectId: 'project-1',
     defaultBranch: { type: 'local', branch: 'main' },
-    isUnborn: false,
+    isUnborn,
+    hasRepository,
     currentBranch: 'current-branch',
     repositoryWorkspaceId: 'repo-workspace-1',
     pr: null,
@@ -72,9 +81,12 @@ describe('useWorkspaceConfig branch selection', () => {
     dom.window.close();
   });
 
-  async function renderProbe(initial: Parameters<typeof useWorkspaceConfig>[0]['initial']) {
+  async function renderProbe(
+    initial: Parameters<typeof useWorkspaceConfig>[0]['initial'],
+    options: { isUnborn?: boolean; hasRepository?: boolean } = {}
+  ) {
     await act(async () => {
-      root.render(React.createElement(Probe, { initial }));
+      root.render(React.createElement(Probe, { initial, ...options }));
     });
   }
 
@@ -154,5 +166,34 @@ describe('useWorkspaceConfig branch selection', () => {
       fromBranch: { type: 'local', branch: 'release/v2' },
       pushBranch: false,
     });
+  });
+
+  it('defaults unborn repositories to the repository root workspace', async () => {
+    await renderProbe(undefined, { isUnborn: true });
+
+    expect(latestState?.mode).toBe('existing');
+    expect(latestState?.presetId).toBe('repo-root');
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig).toEqual({
+      version: '2',
+      git: { kind: 'none' },
+      workspace: { kind: 'repository-instance', workspaceId: 'repo-workspace-1' },
+    });
+    expect(latestState?.setupSteps).toEqual([]);
+  });
+
+  it('defaults non-git projects to the repository root workspace', async () => {
+    await renderProbe(
+      {
+        mode: 'new-worktree',
+        presetId: 'new-worktree',
+      },
+      { hasRepository: false }
+    );
+
+    expect(latestState?.mode).toBe('existing');
+    expect(latestState?.presetId).toBe('repo-root');
+    expect(latestState?.isValid).toBe(true);
+    expect(latestState?.resolvedConfig.git).toEqual({ kind: 'none' });
   });
 });

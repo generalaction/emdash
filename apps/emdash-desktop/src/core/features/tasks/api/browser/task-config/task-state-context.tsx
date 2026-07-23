@@ -8,6 +8,7 @@ export type TaskStateContextValue = {
   initialConversation: InitialConversationState;
   projectId?: string;
   isUnborn: boolean;
+  hasRepository: boolean;
   hasPR: boolean;
   isWorkspaceProviderEnabled: boolean;
   linkedIssue?: LinkedIssue;

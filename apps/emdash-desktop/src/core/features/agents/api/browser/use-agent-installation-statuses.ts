@@ -7,7 +7,9 @@ import { getAgentsClient, unwrapAgentsResult } from '@core/features/agents/api/b
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import type {
   AgentInstallationStatus,
+  AgentInstallError,
   AgentPayload,
+  AgentUpdateError,
   DependencyStatus,
   HostDependencySelection,
   Installation,
@@ -15,6 +17,10 @@ import type {
   SelectedSource,
 } from '@core/primitives/agents/api';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import {
+  getAgentInstallErrorMessage,
+  getAgentUpdateErrorMessage,
+} from './components/agent-selector/agent-install';
 
 function statusQueryKey(host: HostRef) {
   return ['agents', 'status', hostRefKey(host)] as const;
@@ -61,10 +67,17 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     onSuccess: (result, variables) => {
       invalidate();
       const name = nameOf(variables.id);
-      if ((result as { success: boolean }).success) {
+      const installResult = result as { success: boolean; error?: AgentInstallError };
+      if (installResult.success) {
         toast({ title: `${name} successfully installed` });
       } else {
-        toast({ title: `Failed to install ${name}`, variant: 'destructive' });
+        toast({
+          title: `Failed to install ${name}`,
+          description: installResult.error
+            ? getAgentInstallErrorMessage(installResult.error)
+            : undefined,
+          variant: 'destructive',
+        });
       }
     },
     onError: (_, variables) => {
@@ -83,10 +96,17 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     onSuccess: (result, variables) => {
       invalidate();
       const name = nameOf(variables.id);
-      if ((result as { success: boolean }).success) {
+      const updateResult = result as { success: boolean; error?: AgentUpdateError };
+      if (updateResult.success) {
         toast({ title: `${name} successfully updated` });
       } else {
-        toast({ title: `Failed to update ${name}`, variant: 'destructive' });
+        toast({
+          title: `Failed to update ${name}`,
+          description: updateResult.error
+            ? getAgentUpdateErrorMessage(updateResult.error)
+            : undefined,
+          variant: 'destructive',
+        });
       }
     },
     onError: (_, variables) => {

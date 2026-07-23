@@ -83,6 +83,27 @@ export class GitCheckoutStore {
     await this.refreshChanges();
   }
 
+  async retry(): Promise<void> {
+    this.changesRequest += 1;
+    const release = this.releaseModel;
+    const replica = this.replica;
+    runInAction(() => {
+      this.releaseModel = null;
+      this.replica = null;
+      this.model = null;
+      this.startPromise = null;
+      this.syncError = null;
+      this.stagedChanges = [];
+      this.unstagedChanges = [];
+    });
+    try {
+      await release?.();
+    } finally {
+      await replica?.dispose();
+    }
+    if (this.started) await this.ensureStarted();
+  }
+
   dispose(): void {
     this.started = false;
     this.changesRequest += 1;

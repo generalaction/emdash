@@ -80,6 +80,12 @@ export type CreateProjectError =
 
 export type CreateProjectResult = Result<Project, CreateProjectError>;
 
+export type InitializeRepositoryError =
+  | CreateProjectError
+  | { type: 'project-not-found'; projectId: string; message: string };
+
+export type InitializeRepositoryResult = Result<Project, InitializeRepositoryError>;
+
 export type InspectLocalProjectPathParams = {
   type: 'local';
   path: string;

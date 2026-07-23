@@ -35,6 +35,7 @@ export function AutomationSettingsFields({
     workspaceConfig,
     effectiveProjectId,
     isUnborn,
+    hasRepository,
     setProjectId,
   } = state;
 
@@ -66,6 +67,7 @@ export function AutomationSettingsFields({
           initialConversation={initialConversation}
           projectId={effectiveProjectId}
           isUnborn={isUnborn}
+          hasRepository={hasRepository}
           hasPR={false}
           isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
           includeIssueContextByDefault={false}

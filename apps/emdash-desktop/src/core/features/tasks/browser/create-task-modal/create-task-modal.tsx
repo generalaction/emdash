@@ -66,7 +66,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
 
-  const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
+  const { defaultBranch, isUnborn, hasRepository, currentBranch, repositoryWorkspaceId } =
     useProjectGitContext(selectedProjectId);
 
   const repositoryStore = selectedProjectId ? getGitRepositoryStore(selectedProjectId) : undefined;
@@ -92,6 +92,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     selectedProjectId,
     defaultBranch,
     isUnborn,
+    hasRepository,
     currentBranch,
     repositoryWorkspaceId,
     resolvedInitialPR,
@@ -136,6 +137,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             initialConversation={initialConversation}
             projectId={selectedProjectId}
             isUnborn={isUnborn}
+            hasRepository={hasRepository}
             hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
             linkedIssue={

@@ -37,7 +37,10 @@ const PRESET_ICONS: Record<WorkspacePresetId, React.ReactNode> = {
 // Component
 // ---------------------------------------------------------------------------
 
-type PresetOption = WorkspacePresetMeta & { disabled: boolean };
+type PresetOption = WorkspacePresetMeta & {
+  disabled: boolean;
+  disabledReason?: string;
+};
 
 interface WorkspacePresetPickerProps {
   value: WorkspacePresetId;
@@ -45,6 +48,7 @@ interface WorkspacePresetPickerProps {
   hasPR: boolean;
   isWorkspaceProviderEnabled: boolean;
   hasExistingWorkspaces: boolean;
+  worktreesDisabledReason?: string;
   disabled?: boolean;
 }
 
@@ -54,6 +58,7 @@ export function WorkspacePresetPicker({
   hasPR,
   isWorkspaceProviderEnabled,
   hasExistingWorkspaces,
+  worktreesDisabledReason,
   disabled,
 }: WorkspacePresetPickerProps) {
   const { showPrPresets } = useTaskConfig();
@@ -63,9 +68,12 @@ export function WorkspacePresetPicker({
       (showPrPresets || !preset.requiresPR) && (!preset.requiresBYOI || isWorkspaceProviderEnabled)
   ).map((preset) => ({
     ...preset,
+    disabledReason:
+      preset.requiresCommits && worktreesDisabledReason ? worktreesDisabledReason : undefined,
     disabled:
       (preset.requiresPR && !hasPR) ||
       (hasPR && !preset.requiresPR) ||
+      (preset.requiresCommits && !!worktreesDisabledReason) ||
       (preset.id === 'use-existing' && !hasExistingWorkspaces),
   }));
 
@@ -91,7 +99,9 @@ export function WorkspacePresetPicker({
             <span className="text-foreground-muted">{PRESET_ICONS[value]}</span>
             <span className="truncate">{selected?.label ?? 'Select workspace…'}</span>
           </div>
-          <span className="text-xs text-foreground-muted">{selected?.description}</span>
+          <span className="text-xs text-foreground-muted">
+            {selected?.disabledReason ?? selected?.description}
+          </span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
       </ComboboxTrigger>
@@ -119,7 +129,7 @@ export function WorkspacePresetPicker({
                   <span className="text-sm leading-none">{option.label}</span>
                 </span>
                 <span className="text-xs leading-snug text-foreground-muted">
-                  {option.description}
+                  {option.disabledReason ?? option.description}
                 </span>
               </span>
             </ComboboxItem>

@@ -13,6 +13,11 @@ import {
   type LiveJobEndpointDef,
 } from '@emdash/wire';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
+import type {
+  InitializeRepositoryResult,
+  InspectProjectPathParams,
+  ProjectPathInspection,
+} from '@core/primitives/projects/api';
 import {
   getDesktopWireClient,
   resetDesktopWireClient,
@@ -24,6 +29,18 @@ export type SourceControlClient = DesktopWireClient['sourceControl'];
 
 export async function getSourceControlClient(): Promise<SourceControlClient> {
   return (await getDesktopWireClient()).sourceControl;
+}
+
+export async function inspectProjectPath(
+  input: InspectProjectPathParams
+): Promise<ProjectPathInspection> {
+  return (await getDesktopWireClient()).projects.inspectProjectPath(input);
+}
+
+export async function initializeProjectRepository(
+  projectId: string
+): Promise<InitializeRepositoryResult> {
+  return (await getDesktopWireClient()).projects.initializeRepository({ projectId });
 }
 
 export function resetSourceControlClient(): void {

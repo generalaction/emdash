@@ -257,8 +257,10 @@ export const AddProjectModal = observer(function AddProjectModal({
     !isCheckingPickPathStatus &&
     !pickPathInspectionError &&
     (mode !== 'new' || !githubAccountsQuery.isPending) &&
-    (mode !== 'pick' || !requiresGitInitialization || !githubAccountsQuery.isPending) &&
-    (!requiresGitInitialization || pickState.initGitRepository) &&
+    (mode !== 'pick' ||
+      !requiresGitInitialization ||
+      !pickState.initGitRepository ||
+      !githubAccountsQuery.isPending) &&
     submitState === 'idle';
 
   const handleSubmit = async () => {

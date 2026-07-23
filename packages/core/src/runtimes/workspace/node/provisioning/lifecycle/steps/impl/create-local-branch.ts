@@ -12,6 +12,14 @@ import {
 import { gitFailure } from './helpers';
 
 export const createLocalBranchImpl = implement(createLocalBranchStep, async (args, ctx) => {
+  if (await isRepositoryUnborn(ctx)) {
+    return stepErr('permanent', {
+      type: 'repository-unborn',
+      message:
+        'This repository has no commits yet. Use the repository directory or create an initial commit before creating worktrees.',
+    });
+  }
+
   const existing = await runGit(['rev-parse', '--verify', `refs/heads/${args.branchName}`], {
     cwd: ctx.repoPath,
     signal: ctx.signal,
@@ -81,3 +89,20 @@ export const createLocalBranchImpl = implement(createLocalBranchStep, async (arg
   const failure = gitFailure('create-failed', result.error);
   return stepErr(failure.failureClass, failure.error);
 });
+
+async function isRepositoryUnborn(ctx: {
+  repoPath: string;
+  signal?: AbortSignal;
+}): Promise<boolean> {
+  const symbolicHead = await runGit(['symbolic-ref', '--short', 'HEAD'], {
+    cwd: ctx.repoPath,
+    signal: ctx.signal,
+  });
+  if (!symbolicHead.success) return false;
+
+  const head = await runGit(['rev-parse', '--verify', 'HEAD'], {
+    cwd: ctx.repoPath,
+    signal: ctx.signal,
+  });
+  return !head.success;
+}

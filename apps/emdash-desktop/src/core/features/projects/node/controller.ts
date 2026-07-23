@@ -13,6 +13,7 @@ import type { CreateProjectDependencies } from './operations/create-project';
 import { createProject, inspectProjectPath } from './operations/create-project';
 import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
+import { initializeRepository } from './operations/initialize-repository';
 import { openProject } from './operations/openProject';
 import { resolveRepositoryDestination } from './operations/resolve-repository-destination';
 import { updateProjectConnection } from './operations/updateProjectConnection';
@@ -33,6 +34,7 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       createProject(dependencies, params),
     inspectProjectPath: (params: Parameters<typeof inspectProjectPath>[1]) =>
       inspectProjectPath(dependencies, params),
+    initializeRepository: (projectId: string) => initializeRepository(dependencies, projectId),
     resolveRepositoryDestination: (input: Parameters<typeof resolveRepositoryDestination>[1]) =>
       resolveRepositoryDestination(placement, input),
     getProjects: () => getProjects(db),

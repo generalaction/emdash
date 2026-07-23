@@ -25,6 +25,8 @@ export type WorkspacePresetMeta = {
   requiresPR: boolean;
   /** Only show this preset when the BYOI workspace-provider feature flag is enabled. */
   requiresBYOI: boolean;
+  /** Requires the project repository to have at least one commit. */
+  requiresCommits: boolean;
 };
 
 export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
@@ -34,6 +36,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Create an isolated worktree on a branch',
     requiresPR: false,
     requiresBYOI: false,
+    requiresCommits: true,
   },
   {
     id: 'repo-root',
@@ -41,6 +44,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Work directly in the project directory (no worktree)',
     requiresPR: false,
     requiresBYOI: false,
+    requiresCommits: false,
   },
   {
     id: 'use-existing',
@@ -48,6 +52,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Reuse an existing worktree or repository workspace',
     requiresPR: false,
     requiresBYOI: false,
+    requiresCommits: false,
   },
   {
     id: 'checkout-pr',
@@ -55,6 +60,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Fetch and review a pull request in its own worktree',
     requiresPR: true,
     requiresBYOI: false,
+    requiresCommits: true,
   },
   {
     id: 'pr-new-branch',
@@ -62,6 +68,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Create a new branch on top of the PR head for your changes',
     requiresPR: true,
     requiresBYOI: false,
+    requiresCommits: true,
   },
   {
     id: 'sandbox',
@@ -69,6 +76,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     description: 'Provision an isolated remote workspace via your infrastructure script',
     requiresPR: false,
     requiresBYOI: true,
+    requiresCommits: false,
   },
 ];
 

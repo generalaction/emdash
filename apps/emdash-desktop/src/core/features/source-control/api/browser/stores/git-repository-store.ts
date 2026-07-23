@@ -106,6 +106,26 @@ export class GitRepositoryStore {
     await Promise.all([model.states.refs.refresh(), model.states.remotes.refresh()]);
   }
 
+  async retry(): Promise<void> {
+    const release = this.releaseModel;
+    const replica = this.replica;
+    runInAction(() => {
+      this.releaseModel = null;
+      this.replica = null;
+      this.model = null;
+      this.startPromise = null;
+      this.loadError = null;
+    });
+    try {
+      await release?.();
+    } finally {
+      await replica?.dispose();
+    }
+    this.providerRepositoryInfo.invalidate();
+    this.gitDefaultBranchInfo.invalidate();
+    if (this.started) await this.ensureStarted();
+  }
+
   refreshLocal(): void {
     void this.resync();
   }
