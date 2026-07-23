@@ -118,6 +118,15 @@ export const projectsWireContract = defineContract({
     input: projectHostParamsSchema,
     output: z.string(),
   }),
+  createHostDirectory: fallible({
+    input: z.object({
+      host: projectHostParamsSchema,
+      root: hostAbsolutePathSchema,
+      path: portableRelativePathSchema,
+    }),
+    data: z.void(),
+    error: fsErrorSchema,
+  }),
   resolveRepositoryDestination: procedure({
     input: z.custom<ResolveRepositoryDestinationParams>(),
     output: z.custom<Result<string, ProjectPlacementError>>(),

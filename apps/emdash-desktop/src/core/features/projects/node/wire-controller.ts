@@ -70,6 +70,10 @@ export function createProjectsWireController(
         const runtime = await acquireHostRuntime(dependencies, input);
         return nativePathFromHost(await runtime.files.getHomeDir());
       },
+      createHostDirectory: async ({ host, root, path }) => {
+        const runtime = await acquireHostRuntime(dependencies, host);
+        return runtime.files.mutations.createDirectory({ root, path });
+      },
       events: projectEvents,
       creation: createCreationProvider(),
       directoryTree: createDirectoryTreeModelProvider(dependencies),

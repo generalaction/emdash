@@ -1,5 +1,7 @@
 import {
   ROOT_RELATIVE_PATH,
+  joinAbsolute,
+  joinPortableRelativePath,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
@@ -30,7 +32,12 @@ import {
   type ProjectHostParams,
   type ProjectsWireContract,
 } from '@core/features/projects/api';
-import { hostPathFromNative, relativePathWithin } from '@core/primitives/desktop-runtime/api';
+import {
+  hostPathFromNative,
+  nativePathFromHost,
+  relativePathWithin,
+} from '@core/primitives/desktop-runtime/api';
+import { toast } from '@core/primitives/ui/browser/use-toast';
 import { type Strategy } from './add-project-modal';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
@@ -84,6 +91,46 @@ export function ProjectDirectoryPicker({
     path: currentRelativePath,
   });
 
+  async function createFolder(_parentPath: string, name: string) {
+    if (!root || !host) return;
+
+    const childPath = joinPortableRelativePath(currentRelativePath, name);
+    if (!childPath.success) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid folder name',
+        description: childPath.error.message,
+      });
+      return;
+    }
+
+    const result = await (await getProjectsClient()).createHostDirectory({
+      host,
+      root,
+      path: childPath.data,
+    });
+    if (!result.success) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not create folder',
+        description: fsErrorMessage(result.error),
+      });
+      return;
+    }
+
+    const createdPath = joinAbsolute(root, childPath.data);
+    if (!createdPath.success) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not select folder',
+        description: createdPath.error.message,
+      });
+      return;
+    }
+
+    onSelect(nativePathFromHost(createdPath.data));
+  }
+
   if (!host) {
     return (
       <div className="rounded-md border border-border bg-background-1 p-3 text-sm text-foreground-muted">
@@ -106,6 +153,7 @@ export function ProjectDirectoryPicker({
       onSelect={(path) => {
         if (path) onSelect(path);
       }}
+      onCreateFolder={createFolder}
     />
   );
 }
