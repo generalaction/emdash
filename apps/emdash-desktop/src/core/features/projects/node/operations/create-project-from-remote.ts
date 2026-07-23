@@ -7,9 +7,9 @@ import type {
   ProjectCreationState,
 } from '@core/features/projects/api';
 import {
-  createLocalProject,
-  type LocalProjectOperationDependencies,
-} from '@core/features/projects/node/operations/create-local-project';
+  type CreateProjectDependencies,
+  createProject,
+} from '@core/features/projects/node/operations/create-project';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { runCloneRepositoryProvision } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import type { LocalProject } from '@core/primitives/projects/api';
@@ -18,7 +18,7 @@ import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/c
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
 
 export async function createProjectFromRemote(
-  dependencies: LocalProjectOperationDependencies & {
+  dependencies: CreateProjectDependencies & {
     getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   },
   input: CreateProjectFromRemoteInput,
@@ -75,10 +75,11 @@ export async function createProjectFromRemote(
     step: 'initialising-workspace',
     message: 'Registering project…',
   });
-  const project = await createLocalProject(dependencies, {
+  const project = await createProject(dependencies, {
+    type: 'local',
     id: input.projectId,
-    path: input.targetPath,
     name: input.name,
+    path: input.targetPath,
   });
   if (!project.success) {
     const error = projectErrorToWorkspaceError(project.error);

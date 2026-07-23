@@ -13,26 +13,26 @@ import {
   type DbProjectSettingsProviderOptions,
 } from './db-project-settings-provider';
 
-const localPathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
+const pathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
 
-export type LocalProjectSettingsProviderOptions = DbProjectSettingsProviderOptions & {
+export type HostProjectSettingsProviderOptions = DbProjectSettingsProviderOptions & {
   defaultWorktreeDirectory(): Promise<string>;
   worktreeDirectoryFileSystem: WorktreeDirectoryFileSystem;
 };
 
-export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
+export class HostProjectSettingsProvider extends DbProjectSettingsProvider {
   constructor(
     projectId: string,
     projectPath: string,
     defaultBranchFallback: string = 'main',
     files: FilesClientScope,
-    private readonly localOptions: LocalProjectSettingsProviderOptions
+    private readonly hostOptions: HostProjectSettingsProviderOptions
   ) {
-    super(projectId, projectPath, defaultBranchFallback, files, path.join, localOptions);
+    super(projectId, projectPath, defaultBranchFallback, files, path.join, hostOptions);
   }
 
   protected defaultWorktreeDirectory(): Promise<string> {
-    return this.localOptions.defaultWorktreeDirectory();
+    return this.hostOptions.defaultWorktreeDirectory();
   }
 
   protected validateWorktreeDirectory(
@@ -40,8 +40,8 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
   ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
     return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
       pathApi: path,
-      pathPlatform: localPathPlatform,
-      fs: this.localOptions.worktreeDirectoryFileSystem,
+      pathPlatform,
+      fs: this.hostOptions.worktreeDirectoryFileSystem,
       homeDirectory: os.homedir(),
     });
   }
@@ -51,7 +51,7 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
   ): Promise<Result<string, UpdateProjectSettingsError>> {
     return normalizeWorktreeDirectory(worktreeDirectory, {
       pathApi: path,
-      pathPlatform: localPathPlatform,
+      pathPlatform,
       homeDirectory: os.homedir(),
     });
   }

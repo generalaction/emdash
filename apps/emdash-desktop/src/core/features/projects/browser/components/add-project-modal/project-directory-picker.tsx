@@ -104,7 +104,9 @@ export function ProjectDirectoryPicker({
       return;
     }
 
-    const result = await (await getProjectsClient()).createHostDirectory({
+    const result = await (
+      await getProjectsClient()
+    ).createHostDirectory({
       host,
       root,
       path: childPath.data,

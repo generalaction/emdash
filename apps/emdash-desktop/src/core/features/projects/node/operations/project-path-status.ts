@@ -1,42 +1,26 @@
-import { hostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
   absoluteDirname,
   ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
-import { err } from '@emdash/shared';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import {
   hostPathFromNative,
   nativePathFromHost,
   portablePath,
 } from '@core/primitives/desktop-runtime/api';
-import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
-import type { CreateProjectResult, ProjectPathStatus } from '@core/primitives/projects/api';
+import type { ProjectPathStatus } from '@core/primitives/projects/api';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
-import type { LocalProjectOperationDependencies } from './create-local-project';
 
-export type CreateSshProjectParams = {
-  id?: string;
-  name: string;
-  path: string;
-  connectionId: string;
-  initGitRepository?: boolean;
-};
-
-export async function createSshProject(
-  params: CreateSshProjectParams
-): Promise<CreateProjectResult> {
-  return err(remoteRuntimeUnavailable(params.connectionId, 'projects'));
-}
-
-export async function getSshProjectPathStatus(
-  dependencies: Pick<LocalProjectOperationDependencies, 'runtimes'>,
-  path: string,
-  connectionId: string
+export async function getProjectPathStatus(
+  dependencies: { runtimes: Pick<RuntimeBroker, 'client'> },
+  host: HostRef,
+  path: string
 ): Promise<ProjectPathStatus> {
   try {
-    const runtime = await dependencies.runtimes.client(hostRef('remote', connectionId));
+    const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) {
       return { isDirectory: false, isGitRepo: false, error: runtime.error };
     }
@@ -79,7 +63,7 @@ export async function getSshProjectPathStatus(
   }
 }
 
-function fileKeyForAbsolutePath(path: HostAbsolutePath): {
+export function fileKeyForAbsolutePath(path: HostAbsolutePath): {
   root: HostAbsolutePath;
   relative: PortableRelativePath;
 } {

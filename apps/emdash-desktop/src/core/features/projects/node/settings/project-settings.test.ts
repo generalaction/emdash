@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PRESERVE_PATTERNS } from '@core/primitives/project-settings/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import type { ProjectSettingsStorage } from './project-settings-storage';
-import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
+import { HostProjectSettingsProvider } from './providers/host-project-settings-provider';
 
 const storageMockState = vi.hoisted(() => ({
   storage: undefined as ProjectSettingsStorage | undefined,
@@ -49,12 +49,12 @@ function makeLocalProvider(
   projectPath: string,
   options?: Partial<
     Omit<
-      ConstructorParameters<typeof LocalProjectSettingsProvider>[4],
+      ConstructorParameters<typeof HostProjectSettingsProvider>[4],
       'worktreeDirectoryFileSystem'
     >
   >
-): LocalProjectSettingsProvider {
-  return new LocalProjectSettingsProvider(
+): HostProjectSettingsProvider {
+  return new HostProjectSettingsProvider(
     projectId(),
     projectPath,
     'main',

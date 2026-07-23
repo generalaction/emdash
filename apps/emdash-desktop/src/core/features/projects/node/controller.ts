@@ -9,8 +9,8 @@ import type {
 } from '@core/primitives/project-settings/api';
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import type { LocalProjectOperationDependencies } from './operations/create-local-project';
-import { createProject, inspectProjectPath } from './operations/createProject';
+import type { CreateProjectDependencies } from './operations/create-project';
+import { createProject, inspectProjectPath } from './operations/create-project';
 import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
@@ -18,7 +18,7 @@ import { resolveRepositoryDestination } from './operations/resolve-repository-de
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 
-export type ProjectOperationDependencies = LocalProjectOperationDependencies & {
+export type ProjectOperationDependencies = CreateProjectDependencies & {
   operations: OperationsEngine;
   getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   placement: WorkspacePlacementResolver;
@@ -27,7 +27,7 @@ export type ProjectOperationDependencies = LocalProjectOperationDependencies & {
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {
-  const { db, operations, placement, projectSettings, projects } = dependencies;
+  const { db, operations, placement, projectSettings, projects, runtimes } = dependencies;
   return {
     createProject: (params: Parameters<typeof createProject>[1]) =>
       createProject(dependencies, params),
@@ -51,6 +51,6 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
       countProjectsUsingGithubAccount(db, accountId),
     updateProjectConnection: (projectId: string, connectionId: string) =>
       updateProjectConnection(db, projectId, connectionId),
-    openProject: (projectId: string) => openProject(db, projects, projectId),
+    openProject: (projectId: string) => openProject(db, projects, runtimes, projectId),
   };
 }

@@ -1,74 +1,51 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import type { LocalProject, Project, SshProject } from '@core/primitives/projects/api';
+import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects } from '@core/services/app-db/node/schema';
+import { projects, type ProjectRow } from '@core/services/app-db/node/schema';
 
-export async function getProjects(db: AppDb): Promise<(LocalProject | SshProject)[]> {
+export function projectFromRow(row: ProjectRow): Project {
+  return row.workspaceProvider === 'local'
+    ? {
+        type: 'local',
+        id: row.id,
+        name: row.name,
+        path: row.path,
+        baseRef: row.baseRef ?? 'main',
+        repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }
+    : {
+        type: 'ssh',
+        id: row.id,
+        name: row.name,
+        path: row.path,
+        baseRef: row.baseRef ?? 'main',
+        connectionId: row.sshConnectionId!,
+        repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+}
+
+export async function getProjects(db: AppDb): Promise<Project[]> {
   const rows = await db
     .select()
     .from(projects)
     .where(isNull(projects.deletedAt))
     .orderBy(desc(projects.updatedAt));
-  return rows.map((row) =>
-    row.workspaceProvider === 'local'
-      ? {
-          type: 'local' as const,
-          id: row.id,
-          name: row.name,
-          path: row.path,
-          baseRef: row.baseRef ?? 'main',
-          repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }
-      : {
-          type: 'ssh' as const,
-          id: row.id,
-          name: row.name,
-          path: row.path,
-          baseRef: row.baseRef ?? 'main',
-          connectionId: row.sshConnectionId!,
-          repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        }
-  );
+  return rows.map(projectFromRow);
 }
 
-export async function getProjectById(
-  db: AppDb,
-  projectId: string
-): Promise<LocalProject | SshProject | undefined> {
+export async function getProjectById(db: AppDb, projectId: string): Promise<Project | undefined> {
   const [row] = await db
     .select()
     .from(projects)
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
   if (!row) return undefined;
-  if (row.workspaceProvider === 'local') {
-    return {
-      type: 'local' as const,
-      id: row.id,
-      name: row.name,
-      path: row.path,
-      baseRef: row.baseRef ?? 'main',
-      repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    };
-  }
-  return {
-    type: 'ssh' as const,
-    id: row.id,
-    name: row.name,
-    path: row.path,
-    baseRef: row.baseRef ?? 'main',
-    connectionId: row.sshConnectionId!,
-    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
+  return projectFromRow(row);
 }
 
 export async function getProjectByPath(
@@ -95,26 +72,5 @@ export async function getProjectByPath(
     )
     .limit(1);
   if (!row) return undefined;
-  return row.workspaceProvider === 'local'
-    ? {
-        type: 'local' as const,
-        id: row.id,
-        name: row.name,
-        path: row.path,
-        baseRef: row.baseRef ?? 'main',
-        repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      }
-    : {
-        type: 'ssh' as const,
-        id: row.id,
-        name: row.name,
-        path: row.path,
-        baseRef: row.baseRef ?? 'main',
-        connectionId: row.sshConnectionId!,
-        repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      };
+  return projectFromRow(row);
 }

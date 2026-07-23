@@ -117,7 +117,6 @@ export function createDesktopWireOptions(
     providerSettings: services.providerSettings,
     search: services.search,
     runtimeClients: {
-      getFilesRuntimeClient: async () => runtimes.clients.files,
       getMementosRuntimeClient: async () => runtimes.clients.mementos,
       getPullRequestsRuntimeClient: async () => runtimes.clients.pullRequests,
       getWorkspaceRuntimeClient: async () => runtimes.clients.workspace,

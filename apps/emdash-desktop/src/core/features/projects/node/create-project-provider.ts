@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import {
+  isRuntimeResolveError,
   runtimeResolveErrorAsError,
   type RuntimeBroker,
   type RuntimeResolveError,
@@ -17,14 +18,12 @@ import {
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
-import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
-import type { LocalProject, SshProject } from '@core/primitives/projects/api';
+import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
   FilesRuntimeClient,
   GitRuntimeClient,
-  WorkspaceRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
 import {
   fileKey,
@@ -38,17 +37,17 @@ import {
 } from '@core/services/runtime-broker/node/git';
 import { ensureEmdashGitExcludedSafe } from './ensure-emdash-excluded';
 import { ProjectSettingsRepository } from './settings/project-settings-storage';
-import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
+import { HostProjectSettingsProvider } from './settings/providers/host-project-settings-provider';
 
 export type CreateProviderError = { type: 'error'; message: string } | RuntimeResolveError;
 
 export type CreateProjectProviderDependencies = {
   db: AppDb;
-  createExecutionContext(root: string): IExecutionContext;
+  createExecutionContext(host: HostRef, root: string): IExecutionContext;
   createGitRepository(
     client: GitRuntimeClient,
     repository: ReturnType<typeof repositorySelector>,
-    settings: LocalProjectSettingsProvider
+    settings: HostProjectSettingsProvider
   ): GitRepositoryPort;
   createGitRepositoryFetch(
     client: GitRuntimeClient,
@@ -56,17 +55,16 @@ export type CreateProjectProviderDependencies = {
     getBaseRemote: () => Promise<string>
   ): GitRepositoryFetchPort;
   ensureAbsoluteDir(
+    client: FilesRuntimeClient,
     rootPath: string,
     absolutePath: string,
     options?: { recursive?: boolean }
   ): Promise<Result<void, FsError>>;
-  getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  getLocalProjectDefaults(): Promise<{
+  getProjectDefaults(): Promise<{
     defaultWorktreeDirectory: string;
     tmuxByDefault: boolean;
   }>;
-  getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   backfillGitHubAccount(provider: ProjectProvider): Promise<void>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
   workspacePlacement: WorkspacePlacementResolver;
@@ -74,27 +72,16 @@ export type CreateProjectProviderDependencies = {
 
 export async function createProvider(
   dependencies: CreateProjectProviderDependencies,
-  project: LocalProject | SshProject
-): Promise<Result<ProjectProvider, CreateProviderError>> {
-  if (project.type === 'ssh') {
-    return err(remoteRuntimeUnavailable(project.connectionId, 'projects'));
-  }
-  return createLocalProvider(dependencies, project);
-}
-
-async function createLocalProvider(
-  dependencies: CreateProjectProviderDependencies,
-  project: LocalProject
+  project: Project
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
   try {
-    const ctx = dependencies.createExecutionContext(project.path);
-    const [runtime, filesClient, workspace] = await Promise.all([
-      dependencies.runtimes.client(LOCAL_HOST_REF),
-      dependencies.getFilesRuntimeClient(),
-      dependencies.getWorkspaceRuntimeClient(),
-    ]);
+    const host = projectHostRef(project);
+    const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const ctx = dependencies.createExecutionContext(host, project.path);
     const git = runtime.data.git;
+    const filesClient = runtime.data.files;
+    const workspace = runtime.data.workspace;
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);
@@ -110,7 +97,7 @@ async function createLocalProvider(
         return !entry || (entry.index === 'unmodified' && entry.worktree === 'unmodified');
       },
     };
-    const settings = new LocalProjectSettingsProvider(
+    const settings = new HostProjectSettingsProvider(
       project.id,
       project.path,
       project.baseRef,
@@ -118,14 +105,15 @@ async function createLocalProvider(
       {
         git: gitInspector,
         getProjectDefaults: async () => ({
-          tmuxByDefault: (await dependencies.getLocalProjectDefaults()).tmuxByDefault,
+          tmuxByDefault: (await dependencies.getProjectDefaults()).tmuxByDefault,
         }),
         storage: new ProjectSettingsRepository(dependencies.db),
         defaultWorktreeDirectory: async () =>
-          (await dependencies.getLocalProjectDefaults()).defaultWorktreeDirectory,
+          (await dependencies.getProjectDefaults()).defaultWorktreeDirectory,
         worktreeDirectoryFileSystem: {
           mkdir: async (targetPath, options) => {
             const result = await dependencies.ensureAbsoluteDir(
+              filesClient,
               path.dirname(targetPath),
               targetPath,
               options
@@ -149,8 +137,11 @@ async function createLocalProvider(
     ensureEmdashGitExcludedSafe(projectFiles, project.path, project.id);
 
     const transport: ProjectProviderTransport = {
-      kind: 'local',
-      defaultWorkspaceType: { kind: 'local' },
+      kind: project.type,
+      defaultWorkspaceType:
+        project.type === 'ssh'
+          ? { kind: 'ssh', connectionId: project.connectionId }
+          : { kind: 'local' },
       ctx,
       files: projectFiles,
       projectConfigPath: path.join(project.path, '.emdash.json'),
@@ -183,6 +174,7 @@ async function createLocalProvider(
 }
 
 function toCreateProviderError(error: unknown): CreateProviderError {
+  if (isRuntimeResolveError(error)) return error;
   return { type: 'error', message: error instanceof Error ? error.message : String(error) };
 }
 

@@ -36,7 +36,7 @@ async function openFilesClientScope(
   return ok(filesClientScope(await getFilesRuntimeClient(), rootPath));
 }
 
-async function ensureAbsoluteDir(
+export async function ensureAbsoluteDir(
   getFilesRuntimeClient: GetFilesRuntimeClient,
   rootPath: string,
   absPath: string,

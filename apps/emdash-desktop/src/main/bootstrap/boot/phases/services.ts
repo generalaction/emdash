@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -89,6 +90,7 @@ import {
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
 import { shouldProposeWorkspaceCleanup } from '@core/features/workspaces/node/operations/workspace-reconciliation-policy';
+import type { IExecutionContext } from '@core/primitives/execution-context/api/execution-context';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
@@ -105,7 +107,7 @@ import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-servi
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { setOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
-import { createFilesHelpers } from '@main/core/runtime/files-helpers';
+import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
 import { createCleanupSessionsOperationDefinition } from '@main/core/runtime/operations/cleanup-sessions-definition';
 import {
   killLifecycleAcpSessions,
@@ -172,14 +174,12 @@ export async function bootServices(
 ): Promise<ServicesBundle> {
   const { appSettings: appSettingsService, db, sqlite, workspaceIdentity } = database;
   const { clients, broker: runtimes } = desktopRuntimes;
-  const getFilesRuntimeClient = async () => clients.files;
   const getMementosRuntimeClient = async () => clients.mementos;
   const getPullRequestsRuntimeClient = async () => clients.pullRequests;
   const getTerminalsRuntimeClient = async () => clients.terminals;
   const getTuiAgentsRuntimeClient = async () => clients.tuiAgents;
   const getWorkspaceRuntimeClient = async () => clients.workspace;
   const fileSearchRuntime = createFileSearchRuntime(runtimes);
-  const filesHelpers = createFilesHelpers(getFilesRuntimeClient);
   const providerOverrideSettings = createProviderOverrideSettings(db);
   const workspacePlacement = new WorkspacePlacementResolver({
     broker: runtimes,
@@ -215,16 +215,15 @@ export async function bootServices(
   const projectManager = new ProjectSessionManager({
     db,
     taskSessions: taskSessionManager,
-    createExecutionContext: (root) => new LocalExecutionContext({ root }),
+    createExecutionContext: createProjectExecutionContext,
     createGitRepository: (client, repository, settings) =>
       new GitRepositoryService(client, repository, settings),
     createGitRepositoryFetch: (client, repository, getBaseRemote) =>
       new GitRepositoryFetchService(client, repository, getBaseRemote),
-    ensureAbsoluteDir: filesHelpers.ensureAbsoluteDir,
-    getFilesRuntimeClient,
+    ensureAbsoluteDir: (client, rootPath, absolutePath, options) =>
+      ensureAbsoluteDir(async () => client, rootPath, absolutePath, options),
     runtimes,
-    getWorkspaceRuntimeClient,
-    getLocalProjectDefaults: async () => {
+    getProjectDefaults: async () => {
       const [localProject, project] = await Promise.all([
         appSettingsService.get('localProject'),
         appSettingsService.get('project'),
@@ -598,5 +597,22 @@ export async function bootServices(
     taskSessions: taskSessionManager,
     workspaceBootstrap: workspaceBootstrapService,
     workspacePlacement,
+  };
+}
+
+function createProjectExecutionContext(host: HostRef, root: string): IExecutionContext {
+  if (host.type === 'local') return new LocalExecutionContext({ root });
+
+  const unsupported = async (): Promise<never> => {
+    throw new Error(
+      `Remote execution for ${host.id} is not yet routed through the workspace server`
+    );
+  };
+  return {
+    root,
+    supportsLocalSpawn: false,
+    exec: unsupported,
+    execStreaming: unsupported,
+    dispose() {},
   };
 }

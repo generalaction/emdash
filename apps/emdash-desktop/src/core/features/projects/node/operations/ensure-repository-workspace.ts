@@ -14,8 +14,8 @@ import { projects, workspaces } from '@core/services/app-db/node/schema';
  * transaction. If a concurrent call already inserted a workspace with the same
  * key, we recover by looking up the existing row by key and linking it.
  *
- * Called from `createLocalProject`/`createSshProject` (so the returned project
- * already carries the ID) and from `openProject` (for pre-migration rows).
+ * Called from `createProjectOnHost` (so the returned project already carries the ID) and from
+ * `openProject` (for pre-migration rows).
  */
 export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | SshProject): string {
   const [row] = db

@@ -82,7 +82,6 @@ import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
 import type {
-  FilesRuntimeClient,
   MementosRuntimeClient,
   WorkspaceRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
@@ -119,7 +118,6 @@ export type DesktopControllerContext = {
   readonly providerSettings: ProviderOverrideSettings;
   readonly remoteMachine: RemoteMachineService;
   readonly runtimeClients: {
-    getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
     getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
     getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
@@ -295,7 +293,6 @@ export const desktopNodeControllers = {
         desktopDomainContracts.projects,
         createProjectsWireController({
           db,
-          getFilesRuntimeClient: runtimeClients.getFilesRuntimeClient,
           getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
           operations,
           placement: workspacePlacement,
