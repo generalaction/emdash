@@ -99,6 +99,34 @@ export const row = style({
   },
 });
 
+export const draftRow = style({
+  display: 'grid',
+  width: '100%',
+  gridTemplateColumns: columns,
+  alignItems: 'center',
+  gap: '0.625rem',
+  borderBottom: `1px solid ${vars.border}`,
+  padding: '0.5625rem 0.75rem',
+  backgroundColor: vars.surfaceSelected,
+});
+
+export const draftInput = style({
+  minWidth: 0,
+  width: '100%',
+  border: 0,
+  background: 'transparent',
+  padding: 0,
+  color: vars.foreground,
+  font: 'inherit',
+  fontSize: tokenVars.textSm,
+  outline: 'none',
+  selectors: {
+    '&::placeholder': {
+      color: vars.foregroundPassive,
+    },
+  },
+});
+
 export const rowIcon = style({
   width: '1rem',
   height: '1rem',

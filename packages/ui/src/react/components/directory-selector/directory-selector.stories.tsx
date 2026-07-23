@@ -192,16 +192,16 @@ function MockDirectorySelector({
     setFsState(cloneFs(fs));
   }, [fs]);
 
-  function createFolder(parentPath: string) {
+  function createFolder(parentPath: string, name: string) {
     setFsState((current) => {
       const currentEntries = current[parentPath] ?? [];
-      const name = uniqueNewFolderName(currentEntries);
+      if (currentEntries.some((entry) => entry.name === name)) return current;
       const newPath = joinStoryPath(parentPath, name, separator);
       return {
         ...current,
         [parentPath]: [
-          ...currentEntries,
           { name, kind: 'directory', addedAtMs: Date.now() } satisfies DirectoryEntry,
+          ...currentEntries,
         ],
         [newPath]: [],
       };
@@ -234,16 +234,6 @@ function MockDirectorySelector({
 
 function cloneFs(fs: Record<string, DirectoryEntry[]>): Record<string, DirectoryEntry[]> {
   return Object.fromEntries(Object.entries(fs).map(([path, entries]) => [path, [...entries]]));
-}
-
-function uniqueNewFolderName(entries: DirectoryEntry[]): string {
-  let index = 0;
-  let name = 'New Folder';
-  while (entries.some((entry) => entry.name === name)) {
-    index += 1;
-    name = `New Folder ${index}`;
-  }
-  return name;
 }
 
 function joinStoryPath(parent: string, name: string, separator: '/' | '\\'): string {

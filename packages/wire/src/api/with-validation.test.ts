@@ -119,6 +119,46 @@ describe('withValidation', () => {
     ).rejects.toThrow();
   });
 
+  it('accepts void mutation results whose data key was dropped by JSON transports', async () => {
+    const contract = defineContract({
+      group: liveModel({
+        key: z.object({ id: z.string() }),
+        states: { item: liveState({ data: z.object({ value: z.string() }) }) },
+        mutations: {
+          touch: mutation({
+            input: z.object({}),
+            data: z.void(),
+            error: z.object({ type: z.string() }),
+          }),
+          set: mutation({
+            input: z.object({}),
+            data: z.object({ value: z.string() }),
+            error: z.object({ type: z.string() }),
+          }),
+        },
+      }),
+    });
+    const jsonRoundTrippedVoidResult = JSON.parse(
+      JSON.stringify(ok({ data: undefined, cursors: [] }))
+    ) as unknown;
+    const controller = withValidation(
+      contract,
+      {
+        call: async () => jsonRoundTrippedVoidResult,
+        resolveLive: () => null,
+        acquireLive: () => null,
+      },
+      'full'
+    );
+
+    await expect(
+      controller.call('group.touch', { key: { id: 'known' }, input: {} })
+    ).resolves.toEqual({ success: true, data: { cursors: [] } });
+    await expect(
+      controller.call('group.set', { key: { id: 'known' }, input: {} })
+    ).rejects.toThrow();
+  });
+
   it('validates download file metadata while preserving blob transfer handles', async () => {
     const contract = defineContract({
       download: downloadFile({

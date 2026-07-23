@@ -39,7 +39,7 @@ export interface DirectorySelectorProps {
   onForward(): void;
   onNavigate(path: string): void;
   onSelect(path: string | null): void;
-  onCreateFolder?(parentPath: string): void;
+  onCreateFolder?(parentPath: string, name: string): void;
   onCancel?(): void;
   onConfirm?(path: string): void;
   separator?: '/' | '\\';
@@ -64,9 +64,11 @@ export function DirectorySelector({
   className,
 }: DirectorySelectorProps) {
   const [query, setQuery] = React.useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = React.useState(false);
 
   React.useEffect(() => {
     setQuery('');
+    setIsCreatingFolder(false);
   }, [path]);
 
   const folderName = basename(path, separator);
@@ -131,6 +133,15 @@ export function DirectorySelector({
       </div>
 
       <ScrollContainer maxHeight={320} topFade={false} viewportClassName={styles.list}>
+        {isCreatingFolder && (
+          <DraftFolderRow
+            onCommit={(name) => {
+              onCreateFolder?.(path, name);
+              setIsCreatingFolder(false);
+            }}
+            onDismiss={() => setIsCreatingFolder(false)}
+          />
+        )}
         {listing.status === 'loading' ? (
           <DirectoryState>
             <Loader2Icon aria-hidden className={styles.spinner} />
@@ -139,9 +150,13 @@ export function DirectorySelector({
         ) : listing.status === 'error' ? (
           <DirectoryState error>{listing.message}</DirectoryState>
         ) : listing.entries.length === 0 ? (
-          <DirectoryState>Empty folder</DirectoryState>
+          isCreatingFolder ? null : (
+            <DirectoryState>Empty folder</DirectoryState>
+          )
         ) : filteredEntries.length === 0 ? (
-          <DirectoryState>No matches</DirectoryState>
+          isCreatingFolder ? null : (
+            <DirectoryState>No matches</DirectoryState>
+          )
         ) : (
           filteredEntries.map((entry) => {
             const entryPath = joinPath(path, entry.name, separator);
@@ -167,7 +182,13 @@ export function DirectorySelector({
         {hasFooterActions && (
           <div className={styles.footerActions}>
             {onCreateFolder && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => onCreateFolder(path)}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={isCreatingFolder}
+                onClick={() => setIsCreatingFolder(true)}
+              >
                 <FolderPlusIcon aria-hidden />
                 New Folder
               </Button>
@@ -244,6 +265,58 @@ function DirectoryRow({
       <span className={styles.rowMeta}>{label}</span>
       <span className={styles.rowMeta}>{formatDate(entry.addedAtMs)}</span>
     </button>
+  );
+}
+
+function DraftFolderRow({
+  onCommit,
+  onDismiss,
+}: {
+  onCommit(name: string): void;
+  onDismiss(): void;
+}) {
+  const [value, setValue] = React.useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const committedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  return (
+    <div className={styles.draftRow}>
+      <FolderIcon className={styles.rowIcon} aria-hidden />
+      <input
+        ref={inputRef}
+        className={styles.draftInput}
+        value={value}
+        placeholder="New folder name"
+        aria-label="New folder name"
+        spellCheck={false}
+        onChange={(event) => setValue(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            const name = value.trim();
+            if (!name) {
+              onDismiss();
+              return;
+            }
+            committedRef.current = true;
+            onCommit(name);
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            onDismiss();
+          }
+        }}
+        onBlur={() => {
+          if (!committedRef.current) onDismiss();
+        }}
+      />
+      <span className={cx(styles.rowMeta, styles.rowMetaEnd)}>—</span>
+      <span className={styles.rowMeta}>Folder</span>
+      <span className={styles.rowMeta}>—</span>
+    </div>
   );
 }
 

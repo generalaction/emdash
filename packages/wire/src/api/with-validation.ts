@@ -130,9 +130,10 @@ export function withValidation<Defs extends ContractDefinitions>(
     }
 
     for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+      const outputSchema = liveModelMutationOutputSchema(mutationDef);
       procedures.set(`${fullPath}.${mutationName}`, {
         parseInput: (input) => parseLiveModelMutationInput(def, mutationDef, input),
-        parseOutput: (output) => parseLiveModelMutationOutput(mutationDef, output),
+        parseOutput: (output) => outputSchema.parse(output),
       });
     }
   }
@@ -177,11 +178,14 @@ function parseLiveModelMutationInput(
   };
 }
 
-function parseLiveModelMutationOutput(def: MutationDef, output: unknown): unknown {
+function liveModelMutationOutputSchema(def: MutationDef): z.ZodTypeAny {
+  // JSON transports drop keys with `undefined` values, so when the mutation data schema accepts
+  // `undefined` (e.g. z.void()), the `data` key must be allowed to be absent entirely.
+  const dataSchema = def.data.safeParse(undefined).success ? def.data.optional() : def.data;
   return resultSchema(
-    z.object({ data: def.data, cursors: z.array(liveCursorEntrySchema) }),
+    z.object({ data: dataSchema, cursors: z.array(liveCursorEntrySchema) }),
     def.error
-  ).parse(output);
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
