@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
 }));
 const dependencies = {
   cleanup: {
-    getWorkspaceRuntimeClient: vi.fn(),
     projects: { getProject: () => undefined },
+    runtimes: { client: vi.fn() },
     unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,
   },
   lifecycleContext: {

@@ -513,8 +513,8 @@ export async function bootServices(
     workspaceBootstrap: workspaceBootstrapService,
   };
   const lifecycleCleanup = {
-    getWorkspaceRuntimeClient,
     projects: projectManager,
+    runtimes,
     unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
   };
   const lifecycleSessions: WorkspaceLifecycleDependencies['sessions'] = {

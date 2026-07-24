@@ -1,6 +1,10 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
+import {
+  runtimeResolveErrorAsError,
+  type RuntimeBroker,
+} from '@emdash/core/services/runtime-broker/api';
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { LifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
@@ -12,13 +16,13 @@ import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 
 export type LifecycleCleanupDependencies = {
-  getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   projects: Pick<ProjectSessionManager, 'getProject'>;
+  runtimes: Pick<RuntimeBroker, 'client'>;
   unregisterFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
 };
 
 export async function deactivateLifecycleWorkspace(
-  dependencies: Pick<LifecycleCleanupDependencies, 'getWorkspaceRuntimeClient'>,
+  dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   operation: LifecycleOperationRow,
   context: LifecycleOperationContext
 ): Promise<void> {
@@ -27,7 +31,7 @@ export async function deactivateLifecycleWorkspace(
     context.workspacePath,
     operation.hostRef === 'local' ? undefined : operation.hostRef
   );
-  const client = await dependencies.getWorkspaceRuntimeClient();
+  const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
   const consumerIds =
     operation.kind === 'archive-workspace'
       ? await client.workspace
@@ -52,15 +56,16 @@ export async function deactivateLifecycleWorkspace(
 }
 
 export async function cleanLifecycleWorkspaceArtifacts(
-  dependencies: Pick<LifecycleCleanupDependencies, 'getWorkspaceRuntimeClient'>,
+  dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   operation: LifecycleOperationRow,
   context: LifecycleOperationContext
 ): Promise<void> {
   if (!context.workspacePath || !context.projectPath) return;
-  const client = await dependencies.getWorkspaceRuntimeClient();
   const hostId = operation.hostRef === 'local' ? undefined : operation.hostRef;
+  const workspace = hostFileRefFromNativePath(context.workspacePath, hostId);
+  const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
   const result = await runRuntimeLiveJob(workspaceContract.cleanArtifacts, client.cleanArtifacts, {
-    workspace: hostFileRefFromNativePath(context.workspacePath, hostId),
+    workspace,
     repoPath: hostFileRefFromNativePath(context.projectPath, hostId),
     preservePatterns: context.preservePatterns,
   });
@@ -70,7 +75,7 @@ export async function cleanLifecycleWorkspaceArtifacts(
 }
 
 export async function teardownLifecycleWorkspace(
-  dependencies: Pick<LifecycleCleanupDependencies, 'getWorkspaceRuntimeClient'>,
+  dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   db: AppDb,
   operation: LifecycleOperationRow,
   context: LifecycleOperationContext
@@ -105,12 +110,13 @@ export async function teardownLifecycleWorkspace(
         : undefined;
   if (!lifecycleRef) return;
 
-  const client = await dependencies.getWorkspaceRuntimeClient();
+  const workspace = hostFileRefFromNativePath(
+    context.workspacePath,
+    operation.hostRef === 'local' ? undefined : operation.hostRef
+  );
+  const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
   const result = await runRuntimeLiveJob(workspaceContract.teardown, client.teardown, {
-    workspace: hostFileRefFromNativePath(
-      context.workspacePath,
-      operation.hostRef === 'local' ? undefined : operation.hostRef
-    ),
+    workspace,
     force: true,
     lifecycle: {
       ref: lifecycleRef,
@@ -198,6 +204,15 @@ export class WorkspaceInUseError extends Error {
   constructor() {
     super('Workspace is still referenced by an active task.');
   }
+}
+
+async function resolveWorkspaceRuntimeClient(
+  dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
+  host: HostRef
+): Promise<WorkspaceRuntimeClient> {
+  const runtime = await dependencies.runtimes.client(host);
+  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+  return runtime.data.workspace;
 }
 
 function isMissingError(error: unknown): boolean {
