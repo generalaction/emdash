@@ -59,6 +59,10 @@ export const plugin = definePlugin(
           name: 'Claude Fable 5',
           modelFeatures: { intelligence: 4, speed: 3 },
         },
+        'claude-opus-4-8': {
+          name: 'Claude Opus 4.8',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
         'claude-opus-5': {
           name: 'Claude Opus 5',
           modelFeatures: { intelligence: 5, speed: 2 },
