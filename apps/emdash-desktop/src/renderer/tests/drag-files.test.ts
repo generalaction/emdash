@@ -29,24 +29,26 @@ describe('drag-files', () => {
 
     setDraggedWorkspaceFile(dataTransfer, {
       workspaceId: 'workspace-1',
-      targetPath: '/remote/repo/src/index.ts',
+      targetPaths: ['/remote/repo/src/index.ts', '/remote/repo/src/app.ts'],
       targetPlatform: 'linux',
     });
 
     expect(hasDraggedWorkspaceFile(dataTransfer)).toBe(true);
     expect(getDraggedWorkspaceFile(dataTransfer)).toEqual({
       workspaceId: 'workspace-1',
-      targetPath: '/remote/repo/src/index.ts',
+      targetPaths: ['/remote/repo/src/index.ts', '/remote/repo/src/app.ts'],
       targetPlatform: 'linux',
     });
-    expect(dataTransfer.getData('text/plain')).toBe('/remote/repo/src/index.ts');
+    expect(dataTransfer.getData('text/plain')).toBe(
+      '/remote/repo/src/index.ts /remote/repo/src/app.ts'
+    );
   });
 
   it('does not accept stale workspace state without a matching transfer marker', () => {
     const sourceTransfer = makeDataTransfer();
     setDraggedWorkspaceFile(sourceTransfer, {
       workspaceId: 'workspace-1',
-      targetPath: '/repo/src/index.ts',
+      targetPaths: ['/repo/src/index.ts'],
     });
 
     const unrelatedTransfer = makeDataTransfer();
@@ -60,13 +62,13 @@ describe('drag-files', () => {
     const dataTransfer = makeDataTransfer();
     setDraggedWorkspaceFile(dataTransfer, {
       workspaceId: 'workspace-1',
-      targetPath: '/repo/src/index.ts',
+      targetPaths: ['/repo/src/index.ts'],
     });
     clearDraggedWorkspaceFile();
 
     expect(getDraggedWorkspaceFile(dataTransfer)).toEqual({
       workspaceId: 'workspace-1',
-      targetPath: '/repo/src/index.ts',
+      targetPaths: ['/repo/src/index.ts'],
     });
   });
 });

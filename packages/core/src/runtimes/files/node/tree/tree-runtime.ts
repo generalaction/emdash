@@ -31,6 +31,8 @@ export class FileTreeRuntime {
         delete: (context) => context.resource.delete(context),
         rename: (context) => context.resource.rename(context),
         move: (context) => context.resource.move(context),
+        copy: (context) => context.resource.copy(context),
+        refresh: (context) => context.resource.refresh(context),
       },
       toMutationError: (_name, error) => expectedFsError(error),
     });

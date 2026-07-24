@@ -9,7 +9,13 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { resolveFileIconClass } from '../../lib/file-icons';
-import { TreeView, type TreeNode, type TreeRow } from '../../patterns/tree-view';
+import {
+  buildVisibleTreeRows,
+  TreeView,
+  type TreeNode,
+  type TreeRow,
+  type TreeViewHandle,
+} from '../../patterns/tree-view';
 import { ContextMenu } from '../../primitives/context-menu';
 import {
   FileTreeHeader,
@@ -21,10 +27,12 @@ import {
   buildFlatFileRows,
   canMoveNode,
   creationTargetPath,
+  dedupeDescendantPaths,
   isExpandableFileTreeNode,
   isOpenableFileTreeNode,
   normalizeFileTreePath,
   resolveDropTargetDir,
+  selectionRange,
   sortFileNodes,
   type ChildrenById,
   type FileTreeFlatRow,
@@ -43,15 +51,23 @@ export interface FileTreeContextMenuItem {
   icon?: React.ReactNode;
   variant?: 'default' | 'destructive';
   disabled?: boolean;
-  onSelect(node: FileTreeNode): void;
+  onSelect(node: FileTreeNode, selection: readonly FileTreeNode[]): void;
 }
 
 export interface FileTreeDndSpec {
   canDrag?: (node: FileTreeNode) => boolean;
-  canDrop?: (source: FileTreeNode, targetDir: FileTreeNode | null) => boolean;
-  onDragStart?: (node: FileTreeNode, dataTransfer: DataTransfer) => void;
-  onDragEnd?: (node: FileTreeNode, dataTransfer: DataTransfer) => void;
-  onMove(sourcePath: string, targetDirPath: string): void | Promise<void>;
+  canDrop?: (sources: readonly FileTreeNode[], targetDir: FileTreeNode | null) => boolean;
+  onDragStart?: (
+    node: FileTreeNode,
+    dataTransfer: DataTransfer,
+    selection: readonly FileTreeNode[]
+  ) => void;
+  onDragEnd?: (
+    node: FileTreeNode,
+    dataTransfer: DataTransfer,
+    selection: readonly FileTreeNode[]
+  ) => void;
+  onMove(sourcePaths: string[], targetDirPath: string): void | Promise<void>;
   onDropExternal?: (dataTransfer: DataTransfer, targetDirPath: string) => void;
 }
 
@@ -75,6 +91,7 @@ export interface FileTreeProps {
   childrenById: ChildrenById;
   expandedPaths?: ReadonlySet<string>;
   selectedPath?: string | null;
+  selectedPaths?: ReadonlySet<string>;
   openedPaths?: ReadonlySet<string>;
   isLoading?: boolean;
   error?: React.ReactNode;
@@ -88,6 +105,7 @@ export interface FileTreeProps {
   onExpandAll?: (directoryPaths: ReadonlySet<string>) => void;
   onToggleExpand?: (node: FileTreeNode, expanded: boolean) => void;
   onSelect?: (node: FileTreeNode | null) => void;
+  onSelectionChange?: (paths: ReadonlySet<string>, anchorPath: string | null) => void;
   onOpenFile?: (node: FileTreeNode, options: FileTreeOpenOptions) => void;
   onCreateFile?: (parentPath: string, name: string) => void | Promise<void>;
   onCreateDirectory?: (parentPath: string, name: string) => void | Promise<void>;
@@ -95,11 +113,21 @@ export interface FileTreeProps {
   onRenameCancel?: () => void;
   onRequestExpand?: (path: string) => void;
   onRowHover?: (node: FileTreeNode) => void;
-  getContextMenuItems?: (node: FileTreeNode) => readonly FileTreeContextMenuItem[] | null;
+  getContextMenuItems?: (
+    node: FileTreeNode,
+    selection: readonly FileTreeNode[]
+  ) => readonly FileTreeContextMenuItem[] | null;
   renderIcon?: (node: FileTreeNode, state: FileTreeIconState) => React.ReactNode;
   renderHeader?: (context: FileTreeHeaderContext) => React.ReactNode;
   renderDecoration?: (node: FileTreeNode) => React.ReactNode;
   getRowState?: (node: FileTreeNode) => FileTreeRowState | undefined;
+}
+
+export interface FileTreeHandle {
+  startDraft(kind: FileTreeDraftKind): void;
+  collapseAll(): void;
+  expandAll(): void;
+  scrollToPath(path: string): void;
 }
 
 interface DraftState {
@@ -111,38 +139,43 @@ type RenderableData =
   | { kind: 'node'; node: FileTreeNode; flatDirectory?: string }
   | { kind: 'draft'; draft: DraftState };
 
-export function FileTree({
-  rootPath = '',
-  rootNodes,
-  childrenById,
-  expandedPaths,
-  selectedPath,
-  openedPaths,
-  isLoading = false,
-  error,
-  mode = 'tree',
-  compactChains = false,
-  defaultExpanded = 'none',
-  dnd,
-  className,
-  renamePath,
-  onCollapseAll,
-  onExpandAll,
-  onToggleExpand,
-  onSelect,
-  onOpenFile,
-  onCreateFile,
-  onCreateDirectory,
-  onRenameSubmit,
-  onRenameCancel,
-  onRequestExpand,
-  onRowHover,
-  getContextMenuItems,
-  renderIcon,
-  renderHeader,
-  renderDecoration,
-  getRowState,
-}: FileTreeProps) {
+function FileTreeInner(
+  {
+    rootPath = '',
+    rootNodes,
+    childrenById,
+    expandedPaths,
+    selectedPath,
+    selectedPaths,
+    openedPaths,
+    isLoading = false,
+    error,
+    mode = 'tree',
+    compactChains = false,
+    defaultExpanded = 'none',
+    dnd,
+    className,
+    renamePath,
+    onCollapseAll,
+    onExpandAll,
+    onToggleExpand,
+    onSelect,
+    onSelectionChange,
+    onOpenFile,
+    onCreateFile,
+    onCreateDirectory,
+    onRenameSubmit,
+    onRenameCancel,
+    onRequestExpand,
+    onRowHover,
+    getContextMenuItems,
+    renderIcon,
+    renderHeader,
+    renderDecoration,
+    getRowState,
+  }: FileTreeProps,
+  ref: React.ForwardedRef<FileTreeHandle>
+) {
   const normalizedRootPath = normalizeFileTreePath(rootPath);
   const allNodes = React.useMemo(
     () => collectNodes(rootNodes, childrenById),
@@ -163,10 +196,11 @@ export function FileTree({
     () => (defaultExpanded === 'all' ? directoryPaths : new Set())
   );
   const [draft, setDraft] = React.useState<DraftState | null>(null);
-  const [dragSourcePath, setDragSourcePath] = React.useState<string | null>(null);
+  const [dragSourcePaths, setDragSourcePaths] = React.useState<readonly string[]>([]);
   const [dropTargetPath, setDropTargetPath] = React.useState<string | null>(null);
-  const [pendingMovePath, setPendingMovePath] = React.useState<string | null>(null);
+  const [pendingMovePaths, setPendingMovePaths] = React.useState<ReadonlySet<string>>(new Set());
   const hoverExpandTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const treeViewRef = React.useRef<TreeViewHandle>(null);
 
   React.useEffect(() => {
     if (expandedPaths) return;
@@ -184,6 +218,10 @@ export function FileTree({
     [openedPaths]
   );
   const normalizedSelectedPath = selectedPath ? normalizeFileTreePath(selectedPath) : null;
+  const normalizedSelectedPaths = React.useMemo(() => {
+    if (selectedPaths) return normalizePathSet(selectedPaths);
+    return normalizedSelectedPath ? new Set([normalizedSelectedPath]) : new Set<string>();
+  }, [normalizedSelectedPath, selectedPaths]);
   const normalizedRenamePath = renamePath ? normalizeFileTreePath(renamePath) : null;
   const selectedNode = normalizedSelectedPath ? nodesByPath.get(normalizedSelectedPath) : undefined;
   const targetPath = creationTargetPath(selectedNode, normalizedRootPath);
@@ -194,6 +232,34 @@ export function FileTree({
         ? buildFlatRenderableNodes(rootNodes, childrenById, draft)
         : buildRenderableTreeNodes(rootNodes, childrenById, draft, targetPath, normalizedRootPath),
     [childrenById, draft, mode, normalizedRootPath, rootNodes, targetPath]
+  );
+  const visibleRows = React.useMemo(
+    () => buildVisibleTreeRows(treeNodes, effectiveExpandedPaths, { compactChains }),
+    [compactChains, effectiveExpandedPaths, treeNodes]
+  );
+  const visibleNodePaths = React.useMemo(
+    () =>
+      visibleRows.flatMap((row) =>
+        row.node.data.kind === 'node' ? [normalizeFileTreePath(row.node.data.node.path)] : []
+      ),
+    [visibleRows]
+  );
+  const selectedNodes = React.useMemo(
+    () => [...normalizedSelectedPaths].flatMap((path) => nodesByPath.get(path) ?? []),
+    [nodesByPath, normalizedSelectedPaths]
+  );
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      startDraft,
+      collapseAll,
+      expandAll,
+      scrollToPath(path) {
+        treeViewRef.current?.scrollToId(normalizeFileTreePath(path), { align: 'center' });
+      },
+    }),
+    [startDraft, collapseAll, expandAll]
   );
 
   const header =
@@ -246,6 +312,7 @@ export function FileTree({
           <FileTreeState>Empty folder</FileTreeState>
         ) : (
           <TreeView
+            ref={treeViewRef}
             nodes={treeNodes}
             expandedIds={effectiveExpandedPaths}
             compactChains={compactChains}
@@ -288,10 +355,12 @@ export function FileTree({
     }
 
     const isExpanded = row.isExpanded;
-    const isSelected = normalizeFileTreePath(node.path) === normalizedSelectedPath;
+    const normalizedPath = normalizeFileTreePath(node.path);
+    const isSelected = normalizedSelectedPaths.has(normalizedPath);
     const isOpened = normalizedOpenedPaths.has(normalizeFileTreePath(node.path));
     const state = getRowState?.(node);
-    const menuItems = getContextMenuItems?.(node) ?? null;
+    const contextSelection = isSelected ? selectedNodes : [node];
+    const menuItems = getContextMenuItems?.(node, contextSelection) ?? null;
     const icon = renderIcon ? renderIcon(node, { expanded: isExpanded }) : defaultIcon(node);
     const content = (
       <button
@@ -302,8 +371,9 @@ export function FileTree({
         data-selected={isSelected || undefined}
         data-opened={!isSelected && isOpened ? true : undefined}
         data-drop-target={dropTargetPath === normalizeFileTreePath(node.path) || undefined}
-        data-pending={pendingMovePath === normalizeFileTreePath(node.path) || undefined}
-        onClick={() => handleNodeClick(node, isExpanded)}
+        data-pending={pendingMovePaths.has(normalizedPath) || undefined}
+        onClick={(event) => handleNodeClick(node, isExpanded, event)}
+        onContextMenu={() => handleNodeContextMenu(node, isSelected)}
         onDoubleClick={() => handleNodeDoubleClick(node)}
         onMouseEnter={() => onRowHover?.(node)}
         onDragStart={(event) => handleDragStart(node, event)}
@@ -311,9 +381,9 @@ export function FileTree({
         onDragLeave={() => setDropTargetPath(null)}
         onDrop={(event) => handleDrop(node, event)}
         onDragEnd={(event) => {
-          dnd?.onDragEnd?.(node, event.dataTransfer);
+          dnd?.onDragEnd?.(node, event.dataTransfer, contextSelection);
           clearHoverExpandTimer(hoverExpandTimerRef);
-          setDragSourcePath(null);
+          setDragSourcePaths([]);
           setDropTargetPath(null);
         }}
       >
@@ -368,7 +438,7 @@ export function FileTree({
               key={item.id}
               disabled={item.disabled}
               variant={item.variant}
-              onClick={() => item.onSelect(node)}
+              onClick={() => item.onSelect(node, contextSelection)}
             >
               {item.icon}
               {item.label}
@@ -394,13 +464,42 @@ export function FileTree({
     onExpandAll?.(directoryPaths);
   }
 
-  function handleNodeClick(node: FileTreeNode, isExpanded: boolean) {
-    onSelect?.(node);
+  function handleNodeClick(
+    node: FileTreeNode,
+    isExpanded: boolean,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) {
+    updateSelection(node, event);
+    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
     if (isExpandableFileTreeNode(node)) {
       setExpanded(node, !isExpanded);
       return;
     }
     if (isOpenableFileTreeNode(node)) onOpenFile?.(node, { preview: true });
+  }
+
+  function handleNodeContextMenu(node: FileTreeNode, isSelected: boolean) {
+    if (isSelected) return;
+    const path = normalizeFileTreePath(node.path);
+    onSelectionChange?.(new Set([path]), path);
+    onSelect?.(node);
+  }
+
+  function updateSelection(node: FileTreeNode, event: React.MouseEvent<HTMLButtonElement>) {
+    const path = normalizeFileTreePath(node.path);
+    let next: ReadonlySet<string>;
+    if (event.shiftKey) {
+      next = new Set(selectionRange(visibleNodePaths, normalizedSelectedPath, path));
+    } else if (event.metaKey || event.ctrlKey) {
+      const toggled = new Set(normalizedSelectedPaths);
+      if (toggled.has(path)) toggled.delete(path);
+      else toggled.add(path);
+      next = toggled;
+    } else {
+      next = new Set([path]);
+    }
+    onSelectionChange?.(next, path);
+    onSelect?.(node);
   }
 
   function handleNodeDoubleClick(node: FileTreeNode) {
@@ -468,23 +567,38 @@ export function FileTree({
       return;
     }
     const path = normalizeFileTreePath(node.path);
-    setDragSourcePath(path);
+    const selectedSourcePaths = normalizedSelectedPaths.has(path)
+      ? [...normalizedSelectedPaths]
+      : [path];
+    const sources = selectedSourcePaths
+      .flatMap((sourcePath) => nodesByPath.get(sourcePath) ?? [])
+      .filter((source) => dnd.canDrag?.(source) ?? true);
+    if (sources.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const sourcePaths = sources.map((source) => normalizeFileTreePath(source.path));
+    setDragSourcePaths(sourcePaths);
     event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData(INTERNAL_DRAG_MIME, path);
-    event.dataTransfer.setData('text/plain', path);
-    dnd.onDragStart?.(node, event.dataTransfer);
+    event.dataTransfer.setData(INTERNAL_DRAG_MIME, JSON.stringify(sourcePaths));
+    event.dataTransfer.setData('text/plain', sourcePaths.join('\n'));
+    dnd.onDragStart?.(node, event.dataTransfer, sources);
   }
 
   function handleDragOver(targetNode: FileTreeNode | null, event: React.DragEvent<HTMLElement>) {
     if (!dnd) return;
     const target = resolveDropTargetDir(targetNode, nodesByPath, normalizedRootPath);
-    const sourcePath = dragSourcePath || event.dataTransfer.getData(INTERNAL_DRAG_MIME) || null;
-    const canDrop = sourcePath ? canDropInternal(sourcePath, target) : Boolean(dnd.onDropExternal);
+    const sourcePaths = dragSourcePaths.length
+      ? dragSourcePaths
+      : parseDragSourcePaths(event.dataTransfer);
+    const canDrop = sourcePaths.length
+      ? canDropInternal(sourcePaths, target)
+      : Boolean(dnd.onDropExternal);
     if (!canDrop) return;
 
     event.preventDefault();
     event.stopPropagation();
-    event.dataTransfer.dropEffect = sourcePath ? 'move' : 'copy';
+    event.dataTransfer.dropEffect = sourcePaths.length ? 'move' : 'copy';
     setDropTargetPath(target.targetDirPath);
     scheduleHoverExpand(target.targetDir);
   }
@@ -492,41 +606,47 @@ export function FileTree({
   function handleDrop(targetNode: FileTreeNode | null, event: React.DragEvent<HTMLElement>) {
     if (!dnd) return;
     const target = resolveDropTargetDir(targetNode, nodesByPath, normalizedRootPath);
-    const sourcePath = dragSourcePath || event.dataTransfer.getData(INTERNAL_DRAG_MIME) || null;
+    const sourcePaths = dragSourcePaths.length
+      ? dragSourcePaths
+      : parseDragSourcePaths(event.dataTransfer);
 
     event.preventDefault();
     event.stopPropagation();
     clearHoverExpandTimer(hoverExpandTimerRef);
     setDropTargetPath(null);
-    setDragSourcePath(null);
+    setDragSourcePaths([]);
 
-    if (sourcePath && canDropInternal(sourcePath, target)) {
-      void moveInternal(sourcePath, target.targetDirPath);
+    if (sourcePaths.length && canDropInternal(sourcePaths, target)) {
+      void moveInternal(sourcePaths, target.targetDirPath);
       return;
     }
 
-    if (!sourcePath && dnd.onDropExternal) {
+    if (!sourcePaths.length && dnd.onDropExternal) {
       dnd.onDropExternal(event.dataTransfer, target.targetDirPath);
     }
   }
 
   function canDropInternal(
-    sourcePath: string,
+    sourcePaths: readonly string[],
     target: { targetDir: FileTreeNode | null; targetDirPath: string }
   ) {
-    const source = nodesByPath.get(normalizeFileTreePath(sourcePath));
-    if (!source) return false;
-    if (!canMoveNode(source.path, target.targetDirPath, normalizedRootPath)) return false;
-    return dnd?.canDrop?.(source, target.targetDir) ?? true;
+    const sources = dedupeDescendantPaths(sourcePaths).flatMap(
+      (sourcePath) => nodesByPath.get(sourcePath) ?? []
+    );
+    if (sources.length === 0) return false;
+    for (const source of sources) {
+      if (!canMoveNode(source.path, target.targetDirPath, normalizedRootPath)) return false;
+    }
+    return dnd?.canDrop?.(sources, target.targetDir) ?? true;
   }
 
-  async function moveInternal(sourcePath: string, targetDirPath: string) {
-    const normalizedSource = normalizeFileTreePath(sourcePath);
-    setPendingMovePath(normalizedSource);
+  async function moveInternal(sourcePaths: readonly string[], targetDirPath: string) {
+    const normalizedSources = dedupeDescendantPaths(sourcePaths);
+    setPendingMovePaths(new Set(normalizedSources));
     try {
-      await dnd?.onMove(normalizedSource, targetDirPath);
+      await dnd?.onMove(normalizedSources, targetDirPath);
     } finally {
-      setPendingMovePath(null);
+      setPendingMovePaths(new Set());
     }
   }
 
@@ -538,6 +658,8 @@ export function FileTree({
     }, HOVER_EXPAND_MS);
   }
 }
+
+export const FileTree = React.forwardRef(FileTreeInner);
 
 function DraftRow({
   kind,
@@ -556,11 +678,24 @@ function DraftRow({
 }) {
   const [value, setValue] = React.useState(initialValue);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const settledRef = React.useRef(false);
 
   React.useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+
+  const commit = React.useCallback(() => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    void onCommit(value);
+  }, [onCommit, value]);
+
+  const cancel = React.useCallback(() => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    onCancel();
+  }, [onCancel]);
 
   return (
     <div className={cx(styles.row, styles.draftRow)} style={rowIndentStyle(depth)}>
@@ -575,15 +710,16 @@ function DraftRow({
         placeholder={placeholder ?? (kind === 'directory' ? 'Folder name' : 'File name')}
         onChange={(event) => setValue(event.currentTarget.value)}
         onBlur={() => {
-          if (!value.trim()) onCancel();
+          if (value.trim()) commit();
+          else cancel();
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault();
-            onCancel();
+            cancel();
           } else if (event.key === 'Enter') {
             event.preventDefault();
-            void onCommit(value);
+            commit();
           }
         }}
       />
@@ -710,6 +846,20 @@ function indentGuideStyle(level: number): React.CSSProperties {
   return {
     left: `${level * 12 + 11}px`,
   };
+}
+
+function parseDragSourcePaths(dataTransfer: DataTransfer): string[] {
+  const value = dataTransfer.getData(INTERNAL_DRAG_MIME);
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((path): path is string => typeof path === 'string');
+    }
+  } catch {
+    return [value];
+  }
+  return [];
 }
 
 function clearHoverExpandTimer(ref: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) {

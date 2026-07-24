@@ -755,28 +755,31 @@ export class MonacoModelRegistry {
     };
   }
 
-  async transferBufferState(oldUri: string, newUri: string): Promise<void> {
-    if (oldUri === newUri) return;
+  async transferBufferState(
+    oldUri: string,
+    newUri: string,
+    newFilePath: string
+  ): Promise<() => void> {
+    if (oldUri === newUri) return () => {};
     const oldEntry = this.modelMap.get(oldUri);
-    if (oldEntry?.type !== 'buffer') return;
+    if (oldEntry?.type !== 'buffer') return () => {};
 
     const dirtyContent = this.dirtyUris.has(oldUri) ? oldEntry.model.getValue() : null;
     const viewState = oldEntry.viewState;
     const { projectId, workspaceId, filePath: oldPath } = oldEntry;
-    const newPath = this.pathFromBufferUri(newUri);
 
     if (dirtyContent !== null) {
       const client = await getEditorClient();
       await client.saveBuffer({
         projectId,
         workspaceId,
-        filePath: newPath,
+        filePath: newFilePath,
         content: dirtyContent,
       });
       await client.clearBuffer({ projectId, workspaceId, filePath: oldPath });
     }
 
-    this.onceBufferReady(newUri, () => {
+    return this.onceBufferReady(newUri, () => {
       const newEntry = this.modelMap.get(newUri);
       if (newEntry?.type !== 'buffer') return;
       if (dirtyContent !== null) {
@@ -900,10 +903,6 @@ export class MonacoModelRegistry {
 
   filePathForUri(uri: string): string | undefined {
     return this.modelMap.get(uri)?.filePath;
-  }
-
-  private pathFromBufferUri(uri: string): string {
-    return uri.replace(/^file:\/\/[^/]+\//, '');
   }
 
   /** Current text content of the buffer model. */

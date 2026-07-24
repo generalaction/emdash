@@ -33,6 +33,9 @@ export class EditorViewStore {
   /** Monotonic signal used by the task-level search command to focus the sidebar input. */
   fileSearchFocusRequest = 0;
 
+  /** Monotonic signal consumed by the file tree adapter to reveal a path in the sidebar. */
+  revealFileRequest: { path: string; counter: number } = { path: '', counter: 0 };
+
   /**
    * Per-view file-tree projection store. Created when the task session starts (`startFiles`) and
    * torn down on suspend (`disposeFiles`), so projection state lives with this view's expansion
@@ -59,9 +62,11 @@ export class EditorViewStore {
       isSaving: observable,
       pendingConflictUri: observable,
       fileSearchFocusRequest: observable,
+      revealFileRequest: observable.struct,
       files: observable.ref,
       expandedPaths: computed.struct,
       requestFileSearchFocus: action,
+      requestRevealFile: action,
       treeHandle: false,
     });
   }
@@ -72,6 +77,13 @@ export class EditorViewStore {
 
   requestFileSearchFocus(): void {
     this.fileSearchFocusRequest += 1;
+  }
+
+  requestRevealFile(path: string): void {
+    this.revealFileRequest = {
+      path,
+      counter: this.revealFileRequest.counter + 1,
+    };
   }
 
   /** Opens the per-view file-tree projection. Idempotent. */
@@ -134,23 +146,31 @@ export class EditorViewStore {
     const normalizedOld = normalizeTreePath(oldPath);
     const normalizedNew = normalizeTreePath(newPath);
     const retargets: Array<() => void> = [];
+    const cancelBufferTransfers: Array<() => void> = [];
 
-    for (const { pane } of this.paneLayout.groups) {
-      for (const tab of pane.resolvedTabs) {
-        if (tab.kind !== 'file') continue;
-        const resource = tab.resource as FileTabResource;
-        if (resource.isExternal || !isPathAffected(resource.path, normalizedOld)) continue;
-        const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
-        await modelRegistry.transferBufferState(
-          buildMonacoModelPath(this.modelRootPath, resource.path),
-          buildMonacoModelPath(this.modelRootPath, rewritten)
-        );
-        retargets.push(() => {
-          pane.retargetEntry(tab.tabId, {
-            state: { path: rewritten, isExternal: false } satisfies FilePayload,
+    try {
+      for (const { pane } of this.paneLayout.groups) {
+        for (const tab of pane.resolvedTabs) {
+          if (tab.kind !== 'file') continue;
+          const resource = tab.resource as FileTabResource;
+          if (resource.isExternal || !isPathAffected(resource.path, normalizedOld)) continue;
+          const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
+          const cancelTransfer = await modelRegistry.transferBufferState(
+            buildMonacoModelPath(this.modelRootPath, resource.path),
+            buildMonacoModelPath(this.modelRootPath, rewritten),
+            rewritten
+          );
+          cancelBufferTransfers.push(cancelTransfer);
+          retargets.push(() => {
+            pane.retargetEntry(tab.tabId, {
+              state: { path: rewritten, isExternal: false } satisfies FilePayload,
+            });
           });
-        });
+        }
       }
+    } catch (error) {
+      for (const cancel of cancelBufferTransfers) cancel();
+      throw error;
     }
 
     for (const retarget of retargets) retarget();

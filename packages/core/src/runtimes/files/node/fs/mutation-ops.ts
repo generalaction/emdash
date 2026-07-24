@@ -1,4 +1,4 @@
-import { lstat, mkdir, open, rename, rm, rmdir, unlink } from 'node:fs/promises';
+import { cp, lstat, mkdir, open, rename, rm, rmdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { PortableRelativePath } from '@primitives/path/api';
@@ -84,6 +84,48 @@ export async function moveInRoot(
         { kind: 'delete', path: source.data.path },
         { kind: 'create', path: destination.data.path },
       ]);
+    } catch (error) {
+      return err(toFsError(error, source.data.path));
+    }
+  });
+}
+
+export async function copyInRoot(
+  root: RootResource,
+  input: { from: PortableRelativePath; to: PortableRelativePath }
+): Promise<Result<RootChange[], FsError>> {
+  if (input.to.startsWith(`${input.from}/`)) {
+    return err({
+      type: 'invalid-path',
+      path: input.to,
+      message: 'A directory cannot be copied into itself',
+    });
+  }
+  const source = await root.paths.resolveExistingEntry(input.from);
+  if (!source.success) return source;
+  if (source.data.path === '') {
+    return err({
+      type: 'invalid-path',
+      path: '',
+      message: 'The workspace root cannot be copied',
+    });
+  }
+  const destination = await root.paths.resolveDestination(input.to);
+  if (!destination.success) return destination;
+  const available = await destinationAvailable(
+    destination.data.absolutePath,
+    destination.data.path
+  );
+  if (!available.success) return available;
+  return root.runFileMutation(source.data.absolutePath, async () => {
+    try {
+      await cp(source.data.absolutePath, destination.data.absolutePath, {
+        recursive: true,
+        force: false,
+        errorOnExist: true,
+        verbatimSymlinks: true,
+      });
+      return ok<RootChange[]>([{ kind: 'create', path: destination.data.path }]);
     } catch (error) {
       return err(toFsError(error, source.data.path));
     }

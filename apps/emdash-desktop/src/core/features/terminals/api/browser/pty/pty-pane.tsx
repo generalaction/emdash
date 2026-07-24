@@ -304,7 +304,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
               // injected paste markers, and the escaped single-line path needs
               // no paste protection in shells or other agent TUIs.
               sendInput(
-                `${formatTerminalImagePaths([draggedWorkspaceFile.targetPath], platform)} `,
+                `${formatTerminalImagePaths(draggedWorkspaceFile.targetPaths, platform)} `,
                 {
                   track: false,
                 }

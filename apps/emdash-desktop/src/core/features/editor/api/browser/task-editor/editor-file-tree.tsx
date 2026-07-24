@@ -1,18 +1,22 @@
 import { FILE_SEARCH_MAX_QUERY_LENGTH } from '@emdash/core/runtimes/file-search/api';
+import { copyNameForConflict } from '@emdash/core/runtimes/files/api';
 import {
   FileTree,
   canMoveNode,
+  dedupeDescendantPaths,
   isExpandableFileTreeNode,
   isOpenableFileTreeNode,
   joinFileTreePath,
   normalizeFileTreePath,
   type ChildrenById,
   type FileTreeContextMenuItem,
+  type FileTreeHandle,
   type FileTreeHeaderContext,
   type FileTreeNode,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
 import {
+  ClipboardPaste,
   Copy,
   CopyMinus,
   FilePen,
@@ -21,7 +25,9 @@ import {
   FolderOpen,
   FolderPlus,
   Link2,
+  RefreshCw,
   Search,
+  Scissors,
   Trash2,
   X,
 } from 'lucide-react';
@@ -32,6 +38,8 @@ import type { RenderableFileNode } from '@core/features/editor/api/browser/file-
 import { editorFilePath } from '@core/features/editor/api/browser/files';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import type { TreeMutationError } from '@core/features/editor/browser/task-editor/stores/files-store';
+import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
   useTaskComposition,
@@ -45,6 +53,8 @@ import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { Input } from '@core/primitives/ui/browser/input';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope } from '@core/primitives/view-scopes/react';
 import { clearDraggedWorkspaceFile, setDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '../..';
@@ -60,12 +70,17 @@ const REVEAL_LABEL =
       ? 'Show in File Explorer'
       : 'Show in File Manager';
 
-type ResultLikeError = { message?: string; type?: string; paths?: readonly string[] };
+type ResultLikeError =
+  | TreeMutationError
+  | { message?: string; type?: string; paths?: readonly string[] };
+type FileTreeClipboard = { mode: 'cut' | 'copy'; paths: string[] };
 
 function resultErrorMessage(error: ResultLikeError | string | undefined): string {
   if (typeof error === 'string') return error;
   if (!error) return 'Unknown error';
-  return error.message ?? error.type ?? 'Unknown error';
+  if ('message' in error && error.message) return error.message;
+  if ('path' in error && error.path) return `${error.type}: ${error.path}`;
+  return error.type ?? 'Unknown error';
 }
 
 function conflictPaths(error: ResultLikeError): string[] {
@@ -203,8 +218,15 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const openConfirmActionModal = useOpenModal('confirmActionModal');
   const [searchQuery, setSearchQuery] = useState('');
   const [renamePath, setRenamePath] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(new Set());
+  const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<FileTreeClipboard | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<'file' | 'directory' | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const treeRef = useRef<FileTreeHandle>(null);
   const focusRequest = editorView.fileSearchFocusRequest;
+  const revealRequest = editorView.revealFileRequest;
   const expandedPaths = editorView.expandedPaths;
   const activeFile = tabLayout.focusedPane.activeResourceOfKind<FileTabResource>('file');
   const openedPaths = useMemo(() => new Set(editorView.openFilePaths), [editorView.openFilePaths]);
@@ -212,6 +234,16 @@ export const EditorFileTree = observer(function EditorFileTree() {
     () => mapFileTreeData(files?.rootNodes ?? [], files?.childrenById ?? new Map()),
     [files?.childrenById, files?.rootNodes]
   );
+  const nodeByPath = useMemo(
+    () => collectFileTreeNodes(rootNodes, childrenById),
+    [childrenById, rootNodes]
+  );
+  const selectedNodes = useMemo(
+    () => [...selectedPaths].flatMap((path) => nodeByPath.get(path) ?? []),
+    [nodeByPath, selectedPaths]
+  );
+  const selectionTargetNode = selectionAnchorPath ? nodeByPath.get(selectionAnchorPath) : undefined;
+  const creationTargetPath = creationTargetForNode(selectionTargetNode, workspace.path);
 
   const setSearchInputRef = useCallback(
     (input: HTMLInputElement | null) => {
@@ -233,8 +265,87 @@ export const EditorFileTree = observer(function EditorFileTree() {
     files?.reconcileVisibleScopes(expandedPaths);
   }, [expandedPaths, files]);
 
+  React.useEffect(() => {
+    const activePath = activeFile?.isExternal ? null : activeFile?.path;
+    if (!activePath || !nodeByPath.has(activePath)) return;
+    if (selectedPaths.has(activePath)) return;
+    setSelectedPaths(new Set([activePath]));
+    setSelectionAnchorPath(activePath);
+  }, [activeFile?.isExternal, activeFile?.path, nodeByPath, selectedPaths]);
+
+  React.useEffect(() => {
+    setSelectedPaths((current) => prunePathSet(current, nodeByPath));
+    setClipboard((current) =>
+      current
+        ? current.paths.filter((path) => nodeByPath.has(path)).length > 0
+          ? { ...current, paths: current.paths.filter((path) => nodeByPath.has(path)) }
+          : null
+        : null
+    );
+    setSelectionAnchorPath((current) => (current && nodeByPath.has(current) ? current : null));
+  }, [nodeByPath]);
+
+  React.useEffect(() => {
+    if (!pendingDraft || searchQuery) return;
+    treeRef.current?.startDraft(pendingDraft);
+    setPendingDraft(null);
+  }, [pendingDraft, searchQuery]);
+
+  React.useEffect(() => {
+    if (revealRequest.counter === 0 || !files) return;
+    void (async () => {
+      const result = await files.revealFile(revealRequest.path);
+      if (!result.success) {
+        toast({
+          title: 'Reveal failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
+      editorView.expandPaths(result.data);
+      setSelectedPaths(new Set([revealRequest.path]));
+      setSelectionAnchorPath(revealRequest.path);
+      window.requestAnimationFrame(() => treeRef.current?.scrollToPath(revealRequest.path));
+    })();
+  }, [editorView, files, revealRequest.counter, revealRequest.path]);
+
   const openFile = (path: string, preview: boolean) => {
     tabLayout.open('file', { path }, { preview });
+  };
+
+  const startDraft = (kind: 'file' | 'directory') => {
+    if (searchQuery) {
+      setPendingDraft(kind);
+      setSearchQuery('');
+      return;
+    }
+    treeRef.current?.startDraft(kind);
+  };
+
+  const collapseAll = () => editorView.collapsePaths([...expandedPaths]);
+  const expandAll = () => {
+    const directoryPaths = [...nodeByPath.values()]
+      .filter(isExpandableFileTreeNode)
+      .map((node) => node.path);
+    editorView.expandPaths(directoryPaths);
+  };
+
+  const refresh = async () => {
+    if (!files || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const result = await files.refresh();
+      if (!result.success) {
+        toast({
+          title: 'Refresh failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleCreateFile = async (parentPath: string, name: string) => {
@@ -244,7 +355,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     if (!result.success) {
       toast({
         title: 'Create failed',
-        description: resultErrorMessage(result.error as ResultLikeError),
+        description: resultErrorMessage(result.error),
         variant: 'destructive',
       });
       return;
@@ -260,7 +371,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     if (!result.success) {
       toast({
         title: 'Create failed',
-        description: resultErrorMessage(result.error as ResultLikeError),
+        description: resultErrorMessage(result.error),
         variant: 'destructive',
       });
       return;
@@ -276,7 +387,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     if (!result.success) {
       toast({
         title: 'Rename failed',
-        description: resultErrorMessage(result.error as ResultLikeError),
+        description: resultErrorMessage(result.error),
         variant: 'destructive',
       });
       return;
@@ -286,72 +397,97 @@ export const EditorFileTree = observer(function EditorFileTree() {
     toast({ title: node.type === 'directory' ? 'Folder renamed' : 'File renamed' });
   };
 
-  const handleMove = async (sourcePath: string, targetDirPath: string) => {
+  const handleMove = async (sourcePaths: string[], targetDirPath: string) => {
     if (!files) return;
-    const targetPath = joinFileTreePath(targetDirPath, basenameFromPath(sourcePath));
-    const result = await files.move(sourcePath, targetDirPath);
-    if (!result.success) {
-      toast({
-        title: 'Move failed',
-        description: resultErrorMessage(result.error as ResultLikeError),
-        variant: 'destructive',
-      });
-      return;
-    }
-    await editorView.retargetOpenFiles(sourcePath, targetPath);
-    toast({ title: 'Item moved' });
-  };
-
-  const closeDeletedFileTabs = (node: FileTreeNode) => {
-    const closesDescendants = node.type === 'directory' || isExpandableFileTreeNode(node);
-    for (const { pane } of taskView.paneLayout.groups) {
-      for (const tab of pane.resolvedTabs) {
-        if (tab.kind !== 'file') continue;
-        const resource = tab.resource as FileTabResource;
-        if (isPathWithin(resource.path, node.path, closesDescendants))
-          void pane.closeTab(tab.tabId);
-      }
-    }
-  };
-
-  const confirmDelete = (node: FileTreeNode) => {
-    void (async () => {
-      if (!files) return;
-      const outcome = await openConfirmActionModal({
-        title:
-          node.type === 'directory'
-            ? 'Delete folder?'
-            : node.type === 'symlink'
-              ? 'Delete link?'
-              : 'Delete file?',
-        description:
-          node.type === 'directory'
-            ? `"${node.path}" and all of its contents will be deleted from the workspace.`
-            : node.type === 'symlink'
-              ? `"${node.path}" will be removed from the workspace. Its target will not be deleted.`
-              : `"${node.path}" will be deleted from the workspace.`,
-        confirmLabel: 'Delete',
-        variant: 'destructive',
-      });
-      if (!outcome.success) return;
-      const result = await files.deleteEntry(node.path, node.type === 'directory');
+    const deduped = dedupeDescendantPaths(sourcePaths);
+    let moved = 0;
+    for (const sourcePath of deduped) {
+      const targetPath = joinFileTreePath(targetDirPath, basenameFromPath(sourcePath));
+      const result = await files.move(sourcePath, targetDirPath);
       if (!result.success) {
-        await files.registerDir(node.parentPath ?? workspace.path, true);
         toast({
-          title: 'Delete failed',
-          description: resultErrorMessage(result.error as ResultLikeError),
+          title: 'Move failed',
+          description: resultErrorMessage(result.error),
           variant: 'destructive',
         });
         return;
       }
-      closeDeletedFileTabs(node);
+      await editorView.retargetOpenFiles(sourcePath, targetPath);
+      moved += 1;
+    }
+    toast({ title: moved === 1 ? 'Item moved' : `${moved} items moved` });
+  };
+
+  const closeDeletedFileTabs = (nodes: readonly FileTreeNode[]) => {
+    for (const { pane } of taskView.paneLayout.groups) {
+      for (const tab of pane.resolvedTabs) {
+        if (tab.kind !== 'file') continue;
+        const resource = tab.resource as FileTabResource;
+        if (
+          nodes.some((node) =>
+            isPathWithin(
+              resource.path,
+              node.path,
+              node.type === 'directory' || isExpandableFileTreeNode(node)
+            )
+          )
+        ) {
+          void pane.closeTab(tab.tabId);
+        }
+      }
+    }
+  };
+
+  const confirmDelete = (nodes: readonly FileTreeNode[]) => {
+    void (async () => {
+      if (!files) return;
+      const paths = dedupeDescendantPaths(nodes.map((node) => node.path));
+      const targets = paths.flatMap((path) => nodeByPath.get(path) ?? []);
+      if (targets.length === 0) return;
+      const single = targets.length === 1 ? targets[0] : null;
+      const outcome = await openConfirmActionModal({
+        title: single
+          ? single.type === 'directory'
+            ? 'Delete folder?'
+            : single.type === 'symlink'
+              ? 'Delete link?'
+              : 'Delete file?'
+          : `Delete ${targets.length} items?`,
+        description:
+          single?.type === 'directory'
+            ? `"${single.path}" and all of its contents will be deleted from the workspace.`
+            : single?.type === 'symlink'
+              ? `"${single.path}" will be removed from the workspace. Its target will not be deleted.`
+              : single
+                ? `"${single.path}" will be deleted from the workspace.`
+                : `${targets.map((node) => `"${node.path}"`).join(', ')} will be deleted from the workspace.`,
+        confirmLabel: 'Delete',
+        variant: 'destructive',
+      });
+      if (!outcome.success) return;
+      for (const node of targets) {
+        const result = await files.deleteEntry(node.path, node.type === 'directory');
+        if (!result.success) {
+          await files.registerDir(node.parentPath ?? workspace.path, true);
+          toast({
+            title: 'Delete failed',
+            description: resultErrorMessage(result.error),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+      closeDeletedFileTabs(targets);
+      setSelectedPaths(new Set());
+      setSelectionAnchorPath(null);
       toast({
-        title:
-          node.type === 'directory'
+        title: single
+          ? single.type === 'directory'
             ? 'Folder deleted'
-            : node.type === 'symlink'
+            : single.type === 'symlink'
               ? 'Link deleted'
-              : 'File deleted',
+              : 'File deleted'
+          : `${targets.length} items deleted`,
       });
     })();
   };
@@ -451,12 +587,120 @@ export const EditorFileTree = observer(function EditorFileTree() {
     }
   };
 
-  const getContextMenuItems = (node: FileTreeNode): FileTreeContextMenuItem[] => {
+  const selectionOrNode = (node?: FileTreeNode): FileTreeNode[] => {
+    if (node && !selectedPaths.has(node.path)) return [node];
+    if (selectedNodes.length > 0) return selectedNodes;
+    return node ? [node] : [];
+  };
+
+  const cutSelection = (node?: FileTreeNode) => {
+    const paths = dedupeDescendantPaths(selectionOrNode(node).map((entry) => entry.path));
+    if (paths.length === 0) return;
+    setClipboard({ mode: 'cut', paths });
+    toast({ title: paths.length === 1 ? 'Item cut' : `${paths.length} items cut` });
+  };
+
+  const copySelection = (node?: FileTreeNode) => {
+    const paths = dedupeDescendantPaths(selectionOrNode(node).map((entry) => entry.path));
+    if (paths.length === 0) return;
+    setClipboard({ mode: 'copy', paths });
+    toast({ title: paths.length === 1 ? 'Item copied' : `${paths.length} items copied` });
+  };
+
+  const pasteClipboard = async (targetDirPath = pasteTargetPath()) => {
+    if (!files || !clipboard || clipboard.paths.length === 0) return;
+    const existingNames = existingChildNames(
+      targetDirPath,
+      nodeByPath,
+      childrenById,
+      workspace.path
+    );
+    let completed = 0;
+    for (const sourcePath of clipboard.paths) {
+      const source = nodeByPath.get(sourcePath);
+      if (!source) continue;
+      const sourceParentPath = source.parentPath ?? workspace.path;
+      const sameDirectory =
+        normalizeFileTreePath(sourceParentPath) === normalizeFileTreePath(targetDirPath);
+      if (clipboard.mode === 'cut' && sameDirectory) continue;
+      const hasConflict = nodeByPath.has(
+        normalizeFileTreePath(joinFileTreePath(targetDirPath, source.name))
+      );
+      const nextName =
+        clipboard.mode === 'copy' || hasConflict
+          ? copyNameForConflict(source.name, existingNames)
+          : source.name;
+      existingNames.add(nextName);
+      const targetPath = joinFileTreePath(targetDirPath, nextName);
+      if (clipboard.mode === 'cut' && targetPath === sourcePath) continue;
+      const result =
+        clipboard.mode === 'cut'
+          ? await files.move(sourcePath, targetDirPath, nextName)
+          : await files.copy(sourcePath, targetDirPath, nextName);
+      if (!result.success) {
+        toast({
+          title: clipboard.mode === 'cut' ? 'Move failed' : 'Copy failed',
+          description: resultErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (clipboard.mode === 'cut') {
+        await editorView.retargetOpenFiles(sourcePath, targetPath);
+      }
+      completed += 1;
+    }
+    if (clipboard.mode === 'cut') setClipboard(null);
+    toast({
+      title:
+        clipboard.mode === 'cut'
+          ? completed === 1
+            ? 'Item moved'
+            : `${completed} items moved`
+          : completed === 1
+            ? 'Item copied'
+            : `${completed} items copied`,
+    });
+  };
+
+  const pasteTargetPath = () => creationTargetPath;
+
+  const renameSelection = () => {
+    const target = selectedNodes.length === 1 ? selectedNodes[0] : null;
+    if (!target) return;
+    setRenamePath(target.path);
+  };
+
+  const getContextMenuItems = (
+    node: FileTreeNode,
+    selection: readonly FileTreeNode[]
+  ): FileTreeContextMenuItem[] => {
     const items: FileTreeContextMenuItem[] = [];
+    items.push(
+      {
+        id: 'cut',
+        label: 'Cut',
+        icon: <Scissors size={14} />,
+        onSelect: () => cutSelection(node),
+      },
+      {
+        id: 'copy',
+        label: 'Copy',
+        icon: <Copy size={14} />,
+        onSelect: () => copySelection(node),
+      },
+      {
+        id: 'paste',
+        label: 'Paste',
+        icon: <ClipboardPaste size={14} />,
+        disabled: !clipboard || clipboard.paths.length === 0,
+        onSelect: () => void pasteClipboard(creationTargetForNode(node, workspace.path)),
+      }
+    );
     if (isOpenableFileTreeNode(node)) {
       items.push({
         id: 'copy-file',
-        label: 'Copy',
+        label: 'Copy Contents',
         icon: <FileText size={14} />,
         onSelect: () => void copyFile(node),
       });
@@ -488,57 +732,73 @@ export const EditorFileTree = observer(function EditorFileTree() {
         id: 'rename',
         label: 'Rename',
         icon: <FilePen size={14} />,
-        onSelect: () => setRenamePath(node.path),
+        disabled: selection.length !== 1,
+        onSelect: () => setRenamePath(selection[0]?.path ?? node.path),
       },
       {
         id: 'delete',
         label: 'Delete',
         icon: <Trash2 size={14} />,
         variant: 'destructive',
-        onSelect: () => confirmDelete(node),
+        onSelect: () => confirmDelete(selection),
       }
     );
     return items;
   };
 
-  const renderHeader = (context: FileTreeHeaderContext) => (
-    <FileTreeHeaderBar
-      context={context}
-      searchQuery={searchQuery}
-      setSearchQuery={setSearchQuery}
-      setSearchInputRef={setSearchInputRef}
-    />
+  const fileTreeScopeImplementation = {
+    'editor.fileTree.rename': () => ({
+      availability: () => (selectedNodes.length === 1 ? enabled : disabled('Select one item')),
+      execute: renameSelection,
+    }),
+    'editor.fileTree.cut': () => ({
+      availability: () => (selectedNodes.length > 0 ? enabled : disabled('No selection')),
+      execute: () => cutSelection(),
+    }),
+    'editor.fileTree.copy': () => ({
+      availability: () => (selectedNodes.length > 0 ? enabled : disabled('No selection')),
+      execute: () => copySelection(),
+    }),
+    'editor.fileTree.paste': () => ({
+      availability: () => (clipboard ? enabled : disabled('Nothing to paste')),
+      execute: () => void pasteClipboard(),
+    }),
+    'editor.fileTree.delete': () => ({
+      availability: () => (selectedNodes.length > 0 ? enabled : hidden),
+      execute: () => confirmDelete(selectedNodes),
+    }),
+  } satisfies ViewScopeImpl<typeof fileTreeScope>;
+  const { attachRef: attachFileTreeScope } = useViewScope(
+    fileTreeScope({ workspaceId }),
+    fileTreeScopeImplementation
   );
 
+  const headerContext: FileTreeHeaderContext = {
+    targetPath: creationTargetPath,
+    startDraft,
+    collapseAll,
+    expandAll,
+  };
+
   const content = searchQuery ? (
-    <>
-      <FileTreeHeaderBar
-        context={{
-          targetPath: workspace.path,
-          startDraft: () => setSearchQuery(''),
-          collapseAll: () => editorView.collapsePaths([...expandedPaths]),
-          expandAll: () => {},
-        }}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        setSearchInputRef={setSearchInputRef}
-      />
-      <FileContentSearchResults workspaceId={workspaceId} query={searchQuery} />
-    </>
+    <FileContentSearchResults workspaceId={workspaceId} query={searchQuery} />
   ) : (
     <FileTree
+      ref={treeRef}
       rootPath={workspace.path}
       rootNodes={rootNodes}
       childrenById={childrenById}
       expandedPaths={expandedPaths}
-      selectedPath={activeFile?.path ?? null}
+      selectedPath={selectionAnchorPath ?? activeFile?.path ?? null}
+      selectedPaths={selectedPaths}
       openedPaths={openedPaths}
       isLoading={files?.isLoading ?? true}
       error={files?.error}
       compactChains
       renamePath={renamePath}
-      renderHeader={renderHeader}
-      onCollapseAll={() => editorView.collapsePaths([...expandedPaths])}
+      renderHeader={() => null}
+      onCollapseAll={collapseAll}
+      onExpandAll={(paths) => editorView.expandPaths([...paths])}
       onToggleExpand={(node, expanded) => {
         if (expanded) {
           editorView.expandPath(node.path);
@@ -553,7 +813,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
         editorView.expandPath(path);
         void files?.registerDir(path);
       }}
-      onSelect={() => {}}
+      onSelectionChange={(paths, anchorPath) => {
+        setSelectedPaths(new Set(paths));
+        setSelectionAnchorPath(anchorPath);
+      }}
       onOpenFile={(node, options) => openFile(node.path, options.preview)}
       onCreateFile={handleCreateFile}
       onCreateDirectory={handleCreateDirectory}
@@ -565,12 +828,21 @@ export const EditorFileTree = observer(function EditorFileTree() {
         if (node.type === 'symlink') return <Link2 size={12} />;
         return null;
       }}
-      getRowState={(node) => rowStateForNode(node, workspace.path, workspace)}
+      getRowState={(node) =>
+        mergeRowState(
+          rowStateForNode(node, workspace.path, workspace),
+          clipboard?.mode === 'cut' && clipboard.paths.includes(node.path)
+            ? { muted: true }
+            : undefined
+        )
+      }
       dnd={
         files
           ? {
-              canDrop: (source, targetDir) =>
-                canMoveNode(source.path, targetDir?.path ?? workspace.path, workspace.path),
+              canDrop: (sources, targetDir) =>
+                sources.every((source) =>
+                  canMoveNode(source.path, targetDir?.path ?? workspace.path, workspace.path)
+                ),
               onMove: handleMove,
               onDropExternal: (dataTransfer, targetDirPath) => {
                 const sourceFiles = Array.from(dataTransfer.files);
@@ -583,10 +855,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
                   destDirPath: targetDirPath,
                 });
               },
-              onDragStart: (node, dataTransfer) => {
+              onDragStart: (_node, dataTransfer, selection) => {
                 setDraggedWorkspaceFile(dataTransfer, {
                   workspaceId,
-                  targetPath: node.path,
+                  targetPaths: selection.map((node) => node.path),
                   targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
                 });
               },
@@ -597,7 +869,19 @@ export const EditorFileTree = observer(function EditorFileTree() {
     />
   );
 
-  return <div className="flex h-full flex-col overflow-hidden">{content}</div>;
+  return (
+    <div ref={attachFileTreeScope} className="flex h-full flex-col overflow-hidden">
+      <FileTreeHeaderBar
+        context={headerContext}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setSearchInputRef={setSearchInputRef}
+        onRefresh={() => void refresh()}
+        isRefreshing={isRefreshing}
+      />
+      <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
+    </div>
+  );
 });
 
 function FileTreeHeaderBar({
@@ -605,11 +889,15 @@ function FileTreeHeaderBar({
   searchQuery,
   setSearchQuery,
   setSearchInputRef,
+  onRefresh,
+  isRefreshing,
 }: {
   context: FileTreeHeaderContext;
   searchQuery: string;
   setSearchQuery(value: string): void;
   setSearchInputRef(input: HTMLInputElement | null): void;
+  onRefresh(): void;
+  isRefreshing: boolean;
 }) {
   return (
     <div className="shrink-0 border-b border-border px-2 py-1.5">
@@ -650,6 +938,9 @@ function FileTreeHeaderBar({
         <HeaderAction label="Collapse all" onClick={context.collapseAll}>
           <CopyMinus className="size-3.5" />
         </HeaderAction>
+        <HeaderAction label="Refresh" onClick={onRefresh} disabled={isRefreshing}>
+          <RefreshCw className={isRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+        </HeaderAction>
       </div>
     </div>
   );
@@ -658,10 +949,12 @@ function FileTreeHeaderBar({
 function HeaderAction({
   label,
   onClick,
+  disabled = false,
   children,
 }: {
   label: string;
   onClick(): void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -670,6 +963,7 @@ function HeaderAction({
       aria-label={label}
       title={label}
       className="text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-background-1 hover:text-foreground"
+      disabled={disabled}
       onClick={onClick}
     >
       {children}
@@ -689,6 +983,56 @@ function mapFileTreeData(
     rootNodes: roots.map(toFileTreeNode),
     childrenById: mappedChildren,
   };
+}
+
+function collectFileTreeNodes(
+  roots: readonly FileTreeNode[],
+  childrenById: ChildrenById
+): Map<string, FileTreeNode> {
+  const nodes = new Map<string, FileTreeNode>();
+  const visit = (node: FileTreeNode) => {
+    nodes.set(normalizeFileTreePath(node.path), node);
+    for (const child of childrenById.get(node.id) ?? []) visit(child);
+  };
+  for (const root of roots) visit(root);
+  return nodes;
+}
+
+function creationTargetForNode(node: FileTreeNode | undefined, rootPath: string): string {
+  if (!node) return normalizeFileTreePath(rootPath);
+  if (isExpandableFileTreeNode(node)) return normalizeFileTreePath(node.path);
+  return normalizeFileTreePath(node.parentPath ?? rootPath);
+}
+
+function prunePathSet(
+  paths: ReadonlySet<string>,
+  nodeByPath: ReadonlyMap<string, FileTreeNode>
+): ReadonlySet<string> {
+  const next = new Set([...paths].filter((path) => nodeByPath.has(path)));
+  return next.size === paths.size ? paths : next;
+}
+
+function mergeRowState(
+  base: FileTreeRowState | undefined,
+  override: FileTreeRowState | undefined
+): FileTreeRowState | undefined {
+  if (!base) return override;
+  if (!override) return base;
+  return { ...base, ...override };
+}
+
+function existingChildNames(
+  targetDirPath: string,
+  nodeByPath: ReadonlyMap<string, FileTreeNode>,
+  childrenById: ChildrenById,
+  rootPath: string
+): Set<string> {
+  const normalizedTarget = normalizeFileTreePath(targetDirPath);
+  const root = normalizeFileTreePath(rootPath);
+  const parentNode = normalizedTarget === root ? null : nodeByPath.get(normalizedTarget);
+  if (parentNode === undefined) return new Set();
+  const parent = parentNode === null ? null : parentNode.id;
+  return new Set((childrenById.get(parent) ?? []).map((node) => node.name));
 }
 
 function toFileTreeNode(node: RenderableFileNode): FileTreeNode {

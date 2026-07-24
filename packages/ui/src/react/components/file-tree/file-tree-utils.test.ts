@@ -5,10 +5,12 @@ import {
   buildFlatFileRows,
   canMoveNode,
   creationTargetPath,
+  dedupeDescendantPaths,
   isExpandableFileTreeNode,
   isOpenableFileTreeNode,
   normalizeFileTreePath,
   resolveDropTargetDir,
+  selectionRange,
   sortFileNodes,
   type ChildrenById,
   type FileTreeNode,
@@ -164,5 +166,23 @@ describe('file-tree utils', () => {
     expect(canMoveNode('src', 'src')).toBe(false);
     expect(canMoveNode('src/app.tsx', '')).toBe(true);
     expect(canMoveNode('src/components/button.tsx', 'src')).toBe(true);
+  });
+
+  it('selects ranges over visible path order', () => {
+    const visiblePaths = ['src', 'src/components', 'src/components/button.tsx', 'src/app.tsx'];
+
+    expect(selectionRange(visiblePaths, 'src/components', 'src/app.tsx')).toEqual([
+      'src/components',
+      'src/components/button.tsx',
+      'src/app.tsx',
+    ]);
+    expect(selectionRange(visiblePaths, null, 'src/app.tsx')).toEqual(['src/app.tsx']);
+    expect(selectionRange(visiblePaths, 'missing', 'src/app.tsx')).toEqual(['src/app.tsx']);
+  });
+
+  it('dedupes descendants when dragging nested selections', () => {
+    expect(
+      dedupeDescendantPaths(['src/components/button.tsx', 'README.md', 'src', 'src/components'])
+    ).toEqual(['src', 'README.md']);
   });
 });

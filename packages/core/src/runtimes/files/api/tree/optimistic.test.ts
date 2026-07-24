@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   optimisticCreateDirectory,
   optimisticCreateFile,
+  optimisticCopy,
   optimisticDelete,
   optimisticMove,
   optimisticRename,
@@ -91,6 +92,28 @@ describe('file tree optimistic recipes', () => {
     });
     expect(next.entries[''].children).toContain('components');
     expect(next.entries.src.children).toEqual(['src/app.ts']);
+  });
+
+  it('copies entries as unloaded top entries without removing the source', () => {
+    const next = applyRecipe(baseModel(), (context) =>
+      optimisticCopy(context, {
+        from: portable('src/components'),
+        to: portable('components copy'),
+      })
+    );
+
+    expect(next.entries['src/components']).toBeDefined();
+    expect(next.entries['src/components/button.tsx']).toBeDefined();
+    expect(next.entries['components copy']).toMatchObject({
+      path: 'components copy',
+      name: 'components copy',
+      parentPath: '',
+      kind: 'directory',
+      childrenLoaded: false,
+      children: [],
+      hasChildren: true,
+    });
+    expect(next.entries[''].children).toContain('components copy');
   });
 });
 

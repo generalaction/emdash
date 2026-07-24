@@ -1,4 +1,6 @@
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
+import type { FsError } from '@emdash/core/runtimes/files/api';
+import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
 import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
@@ -24,6 +26,16 @@ import {
 import { editorContract, type EditorFileTreeModel } from '../../../api';
 
 type TreeModel = typeof editorContract.tree.model;
+export type TreeMutationError =
+  | FsError
+  | {
+      type: string;
+      message?: string;
+      path?: string;
+      paths?: readonly string[];
+      host?: unknown;
+    }
+  | { type: 'unavailable'; message: string };
 type PendingUploadNode = { node: RenderableFileNode };
 type ViewData = {
   nodes: Map<string, RenderableFileNode>;
@@ -82,7 +94,9 @@ export class FilesStore {
   }
 
   get isLoading(): boolean {
-    return this.optimistic === null && this.syncError === null;
+    if (this.syncError !== null) return false;
+    if (this.optimistic === null) return true;
+    return this.tree?.entries['']?.childrenLoaded !== true;
   }
 
   get error(): string | undefined {
@@ -155,43 +169,45 @@ export class FilesStore {
       if (force) await optimistic.refreshState('tree');
       const invocation = await optimistic.mutations.expand({ path: this.relative(absolute) });
       if (invocation.result.success) await invocation.settled;
-      else this.setError(invocation.result.error);
     } finally {
       runInAction(() => this.pendingPathSet.delete(absolute));
     }
   }
 
-  async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
-    const optimistic = await this.requireOptimistic();
-    const absolute = this.resolveWorkspacePath(filePath);
-    const relative = this.relative(absolute);
-    const invocation = await optimistic.mutations.reveal({ path: relative });
-    if (!invocation.result.success) {
-      this.setError(invocation.result.error);
-      return;
-    }
-    await invocation.settled;
-    const segments = relative.split('/').filter(Boolean);
-    runInAction(() => {
-      for (let index = 1; index < segments.length; index += 1) {
-        expandedPaths.add(this.absolute(portablePath(segments.slice(0, index).join('/'))));
+  async revealFile(filePath: string): Promise<Result<string[], TreeMutationError>> {
+    try {
+      const optimistic = await this.requireOptimistic();
+      const absolute = this.resolveWorkspacePath(filePath);
+      const relative = this.relative(absolute);
+      const invocation = await optimistic.mutations.reveal({ path: relative });
+      if (!invocation.result.success) {
+        return invocation.result;
       }
-    });
+      await invocation.settled;
+      const segments = relative.split('/').filter(Boolean);
+      const ancestors: string[] = [];
+      for (let index = 1; index < segments.length; index += 1) {
+        ancestors.push(this.absolute(portablePath(segments.slice(0, index).join('/'))));
+      }
+      return ok(ancestors);
+    } catch (error) {
+      return err(treeMutationError(error));
+    }
   }
 
-  createFile(path: string): Promise<Result<void, unknown>> {
+  createFile(path: string): Promise<Result<void, TreeMutationError>> {
     return this.runTreeMutation((optimistic) =>
       optimistic.mutations.createFile({ path: this.relative(this.resolveWorkspacePath(path)) })
     );
   }
 
-  createDirectory(path: string): Promise<Result<void, unknown>> {
+  createDirectory(path: string): Promise<Result<void, TreeMutationError>> {
     return this.runTreeMutation((optimistic) =>
       optimistic.mutations.createDirectory({ path: this.relative(this.resolveWorkspacePath(path)) })
     );
   }
 
-  deleteEntry(path: string, recursive = false): Promise<Result<void, unknown>> {
+  deleteEntry(path: string, recursive = false): Promise<Result<void, TreeMutationError>> {
     return this.runTreeMutation((optimistic) =>
       optimistic.mutations.delete({
         path: this.relative(this.resolveWorkspacePath(path)),
@@ -200,7 +216,7 @@ export class FilesStore {
     );
   }
 
-  rename(path: string, nextName: string): Promise<Result<void, unknown>> {
+  rename(path: string, nextName: string): Promise<Result<void, TreeMutationError>> {
     const absolute = this.resolveWorkspacePath(path);
     const parent = parentPathFromPath(absolute) ?? this.rootPath;
     const nextPath = normalizeFileTreePath(`${parent}/${nextName}`);
@@ -212,16 +228,40 @@ export class FilesStore {
     );
   }
 
-  move(sourcePath: string, targetDirPath: string): Promise<Result<void, unknown>> {
+  move(
+    sourcePath: string,
+    targetDirPath: string,
+    newName?: string
+  ): Promise<Result<void, TreeMutationError>> {
     const source = this.resolveWorkspacePath(sourcePath);
     const targetDir = this.resolveWorkspacePath(targetDirPath);
-    const target = normalizeFileTreePath(`${targetDir}/${basenameFromPath(source)}`);
+    const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
     return this.runTreeMutation((optimistic) =>
       optimistic.mutations.move({
         from: this.relative(source),
         to: this.relative(target),
       })
     );
+  }
+
+  copy(
+    sourcePath: string,
+    targetDirPath: string,
+    newName?: string
+  ): Promise<Result<void, TreeMutationError>> {
+    const source = this.resolveWorkspacePath(sourcePath);
+    const targetDir = this.resolveWorkspacePath(targetDirPath);
+    const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.copy({
+        from: this.relative(source),
+        to: this.relative(target),
+      })
+    );
+  }
+
+  refresh(): Promise<Result<void, TreeMutationError>> {
+    return this.runTreeMutation((optimistic) => optimistic.mutations.refresh(undefined));
   }
 
   addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
@@ -356,22 +396,20 @@ export class FilesStore {
 
   private async runTreeMutation(
     run: (optimistic: OptimisticLiveModel<TreeModel>) => Promise<{
-      result: Result<unknown, unknown>;
+      result: Result<unknown, TreeMutationError>;
       settled: Promise<void>;
     }>
-  ): Promise<Result<void, unknown>> {
+  ): Promise<Result<void, TreeMutationError>> {
     try {
       const optimistic = await this.requireOptimistic();
       const invocation = await run(optimistic);
       if (!invocation.result.success) {
-        this.setError(invocation.result.error);
         return invocation.result;
       }
       await invocation.settled;
       return ok<void>();
     } catch (error) {
-      this.setError(error);
-      return err(error);
+      return err(treeMutationError(error));
     }
   }
 
@@ -402,6 +440,14 @@ export class FilesStore {
           : String(error);
     });
   }
+}
+
+function treeMutationError(error: unknown): TreeMutationError {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('Unknown procedure')) {
+    return { type: 'unavailable', message: protocolUpgradeMessage('upgrade-server') };
+  }
+  return { type: 'unavailable', message };
 }
 
 function pushChild(

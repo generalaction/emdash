@@ -172,6 +172,90 @@ describe('TreeResource', () => {
     expect(diagnostic.current().entries.src?.children).not.toContain('src/app.ts');
     expect(diagnostic.current().entries.dest?.children).toContain('dest/app.ts');
   });
+
+  it('does not force-load collapsed mutation parents', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await mkdir(path.join(rootPath, 'dest'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+
+    expect(diagnostic.current().entries.dest?.childrenLoaded).toBe(false);
+
+    const result = await tree.move({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { from: portable('src/app.ts'), to: portable('dest/app.ts') },
+      mutationId: 'move-to-collapsed-test',
+      settle: async () => {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
+    expect(diagnostic.current().entries.src?.children).not.toContain('src/app.ts');
+    expect(diagnostic.current().entries.dest?.childrenLoaded).toBe(false);
+    expect(diagnostic.current().entries.dest?.children).toEqual([]);
+    expect(diagnostic.current().entries['dest/app.ts']).toBeUndefined();
+  });
+
+  it('copies entries across loaded parents', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await mkdir(path.join(rootPath, 'dest'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), 'hello');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+    await diagnostic.expandPath(portable('dest'));
+
+    const result = await tree.copy({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { from: portable('src/app.ts'), to: portable('dest/app copy.ts') },
+      mutationId: 'copy-test',
+      settle: async () => {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(diagnostic.current().entries['src/app.ts']).toBeDefined();
+    expect(diagnostic.current().entries['dest/app copy.ts']).toMatchObject({
+      path: 'dest/app copy.ts',
+      parentPath: 'dest',
+      kind: 'file',
+    });
+    expect(diagnostic.current().entries.dest?.children).toContain('dest/app copy.ts');
+  });
+
+  it('refreshes loaded directories and preserves expansion', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+    await writeFile(path.join(rootPath, 'src', 'new.ts'), '');
+
+    const settled: string[] = [];
+    const result = await tree.refresh({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: undefined,
+      mutationId: 'refresh-test',
+      settle: async (name) => {
+        settled.push(String(name));
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(settled).toEqual(['tree']);
+    expect(diagnostic.current().entries.src?.childrenLoaded).toBe(true);
+    expect(diagnostic.current().entries['src/new.ts']).toMatchObject({
+      path: 'src/new.ts',
+      parentPath: 'src',
+    });
+  });
 });
 
 type DiagnosticTreeResource = {

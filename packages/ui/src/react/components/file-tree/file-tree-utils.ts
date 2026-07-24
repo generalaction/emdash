@@ -152,6 +152,34 @@ export function isDescendantPath(candidatePath: string, ancestorPath: string): b
   return candidate.startsWith(prefix);
 }
 
+export function selectionRange(
+  visiblePaths: readonly string[],
+  anchorPath: string | null | undefined,
+  targetPath: string
+): string[] {
+  const target = normalizeFileTreePath(targetPath);
+  const anchor = anchorPath ? normalizeFileTreePath(anchorPath) : target;
+  const targetIndex = visiblePaths.findIndex((path) => normalizeFileTreePath(path) === target);
+  const anchorIndex = visiblePaths.findIndex((path) => normalizeFileTreePath(path) === anchor);
+  if (targetIndex < 0) return [target];
+  if (anchorIndex < 0) return [target];
+  const start = Math.min(anchorIndex, targetIndex);
+  const end = Math.max(anchorIndex, targetIndex);
+  return visiblePaths.slice(start, end + 1).map(normalizeFileTreePath);
+}
+
+export function dedupeDescendantPaths(paths: readonly string[]): string[] {
+  const sorted = [...new Set(paths.map(normalizeFileTreePath))]
+    .filter(Boolean)
+    .sort((left, right) => left.length - right.length || left.localeCompare(right));
+  const deduped: string[] = [];
+  for (const path of sorted) {
+    if (deduped.some((ancestor) => path === ancestor || isDescendantPath(path, ancestor))) continue;
+    deduped.push(path);
+  }
+  return deduped;
+}
+
 function toTreeNode(node: FileTreeNode, childrenById: ChildrenById): TreeNode<FileTreeNode> {
   if (!isExpandableFileTreeNode(node)) return { id: node.id, data: node };
   const children = sortFileNodes(childrenById.get(node.id) ?? []).map((child) =>

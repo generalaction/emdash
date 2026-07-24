@@ -20,6 +20,7 @@ import {
 } from '@runtimes/files/api';
 import type { TreeIdentity } from '@runtimes/files/node/allocation/identity';
 import {
+  copyInRoot,
   createDirectoryInRoot,
   createFileInRoot,
   deleteInRoot,
@@ -200,6 +201,26 @@ export class TreeResource {
     });
   }
 
+  copy(context: TreeMutationContext<'copy'>): Promise<Result<void, FsError>> {
+    return this.run(async () => {
+      const changes = await copyInRoot(this.options.root, context.input);
+      if (!changes.success) return changes;
+      this.options.root.publishKnownChanges(changes.data);
+      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
+      if (!reconciled.success) return reconciled;
+      await context.settle('tree', reconciled.data);
+      return ok<void>();
+    });
+  }
+
+  refresh(context: TreeMutationContext<'refresh'>): Promise<Result<void, FsError>> {
+    return this.run(async () => {
+      const cursor = await this.resync(this.current(), [context.mutationId]);
+      await context.settle('tree', cursor);
+      return ok<void>();
+    });
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -266,6 +287,7 @@ export class TreeResource {
     for (const parentPath of parents) {
       const parent = model.entries[parentPath];
       if (!parent || !isExpandableFileEntry(parent)) continue;
+      if (!parent.childrenLoaded) continue;
       const children = await this.reader.readChildren(parentPath);
       if (!children.success) return children;
       reconcileDirectory(model, parentPath, children.data);
@@ -310,7 +332,10 @@ export class TreeResource {
     if (changed) this.state.replace(current);
   }
 
-  private async resync(previous: FileTreeModel): Promise<void> {
+  private async resync(
+    previous: FileTreeModel,
+    mutationIds?: readonly string[]
+  ): Promise<LiveCursor> {
     const loaded = Object.values(previous.entries)
       .filter((entry) => entry.childrenLoaded)
       .map((entry) => entry.path)
@@ -326,7 +351,9 @@ export class TreeResource {
       }
       reconcileDirectory(next, entryPath, children.data);
     }
-    this.state.replace(next);
+    return this.state.replace(next, {
+      mutationIds: mutationIds ? [...mutationIds] : undefined,
+    });
   }
 
   private requestResync(): void {

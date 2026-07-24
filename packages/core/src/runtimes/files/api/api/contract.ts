@@ -14,6 +14,7 @@ import { fileContentModelSchema } from '@runtimes/files/api/content/state';
 import {
   optimisticCreateDirectory,
   optimisticCreateFile,
+  optimisticCopy,
   optimisticDelete,
   optimisticMove,
   optimisticRename,
@@ -172,6 +173,22 @@ export const filesContract = defineContract({
           },
           optimisticMove
         ),
+        copy: mutation(
+          {
+            input: z.object({
+              from: portableRelativePathSchema,
+              to: portableRelativePathSchema,
+            }),
+            data: z.void(),
+            error: fsErrorSchema,
+          },
+          optimisticCopy
+        ),
+        refresh: mutation({
+          input: z.void().optional(),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
       },
     }),
   }),

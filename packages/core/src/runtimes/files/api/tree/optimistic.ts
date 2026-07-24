@@ -58,6 +58,16 @@ export function optimisticRename(
 
 export const optimisticMove = optimisticRename;
 
+export function optimisticCopy(
+  context: TreeRecipeContext,
+  input: { from: PortableRelativePath; to: PortableRelativePath }
+) {
+  context.produce('tree', (model) => {
+    copyEntry(model as FileTreeModel, input.from, input.to);
+  });
+  return ok<void>();
+}
+
 function insertEntry(
   model: FileTreeModel,
   entry: Pick<FileEntry, 'path' | 'kind' | 'childrenLoaded' | 'children'> &
@@ -107,6 +117,36 @@ function relocateSubtree(
         : undefined,
   };
   model.entries[to] = relocated;
+  if (!parent.children.includes(to)) parent.children.push(to);
+  parent.hasChildren = parent.children.length > 0;
+}
+
+function copyEntry(
+  model: FileTreeModel,
+  from: PortableRelativePath,
+  to: PortableRelativePath
+): void {
+  if (!from || from === to || model.entries[to] || isDescendantPath(to, from)) return;
+  const source = model.entries[from];
+  if (!source) return;
+
+  const parentPath = parentPathFor(to);
+  const parent = model.entries[parentPath];
+  if (!parent?.childrenLoaded) return;
+
+  const copied: FileEntry = {
+    ...source,
+    path: to,
+    name: basename(to),
+    parentPath,
+    childrenLoaded: false,
+    children: [],
+    hasChildren:
+      source.kind === 'directory' || source.symlinkTargetKind === 'directory'
+        ? (source.hasChildren ?? source.children.length > 0)
+        : undefined,
+  };
+  model.entries[to] = copied;
   if (!parent.children.includes(to)) parent.children.push(to);
   parent.hasChildren = parent.children.length > 0;
 }

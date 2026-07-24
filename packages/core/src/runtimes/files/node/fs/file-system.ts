@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { cp, lstat, open, stat } from 'node:fs/promises';
+import { lstat, open, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BlobSource, LiveJobContext, WireFile } from '@emdash/wire';
@@ -39,6 +39,7 @@ import { glob } from 'glob';
 import { enumerateFiles } from './enumerate';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import {
+  copyInRoot,
   createDirectoryInRoot,
   createFileInRoot,
   deleteInRoot,
@@ -373,35 +374,10 @@ export class FileSystemRuntime {
 
   copy(input: CopyInput): Promise<Result<void, FsError>> {
     return this.mutate(input.root, async (root) => {
-      const source = await root.paths.resolveExistingEntry(input.from);
-      if (!source.success) return source;
-      if (source.data.path === '') {
-        return err({
-          type: 'invalid-path',
-          path: '',
-          message: 'The workspace root cannot be copied',
-        });
-      }
-      const destination = await root.paths.resolveDestination(input.to);
-      if (!destination.success) return destination;
-      const available = await destinationAvailable(
-        destination.data.absolutePath,
-        destination.data.path
-      );
-      if (!available.success) return available;
-      try {
-        await cp(source.data.absolutePath, destination.data.absolutePath, {
-          recursive: true,
-          force: false,
-          errorOnExist: true,
-          preserveTimestamps: true,
-          verbatimSymlinks: true,
-        });
-        this.allocations.notifyActiveRoot(root, [{ kind: 'create', path: destination.data.path }]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, source.data.path));
-      }
+      const result = await copyInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
     });
   }
 
@@ -486,20 +462,6 @@ function changedWhileReading(entryPath: PortableRelativePath): FsError {
     path: entryPath,
     message: 'File changed repeatedly while it was being read',
   };
-}
-
-async function destinationAvailable(
-  absolutePath: string,
-  relativePath: string
-): Promise<Result<void, FsError>> {
-  try {
-    await lstat(absolutePath);
-    return err({ type: 'already-exists', path: relativePath });
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT'
-      ? ok<void>()
-      : err(toFsError(error, relativePath));
-  }
 }
 
 function notRegularFile(entryPath: string): FsError {

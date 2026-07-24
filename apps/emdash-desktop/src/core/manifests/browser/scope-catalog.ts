@@ -1,3 +1,4 @@
+import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { settingsScope } from '@core/features/settings/contributions/scopes';
 import { taskListScope, taskViewScope } from '@core/features/tasks/contributions/scopes';
 import {
@@ -15,6 +16,7 @@ export const windowScope = defineWindowScope([]);
 export const SCOPE_CATALOG = [
   windowScope,
   taskViewScope,
+  fileTreeScope,
   modalScope,
   settingsScope,
   paneScope,

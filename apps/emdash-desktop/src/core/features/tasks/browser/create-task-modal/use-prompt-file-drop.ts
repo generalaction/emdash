@@ -89,7 +89,7 @@ export function usePromptFileDrop({
           const platform =
             workspaceFile?.targetPlatform ?? ((await rpc.app.getPlatform()) as NodeJS.Platform);
           if (workspaceFile) {
-            onDropText(formatTerminalImagePaths([workspaceFile.targetPath], platform));
+            onDropText(formatTerminalImagePaths(workspaceFile.targetPaths, platform));
             return;
           }
           const resolved = await Promise.all(files.map((file) => resolveDroppedFile(file)));

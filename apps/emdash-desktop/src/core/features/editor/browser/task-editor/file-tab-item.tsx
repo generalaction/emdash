@@ -1,8 +1,9 @@
-import { Loader2 } from 'lucide-react';
+import { FolderOpen, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import type {
   TabBarItemProps,
   ResolvedTab,
@@ -32,6 +33,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
   ctx,
 }: TabBarItemProps<FileTabResource>) {
   const resource = tab.resource;
+  const taskView = useTaskComposition();
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
   const isMonacoFile =
     resource.path.endsWith('.md') ||
@@ -73,6 +75,23 @@ export const FileTabBarItem = observer(function FileTabBarItem({
         </span>
       }
       hasError={hasFileIssue}
+      kindCommands={
+        resource.isExternal
+          ? undefined
+          : [
+              {
+                id: 'file:reveal',
+                label: 'Reveal File',
+                icon: FolderOpen,
+                group: 'file',
+                run: () => {
+                  taskView.setSidebarTab('files');
+                  taskView.setSidebarCollapsed(false);
+                  taskView.editorView.requestRevealFile(resource.path);
+                },
+              },
+            ]
+      }
       statusSlot={
         resource.isDirty ? (
           <div

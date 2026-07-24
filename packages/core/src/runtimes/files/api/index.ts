@@ -57,6 +57,7 @@ export {
   type WritePrecondition,
 } from '@runtimes/files/api/api/schemas';
 export { fileContentModelSchema, type FileContentModel } from '@runtimes/files/api/content/state';
+export { copyNameForConflict } from '@runtimes/files/api/tree/copy-name';
 export {
   fileEntryKindSchema,
   fileEntrySchema,

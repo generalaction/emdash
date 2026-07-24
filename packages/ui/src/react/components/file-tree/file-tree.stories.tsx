@@ -12,7 +12,12 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
-import { FileTree, type FileTreeProps, type FileTreeRowState } from './file-tree';
+import {
+  FileTree,
+  type FileTreeHandle,
+  type FileTreeProps,
+  type FileTreeRowState,
+} from './file-tree';
 import {
   canMoveNode,
   joinFileTreePath,
@@ -65,6 +70,14 @@ export const DragToMove: Story = {
   ),
 };
 
+export const MultiSelect: Story = {
+  render: () => (
+    <StoryFrame note="Use Cmd/Ctrl-click and Shift-click to select multiple rows. Dragging a selected row moves the selection.">
+      <MockFileTree initialNodes={baseNodes} enableDnd />
+    </StoryFrame>
+  ),
+};
+
 export const RenameAndSymlinks: Story = {
   render: () => (
     <StoryFrame note="Use the context menu to rename rows. linked-src is an expandable directory symlink; docs-link.md is file-like.">
@@ -100,6 +113,14 @@ export const CustomHeader: Story = {
           </div>
         )}
       />
+    </StoryFrame>
+  ),
+};
+
+export const RefDrivenHeader: Story = {
+  render: () => (
+    <StoryFrame>
+      <RefDrivenHeaderStory />
     </StoryFrame>
   ),
 };
@@ -199,6 +220,9 @@ function MockFileTree({
     () => new Set(['src', 'src/components', 'src/features', 'packages', 'packages/ui'])
   );
   const [selectedPath, setSelectedPath] = React.useState<string | null>(initialSelectedPath);
+  const [selectedPaths, setSelectedPaths] = React.useState<ReadonlySet<string>>(() =>
+    initialSelectedPath ? new Set([initialSelectedPath]) : new Set()
+  );
   const [openedPaths, setOpenedPaths] = React.useState<ReadonlySet<string>>(
     () => initialOpenedPaths ?? new Set()
   );
@@ -220,6 +244,7 @@ function MockFileTree({
         childrenById={childrenById}
         expandedPaths={expandedPaths}
         selectedPath={selectedPath}
+        selectedPaths={selectedPaths}
         openedPaths={openedPaths}
         renamePath={renamePath}
         compactChains={compactChains}
@@ -230,6 +255,10 @@ function MockFileTree({
         onCollapseAll={() => setExpandedPaths(new Set())}
         onExpandAll={(paths) => setExpandedPaths(new Set(paths))}
         onSelect={(node) => setSelectedPath(node?.path ?? null)}
+        onSelectionChange={(paths, anchorPath) => {
+          setSelectedPaths(new Set(paths));
+          setSelectedPath(anchorPath);
+        }}
         onOpenFile={(node, options) => {
           setOpenedPaths((current) => new Set(current).add(node.path));
           setLastAction(`${options.preview ? 'Previewed' : 'Opened'} ${node.path}`);
@@ -273,10 +302,20 @@ function MockFileTree({
         dnd={
           enableDnd
             ? {
-                canDrop: (source, targetDir) => canMoveNode(source.path, targetDir?.path ?? '', ''),
-                onMove: (sourcePath, targetDirPath) => {
-                  setNodes((current) => moveNode(current, sourcePath, targetDirPath));
-                  setLastAction(`Moved ${sourcePath} into ${targetDirPath || 'root'}`);
+                canDrop: (sources, targetDir) =>
+                  sources.every((source) => canMoveNode(source.path, targetDir?.path ?? '', '')),
+                onMove: (sourcePaths, targetDirPath) => {
+                  setNodes((current) =>
+                    sourcePaths.reduce(
+                      (next, sourcePath) => moveNode(next, sourcePath, targetDirPath),
+                      current
+                    )
+                  );
+                  setLastAction(
+                    `Moved ${sourcePaths.length} item${sourcePaths.length === 1 ? '' : 's'} into ${
+                      targetDirPath || 'root'
+                    }`
+                  );
                 },
                 onDragStart: (node) => setLastAction(`Dragging ${node.path}`),
                 onDragEnd: (node) => setLastAction(`Dropped ${node.path}`),
@@ -285,6 +324,72 @@ function MockFileTree({
         }
       />
       <div style={{ fontSize: 12, color: 'var(--em-foreground-muted)' }}>{lastAction}</div>
+    </div>
+  );
+}
+
+function RefDrivenHeaderStory() {
+  const treeRef = React.useRef<FileTreeHandle>(null);
+  const [nodes, setNodes] = React.useState(() => cloneNodes(baseNodes));
+  const { rootNodes, childrenById } = React.useMemo(() => deriveTree(nodes), [nodes]);
+  const [expandedPaths, setExpandedPaths] = React.useState<ReadonlySet<string>>(
+    () => new Set(['src', 'src/components'])
+  );
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        height: '100%',
+        minHeight: 0,
+        gridTemplateRows: 'auto minmax(0, 1fr)',
+      }}
+    >
+      <div
+        style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--em-border)', padding: 8 }}
+      >
+        <Button size="sm" variant="secondary" onClick={() => treeRef.current?.startDraft('file')}>
+          Add file
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => treeRef.current?.startDraft('directory')}
+        >
+          Add folder
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => treeRef.current?.collapseAll()}>
+          Collapse all
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => treeRef.current?.expandAll()}>
+          Expand all
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => treeRef.current?.scrollToPath('packages/ui/package.json')}
+        >
+          Scroll to package.json
+        </Button>
+      </div>
+      <FileTree
+        ref={treeRef}
+        rootNodes={rootNodes}
+        childrenById={childrenById}
+        expandedPaths={expandedPaths}
+        renderHeader={() => null}
+        onToggleExpand={(node, expanded) => {
+          setExpandedPaths((current) => togglePath(current, node.path, expanded));
+        }}
+        onCollapseAll={() => setExpandedPaths(new Set())}
+        onExpandAll={(paths) => setExpandedPaths(new Set(paths))}
+        onCreateFile={(parentPath, name) => {
+          setNodes((current) => addNode(current, parentPath, name, 'file'));
+        }}
+        onCreateDirectory={(parentPath, name) => {
+          setNodes((current) => addNode(current, parentPath, name, 'directory'));
+        }}
+      />
     </div>
   );
 }
