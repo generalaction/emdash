@@ -26,6 +26,7 @@ export { Dialog, type DialogSize } from './dialog';
 export { Sheet, type SheetSide } from './sheet';
 export { Popover } from './popover';
 export { DropdownMenu } from './dropdown-menu';
+export { ContextMenu } from './context-menu';
 export { Combobox, useComboboxAnchor } from './combobox/combobox';
 export { Tabs, type TabsTabProps } from './tabs/tabs';
 export { Collapsible, type CollapsibleTriggerProps } from './collapsible';

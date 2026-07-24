@@ -36,6 +36,39 @@ export {
   type DirectorySelectorProps,
 } from './directory-selector/directory-selector';
 export {
+  FileTree,
+  type FileTreeContextMenuItem,
+  type FileTreeDndSpec,
+  type FileTreeIconState,
+  type FileTreeProps,
+  type FileTreeRowState,
+} from './file-tree/file-tree';
+export {
+  FileTreeHeader,
+  type FileTreeDraftKind,
+  type FileTreeHeaderContext,
+} from './file-tree/file-tree-header';
+export {
+  ancestorPathsFor,
+  buildFileTreeNodes,
+  buildFlatFileRows,
+  canMoveNode,
+  creationTargetPath,
+  isDescendantPath,
+  isExpandableFileTreeNode,
+  isOpenableFileTreeNode,
+  joinFileTreePath,
+  normalizeFileTreePath,
+  parentPathFor,
+  resolveDropTargetDir,
+  sortFileNodes,
+  type ChildrenById,
+  type FileTreeDropTarget,
+  type FileTreeFlatRow,
+  type FileTreeNode,
+  type FileTreeNodeType,
+} from './file-tree/file-tree-utils';
+export {
   useDirectoryHistory,
   type DirectoryHistory,
   type DirectoryHistoryState,

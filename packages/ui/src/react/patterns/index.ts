@@ -61,6 +61,15 @@ export type {
   SortKeyOf,
 } from './list-view';
 
+export { TreeView, buildVisibleTreeRows, isChainExpanded, isTreeBranch } from './tree-view';
+export type {
+  BuildVisibleTreeRowsOptions,
+  TreeNode,
+  TreeRow,
+  TreeViewHandle,
+  TreeViewProps,
+} from './tree-view';
+
 export { ListPage } from './list-page';
 export type {
   ListPageProps,
