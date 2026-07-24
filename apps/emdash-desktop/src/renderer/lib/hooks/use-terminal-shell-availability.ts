@@ -1,6 +1,7 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type { TerminalShellAvailability } from '@emdash/core/primitives/terminal-shell/api';
 import { useQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
-import type { TerminalShellAvailability } from '@shared/core/terminals/terminal-settings';
+import { getTerminalsClient } from '@core/features/terminals/api/browser/client';
 
 export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
 
@@ -9,15 +10,14 @@ export function useTerminalShellAvailability(
   options: { enabled?: boolean } = {}
 ) {
   const isRemote = Boolean(remoteConnectionId);
+  const host = remoteConnectionId ? hostRef('remote', remoteConnectionId) : LOCAL_HOST_REF;
   return useQuery({
     queryKey: ['terminal-shell-availability', remoteConnectionId ?? 'local'],
-    queryFn: () =>
-      remoteConnectionId
-        ? rpc.terminals.getTerminalShellAvailability({
-            kind: 'ssh',
-            connectionId: remoteConnectionId,
-          })
-        : rpc.terminals.getTerminalShellAvailability({ kind: 'local' }),
+    queryFn: async () => {
+      const result = await (await getTerminalsClient()).getShellAvailability({ host });
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
     staleTime: isRemote ? 5_000 : 30_000,
     enabled: options.enabled ?? true,
   });

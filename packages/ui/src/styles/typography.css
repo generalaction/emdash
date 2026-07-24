@@ -21,13 +21,6 @@
   line-height: var(--em-type-body-line-height);
 }
 
-.text-role-body-bold {
-  font-family: var(--em-type-body-bold-font-family);
-  font-size: var(--em-type-body-bold-font-size);
-  font-weight: var(--em-type-body-bold-font-weight);
-  line-height: var(--em-type-body-bold-line-height);
-}
-
 .text-role-body-italic {
   font-family: var(--em-type-body-italic-font-family);
   font-size: var(--em-type-body-italic-font-size);
@@ -41,6 +34,20 @@
   font-size: var(--em-type-body-link-font-size);
   font-weight: var(--em-type-body-link-font-weight);
   line-height: var(--em-type-body-link-line-height);
+}
+
+.text-role-caption {
+  font-family: var(--em-type-caption-font-family);
+  font-size: var(--em-type-caption-font-size);
+  font-weight: var(--em-type-caption-font-weight);
+  line-height: var(--em-type-caption-line-height);
+}
+
+.text-role-description {
+  font-family: var(--em-type-description-font-family);
+  font-size: var(--em-type-description-font-size);
+  font-weight: var(--em-type-description-font-weight);
+  line-height: var(--em-type-description-line-height);
 }
 
 /* ── Headings ─────────────────────────────────────────────────────────────── */
@@ -64,6 +71,13 @@
   font-size: var(--em-type-h3-font-size);
   font-weight: var(--em-type-h3-font-weight);
   line-height: var(--em-type-h3-line-height);
+}
+
+.text-role-section {
+  font-family: var(--em-type-section-font-family);
+  font-size: var(--em-type-section-font-size);
+  font-weight: var(--em-type-section-font-weight);
+  line-height: var(--em-type-section-line-height);
 }
 
 /* ── Code ─────────────────────────────────────────────────────────────────── */

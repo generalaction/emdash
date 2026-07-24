@@ -63,6 +63,7 @@ export default defineConfig({
         'react/jsx-runtime',
         '@base-ui/react',
         'lucide-react',
+        'lucide-react/dynamic',
         '@tiptap/core',
         '@tiptap/extension-mention',
         '@tiptap/extension-placeholder',

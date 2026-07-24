@@ -4,30 +4,40 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Modal System
 
-All modals use a registry-based system. Only one modal can be active at a time.
+Modals are renderer-only feature contributions. Only one modal can be active at a time.
 
-- `src/renderer/app/modal-registry.ts` — central registry mapping modal IDs to components
-  (`createModal`, `modalRegistry`)
-- `src/renderer/lib/modal/modal-provider.tsx` — React context managing active modal state
-  (`useModalContext`, `showModal`, `BaseModalProps`)
-- `src/renderer/lib/modal/modal-renderer.tsx` — renders the currently active modal
-- `src/renderer/lib/modal/modal-store.ts` — modal state store
+- `src/core/primitives/modals/react/` — modal definitions, catalog types, host context, and typed API
+- `src/core/features/*/contributions/browser.ts` — feature-owned `modalDefs`
+- `src/core/manifests/browser/modal-catalog.ts` — application modal catalog
+- `src/renderer/lib/modal/api.ts` — catalog-bound `openModal`, `useOpenModal`, and
+  `useModalController`
+- `src/renderer/lib/modal/modal-renderer.tsx` — resolves and renders the active catalog definition
+- `src/renderer/lib/modal/modal-store.ts` — active modal state and promise outcomes
 - `src/renderer/lib/modal/use-close-guard.ts` — close-guard hook
 
 **Adding a modal:**
-1. Create the component accepting `BaseModalProps<TResult>` (provides `onSuccess` and `onClose` callbacks)
-2. Register it in `src/renderer/app/modal-registry.ts`
-3. Open it via the hook:
+1. Create the component in its feature slice. Caller data is ordinary component props; completion
+   uses `useModalController(id)`.
+2. Define it with `defineModal<TResult>()({ id, component, ...chrome })`.
+3. Add the definition to the owning slice's `modalDefs`.
+4. Open it through the typed API and branch on the outcome:
 
 ```tsx
-const { showModal } = useModalContext();
-showModal('myModal', { projectId: '123', onSuccess: (result) => {...} });
+const openMyModal = useOpenModal('myModal');
+const outcome = await openMyModal({ projectId: '123' });
+if (outcome.success) {
+  useResult(outcome.data);
+}
 ```
 
 **Rules:**
-- All modals must be registered in `src/renderer/app/modal-registry.ts`
-- `showModal` is type-safe — TypeScript infers required args from the registry
-- `hasActiveCloseGuard` prevents dismissal during critical operations
+- The manifest catalog is the only runtime registry; do not add renderer-local registrations
+- Keep the catalog import type-only outside runtime resolution points
+- Use standalone `openModal` outside React and `useOpenModal` inside components
+- Use `useCloseGuard` during critical operations that must block passive dismissal
+- `useModalController` exposes `hasActiveCloseGuard` when modal UI must reflect guard state
+- Use `outcome.error.reason` when a chained flow must distinguish explicit back/cancel actions from
+  passive, replacement, or navigation dismissal
 
 ## View System
 
@@ -61,7 +71,7 @@ Views use a registry + parameterized navigation pattern.
 **Rules:**
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
 - `sessionId` format: `makePtySessionId(projectId, scopeId, leafId)` from
-  `src/shared/core/pty/ptySessionId.ts` — deterministic
+  `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
 - Panel drag pauses resizing to avoid jank (`src/renderer/lib/layout/panel-drag-store.ts`)
 
 ## React Query Context Pattern
@@ -93,6 +103,6 @@ For state that must survive React unmounts or be shared across unrelated compone
 
 - **`useSyncExternalStore`-compatible stores** — e.g., `panelDragStore` in `src/renderer/lib/layout/`
 - **Cross-feature stores** — `src/renderer/lib/stores/` (navigation, dependencies, resource monitor, ...)
-- **MobX task and project stores** — `src/renderer/features/tasks/stores/` and
-  `src/renderer/features/projects/stores/`; access them through selectors
+- **MobX task and project stores** — `src/core/features/tasks/browser/stores/` and
+  `src/core/features/projects/browser/stores/`; access them through selectors
   (`task-selectors.ts`, `project-selectors.ts`) and task view hooks, never directly

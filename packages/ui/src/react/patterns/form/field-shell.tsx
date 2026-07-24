@@ -1,14 +1,6 @@
+import { Field, type FieldVariants } from '@react/primitives/field';
 import * as React from 'react';
-import {
-  Field,
-  FieldContent,
-  FieldControlSlot,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from './field/field';
 import { useFieldContext } from './form-context';
-import type { FieldVariants } from './field/field.css';
 
 export type FieldOrientation = NonNullable<FieldVariants['orientation']>;
 
@@ -53,24 +45,32 @@ export function FormFieldShell({
 
   if (orientation === 'horizontal') {
     return (
-      <Field orientation="horizontal" className={className}>
+      <Field.Root orientation="horizontal" className={className}>
         {hasTextContent && (
-          <FieldContent>
-            {label != null && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
-            {description != null && <FieldDescription>{description}</FieldDescription>}
-          </FieldContent>
+          <Field.Content>
+            {label != null && (
+              <Field.Label id={`${id}-label`} htmlFor={id}>
+                {label}
+              </Field.Label>
+            )}
+            {description != null && <Field.Description>{description}</Field.Description>}
+          </Field.Content>
         )}
-        <FieldControlSlot>{children({ id, invalid })}</FieldControlSlot>
-      </Field>
+        <Field.ControlSlot>{children({ id, invalid })}</Field.ControlSlot>
+      </Field.Root>
     );
   }
 
   return (
-    <Field orientation="vertical" className={className}>
-      {label != null && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
+    <Field.Root orientation="vertical" className={className}>
+      {label != null && (
+        <Field.Label id={`${id}-label`} htmlFor={id}>
+          {label}
+        </Field.Label>
+      )}
       {children({ id, invalid })}
-      {description != null && <FieldDescription>{description}</FieldDescription>}
-      {errors && <FieldError>{errors}</FieldError>}
-    </Field>
+      {description != null && <Field.Description>{description}</Field.Description>}
+      {errors && <Field.Error>{errors}</Field.Error>}
+    </Field.Root>
   );
 }

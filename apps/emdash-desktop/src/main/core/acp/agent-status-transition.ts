@@ -1,30 +1,56 @@
-import type { SessionSummary, StopReason } from '@emdash/core/acp';
-import type { AgentEvent } from '@shared/core/agents/agentEvents';
-
-const normalStopReasons = new Set<StopReason>([
-  'end_turn',
-  'max_tokens',
-  'max_turn_requests',
-  'refusal',
-]);
+import type { SessionSummary } from '@emdash/core/runtimes/acp/api';
+import type { AgentStatusSignal } from '@core/primitives/agents/api';
 
 export type AcpAgentStatusAction =
-  | { kind: 'event'; event: AgentEvent }
-  | { kind: 'reset'; conversationId: string; projectId: string; taskId: string };
+  | { kind: 'event'; event: AgentStatusSignal }
+  | { kind: 'reset'; conversationId: string };
 
 function isBusy(summary: SessionSummary | undefined): boolean {
   return summary !== undefined && (summary.isGenerating || summary.queuedPromptCount > 0);
 }
 
-function eventBase(summary: SessionSummary): Omit<AgentEvent, 'type' | 'payload'> {
+function eventBase(summary: SessionSummary): Omit<AgentStatusSignal, 'type' | 'payload'> {
   return {
     source: 'input',
     providerId: summary.providerId,
-    projectId: summary.projectId,
-    taskId: summary.taskId,
     conversationId: summary.conversationId,
     timestamp: Date.now(),
   };
+}
+
+function eventAction(
+  summary: SessionSummary,
+  type: 'start' | 'stop' | 'error'
+): AcpAgentStatusAction {
+  return { kind: 'event', event: { ...eventBase(summary), type, payload: {} } };
+}
+
+function permissionAction(summary: SessionSummary): AcpAgentStatusAction {
+  return {
+    kind: 'event',
+    event: {
+      ...eventBase(summary),
+      type: 'notification',
+      payload: { notificationType: 'permission_prompt' },
+    },
+  };
+}
+
+function resetAction(conversationId: string): AcpAgentStatusAction {
+  return { kind: 'reset', conversationId };
+}
+
+function settledAction(summary: SessionSummary): AcpAgentStatusAction | null {
+  if (summary.lastTurnErrored) return eventAction(summary, 'error');
+  if (summary.lastStopReason === 'cancelled') return resetAction(summary.conversationId);
+  if (summary.lastStopReason !== null) return eventAction(summary, 'stop');
+  return null;
+}
+
+export function projectAcpStatusSnapshot(summary: SessionSummary): AcpAgentStatusAction | null {
+  if (summary.pendingPermissionCount > 0) return permissionAction(summary);
+  if (isBusy(summary)) return eventAction(summary, 'start');
+  return settledAction(summary);
 }
 
 export function deriveAcpAgentStatusActions(
@@ -33,25 +59,13 @@ export function deriveAcpAgentStatusActions(
 ): AcpAgentStatusAction[] {
   if (!next) {
     if (!previous) return [];
-    return [
-      {
-        kind: 'reset',
-        conversationId: previous.conversationId,
-        projectId: previous.projectId,
-        taskId: previous.taskId,
-      },
-    ];
+    return [resetAction(previous.conversationId)];
   }
 
+  if (!previous) return [];
+
   if (next.lifecycle === 'closed') {
-    return [
-      {
-        kind: 'reset',
-        conversationId: next.conversationId,
-        projectId: next.projectId,
-        taskId: next.taskId,
-      },
-    ];
+    return [resetAction(next.conversationId)];
   }
 
   const actions: AcpAgentStatusAction[] = [];
@@ -62,37 +76,15 @@ export function deriveAcpAgentStatusActions(
     previousPendingPermissionCount === 0 && next.pendingPermissionCount > 0;
 
   if (!wasBusy && nowBusy && !permissionAppeared) {
-    actions.push({
-      kind: 'event',
-      event: { ...eventBase(next), type: 'start', payload: {} },
-    });
+    actions.push(eventAction(next, 'start'));
   }
 
   if (permissionAppeared) {
-    actions.push({
-      kind: 'event',
-      event: {
-        ...eventBase(next),
-        type: 'notification',
-        payload: { notificationType: 'permission_prompt' },
-      },
-    });
+    actions.push(permissionAction(next));
   }
 
   if (wasBusy && !nowBusy && next.pendingPermissionCount === 0) {
-    if (next.lastStopReason === 'cancelled') {
-      actions.push({
-        kind: 'reset',
-        conversationId: next.conversationId,
-        projectId: next.projectId,
-        taskId: next.taskId,
-      });
-    } else if (next.lastStopReason !== null && normalStopReasons.has(next.lastStopReason)) {
-      actions.push({
-        kind: 'event',
-        event: { ...eventBase(next), type: 'stop', payload: {} },
-      });
-    }
+    actions.push(settledAction(next) ?? resetAction(next.conversationId));
   }
 
   return actions;

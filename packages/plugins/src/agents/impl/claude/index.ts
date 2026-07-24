@@ -1,22 +1,20 @@
-import { createRequire } from 'node:module';
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { connectStdioAcp } from '../../helpers/acp-stdio';
+import { resolveAdapterAsset } from '../../helpers/adapter-assets';
 import { enrichClaudeUpdate } from './acp-transform';
+import { claudeAdapter } from './adapter';
 import { claudeAuthStatus } from './auth';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 import { buildClaudeTrustBehavior } from './trust';
-
-const _require = createRequire(import.meta.url);
-
-function resolveClaudeAcpEntry(): string {
-  return _require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
-}
 
 export const plugin = definePlugin(
   {
@@ -107,19 +105,9 @@ export const plugin = definePlugin(
           },
         ],
       },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'github',
-          repo: 'anthropics/claude-code',
-        },
-        update: {
-          kind: 'cli',
-          args: ['install', 'latest'],
-        },
-      },
-      uninstall: {
-        kind: 'package-manager',
+      updateCommand: {
+        kind: 'self',
+        args: ['install', 'latest'],
       },
     },
     mcp: {
@@ -146,7 +134,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildSpawn: (ctx) => ({
       // Run the adapter as plain Node inside the Electron binary.
       command: process.execPath,
-      args: [resolveClaudeAcpEntry()],
+      args: [resolveAdapterAsset(claudeAdapter)],
       env: {
         ELECTRON_RUN_AS_NODE: '1',
         // Point the adapter's Claude Agent SDK at the host-installed claude

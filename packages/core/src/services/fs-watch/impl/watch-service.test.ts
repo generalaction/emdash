@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Scope } from '@emdash/wire/util';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { WatchEvent } from '@services/fs-watch/api';
 import { describe, expect, it, vi } from 'vitest';
-import type { WatchEvent } from '../api';
 import type { WatchBackend, WatchKey, WatchSink } from './backend';
 import { nativeWatchBackend } from './native-backend';
 import { realpathOrResolve } from './paths';

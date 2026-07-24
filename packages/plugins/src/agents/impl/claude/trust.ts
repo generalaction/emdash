@@ -1,4 +1,4 @@
-import { buildJsonConfigTrustBehavior } from '@emdash/core/agents/plugins/helpers';
+import { buildJsonConfigTrustBehavior } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

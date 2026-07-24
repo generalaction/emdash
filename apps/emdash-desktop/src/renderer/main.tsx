@@ -1,69 +1,97 @@
+import {
+  connectSession,
+  createChatContext,
+  createChatState,
+  createChatView,
+  pinTopMode,
+} from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
-import { setupNavigationGuards } from '@renderer/app/view-registry';
-import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
+import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import {
+  workbenchHistoryMemento,
+  workbenchNavigationMemento,
+  workbenchSidebarMemento,
+} from '@core/features/workbench/contributions/mementos';
+import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
+import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
+import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
+import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
+import { appSubject } from '@core/primitives/subjects/api';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
-import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
-import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
-import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
+import { ErrorBoundary } from '@core/primitives/ui/browser/components/error-boundary';
+import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
+import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
-import { rpc } from '@renderer/lib/ipc';
-import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
-import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
-import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
-import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
 import { App } from './App';
-import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
+import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
 async function bootstrap() {
-  // Wire invalidation bridges so FS and git events flow into the model registry.
-  wireModelRegistryInvalidation(modelRegistry);
-  wirePrCacheInvalidation();
-  wireCommitHistoryInvalidation();
+  installChatUiRuntime({
+    connectSession,
+    createChatContext,
+    createChatState,
+    createChatView,
+    pinTopMode,
+  });
   wireExternalLinkRequests();
 
   appState.update.start();
+  void appState.machines.start();
   initSoundPlayer();
+  initNotificationDeliveryListener();
+
+  // Stores may acquire memento spaces while project data loads, so initialize
+  // the singleton before starting any store construction.
+  configureMementos({
+    getWireClient: getMementosWireClient,
+    catalog: mementoCatalog,
+    onError: (error) => log.error('Memento operation failed:', error),
+  });
+  const mementoClient = await initMementos();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
-  const [, navResult, sidebarResult, allViewState] = await Promise.all([
+  await Promise.all([
     monacoBootstrap.init().catch((error: unknown) => {
       log.warn('[monaco-bootstrap] init failed:', error);
     }),
-    rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
-    rpc.viewState.get('sidebar'),
-    rpc.viewState.getAll(),
     appState.projects.load(),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
   ]);
 
-  viewStateCache.populate(allViewState as Record<string, unknown>);
-
-  setupNavigationGuards();
-  if (navResult) appState.navigation.restoreSnapshot(navResult);
-  setupAppCommandProvider();
-  setupViewCommandProvider();
-  if (sidebarResult) {
-    appState.sidebar.restoreSnapshot(sidebarResult as Partial<SidebarSnapshot>);
-  } else {
-    appState.sidebar.expandAllProjects();
-  }
+  for (const contribution of featureViewRuntimes) registerViewRuntime(contribution);
+  assertViewRuntimesComplete(viewCatalog);
+  const appSpace = mementoClient.subject(appSubject({}));
+  const historyHandle = appSpace.handle(workbenchHistoryMemento);
+  const legacyNavigationHandle = appSpace.handle(workbenchNavigationMemento);
+  const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
+  await appSpace.ready;
+  appState.navigation.attachMemento(historyHandle, legacyNavigationHandle);
+  appState.sidebar.attachMemento(sidebarHandle);
+  if (!sidebarHandle.hasStoredValue) appState.sidebar.expandAllProjects();
+  wireNavigationTelemetry(appState.navigation);
 
   // Avoid double-mount in dev which can duplicate PTY sessions
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <ErrorBoundary>
-      <App />
+      <MementoClientProvider client={mementoClient}>
+        <SubjectProvider subject={appSubject({})}>
+          <App />
+        </SubjectProvider>
+      </MementoClientProvider>
     </ErrorBoundary>
   );
 }

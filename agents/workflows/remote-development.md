@@ -1,26 +1,45 @@
 # Remote Development
 
-## Main Files
-
-- `src/main/core/ssh/` — connection management, credentials, config parsing
-- `src/main/core/pty/ssh2-pty.ts`
-- `src/main/core/fs/impl/ssh-fs.ts`
-- `src/main/core/terminals/impl/ssh-terminal-provider.ts`
-- `src/main/utils/shellEscape.ts`
-
 ## Current Model
 
-- remote projects are backed by SSH connections
-- remote worktrees live under `<project>/.emdash/worktrees/<task-slug>/`
-- remote PTYs stream agent shells back to the renderer
+Remote functionality is owned by the workspace server runtime. The Electron app
+keeps SSH connection management for transport, credentials, host config parsing,
+and external "open in SSH" integrations, but runtime behavior should go through
+the workspace-server wire contract instead of desktop-side SSH exec, SFTP, PTY,
+or shell-profile code.
+
+## Main Files
+
+- `apps/workspace-server/src/` — daemon entry point, socket serving, runtime wiring
+- `packages/core/src/workspace-server/` — shared wire contract, schemas, protocol
+  versioning, and workspace-server-specific APIs
+- `src/core/services/ssh/` — desktop SSH connection management, credentials, config
+  parsing, and transport setup
+- `src/core/services/workspace-server/` — managed remote install/ensure flow and the
+  reconnecting Wire client over SSH streamlocal forwarding
+- `src/main/core/wire-workers/` — desktop-local wire runtime workers for local
+  projects while remote runtimes are served by the workspace server
+- `src/main/utils/remoteOpenIn.ts` and `src/main/utils/shellEscape.ts` — external
+  SSH URL/command helpers that intentionally bypass workspace-server runtimes
 
 ## Authentication And Storage
 
 - SSH credentials are managed through the SSH services and OS-backed secret storage
 - host key handling is implemented under `src/main/core/ssh/`
+- runtime dependency state for remote hosts belongs to the workspace-server
+  `hostDependencies` component, not an Electron-side SSH execution context
+- the desktop owns the managed install under `~/.emdash/workspace-server`; remote
+  runtime calls begin only after the workspace-server provisioner reports ready
 
 ## Rules
 
 - treat all shell construction as security-sensitive
 - use shared SSH and shell-escaping helpers instead of ad hoc quoting
+- do not add new desktop-side SSH exec, SFTP, PTY, or shell-profile paths for
+  runtime behavior; add or consume workspace-server wire APIs instead
+- desktop-side SSH exec is limited to the workspace-server control plane: probing
+  the host, checksum-verified installation, and daemon lifecycle commands
+- port-forward preview control belongs in `workspaceWireContract.portForwards`;
+  data streams should be transport-native once the workspace-server client layer
+  exists
 - confirm whether a feature is local-only before assuming parity on remote projects

@@ -1,0 +1,164 @@
+import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import {
+  getProjectStore,
+  projectDisplayName,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
+import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
+
+export const GitStatusSection = observer(function GitStatusSection() {
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = getTaskStore(projectId, taskId)?.workspaceId;
+  const git = getTaskGitCheckoutStore(projectId, taskId);
+  const headDisplay = git?.headDisplay ?? null;
+  const headKind = git?.headKind ?? 'branch';
+  const isDetached = headKind === 'detached';
+  const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
+  const repositoryStore = getGitRepositoryStore(projectId);
+  const openAddRemoteModal = useOpenModal('addRemoteModal');
+
+  const {
+    hasUpstream,
+    aheadCount,
+    behindCount,
+    fetch,
+    pull,
+    push,
+    publish,
+    isPublishing,
+    isFetching,
+    isPulling,
+    isPushing,
+  } = useGitActions(projectId, taskId);
+  const shouldOfferAddRemote = (repositoryStore?.remotes.length ?? 0) === 0;
+
+  const handlePublishClick = () => {
+    if (!headDisplay || isDetached || !workspaceId) return;
+    if (shouldOfferAddRemote) {
+      void openAddRemoteModal({
+        projectId,
+        projectName,
+        branchName: headDisplay,
+        workspaceId,
+      });
+      return;
+    }
+    publish();
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="flex flex-col gap-2 border-t border-border p-2">
+        <div className="flex items-center justify-between gap-2 text-foreground-muted">
+          <Tooltip>
+            <TooltipTrigger className="flex min-w-0 items-center gap-2">
+              <GitBranch className="size-3 shrink-0" />
+              <span className="truncate text-xs">{headDisplay}</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {getBranchTooltipText(headDisplay, headKind)}
+            </TooltipContent>
+          </Tooltip>
+          <div className="flex items-center gap-1">
+            {hasUpstream && !isDetached ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isFetching}
+                      onClick={() => fetch()}
+                    >
+                      <RefreshCcw className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{isFetching ? 'Fetching...' : 'Fetch changes'}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isPulling || behindCount === 0}
+                      onClick={() => pull()}
+                    >
+                      <ArrowDown className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPulling
+                      ? 'Pulling...'
+                      : behindCount === 0
+                        ? 'Nothing to pull'
+                        : 'Pull changes'}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      disabled={isPushing || aheadCount === 0}
+                      onClick={() => push()}
+                    >
+                      <ArrowUp className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPushing
+                      ? 'Pushing...'
+                      : aheadCount === 0
+                        ? 'Nothing to push'
+                        : 'Push changes'}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : (
+              !isDetached && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={isPublishing || !headDisplay}
+                      onClick={handlePublishClick}
+                    >
+                      <ArrowUp className="size-3" />
+                      {isPublishing
+                        ? 'Publishing...'
+                        : shouldOfferAddRemote
+                          ? 'Add Remote'
+                          : 'Publish'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {getPublishTooltipText({
+                      isPublishing,
+                      headDisplay,
+                      headKind,
+                      shouldOfferAddRemote,
+                    })}
+                  </TooltipContent>
+                </Tooltip>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+});

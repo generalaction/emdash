@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   getPlatform: vi.fn(),
 }));
 
-vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({
     value: { hidden: [] },
     update: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {
     app: {
       checkInstalledApps: mocks.checkInstalledApps,

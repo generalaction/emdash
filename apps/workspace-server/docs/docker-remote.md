@@ -1,0 +1,172 @@
+# Docker Remote Machine
+
+The package-owned `workspace-remote` Compose service is a deliberately bare SSH host for exercising
+the complete desktop-to-workspace-server connection path. It includes SSH, Git, tmux, and basic
+process tools, but no Node.js, npm, ripgrep, build toolchain, or coding-agent CLI. Content search
+therefore verifies that the installed workspace-server artifact uses its bundled ripgrep binary.
+
+The daemon exposes no TCP port. Clients reach its Unix socket through SSH streamlocal forwarding,
+matching the production topology.
+
+## Connection
+
+Start the container from `apps/workspace-server/`:
+
+```bash
+pnpm run run:docker-remote
+```
+
+Use these SSH connection settings in Emdash:
+
+- Host: `localhost`
+- Port: `2223`
+- User: `devuser`
+- Password: `devpass`
+
+For a command-line session:
+
+```bash
+ssh -p 2223 devuser@localhost
+```
+
+The default mode is intentionally empty. Confirm that it has no host Node.js installation:
+
+```bash
+ssh -p 2223 devuser@localhost 'node --version'
+# bash: node: command not found
+```
+
+This is the mode for testing OS and architecture detection, artifact pull and installation,
+daemon startup, reconnects, and desktop-managed streamlocal forwarding.
+
+## Dev Artifact Loop
+
+For day-to-day development, build a dev-versioned artifact and start the remote with one command:
+
+```bash
+pnpm run dev:remote
+```
+
+The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
+Silicon, `linux-x64` otherwise), writes `dist-artifacts/latest.txt`, copies `install.sh`, and starts
+the Compose service with preinstall and autostart enabled. Override the target with
+`EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
+
+When testing the desktop app interactively against this remote, launch it with:
+
+```bash
+EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts \
+  EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 \
+  pnpm --dir ../emdash-desktop run dev
+```
+
+`EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
+`appVersion` with `latest.txt` from the configured artifact URL. If they differ, the desktop
+reinstalls and restarts the remote daemon during the next ensure/reconnect. This is development-only;
+production provisioning still keeps compatible running daemons installed until an explicit update or
+protocol upgrade.
+
+## Preinstall And Autostart Modes
+
+First build an artifact matching the container architecture. Apple Silicon uses `linux-arm64`
+natively:
+
+```bash
+pnpm run package --target linux-arm64
+node -p "require('./package.json').version" > dist-artifacts/latest.txt
+cp install.sh dist-artifacts/install.sh
+```
+
+Set `WORKSPACE_SERVER_PREINSTALL=1` to install the newest matching artifact mounted from
+`dist-artifacts/`:
+
+```bash
+WORKSPACE_SERVER_PREINSTALL=1 pnpm run run:docker-remote
+```
+
+The entrypoint extracts it under
+`/home/devuser/.emdash/workspace-server/versions/<version>/` and updates the `current` symlink.
+The named home volume preserves this installation and daemon state across container recreation.
+
+Set both toggles to start the installed daemon during container startup:
+
+```bash
+WORKSPACE_SERVER_PREINSTALL=1 WORKSPACE_SERVER_AUTOSTART=1 pnpm run run:docker-remote
+```
+
+Check its health from the host:
+
+```bash
+ssh -p 2223 devuser@localhost \
+  '~/.emdash/workspace-server/current/bin/emdash-workspace-server status \
+  --socket ~/.emdash/workspace-server/run/workspace.sock'
+```
+
+`WORKSPACE_SERVER_AUTOSTART=1` can be used without preinstall after an installation already exists
+in the persistent home volume.
+
+Run the desktop connection smoke test against the installed daemon:
+
+```bash
+pnpm --dir ../emdash-desktop run test:workspace-server-remote
+```
+
+The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
+resets the desktop-managed root, invokes the mounted `install.sh` against
+`file:///opt/emdash-artifacts`, installs from the mounted artifact and checksum, exercises a runtime
+call and SSH reconnection, then stops the daemon and removes its temporary workspace. When testing
+the desktop app interactively, launch it with
+`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts`. For the dev artifact loop, also
+set `EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1`.
+
+## Logs And Socket Forwarding
+
+The daemon log is stored beside its socket. Follow it without opening an SSH session:
+
+```bash
+docker exec --user devuser emdash-workspace-remote \
+  tail -f /home/devuser/.emdash/workspace-server/run/workspace.sock.log
+```
+
+To inspect streamlocal forwarding manually, first start the daemon, then run:
+
+```bash
+rm -f /tmp/emdash-workspace-server.sock
+ssh -p 2223 -N \
+  -L /tmp/emdash-workspace-server.sock:/home/devuser/.emdash/workspace-server/run/workspace.sock \
+  devuser@localhost
+```
+
+While that SSH process is running, `/tmp/emdash-workspace-server.sock` is the local endpoint. The
+desktop transport performs the same forwarding in-process and calls Wire `initialize` before using
+runtime services.
+
+## Reset To A Bare Machine
+
+Stop the Compose project and delete its named volumes:
+
+```bash
+docker compose down -v
+```
+
+This removes only the workspace remote container, network, and its `emdash-workspace-remote-home`
+volume. The legacy desktop `ssh-dev` Compose project and its `projects` volume are separate.
+This is no longer required for normal dev artifact refreshes; use it only when you need a bare
+machine or want to remove persisted daemon state.
+
+## Testing Another Architecture
+
+The service uses the host's native Linux architecture by default. On Apple Silicon, set the
+optional Compose platform to exercise the `linux-x64` artifact and architecture-detection branch
+under emulation:
+
+```bash
+pnpm run package --target linux-x64
+WORKSPACE_REMOTE_PLATFORM=linux/amd64 \
+  WORKSPACE_SERVER_PREINSTALL=1 \
+  WORKSPACE_SERVER_AUTOSTART=1 \
+  pnpm run run:docker-remote
+```
+
+Docker runs the amd64 image with its equivalent of `--platform linux/amd64`; startup is slower
+than the native arm64 container.

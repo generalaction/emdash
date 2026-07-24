@@ -16,6 +16,7 @@ pnpm --filter @emdash/wire run example:live-state
 pnpm --filter @emdash/wire run example:batched-state
 pnpm --filter @emdash/wire run example:live-log
 pnpm --filter @emdash/wire run example:live-job
+pnpm --filter @emdash/wire run example:mailbox
 pnpm --filter @emdash/wire run example:cancellation
 pnpm --filter @emdash/wire run example:contract
 pnpm --filter @emdash/wire run example:api-definition
@@ -41,6 +42,8 @@ Examples:
   with retained tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.
+- `mailbox/` demonstrates bounded local producer/consumer handoff, graceful close,
+  and explicit overflow.
 - `cancellation/` demonstrates procedure cancellation with `AbortSignal` and
   server-side abort on disconnect.
 - `contract/` demonstrates the full API flow in one file: contract definition,
@@ -54,8 +57,8 @@ Examples:
   creating a typed `ContractClient`, and acquiring a live model replica.
 - `group/` demonstrates `liveModel`, host instance lifecycle,
   typed group client binding, and mutation settling across multiple member models.
-- `dedupe/` demonstrates server-side `deduplicateRequests()` for in-flight
-  procedure calls.
+- `dedupe/` demonstrates server-side `deduplicate()` middleware from
+  `@emdash/shared/requests` for in-flight procedure calls.
 - `job-contract/` demonstrates the contract-level `liveJob()` endpoint with start,
   progress, cancellation, terminal result, and reattach.
 - `mutation-idempotency/` demonstrates mutationId-based server dedupe for live
@@ -65,7 +68,7 @@ Examples:
 - `replica/` demonstrates a cached middle hop with `createLiveModelReplica()`.
 - `logging/` demonstrates `withLogging`, `loggingTransport`, instrumentation
   hooks, redacted debug payload logging, and live-client resync diagnostics.
-- `process/` demonstrates `spawnRuntime()` and `serveWorkerProcess()` running a
-  typed controller in a subprocess with restart resync.
+- `process/` demonstrates `WireWorkerHost` and `runWireComponentWorker()` running a
+  typed component in a subprocess with restart resync.
 - `optimistic-live-model/` demonstrates `OptimisticLiveModel` deriving previews
   from inline group mutation handlers and rolling back rejected mutations.

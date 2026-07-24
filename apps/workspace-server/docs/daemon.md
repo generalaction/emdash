@@ -28,8 +28,12 @@ flowchart LR
   desktop["Desktop over SSH"] -->|"streamlocal channel"| socket
   socket --> sessionHub["WireSessionHub"]
   sessionHub --> controller["workspaceWireContract controller"]
-  daemon -->|"fork acp-runtime"| acpRuntime["ACP runtime child process"]
-  acpRuntime -->|"spawn provider CLIs"| agentCli["Agent CLI processes"]
+  daemon --> workerHost["WireWorkerHost"]
+  workerHost --> runtimes["required core runtime subprocesses"]
+  workerHost --> watcher["FS watch subprocess"]
+  watcher --> runtimes
+  controller --> runtimes
+  runtimes -->|"spawn provider CLIs and PTYs"| agentCli["host-local processes"]
 ```
 
 ## Commands
@@ -71,14 +75,21 @@ self-contained:
 ~/.emdash/workspace-server/run/workspace.sock.pid
 ~/.emdash/workspace-server/run/workspace.sock.lock
 ~/.emdash/workspace-server/run/workspace.sock.log
-~/.emdash/workspace-server/run/acp-attachments/
+~/.emdash/workspace-server/state/acp-attachments/
+~/.emdash/workspace-server/state/acp-session-intents.json
+~/.emdash/workspace-server/state/tui-agent-session-intents.json
+~/.emdash/workspace-server/state/automations.db
+~/.emdash/workspace-server/state/file-search.db
+~/.emdash/workspace-server/state/host-dependencies.json
+~/.emdash/workspace-server/state/worktrees/
 ```
 
 - `.sock` is the Unix domain socket accepted by the foreground daemon.
 - `.pid` records the daemon process id after socket serving starts.
 - `.lock` prevents competing `start` calls from spawning duplicate daemons.
 - `.log` receives stdout/stderr from the detached daemon process.
-- `acp-attachments/` stores uploaded ACP prompt attachments for the runtime child.
+- `state/` stores runtime-owned databases, intents, attachments, dependency selections, and the
+  worktree pool.
 
 The socket directory is created with mode `0700`, so the filesystem boundary is
 the local user account. Desktop clients reach the socket through SSH, not through
@@ -105,39 +116,39 @@ exits.
 
 `serve --socket` owns the long-lived server lifecycle:
 
-1. Create the socket directory.
-2. Probe any existing socket file before unlinking it. A live socket blocks
+1. Create the runtime state directories and the in-process host-dependency store.
+2. Start every required runtime and FS-watch subprocess and wait for readiness.
+3. Build the aggregate controller from the required runtime clients.
+4. Create the socket directory.
+5. Probe any existing socket file before unlinking it. A live socket blocks
    startup; a dead socket file is removed.
-3. Listen on the Unix socket.
-4. Write the pid file.
-5. For every accepted `net.Socket`, convert it to a `WireTransport` and open a
+6. Listen on the Unix socket and write the pid file.
+7. For every accepted `net.Socket`, convert it to a `WireTransport` and open a
    session in `createWireSessionHub`.
-6. In socket mode, fork the ACP runtime child and mount its API under
-   `workspaceWireContract.acp`.
-7. On `SIGINT` or `SIGTERM`, dispose all wire sessions, close the server, unlink
-   the socket, remove the pid file, stop the ACP runtime child, and exit.
+8. On `SIGINT` or `SIGTERM`, dispose all wire sessions, close the server, unlink
+   the socket, remove the pid file, stop the runtime children, and exit.
 
 The session hub is what lets one daemon serve multiple client connections while
 keeping per-client live subscriptions, in-flight calls, and blob channels scoped
 to the connection that created them.
 
-## ACP Runtime Child
+## Runtime Workers
 
-Socket mode mounts the ACP runtime as a child process. The parent daemon uses
-`spawnWorker()` from `@emdash/wire/worker` to fork the ACP worker path declared in
-the workspace-server worker manifest. The child calls the shared
-`bootAcpRuntimeProcess()` helper from `@emdash/runtime/acp-agents/node`.
+Both serve modes mount every core runtime as a child process. The parent creates workers through
+`WireWorkerHost` using executable paths declared in the workspace-server worker manifest. Each
+child entry initializes structured process logging and calls `runWireComponentWorker(...)`.
 
-One wire contract uses the process IPC channel:
+The worker dependency graph mirrors the desktop host:
 
-- Parent to child: `acpApiContract`, exposed to desktop clients as
-  `workspaceWireContract.acp`.
+- FS watch and terminals have no runtime-worker dependencies.
+- ACP, agent config, and TUI agents consume the parent-owned host-dependency resolver.
+- Files and file search consume FS watch; Git consumes FS watch and host dependencies.
+- Workspace consumes terminals and FS watch.
+- Automations starts last and consumes workspace, ACP sessions, and TUI sessions.
 
-The runtime resolves provider binaries from host dependency descriptors derived
-from the plugin registry. The environment passed to provider CLIs is intentionally
-allowlisted via the shared spawn-context resolver; the full daemon environment is
-not forwarded. Runtime logs are emitted as structured stderr lines and forwarded by
-the parent process.
+Every runtime is required. Failure to start any worker aborts server startup, while failures after
+readiness use the worker host's supervision policy. Runtime logs are emitted as structured stderr
+lines and forwarded by the parent process.
 
 `startSession` and `resumeSession` return `{ sessionId }` through the ACP API. The
 connected desktop client owns persistence for those returned ids when remote ACP
@@ -177,6 +188,14 @@ whether the daemon is not running or unhealthy.
   socket into a wire session.
 - `src/wire/serve-stdio.ts` serves the same controller over stdin/stdout.
 - `src/api/controller.ts` builds the `workspaceWireContract` controller.
+- `src/gateway/workspace-workers.ts` owns the complete required worker graph and runtime state
+  configuration.
+- `src/gateway/worker-manifest.ts` selects the shared Core entries and app-local plugin entries for
+  each packaged worker executable.
+- `src/gateway/worker-paths.ts` resolves packaged worker executable paths at runtime.
+- `src/gateway/entries/` contains the ACP, agent-config, and TUI-agent entries that inject the
+  application plugin registry; all other workers reuse Core runtime entries directly.
+- `src/runtime/paths.ts` owns runtime database, intent, attachment, and worktree-pool paths.
 
 ## Desktop Integration
 
@@ -190,3 +209,6 @@ The intended flow is:
 5. Create a wire client and call `initialize`.
 
 See `client-connection.md` for the target desktop-to-daemon connection model.
+
+See `packaging.md` for self-contained release artifact targets, layout, build commands, and Linux
+compatibility constraints.

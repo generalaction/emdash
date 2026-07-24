@@ -2,6 +2,11 @@ import type { Unsubscribe } from '@emdash/shared';
 import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
 import {
+  findStructuredCloneFailure,
+  formatStructuredCloneFailure,
+  isStructuredCloneError,
+} from '../util/structured-clone';
+import {
   createBlobConsumer,
   createBlobProducer,
   type BlobConsumer,
@@ -58,6 +63,8 @@ export type Connection = {
     options?: AttachOptions
   ): Promise<Unsubscribe>;
   onDisconnect(cb: () => void): Unsubscribe;
+  /** Disposes this logical connection without closing the underlying transport. */
+  dispose(): void;
 };
 
 export function connect(transport: WireTransport, options: ConnectOptions = {}): Connection {
@@ -67,10 +74,12 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
   const blobProducers = new Map<string, BlobProducer>();
   const disconnectListeners = new Set<() => void>();
   const instrumentation = options.instrumentation;
+  let disposed = false;
 
   instrumentation?.transport?.({ event: 'connect' });
 
-  transport.onMessage((message) => {
+  const unsubscribeMessage = transport.onMessage((message) => {
+    if (disposed) return;
     if (message.kind === 'result') {
       const pendingCall = pending.get(message.id);
       if (!pendingCall) return;
@@ -134,7 +143,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     }
   });
 
-  transport.onDisconnect(() => {
+  const unsubscribeDisconnect = transport.onDisconnect(() => {
+    if (disposed) return;
     instrumentation?.transport?.({ event: 'disconnect' });
     for (const pendingCall of pending.values()) {
       pendingCall.cleanup();
@@ -152,7 +162,8 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
     blobProducers.clear();
   });
 
-  transport.onReconnect?.(() => {
+  const unsubscribeReconnect = transport.onReconnect?.(() => {
+    if (disposed) return;
     instrumentation?.transport?.({ event: 'reconnect' });
     for (const [topic, entry] of attachments) {
       entry.established = establishAttachment(topic, entry, true);
@@ -173,6 +184,10 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       });
     }
     return new Promise((resolve, reject) => {
+      if (disposed) {
+        reject(new WireError('DISCONNECTED', 'Wire connection disposed'));
+        return;
+      }
       if (options.signal?.aborted) {
         if (message.kind === 'call') {
           instrumentation?.cancel?.({ callId: message.id, side: 'client' });
@@ -223,12 +238,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       } catch (error) {
         pending.delete(message.id);
         cleanup();
-        reject(
-          new WireError(
-            'DISCONNECTED',
-            error instanceof Error ? error.message : 'Wire transport disconnected'
-          )
-        );
+        reject(createPostError(message, error));
       }
     });
   }
@@ -265,6 +275,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       );
     },
     openBlobConsumer(channel) {
+      assertActive();
       const base = createBlobConsumer({
         channel,
         post: (message) => transport.post(message),
@@ -280,6 +291,7 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       return wrapped;
     },
     openBlobProducer(channel, source) {
+      assertActive();
       const producer = createBlobProducer({
         channel,
         source,
@@ -327,10 +339,46 @@ export function connect(transport: WireTransport, options: ConnectOptions = {}):
       };
     },
     onDisconnect(cb): Unsubscribe {
+      if (disposed) return () => {};
       disconnectListeners.add(cb);
       return () => disconnectListeners.delete(cb);
     },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+
+      for (const topic of attachments.keys()) {
+        try {
+          transport.post({ kind: 'detach', topic });
+        } catch {
+          // The underlying transport may already be disconnected.
+        }
+      }
+      attachments.clear();
+
+      for (const pendingCall of pending.values()) {
+        pendingCall.cleanup();
+        pendingCall.reject(new WireError('DISCONNECTED', 'Wire connection disposed'));
+      }
+      pending.clear();
+
+      for (const consumer of blobConsumers.values()) {
+        consumer.fail(new WireError('DISCONNECTED', 'Wire connection disposed'));
+      }
+      blobConsumers.clear();
+      for (const producer of blobProducers.values()) producer.close();
+      blobProducers.clear();
+
+      unsubscribeReconnect?.();
+      unsubscribeDisconnect();
+      unsubscribeMessage();
+      disconnectListeners.clear();
+    },
   };
+
+  function assertActive(): void {
+    if (disposed) throw new WireError('DISCONNECTED', 'Wire connection disposed');
+  }
 
   function getOrCreateAttachment(topic: string): Attachment {
     const current = attachments.get(topic);
@@ -416,6 +464,25 @@ function toWireError(error: unknown): WireError {
   return new WireError('HANDLER_ERROR', error instanceof Error ? error.message : String(error), {
     cause: error,
   });
+}
+
+function createPostError(message: WireMessage, error: unknown): WireError {
+  if (isStructuredCloneError(error)) {
+    const callContext = message.kind === 'call' ? `Wire call '${message.path}'` : 'Wire message';
+    const inputFailure =
+      message.kind === 'call' ? findStructuredCloneFailure(message.input, 'input') : null;
+    const diagnostic = inputFailure
+      ? `'${inputFailure.path}' ${inputFailure.reason}`
+      : formatStructuredCloneFailure(message, 'message');
+    return new WireError('SERIALIZATION', `${callContext} could not be serialized: ${diagnostic}`, {
+      cause: error,
+    });
+  }
+  return new WireError(
+    'DISCONNECTED',
+    error instanceof Error ? error.message : 'Wire transport disconnected',
+    { cause: error }
+  );
 }
 
 function wireErrorFromSerialized(error: SerializedWireError): WireError {

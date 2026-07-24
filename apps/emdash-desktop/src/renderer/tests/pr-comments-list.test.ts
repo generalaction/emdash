@@ -1,15 +1,15 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
-import { buildPullRequestConversationItems } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
-import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
+import { CommentsList } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/comments-list';
+import { buildPullRequestConversationItems } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
+import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 
-vi.mock('@renderer/lib/hooks/useTheme', () => ({
+vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
@@ -17,12 +17,12 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
       currentViewId: 'home',
-      viewParamsStore: {},
+      currentRef: { viewId: 'home', params: {}, key: 'home' },
     },
   },
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   events: {
     on: vi.fn(() => () => {}),
   },

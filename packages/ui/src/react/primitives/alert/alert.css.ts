@@ -40,7 +40,7 @@ export const alertBody = style({
 });
 
 export const alertTitle = style({
-  fontWeight: 500,
+  fontWeight: 400,
   lineHeight: 1.4,
 });
 

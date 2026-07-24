@@ -14,8 +14,8 @@
  *   <Box className={cx(card(), myStyle)}>…</Box>
  */
 
+import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
 import { cx } from '@styles/utilities/cx';
-import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import React from 'react';
 import { sx } from '@styles/utilities/sprinkles.css';
 import type { Sprinkles } from '@styles/utilities/sprinkles.css';
@@ -35,7 +35,9 @@ export type BoxProps = React.HTMLAttributes<HTMLElement> &
   };
 
 // Build a set of all Sprinkles property names for fast splitting.
-const sprinklesPropertySet = new Set(Object.keys(sx.properties));
+// `sx.properties` is a Set from @vanilla-extract/sprinkles; Object.keys() would
+// return [] for a Set, so we copy it directly and widen to string for lookups.
+const sprinklesPropertySet = new Set<string>(sx.properties);
 
 function splitProps(props: Record<string, unknown>): [Sprinkles, Record<string, unknown>] {
   const sprinkles: Record<string, unknown> = {};

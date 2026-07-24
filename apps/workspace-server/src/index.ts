@@ -1,7 +1,9 @@
+import { createShellEnvManager } from '@emdash/core/services/shell-env/node';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
+import { createScope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { withValidation, type ValidatePolicy } from '@emdash/wire';
-import { spawnAcpWorkspaceRuntimeProcess } from './acp/host';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,
@@ -13,6 +15,7 @@ import { removePidFile, writePidFile } from './daemon/pid-file';
 import { startDaemon } from './daemon/start';
 import { statusDaemon } from './daemon/status';
 import { stopDaemon } from './daemon/stop';
+import { createWorkspaceServerRuntimeHost } from './gateway/workspace-workers';
 import { serveSocket } from './wire/serve-socket';
 import { serveStdio } from './wire/serve-stdio';
 
@@ -21,7 +24,7 @@ type Disposable = {
 };
 
 async function main(): Promise<void> {
-  initProcessLogging({ name: 'workspace-server' });
+  const logger = initProcessLogging({ name: 'workspace-server' });
   const config = loadWorkspaceServerConfig();
   if (!config.success) {
     throw new Error(formatWorkspaceServerConfigError(config.error));
@@ -29,7 +32,7 @@ async function main(): Promise<void> {
 
   switch (config.data.command) {
     case 'serve': {
-      const active = await serve(config.data);
+      const active = await serve(config.data, logger);
       installSignalHandlers(active);
       break;
     }
@@ -45,54 +48,57 @@ async function main(): Promise<void> {
   }
 }
 
-async function serve(config: WorkspaceServerConfig): Promise<Disposable> {
-  if (config.serve.kind === 'socket') {
-    let acpRuntime: Awaited<ReturnType<typeof spawnAcpWorkspaceRuntimeProcess>> | null = null;
-    try {
-      acpRuntime = await spawnAcpWorkspaceRuntimeProcess({ socketPath: config.serve.path });
-    } catch (error) {
-      process.stderr.write(
-        `workspace-server ACP runtime failed to start: ${
-          error instanceof Error ? error.message : String(error)
-        }\n`
-      );
-    }
-
+async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Disposable> {
+  const scope = createScope({
+    label: config.serve.kind === 'socket' ? 'workspace-server' : 'workspace-server-stdio',
+  });
+  try {
+    const shellEnv = createShellEnvManager({ target: process.env, logger });
+    await shellEnv.refresh();
+    const runtimeHost = await createWorkspaceServerRuntimeHost({
+      scope,
+      socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
+      env: shellEnv.env,
+      refreshShellEnv: () => shellEnv.refresh(),
+      validate: workspaceServerWireValidationPolicy(),
+    });
     const controller = withValidation(
       workspaceWireContract,
       createWorkspaceWireController({
         appVersion: config.appVersion,
-        acp: acpRuntime?.client,
+        runtimes: runtimeHost.runtimes,
+        hostDependencies: runtimeHost.hostDependencies,
       }),
       workspaceServerWireValidationPolicy()
     );
+
+    if (config.serve.kind !== 'socket') {
+      const dispose = serveStdio(controller);
+      scope.add(dispose);
+      process.stderr.write('workspace-server wire stdio listening\n');
+      return { dispose: () => scope.dispose() };
+    }
+
     const handle = await serveSocket(controller, { socketPath: config.serve.path });
+    scope.add(() => handle.dispose());
     const paths = daemonPaths(handle.socketPath);
     try {
       await writePidFile(paths.pidPath);
     } catch (error) {
-      await handle.dispose();
-      await acpRuntime?.dispose();
+      await scope.dispose();
       throw error;
     }
     process.stderr.write(`workspace-server wire socket listening at ${handle.socketPath}\n`);
     return {
       async dispose() {
-        await handle.dispose();
         await removePidFile(paths.pidPath);
-        await acpRuntime?.dispose();
+        await scope.dispose();
       },
     };
+  } catch (error) {
+    await scope.dispose();
+    throw error;
   }
-
-  const controller = withValidation(
-    workspaceWireContract,
-    createWorkspaceWireController({ appVersion: config.appVersion }),
-    workspaceServerWireValidationPolicy()
-  );
-  const dispose = serveStdio(controller);
-  process.stderr.write('workspace-server wire stdio listening\n');
-  return { dispose };
 }
 
 function workspaceServerWireValidationPolicy(): ValidatePolicy {

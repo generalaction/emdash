@@ -63,6 +63,9 @@ interface ListViewBase<T, S extends ListViewSpec<any>> {
    */
   createStore(): ListViewStore<T, S>;
 
+  /** Re-fetches the default store while preserving query state. */
+  reload(): Promise<void>;
+
   // ── Components ─────────────────────────────────────────────────────────────
 
   /**
@@ -230,9 +233,11 @@ export function createListView<const S extends ListViewSpec<any>>(
             ? sections.map((s) => ({
                 key: s.key,
                 items: s.items,
-                header: spec.sections?.header
-                  ? spec.sections.header(s.key, s.items.length)
-                  : undefined,
+                header: spec.sections?.header ? (
+                  spec.sections.header(s.key, s.items.length)
+                ) : (
+                  <SectionHeader label={s.key} count={s.items.length} />
+                ),
               }))
             : undefined
         }
@@ -332,6 +337,7 @@ export function createListView<const S extends ListViewSpec<any>>(
       error: store.error,
       visibleItems: store.visibleItems,
       orderedIds: store.orderedIds,
+      reload: () => store.reload(),
     };
   }
 
@@ -390,6 +396,7 @@ export function createListView<const S extends ListViewSpec<any>>(
     const sl = store.pagination!;
     return {
       loadMore: () => void sl.loadMore(),
+      reload: () => void sl.reload(),
       isFetchingMore: sl.isFetchingMore,
       hasMore: sl.hasMore,
     };
@@ -442,6 +449,7 @@ export function createListView<const S extends ListViewSpec<any>>(
   const base: ListViewBase<T, S> = {
     store: defaultStore,
     createStore,
+    reload: () => defaultStore.reload(),
     Root,
     List,
     StaticList,

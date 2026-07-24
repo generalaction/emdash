@@ -1,9 +1,21 @@
-import { externalLinkOpenRequestedChannel } from '@shared/events/appEvents';
-import { events } from './ipc';
 import { confirmOpenExternalLink } from './open-external-link';
+import { getDesktopWireClient } from './runtime/desktop-wire-client';
 
 export function wireExternalLinkRequests() {
-  return events.on(externalLinkOpenRequestedChannel, ({ url }) => {
-    confirmOpenExternalLink(url);
+  let disposed = false;
+  let unsubscribe: (() => void) | undefined;
+  void getDesktopWireClient().then(async (client) => {
+    const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+      onEvent: (event) => {
+        if (event.type === 'external-link-open-requested') confirmOpenExternalLink(event.url);
+      },
+      onGap: () => {},
+    });
+    if (disposed) nextUnsubscribe();
+    else unsubscribe = nextUnsubscribe;
   });
+  return () => {
+    disposed = true;
+    unsubscribe?.();
+  };
 }

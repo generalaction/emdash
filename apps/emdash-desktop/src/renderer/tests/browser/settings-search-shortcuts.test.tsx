@@ -1,14 +1,10 @@
-import { detectPlatform } from '@tanstack/react-hotkeys';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SearchInput } from '@renderer/lib/ui/search-input';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { detectPlatformContext } from '@core/primitives/keybindings/api';
+import { SearchInput } from '@core/primitives/ui/browser/search-input';
 
-vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
-  useAppSettingsKey: () => ({ value: {} }),
-}));
-
-const PLATFORM = detectPlatform();
+const PLATFORM = detectPlatformContext().os;
 
 function dispatchShortcut(init: KeyboardEventInit): KeyboardEvent {
   const event = new KeyboardEvent('keydown', {

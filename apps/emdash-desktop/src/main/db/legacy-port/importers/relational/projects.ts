@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { projects, sshConnections } from '@main/db/schema';
+import { projects, sshConnections } from '@core/services/app-db/node/schema';
 import { log } from '@main/lib/logger';
 import {
   makeSshFingerprint,

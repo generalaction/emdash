@@ -1,5 +1,11 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import {
+  definePlugin,
+  registerPluginBehavior,
+} from '@emdash/core/services/agent-plugins/api/plugins';
+import {
+  buildStandardCommand,
+  npmDependency,
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { buildCommandCodeHookConfig } from './hooks';
 import { icon } from './icon';
 

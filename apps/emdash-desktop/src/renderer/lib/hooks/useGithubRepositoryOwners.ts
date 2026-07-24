@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
-import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import type { ComboboxSelectOption } from '@core/primitives/ui/browser/combobox-popover';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.length > 0) return error;
@@ -17,7 +17,10 @@ export function useGitHubRepositoryOwnerSelect(githubAccountId: string | null) {
 
   const query = useQuery({
     queryKey: ['owners', githubAccountId],
-    queryFn: () => rpc.github.getOwners(githubAccountId ?? undefined),
+    queryFn: async () =>
+      (await getDesktopWireClient()).github.getOwners({
+        accountId: githubAccountId ?? undefined,
+      }),
     enabled: githubAccountId !== null,
   });
 

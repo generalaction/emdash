@@ -2,7 +2,7 @@ import {
   buildNestedJsonHookConfig,
   makeNotificationHookCommand,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 export const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 

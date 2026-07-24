@@ -96,9 +96,9 @@ This is a pnpm workspace monorepo.
 - `apps/emdash-desktop/src/main/` - Electron main process, RPC controllers,
   services, database, PTY, SSH, Git, GitHub, updates, and integrations
 - `apps/emdash-desktop/src/preload/` - typed Electron preload bridge
-- `apps/emdash-desktop/src/renderer/` - React renderer app
-- `apps/emdash-desktop/src/shared/` - shared app IPC, provider, event, MCP,
-  skills, and domain types
+- `apps/emdash-desktop/src/renderer/` - React composition shell and shared browser infrastructure
+- `apps/emdash-desktop/src/core/` - vertical slices with APIs, Node implementations, browser UI,
+  contributions, and manifests
 - `apps/emdash-desktop/drizzle/` - generated Drizzle migrations and metadata
 - `apps/emdash-desktop/scripts/` - release, verification, and build scripts
 - `packages/core/` - transport-agnostic core runtime primitives
@@ -246,7 +246,7 @@ Main process:
 
 Renderer:
 
-- Feature UI lives under `src/renderer/features/<feature>/`.
+- Feature UI lives under `src/core/features/<feature>/browser/`.
 - Shared renderer primitives, stores, hooks, commands, PTY, Monaco, modal
   infrastructure, and UI live under `src/renderer/lib/`.
 - Renderer RPC calls go through `rpc` from `src/renderer/lib/ipc.ts`.
@@ -266,9 +266,9 @@ State and stores:
 - State guards should check `kind !== 'ready'` rather than enumerate non-ready
   states.
 - Task selectors live in
-  `src/renderer/features/tasks/stores/task-selectors.ts`.
+  `src/core/features/tasks/browser/stores/task-selectors.ts`.
 - Project selectors live in
-  `src/renderer/features/projects/stores/project-selectors.ts`.
+  `src/core/features/projects/browser/stores/project-selectors.ts`.
 
 ## Database And Migrations
 

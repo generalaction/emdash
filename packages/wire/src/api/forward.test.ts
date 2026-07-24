@@ -1,10 +1,11 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventStreamHost } from '../live/event-stream';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../live/protocol';
-import { createTestWire, waitFor } from '../testing';
+import { createTestWire } from '../testing';
 import {
   defineContract,
   downloadFile,
@@ -16,7 +17,7 @@ import {
   mutation,
   uploadFile,
 } from './define';
-import { forwardController } from './forward';
+import { forwardContractImpl, forwardController } from './forward';
 import { WireError } from './protocol';
 
 const textEncoder = new TextEncoder();
@@ -149,6 +150,58 @@ describe('forwardController', () => {
       const { jobId } = await forwarded.client.task.start({ name: 'demo' });
       const jobSnapshot = await forwarded.client.task.handle(jobId).snapshot();
       expect(['running', 'succeeded']).toContain(jobSnapshot.data.status);
+    } finally {
+      forwarded.dispose();
+      upstream.dispose();
+      events.dispose();
+      model.dispose();
+    }
+  });
+
+  it('rebinds live endpoint definitions when mounting a client under a namespace', async () => {
+    const key = { id: 'known' };
+    const model = createLiveModelHost(contract.model);
+    model.create(key, { state: { count: 1 } });
+    const events = createEventStreamHost(contract.events);
+    const upstream = createTestWire(contract, {
+      download: ({ id }) =>
+        ok({
+          meta: { name: `${id}.txt`, mimeType: 'text/plain', size: 11 },
+          source: chunks(textEncoder.encode('hello world')),
+        }),
+      upload: async ({ id }, file) => ok({ id, text: textDecoder.decode(await file.bytes()) }),
+      output: () => createLogSource('forwarded log'),
+      events,
+      task: {
+        run: async ({ name }) => ok({ artifact: `${name}.zip` }),
+      },
+      model,
+    });
+    const aggregateContract = defineContract({ nested: contract });
+    const forwarded = createTestWire(aggregateContract, {
+      nested: forwardContractImpl(aggregateContract.nested, upstream.client),
+    });
+
+    try {
+      expect(aggregateContract.nested.model.id).toBe('nested.model');
+      expect(upstream.client.model.def.id).toBe('model');
+      await expect(
+        forwarded.client.nested.model.state(key, 'state').snapshot()
+      ).resolves.toMatchObject({ data: { count: 1 } });
+      await expect(
+        forwarded.client.nested.model.mutate('bump', { key, input: { amount: 2 } })
+      ).resolves.toMatchObject({
+        success: true,
+        data: {
+          data: { count: 3 },
+          cursors: [expect.objectContaining({ model: 'nested.model.state' })],
+        },
+      });
+
+      const download = await forwarded.client.nested.download({ id: 'known' });
+      expect(download.success).toBe(true);
+      if (!download.success) return;
+      await expect(download.data.bytes()).resolves.toEqual(textEncoder.encode('hello world'));
     } finally {
       forwarded.dispose();
       upstream.dispose();

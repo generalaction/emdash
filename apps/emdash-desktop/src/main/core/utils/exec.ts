@@ -1,5 +1,23 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
+import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
+
+const execFileAsync = promisify(execFile);
+
+export type {
+  CommandRunner,
+  CommandRunnerOptions,
+  CommandRunnerResult,
+} from '@core/primitives/command-runner/api/command-runner';
+
+export const runLocalCommand: CommandRunner = async (command, args = [], opts = {}) => {
+  const { stdout, stderr } = await execFileAsync(command, args, {
+    timeout: opts.timeout,
+  });
+  return { stdout, stderr };
+};
 
 function windowsExecutableExtensions(env: NodeJS.ProcessEnv): string[] {
   const pathExt = env.PATHEXT || '.COM;.EXE;.BAT;.CMD';

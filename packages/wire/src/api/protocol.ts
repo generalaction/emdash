@@ -4,12 +4,14 @@ import type { LiveUpdate } from '../live/protocol';
 export type WireErrorCode =
   | 'CANCELLED'
   | 'DISCONNECTED'
+  | 'SERIALIZATION'
   | 'UNKNOWN_PROCEDURE'
   | 'UNKNOWN_TOPIC'
   | 'NOT_FOUND'
   | 'MISSING_HANDLER'
   | 'CONTRACT_MISMATCH'
   | 'ALREADY_EXISTS'
+  | 'TIMEOUT'
   | 'HANDLER_ERROR';
 
 export type WireCallMessage = {

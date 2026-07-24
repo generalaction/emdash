@@ -84,70 +84,32 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
   }
 }
 
-/**
- * Creates the FTS5 virtual table and companion meta table used for workspace
- * file indexing. Managed outside Drizzle (same reason as ensureSearchIndex).
- * Version-gated via `kv` so the tables can be dropped and recreated on schema
- * changes without a full Drizzle migration.
- */
-function ensureFileIndex(connection: BetterSqlite3.Database): void {
-  const FILE_INDEX_VERSION = '4';
-
-  const row = connection.prepare(`SELECT value FROM kv WHERE key = 'file_index_version'`).get() as
-    | { value: string }
-    | undefined;
-
-  if (row?.value === FILE_INDEX_VERSION) return;
-
-  connection.exec(`DROP TABLE IF EXISTS workspace_file_index`);
-  connection.exec(`DROP TABLE IF EXISTS workspace_file_index_meta`);
-  connection.exec(`
-    CREATE VIRTUAL TABLE workspace_file_index USING fts5(
-      workspace_id UNINDEXED,
-      path,
-      filename,
-      tokenize = 'trigram case_sensitive 0'
-    )
-  `);
-  connection.exec(`
-    CREATE TABLE workspace_file_index_meta (
-      workspace_id     TEXT PRIMARY KEY,
-      indexed_at       INTEGER NOT NULL,
-      root_path        TEXT NOT NULL,
-      status           TEXT NOT NULL
-        CHECK (status IN ('complete', 'stale', 'truncated')),
-      file_count       INTEGER NOT NULL,
-      truncate_reason  TEXT
-        CHECK (truncate_reason IS NULL OR truncate_reason IN ('maxEntries', 'timeBudget'))
-    )
-  `);
-  connection
-    .prepare(
-      `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES ('file_index_version', ?, unixepoch())`
-    )
-    .run(FILE_INDEX_VERSION);
+/** Removes the desktop-owned index now provided by the dedicated Core file-search runtime. */
+function removeLegacyFileIndex(connection: BetterSqlite3.Database): void {
+  connection.transaction(() => {
+    connection.exec(`DROP TABLE IF EXISTS workspace_file_index`);
+    connection.exec(`DROP TABLE IF EXISTS workspace_file_index_meta`);
+    // Removing the marker lets an older desktop version recreate its derived index after a
+    // downgrade instead of assuming the dropped tables still exist.
+    connection.prepare(`DELETE FROM kv WHERE key = 'file_index_version'`).run();
+  })();
 }
 
 /**
- * Runs all pending migrations against the provided SQLite connection (or the
- * app's shared singleton when called without arguments). Call this once in
- * main.ts before any db queries run.
+ * Runs all pending migrations against the provided SQLite connection. Call this
+ * once during boot before publishing the shared app database.
  *
  * Accepts an explicit connection so migration tests and fixture generators can
- * pass an in-memory database without pulling in the Electron-dependent client
- * module at import time.
+ * pass an in-memory database.
  *
  * Returns the connection that was used.
  */
 export async function initializeDatabase(
-  connection?: BetterSqlite3.Database
+  connection: BetterSqlite3.Database
 ): Promise<BetterSqlite3.Database> {
-  // Lazily import the app singleton only when no explicit connection is given.
-  // This keeps the module importable in non-Electron environments (Vitest).
-  const conn = connection ?? (await import('./client')).sqlite;
-  conn.pragma('foreign_keys = ON');
-  runBundledMigrations(conn);
-  ensureSearchIndex(conn);
-  ensureFileIndex(conn);
-  return conn;
+  connection.pragma('foreign_keys = ON');
+  runBundledMigrations(connection);
+  ensureSearchIndex(connection);
+  removeLegacyFileIndex(connection);
+  return connection;
 }

@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import type { IDisposable, IInitializable } from '@emdash/shared';
-import { app } from 'electron';
+import type { Disposable } from '@emdash/shared/concurrency';
+import type {
+  TelemetryEnvelope,
+  TelemetryEvent,
+  TelemetryProperties,
+  TelemetryService as TelemetryServicePort,
+} from '@core/primitives/telemetry/api/telemetry';
+import { getAppConfig } from '@main/bootstrap/core/config';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
-import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
+  appVersion?: string;
+  isPackaged?: boolean;
   installSource?: string;
 }
 
@@ -23,7 +30,7 @@ const MAX_EVENT_TS_MS = 9_999_999_999_999;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GENERIC_NUMBER = 1_000_000;
 
-class TelemetryService implements IInitializable, IDisposable {
+class DesktopTelemetryService implements Disposable, TelemetryServicePort {
   private enabled = true;
   private apiKey: string | undefined;
   private host: string | undefined;
@@ -37,6 +44,8 @@ class TelemetryService implements IInitializable, IDisposable {
   private cachedEmail: string | null = null;
   private cachedFeatureFlags: Record<string, boolean> = {};
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private appVersion = 'unknown';
+  private isPackaged = false;
   private readonly kv = new KV<TelemetryKVSchema>('telemetry');
 
   // ---------------------------------------------------------------------------
@@ -55,25 +64,17 @@ class TelemetryService implements IInitializable, IDisposable {
     );
   }
 
-  private getVersionSafe(): string {
-    try {
-      return app.getVersion();
-    } catch {
-      return 'unknown';
-    }
-  }
-
   private getBaseProps() {
     return {
       schema_version: 1,
-      app_version: this.getVersionSafe(),
+      app_version: this.appVersion,
       build_variant: appEnv.build.VITE_BUILD,
       source: 'desktop_app',
       electron_version: process.versions.electron,
       platform: process.platform,
       arch: process.arch,
-      is_dev: !app.isPackaged,
-      install_source: this.installSource ?? (app.isPackaged ? 'dmg' : 'dev'),
+      is_dev: !this.isPackaged,
+      install_source: this.installSource ?? (this.isPackaged ? 'dmg' : 'dev'),
       $lib: LIB_NAME,
       ...(this.cachedGithubUsername ? { github_username: this.cachedGithubUsername } : {}),
       ...(this.cachedAccountId ? { account_id: this.cachedAccountId } : {}),
@@ -315,13 +316,14 @@ class TelemetryService implements IInitializable, IDisposable {
   // ---------------------------------------------------------------------------
 
   async initialize(options?: InitOptions): Promise<void> {
-    const enabledEnv = (appEnv.runtime.TELEMETRY_ENABLED ?? 'true').toLowerCase();
-    this.enabled =
-      !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
+    const config = getAppConfig();
+    this.appVersion = options?.appVersion ?? 'unknown';
+    this.isPackaged = options?.isPackaged ?? false;
+    this.enabled = !isViteDevBuild && config.telemetryEnabled;
     // build value wins (prod); dev fallback used locally without VITE_ vars set
     this.apiKey = appEnv.build.VITE_POSTHOG_KEY ?? appEnv.dev.POSTHOG_PROJECT_API_KEY;
     this.host = this.normalizeHost(appEnv.build.VITE_POSTHOG_HOST ?? appEnv.dev.POSTHOG_HOST);
-    this.installSource = options?.installSource ?? appEnv.runtime.INSTALL_SOURCE;
+    this.installSource = config.installSource ?? options?.installSource;
     this.sessionId = randomUUID();
 
     // Load persisted state from SQLite KV (all reads are non-blocking best-effort)
@@ -494,4 +496,4 @@ class TelemetryService implements IInitializable, IDisposable {
   }
 }
 
-export const telemetryService = new TelemetryService();
+export const telemetryService = new DesktopTelemetryService();

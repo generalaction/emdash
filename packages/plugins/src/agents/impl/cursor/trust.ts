@@ -1,4 +1,8 @@
-import type { ITrustBehavior, PluginFs, TrustContext } from '@emdash/core/agents/plugins';
+import type {
+  ITrustBehavior,
+  PluginFs,
+  TrustContext,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 
 export function buildCursorTrustBehavior(): ITrustBehavior {
   return {

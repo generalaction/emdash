@@ -1,9 +1,10 @@
 import { ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
 import { createLiveJobReplica } from '../live/replica';
-import { createTestWire, deferred } from '../testing';
+import { createTestWire } from '../testing';
 import { defineContract, liveJob } from './define';
 
 const jobContract = defineContract({
@@ -56,9 +57,8 @@ describe('contract jobs', () => {
   it('cancels a running job', async () => {
     const { client } = setup(
       async (_input, ctx) =>
-        new Promise((resolve, reject) => {
+        new Promise<BuildResult>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')));
-          setTimeout(() => resolve({ artifact: 'late.zip' }), 10);
         })
     );
 
@@ -97,16 +97,15 @@ describe('contract jobs', () => {
   it('cancels running jobs when the controller is disposed', async () => {
     const { client, controller } = setup(
       async (_input, ctx) =>
-        new Promise((resolve, reject) => {
+        new Promise<BuildResult>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')));
-          setTimeout(() => resolve({ artifact: 'late.zip' }), 10);
         })
     );
 
     const jobs = createLiveJobReplica(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'dispose' });
     const handle = await lease.ready();
-    controller.dispose?.();
+    await controller.dispose?.();
 
     await expect(handle.result).rejects.toBeInstanceOf(LiveJobCancelledError);
     await lease.release();

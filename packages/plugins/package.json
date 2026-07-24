@@ -29,8 +29,8 @@
     }
   },
   "scripts": {
-    "dev": "tsdown --watch",
-    "build": "tsdown",
+    "dev": "tsdown --config-loader tsx --watch",
+    "build": "tsdown --config-loader tsx && tsx tooling/validate-adapters.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "oxfmt --write",
@@ -40,8 +40,6 @@
     "generate:acp-fixture": "tsx tooling/fixtures/create-acp-transcript.ts"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "^0.54.1",
-    "@agentclientprotocol/codex-acp": "^1.0.2",
     "@agentclientprotocol/sdk": "^1.1.0",
     "@emdash/core": "workspace:*",
     "@emdash/shared": "workspace:*",
@@ -61,7 +59,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@emdash/runtime": "workspace:*",
+    "@agentclientprotocol/claude-agent-acp": "^0.54.1",
+    "@agentclientprotocol/codex-acp": "^1.0.2",
     "@emdash/wire": "workspace:*",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",

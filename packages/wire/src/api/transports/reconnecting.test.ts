@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { deferred } from '../../testing';
 import type { WireMessage, WireTransport } from '../protocol';
 import { reconnectingTransport } from './reconnecting';
 
@@ -24,6 +24,30 @@ describe('reconnectingTransport', () => {
         { kind: 'cancel', id: 'second' },
       ])
     );
+    transport.close();
+  });
+
+  it('reaches readiness only after connectOnce completes and queued messages flush', async () => {
+    const handshake = deferred<void>();
+    const inner = new FakeTransport();
+    const transport = reconnectingTransport(async () => {
+      await handshake.promise;
+      return inner;
+    });
+    let ready = false;
+    void transport.ready().then(() => {
+      ready = true;
+    });
+
+    transport.post({ kind: 'detach', topic: 'after-handshake' });
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    expect(inner.sent).toEqual([]);
+
+    handshake.resolve();
+    await transport.ready();
+    await vi.waitFor(() => expect(ready).toBe(true));
+    expect(inner.sent).toEqual([{ kind: 'detach', topic: 'after-handshake' }]);
     transport.close();
   });
 
@@ -60,6 +84,47 @@ describe('reconnectingTransport', () => {
     transport.close();
   });
 
+  it('drops queued messages when maxQueuedMessages is zero', async () => {
+    const connected = deferred<WireTransport>();
+    const transport = reconnectingTransport(() => connected.promise, { maxQueuedMessages: 0 });
+    const inner = new FakeTransport();
+
+    transport.post({ kind: 'detach', topic: 'dropped' });
+    connected.resolve(inner);
+
+    await vi.waitFor(() => expect(inner.disconnectSubscriberCount).toBe(1));
+    expect(inner.sent).toEqual([]);
+
+    transport.post({ kind: 'cancel', id: 'after-connect' });
+    expect(inner.sent).toEqual([{ kind: 'cancel', id: 'after-connect' }]);
+    transport.close();
+  });
+
+  it('restores a failed flush message at the front of the queue', async () => {
+    const firstReady = deferred<WireTransport>();
+    const secondReady = deferred<WireTransport>();
+    const first = new FakeTransport();
+    const second = new FakeTransport();
+    first.failPostCount = 1;
+    const transport = reconnectingTransport(() =>
+      firstReady.settled ? secondReady.promise : firstReady.promise
+    );
+
+    transport.post({ kind: 'detach', topic: 'first' });
+    transport.post({ kind: 'cancel', id: 'second' });
+    firstReady.resolve(first);
+    await vi.waitFor(() => expect(first.failPostCount).toBe(0));
+    secondReady.resolve(second);
+
+    await vi.waitFor(() =>
+      expect(second.sent).toEqual([
+        { kind: 'detach', topic: 'first' },
+        { kind: 'cancel', id: 'second' },
+      ])
+    );
+    transport.close();
+  });
+
   it('fires reconnect only for replacement connections after queued messages flush', async () => {
     const firstReady = deferred<WireTransport>();
     const secondReady = deferred<WireTransport>();
@@ -81,6 +146,91 @@ describe('reconnectingTransport', () => {
       expect(second.sent).toEqual([{ kind: 'detach', topic: 'queued-on-reconnect' }]);
       expect(reconnects).toEqual(['reconnected']);
     });
+    transport.close();
+  });
+
+  it('returns readiness for the replacement connection after disconnect', async () => {
+    const firstReady = deferred<WireTransport>();
+    const secondReady = deferred<WireTransport>();
+    const first = new FakeTransport();
+    const second = new FakeTransport();
+    const transport = reconnectingTransport(() =>
+      firstReady.settled ? secondReady.promise : firstReady.promise
+    );
+
+    firstReady.resolve(first);
+    await transport.ready();
+    first.disconnect();
+
+    let replacementReady = false;
+    void transport.ready().then(() => {
+      replacementReady = true;
+    });
+    await Promise.resolve();
+    expect(replacementReady).toBe(false);
+
+    secondReady.resolve(second);
+    await transport.ready();
+    await vi.waitFor(() => expect(replacementReady).toBe(true));
+    transport.close();
+  });
+
+  it('stops retrying and rejects readiness for a permanent initial failure', async () => {
+    const mismatch = new Error('protocol mismatch');
+    let attempts = 0;
+    const transport = reconnectingTransport(
+      () => {
+        attempts += 1;
+        return Promise.reject(mismatch);
+      },
+      { shouldRetry: () => false }
+    );
+
+    await expect(transport.ready()).rejects.toBe(mismatch);
+    expect(attempts).toBe(1);
+    expect(() => transport.post({ kind: 'detach', topic: 'rejected' })).toThrow(mismatch);
+    transport.close();
+  });
+
+  it('rejects readiness when retry classification fails', async () => {
+    const classificationError = new Error('classification failed');
+    const transport = reconnectingTransport(() => Promise.reject(new Error('offline')), {
+      shouldRetry: () => {
+        throw classificationError;
+      },
+    });
+
+    await expect(transport.ready()).rejects.toBe(classificationError);
+    transport.close();
+  });
+
+  it('rejects replacement readiness without firing reconnect after a permanent failure', async () => {
+    const first = new FakeTransport();
+    const mismatch = new Error('protocol mismatch');
+    const reconnects: string[] = [];
+    const failures: Array<{ attempt: number; isReconnect: boolean }> = [];
+    let attempts = 0;
+    const transport = reconnectingTransport(
+      () => {
+        attempts += 1;
+        return attempts === 1 ? Promise.resolve(first) : Promise.reject(mismatch);
+      },
+      {
+        shouldRetry: (_error, context) => {
+          failures.push(context);
+          return false;
+        },
+      }
+    );
+    transport.onReconnect(() => reconnects.push('reconnected'));
+
+    await transport.ready();
+    first.disconnect();
+
+    await expect(transport.ready()).rejects.toBe(mismatch);
+    expect(attempts).toBe(2);
+    expect(failures).toEqual([{ attempt: 0, isReconnect: true }]);
+    expect(reconnects).toEqual([]);
     transport.close();
   });
 
@@ -132,6 +282,7 @@ describe('reconnectingTransport', () => {
 
 class FakeTransport implements WireTransport {
   readonly sent: WireMessage[] = [];
+  failPostCount = 0;
   private readonly messageListeners = new Set<(message: WireMessage) => void>();
   private readonly disconnectListeners = new Set<() => void>();
   private closed = false;
@@ -142,6 +293,10 @@ class FakeTransport implements WireTransport {
 
   post(message: WireMessage): void {
     if (this.closed) throw new Error('Fake transport closed');
+    if (this.failPostCount > 0) {
+      this.failPostCount -= 1;
+      throw new Error('Fake transport post failed');
+    }
     this.sent.push(message);
   }
 

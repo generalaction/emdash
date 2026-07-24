@@ -7,11 +7,12 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 ## Domain Modules (`src/main/core/`)
 
 - **account** — Emdash account service, credential store, provider token registry
-- **agent-hooks** — HTTP hook server for agent callbacks, event enrichment, OS notifications, hook/plugin config writer
+- **agent-status** — Desktop projection of runtime agent states into SQLite/cache state and renderer status events
 - **app** — App lifecycle service and controller
 - **conversations** — Conversation CRUD and session start
 - **dependencies** — CLI agent detection, probing, dependency management
-- **editor** — Editor buffer service for Monaco integration
+- **editor** (`src/core/features/editor/node/`) — Workspace-identity file adapter and editor buffer
+  service
 - **fs** — Filesystem operations with provider pattern (`local-fs.ts`, `ssh-fs.ts`)
 - **git** — Git operations (`git-service.ts`, `git-repo-utils.ts`, `detectGitInfo.ts`)
 - **github** — GitHub auth, PRs, issues, repos (via `gh` CLI)
@@ -35,14 +36,19 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - `src/main/lib/` — Logger, telemetry, events, result type, updater error
 - `src/main/db/` — Database schema and initialization
 - `src/main/utils/` — Shell environment, shell escaping, child process env, external links
-- `src/main/core/agent-hooks/` — Hook server, event enrichment, OS notifications, hook/plugin config writer
+- `src/main/core/agent-status/` — Agent status cache projection and runtime bridges
+- `src/services/notifications/` — Desktop notification service with persisted feed, Wire LiveModel/event stream, batching, sound, and OS notification sinks
 
 ## IPC / RPC Structure
 
-- All domain controllers are assembled into a typed RPC router in `src/main/rpc.ts`.
-- RPC primitives live in `src/shared/ipc/rpc.ts` (`createRPCRouter`, `createRPCController`, `createRPCClient`).
-- Event primitives live in `src/shared/ipc/events.ts`.
-- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`, `eventOn`, and `getPathForFile`; there are no other manual IPC handlers.
+- Domain Wire contracts are assembled in
+  `src/core/manifests/shared/desktop-wire-contract.ts`.
+- Node controllers and event hosts live in owning slices under `src/core/features/*/node/`.
+- Lazy controller factories are contributed by `src/core/manifests/node/controllers.ts`; the
+  shared desktop contract remains a hand-composed renderer-safe manifest of slice API contracts.
+- `src/main/gateway/desktop-wire.ts` serves the desktop contract over a transferred message port.
+- The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
+  `getPathForFile`.
 
 ## When Editing Here
 

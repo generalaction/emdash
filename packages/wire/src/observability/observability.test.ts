@@ -1,7 +1,7 @@
+import { createStubLogger } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import type { Controller } from '../api/controller';
 import { loggingTransport, memoryTransportPair } from '../api/transports';
-import { createStubLogger } from '../testing';
 import { loggerInstrumentation } from './logger-instrumentation';
 import { withLogging } from './with-logging';
 
@@ -34,6 +34,7 @@ describe('withLogging', () => {
     const controller: Controller = {
       call: async (_path, input) => input,
       resolveLive: () => null,
+      acquireLive: () => null,
     };
     const logged = withLogging(controller, logger, { level: 'debug', payloads: true });
 

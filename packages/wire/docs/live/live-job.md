@@ -63,8 +63,8 @@ serialized `cause`.
 
 `source(jobId)` returns a read-only live source for that job. `snapshot(jobId)` and
 `getState(jobId)` are convenience accessors. `cancel(id)` aborts a running job.
-`dispose()` aborts running jobs, clears eviction timers, and removes all job
-state.
+`dispose()` is async: it aborts running jobs, waits for cooperative handlers to
+settle, clears eviction timers, and removes all job state.
 
 Terminal job state is retained for `LIVE_JOB_TERMINAL_RETAIN_MS` (5 minutes) so
 late clients can reattach by id. This retention is process-local, not durable.
@@ -147,6 +147,11 @@ await jobs.dispose();
 `ReplicaJob` exposes `jobId`, `ready`, `result`, `getState()`,
 `onProgress(cb)`, and `cancel()`. The `LiveJobReplica` manager owns ref counting,
 subscription sharing, and terminal-state retention.
+
+`LiveJob` accepts a `Clock` for deterministic start/finish timestamps and
+terminal retention eviction. Server disposal is awaitable: it cancels active job
+runs, waits for cooperative handlers to settle, and disposes retention timers
+before returning.
 
 Cancellation at the procedure/wire level is documented in
 [serving](../api/serving.md#cancellation). Job cancellation is domain-level:

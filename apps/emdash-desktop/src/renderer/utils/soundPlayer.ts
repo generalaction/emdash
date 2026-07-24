@@ -1,7 +1,7 @@
-import type { SoundEvent } from '@shared/core/agents/agentEvents';
-import type { NotificationSettings } from '@shared/core/app-settings';
-import { rpc } from '../lib/ipc';
+import type { SoundEvent } from '@core/primitives/agents/api';
+import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import { queryClient } from '../lib/query-client';
+import { getDesktopWireClient } from '../lib/runtime/desktop-wire-client';
 
 let audioCtx: AudioContext | null = null;
 let settings: NotificationSettings = {
@@ -44,8 +44,8 @@ function applyMeta(meta: unknown): void {
 }
 
 export function initSoundPlayer(): () => void {
-  rpc.appSettings
-    .getWithMeta('notifications')
+  getDesktopWireClient()
+    .then((client) => client.appSettings.getWithMeta({ key: 'notifications' }))
     .then((meta) => {
       queryClient.setQueryData([...NOTIFICATIONS_QUERY_KEY], meta);
       applyMeta(meta);
@@ -133,7 +133,9 @@ function playTaskComplete(): Array<() => void> {
 async function getCustomSoundDataUrl(path: string): Promise<string | null> {
   let dataUrl = customAudioCache.get(path);
   if (!dataUrl) {
-    const result = (await rpc.app.readAudioFileDataUrl(path)) as
+    const result = (await (
+      await getDesktopWireClient()
+    ).host.readAudioFileDataUrl({ filePath: path })) as
       | { success: true; dataUrl: string }
       | { success: false; error: string };
     if (!result.success) return null;
@@ -177,10 +179,7 @@ function stopActivePreview(): void {
 }
 
 export const soundPlayer = {
-  play(event: SoundEvent, appFocused?: boolean, dedupeKey?: string): void {
-    if (!settings.enabled) return;
-    if (!settings.sound) return;
-    if (settings.soundFocusMode === 'unfocused' && appFocused) return;
+  play(event: SoundEvent, dedupeKey?: string): void {
     if (dedupeKey) {
       const now = Date.now();
       pruneRecentSounds(now);

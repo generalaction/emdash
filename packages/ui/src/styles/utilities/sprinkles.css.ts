@@ -9,9 +9,9 @@ import '../surfaces.css';
  * color/surface reference emits a typed var(--*) that automatically adapts to
  * the active .em<id> theme class and .surface-* cascade scope.
  *
- * Non-color design tokens (radius, font-family, font-size) are referenced as
- * raw CSS variable strings because they come from :root in theme.base.css and
- * do not change per theme — no contract entry is needed for them.
+ * Non-color design tokens use tokenVars. Spacing/radius values are generated
+ * by @emdash/theme density classes; typography and motion values remain static
+ * :root vars emitted by tokens.css.ts.
  *
  * Usage:
  *   import { sx } from '@emdash/ui/theme/sprinkles';
@@ -80,21 +80,21 @@ const layoutProps = defineProperties({
 // ── Spacing ───────────────────────────────────────────────────────────────────
 
 const SPACE = {
-  '0': '0',
-  '0.5': '2px',
-  '1': '4px',
-  '1.5': '6px',
-  '2': '8px',
-  '2.5': '10px',
-  '3': '12px',
-  '3.5': '14px',
-  '4': '16px',
-  '5': '20px',
-  '6': '24px',
-  '7': '28px',
-  '8': '32px',
-  '10': '40px',
-  '12': '48px',
+  '0': tokenVars.space0,
+  '0.5': tokenVars.space0_5,
+  '1': tokenVars.space1,
+  '1.5': tokenVars.space1_5,
+  '2': tokenVars.space2,
+  '2.5': tokenVars.space2_5,
+  '3': tokenVars.space3,
+  '3.5': tokenVars.space3_5,
+  '4': tokenVars.space4,
+  '5': tokenVars.space5,
+  '6': tokenVars.space6,
+  '7': tokenVars.space7,
+  '8': tokenVars.space8,
+  '10': tokenVars.space10,
+  '12': tokenVars.space12,
 } as const;
 
 const spacingProps = defineProperties({
@@ -136,9 +136,6 @@ const typographyProps = defineProperties({
     },
     fontWeight: {
       normal: tokenVars.fontWeightNormal,
-      medium: tokenVars.fontWeightMedium,
-      semibold: tokenVars.fontWeightSemibold,
-      bold: tokenVars.fontWeightBold,
     },
     lineHeight: {
       none: 1,
@@ -324,6 +321,13 @@ const borderProps = defineProperties({
       '50': 0.5,
       '75': 0.75,
       '100': 1,
+    },
+    boxShadow: {
+      none: 'none',
+      sm: vars.shadowSm,
+      md: vars.shadowMd,
+      lg: vars.shadowLg,
+      overlay: vars.shadowOverlay,
     },
   },
   shorthands: {

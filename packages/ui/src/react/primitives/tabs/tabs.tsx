@@ -35,7 +35,7 @@ const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsT
     <TabsPrimitive.Tab
       ref={ref}
       data-slot="tabs-tab"
-      className={cx(controlVariants({ variant: 'ghost', tone, size }), className)}
+      className={cx(controlVariants({ variant: 'ghost', tone, size }), styles.tab, className)}
       {...props}
     />
   );

@@ -1,0 +1,280 @@
+import { ChevronsUpDownIcon } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useState } from 'react';
+import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { useModalController } from '@core/manifests/browser/modal-api';
+import { defineModal } from '@core/primitives/modals/react';
+import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
+import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
+import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@core/primitives/ui/browser/dialog';
+import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
+import { Input } from '@core/primitives/ui/browser/input';
+import { Label } from '@core/primitives/ui/browser/label';
+import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
+import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+
+export type AddRemoteModalArgs = {
+  projectId: string;
+  projectName: string;
+  branchName: string;
+  workspaceId: string;
+};
+
+type Tab = 'create' | 'link';
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'string' && error.length > 0) return error;
+  if (error instanceof Error && error.message.length > 0) return error.message;
+  return fallback;
+}
+
+export const AddRemoteModal = observer(function AddRemoteModal({
+  projectId,
+  projectName,
+  workspaceId,
+  branchName,
+}: AddRemoteModalArgs) {
+  const { complete } = useModalController('addRemoteModal');
+  const [tab, setTab] = useState<Tab>('create');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [repositoryName, setRepositoryName] = useState(projectName);
+  const [visibility, setVisibility] = useState<'public' | 'private'>('private');
+  const [url, setUrl] = useState('');
+
+  const settingsStore = getProjectSettingsStore(projectId);
+  const rawGitHubAccountId = settingsStore?.settings?.githubAccountId ?? null;
+  const githubAccountId =
+    typeof rawGitHubAccountId === 'string' && rawGitHubAccountId.trim().length > 0
+      ? rawGitHubAccountId.trim()
+      : null;
+  const settingsError = settingsStore?.pageData.error ?? null;
+  const settingsLoading =
+    !!settingsStore && settingsStore.pageData.data === null && settingsError === null;
+
+  const {
+    owners,
+    owner,
+    isLoading: ownersLoading,
+    errorMessage: ownersErrorMessage,
+    handleOwnerChange,
+  } = useGitHubRepositoryOwnerSelect(githubAccountId);
+  const repositoryStore = getGitRepositoryStore(projectId);
+  const selectedRemote = repositoryStore?.pushRemote.name ?? 'origin';
+  const canSubmitCreateRepository =
+    githubAccountId !== null &&
+    !settingsLoading &&
+    !ownersLoading &&
+    !settingsError &&
+    !ownersErrorMessage &&
+    repositoryName.trim().length > 0 &&
+    !!owner;
+  const isValid = tab === 'create' ? canSubmitCreateRepository : url.trim().length > 0;
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      if (tab === 'create') {
+        if (!githubAccountId) {
+          setError(
+            'Select a GitHub account in project settings before creating a GitHub repository'
+          );
+          return;
+        }
+        if (!owner) {
+          setError(ownersErrorMessage ?? 'No repository owner available');
+          return;
+        }
+
+        const result = await (
+          await getDesktopWireClient()
+        ).github.createRepository({
+          name: repositoryName.trim(),
+          owner: owner.value,
+          isPrivate: visibility === 'private',
+          accountId: githubAccountId,
+        });
+
+        if (!result.success) {
+          setError(result.error ?? 'Failed to create repository');
+          return;
+        }
+
+        if (!result.repoUrl) {
+          setError('Created repository did not include a remote URL');
+          return;
+        }
+
+        if (!repositoryStore) throw new Error('Git repository is unavailable');
+        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, result.repoUrl);
+
+        if (!addRemoteResult.success) {
+          setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
+          return;
+        }
+      } else {
+        if (!repositoryStore) throw new Error('Git repository is unavailable');
+        const addRemoteResult = await repositoryStore.addRemote(selectedRemote, url.trim());
+
+        if (!addRemoteResult.success) {
+          setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
+          return;
+        }
+      }
+
+      if (!repositoryStore) throw new Error('Git repository is unavailable');
+      const fetchResult = await repositoryStore.fetchRemote();
+      if (!fetchResult.success) {
+        setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
+        return;
+      }
+
+      const publishResult = await repositoryStore.publishBranch(branchName, workspaceId);
+      if (!publishResult.success) {
+        if (publishResult.error.type === 'rejected') {
+          repositoryStore?.refreshLocal();
+          repositoryStore?.refreshRemote();
+          setError(
+            'Remote already has commits. Linking succeeded, but integrating histories must be resolved manually.'
+          );
+          return;
+        }
+        setError(toErrorMessage(publishResult.error, 'Failed to publish branch'));
+        return;
+      }
+
+      repositoryStore?.refreshLocal();
+      repositoryStore?.refreshRemote();
+      complete();
+    } catch (e) {
+      setError(toErrorMessage(e, 'An error occurred'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalLayout
+      header={
+        <DialogHeader>
+          <DialogTitle>Add Remote</DialogTitle>
+        </DialogHeader>
+      }
+      footer={
+        <DialogFooter>
+          <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
+            {isSubmitting ? 'Adding...' : tab === 'create' ? 'Create & Publish' : 'Link & Publish'}
+          </ConfirmButton>
+        </DialogFooter>
+      }
+    >
+      <DialogContentArea className="gap-4">
+        <ToggleGroup
+          className="w-full"
+          value={[tab]}
+          onValueChange={([v]) => {
+            if (v) setTab(v as Tab);
+          }}
+        >
+          <ToggleGroupItem className="flex-1" value="create">
+            Create Repository
+          </ToggleGroupItem>
+          <ToggleGroupItem className="flex-1" value="link">
+            Link Existing
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        {tab === 'create' && (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Repository Name</FieldLabel>
+              <Input
+                autoFocus
+                value={repositoryName}
+                onChange={(e) => setRepositoryName(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Owner</FieldLabel>
+              <ComboboxPopover
+                trigger={
+                  <ComboboxTrigger
+                    render={
+                      <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+                        <ComboboxValue />
+                        <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
+                      </button>
+                    }
+                  />
+                }
+                items={owners}
+                defaultValue={owner}
+                value={owner}
+                onValueChange={handleOwnerChange}
+              />
+              {githubAccountId === null && !settingsLoading && !settingsError && (
+                <p className="text-muted-foreground text-xs">
+                  Select a GitHub account in project settings before creating a GitHub repository.
+                </p>
+              )}
+              {settingsError && <p className="text-destructive text-xs">{settingsError}</p>}
+              {ownersErrorMessage && (
+                <p className="text-destructive text-xs">{ownersErrorMessage}</p>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel>Visibility</FieldLabel>
+              <RadioGroup
+                value={visibility}
+                onValueChange={(v) => setVisibility(v as 'public' | 'private')}
+              >
+                <Label className="flex cursor-pointer items-center gap-3 font-normal">
+                  <RadioGroupItem value="private" />
+                  Private
+                </Label>
+                <Label className="flex cursor-pointer items-center gap-3 font-normal">
+                  <RadioGroupItem value="public" />
+                  Public
+                </Label>
+              </RadioGroup>
+            </Field>
+          </FieldGroup>
+        )}
+
+        {tab === 'link' && (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Remote URL</FieldLabel>
+              <Input
+                autoFocus
+                placeholder="https://git.example.com/owner/repo.git"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+        )}
+
+        {error && <p className="text-destructive text-sm">{error}</p>}
+      </DialogContentArea>
+    </ModalLayout>
+  );
+});
+
+export const addRemoteModal = defineModal<void>()({
+  id: 'addRemoteModal',
+  component: AddRemoteModal,
+});

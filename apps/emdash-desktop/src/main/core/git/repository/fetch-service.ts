@@ -1,12 +1,16 @@
-import { gitErrorMessage } from '@emdash/core/git';
-import { err } from '@emdash/shared';
+import {
+  gitContract,
+  type FetchError,
+  type RepositorySelector,
+} from '@emdash/core/runtimes/git/api';
+import { err, type Result } from '@emdash/shared';
+import { gitErrorMessage, runGitJob } from '@main/core/git/runtime-client';
+import type { GitRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
-import type { GitRepositoryService } from './service';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
-type GitRepositoryFetchTarget = Pick<GitRepositoryService, 'fetch' | 'getRemotes'>;
-type GitRepositoryFetchResult = Awaited<ReturnType<GitRepositoryFetchTarget['fetch']>>;
+type GitRepositoryFetchResult = Result<void, FetchError>;
 
 export class GitRepositoryFetchService {
   private _timer: ReturnType<typeof setInterval> | undefined;
@@ -14,7 +18,8 @@ export class GitRepositoryFetchService {
   private readonly intervalMs = DEFAULT_INTERVAL_MS;
 
   constructor(
-    private readonly gitRepository: GitRepositoryFetchTarget,
+    private readonly git: GitRuntimeClient,
+    private readonly repository: RepositorySelector,
     private readonly getRemote: () => Promise<string | undefined>
   ) {}
 
@@ -26,16 +31,6 @@ export class GitRepositoryFetchService {
     this._scheduleNext();
   }
 
-  /**
-   * Trigger an immediate fetch and reset the interval timer so the next
-   * background tick is `intervalMs` from now. Concurrent callers share the
-   * same in-flight promise (deduplicated).
-   */
-  async fetch(): Promise<GitRepositoryFetchResult> {
-    this._resetTimer();
-    return this._doFetch();
-  }
-
   stop(): void {
     clearInterval(this._timer);
     this._timer = undefined;
@@ -45,7 +40,10 @@ export class GitRepositoryFetchService {
     if (this._inflight) return this._inflight;
     this._inflight = this.getRemote()
       .then(async (remote) => {
-        return this.gitRepository.fetch(remote);
+        return runGitJob(gitContract.repository.fetch, this.git.repository.fetch, {
+          ...this.repository,
+          remote,
+        });
       })
       .catch((e): GitRepositoryFetchResult => {
         const message = gitErrorMessage(e);
@@ -58,11 +56,6 @@ export class GitRepositoryFetchService {
     return this._inflight;
   }
 
-  private _resetTimer(): void {
-    clearInterval(this._timer);
-    this._scheduleNext();
-  }
-
   private _scheduleNext(): void {
     this._timer = setInterval(() => {
       void this._canBackgroundFetchWithoutPrompt().then((canFetch) => {
@@ -73,7 +66,7 @@ export class GitRepositoryFetchService {
 
   private async _canBackgroundFetchWithoutPrompt(): Promise<boolean> {
     try {
-      await this.gitRepository.getRemotes();
+      await this.git.repository.model.state(this.repository, 'remotes').snapshot();
     } catch {
       return false;
     }

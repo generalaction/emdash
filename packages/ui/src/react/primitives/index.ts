@@ -1,12 +1,15 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
 export { Box } from './box';
+export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
 export { Button, type ButtonProps } from './button';
+export { Icon, type IconName, type IconProps, type IconSize } from './icon';
 export { Input, type InputProps } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Switch, type SwitchProps } from './switch';
 export { SearchInput, type SearchInputProps } from './search-input';
 export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { SeparatedList, type SeparatedListProps } from './separated-list';
+export { SelectableCard, type SelectableCardProps } from './selectable-card';
 export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Text, type TextProps } from './typography/Text';
@@ -18,6 +21,7 @@ export { Toggle, ToggleGroup, type ToggleProps, type ToggleGroupProps } from './
 
 // ── Multi-part namespace consts ───────────────────────────────────────────────
 export { Select } from './select';
+export { RadioGroup } from './radio-group';
 export { Dialog, type DialogSize } from './dialog';
 export { Sheet, type SheetSide } from './sheet';
 export { Popover } from './popover';
@@ -27,6 +31,7 @@ export { Tabs, type TabsTabProps } from './tabs/tabs';
 export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
 export { InputGroup, type InputGroupAddonAlign } from './input-group';
 export { Alert, type AlertProps } from './alert';
+export { Field, type FieldVariants } from './field';
 
 // ── Non-namespaced compound helpers (remain as named exports) ─────────────────
 export {
@@ -49,6 +54,8 @@ export {
   type SplitButtonOption,
   type SplitButtonOptionTone,
 } from './split-button';
+
+export { SegmentedSpinnerIcon, type SegmentedSpinnerIconProps } from './segmented-spinner';
 
 // ── Theme / provider ──────────────────────────────────────────────────────────
 export {

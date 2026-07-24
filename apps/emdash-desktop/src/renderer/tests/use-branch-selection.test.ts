@@ -1,7 +1,7 @@
-import type { GitBranchRef } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 

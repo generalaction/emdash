@@ -14,7 +14,16 @@ export {
   type LiveModelHostOptions,
 } from './host';
 export { type LiveStateRef } from './model-ref';
-export { stableStringify } from './registry';
+export {
+  createResourceLiveModelHost,
+  type ResourceLiveModelHost,
+  type ResourceLiveModelHostOptions,
+  type ResourceMutationContext,
+  type ResourceMutationHandlers,
+  type ResourceMutationName,
+  type ResourceStateBindings,
+  type ResourceStateName,
+} from './resource-host';
 export {
   DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES,
   DEFAULT_MUTATION_RESULT_CACHE_TTL_MS,

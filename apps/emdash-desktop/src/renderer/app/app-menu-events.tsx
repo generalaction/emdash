@@ -1,101 +1,76 @@
-import { when } from 'mobx';
 import { useEffect } from 'react';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { events, rpc } from '@renderer/lib/ipc';
-import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import {
-  menuGiveFeedbackChannel,
-  menuOpenSettingsChannel,
-  menuQuitRequestedChannel,
-  notificationFocusTaskChannel,
-} from '@shared/events/appEvents';
-import { browserLinkCopiedChannel } from '@shared/events/browserEvents';
+import { useRegisterNotificationOpenHandlers } from '@core/features/workbench/contributions/browser/notification-open-handlers';
+import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { scopes } from '@core/primitives/view-scopes/browser';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
-  const { navigate } = useNavigate();
-  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
-  const showConfirmQuitModal = useShowModal('confirmActionModal');
-  const showFeedbackModal = useShowModal('feedbackModal');
+  useRegisterNotificationOpenHandlers();
 
   useEffect(() => {
-    return events.on(menuOpenSettingsChannel, () => {
-      if (currentView !== 'settings') {
-        const shouldOpen = onOpenSettings?.() ?? true;
-        if (shouldOpen === false) return;
-      }
-
-      toggleSettingsView(navigate, currentView, lastNonSettingsView);
-    });
-  }, [navigate, onOpenSettings, currentView, lastNonSettingsView]);
-
-  useEffect(() => {
-    return events.on(menuQuitRequestedChannel, () => {
-      showConfirmQuitModal({
-        title: 'Quit Emdash?',
-        description: 'Active terminal sessions and running agents will stop when the app quits.',
-        confirmLabel: 'Quit',
-        onSuccess: () => {
-          void rpc.app.quit();
-        },
-      });
-    });
-  }, [showConfirmQuitModal]);
-
-  useEffect(() => {
-    return events.on(menuGiveFeedbackChannel, () => {
-      showFeedbackModal({});
-    });
-  }, [showFeedbackModal]);
-
-  useEffect(() => {
-    return events.on(browserLinkCopiedChannel, ({ kind }) => {
-      const title =
-        kind === 'url'
-          ? 'Browser URL copied'
-          : kind === 'image'
-            ? 'Image URL copied'
-            : 'Link copied';
-      toast({ title });
-    });
-  }, []);
-
-  useEffect(() => {
-    const disposers = new Set<() => void>();
-
-    const unlisten = events.on(
-      notificationFocusTaskChannel,
-      ({ projectId, taskId, conversationId }) => {
-        navigate('task', { projectId, taskId });
-        if (!conversationId) return;
-
-        // Task view may not be provisioned yet — wait for it before opening the conversation tab.
-        const dispose = when(
-          () => !!getTaskView(projectId, taskId),
-          () => {
-            getTaskView(projectId, taskId)?.paneLayout.open(
-              'conversation',
-              { conversationId },
-              { preview: false }
-            );
-          },
-          {
-            timeout: 10_000,
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'menu-command') {
+            const command = COMMAND_CATALOG.byId(event.commandId);
+            if (!command) return;
+            if (command.id === 'app.settings' && onOpenSettings?.() === false) return;
+            const execute = () => {
+              const bound = scopes.getActiveCommand(command);
+              if (!bound) return false;
+              if (bound.availability.kind === 'enabled') {
+                bound.execute(undefined, 'menu');
+              }
+              return true;
+            };
+            if (!execute()) {
+              requestAnimationFrame(() => {
+                if (!execute() && import.meta.env.DEV) {
+                  console.warn(`Menu command has no active binding: ${command.id}`);
+                }
+              });
+            }
           }
-        );
-
-        disposers.add(dispose);
-      }
-    );
-
+        },
+        onGap: () => {},
+      });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
+    });
     return () => {
-      unlisten();
-      disposers.forEach((dispose) => dispose());
-      disposers.clear();
+      disposed = true;
+      unsubscribe?.();
     };
-  }, [navigate]);
+  }, [onOpenSettings]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void getDesktopWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.browser.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type !== 'link-copied') return;
+          const title =
+            event.kind === 'url'
+              ? 'Browser URL copied'
+              : event.kind === 'image'
+                ? 'Image URL copied'
+                : 'Link copied';
+          toast({ title });
+        },
+        onGap: () => {},
+      });
+      if (disposed) nextUnsubscribe();
+      else unsubscribe = nextUnsubscribe;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, []);
 
   return null;
 }

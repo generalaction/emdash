@@ -1,7 +1,8 @@
+import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveLog } from '../../api/define';
-import { createTestWire, waitFor } from '../../testing';
+import { createTestWire } from '../../testing';
 import { LiveLog } from '../log';
 import { createLiveLogReplica } from './log';
 

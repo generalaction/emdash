@@ -1,13 +1,13 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Input } from '@renderer/lib/ui/input';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { Input } from '@core/primitives/ui/browser/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@renderer/lib/ui/select';
-import { cn } from '@renderer/utils/utils';
+} from '@core/primitives/ui/browser/select';
 import {
   changePeriod,
   DEFAULT_CRON_STATE,

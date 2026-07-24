@@ -1,4 +1,4 @@
-import type { Result, Unsubscribe } from '@emdash/shared';
+import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { isEventStreamHost, type EventStreamHost } from '../live/event-stream';
 import { LiveJob, type LiveJobContext } from '../live/job';
@@ -6,9 +6,11 @@ import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/m
 import type { LiveSource } from '../live/protocol';
 import {
   isLiveJobReplica,
+  isLeasedLiveModelProvider,
   isLiveLogReplica,
   isLiveModelProvider,
   type LiveJobReplica,
+  type LeasedLiveModelProvider,
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
@@ -36,12 +38,14 @@ import type {
   EndpointInput,
   EndpointOutput,
   LiveLogKey,
+  LiveLogEndpointDef,
   LiveJobEndpointDef,
   JobInput,
   JobProgress,
   JobResult,
   JobError,
   LiveModelDef,
+  ProcedureDef,
   UploadFileEndpointDef,
   UploadFileError,
   UploadFileInput,
@@ -85,10 +89,11 @@ export function isDownloadFileOpenResult(
 export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
   resolveLive(topic: string): LiveSource | null;
-  dispose?(): void;
+  acquireLive(topic: string): PendingLease<LiveSource> | null;
+  dispose?(): Promise<void>;
 };
 
-type ProcedureImpl<Def extends EndpointDef> = (
+export type ProcedureHandler<Def extends ProcedureDef = ProcedureDef> = (
   input: EndpointInput<Def>,
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
@@ -108,16 +113,18 @@ type UploadFileImpl<Def extends UploadFileEndpointDef> = (
   | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
   | Result<UploadFileResult<Def>, UploadFileError<Def>>;
 
-type LiveLogImpl<Def extends EndpointDef> = (key: LiveLogKey<Def>) => LiveSource | null | undefined;
+type MaybeAsyncLiveSource = LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
 
-type LiveLogEntryImpl<Def extends EndpointDef> =
+type LiveLogImpl<Def extends LiveLogEndpointDef> = (key: LiveLogKey<Def>) => MaybeAsyncLiveSource;
+
+type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
   | LiveLogImpl<Def>
   | LiveLogClientHandle
   | LiveLogReplica;
 
 type EventStreamImpl<Def extends EventStreamEndpointDef> = (
   key: EventStreamKey<Def>
-) => LiveSource | null | undefined;
+) => MaybeAsyncLiveSource;
 
 type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
   | EventStreamImpl<Def>
@@ -127,11 +134,12 @@ type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
 type GroupImpl<Def extends LiveModelDef> =
   | LiveModelHost<Def>
   | LiveModelClientHandle<Def>
-  | LiveModelProvider<Def>;
+  | LiveModelProvider<Def>
+  | LeasedLiveModelProvider<Def>;
 
-type EndpointImpl<Def extends EndpointDef> = Def extends { kind: 'procedure' }
-  ? ProcedureImpl<Def>
-  : Def extends { kind: 'liveLog' }
+type EndpointImpl<Def extends EndpointDef> = Def extends ProcedureDef
+  ? ProcedureHandler<Def>
+  : Def extends LiveLogEndpointDef
     ? LiveLogEntryImpl<Def>
     : Def extends EventStreamEndpointDef
       ? EventStreamEntryImpl<Def>
@@ -162,7 +170,8 @@ export type ContractImpl<Defs extends ContractDefinitions> = {
 };
 
 type LiveEntry = {
-  resolve(key: unknown): LiveSource | null | undefined;
+  resolve?(key: unknown): MaybeAsyncLiveSource;
+  acquire?(key: unknown): PendingLease<LiveSource>;
 };
 
 const jobKeySchema = z.object({ jobId: z.string() });
@@ -173,7 +182,7 @@ export function createController<Defs extends ContractDefinitions>(
 ): Controller {
   const liveEntries = new Map<string, LiveEntry>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
-  const jobServers: Array<{ dispose(): void }> = [];
+  const jobServers: Array<{ dispose(): Promise<void> }> = [];
 
   collectContractEntries(contract, impl as Record<string, unknown>, []);
 
@@ -235,7 +244,7 @@ export function createController<Defs extends ContractDefinitions>(
           break;
         }
         case 'liveLog': {
-          const impl = entryImpl as LiveLogEntryImpl<EndpointDef> | undefined;
+          const impl = entryImpl as LiveLogEntryImpl<LiveLogEndpointDef> | undefined;
           if (!impl) {
             throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
           }
@@ -328,9 +337,12 @@ export function createController<Defs extends ContractDefinitions>(
         case 'liveModel': {
           const provider = createGroupProvider(def, entryImpl, fullPath);
           for (const [stateName, state] of Object.entries(def.states)) {
-            liveEntries.set(state.id, {
-              resolve: (key) => provider.resolveState(key as never, stateName),
-            });
+            liveEntries.set(
+              state.id,
+              provider.kind === 'leasedLiveModelProvider'
+                ? { acquire: (key) => provider.acquireState(key as never, stateName) }
+                : { resolve: (key) => provider.resolveState(key as never, stateName) }
+            );
           }
           for (const mutationName of Object.keys(def.mutations)) {
             procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
@@ -348,7 +360,17 @@ export function createController<Defs extends ContractDefinitions>(
     def: LiveModelDef,
     entryImpl: unknown,
     fullPath: string
-  ): LiveModelProvider {
+  ): LiveModelProvider | LeasedLiveModelProvider {
+    if (isLeasedLiveModelProvider(entryImpl)) {
+      if (entryImpl.contract.id !== def.id) {
+        throw new WireError(
+          'CONTRACT_MISMATCH',
+          `Leased live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
+        );
+      }
+      return entryImpl;
+    }
+
     if (isLiveModelProvider(entryImpl)) {
       if (entryImpl.contract.id !== def.id) {
         throw new WireError(
@@ -412,12 +434,39 @@ export function createController<Defs extends ContractDefinitions>(
     resolveLive(topic) {
       const { refId, rawKey } = splitTopic(topic);
       const entry = liveEntries.get(refId);
+      if (!entry?.resolve) return null;
+      const result = entry.resolve(rawKey);
+      if (result == null) return missingLiveSource(`Unknown live topic '${topic}'`);
+      if (isPromiseLike(result)) return awaitedLiveSource(result, `Unknown live topic '${topic}'`);
+      return result;
+    },
+    acquireLive(topic) {
+      const { refId, rawKey } = splitTopic(topic);
+      const entry = liveEntries.get(refId);
       if (!entry) return null;
-      return entry.resolve(rawKey) ?? missingLiveSource(`Unknown live topic '${topic}'`);
+      if (entry.acquire) return entry.acquire(rawKey);
+      const result = entry.resolve?.(rawKey);
+      if (result == null)
+        return immediateLiveSourceLease(missingLiveSource(`Unknown live topic '${topic}'`));
+      if (isPromiseLike(result)) {
+        const resolved = result.then(
+          (s) => s ?? missingLiveSource(`Unknown live topic '${topic}'`)
+        );
+        resolved.catch(() => {});
+        return { ready: async () => await resolved, release: async () => {} };
+      }
+      return immediateLiveSourceLease(result);
     },
-    dispose() {
-      for (const server of jobServers) server.dispose();
+    async dispose() {
+      await Promise.all(jobServers.map((server) => server.dispose()));
     },
+  };
+}
+
+function immediateLiveSourceLease(source: LiveSource): PendingLease<LiveSource> {
+  return {
+    ready: async () => source,
+    release: async () => {},
   };
 }
 
@@ -485,17 +534,17 @@ function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile):
 export { encodeTopic, splitTopic } from './topics';
 
 function createLiveLogResolver(
-  impl: LiveLogEntryImpl<EndpointDef>
-): (key: unknown) => LiveSource | null | undefined {
+  impl: LiveLogEntryImpl<LiveLogEndpointDef>
+): (key: unknown) => MaybeAsyncLiveSource {
   if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
   if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
-  return impl as (key: unknown) => LiveSource | null | undefined;
+  return impl as (key: unknown) => MaybeAsyncLiveSource;
 }
 
 function createEventStreamResolver(
   def: EventStreamEndpointDef,
   impl: EventStreamEntryImpl<EventStreamEndpointDef>
-): (key: unknown) => LiveSource | null | undefined {
+): (key: unknown) => MaybeAsyncLiveSource {
   if (isEventStreamHost(impl)) {
     if (impl.def.id !== def.id) {
       throw new WireError(
@@ -514,7 +563,7 @@ function createEventStreamResolver(
     }
     return (key) => impl.handle(key as never).asLiveSource();
   }
-  return impl as (key: unknown) => LiveSource | null | undefined;
+  return impl as (key: unknown) => MaybeAsyncLiveSource;
 }
 
 function createLiveJob(
@@ -556,6 +605,26 @@ function missingLiveSource(message: string): LiveSource {
       throw new WireError('NOT_FOUND', message);
     },
   };
+}
+
+function awaitedLiveSource(
+  pending: Promise<LiveSource | null | undefined>,
+  missingMessage: string
+): LiveSource {
+  const resolved = pending.then((s) => s ?? missingLiveSource(missingMessage));
+  resolved.catch(() => {});
+  return {
+    async snapshot() {
+      return await (await resolved).snapshot();
+    },
+    async subscribe(callback, options) {
+      return await (await resolved).subscribe(callback, options);
+    },
+  };
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<LiveSource | null | undefined> {
+  return typeof (value as PromiseLike<unknown>)?.then === 'function';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

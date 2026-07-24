@@ -11,8 +11,12 @@
   "type": "module",
   "main": "./dist/index.mjs",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown --config-loader tsx",
     "dev": "node --watch --experimental-strip-types src/index.ts",
+    "dev:remote": "node --experimental-strip-types scripts/dev-remote.ts",
+    "package": "node --experimental-strip-types scripts/package.ts",
+    "upload:r2": "node --experimental-strip-types scripts/upload-r2.ts",
+    "run:docker-remote": "docker compose up --build -d workspace-remote",
     "start": "node dist/index.mjs",
     "test": "vitest run",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/apps/workspace-server\"'",
@@ -23,15 +27,17 @@
   "dependencies": {
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
-    "@emdash/runtime": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/wire": "workspace:*",
+    "@parcel/watcher": "2.5.6",
+    "better-sqlite3": "12.10.0",
     "node-pty": "1.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^20.19.42",
+    "@types/node": "^24.13.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
+    "s3mini": "^0.9.5",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"
   },

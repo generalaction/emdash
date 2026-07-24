@@ -12,21 +12,26 @@
  * unaffected by internal refactors.
  */
 
+import { allSurfaceVarNames, nsName, SEMANTIC_TEMPLATE, SHADOW_NAMES } from '@emdash/theme';
 import { createGlobalThemeContract } from '@vanilla-extract/css';
-import { nsName } from './namespace';
-import { allSurfaceVarNames } from './roles';
-import { SEMANTIC_TEMPLATE } from './semantic-template';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 
-const semanticKeys = Object.fromEntries(
+const semanticKeys: Record<string, string> = Object.fromEntries(
   Object.keys(SEMANTIC_TEMPLATE).map((slot) => [toCamel(slot), slot])
 );
 
-const surfaceKeys = Object.fromEntries(allSurfaceVarNames().map((v) => [toCamel(v), v]));
+const surfaceKeys: Record<string, string> = Object.fromEntries(
+  allSurfaceVarNames().map((v) => [toCamel(v), v])
+);
 
-export const vars = createGlobalThemeContract({ ...semanticKeys, ...surfaceKeys }, (name) =>
-  nsName(name ?? '')
+const shadowKeys: Record<string, string> = Object.fromEntries(
+  SHADOW_NAMES.map((name) => [toCamel(`shadow-${name}`), `shadow-${name}`])
+);
+
+export const vars = createGlobalThemeContract(
+  { ...semanticKeys, ...surfaceKeys, ...shadowKeys },
+  (name) => nsName(name ?? '')
 );
 
 export type Vars = typeof vars;

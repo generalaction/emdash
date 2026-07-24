@@ -1,0 +1,1048 @@
+import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import path from 'node:path';
+import { err, ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  createLiveModelHost,
+  createLiveJobReplica,
+  LiveJobCancelledError,
+  LiveJobFailedError,
+  type LiveJobContext,
+  type LiveModelHost,
+  type LiveSource,
+} from '@emdash/wire';
+import { bindMachineToLiveState } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
+import { formatAbsolute, resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+import {
+  type ActivateWorkspaceInput,
+  type CleanWorkspaceArtifactsInput,
+  type CleanWorkspaceArtifactsResult,
+  type ConvertWorkspaceInput,
+  type DeactivateWorkspaceInput,
+  type MeasureWorkspaceUsageInput,
+  type ProvisionWorkspaceInput,
+  type ReconcileWorkspaceInput,
+  type TeardownWorkspaceInput,
+  type WorkspaceError,
+  type WorkspaceOperationKind,
+  type WorkspaceOperationProgress,
+  type WorkspaceOperationResult,
+  type WorkspaceOperationStage,
+  type WorkspaceTopology,
+  type WorkspaceUsage,
+  workspaceContract,
+} from '@runtimes/workspace/api';
+import {
+  compileTeardownFromProbe,
+  compileBootstrapPlan,
+  type BootstrapGitIntent,
+  type BootstrapProgress,
+  type RunPhaseInput,
+} from '@runtimes/workspace/api/provisioning';
+import { WorkspaceLifecycleManager } from '@runtimes/workspace/node/provisioning/lifecycle';
+import { probeWorkspace } from '@runtimes/workspace/node/provisioning/lifecycle/probe';
+import {
+  gitErrorMessage,
+  runGit,
+} from '@runtimes/workspace/node/provisioning/lifecycle/steps/run-git';
+import { measureAbsolutePathUsage } from '@services/fs-usage/node';
+import type { IWatchService } from '@services/fs-watch/api';
+import {
+  scriptWorkflowsContract,
+  type RunScriptWorkflowInput,
+  type ScriptWorkflowsContract,
+} from '@services/script-workflows/api';
+import type {
+  WorkspaceProvisioningError,
+  WorkspaceProvisioningInput,
+  WorkspaceProvisioningProgress,
+  WorkspaceProvisioningResult,
+} from '@services/workspace-provisioning/api';
+import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activity';
+import { createWorkspaceMachine, type WorkspaceMachine } from './machine/machine';
+import { nativePathFromWorkspace, workspaceFromNativePath } from './provisioning/paths';
+import { NodeWorkspaceProvisioner, type WorkspaceProvisioner } from './provisioning/provisioner';
+import { WorkspaceTopologyObserver } from './topology-observer';
+
+type WorkspaceRuntimeRecord = {
+  machine: WorkspaceMachine;
+  state: LiveSource;
+  binding: { dispose(): void };
+  scope: Scope;
+};
+
+export type WorkspaceRuntimeOptions = {
+  lifecycle?: WorkspaceLifecycleManager;
+  provisioner?: WorkspaceProvisioner;
+  terminals?: ContractClient<ScriptWorkflowsContract>;
+  activityProviders?: WorkspaceActivityProvider[];
+  watcher?: IWatchService;
+  scope?: Scope;
+  now?: () => number;
+  onError?: (context: string, error: unknown) => void;
+};
+
+export class WorkspaceRuntime {
+  readonly host: LiveModelHost<typeof workspaceContract.workspace>;
+
+  private readonly lifecycle: WorkspaceLifecycleManager;
+  private readonly provisioner: WorkspaceProvisioner;
+  private readonly terminals: ContractClient<ScriptWorkflowsContract> | undefined;
+  private readonly scope: Scope;
+  private readonly now: () => number;
+  private readonly onError: (context: string, error: unknown) => void;
+  private readonly records = new Map<string, WorkspaceRuntimeRecord>();
+  private readonly operationLane = new Set<string>();
+  private readonly activity: WorkspaceActivityIndex;
+  private readonly topologyObserver: WorkspaceTopologyObserver;
+
+  constructor(options: WorkspaceRuntimeOptions = {}) {
+    this.host = createLiveModelHost(workspaceContract.workspace);
+    this.lifecycle = options.lifecycle ?? new WorkspaceLifecycleManager();
+    this.provisioner = options.provisioner ?? new NodeWorkspaceProvisioner();
+    this.terminals = options.terminals;
+    this.scope = options.scope ?? createScope({ label: 'workspace-runtime' });
+    this.now = options.now ?? Date.now;
+    this.onError = options.onError ?? (() => {});
+    this.activity = new WorkspaceActivityIndex((workspace) => this.syncActivity(workspace));
+    this.topologyObserver = new WorkspaceTopologyObserver(options.watcher, (workspace) => {
+      void this.reconcile({ workspace }).catch((error) =>
+        this.onError('workspace topology reconcile', error)
+      );
+    });
+
+    for (const provider of options.activityProviders ?? []) {
+      this.activity.addProvider(provider);
+    }
+    this.scope.add(() => this.dispose());
+  }
+
+  async provisionFromIntent(
+    input: WorkspaceProvisioningInput,
+    ctx: LiveJobContext<WorkspaceProvisioningProgress>
+  ): Promise<Result<WorkspaceProvisioningResult, WorkspaceProvisioningError>> {
+    if (input.workspace.kind === 'directory') {
+      const provisioned = await this.provision({ workspace: input.workspace.path }, ctx);
+      if (!provisioned.success) return provisioned;
+      return ok({ workspace: provisioned.data.workspace, branchName: null });
+    }
+
+    const repositoryPath = nativePathFromWorkspace(input.workspace.repository);
+    const worktreePoolPath = formatAbsolute(input.workspace.worktreePoolPath, {
+      separator: input.workspace.worktreePoolPath.root.kind === 'posix' ? '/' : '\\',
+    });
+    const intent = toBootstrapGitIntent(input.workspace, input.generatedName);
+    const compiled = compileBootstrapPlan(intent, {
+      worktreePoolPath,
+      baseRemote: input.workspace.baseRemote,
+    });
+    const branchName =
+      input.workspace.git.kind === 'create-branch'
+        ? input.generatedName
+        : input.workspace.git.branchName;
+    const workspace = workspaceFromNativePath(
+      compiled.workspacePath,
+      input.workspace.repository.host
+    );
+    const provisioned = await this.provision(
+      {
+        workspace,
+        lifecycle: {
+          ref: {
+            kind: 'worktree',
+            repoPath: repositoryPath,
+            path: compiled.workspacePath,
+            branchName,
+          },
+          context: {
+            repoPath: repositoryPath,
+            preservePatterns: input.workspace.preservePatterns,
+            worktreePoolPath,
+          },
+          setupPlan: compiled.plan,
+        },
+      },
+      ctx
+    );
+    if (!provisioned.success) return provisioned;
+    return ok({ workspace: provisioned.data.workspace, branchName });
+  }
+
+  async reconcile(
+    input: ReconcileWorkspaceInput,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    const record = this.recordFor(input.workspace);
+    const inspected = await this.inspectAndPublish(record, input.workspace, signal);
+    if (!inspected.success) return inspected;
+    return ok({
+      workspace: input.workspace,
+      path: nativePathFromWorkspace(input.workspace),
+      topology: inspected.data,
+    });
+  }
+
+  async measureUsage(
+    input: MeasureWorkspaceUsageInput,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceUsage, WorkspaceError>> {
+    const workspacePath = nativePathFromWorkspace(input.workspace);
+    const artifacts = await listIgnoredArtifacts(workspacePath, signal);
+    if (!artifacts.success) return err(artifacts.error);
+    const total = await measureWorkspacePath(
+      workspacePath,
+      '',
+      artifacts.data.map((artifact) => artifact.relativePath)
+    );
+    if (!total.success) return err(total.error);
+
+    return ok({
+      workspace: input.workspace,
+      path: workspacePath,
+      totalBytes: total.data.exclusiveDiskBytes,
+      artifactBytes: total.data.artifactBytes,
+      errors: total.data.errors,
+    });
+  }
+
+  async provision(
+    input: ProvisionWorkspaceInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'provision', ctx, async (stage) => {
+      const record = this.recordFor(input.workspace);
+      stage.start('inspect', 'Inspect workspace');
+      await this.inspectAndPublish(record, input.workspace, ctx.signal);
+      stage.done('inspect');
+
+      if (input.lifecycle?.setupPlan && input.lifecycle.setupPlan.steps.length > 0) {
+        stage.start('lifecycle', 'Provision workspace');
+        const result = await this.runLifecyclePhase(
+          {
+            ref: input.lifecycle.ref,
+            context: input.lifecycle.context,
+            plan: input.lifecycle.setupPlan,
+            phase: 'provision',
+          },
+          ctx,
+          stage,
+          'lifecycle'
+        );
+        if (!result.success) return err(result.error);
+        stage.done('lifecycle');
+      } else {
+        stage.skip('lifecycle', 'Provision workspace');
+      }
+
+      stage.start('refresh', 'Refresh workspace');
+      const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+      if (!topology.success) return topology;
+      stage.done('refresh');
+      return ok({
+        workspace: input.workspace,
+        path: nativePathFromWorkspace(input.workspace),
+        topology: topology.data,
+      });
+    });
+  }
+
+  async convert(
+    input: ConvertWorkspaceInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'convert', ctx, async (stage) => {
+      const record = this.recordFor(input.workspace);
+      stage.start('convert', 'Convert workspace');
+      const converted = await this.provisioner.convert(input, { signal: ctx.signal });
+      if (!converted.success) return converted;
+      record.machine.apply({ type: 'TopologyObserved', topology: converted.data });
+      stage.done('convert');
+      return ok({
+        workspace: input.workspace,
+        path: nativePathFromWorkspace(input.workspace),
+        topology: converted.data,
+      });
+    });
+  }
+
+  async activate(
+    input: ActivateWorkspaceInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'activate', ctx, async (stage) => {
+      const record = this.recordFor(input.workspace);
+      stage.start('inspect', 'Inspect workspace');
+      const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+      if (!topology.success) return topology;
+      stage.done('inspect');
+
+      const stateBeforePrepare = record.machine.current();
+      const shouldSkipPrepare =
+        stateBeforePrepare.prepared && stateBeforePrepare.consumers.length > 0;
+      if (!shouldSkipPrepare) {
+        const prepareResult = await this.runTerminalsPrepare(
+          input.workspace,
+          input.automation,
+          ctx,
+          stage
+        );
+        if (!prepareResult.success) return prepareResult;
+        record.machine.apply({ type: 'PrepareCompleted' });
+      } else {
+        stage.skip('script:prepare', 'Run prepare script');
+      }
+
+      const preparedDuringActivation = !stateBeforePrepare.prepared && !shouldSkipPrepare;
+      record.machine.apply({
+        type: 'ConsumerActivated',
+        consumer: { id: input.consumerId, activatedAt: this.now() },
+      });
+      if (preparedDuringActivation)
+        this.startPostActivationAutomation(input.workspace, input.automation);
+      return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
+    });
+  }
+
+  async deactivate(
+    input: DeactivateWorkspaceInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'deactivate', ctx, async (stage) => {
+      const record = this.recordFor(input.workspace);
+      record.machine.apply({ type: 'ConsumerDeactivated', consumerId: input.consumerId });
+
+      if (record.machine.current().consumers.length === 0 && input.strategy === 'detach') {
+        await this.detachTerminalsScope(input.workspace);
+      }
+
+      if (record.machine.current().consumers.length === 0 && input.strategy === 'stop') {
+        if (
+          input.lifecycle?.deactivationPlan &&
+          input.lifecycle.deactivationPlan.steps.length > 0
+        ) {
+          stage.start('deactivation-plan', 'Run deactivation plan');
+          const result = await this.runLifecyclePhase(
+            {
+              ref: input.lifecycle.ref,
+              context: input.lifecycle.context,
+              plan: input.lifecycle.deactivationPlan,
+              phase: 'setup',
+            },
+            ctx,
+            stage,
+            'deactivation-plan'
+          );
+          if (!result.success) return err(result.error);
+          stage.done('deactivation-plan');
+        } else {
+          stage.skip('deactivation-plan', 'Run deactivation plan');
+        }
+
+        await this.runTerminalsTeardown(input.workspace, input.automation, ctx, stage);
+        await this.killTerminalsScope(input.workspace);
+      }
+
+      return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
+    });
+  }
+
+  async teardown(
+    input: TeardownWorkspaceInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'teardown', ctx, async (stage) => {
+      const record = this.recordFor(input.workspace);
+      const idle = record.machine.dispatch(
+        { type: 'RequireIdleForTeardown', force: input.force },
+        undefined
+      );
+      if (!idle.success) return idle;
+
+      const teardownPlan =
+        input.lifecycle && !input.lifecycle.teardownPlan
+          ? compileTeardownFromProbe(
+              await probeWorkspace(input.lifecycle.ref, { signal: ctx.signal }),
+              input.lifecycle.ref,
+              { deleteBranch: input.lifecycle.deleteBranch }
+            )
+          : input.lifecycle?.teardownPlan;
+
+      if (input.lifecycle && teardownPlan && teardownPlan.steps.length > 0) {
+        stage.start('teardown-plan', 'Remove workspace');
+        const result = await this.runLifecyclePhase(
+          {
+            ref: input.lifecycle.ref,
+            context: input.lifecycle.context,
+            plan: teardownPlan,
+            phase: 'teardown',
+            force: input.force,
+          },
+          ctx,
+          stage,
+          'teardown-plan'
+        );
+        if (!result.success) return err(result.error);
+        stage.done('teardown-plan');
+      } else {
+        stage.skip('teardown-plan', 'Remove workspace');
+      }
+
+      const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+      if (!topology.success) return topology;
+      return ok({
+        workspace: input.workspace,
+        path: nativePathFromWorkspace(input.workspace),
+        topology: topology.data,
+      });
+    });
+  }
+
+  async cleanArtifacts(
+    input: CleanWorkspaceArtifactsInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>
+  ): Promise<Result<CleanWorkspaceArtifactsResult, WorkspaceError>> {
+    return await this.withOperation(input.workspace, 'clean-artifacts', ctx, async (stage) => {
+      const workspacePath = nativePathFromWorkspace(input.workspace);
+      stage.start('scan', 'Find ignored artifacts');
+      const artifacts = await listIgnoredArtifacts(workspacePath, ctx.signal);
+      if (!artifacts.success) return err(artifacts.error);
+      const cleanable = artifacts.data.filter(
+        (artifact) => !matchesPreservePatterns(artifact.relativePath, input.preservePatterns)
+      );
+      stage.done('scan');
+
+      stage.start('measure', 'Measure ignored artifacts');
+      const measured = await measureArtifacts(workspacePath, cleanable);
+      if (!measured.success) return err(measured.error);
+      stage.done('measure');
+
+      stage.start('delete', 'Delete ignored artifacts');
+      for (let index = 0; index < cleanable.length; index += 1) {
+        const artifact = cleanable[index];
+        if (ctx.signal.aborted) return err({ type: 'cancelled', message: 'Operation cancelled' });
+        await rm(artifact.absolutePath, { recursive: true, force: true });
+        stage.update('delete', {
+          percent: Math.round(((index + 1) / Math.max(cleanable.length, 1)) * 100),
+          message: artifact.relativePath,
+        });
+      }
+      stage.done('delete');
+
+      return ok({
+        workspace: input.workspace,
+        path: workspacePath,
+        reclaimedBytes: measured.data.bytes,
+      });
+    });
+  }
+
+  dispose(): void {
+    for (const record of this.records.values()) {
+      record.binding.dispose();
+      void record.scope.dispose();
+      record.machine.dispose();
+    }
+    this.records.clear();
+    this.host.dispose();
+    this.lifecycle.dispose();
+    this.activity.dispose();
+    void this.topologyObserver.dispose();
+  }
+
+  /** Ensures a workspace state exists so a fresh daemon can restore a live-topic attachment. */
+  resolveState(workspace: HostFileRef): LiveSource {
+    return this.recordFor(workspace).state;
+  }
+
+  private recordFor(workspace: HostFileRef): WorkspaceRuntimeRecord {
+    const key = resourceKeyFromFileRef(workspace);
+    const existing = this.records.get(key);
+    if (existing) return existing;
+
+    const machine = createWorkspaceMachine(workspace);
+    const cell =
+      this.host.get(workspace) ??
+      this.host.create(workspace, {
+        state: machine.current(),
+      });
+    const binding = bindMachineToLiveState({
+      machine,
+      liveState: cell.states.state,
+      project: (state) => state,
+    });
+    const record = {
+      machine,
+      state: cell.states.state,
+      binding,
+      scope: this.scope.child(`workspace:${key}`),
+    };
+    this.records.set(key, record);
+    this.topologyObserver.watch(workspace);
+    this.syncActivity(workspace);
+    return record;
+  }
+
+  private async withOperation<T>(
+    workspace: HostFileRef,
+    kind: WorkspaceOperationKind,
+    ctx: LiveJobContext<WorkspaceOperationProgress>,
+    run: (stage: StageReporter) => Promise<Result<T, WorkspaceError>>
+  ): Promise<Result<T, WorkspaceError>> {
+    const key = resourceKeyFromFileRef(workspace);
+    if (this.operationLane.has(key)) {
+      return err({
+        type: 'operation-in-flight',
+        message: 'Workspace already has an active operation',
+      });
+    }
+    this.operationLane.add(key);
+
+    const record = this.recordFor(workspace);
+    const started = record.machine.dispatch(
+      { type: 'BeginOperation', kind, operationId: ctx.jobId, startedAt: this.now() },
+      undefined
+    );
+    if (!started.success) {
+      this.operationLane.delete(key);
+      return started;
+    }
+
+    const stage = new StageReporter(kind, ctx.jobId, ctx);
+    try {
+      const result = await run(stage);
+      if (result.success) {
+        record.machine.apply({ type: 'OperationCompleted' });
+      } else {
+        record.machine.apply({ type: 'OperationFailed', error: result.error });
+        stage.failCurrent(result.error);
+      }
+      return result;
+    } catch (error) {
+      const workspaceError = toWorkspaceError(error);
+      record.machine.apply({ type: 'OperationFailed', error: workspaceError });
+      stage.failCurrent(workspaceError);
+      return err(workspaceError);
+    } finally {
+      this.operationLane.delete(key);
+    }
+  }
+
+  private async inspectAndPublish(
+    record: WorkspaceRuntimeRecord,
+    workspace: HostFileRef,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceTopology, WorkspaceError>> {
+    const inspected = await this.provisioner.inspect(workspace, { signal });
+    if (!inspected.success) return inspected;
+    record.machine.apply({ type: 'TopologyObserved', topology: inspected.data });
+    this.syncActivity(workspace);
+    return inspected;
+  }
+
+  private syncActivity(workspace: HostFileRef): void {
+    const record = this.records.get(resourceKeyFromFileRef(workspace));
+    if (!record) return;
+    record.machine.apply({
+      type: 'ActivityObserved',
+      resources: this.activity.resourcesFor(workspace),
+    });
+  }
+
+  private async runLifecyclePhase(
+    input: RunPhaseInput,
+    ctx: LiveJobContext<WorkspaceOperationProgress>,
+    stage: StageReporter,
+    stageId: string
+  ): Promise<Result<unknown, WorkspaceError>> {
+    const result = await this.lifecycle.runPhase(input, {
+      jobId: ctx.jobId,
+      signal: ctx.signal,
+      progress: (progress) => stage.update(stageId, mapLifecycleProgress(progress)),
+    });
+    return result.success ? ok(result.data) : err(toWorkspaceError(result.error));
+  }
+
+  private async runTerminalsTeardown(
+    workspace: HostFileRef,
+    automation: ActivateWorkspaceInput['automation'],
+    ctx: LiveJobContext<WorkspaceOperationProgress>,
+    stage: StageReporter
+  ): Promise<Result<void, WorkspaceError>> {
+    if (!this.terminals || !automation?.teardown) return ok(undefined);
+
+    const stageId = 'script:teardown';
+    stage.start(stageId, 'Run teardown script');
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
+    const lease = await jobs.start({
+      workspace,
+      kind: 'teardown',
+      nodes: [
+        {
+          id: 'teardown',
+          label: 'Teardown',
+          command: automation.teardown,
+          shellSetup: automation.shellSetup,
+          cwd: nativePathFromWorkspace(workspace),
+          env: automationEnv(automation),
+        },
+      ],
+    });
+    const job = await lease.ready();
+    const cancel = () => void job.cancel();
+    ctx.signal.addEventListener('abort', cancel, { once: true });
+    try {
+      await job.result;
+      stage.done(stageId);
+      return ok(undefined);
+    } catch (error) {
+      const workspaceError = terminalJobErrorToWorkspaceError(error);
+      stage.fail(stageId, workspaceError);
+      return err(workspaceError);
+    } finally {
+      ctx.signal.removeEventListener('abort', cancel);
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private async runTerminalsPrepare(
+    workspace: HostFileRef,
+    automation: ActivateWorkspaceInput['automation'],
+    ctx: LiveJobContext<WorkspaceOperationProgress>,
+    stage: StageReporter
+  ): Promise<Result<void, WorkspaceError>> {
+    if (!automation?.prepare) {
+      stage.skip('script:prepare', 'Run prepare script');
+      return ok(undefined);
+    }
+    if (!this.terminals) {
+      return err({
+        type: 'terminal-runtime-unavailable',
+        message: 'Terminal runtime is unavailable for prepare script',
+        stageId: 'script:prepare',
+      });
+    }
+
+    const stageId = 'script:prepare';
+    stage.start(stageId, 'Run prepare script');
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
+    const lease = await jobs.start({
+      workspace,
+      kind: 'prepare',
+      nodes: [
+        {
+          id: 'prepare',
+          label: 'Prepare',
+          command: automation.prepare,
+          shellSetup: automation.shellSetup,
+          cwd: nativePathFromWorkspace(workspace),
+          env: automationEnv(automation),
+        },
+      ],
+    });
+    const job = await lease.ready();
+    const unsubscribe = job.onProgress((progress) => {
+      if (progress.message) stage.update(stageId, { message: progress.message });
+    });
+    const cancel = () => void job.cancel();
+    ctx.signal.addEventListener('abort', cancel, { once: true });
+    try {
+      await job.result;
+      stage.done(stageId);
+      return ok(undefined);
+    } catch (error) {
+      const workspaceError = terminalJobErrorToWorkspaceError(error);
+      stage.fail(stageId, workspaceError);
+      return err(workspaceError);
+    } finally {
+      ctx.signal.removeEventListener('abort', cancel);
+      unsubscribe();
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private startPostActivationAutomation(
+    workspace: HostFileRef,
+    automation: ActivateWorkspaceInput['automation']
+  ): void {
+    const nodes = postActivationWorkflowNodes(workspace, automation);
+    if (nodes.length === 0) return;
+    if (!this.terminals) {
+      this.onError(
+        'workspace post-activation automation',
+        new Error('Terminal runtime is unavailable for setup/run scripts')
+      );
+      return;
+    }
+
+    void this.runPostActivationAutomation(workspace, nodes).catch((error: unknown) => {
+      this.onError('workspace post-activation automation', error);
+    });
+  }
+
+  private async runPostActivationAutomation(
+    workspace: HostFileRef,
+    nodes: RunScriptWorkflowInput['nodes']
+  ): Promise<void> {
+    if (!this.terminals) return;
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
+    const lease = await jobs.start({ workspace, kind: 'post-activation', nodes });
+    try {
+      const job = await lease.ready();
+      await job.result;
+    } catch (error) {
+      this.onError('workspace post-activation automation', terminalJobErrorToWorkspaceError(error));
+    } finally {
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private async killTerminalsScope(workspace: HostFileRef): Promise<void> {
+    if (!this.terminals) return;
+    await this.terminals.killScope({ workspace });
+  }
+
+  private async detachTerminalsScope(workspace: HostFileRef): Promise<void> {
+    if (!this.terminals) return;
+    await this.terminals.detachScope({ workspace });
+  }
+}
+
+function toBootstrapGitIntent(
+  workspace: Extract<WorkspaceProvisioningInput['workspace'], { kind: 'worktree' }>,
+  generatedName: string
+): BootstrapGitIntent {
+  const { git } = workspace;
+  if (git.kind === 'use-branch') {
+    return { kind: 'use-branch', branchName: git.branchName };
+  }
+  return {
+    kind: 'create-branch',
+    branchName: generatedName,
+    fromBranch: git.fromBranch,
+    ...(git.pushRemote ? { pushRemote: git.pushRemote } : {}),
+  };
+}
+
+class StageReporter {
+  private readonly stages: WorkspaceOperationStage[] = [];
+  private current: string | undefined;
+
+  constructor(
+    private readonly kind: WorkspaceOperationKind,
+    private readonly operationId: string,
+    private readonly ctx: LiveJobContext<WorkspaceOperationProgress>
+  ) {}
+
+  start(id: string, label: string): void {
+    this.current = id;
+    this.upsert({ id, label, status: 'running' });
+  }
+
+  update(id: string, progress: WorkspaceOperationStage['progress']): void {
+    const existing = this.stages.find((stage) => stage.id === id);
+    if (!existing) return;
+    existing.progress = progress;
+    this.publish();
+  }
+
+  done(id: string): void {
+    const existing = this.stages.find((stage) => stage.id === id);
+    if (existing) {
+      existing.status = 'done';
+      existing.progress = undefined;
+    }
+    this.publish();
+  }
+
+  skip(id: string, label: string): void {
+    this.upsert({ id, label, status: 'skipped' });
+  }
+
+  fail(id: string, error: WorkspaceError): void {
+    const existing = this.stages.find((stage) => stage.id === id);
+    if (existing) {
+      existing.status = 'failed';
+      existing.progress = { message: error.message };
+    }
+    this.publish();
+  }
+
+  failCurrent(error: WorkspaceError): void {
+    if (this.current) this.fail(this.current, error);
+  }
+
+  private upsert(stage: WorkspaceOperationStage): void {
+    const index = this.stages.findIndex((candidate) => candidate.id === stage.id);
+    if (index >= 0) this.stages[index] = stage;
+    else this.stages.push(stage);
+    this.publish();
+  }
+
+  private publish(): void {
+    this.ctx.progress({
+      operationId: this.operationId,
+      kind: this.kind,
+      stages: this.stages.map((stage) => ({ ...stage })),
+    });
+  }
+}
+
+function mapLifecycleProgress(progress: BootstrapProgress): WorkspaceOperationStage['progress'] {
+  const total = progress.steps.length;
+  if (total === 0) return { percent: 100 };
+  const terminal = progress.steps.filter(
+    (step) => step.status === 'done' || step.status === 'skipped' || step.status === 'failed'
+  ).length;
+  const running = progress.steps.find((step) => step.status === 'running');
+  const failed = progress.steps.find((step) => step.status === 'failed');
+  const pending = progress.steps.find((step) => step.status === 'pending');
+  const current = running ?? failed ?? pending ?? progress.steps.at(-1);
+  return {
+    percent: Math.round((terminal / total) * 100),
+    message: current?.label,
+  };
+}
+
+function toWorkspaceError(error: unknown): WorkspaceError {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { type?: unknown }).type === 'string' &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return error as WorkspaceError;
+  }
+  return {
+    type: 'error',
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function terminalJobErrorToWorkspaceError(error: unknown): WorkspaceError {
+  if (error instanceof LiveJobFailedError) {
+    return toWorkspaceError(error.error);
+  }
+  if (error instanceof LiveJobCancelledError) {
+    return { type: 'cancelled', message: 'Terminal script workflow was cancelled' };
+  }
+  return toWorkspaceError(error);
+}
+
+function postActivationWorkflowNodes(
+  workspace: HostFileRef,
+  automation: ActivateWorkspaceInput['automation']
+): RunScriptWorkflowInput['nodes'] {
+  if (!automation) return [];
+  const cwd = nativePathFromWorkspace(workspace);
+  const env = automationEnv(automation);
+  const nodes: RunScriptWorkflowInput['nodes'] = [];
+  if (automation.setup && automation.autoRunSetup) {
+    nodes.push({
+      id: 'setup',
+      label: 'Setup',
+      command: automation.setup,
+      shellSetup: automation.shellSetup,
+      cwd,
+      env,
+    });
+  }
+  if (automation.run && automation.autoRunRun) {
+    nodes.push({
+      id: 'run',
+      label: 'Run',
+      command: automation.run,
+      shellSetup: automation.shellSetup,
+      cwd,
+      env,
+      dependsOn: nodes.some((node) => node.id === 'setup') ? ['setup'] : undefined,
+      lifecycle: 'background',
+    });
+  }
+  return nodes;
+}
+
+function automationEnv(automation: ActivateWorkspaceInput['automation']): Record<string, string> {
+  return { ...stringEnv(process.env), ...(automation?.env ?? {}) };
+}
+
+type IgnoredArtifact = {
+  relativePath: string;
+  absolutePath: string;
+};
+
+type ArtifactMeasurement = {
+  bytes: number;
+  errors: { path: string; message: string }[];
+};
+
+async function measureWorkspacePath(
+  absolutePath: string,
+  displayPath: string,
+  artifactRoots?: string[]
+): Promise<Result<Awaited<ReturnType<typeof measureAbsolutePathUsage>>, WorkspaceError>> {
+  try {
+    return ok(await measureAbsolutePathUsage(absolutePath, displayPath, { artifactRoots }));
+  } catch (error) {
+    return err({
+      type: 'io',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function measureArtifacts(
+  workspacePath: string,
+  artifacts: IgnoredArtifact[]
+): Promise<Result<ArtifactMeasurement, WorkspaceError>> {
+  let bytes = 0;
+  const errors: { path: string; message: string }[] = [];
+  for (const artifact of artifacts) {
+    if (!isContainedBy(workspacePath, artifact.absolutePath)) {
+      return err({
+        type: 'invalid-path',
+        message: `Ignored artifact escapes workspace: ${artifact.relativePath}`,
+      });
+    }
+    const measured = await measureWorkspacePath(artifact.absolutePath, artifact.relativePath);
+    if (!measured.success) {
+      errors.push({ path: artifact.relativePath, message: measured.error.message });
+      continue;
+    }
+    bytes += measured.data.exclusiveDiskBytes;
+    errors.push(...measured.data.errors);
+  }
+  return ok({ bytes, errors });
+}
+
+async function listIgnoredArtifacts(
+  workspacePath: string,
+  signal?: AbortSignal
+): Promise<Result<IgnoredArtifact[], WorkspaceError>> {
+  const result = await runGit(['-c', 'core.quotePath=false', 'clean', '-ndX', '--'], {
+    cwd: workspacePath,
+    signal,
+  });
+  if (!result.success) {
+    return err({
+      type: result.error.type,
+      message: gitErrorMessage(result.error),
+    });
+  }
+
+  const root = path.resolve(workspacePath);
+  const artifacts: IgnoredArtifact[] = [];
+  for (const line of result.data.stdout.split(/\r?\n/u)) {
+    const relativePath = parseGitCleanDryRunLine(line);
+    if (!relativePath) continue;
+    const absolutePath = path.resolve(root, relativePath);
+    if (!isContainedBy(root, absolutePath)) {
+      return err({
+        type: 'invalid-path',
+        message: `Ignored artifact escapes workspace: ${relativePath}`,
+      });
+    }
+    artifacts.push({ relativePath, absolutePath });
+  }
+  return ok(artifacts);
+}
+
+function parseGitCleanDryRunLine(line: string): string | undefined {
+  const prefix = 'Would remove ';
+  if (!line.startsWith(prefix)) return undefined;
+  return normalizeArtifactPath(line.slice(prefix.length));
+}
+
+function normalizeArtifactPath(value: string): string | undefined {
+  const normalized = value.trim().replace(/\/$/u, '');
+  if (!normalized || normalized === '.' || normalized === '..') return undefined;
+  return normalized.split('\\').join('/');
+}
+
+function matchesPreservePatterns(relativePath: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => matchesPreservePattern(relativePath, pattern));
+}
+
+function matchesPreservePattern(relativePath: string, pattern: string): boolean {
+  if (!isSafePreservePattern(pattern)) return false;
+  const normalized = toPosixPath(pattern);
+  if (globMatcher(normalized)(relativePath)) return true;
+
+  const artifactPrefix = relativePath.endsWith('/') ? relativePath : `${relativePath}/`;
+  return normalized.startsWith(artifactPrefix);
+}
+
+function isSafePreservePattern(pattern: string): boolean {
+  if (!pattern || path.isAbsolute(pattern)) return false;
+  return !toPosixPath(pattern)
+    .split('/')
+    .some((part) => part === '..');
+}
+
+function globMatcher(pattern: string): (relativePath: string) => boolean {
+  const regexp = new RegExp(`^${globToRegex(pattern)}$`);
+  return (relativePath) => regexp.test(relativePath);
+}
+
+function globToRegex(pattern: string): string {
+  let regex = '';
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    const next = pattern[index + 1];
+    if (char === '*' && next === '*') {
+      regex += '.*';
+      index++;
+    } else if (char === '*') {
+      regex += '[^/]*';
+    } else if (char === '?') {
+      regex += '[^/]';
+    } else {
+      regex += escapeRegex(char);
+    }
+  }
+  return regex;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
+function isContainedBy(root: string, target: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function toPosixPath(value: string): string {
+  return value.split(path.sep).join('/');
+}
+
+function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  );
+}
+
+export function createUnavailableWorkspaceError(error: unknown): WorkspaceError {
+  return toWorkspaceError(error);
+}
+
+export function workspaceJobError(error: unknown): WorkspaceError {
+  return toWorkspaceError(error);
+}
+
+export function workspaceOperationId(): string {
+  return randomUUID();
+}

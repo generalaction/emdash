@@ -77,6 +77,18 @@ This is not retryable; fix the host/contract pairing.
 This is a lifecycle error. Dispose or reuse the existing instance instead of
 creating another one for the same key.
 
+### `TIMEOUT`
+
+A Wire procedure exceeded an infrastructure deadline, usually from
+`withTimeout()` middleware. Timeout is distinct from `CANCELLED`: cancellation is
+caller intent, while timeout means the server-side policy stopped waiting for the
+operation.
+
+Timeouts are not retried automatically. Contract mutations still retry only
+`DISCONNECTED` by default because mutation retry depends on stable `mutationId`
+deduplication. If a domain treats a timeout as an expected outcome, model it as a
+`Result` payload instead of relying on the infrastructure error plane.
+
 ### `HANDLER_ERROR`
 
 An uncaught exception escaped a server handler or validation boundary. Expected

@@ -109,6 +109,7 @@ const connection = connect(pair.left, { instrumentation });
 - `snapshot(topic)`.
 - `attach(topic, push, { onReattach? })`.
 - `onDisconnect(cb)`.
+- `dispose()` to release the logical connection without closing its transport.
 
 On disconnect, pending calls reject with `WireError` code `DISCONNECTED`.
 Existing attachments are retained locally. If the transport exposes
@@ -118,6 +119,12 @@ link is live and then calls each attachment's `onReattach` callback.
 Replicas use `onReattach` for live models, logs, and jobs to force a fresh
 snapshot after reattach. Direct client-handle consumers can use the same callback when
 they need to reseed UI state after reconnect.
+
+`dispose()` rejects pending calls, releases live attachments and blob channels, and
+unsubscribes the connection from transport events. It intentionally does not call
+`transport.close()`. This allows a short-lived application handshake connection to
+validate a candidate transport before handing that same transport to a stable
+reconnecting connection.
 
 The protocol layer intentionally has no version handshake. Receivers validate the
 message `kind` and required fields in `isWireMessage()`; unknown message kinds are
@@ -284,20 +291,56 @@ const contractClient = client(api, connect(pair.left));
 
 Opening the same session id closes the previous transport. `close(id)` closes
 one session and calls `transport.close?.()` after disposing the serve loop.
-`dispose()` closes all sessions and calls `controller.dispose?.()`.
+`dispose()` is async: it closes all sessions and awaits `controller.dispose?.()`.
+
+`Controller.dispose`, when present, returns `Promise<void>`. Wrappers such as
+validation, logging, session hubs, tests, process runtimes, and Electron exposure
+propagate that promise so LiveJob servers and resource hosts can finish shutdown
+before their owner reports disposed.
 
 See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
 
 ## Server-Side Call Helpers
 
-`deduplicateRequests(fn, options?)` wraps procedure implementations to share one
-in-flight promise for identical inputs:
+For the full middleware pattern, including handler middleware versus controller
+middleware, see [composable middleware](./middleware.md).
+
+`compose(target, middlewares)` from `@emdash/shared/requests` applies target-first
+middleware arrays to handlers or controllers. The first array entry is outermost:
+it sees the request first and settles last.
+
+```ts
+const loadStats = compose(
+  async (input, meta) => {
+    return await fetchStats(input.repo, { signal: meta.signal });
+  },
+  [
+    withTimeout({ timeoutMs: 20_000 }),
+    withRetry({ schedule, shouldRetry: isTransient }),
+    withTimeout({ timeoutMs: 5_000 }),
+  ]
+);
+
+const controller = createController(api, { loadStats });
+```
+
+In this example the outer timeout bounds the complete retry program, while the
+inner timeout bounds each attempt. Handler middleware must preserve the handler's
+shape. Procedure handlers receive `(input, meta)` and middleware should preserve
+all `meta` fields while deriving a replacement `meta.signal` when it needs
+cooperative cancellation.
+
+`deduplicate(options?)` from `@emdash/shared/requests` wraps procedure
+implementations to share one in-flight promise for identical inputs:
 
 ```ts
 const controller = createController(api, {
-  expensiveStats: deduplicateRequests(async (input) => {
-    return await loadStats(input.repo, input.branch);
-  }),
+  expensiveStats: compose(
+    async (input, meta) => {
+      return await loadStats(input.repo, input.branch, { signal: meta.signal });
+    },
+    [deduplicate({ key: (input) => `${input.repo}:${input.branch}` })]
+  ),
 });
 ```
 

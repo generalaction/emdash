@@ -1,9 +1,10 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
+import { ArrowUp, ChevronRight, CircleAlert, Paperclip, Plug, ShieldCheck, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
+import { Popover } from '@/react/primitives/popover';
 import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
@@ -146,6 +147,11 @@ export interface ComposerPermissionModeOption {
   description?: string;
 }
 
+export interface ComposerMcpServer {
+  name: string;
+  transport: string;
+}
+
 // ── Agent option types ────────────────────────────────────────────────────────
 
 /** Minimal agent descriptor the composer needs to render the agent selector. */
@@ -196,6 +202,7 @@ export interface ChatComposerProps {
   permissionModeOptions?: Record<string, ComposerPermissionModeOption> | null;
   selectedPermissionMode?: string;
   onPermissionModeChange?: (modeId: string) => void;
+  mcpServers?: ComposerMcpServer[];
 
   onSubmit: (text: string) => void;
   /** Called whenever the editor serialized plain text changes. */
@@ -539,6 +546,7 @@ export function ChatComposer({
   permissionModeOptions,
   selectedPermissionMode,
   onPermissionModeChange,
+  mcpServers = [],
   onSubmit,
   onInputChange,
   onMentionInsert,
@@ -985,6 +993,28 @@ export function ChatComposer({
                   </div>
                 )}
               />
+            )}
+            {mcpServers.length > 0 && (
+              <Popover.Root>
+                <Popover.Trigger className={styles.mcpTrigger} disabled={disabled}>
+                  <Plug style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
+                  MCPs {mcpServers.length}
+                </Popover.Trigger>
+                <Popover.Content
+                  align="start"
+                  className={styles.mcpPopoverContent}
+                  aria-label="Session MCP servers"
+                >
+                  <div className={styles.mcpList}>
+                    {mcpServers.map((server) => (
+                      <div key={`${server.transport}:${server.name}`} className={styles.mcpRow}>
+                        <span className={styles.mcpName}>{server.name}</span>
+                        <span className={styles.mcpBadge}>{server.transport}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Popover.Content>
+              </Popover.Root>
             )}
           </div>
 

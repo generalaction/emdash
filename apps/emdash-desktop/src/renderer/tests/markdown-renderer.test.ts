@@ -3,13 +3,13 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
 
-vi.mock('@renderer/lib/hooks/useTheme', () => ({
+vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
-vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
@@ -17,12 +17,12 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
       currentViewId: 'home',
-      viewParamsStore: {},
+      currentRef: { viewId: 'home', params: {}, key: 'home' },
     },
   },
 }));
 
-vi.mock('@renderer/lib/ipc', () => ({
+vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   events: {
     on: vi.fn(() => () => {}),
   },

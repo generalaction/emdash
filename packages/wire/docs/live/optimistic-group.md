@@ -118,7 +118,9 @@ If a workflow needs server-only work, keep that work outside the inline group
 handler and model it as a `procedure()` or `liveJob()` that updates domain state.
 
 `@emdash/wire/util/mobx` intentionally has a separate subpath export because it
-depends on MobX. Server-only code should import lifecycle utilities from
-`@emdash/wire/util`.
+depends on MobX. Server-only code should import lifecycle and concurrency
+utilities from `@emdash/shared/concurrency`, scheduling utilities from
+`@emdash/shared/scheduling`, and request handler helpers such as `compose()` and
+`deduplicate()` from `@emdash/shared/requests`.
 
 See [../../examples/optimistic-live-model/client.ts](../../examples/optimistic-live-model/client.ts).

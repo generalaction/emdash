@@ -1,6 +1,6 @@
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
-import { resolveConversationProviderSelection } from '@renderer/features/conversations/provider-selection';
+import { resolveConversationProviderSelection } from '@core/features/conversations/browser/provider-selection';
 
 const agent = asAgentProviderId;
 const orderedProviderIds = [agent('codex'), agent('claude'), agent('qwen')];

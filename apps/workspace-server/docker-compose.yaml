@@ -1,0 +1,21 @@
+services:
+  workspace-remote:
+    platform: ${WORKSPACE_REMOTE_PLATFORM:-}
+    build:
+      context: ./tooling/docker
+      dockerfile: remote-machine.dockerfile
+    container_name: emdash-workspace-remote
+    ports:
+      - "2223:22"
+    environment:
+      - WORKSPACE_SERVER_PREINSTALL=${WORKSPACE_SERVER_PREINSTALL:-0}
+      - WORKSPACE_SERVER_AUTOSTART=${WORKSPACE_SERVER_AUTOSTART:-0}
+    volumes:
+      - workspace-remote-home:/home/devuser
+      - ./dist-artifacts:/opt/emdash-artifacts:ro
+    restart: unless-stopped
+
+volumes:
+  workspace-remote-home:
+    name: emdash-workspace-remote-home
+    driver: local

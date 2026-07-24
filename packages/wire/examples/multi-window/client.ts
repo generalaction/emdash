@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   await secondLease.release();
   await secondReplica.dispose();
   second.close();
-  hub.dispose();
+  await hub.dispose();
 }
 
 function openWindow(hub: ReturnType<typeof createWireSessionHub>, id: string) {

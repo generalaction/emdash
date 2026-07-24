@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { BrowserWebviewElement } from '@renderer/features/browser/browser-webview-types';
+import type { BrowserWebviewElement } from '@core/features/browser/browser/browser-webview-types';
 
 declare module 'react' {
   namespace JSX {

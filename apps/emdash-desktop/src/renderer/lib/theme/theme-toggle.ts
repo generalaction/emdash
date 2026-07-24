@@ -7,9 +7,9 @@ import {
   restoreAppSettingsCache,
   setAppSettingsValueInCache,
   updateAppSettingsRequest,
-} from '@renderer/features/settings/app-settings-client';
-import type { Theme } from '@shared/core/app-settings';
-import { getNextTheme } from './theme-toggle-model';
+} from '@core/features/settings/api/browser/app-settings-client';
+import type { Theme } from '@core/primitives/app-settings/api';
+import { getNextTheme } from '@core/primitives/theme/browser';
 
 export type ToggleThemeError = { message: string };
 

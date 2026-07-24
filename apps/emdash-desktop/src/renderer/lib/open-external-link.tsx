@@ -1,7 +1,7 @@
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
-import { showModal } from '@renderer/lib/modal/modal-provider';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openModal } from '@core/manifests/browser/modal-api';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
 
@@ -16,20 +16,20 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
 
   const taskView = getActiveTaskView();
 
-  showModal('confirmExternalLinkModal', {
+  void openModal('confirmExternalLinkModal', {
     url: normalizedUrl,
     canOpenInEmdashBrowser: taskView !== undefined,
     onCopy: () => copyExternalLink(normalizedUrl),
-    onSuccess: (choice) => {
-      if (choice === 'emdash-browser') {
-        taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
-        taskView?.setFocusedRegion('main');
-        return;
-      }
-      void rpc.app.openExternal(normalizedUrl).catch((error) => {
-        onError?.(error);
-      });
-    },
+  }).then((outcome) => {
+    if (!outcome.success) return;
+    if (outcome.data === 'emdash-browser') {
+      taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
+      taskView?.setFocusedRegion('main');
+      return;
+    }
+    void rpc.app.openExternal(normalizedUrl).catch((error) => {
+      onError?.(error);
+    });
   });
 }
 
@@ -57,10 +57,12 @@ function showCopyFailure(): void {
 }
 
 function getActiveTaskView() {
-  if (appState.navigation.currentViewId !== 'task') return undefined;
-  const params = appState.navigation.viewParamsStore.task;
-  const projectId = typeof params?.projectId === 'string' ? params.projectId : undefined;
-  const taskId = typeof params?.taskId === 'string' ? params.taskId : undefined;
+  const ref = appState.navigation.currentRef;
+  if (ref.viewId !== 'task') return undefined;
+  const { projectId, taskId } = ref.params as {
+    projectId?: string;
+    taskId?: string;
+  };
   if (!projectId || !taskId) return undefined;
-  return getTaskView(projectId, taskId);
+  return getTaskComposition(projectId, taskId);
 }

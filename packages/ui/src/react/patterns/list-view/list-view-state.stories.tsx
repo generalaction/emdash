@@ -137,7 +137,7 @@ function AgentRowBase({
           <div
             style={{
               fontSize: 'var(--em-text-sm)',
-              fontWeight: 500,
+              fontWeight: 400,
               color: 'var(--em-foreground)',
             }}
           >

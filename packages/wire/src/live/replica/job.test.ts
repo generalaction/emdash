@@ -1,8 +1,9 @@
 import { ok } from '@emdash/shared';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveJob } from '../../api/define';
-import { createTestWire, deferred, waitFor } from '../../testing';
+import { createTestWire } from '../../testing';
 import { type LiveJobContext } from '../job';
 import { createLiveJobReplica, type ReplicaJobState } from './job';
 import { createPlainStore } from './store';

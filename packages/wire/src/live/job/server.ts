@@ -1,4 +1,6 @@
 import { toSerializedError, type Result } from '@emdash/shared';
+import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveJobState, LiveSnapshot, LiveSource } from '../protocol';
 import { LiveState } from '../state';
 
@@ -24,10 +26,11 @@ export type LiveJobListEntry = {
 };
 
 export type LiveJobOptions<E = unknown> = {
+  scope?: Scope;
   generation?: number;
   terminalRetainMs?: number;
   idFactory?: () => string;
-  clock?: () => number;
+  clock?: Clock | (() => number);
   toError?: (err: unknown) => E;
   onRunStarted?: (entry: LiveJobListEntry) => void;
   onRunChanged?: (entry: LiveJobListEntry) => void;
@@ -35,9 +38,10 @@ export type LiveJobOptions<E = unknown> = {
 };
 
 type LiveJobRun<P, R, E> = {
-  abort: AbortController;
+  scope: Scope;
+  execution: Run<void>;
   model: LiveState<LiveJobState<P, R, E>>;
-  evictionTimer: ReturnType<typeof setTimeout> | undefined;
+  evictionTimer: TimerHandle | undefined;
 };
 
 /**
@@ -52,26 +56,35 @@ type LiveJobRun<P, R, E> = {
  * the configured eviction delay expires.
  */
 export class LiveJob<I, P, R, E> {
+  private readonly scope: Scope;
   private readonly runs = new Map<string, LiveJobRun<P, R, E>>();
   private readonly generation: number | undefined;
   private readonly terminalRetainMs: number;
   private readonly idFactory: () => string;
-  private readonly clock: () => number;
+  private readonly clock: Clock;
+  private disposePromise: Promise<void> | undefined;
 
   constructor(
     private readonly handler: LiveJobHandler<I, P, R, E>,
     private readonly options: LiveJobOptions<E> = {}
   ) {
+    this.scope = options.scope
+      ? options.scope.child('live-job')
+      : createScope({ label: 'live-job' });
     this.generation = options.generation;
     this.terminalRetainMs = Math.max(0, options.terminalRetainMs ?? LIVE_JOB_TERMINAL_RETAIN_MS);
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
-    this.clock = options.clock ?? (() => Date.now());
+    this.clock = normalizeClock(options.clock);
+    this.scope.add(() => {
+      this.runs.clear();
+    });
   }
 
   start(input: I): { jobId: string } {
+    if (this.scope.disposed) throw new Error('LiveJob is disposed');
     const jobId = this.idFactory();
-    const abort = new AbortController();
-    const now = this.clock();
+    const jobScope = this.scope.child(`job:${jobId}`);
+    const now = this.clock.now();
     const model = new LiveState<LiveJobState<P, R, E>>(
       {
         status: 'running',
@@ -82,22 +95,23 @@ export class LiveJob<I, P, R, E> {
       this.generation ?? now
     );
     const run: LiveJobRun<P, R, E> = {
-      abort,
+      scope: jobScope,
+      execution: undefined as unknown as Run<void>,
       model,
       evictionTimer: undefined,
     };
+    run.execution = jobScope.run('execute', (signal) => this.execute(jobId, input, run, signal));
 
     this.runs.set(jobId, run);
     this.options.onRunStarted?.(this.toListEntry(jobId, run));
-    void this.execute(jobId, input, run);
 
     return { jobId };
   }
 
   cancel(jobId: string): void {
     const run = this.runs.get(jobId);
-    if (!run || run.abort.signal.aborted || !this.isRunning(run)) return;
-    run.abort.abort();
+    if (!run || run.execution.signal.aborted || !this.isRunning(run)) return;
+    run.execution.cancel(new Error(`Live job '${jobId}' cancelled`));
   }
 
   source(jobId: string): LiveSource | undefined {
@@ -116,37 +130,42 @@ export class LiveJob<I, P, R, E> {
     return this.runs.get(jobId)?.model;
   }
 
-  dispose(): void {
-    for (const run of this.runs.values()) {
-      if (run.evictionTimer) clearTimeout(run.evictionTimer);
-      if (this.isRunning(run) && !run.abort.signal.aborted) run.abort.abort();
-    }
-    this.runs.clear();
+  dispose(): Promise<void> {
+    if (this.disposePromise) return this.disposePromise;
+    this.disposePromise = this.scope.dispose(new Error('LiveJob disposed'));
+    return this.disposePromise;
   }
 
-  private async execute(jobId: string, input: I, run: LiveJobRun<P, R, E>): Promise<void> {
+  private async execute(
+    jobId: string,
+    input: I,
+    run: LiveJobRun<P, R, E>,
+    signal: AbortSignal
+  ): Promise<void> {
     try {
       const result = await this.handler(input, {
         jobId,
-        signal: run.abort.signal,
+        signal,
         progress: (progress) => this.reportProgress(run, progress),
       });
-      if (run.abort.signal.aborted) this.markCancelled(run);
+      if (signal.aborted) this.markCancelled(run);
       else if (result.success) this.markSucceeded(run, result.data);
       else this.markFailed(run, result.error, false);
     } catch (err) {
-      if (run.abort.signal.aborted) {
+      if (signal.aborted) {
         this.markCancelled(run);
       } else {
         this.markFailed(run, err, true);
       }
     } finally {
-      this.scheduleEviction(jobId, run);
+      if (this.scope.state === 'open' && run.scope.state === 'open') {
+        this.scheduleEviction(jobId, run);
+      }
     }
   }
 
   private reportProgress(run: LiveJobRun<P, R, E>, progress: P): void {
-    if (run.abort.signal.aborted) return;
+    if (run.execution.signal.aborted) return;
     run.model.produce((draft) => {
       if (draft.status !== 'running') return;
       draft.progress.push(progress);
@@ -163,7 +182,7 @@ export class LiveJob<I, P, R, E> {
       return {
         status: 'succeeded',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
         result,
       };
@@ -177,7 +196,7 @@ export class LiveJob<I, P, R, E> {
       const failed: LiveJobState<P, R, E> = {
         status: 'failed',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
       };
       if (thrown && mapped === undefined) failed.cause = toSerializedError(err);
@@ -192,7 +211,7 @@ export class LiveJob<I, P, R, E> {
       return {
         status: 'cancelled',
         startedAt: draft.startedAt,
-        finishedAt: this.clock(),
+        finishedAt: this.clock.now(),
         progress: [...draft.progress],
       };
     });
@@ -201,12 +220,21 @@ export class LiveJob<I, P, R, E> {
   private scheduleEviction(jobId: string, run: LiveJobRun<P, R, E>): void {
     if (this.runs.get(jobId) !== run) return;
     this.options.onRunChanged?.(this.toListEntry(jobId, run));
-    if (run.evictionTimer) clearTimeout(run.evictionTimer);
-    run.evictionTimer = setTimeout(() => {
-      if (this.runs.get(jobId) !== run) return;
-      this.runs.delete(jobId);
-      this.options.onRunEvicted?.(jobId);
-    }, this.terminalRetainMs);
+    run.evictionTimer?.dispose();
+    run.evictionTimer = this.clock.schedule(
+      this.terminalRetainMs,
+      () => {
+        if (this.runs.get(jobId) !== run) return;
+        this.runs.delete(jobId);
+        this.options.onRunEvicted?.(jobId);
+        void run.scope.dispose(new Error(`Live job '${jobId}' evicted`));
+      },
+      { unref: true }
+    );
+    run.scope.add(() => {
+      run.evictionTimer?.dispose();
+      run.evictionTimer = undefined;
+    });
   }
 
   private isRunning(run: LiveJobRun<P, R, E>): boolean {
@@ -222,4 +250,15 @@ export class LiveJob<I, P, R, E> {
       finishedAt: state.status === 'running' ? undefined : state.finishedAt,
     };
   }
+}
+
+function normalizeClock(clock: Clock | (() => number) | undefined): Clock {
+  if (!clock) return systemClock;
+  if (typeof clock === 'function') {
+    return {
+      ...systemClock,
+      now: clock,
+    };
+  }
+  return clock;
 }

@@ -26,7 +26,7 @@
 import { openFixture } from '@tooling/utils/db';
 import { count } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { projects, tasks } from '@main/db/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 
 describe('baseline fixture integrity', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;

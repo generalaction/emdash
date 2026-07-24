@@ -8,6 +8,7 @@ import type {
   ComposerAgentOption,
   ComposerEffortOption,
   ComposerModelOption,
+  ComposerMcpServer,
   ComposerNotice,
   ComposerNoticeVariant,
   ComposerPermissionModeOption,
@@ -266,7 +267,7 @@ const MOCK_PERMISSION_OVERFLOW_REQUESTS: ComposerPermissionRequest[] = [
   {
     requestId: 'overflow-deep-path',
     title:
-      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/renderer/features/conversations/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
+      'Edit /Users/davidkonopka/Documents/repos/emdash/apps/emdash-desktop/src/core/features/conversations/browser/acp/components/extremely-long-component-name-for-overflow-testing.tsx',
     options: [
       { optionId: 'allow-edit-once', name: 'Allow this edit once', kind: 'allow_once' },
       {
@@ -321,6 +322,12 @@ const MOCK_HIGH_CONTEXT_USAGE: ContextUsage = {
   size: 200_000,
   cost: { amount: 1.36, currency: 'USD' },
 };
+
+const MOCK_MCP_SERVERS: ComposerMcpServer[] = [
+  { name: 'filesystem', transport: 'stdio' },
+  { name: 'docs', transport: 'http' },
+  { name: 'linear', transport: 'sse' },
+];
 
 interface PlaygroundArgs {
   disabled: boolean;
@@ -533,6 +540,24 @@ type Story = StoryObj<PlaygroundArgs>;
 
 /** Full controls playground — flip any arg in the Controls panel. */
 export const Playground: Story = {};
+
+export const WithMcpServers: Story = {
+  render: () => (
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <ChatComposer
+        canSubmit
+        modelOptions={MOCK_MODELS}
+        selectedModel="claude-sonnet-4-5"
+        permissionModeOptions={MOCK_PERMISSION_MODES}
+        selectedPermissionMode="default"
+        mcpServers={MOCK_MCP_SERVERS}
+        mentionProvider={mockMentionProvider}
+        queryCommands={queryCommands}
+        onSubmit={() => {}}
+      />
+    </Box>
+  ),
+};
 
 function QueuedPromptsDemo() {
   const [queuedPrompts, setQueuedPrompts] = useState<ComposerQueuedPrompt[]>(MOCK_QUEUED_PROMPTS);

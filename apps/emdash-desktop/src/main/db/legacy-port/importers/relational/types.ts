@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import type * as schema from '@main/db/schema';
+import type * as schema from '@core/services/app-db/node/schema';
 import type { RemapTables } from './remap';
 
 export type RelationalImportDb = BetterSQLite3Database<typeof schema>;

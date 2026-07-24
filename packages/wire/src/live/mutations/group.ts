@@ -1,3 +1,4 @@
+import { stableStringify } from '@emdash/shared/util';
 import type {
   LiveStateData,
   LiveModelMutationCtx,
@@ -8,7 +9,6 @@ import type {
 import type { LiveCursor, LiveCursorEntry } from '../protocol';
 import type { Mutator } from '../state';
 import { LiveState } from '../state';
-import { stableStringify } from './registry';
 
 export type LiveModelInitialState<Group extends LiveModelDef> = {
   [Name in keyof LiveModelStates<Group>]: LiveStateData<LiveModelStates<Group>[Name]>;

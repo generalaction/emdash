@@ -1,6 +1,7 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
 import type { WireInstrumentation } from '../observability';
+import { formatStructuredCloneFailure, isStructuredCloneError } from '../util/structured-clone';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -19,8 +20,11 @@ export type ServeOptions = {
 type ServerAttachment = {
   ready: Promise<void>;
   unsubscribe?: Unsubscribe;
+  release: () => Promise<void>;
   disposed: boolean;
 };
+
+type PostAttempt = { ok: true } | { ok: false; error: unknown };
 
 export function serve(
   transport: WireTransport,
@@ -33,16 +37,44 @@ export function serve(
   const blobConsumers = new Map<string, BlobConsumer>();
   const instrumentation = options.instrumentation;
 
-  function post(message: WireMessage): void {
+  function tryPost(message: WireMessage): PostAttempt {
     try {
       transport.post(message);
-    } catch {
-      // The peer may disconnect while async work is settling.
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error };
     }
+  }
+
+  function post(message: WireMessage): void {
+    tryPost(message);
+  }
+
+  function postSuccessfulResult(
+    id: string,
+    value: unknown,
+    context: string
+  ): ReturnType<typeof serializeWireError> | undefined {
+    const attempt = tryPost({ kind: 'result', id, ok: true, value });
+    if (attempt.ok || !isStructuredCloneError(attempt.error)) return undefined;
+
+    const serialized = serializeWireError(
+      new WireError(
+        'SERIALIZATION',
+        `Wire response for ${context} could not be serialized: ${formatStructuredCloneFailure(
+          value,
+          'value'
+        )}`,
+        { cause: attempt.error }
+      )
+    );
+    post({ kind: 'result', id, ok: false, ...serialized });
+    return serialized;
   }
 
   function replyRequest(
     id: string,
+    context: string,
     work: (signal: AbortSignal) => Promise<unknown> | unknown,
     onEnd?: (event: {
       durationMs: number;
@@ -64,9 +96,11 @@ export function serve(
     result
       .then(
         (value) => {
-          onEnd?.({ durationMs: performanceNow() - start, ok: true, value });
+          let responseValue = value;
+          let downloadChannel: string | undefined;
           if (isDownloadFileOpenResult(value)) {
             const channel = createChannelId();
+            downloadChannel = channel;
             blobProducers.set(
               channel,
               createBlobProducer({
@@ -76,15 +110,27 @@ export function serve(
                 onClose: () => blobProducers.delete(channel),
               })
             );
-            post({
-              kind: 'result',
-              id,
-              ok: true,
-              value: { success: true, data: { meta: value.data.meta, channel } },
-            });
-            return;
+            responseValue = { success: true, data: { meta: value.data.meta, channel } };
           }
-          post({ kind: 'result', id, ok: true, value });
+          const serializationError = postSuccessfulResult(id, responseValue, context);
+          if (serializationError) {
+            if (downloadChannel) {
+              blobProducers.get(downloadChannel)?.close();
+              blobProducers.delete(downloadChannel);
+            }
+            onEnd?.({
+              durationMs: performanceNow() - start,
+              ok: false,
+              errorCode: serializationError.code,
+              errorMessage: serializationError.message,
+            });
+          } else {
+            onEnd?.({
+              durationMs: performanceNow() - start,
+              ok: true,
+              value,
+            });
+          }
         },
         (error: unknown) => {
           const serialized = abort.signal.aborted
@@ -122,6 +168,7 @@ export function serve(
     if (uploadConsumer) blobConsumers.set(uploadConsumer.channel, uploadConsumer);
     replyRequest(
       id,
+      `call '${path}'`,
       async (signal) => {
         try {
           return await runWithLogger(logger.child({ wireCallId: id, wirePath: path }), () =>
@@ -155,17 +202,23 @@ export function serve(
 
   function replySnapshot(id: string, topic: string): void {
     const start = performanceNow();
-    replyRequest(id, async (signal) => {
+    replyRequest(id, `snapshot '${topic}'`, async (signal) => {
       if (signal.aborted) throw new WireError('CANCELLED', 'Wire snapshot cancelled');
       try {
-        const snapshot = await requireLiveSource(controller, topic).snapshot();
-        instrumentation?.snapshot?.({
-          requestId: id,
-          topic,
-          durationMs: performanceNow() - start,
-          ok: true,
-        });
-        return snapshot;
+        const lease = requireLiveLease(controller, topic);
+        try {
+          const source = await lease.ready();
+          const snapshot = await source.snapshot();
+          instrumentation?.snapshot?.({
+            requestId: id,
+            topic,
+            durationMs: performanceNow() - start,
+            ok: true,
+          });
+          return snapshot;
+        } finally {
+          await lease.release();
+        }
       } catch (error) {
         instrumentation?.snapshot?.({
           requestId: id,
@@ -188,6 +241,12 @@ export function serve(
     if (attachment.disposed) return;
     attachment.disposed = true;
     attachment.unsubscribe?.();
+    // Release is fire-and-forget; a rejection here must never escape as an
+    // unhandled rejection (fatal in the Electron main process).
+    void attachment.release().catch((error: unknown) => {
+      const logger = options.logger ?? getCurrentLogger();
+      logger.warn('Wire attachment release failed', { error: toSerializedError(error) });
+    });
   }
 
   function closeAllBlobChannels(): void {
@@ -214,37 +273,50 @@ export function serve(
         replySnapshot(message.id, message.topic);
         break;
       case 'attach':
-        replyRequest(message.id, async (signal) => {
+        replyRequest(message.id, `attach '${message.topic}'`, async (signal) => {
           if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
           const existing = attached.get(message.topic);
           if (existing) {
             await existing.ready;
+            if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
             return undefined;
           }
-          const source = requireLiveSource(controller, message.topic);
+          const lease = requireLiveLease(controller, message.topic);
           const attachment: ServerAttachment = {
             ready: Promise.resolve(),
+            release: lease.release,
             disposed: false,
           };
           attached.set(message.topic, attachment);
-          attachment.ready = Promise.resolve(
-            source.subscribe((update) => post({ kind: 'update', topic: message.topic, update }), {
-              onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
-              onError: (error, context) => {
-                post({
-                  kind: 'topic-error',
-                  topic: message.topic,
-                  error: serializeWireError(error),
-                  retrying: context.retrying,
-                });
-                if (!context.retrying && attached.get(message.topic) === attachment) {
-                  attached.delete(message.topic);
-                  disposeAttachment(attachment);
+          attachment.ready = (async () => {
+            try {
+              const source = await lease.ready();
+              if (
+                attachment.disposed ||
+                signal.aborted ||
+                attached.get(message.topic) !== attachment
+              ) {
+                return;
+              }
+
+              const unsubscribe = await source.subscribe(
+                (update) => post({ kind: 'update', topic: message.topic, update }),
+                {
+                  onGap: () => post({ kind: 'topic-gap', topic: message.topic }),
+                  onError: (error, context) => {
+                    post({
+                      kind: 'topic-error',
+                      topic: message.topic,
+                      error: serializeWireError(error),
+                      retrying: context.retrying,
+                    });
+                    if (!context.retrying && attached.get(message.topic) === attachment) {
+                      attached.delete(message.topic);
+                      disposeAttachment(attachment);
+                    }
+                  },
                 }
-              },
-            })
-          )
-            .then((unsubscribe) => {
+              );
               if (
                 attachment.disposed ||
                 signal.aborted ||
@@ -258,13 +330,18 @@ export function serve(
                 topic: message.topic,
                 attachmentCount: attached.size,
               });
-            })
-            .catch((error) => {
+            } catch (error) {
               if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+              disposeAttachment(attachment);
               throw error;
-            });
+            }
+          })();
           await attachment.ready;
-          if (signal.aborted) throw new WireError('CANCELLED', 'Wire attach cancelled');
+          if (signal.aborted) {
+            if (attached.get(message.topic) === attachment) attached.delete(message.topic);
+            disposeAttachment(attachment);
+            throw new WireError('CANCELLED', 'Wire attach cancelled');
+          }
           return undefined;
         });
         break;
@@ -344,8 +421,8 @@ function createChannelId(): string {
   return `blob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-function requireLiveSource(controller: Controller, topic: string) {
-  const source = controller.resolveLive(topic);
-  if (!source) throw new WireError('UNKNOWN_TOPIC', `Unknown live topic '${topic}'`);
-  return source;
+function requireLiveLease(controller: Controller, topic: string) {
+  const lease = controller.acquireLive(topic);
+  if (!lease) throw new WireError('UNKNOWN_TOPIC', `Unknown live topic '${topic}'`);
+  return lease;
 }

@@ -11,7 +11,9 @@
     "dist"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/live/state/immer-setup.ts"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -24,6 +26,10 @@
     "./api": {
       "types": "./dist/api.d.mts",
       "default": "./dist/api.mjs"
+    },
+    "./component": {
+      "types": "./dist/component.d.mts",
+      "default": "./dist/component.mjs"
     },
     "./observability": {
       "types": "./dist/observability.d.mts",
@@ -41,21 +47,17 @@
       "types": "./dist/mobx.d.mts",
       "default": "./dist/mobx.mjs"
     },
-    "./util/process-runtime": {
-      "types": "./dist/process-runtime.d.mts",
-      "default": "./dist/process-runtime.mjs"
-    },
     "./worker": {
       "types": "./dist/worker.d.mts",
       "default": "./dist/worker.mjs"
     },
-    "./process": {
-      "types": "./dist/process.d.mts",
-      "default": "./dist/process.mjs"
+    "./worker/node": {
+      "types": "./dist/worker-node.d.mts",
+      "default": "./dist/worker-node.mjs"
     },
-    "./process/node": {
-      "types": "./dist/process-node.d.mts",
-      "default": "./dist/process-node.mjs"
+    "./worker/electron": {
+      "types": "./dist/worker-electron.d.mts",
+      "default": "./dist/worker-electron.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -69,7 +71,8 @@
     "example:event-stream": "tsx examples/event-stream/client.ts",
     "example:live-job": "tsx examples/live-job/client.ts",
     "example:scope": "tsx examples/scope/client.ts",
-    "example:managed-source": "tsx examples/managed-source/client.ts",
+    "example:mailbox": "tsx examples/mailbox/client.ts",
+    "example:resource-cache": "tsx examples/resource-cache/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
     "example:contract": "tsx examples/contract/client.ts",
     "example:api-definition": "tsx examples/api-definition/inspect.ts",

@@ -1,5 +1,6 @@
 import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { WireInstrumentation } from '../../observability';
 import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
@@ -11,6 +12,7 @@ export type LiveJobClientDeps<P, R, E> = {
   instrumentation?: WireInstrumentation;
   logger?: Logger;
   topic?: string;
+  clock?: Clock;
 };
 
 export class LiveJobFailedError<E> extends Error {
@@ -39,6 +41,7 @@ export class LiveJobClient<P, R, E> {
   private lastProgressCount = 0;
   private suppressProgress = false;
   private settled = false;
+  private readonly clock: Clock;
   private resolveResult!: (result: R) => void;
   private rejectResult!: (err: unknown) => void;
 
@@ -46,6 +49,7 @@ export class LiveJobClient<P, R, E> {
     stateSchema: z.ZodType<LiveJobState<P, R, E>>,
     private readonly deps: LiveJobClientDeps<P, R, E>
   ) {
+    this.clock = deps.clock ?? systemClock;
     this.result = new Promise<R>((resolve, reject) => {
       this.resolveResult = resolve;
       this.rejectResult = reject;
@@ -105,14 +109,18 @@ export class LiveJobClient<P, R, E> {
     return new Promise((resolve, reject) => {
       const timer =
         timeoutMs > 0
-          ? setTimeout(() => {
-              cleanup();
-              reject(new Error('Timed out waiting for live job to finish'));
-            }, timeoutMs)
+          ? this.clock.schedule(
+              timeoutMs,
+              () => {
+                cleanup();
+                reject(new Error('Timed out waiting for live job to finish'));
+              },
+              { unref: true }
+            )
           : undefined;
       const cleanup = this.onStateChange((state) => {
         if (state.status === 'running') return;
-        if (timer) clearTimeout(timer);
+        timer?.dispose();
         cleanup();
         resolve();
       });
@@ -124,14 +132,18 @@ export class LiveJobClient<P, R, E> {
     return new Promise((resolve, reject) => {
       const timer =
         timeoutMs > 0
-          ? setTimeout(() => {
-              cleanup();
-              reject(new Error(`Timed out waiting for live job progress count ${count}`));
-            }, timeoutMs)
+          ? this.clock.schedule(
+              timeoutMs,
+              () => {
+                cleanup();
+                reject(new Error(`Timed out waiting for live job progress count ${count}`));
+              },
+              { unref: true }
+            )
           : undefined;
       const cleanup = this.onStateChange(() => {
         if (!this.progressCountSatisfies(count)) return;
-        if (timer) clearTimeout(timer);
+        timer?.dispose();
         cleanup();
         resolve();
       });

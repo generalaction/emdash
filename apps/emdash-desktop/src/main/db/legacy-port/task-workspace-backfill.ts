@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
-import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
-import type { AppDb, DrizzleTx } from '@main/db/client';
-import { projects, tasks, workspaces } from '@main/db/schema';
-import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
+import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 
 type ProjectWorkspaceFields = {
   projectId: string;

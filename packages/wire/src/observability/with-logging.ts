@@ -1,4 +1,5 @@
 import type { LogFields, Logger, LogLevel } from '@emdash/shared/logger';
+import type { Middleware } from '@emdash/shared/requests';
 import type { Controller } from '../api/controller';
 import { serializeWireError } from '../api/protocol';
 import { summarizePayload, type PayloadSummaryOptions } from './payload';
@@ -50,11 +51,18 @@ export function withLogging(
     resolveLive(topic) {
       return controller.resolveLive(topic);
     },
-    dispose() {
+    acquireLive(topic) {
+      return controller.acquireLive(topic);
+    },
+    async dispose() {
       logger.debug('wire api controller disposing');
-      controller.dispose?.();
+      await controller.dispose?.();
     },
   };
+}
+
+export function logging(logger: Logger, options: WithLoggingOptions = {}): Middleware<Controller> {
+  return (controller) => withLogging(controller, logger, options);
 }
 
 function logAt(

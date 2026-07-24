@@ -1,19 +1,10 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { toast } from 'sonner';
-import { createUpdateToastActionLabel } from '@renderer/lib/components/update-toast-action-label';
-import { events, rpc } from '@renderer/lib/ipc';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import type { DesktopUpdateEvent } from '@core/features/updates/api';
+import { createUpdateToastActionLabel } from '@core/primitives/ui/browser/components/update-toast-action-label';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
-import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
-import {
-  updateAvailableEvent,
-  updateCheckingEvent,
-  updateDownloadedEvent,
-  updateDownloadingEvent,
-  updateErrorEvent,
-  updateInstallingEvent,
-  updateNotAvailableEvent,
-  updateProgressEvent,
-} from '@shared/events/updateEvents';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;
@@ -67,75 +58,16 @@ export class UpdateStore {
   }
 
   start(): void {
-    void rpc.app.getAppVersion().then((v) => {
-      runInAction(() => {
-        this.currentVersion = v;
+    void this._startWire();
+
+    void getDesktopWireClient().then((client) => {
+      void client.host.events.subscribe(undefined, {
+        onEvent: (event) => {
+          if (event.type === 'menu-check-for-updates') void this.check();
+        },
+        onGap: () => {},
       });
     });
-
-    events.on(updateCheckingEvent, () => {
-      runInAction(() => {
-        this.state = { status: 'checking' };
-      });
-    });
-
-    events.on(updateAvailableEvent, (d) => {
-      runInAction(() => {
-        this.availableVersion = d.version;
-        this.state = { status: 'available', info: { version: d.version } };
-      });
-      this._maybeToastAvailable(d.version);
-    });
-
-    events.on(updateNotAvailableEvent, () => {
-      runInAction(() => {
-        this.state = { status: 'not-available' };
-      });
-    });
-
-    events.on(updateDownloadingEvent, (_d) => {
-      runInAction(() => {
-        this.state = { status: 'downloading', progress: { percent: 0 } };
-      });
-    });
-
-    events.on(updateProgressEvent, (d) => {
-      runInAction(() => {
-        this.state = {
-          status: 'downloading',
-          progress: {
-            percent: d.percent,
-            transferred: d.transferred,
-            total: d.total,
-            bytesPerSecond: d.bytesPerSecond,
-          },
-        };
-      });
-    });
-
-    events.on(updateDownloadedEvent, () => {
-      runInAction(() => {
-        this.state = { status: 'downloaded' };
-      });
-    });
-
-    events.on(updateInstallingEvent, () => {
-      runInAction(() => {
-        this.state = { status: 'installing' };
-      });
-    });
-
-    events.on(updateErrorEvent, (d) => {
-      runInAction(() => {
-        this.state = { status: 'error', message: d.message };
-      });
-    });
-
-    events.on(menuCheckForUpdatesChannel, () => {
-      rpc.update.check().catch(() => {});
-    });
-
-    rpc.update.check().catch(() => {});
   }
 
   async check(): Promise<void> {
@@ -143,7 +75,8 @@ export class UpdateStore {
       this.state = { status: 'checking' };
     });
     try {
-      const res = await rpc.update.check();
+      const client = await getDesktopWireClient();
+      const res = await client.updates.check(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -168,7 +101,8 @@ export class UpdateStore {
 
   async download(): Promise<void> {
     try {
-      const res = await rpc.update.download();
+      const client = await getDesktopWireClient();
+      const res = await client.updates.download(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -193,7 +127,8 @@ export class UpdateStore {
       this.state = { status: 'installing' };
     });
     try {
-      const res = await rpc.update.quitAndInstall();
+      const client = await getDesktopWireClient();
+      const res = await client.updates.quitAndInstall(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -214,10 +149,94 @@ export class UpdateStore {
 
   async openLatest(): Promise<void> {
     try {
-      await rpc.update.openLatest();
+      const client = await getDesktopWireClient();
+      await client.updates.openLatest(undefined);
     } catch {
       // openLatest quits the app — errors are best-effort
     }
+  }
+
+  private async _startWire(): Promise<void> {
+    const client = await getDesktopWireClient();
+    await client.updates.events.subscribe(undefined, {
+      onEvent: (event) => this._applyEvent(event),
+      onGap: () => void this._refreshWireState(),
+    });
+    await this._refreshWireState();
+    await this.check();
+  }
+
+  private async _refreshWireState(): Promise<void> {
+    const client = await getDesktopWireClient();
+    const result = await client.updates.getState(undefined);
+    if (!result.success) return;
+    runInAction(() => {
+      this.currentVersion = result.data.currentVersion;
+      this.availableVersion = result.data.availableVersion;
+      switch (result.data.status) {
+        case 'available':
+          this.state = {
+            status: 'available',
+            info: result.data.availableVersion
+              ? { version: result.data.availableVersion }
+              : undefined,
+          };
+          break;
+        case 'downloading':
+          this.state = { status: 'downloading', progress: result.data.downloadProgress };
+          break;
+        case 'error':
+          this.state = { status: 'error', message: result.data.error ?? 'Update failed' };
+          break;
+        case 'idle':
+        case 'checking':
+        case 'downloaded':
+        case 'installing':
+          this.state = { status: result.data.status };
+          break;
+      }
+    });
+  }
+
+  private _applyEvent(event: DesktopUpdateEvent): void {
+    runInAction(() => {
+      switch (event.type) {
+        case 'checking':
+          this.state = { status: 'checking' };
+          break;
+        case 'available':
+          this.availableVersion = event.version;
+          this.state = { status: 'available', info: { version: event.version } };
+          break;
+        case 'not-available':
+          this.state = { status: 'not-available' };
+          break;
+        case 'downloading':
+          this.state = { status: 'downloading', progress: { percent: 0 } };
+          break;
+        case 'progress':
+          this.state = {
+            status: 'downloading',
+            progress: {
+              percent: event.percent,
+              transferred: event.transferred,
+              total: event.total,
+              bytesPerSecond: event.bytesPerSecond,
+            },
+          };
+          break;
+        case 'downloaded':
+          this.state = { status: 'downloaded' };
+          break;
+        case 'installing':
+          this.state = { status: 'installing' };
+          break;
+        case 'error':
+          this.state = { status: 'error', message: event.message };
+          break;
+      }
+    });
+    if (event.type === 'available') this._maybeToastAvailable(event.version);
   }
 
   private _maybeToastAvailable(version: string): void {
@@ -237,7 +256,7 @@ export class UpdateStore {
       action: {
         label: createUpdateToastActionLabel(),
         onClick: () => {
-          appState.navigation.navigate('settings', { tab: 'general' });
+          appState.navigation.navigate(settingsViewDef({ tab: 'general' }));
           if (this.state.status === 'available') {
             void this.download();
           }

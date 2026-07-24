@@ -115,11 +115,15 @@ const sessionScope = runtimeScope.child('session:abc');
 sessionScope.log.info('session started');
 ```
 
-Cleanup errors are reported through the scope logger by default. Use
-`describeScope(scope)` for a lightweight label tree when debugging retained
-resources.
+Cleanup errors and failed runs are reported through the scope logger by default.
+Use `describeScope(scope)` for a lightweight label tree when debugging retained
+resources or stuck async work. Scope descriptions include active run labels,
+start times, and cancellation state. When the scope is created with a custom
+`Clock`, those start times come from that clock, which keeps lifecycle diagnostics
+deterministic in tests.
 
-Scope lifecycle behavior is documented in [runtime lifecycle](./runtime/lifecycle.md).
+Scope lifecycle behavior is documented in [runtime lifecycle](./runtime/lifecycle.md)
+and [structured concurrency](./runtime/structured-concurrency.md).
 
 ## Example
 

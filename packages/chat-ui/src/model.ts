@@ -10,7 +10,7 @@ import type {
   TranscriptThinking,
   TranscriptTurn,
   TranscriptTurnOutcome,
-} from '@emdash/core/acp/client';
+} from '@emdash/core/runtimes/acp/api/client';
 
 export type {
   AcpPermissionRequest,

@@ -42,5 +42,11 @@ export const PageLayout = Object.assign(PageLayoutRoot, {
 // ── Re-export types ───────────────────────────────────────────────────────────
 
 export type { PageLayoutProps, PageSidebarProps, PageContentProps } from './page-layout';
-export type { PageNavItem, PageSidebarMenuProps } from './page-sidebar-menu';
+export type {
+  PageNavItem,
+  PageNavDivider,
+  PageNavSection,
+  PageSidebarMenuItem,
+  PageSidebarMenuProps,
+} from './page-sidebar-menu';
 export type { PageHeaderProps } from './page-header';

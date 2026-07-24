@@ -1,0 +1,57 @@
+import { log } from '@emdash/shared/logger';
+import { and, eq, isNull } from 'drizzle-orm';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { workspaces } from '@core/services/app-db/node/schema';
+
+export type WorkspaceCurrentBranchCacheRefresh =
+  | {
+      branchName: string | null;
+      changed: boolean;
+    }
+  | undefined;
+
+export async function refreshWorkspaceCurrentBranchCache(
+  db: AppDb,
+  workspaceId: string,
+  readCurrentBranch: () => Promise<string | null>
+): Promise<WorkspaceCurrentBranchCacheRefresh> {
+  try {
+    const branchName = await readCurrentBranch();
+    const [workspace] = await db
+      .select({
+        branchName: workspaces.branchName,
+        config: workspaces.config,
+        kind: workspaces.kind,
+      })
+      .from(workspaces)
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
+      .limit(1);
+
+    if (!workspace) {
+      log.warn('Failed to refresh workspace current branch cache: workspace not found', {
+        workspaceId,
+      });
+      return undefined;
+    }
+
+    if (!workspace.config && workspace.kind !== 'project-root') {
+      return { branchName: workspace.branchName, changed: false };
+    }
+
+    if (workspace.branchName === branchName) {
+      return { branchName, changed: false };
+    }
+
+    await db
+      .update(workspaces)
+      .set({ branchName })
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
+    return { branchName, changed: true };
+  } catch (e) {
+    log.warn('Failed to refresh workspace current branch cache', {
+      workspaceId,
+      error: String(e),
+    });
+    return undefined;
+  }
+}

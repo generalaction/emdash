@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { makePtySessionId } from '@core/primitives/pty/api';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { ensureImportedTaskWorkspaces } from '../../task-workspace-backfill';
 import { portConversations } from './conversations';
@@ -43,7 +43,8 @@ function createAppDb(): {
       ssh_connection_id TEXT,
       repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
 
     CREATE TABLE tasks (
@@ -65,7 +66,8 @@ function createAppDb(): {
       workspace_provider_data TEXT,
       workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
-      automation_run_id TEXT
+      automation_run_id TEXT,
+      deleted_at TEXT
     );
 
     CREATE TABLE workspaces (
@@ -82,7 +84,8 @@ function createAppDb(): {
       config TEXT,
       branch_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
 
     CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
@@ -819,22 +822,16 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-chat', 'task-legacy-tmux', 'Legacy Claude Chat', 'claude');
 
     const calls: Array<{ command: string; args?: string[] }> = [];
-    const tmuxExec = {
-      root: undefined,
-      supportsLocalSpawn: false,
-      exec: async (command: string, args: string[] = []) => {
-        calls.push({ command, args });
-        if (
-          command === 'tmux' &&
-          args?.[0] === 'has-session' &&
-          args[2] !== 'emdash-claude-chat-conv-legacy-chat'
-        ) {
-          throw new Error('missing');
-        }
-        return { stdout: '', stderr: '' };
-      },
-      execStreaming: async () => {},
-      dispose: () => {},
+    const tmuxExec = async (command: string, args: string[] = []) => {
+      calls.push({ command, args });
+      if (
+        command === 'tmux' &&
+        args?.[0] === 'has-session' &&
+        args[2] !== 'emdash-claude-chat-conv-legacy-chat'
+      ) {
+        throw new Error('missing');
+      }
+      return { stdout: '', stderr: '' };
     };
 
     const remap = createRemapTables();

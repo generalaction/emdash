@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildPromptInjectionPayload,
   pastePromptInjection,
-} from '@renderer/lib/pty/prompt-injection';
+} from '@core/features/terminals/api/browser/pty/prompt-injection';
 
 describe('prompt injection', () => {
   it('keeps Claude multiline input unwrapped by default', () => {

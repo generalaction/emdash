@@ -1,172 +1,388 @@
-import { makeAutoObservable, toJS } from 'mobx';
-import { type GuardResult, type ViewId, type WrapParams } from '@renderer/app/view-registry';
-import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
-import { modalStore } from '@renderer/lib/modal/modal-store';
+import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { makeAutoObservable, observable } from 'mobx';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import {
+  workbenchHistoryMemento,
+  type WorkbenchHistoryState,
+  type WorkbenchNavigationState,
+} from '@core/features/workbench/contributions/mementos';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
+import type { JsonObject, JsonValue } from '@core/primitives/json/api';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
+import { modalStore } from '@core/primitives/modals/react/modal-store';
+import type {
+  HistoryEntry,
+  NavigationParticipant,
+  NavigationParticipantHost,
+  Resolution,
+} from '@core/primitives/navigation/api';
+import type { Subject } from '@core/primitives/subjects/api';
+import type { ViewRef } from '@core/primitives/views/api';
+import { getViewRuntime, type RuntimeViewDef } from '@core/primitives/views/react';
 import { focusTracker } from '@renderer/utils/focus-tracker';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { NavigationSnapshot } from '@shared/view-state';
+import { log } from '@renderer/utils/logger';
 import { appState } from './app-state';
-import type { Snapshottable } from './snapshottable';
 
-type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
+const MAX_REDIRECTS = 10;
 
-export const viewEvents: Record<
-  ViewId,
-  | 'home_viewed'
-  | 'project_viewed'
-  | 'task_viewed'
-  | 'settings_viewed'
-  | 'library_viewed'
-  | 'skills_viewed'
-  | 'mcp_viewed'
-  | 'automations_viewed'
-> = {
-  home: 'home_viewed',
-  automations: 'automations_viewed',
-  library: 'library_viewed',
-  project: 'project_viewed',
-  task: 'task_viewed',
-  settings: 'settings_viewed',
-  skills: 'skills_viewed',
-  mcp: 'mcp_viewed',
-};
+export type NavigationEventKind = 'traversal' | 'refinement' | 'restoration';
 
-type LibraryViewId = 'library' | 'skills' | 'mcp';
-type NonLibraryViewId = Exclude<ViewId, LibraryViewId>;
-
-function isLibraryView(viewId: ViewId): viewId is LibraryViewId {
-  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
+export interface NavigationEvent {
+  readonly from: ViewRef | undefined;
+  readonly to: ViewRef;
+  readonly kind: NavigationEventKind;
 }
 
-export class NavigationStore implements Snapshottable<NavigationSnapshot> {
-  currentViewId: ViewId = 'home';
-  viewParamsStore: ViewParamsStore = {};
-  isNavigating: boolean = false;
-  lastNonSettingsView: NonSettingsViewId = 'home';
-  lastNonLibraryView: NonLibraryViewId = 'home';
+type LegacyNavigationHandle = MementoHandle<WorkbenchNavigationState>;
 
-  private readonly _guards = new Map<ViewId, (params: unknown) => GuardResult>();
-  private readonly _registeredViewIds = new Set<ViewId>();
+interface AttachedParticipant {
+  readonly participant: NavigationParticipant;
+}
+
+interface PendingLocation {
+  readonly refKey: string;
+  readonly location: JsonValue;
+}
+
+export class NavigationStore implements NavigationParticipantHost {
+  readonly onDidNavigate = new Emitter<NavigationEvent>();
+
+  private _currentRef: ViewRef = homeViewDef();
+  private readonly _lastRefByViewId = observable.map<string, ViewRef>();
+  private _historyHandle: MementoHandle<WorkbenchHistoryState> | undefined;
+  private _historyUnsubscribe: Unsubscribe | undefined;
+  private readonly _participants = new Map<string, AttachedParticipant>();
+  private _pendingLocation: PendingLocation | undefined;
+  private _rehydrating = false;
 
   constructor() {
-    makeAutoObservable(this);
+    makeAutoObservable<
+      NavigationStore,
+      | '_currentRef'
+      | '_historyHandle'
+      | '_historyUnsubscribe'
+      | '_participants'
+      | '_pendingLocation'
+      | '_rehydrating'
+      | '_lastRefByViewId'
+    >(this, {
+      _currentRef: observable.ref,
+      _lastRefByViewId: false,
+      _historyHandle: false,
+      _historyUnsubscribe: false,
+      _participants: false,
+      _pendingLocation: false,
+      _rehydrating: false,
+      onDidNavigate: false,
+    });
   }
 
-  registerView(viewId: ViewId): void {
-    this._registeredViewIds.add(viewId);
+  get currentRef(): ViewRef {
+    return this._currentRef;
   }
 
-  isRegisteredViewId(value: unknown): value is ViewId {
-    return typeof value === 'string' && this._registeredViewIds.has(value as ViewId);
+  get currentViewId(): ViewId {
+    return this._currentRef.viewId as ViewId;
   }
 
-  registerGuard(viewId: ViewId, guard: (params: unknown) => GuardResult): void {
-    this._guards.set(viewId, guard);
-  }
+  attachMemento(
+    historyHandle: MementoHandle<WorkbenchHistoryState>,
+    legacyHandle?: LegacyNavigationHandle
+  ): void {
+    if (this._historyHandle) throw new Error('Navigation history memento is already attached');
+    this._historyHandle = historyHandle;
+    this._historyUnsubscribe = appState.history.onDidChange.subscribe(() => this.persistHistory());
 
-  private _runGuard(viewId: ViewId, params: unknown): GuardResult {
-    return this._guards.get(viewId)?.(params) ?? { ok: true };
-  }
+    const legacySeed =
+      !historyHandle.hasStoredValue && legacyHandle?.hasStoredValue ? legacyHandle : undefined;
+    const persisted = legacySeed ? this.seedFromLegacy(legacySeed.value) : historyHandle.value;
+    const rehydrated = persisted.entries.map((entry, sourceIndex) => ({
+      entry: this.rehydrateEntry(entry),
+      sourceIndex,
+    }));
+    const entries = rehydrated.flatMap(({ entry }) => (entry ? [entry] : []));
+    const index =
+      rehydrated.filter(
+        ({ entry, sourceIndex }) => entry !== undefined && sourceIndex <= persisted.index
+      ).length - 1;
 
-  revalidate(): void {
-    const result = this._runGuard(this.currentViewId, this.viewParamsStore[this.currentViewId]);
-    if (!result.ok) this._applyNavigation(result.redirect, result.params as WrapParams<ViewId>);
-  }
+    let attached = false;
+    this._rehydrating = true;
+    try {
+      appState.history.replace(entries, index);
+      this.rebuildLastRefs();
 
-  navigate<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
-    if (viewId !== 'task') {
-      const historyParams = params ?? this.viewParamsStore[viewId] ?? ({} as WrapParams<T>);
-      appState.history.push({ kind: 'view', viewId, params: historyParams });
+      const current = appState.history.current;
+      if (!current) {
+        this.navigate(homeViewDef());
+      } else {
+        const resolved = this.resolveChain(current.ref);
+        if (resolved.key !== current.ref.key) {
+          appState.history.prune((entry) => entry === current);
+          this.navigate(resolved);
+        } else {
+          this.commit(resolved, 'restoration');
+          this.deliverLocation(resolved, current.location);
+        }
+      }
+      attached = true;
+    } finally {
+      this._rehydrating = false;
+      this.persistHistory();
+      if (attached && legacySeed) {
+        void legacySeed.reset().catch((error: unknown) => {
+          log.error('Failed to reset legacy navigation memento:', error);
+        });
+      }
     }
-    this._applyNavigation(viewId, params);
   }
 
-  _applyNavigation<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
-    const resolvedParams = params ?? this.viewParamsStore[viewId];
-    const guard = this._runGuard(viewId, resolvedParams);
-    if (!guard.ok) {
-      this._applyNavigation(guard.redirect, guard.params as WrapParams<typeof guard.redirect>);
+  navigate(requested: ViewRef): void {
+    this.captureCurrentLocation();
+    this._pendingLocation = undefined;
+    const resolved = this.resolveChain(requested);
+    const previousEntry = appState.history.current;
+    const entry = this.entryFor(
+      resolved,
+      previousEntry?.ref.key === resolved.key ? previousEntry.location : undefined
+    );
+    const kind: NavigationEventKind = previousEntry?.key === entry.key ? 'refinement' : 'traversal';
+    appState.history.record(entry);
+    this.commit(resolved, kind);
+  }
+
+  lastRefFor<TDef extends RuntimeViewDef>(definition: TDef): ViewRef | undefined {
+    return this._lastRefByViewId.get(definition.id);
+  }
+
+  toggleSettings(): void {
+    if (this.currentViewId !== settingsViewDef.id) {
+      this.navigate(settingsViewDef());
       return;
     }
 
-    if (viewId !== this.currentViewId) {
-      const transition = focusTracker.transition(
-        viewId === 'task'
-          ? { view: viewId }
-          : {
-              view: viewId,
-              mainPanel: null,
-              focusedRegion: null,
-            },
-        'navigation'
-      );
-      captureTelemetry(viewEvents[viewId], {
-        from_view: transition?.previous.view ?? null,
-      });
-      this.currentViewId = viewId;
-      if (viewId !== 'settings') {
-        this.lastNonSettingsView = viewId;
-      }
-      if (!isLibraryView(viewId)) {
-        this.lastNonLibraryView = viewId;
-      }
-      this.isNavigating = true;
-    }
-    if (params !== undefined) {
-      this.viewParamsStore = { ...this.viewParamsStore, [viewId]: params };
-    }
-    modalStore.closeModal();
+    const previous = appState.history.nearestBefore(
+      (entry) => entry.ref.viewId !== settingsViewDef.id
+    );
+    this.navigate(previous?.ref ?? homeViewDef());
   }
 
-  updateViewParams<TId extends ViewId>(
-    viewId: TId,
-    update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)
-  ): void {
-    const current = (this.viewParamsStore[viewId] ?? {}) as WrapParams<TId>;
-    const next = typeof update === 'function' ? update(current) : { ...current, ...update };
-    this.viewParamsStore = { ...this.viewParamsStore, [viewId]: next };
+  exitLibrary(): void {
+    const previous = appState.history.nearestBefore((entry) => {
+      const definition = viewCatalog.byId(entry.ref.viewId);
+      return !definition?.traits.has('library');
+    });
+    this.navigate(previous?.ref ?? homeViewDef());
   }
 
-  get snapshot(): NavigationSnapshot {
-    return {
-      currentViewId: this.currentViewId,
-      viewParams: toJS(this.viewParamsStore) as Record<string, unknown>,
+  invalidateSubject(subject: Subject): void {
+    const affects = (ref: ViewRef): boolean => {
+      const definition = viewCatalog.byId(ref.viewId);
+      const refSubject = definition?.subject?.(ref.params as never);
+      return refSubject?.kind === subject.kind && refSubject.key === subject.key;
+    };
+
+    appState.history.prune((entry) => affects(entry.ref));
+    for (const [viewId, ref] of this._lastRefByViewId) {
+      if (affects(ref)) this._lastRefByViewId.delete(viewId);
+    }
+
+    if (affects(this._currentRef)) {
+      const resolved = this.resolveChain(this._currentRef);
+      if (resolved.key === this._currentRef.key) {
+        this.navigate(homeViewDef());
+      } else {
+        this.navigate(resolved);
+      }
+    }
+  }
+
+  applyEntry(entry: HistoryEntry): boolean {
+    const definition = viewCatalog.byId(entry.ref.viewId);
+    const ref = definition?.safeRef(entry.ref.params);
+    if (!ref) return false;
+    const resolved = this.resolveChain(ref);
+    if (resolved.key !== ref.key) return false;
+
+    if (!this.deliverLocation(resolved, entry.location)) return false;
+    this.commit(resolved, 'restoration');
+    return true;
+  }
+
+  attachParticipant<TLocation extends JsonValue>(
+    ref: ViewRef,
+    participant: NavigationParticipant<TLocation>
+  ): Unsubscribe {
+    const attached: AttachedParticipant = {
+      participant: participant as NavigationParticipant,
+    };
+    this._participants.set(ref.key, attached);
+
+    if (this._pendingLocation?.refKey === ref.key) {
+      const restored = participant.restoreLocation(this._pendingLocation.location as TLocation);
+      this._pendingLocation = undefined;
+      if (restored === false) {
+        const current = appState.history.current;
+        if (current?.ref.key === ref.key) {
+          appState.history.prune((entry) => entry === current);
+          appState.history.record(this.entryFor(ref));
+        }
+      }
+    }
+
+    return () => {
+      if (this._participants.get(ref.key) === attached) this._participants.delete(ref.key);
     };
   }
 
-  restoreSnapshot(snapshot: Partial<NavigationSnapshot>): void {
-    if (this.isRegisteredViewId(snapshot.currentViewId)) {
-      this.currentViewId = snapshot.currentViewId;
-      if (snapshot.currentViewId !== 'settings') {
-        this.lastNonSettingsView = snapshot.currentViewId as NonSettingsViewId;
-      }
-      if (!isLibraryView(snapshot.currentViewId)) {
-        this.lastNonLibraryView = snapshot.currentViewId;
-      }
-    }
-    if (snapshot.viewParams) {
-      const filtered: ViewParamsStore = {};
-      for (const [key, value] of Object.entries(snapshot.viewParams)) {
-        if (this.isRegisteredViewId(key)) {
-          (filtered as Record<ViewId, unknown>)[key] = value;
-        }
-      }
-      this.viewParamsStore = filtered;
+  reportLocation(ref: ViewRef, location: JsonValue): void {
+    if (appState.history.isApplying || ref.key !== this._currentRef.key) return;
+    const parsed = this.parseLocation(ref, location);
+    if (parsed === undefined) return;
+
+    const entry = this.entryFor(ref, parsed);
+    const current = appState.history.current;
+    if (!current || current.ref.key !== ref.key) return;
+
+    if (current.location === undefined) {
+      appState.history.annotate(entry);
+      this.onDidNavigate.emit({ from: ref, to: ref, kind: 'refinement' });
+      return;
     }
 
-    // Validate after params are loaded so the guard has full context.
-    const guard = this._runGuard(this.currentViewId, this.viewParamsStore[this.currentViewId]);
-    if (!guard.ok) {
-      this.currentViewId = guard.redirect;
-      if (guard.redirect !== 'settings') {
-        this.lastNonSettingsView = guard.redirect as NonSettingsViewId;
-      }
-      if (!isLibraryView(guard.redirect)) {
-        this.lastNonLibraryView = guard.redirect;
-      }
-      if (guard.params !== undefined) {
-        this.viewParamsStore = { ...this.viewParamsStore, [guard.redirect]: guard.params };
-      }
+    const kind: NavigationEventKind = current.key === entry.key ? 'refinement' : 'traversal';
+    appState.history.record(entry);
+    this.onDidNavigate.emit({ from: ref, to: ref, kind });
+  }
+
+  private resolveChain(initial: ViewRef): ViewRef {
+    let ref = initial;
+    const visited = new Set<string>();
+
+    // Detect cycles and also bound non-repeating redirect chains produced from changing params.
+    for (let redirects = 0; redirects < MAX_REDIRECTS; redirects++) {
+      const cycleKey = `${ref.viewId}:${JSON.stringify(ref.params)}`;
+      if (visited.has(cycleKey)) return homeViewDef();
+      visited.add(cycleKey);
+
+      const contribution = getViewRuntime(ref.viewId);
+      const resolve = contribution?.runtime.resolve as
+        | ((params: JsonObject) => Resolution)
+        | undefined;
+      const resolution = resolve?.(ref.params) ?? { kind: 'ok' };
+      if (resolution.kind === 'ok') return ref;
+      ref = resolution.ref;
     }
+
+    return homeViewDef();
+  }
+
+  private commit(ref: ViewRef, kind: NavigationEventKind): void {
+    const from = this._currentRef;
+    const viewChanged = from.viewId !== ref.viewId;
+    if (viewChanged) {
+      const viewId = ref.viewId as ViewId;
+      focusTracker.transition(
+        viewId === 'task'
+          ? { view: viewId }
+          : { view: viewId, mainPanel: null, focusedRegion: null },
+        'navigation'
+      );
+    }
+
+    this._currentRef = ref;
+    this._lastRefByViewId.set(ref.viewId, ref);
+    this.onDidNavigate.emit({ from, to: ref, kind });
+    if (kind !== 'refinement') modalStore.dismiss('navigation');
+  }
+
+  private entryFor(ref: ViewRef, location?: JsonValue): HistoryEntry {
+    const definition = viewCatalog.byId(ref.viewId);
+    const locationKey =
+      location !== undefined && definition?.location
+        ? definition.location.key(location as never)
+        : undefined;
+    return {
+      ref,
+      ...(location === undefined ? {} : { location }),
+      key: locationKey ? `${ref.key}:${locationKey}` : ref.key,
+    };
+  }
+
+  private parseLocation(ref: ViewRef, location: unknown): JsonValue | undefined {
+    const contract = viewCatalog.byId(ref.viewId)?.location;
+    if (!contract) return undefined;
+    const parsed = contract.schema.safeParse(location);
+    return parsed.success ? parsed.data : undefined;
+  }
+
+  private captureCurrentLocation(): void {
+    const participant = this._participants.get(this._currentRef.key);
+    if (!participant) return;
+    const location = participant.participant.captureLocation();
+    if (location === undefined) return;
+    const parsed = this.parseLocation(this._currentRef, location);
+    if (parsed === undefined) return;
+    const current = appState.history.current;
+    if (current?.ref.key === this._currentRef.key) {
+      appState.history.annotate(this.entryFor(this._currentRef, parsed));
+    }
+  }
+
+  private deliverLocation(ref: ViewRef, location: JsonValue | undefined): boolean {
+    if (location === undefined) {
+      this._pendingLocation = undefined;
+      return true;
+    }
+    const parsed = this.parseLocation(ref, location);
+    if (parsed === undefined) return true;
+
+    const participant = this._participants.get(ref.key);
+    if (participant) {
+      return participant.participant.restoreLocation(parsed) !== false;
+    }
+    this._pendingLocation = { refKey: ref.key, location: parsed };
+    return true;
+  }
+
+  private rehydrateEntry(
+    persisted: WorkbenchHistoryState['entries'][number]
+  ): HistoryEntry | undefined {
+    const definition = viewCatalog.byId(persisted.viewId);
+    const ref = definition?.safeRef(persisted.params);
+    if (!ref) return undefined;
+    const location =
+      persisted.location === undefined ? undefined : this.parseLocation(ref, persisted.location);
+    return this.entryFor(ref, location);
+  }
+
+  private seedFromLegacy(legacy: WorkbenchNavigationState): WorkbenchHistoryState {
+    const params = legacy.viewParams[legacy.currentViewId] ?? {};
+    return {
+      ...workbenchHistoryMemento.default,
+      entries: [{ viewId: legacy.currentViewId, params }],
+      index: 0,
+    };
+  }
+
+  private rebuildLastRefs(): void {
+    this._lastRefByViewId.clear();
+    for (const entry of appState.history.entries.slice(0, appState.history.index + 1)) {
+      this._lastRefByViewId.set(entry.ref.viewId, entry.ref);
+    }
+  }
+
+  private persistHistory(): void {
+    if (!this._historyHandle || this._rehydrating) return;
+    this._historyHandle.update({
+      version: '1',
+      entries: appState.history.entries.map((entry) => ({
+        viewId: entry.ref.viewId,
+        params: entry.ref.params,
+        ...(entry.location === undefined ? {} : { location: entry.location }),
+      })),
+      index: appState.history.index,
+    });
   }
 }

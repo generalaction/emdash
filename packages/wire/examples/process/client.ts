@@ -1,36 +1,45 @@
 import { fileURLToPath } from 'node:url';
+import { createScope } from '@emdash/shared/concurrency';
+import { retrySchedules } from '@emdash/shared/scheduling';
 import { ReplicaState } from '../../src/index';
-import { childProcessHost } from '../../src/process/node';
-import { createScope } from '../../src/util';
-import { spawnRuntime } from '../../src/util/process-runtime';
-import { processExampleApi } from './contract';
+import type { WireWorker } from '../../src/worker';
+import { createWireWorkerHost } from '../../src/worker';
+import { childProcessSpawner } from '../../src/worker/node';
+import { processExampleComponent } from './component';
+import type { processExampleApi } from './contract';
 
 async function main(): Promise<void> {
   const scope = createScope({ label: 'process-example' });
-  const runtime = await spawnRuntime({
-    host: childProcessHost(),
-    contract: processExampleApi,
-    spec: {
-      entry: fileURLToPath(new URL('./runtime.ts', import.meta.url)),
-      supervision: { restart: 'on-failure', backoffMs: [50], maxRestarts: 1 },
-    },
+  const host = createWireWorkerHost({
     scope,
+    processSpawner: childProcessSpawner(),
   });
+  const worker = host.create(processExampleComponent, {
+    name: 'process-example',
+    executable: fileURLToPath(new URL('./runtime.ts', import.meta.url)),
+    dependencies: {},
+    config: {},
+    supervision: {
+      restart: 'on-failure',
+      schedule: retrySchedules.sequence([50]),
+    },
+  });
+  const api = await worker.ready();
 
-  const counter = new ReplicaState(runtime.client.counter.state(undefined, 'counter'), {
+  const counter = new ReplicaState(api.counter.state(undefined, 'counter'), {
     onChange: (value) => {
       console.log('counter:', value.count);
     },
   });
   await counter.ready;
 
-  console.log('ping:', await runtime.client.ping('one'));
-  console.log('increment:', await runtime.client.increment(undefined));
-  const restarted = waitForRestart(runtime);
-  await runtime.client.crash(undefined).catch(() => undefined);
+  console.log('ping:', await api.ping('one'));
+  console.log('increment:', await api.increment(undefined));
+  const restarted = waitForRestart(worker);
+  await api.crash(undefined).catch(() => undefined);
   await restarted;
 
-  console.log('ping after restart:', await runtime.client.ping('two'));
+  console.log('ping after restart:', await api.ping('two'));
   await waitFor(() => counter.current().count === 0);
   console.log('counter after restart:', counter.current().count);
   await counter.dispose();
@@ -38,9 +47,11 @@ async function main(): Promise<void> {
   await scope.dispose();
 }
 
-function waitForRestart(runtime: { onRestarted(cb: () => void): () => void }): Promise<void> {
+function waitForRestart(worker: WireWorker<typeof processExampleApi>): Promise<void> {
+  const previousGeneration = worker.state.kind === 'ready' ? worker.state.generation : 0;
   return new Promise((resolve) => {
-    const unsubscribe = runtime.onRestarted(() => {
+    const unsubscribe = worker.onStateChanged((state) => {
+      if (state.kind !== 'ready' || state.generation <= previousGeneration) return;
       unsubscribe();
       resolve();
     });

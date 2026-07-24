@@ -74,8 +74,6 @@
       "types": "./dist/src/styles/recipes/box.d.ts",
       "default": "./dist/styles/recipes/box.js"
     },
-    "./theme/theme.css": "./src/theme/__generated__/theme.css",
-    "./theme/semantic.css": "./src/theme/__generated__/semantic.css",
     "./styles/tokens.css": "./src/styles/tokens.css",
     "./styles/global": {
       "types": "./dist/src/styles/global.css.d.ts",
@@ -86,16 +84,14 @@
     "./styles/effects.css": "./src/styles/effects/effects.css",
     "./styles/overflow-fade.css": "./src/styles/effects/overflow-fade.css",
     "./styles/typography.css": "./src/styles/typography.css",
-    "./theme/shiki-themes": "./src/theme/__generated__/shiki-themes.gen.ts",
-    "./theme/manifest": "./src/theme/themes/registry.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
     "test": "vitest run",
-    "build:theme": "tsx src/theme/core/codegen/run.ts && oxfmt src/theme/__generated__/theme.css src/theme/__generated__/semantic.css",
-    "watch:theme": "tsx --watch src/theme/core/codegen/run.ts",
+    "build:theme": "pnpm --filter @emdash/theme run build:theme",
+    "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
     "storybook": "storybook dev -p 6006 -c .storybook",
     "build:storybook": "storybook build -c .storybook",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
@@ -107,6 +103,7 @@
     "@base-ui/react": "^1.3.0",
     "@emdash/chat-ui": "workspace:*",
     "@emdash/shared": "workspace:*",
+    "@emdash/theme": "workspace:*",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-mention": "^3.26.1",
@@ -131,7 +128,6 @@
     "@vanilla-extract/sprinkles": "^1.6.5",
     "@vanilla-extract/vite-plugin": "^5.2.2",
     "@vitejs/plugin-react": "^4.7.0",
-    "colorjs.io": "^0.5.2",
     "devicon": "^2.17.0",
     "mobx": "^6.16.1",
     "mobx-react-lite": "^4.1.1",

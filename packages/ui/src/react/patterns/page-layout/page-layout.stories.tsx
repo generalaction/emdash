@@ -1,20 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import {
-  BookOpenIcon,
-  BotIcon,
-  ExternalLinkIcon,
-  GlobeIcon,
-  PlusIcon,
-  SettingsIcon,
-  TerminalIcon,
-  UserIcon,
-  WrenchIcon,
-  ZapIcon,
-} from 'lucide-react';
+import { PlusIcon, WrenchIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
 import { SearchInput } from '../../primitives/search-input';
-import { PageLayout } from './index';
+import { PageLayout, type PageNavItem, type PageSidebarMenuItem } from './index';
 
 const meta: Meta = {
   title: 'Patterns/PageLayout',
@@ -38,7 +27,7 @@ function Card({ title, rows = 3 }: { title: string; rows?: number }) {
       }}
     >
       <div
-        style={{ fontSize: 'var(--em-text-sm)', fontWeight: 500, color: 'var(--em-foreground)' }}
+        style={{ fontSize: 'var(--em-text-sm)', fontWeight: 400, color: 'var(--em-foreground)' }}
       >
         {title}
       </div>
@@ -70,10 +59,10 @@ function PlaceholderList({ count = 5 }: { count?: number }) {
 // ── 1. Library style — sidebar + content (max-w-3xl) ─────────────────────────
 
 const LIBRARY_ITEMS = [
-  { id: 'prompts', label: 'Prompts', icon: <BookOpenIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'skills', label: 'Skills', icon: <WrenchIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'mcp', label: 'MCP', icon: <TerminalIcon style={{ width: 14, height: 14 }} /> },
-];
+  { id: 'prompts', label: 'Prompts', icon: 'book-open' },
+  { id: 'skills', label: 'Skills', icon: 'wrench' },
+  { id: 'mcp', label: 'MCP', icon: 'terminal' },
+] satisfies PageNavItem[];
 
 function LibraryDemo() {
   const [tab, setTab] = React.useState('prompts');
@@ -135,22 +124,22 @@ export const LibraryStyle: Story = {
 // ── 2. Settings style — sidebar + content (default max-w-4xl) ────────────────
 
 const SETTINGS_ITEMS = [
-  { id: 'general', label: 'General', icon: <SettingsIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'account', label: 'Account', icon: <UserIcon style={{ width: 14, height: 14 }} /> },
-  { id: 'agents', label: 'Agents', icon: <BotIcon style={{ width: 14, height: 14 }} /> },
+  { id: 'general', label: 'General', icon: 'settings' },
+  { id: 'account', label: 'Account', icon: 'user' },
+  { id: 'agents', label: 'Agents', icon: 'bot' },
   {
     id: 'integrations',
     label: 'Integrations',
-    icon: <GlobeIcon style={{ width: 14, height: 14 }} />,
+    icon: 'globe',
   },
-  { id: 'connections', label: 'Connections', icon: <ZapIcon style={{ width: 14, height: 14 }} /> },
+  { id: 'connections', label: 'Connections', icon: 'zap' },
   {
     id: 'docs',
     label: 'Docs',
-    icon: <ExternalLinkIcon style={{ width: 14, height: 14 }} />,
+    icon: 'external-link',
     isExternal: true,
   },
-];
+] satisfies PageNavItem[];
 
 function SettingsDemo() {
   const [tab, setTab] = React.useState('general');
@@ -277,7 +266,7 @@ function CustomSidebarDemo() {
               <p
                 style={{
                   fontSize: 'var(--em-text-xs)',
-                  fontWeight: 600,
+                  fontWeight: 400,
                   color: 'var(--em-foreground-muted)',
                   paddingLeft: '0.75rem',
                   paddingBottom: '0.25rem',
@@ -340,4 +329,69 @@ function CustomSidebarDemo() {
 export const CustomSidebar: Story = {
   name: 'Custom sidebar — PageLayout.Sidebar bare slot',
   render: () => <CustomSidebarDemo />,
+};
+
+// ── 5. Sectioned sidebar — PageNavSection dividers ────────────────────────────
+
+const SECTIONED_ITEMS = [
+  { id: 'general', label: 'General', icon: 'settings' },
+  { id: 'account', label: 'Account', icon: 'user' },
+  { id: 'integrations', label: 'Integrations', icon: 'plug' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'interface', label: 'Interface', icon: 'panel-left' },
+  { id: 'browser', label: 'Browser', icon: 'globe' },
+  { id: 'repository', label: 'Repository', icon: 'git-branch' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'agents', label: 'Agents', icon: 'bot' },
+  { id: 'workspaces', label: 'Workspaces (local)', icon: 'folder-git-2' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'remote-machines', label: 'Remote Machines', icon: 'server' },
+  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { id: 'docs', label: 'Docs', icon: 'external-link', isExternal: true },
+] satisfies PageSidebarMenuItem[];
+
+function SectionedSidebarDemo() {
+  const [tab, setTab] = React.useState('general');
+
+  return (
+    <div
+      style={{
+        height: '40rem',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--em-background)',
+      }}
+    >
+      <PageLayout
+        sidebar={
+          <PageLayout.SidebarMenu
+            items={SECTIONED_ITEMS}
+            activeId={tab}
+            onSelect={(item) => {
+              if (!item.isExternal) setTab(item.id);
+            }}
+          />
+        }
+      >
+        <PageLayout.Content>
+          <PageLayout.Header
+            title={
+              SECTIONED_ITEMS.find((item) => item.kind !== 'divider' && item.id === tab)?.label ??
+              ''
+            }
+            description="Sectioned sidebar demonstrating divider support."
+            sticky
+          />
+          <div style={{ paddingTop: '1.5rem', paddingBottom: '2.5rem' }}>
+            <PlaceholderList count={4} />
+          </div>
+        </PageLayout.Content>
+      </PageLayout>
+    </div>
+  );
+}
+
+export const SectionedSidebar: Story = {
+  name: 'Sectioned sidebar — divider support',
+  render: () => <SectionedSidebarDemo />,
 };

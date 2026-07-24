@@ -1,6 +1,7 @@
 import { createConnection, type Socket } from 'node:net';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import { client as createClient, connect, streamTransport } from '@emdash/wire';
 
 export type DaemonHealth = Awaited<
@@ -22,7 +23,9 @@ export async function probeDaemon(
     socket = await connectToSocket(socketPath, timeoutMs);
     const transport = streamTransport(socket, socket);
     const wireClient = createClient(workspaceWireContract, connect(transport));
-    const health = await withTimeout(wireClient.health(undefined), timeoutMs);
+    const health = await runWithTimeout((signal) => wireClient.health(undefined, { signal }), {
+      timeoutMs,
+    });
     transport.close?.();
     socket.destroy();
     return ok(health);
@@ -64,25 +67,6 @@ function connectToSocket(socketPath: string, timeoutMs: number): Promise<Socket>
 
     socket.once('connect', onConnect);
     socket.once('error', onError);
-  });
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error('Timed out waiting for daemon health')),
-      timeoutMs
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      }
-    );
   });
 }
 

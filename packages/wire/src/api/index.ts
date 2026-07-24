@@ -9,4 +9,5 @@ export * from './serve';
 export * from './sessions';
 export * from './topics';
 export * from './transports';
+export * from './with-timeout';
 export * from './with-validation';

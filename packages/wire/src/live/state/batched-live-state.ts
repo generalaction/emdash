@@ -1,5 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { WireInstrumentation } from '../../observability';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import type { LiveStateProduceOptions, LiveState } from './server';
@@ -25,8 +26,10 @@ export const microtaskScheduler: FlushScheduler = (flush) => queueMicrotask(flus
  * Trailing-debounce scheduler: accumulates mutations over `ms` milliseconds
  * then flushes once at the end of the window.
  */
-export function timerScheduler(ms: number): FlushScheduler {
-  return (flush) => void setTimeout(flush, ms);
+export function timerScheduler(ms: number, clock: Clock = systemClock): FlushScheduler {
+  return (flush) => {
+    clock.schedule(ms, flush, { unref: true });
+  };
 }
 
 /**

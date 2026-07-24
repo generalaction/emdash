@@ -1,7 +1,8 @@
-import { createChatContext, type ChatContext } from '@emdash/chat-ui';
-import { rpc } from '@renderer/lib/ipc';
+import type { ChatContext } from '@emdash/chat-ui';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { advertisedCommandProvider } from './advertised-command-provider';
 import { chatMentionProvider, registerIssueMentionIcons } from './chat-mention-provider';
+import { getChatUiRuntime } from './chat-ui-runtime';
 
 let shared: ChatContext | null = null;
 let didPreloadIssueMentionIcons = false;
@@ -17,7 +18,7 @@ let didPreloadIssueMentionIcons = false;
 export function initSharedChatContext(): ChatContext {
   if (!shared) {
     preloadIssueMentionIcons();
-    shared = createChatContext({
+    shared = getChatUiRuntime().createChatContext({
       mentionProvider: chatMentionProvider,
       commandProvider: advertisedCommandProvider,
     });
@@ -36,8 +37,8 @@ export function getSharedChatContext(): ChatContext {
 function preloadIssueMentionIcons(): void {
   if (didPreloadIssueMentionIcons) return;
   didPreloadIssueMentionIcons = true;
-  void rpc.integrations
-    .list()
+  void getDesktopWireClient()
+    .then((client) => client.integrations.list(undefined))
     .then(registerIssueMentionIcons)
     .catch(() => {
       // IntegrationsProvider also refreshes the registry after React mounts.

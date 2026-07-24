@@ -1,36 +1,36 @@
-import { eventFromUpdate, stableStringify } from '@emdash/wire';
-import type { ProcessHost } from '@emdash/wire/process';
-import type { Scope } from '@emdash/wire/util';
-import { lazyWorker } from '@emdash/wire/worker';
-import { fsWatchContract, type FsWatchStreamEvent } from '../api';
+import { stableStringify } from '@emdash/shared/util';
+import { eventFromUpdate } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
+import type { fsWatchContract, FsWatchStreamEvent } from '@services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 
 export type ProcessWatchBackendOptions = {
-  entry: string;
-  scope?: Scope;
-  host?: ProcessHost;
-  env?: Record<string, string | undefined>;
+  client:
+    | ContractClient<typeof fsWatchContract>
+    | (() => Promise<ContractClient<typeof fsWatchContract>>);
+  ready?: () => Promise<void>;
   onError?: WatchOnError;
 };
 
 export function processWatchBackend(options: ProcessWatchBackendOptions): WatchBackend {
   const onError = options.onError ?? (() => {});
-  const worker = lazyWorker({
-    name: 'fs-watch',
-    contract: fsWatchContract,
-    entry: options.entry,
-    scope: options.scope,
-    host: options.host,
-    env: options.env,
-  });
 
   return {
     async subscribe(key, sink, scope) {
-      const handle = await worker.get();
+      await options.ready?.();
+      const client = await getClient(options.client);
       const ready = createDeferred<void>();
       void ready.promise.catch(() => {});
       let awaitingInitialReady = true;
-      const detach = await handle.client.events.handle(key).attach(
+      const abortReady = () => {
+        if (!awaitingInitialReady) return;
+        awaitingInitialReady = false;
+        ready.reject(
+          scope.signal.reason ?? new Error(`Fs watch ${keyId(key)} disposed before ready`)
+        );
+      };
+      scope.signal.addEventListener('abort', abortReady, { once: true });
+      const detach = await client.events.handle(key).attach(
         (update) => {
           const event = eventFromUpdate<FsWatchStreamEvent>(update);
           switch (event.kind) {
@@ -71,10 +71,7 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
       );
       scope.add(detach);
       scope.add(() => {
-        if (awaitingInitialReady) {
-          awaitingInitialReady = false;
-          ready.reject(new Error(`Fs watch ${keyId(key)} disposed before ready`));
-        }
+        scope.signal.removeEventListener('abort', abortReady);
       });
 
       try {
@@ -84,10 +81,14 @@ export function processWatchBackend(options: ProcessWatchBackendOptions): WatchB
         throw error;
       }
     },
-    async dispose() {
-      await worker.dispose();
-    },
   };
+}
+
+async function getClient(
+  client: ProcessWatchBackendOptions['client']
+): Promise<ContractClient<typeof fsWatchContract>> {
+  if (typeof client === 'function') return await client();
+  return client;
 }
 
 function keyId(key: WatchKey): string {

@@ -59,7 +59,7 @@ describe('createWireSessionHub', () => {
     expect(live.unsubscribes[0]).toHaveBeenCalledTimes(1);
     expect(live.subscribers.size).toBe(1);
 
-    hub.dispose();
+    await hub.dispose();
     expect(live.unsubscribes[1]).toHaveBeenCalledTimes(1);
     expect(live.subscribers.size).toBe(0);
   });

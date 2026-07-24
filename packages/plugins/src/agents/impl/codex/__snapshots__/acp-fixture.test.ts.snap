@@ -270,7 +270,7 @@ exports[`Codex ACP fixture parsing > transcript 1`] = `
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:2:tool:call_sqP7LTqUlaTMofbbig96Qk08",
           "kind": "search-tool-call",
-          "query": "Search for 'toAgentUpdate'",
+          "query": "for 'toAgentUpdate'",
           "seq": 2,
           "status": "done",
           "title": "Search for 'toAgentUpdate'",
@@ -444,7 +444,7 @@ I need to respond with just a plan since the user is asking for a checklist or t
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:4:tool:call_nutYXe2pUBohJK0zZA75dd6x",
           "kind": "search-tool-call",
-          "query": "Search for 'AgentUpdate|toAgentUpdate|kind: 'message'|kind: 'thinking'|kind: 'tool_call'|kind: 'tool_update'|kind: 'plan'' in acp",
+          "query": "for 'AgentUpdate|toAgentUpdate|kind: 'message'|kind: 'thinking'|kind: 'tool_call'|kind: 'tool_update'|kind: 'plan'' in acp",
           "seq": 5,
           "status": "done",
           "title": "Search for 'AgentUpdate|toAgentUpdate|kind: 'message'|kind: 'thinking'|kind: 'tool_call'|kind: 'tool_update'|kind: 'plan'' in acp",
@@ -903,7 +903,7 @@ It seems the subagent might be unavailable, so I'm thinking we could conduct a l
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_VY8bGhbVARun0bPiMEW0ZPJ4",
           "kind": "search-tool-call",
-          "query": "Search for 'stopReason' in acp",
+          "query": "for 'stopReason' in acp",
           "seq": 17,
           "status": "done",
           "title": "Search for 'stopReason' in acp",
@@ -941,7 +941,7 @@ I need to filter out files containing the term "stopReason" from the output. The
         {
           "id": "019f259a-9386-7e20-9af4-b4fdcd67bdac:turn:10:tool:call_53oAy9tdQgqO3XurfmMoYdKq",
           "kind": "search-tool-call",
-          "query": "Search for 'stopReason' in acp",
+          "query": "for 'stopReason' in acp",
           "seq": 21,
           "status": "done",
           "title": "Search for 'stopReason' in acp",

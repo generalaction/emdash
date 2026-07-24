@@ -1,10 +1,11 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Octokit } from '@octokit/rest';
 import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
+import canaryConfig from '../../electron-builder.canary.config.ts';
+import stableConfig from '../../electron-builder.config.ts';
 import { duplicateChannelManifests, resolvePublishChannels } from './lib/artifacts.ts';
 import { GITHUB_OWNER, GITHUB_REPO } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
@@ -77,10 +78,13 @@ cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
 const electronVersion = exec(`node -p "require('electron/package.json').version"`);
 
-// Dynamically load the electron-builder config (TypeScript stripping via --experimental-strip-types).
-// Use a file:// URL so absolute Windows paths (e.g. D:\...) are not parsed as a URL scheme.
-const configModule = await import(pathToFileURL(resolve(values.config)).href);
-const baseConfig = (configModule.default ?? configModule) as Configuration;
+const configName = basename(values.config ?? 'electron-builder.config.ts');
+const baseConfig: Configuration =
+  configName === 'electron-builder.config.ts'
+    ? stableConfig
+    : configName === 'electron-builder.canary.config.ts'
+      ? canaryConfig
+      : fail(`Unknown electron-builder config "${configName}"`);
 
 try {
   for (const arch of archs) {

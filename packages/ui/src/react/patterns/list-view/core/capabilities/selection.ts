@@ -70,9 +70,7 @@ export class SelectionSlice {
     const toIdx = orderedIds.indexOf(toId);
     if (fromIdx === -1 || toIdx === -1) return;
     const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
-    for (const id of orderedIds.slice(lo, hi + 1)) {
-      this.selectedIds.add(id);
-    }
+    this.selectedIds.replace(orderedIds.slice(lo, hi + 1));
   }
 
   selectAll(orderedIds: string[]): void {

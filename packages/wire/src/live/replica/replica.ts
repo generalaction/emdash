@@ -1,12 +1,13 @@
 import type { PendingLease } from '@emdash/shared';
+import { createResourceCache } from '@emdash/shared/concurrency';
+import { stableStringify } from '@emdash/shared/util';
 import type {
   MutationCallOptions,
   LiveModelClientHandle,
   LiveClientHandle,
 } from '../../api/client';
 import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '../../api/define';
-import { createManagedSource } from '../../util/managed-source';
-import { stableStringify, type LiveMutationResult } from '../mutations';
+import type { LiveMutationResult } from '../mutations';
 import type { LiveSource } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import {
@@ -16,7 +17,7 @@ import {
   type ReplicaInstanceOptions,
 } from './instance';
 import type { LiveModelProvider } from './provider';
-import { managedLiveSource } from './source';
+import { resourceCachedLiveSource } from './source';
 import { ReplicaState } from './state';
 import type { StateStore } from './store';
 
@@ -38,9 +39,9 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
   group: LiveModelClientHandle<Group>,
   options: LiveModelReplicaOptions<Group> = {}
 ): LiveModelReplica<Group> {
-  const source = createManagedSource<LiveModelKey<Group>, ReplicaInstance<Group>>({
+  const source = createResourceCache<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    idleTtlMs: options.retentionMs,
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
         createState(name, model) {
@@ -80,7 +81,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
       return source.peek(key);
     },
     resolveState(key, name) {
-      return managedLiveSource(source, key, (instance) => stateFor(instance, name));
+      return resourceCachedLiveSource(source, key, (instance) => stateFor(instance, name));
     },
     async runMutation(name, envelope) {
       return runReplicaMutation(name, envelope);

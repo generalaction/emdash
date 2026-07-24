@@ -1,5 +1,8 @@
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
+import type {
+  CanonicalHookEvent,
+  HookRegistration,
+} from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
@@ -11,7 +14,7 @@ import {
   readTomlConfig,
   writeJsonConfig,
   writeTomlConfig,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import * as toml from 'smol-toml';
 
 export const CODEX_CONFIG_PATH = '.codex/config.toml';

@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { client as createClient, connect, streamTransport } from '@emdash/wire';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createWorkspaceWireController } from '../api/controller';
+import { createTestWorkspaceWireController } from '../testing/controller';
 import { serveSocket, type SocketServeHandle } from './serve-socket';
 import { serveStdio } from './serve-stdio';
 
@@ -54,7 +54,7 @@ describe('serveSocket', () => {
     const socketPath = await tempSocketPath();
     await writeFile(socketPath, '');
 
-    const handle = await serveSocket(createWorkspaceWireController(), { socketPath });
+    const handle = await serveSocket(createTestWorkspaceWireController(), { socketPath });
     handles.push(handle);
     const connection = await connectToSocket(handle.socketPath);
 
@@ -77,7 +77,7 @@ describe('serveStdio', () => {
   it('serves the wire handshake over stdio streams', async () => {
     const clientToServer = new PassThrough();
     const serverToClient = new PassThrough();
-    const disposeServer = serveStdio(createWorkspaceWireController(), {
+    const disposeServer = serveStdio(createTestWorkspaceWireController(), {
       input: clientToServer,
       output: serverToClient,
     });
@@ -97,7 +97,7 @@ describe('serveStdio', () => {
 });
 
 async function serveTestSocket(): Promise<SocketServeHandle> {
-  const handle = await serveSocket(createWorkspaceWireController(), {
+  const handle = await serveSocket(createTestWorkspaceWireController(), {
     socketPath: await tempSocketPath(),
   });
   handles.push(handle);

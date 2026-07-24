@@ -2,57 +2,70 @@
 
 ## Controller Pattern
 
-Each domain in `src/main/core/` exposes a `controller.ts` that defines RPC handlers:
+Each domain exposes a Wire contract in `src/core/features/<domain>/api/` and a controller in
+`src/core/features/<domain>/node/`:
 
 ```ts
-// src/main/core/tasks/controller.ts
-import { createRPCController } from '@shared/ipc/rpc';
-import { createTask } from './createTask';
-import { getTasks } from './getTasks';
-
-export const taskController = createRPCController({
-  createTask,
-  getTasks,
-  deleteTask,
-  // ...
-});
+// src/core/features/tasks/node/wire-controller.ts
+export function createTasksWireController(): Controller {
+  return createController(tasksWireContract, {
+    createTask: (input) => taskOperations.createTask(input),
+    events: taskEvents,
+  });
+}
 ```
 
-Controllers are assembled into the router in `src/main/rpc.ts`:
-
-```ts
-export const rpcRouter = createRPCRouter({
-  tasks: taskController,
-  projects: projectController,
-  // ...
-});
-```
+Contracts are assembled in `src/core/manifests/shared/desktop-wire-contract.ts`; controllers are
+served by
+`src/main/gateway/desktop-wire.ts`.
 
 **Rules:**
-- Controller handlers are imported functions — keep logic in separate operation files, not inline
-- Each controller becomes an RPC namespace (e.g., `rpc.tasks.createTask(...)` on the renderer)
-- New domains need their controller added to `src/main/rpc.ts`
+- Controller handlers delegate to imported operations or services.
+- Keep portable contracts in `api/` and Node implementation in `node/`.
+- Register new domains in the desktop Wire manifest and gateway.
 
 
 ## Service Pattern
 
-For stateful concerns, use singleton classes:
+Construct stateful services explicitly at the bootstrap composition root:
 
 ```ts
+export type AppServiceDeps = {
+  db: AppDb;
+};
+
 export class AppService {
+  constructor(private readonly deps: AppServiceDeps) {}
+
   private cache = new Map();
 
   async initialize() { /* ... */ }
   async doSomething(id: string) { /* ... */ }
 }
 
-export const appService = new AppService();
+export function createAppService(deps: AppServiceDeps): AppService {
+  return new AppService(deps);
+}
 ```
 
 **Rules:**
-- Module-level singleton export
-- Initialization method called from `src/main/index.ts`
+- Factories receive explicit dependencies; lifecycle-owning services also receive a parent `Scope`.
+- Construct services in `src/main/bootstrap/boot/phases/` and pass them through controller context.
+- Do not export constructed service instances from Core modules.
+- Main-only free-function code may use a throwing instance holder as a temporary migration bridge.
+- Initialization is called after construction in the owning boot phase; disposal belongs to the
+  service scope or shutdown coordinator.
 - Services hold long-lived state (caches, subscriptions, connections)
+
+## Database Access
+
+Portable schema and database types live in `src/core/services/app-db/node/`. Main constructs the
+native Drizzle client during the database boot phase.
+
+- Core Node services receive `AppDb` through their factory or controller options.
+- Main free-function code resolves the initialized database through `@main/db/instance` at call
+  time; never call `getAppDb()` at module scope.
+- Tests inject a fixture database directly or install it through the test instance helper.
 
 ## Provider Pattern
 
@@ -84,22 +97,16 @@ async function doSomething(): Promise<Result<Data, SomeError>> {
 
 **Rules:**
 - Prefer `Result<T, E>` over thrown exceptions for expected failure modes
-- Controllers convert Result types to IPC-compatible responses
+- Controllers expose Result types through Wire contracts
 
-## Event System (`src/main/lib/events.ts`)
+## Event Streams
 
-Topic-based event emitter for main ↔ renderer communication:
+Use Wire event-stream hosts for main-to-renderer notifications:
 
 ```ts
-import { events } from '../lib/events';
-
-// Emit to a specific topic (e.g., session ID)
-events.emit(ptyDataChannel, buffer, sessionId);
-
-// Listen on a specific topic
-const unsub = events.on(ptyDataChannel, (data) => {...}, sessionId);
+export const taskEvents = createEventStreamHost(tasksWireContract.events);
+taskEvents.emit(undefined, { type: 'created', task });
 ```
 
-Channel naming: without topic → `eventName`, with topic → `eventName.{topic}`
-
-Event type definitions live in `src/shared/events/`.
+Event definitions belong to the owning slice's portable API. Use live models for replicated state
+and live jobs for cancellable long-running work.

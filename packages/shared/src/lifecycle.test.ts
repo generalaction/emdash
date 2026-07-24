@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { once, toPendingLease, withLease, type Lease } from './lifecycle';
+import { once, toPendingLease, type Lease } from './lifecycle';
 
 function leaseFor<T>(value: T, onRelease: () => void | Promise<void>): Lease<T> {
   return {
@@ -78,41 +78,6 @@ describe('once', () => {
     await expect(fn()).rejects.toThrow('fail');
     await expect(fn()).rejects.toThrow('fail');
     expect(calls).toBe(1);
-  });
-});
-
-describe('withLease', () => {
-  it('releases the lease after a successful operation', async () => {
-    let released = false;
-
-    const result = await withLease(
-      leaseFor('value', () => {
-        released = true;
-      }),
-      (value) => value.toUpperCase()
-    );
-
-    expect(result).toBe('VALUE');
-    expect(released).toBe(true);
-  });
-
-  it('releases the lease when the operation throws', async () => {
-    let released = false;
-
-    await expect(
-      withLease(
-        Promise.resolve(
-          leaseFor('value', () => {
-            released = true;
-          })
-        ),
-        () => {
-          throw new Error('failed');
-        }
-      )
-    ).rejects.toThrow('failed');
-
-    expect(released).toBe(true);
   });
 });
 

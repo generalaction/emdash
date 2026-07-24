@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
-import type { IDisposable } from '@emdash/shared';
+import type { Disposable } from '@emdash/shared/concurrency';
 import parcelWatcher from '@parcel/watcher';
-import type { WatchEvent } from '../api';
+import type { WatchEvent } from '@services/fs-watch/api';
 
 const RESUBSCRIBE_DELAY_MS = 250;
 const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
@@ -14,7 +14,7 @@ export type ParcelSubscribeFn = typeof parcelWatcher.subscribe;
  * Owns event-gap recovery and serialized resubscribe-with-retry; signals resync whenever events
  * may have been lost.
  */
-export class NativeWatch implements IDisposable {
+export class NativeWatch implements Disposable {
   readonly root: string;
   readonly ignore: string[];
   private readonly deliver: (events: WatchEvent[]) => void;

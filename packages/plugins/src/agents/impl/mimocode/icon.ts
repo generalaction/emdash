@@ -1,4 +1,4 @@
-import type { AgentIconAsset } from '@emdash/core/agents/plugins';
+import type { AgentIconAsset } from '@emdash/core/services/agent-plugins/api/plugins';
 
 export const icon: AgentIconAsset = {
   kind: 'svg',

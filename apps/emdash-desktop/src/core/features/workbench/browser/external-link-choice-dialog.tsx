@@ -1,0 +1,119 @@
+import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useModalController } from '@core/manifests/browser/modal-api';
+import { defineModal } from '@core/primitives/modals/react';
+import { Button } from '@core/primitives/ui/browser/button';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@core/primitives/ui/browser/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
+
+export type ExternalLinkChoice = 'emdash-browser' | 'external-browser';
+
+export type ExternalLinkChoiceDialogArgs = {
+  url: string;
+  canOpenInEmdashBrowser: boolean;
+  onCopy: () => boolean | Promise<boolean>;
+};
+
+export function ExternalLinkChoiceDialog({
+  url,
+  canOpenInEmdashBrowser,
+  onCopy,
+}: ExternalLinkChoiceDialogArgs) {
+  const controller = useModalController('confirmExternalLinkModal');
+  const [copied, setCopied] = useState(false);
+  const copyResetRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current);
+    },
+    []
+  );
+
+  const handleCopy = async () => {
+    if (!(await onCopy())) return;
+    setCopied(true);
+    if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current);
+    copyResetRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copyResetRef.current = null;
+    }, 1_500);
+  };
+
+  return (
+    <>
+      <DialogHeader showCloseButton={false}>
+        <DialogTitle>Open link?</DialogTitle>
+      </DialogHeader>
+      <DialogContentArea className="space-y-4 pt-0 text-sm leading-relaxed">
+        <p>Choose where to open this link.</p>
+        <div className="bg-muted/50 relative rounded-md border border-border">
+          <div className="max-h-32 overflow-y-auto px-3 py-2.5 pr-10 font-mono text-[13px] leading-relaxed break-all text-foreground">
+            {url}
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="absolute top-1.5 right-1.5"
+                    aria-label={copied ? 'Link copied' : 'Copy link'}
+                    onClick={() => void handleCopy()}
+                  />
+                }
+              >
+                {copied ? (
+                  <Check className="size-4 text-foreground-success" />
+                ) : (
+                  <Copy className="size-4" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{copied ? 'Copied' : 'Copy link'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </DialogContentArea>
+      <DialogFooter className="flex-col-reverse sm:flex-col-reverse">
+        <Button className="w-full" variant="outline" onClick={controller.dismiss}>
+          Cancel
+        </Button>
+        <Button
+          className="w-full"
+          variant="outline"
+          disabled={!canOpenInEmdashBrowser}
+          onClick={() => controller.complete('emdash-browser')}
+        >
+          <Globe className="size-4" />
+          Open in Emdash
+        </Button>
+        <Button
+          className="w-full"
+          variant="default"
+          onClick={() => controller.complete('external-browser')}
+        >
+          <ExternalLink className="size-4" />
+          Open in Browser
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+export const confirmExternalLinkModal = defineModal<ExternalLinkChoice>()({
+  id: 'confirmExternalLinkModal',
+  component: ExternalLinkChoiceDialog,
+  size: 'sm',
+});

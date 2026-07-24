@@ -36,7 +36,7 @@ export const sheetContent = recipe({
     fontSize: tokenVars.textSm,
     color: vars.foreground,
     backgroundColor: vars.surface,
-    boxShadow: `0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+    boxShadow: `${vars.shadowLg}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
     outline: 'none',
   },
   variants: {

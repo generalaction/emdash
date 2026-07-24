@@ -9,7 +9,7 @@ export const separatorH = style({
   flexShrink: 0,
   width: '100%',
   height: '1px',
-  backgroundColor: vars.border,
+  backgroundColor: vars.borderSubtle,
 });
 
 export const separatorV = style({
@@ -17,5 +17,5 @@ export const separatorV = style({
   alignSelf: 'stretch',
   width: '1px',
   height: 'auto',
-  backgroundColor: vars.border,
+  backgroundColor: vars.borderSubtle,
 });

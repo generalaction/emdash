@@ -236,6 +236,47 @@ describe('Electron wire helpers', () => {
 
     dispose();
   });
+
+  it('awaits beforeOpen before creating a renderer port', async () => {
+    const ipcMain = new FakeIpcMain();
+    const sender = new FakeWebContents();
+    const ipcRenderer = new FakeIpcRenderer(ipcMain, sender);
+    sender.renderer = ipcRenderer;
+    const windowLike = new FakeWindow();
+    const mainPorts: FakeMessagePort[] = [];
+    const beforeOpen = createDeferred<void>();
+    const controller = createController(api, {
+      ping: ({ value }) => `pong:${value}`,
+      state: fakeStateProvider(),
+    });
+
+    const dispose = exposeWireToWindows(
+      {
+        ipcMain,
+        createMessageChannel: () => {
+          const port1 = new FakeMessagePort();
+          const port2 = new FakeMessagePort();
+          mainPorts.push(port1);
+          port1.pair(port2);
+          port2.pair(port1);
+          return { port1, port2 };
+        },
+      },
+      controller,
+      { beforeOpen: () => beforeOpen.promise }
+    );
+
+    const portPromise = requestAndAwaitPort(ipcRenderer, windowLike);
+    await flush();
+    expect(mainPorts).toHaveLength(0);
+
+    beforeOpen.resolve();
+    const port = await portPromise;
+    expect(port).toBeInstanceOf(FakeMessagePort);
+    expect(mainPorts).toHaveLength(1);
+
+    dispose();
+  });
 });
 
 async function requestAndAwaitPort(
@@ -267,4 +308,20 @@ function fakeStateProvider() {
       throw new Error('No mutations');
     },
   };
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }

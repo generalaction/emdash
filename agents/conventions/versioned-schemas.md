@@ -32,22 +32,22 @@ a serialized non-JSON value), a versioned schema is not necessary.
 
 | File | Purpose |
 |------|---------|
-| `src/shared/lib/versioned-schema/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` |
-| `src/main/db/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
+| `packages/core/src/primitives/versioned-schema/api/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` (imported as `@emdash/core/primitives/versioned-schema/api`) |
+| `src/core/services/app-db/node/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
 
 ## Defining a versioned schema
 
-Schema definitions live in `src/shared/` so they can be imported by both the main
-process and the renderer.
+Schema definitions live in the owning `src/core/primitives/<domain>/api/` slice so they can be
+imported by both Node and browser surfaces.
 
 ### Schemas that started versioned from day one
 
 Use `.initial()` if the stored JSON always had a `version` field from the start:
 
 ```ts
-// src/shared/my-config.ts
+// src/core/primitives/my-domain/api/my-config.ts
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 
 const v1Schema = z.object({
   version: z.literal('1'),
@@ -67,7 +67,7 @@ Use `.unversioned()` when the column was first written before the versioning sys
 existed (the data has no `version` field):
 
 ```ts
-// src/shared/my-config.ts
+// src/core/primitives/my-domain/api/my-config.ts
 const v0Schema = z.object({
   name: z.string(),
   value: z.number().optional(),
@@ -110,11 +110,12 @@ not available in the stored data. `safeParse()` will return `{ status: 'needs-co
 
 ## Wiring the Drizzle column
 
-In `src/main/db/schema.ts`, replace `text('col_name')` with `versionedJsonColumn`:
+In `src/core/services/app-db/node/schema.ts`, replace `text('col_name')` with
+`versionedJsonColumn`:
 
 ```ts
-import { versionedJsonColumn } from '@main/db/versioned-column';
-import { myConfig } from '@shared/my-config';
+import { versionedJsonColumn } from '@core/services/app-db/node/versioned-column';
+import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 export const myTable = sqliteTable('my_table', {
   // Before:
@@ -148,7 +149,7 @@ Use `.asNested()` to embed one versioned schema as a field of another Zod object
 This allows parent upgrade functions to call child upgrade logic automatically:
 
 ```ts
-import { childConfig } from '@shared/child-config';
+import { childConfig } from '@core/primitives/my-domain/api/child-config';
 
 const parentV1Schema = z.object({
   version: z.literal('1'),
@@ -196,7 +197,7 @@ const snapshot = automationTriggerConfig.parseJson(row.triggerConfigSnapshot);
 Test versioned schemas directly without going through Drizzle:
 
 ```ts
-import { myConfig } from '@shared/my-config';
+import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 it('parses a v0 object', () => {
   const result = myConfig.safeParse({ name: 'hello' });
@@ -216,19 +217,19 @@ it('round-trips through serialize/parseJson', () => {
 ```
 
 For Drizzle column helpers, use the exported `parseVersionedColumn` and
-`serializeVersionedColumn` functions from `src/main/db/versioned-column.ts`.
+`serializeVersionedColumn` functions from `src/core/services/app-db/node/versioned-column.ts`.
 
 ## All migrated columns
 
 | Column | Schema file | Versioning |
 |--------|-------------|------------|
-| `workspaces.config` | `src/shared/workspace-config.ts` | v1 → v2 (versioned from start) |
-| `conversations.config` | `src/shared/conversation-config.ts` | unversioned (v0) |
-| `tasks.workspace_intent` | `src/shared/workspace-config.ts` | v1 → v2 |
-| `automations.trigger_config` | `src/shared/automations/config.ts` | unversioned (v0) |
-| `automations.conversation_config` | `src/shared/automations/config.ts` | unversioned (v0) |
-| `automations.task_config` | `src/shared/automations/config.ts` | v1 (versioned from start) |
-| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` | unversioned (v0) |
-| `tasks.linked_issue` | `src/shared/linked-issue.ts` | unversioned (v0) |
-| `workspaces.data` | `src/shared/workspace-provider-data.ts` | unversioned (v0) |
-| `tasks.task_config` | `src/shared/task-config.ts` | v1 (versioned from start) |
+| `workspaces.config` | `src/core/primitives/workspaces/api/workspace-config.ts` | v1 → v2 (versioned from start) |
+| `conversations.config` | `src/core/primitives/conversations/api/conversation-config.ts` | unversioned (v0) |
+| `tasks.workspace_intent` | `src/core/primitives/workspaces/api/workspace-config.ts` | v1 → v2 |
+| `automations.trigger_config` | `src/core/primitives/automations/api/config.ts` | unversioned (v0) |
+| `automations.conversation_config` | `src/core/primitives/automations/api/config.ts` | unversioned (v0) |
+| `automations.task_config` | `src/core/primitives/automations/api/config.ts` | v1 (versioned from start) |
+| `ssh_connections.metadata` | `src/core/primitives/ssh/api/ssh-connection-metadata.ts` | unversioned (v0) |
+| `tasks.linked_issue` | `src/core/primitives/linked-issues/api/linked-issue.ts` | unversioned (v0) |
+| `workspaces.data` | `src/core/primitives/workspaces/api/workspace-provider-data.ts` | unversioned (v0) |
+| `tasks.task_config` | `src/core/primitives/tasks/api/task-config.ts` | v1 (versioned from start) |

@@ -1,12 +1,12 @@
 import { Emitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
+import { createResourceCache } from '@emdash/shared/concurrency';
+import { stableStringify } from '@emdash/shared/util';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
-import { createManagedSource } from '../../util/managed-source';
 import { LiveLog, LiveLogClient, type LiveLogOptions } from '../log';
-import { stableStringify } from '../mutations';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
-import { managedLiveSource } from './source';
+import { resourceCachedLiveSource } from './source';
 
 export interface LogSink {
   reset(data: LiveLogSnapshotData): void;
@@ -126,9 +126,9 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
   log: LiveLogClientHandle<Def>,
   options: LiveLogReplicaOptions = {}
 ): LiveLogReplica<Def> {
-  const source = createManagedSource<LiveLogKey<Def>, ReplicaLog>({
+  const source = createResourceCache<LiveLogKey<Def>, ReplicaLog>({
     key: stableStringify,
-    graceMs: options.retentionMs,
+    idleTtlMs: options.retentionMs,
     async create(key, scope) {
       const { store, ...replicaOptions } = options;
       const replica = new ReplicaLog(log.handle(key), { ...replicaOptions, store: store?.() });
@@ -148,7 +148,7 @@ export function createLiveLogReplica<Def extends LiveLogEndpointDef>(
       return source.peek(key);
     },
     resolve(key) {
-      return managedLiveSource(source, key, (replica) => replica);
+      return resourceCachedLiveSource(source, key, (replica) => replica);
     },
     dispose() {
       return source.dispose();

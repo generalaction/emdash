@@ -1,13 +1,28 @@
 import { execFile } from 'node:child_process';
 import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
-import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
+import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
+import {
+  ackShutdownFlush,
+  markShutdownReady,
+  resolveQuitConfirmation,
+} from '@main/bootstrap/shutdown';
+import {
+  cleanupExpiredDroppedBlobs,
+  persistClipboardImagePath,
+  persistDroppedBlobBytes,
+} from '@main/core/app/persist-terminal-attachment';
+import { getDiagnosticLogAttachment, writeRendererLogEntry } from '@main/host/file-logger';
+import { setApplicationMenuKeybindings } from '@main/host/menu';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
-import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
 
 const execFileAsync = promisify(execFile);
+
+void cleanupExpiredDroppedBlobs().catch((error) => {
+  log.warn('app:cleanupExpiredDroppedBlobs failed', { error });
+});
 
 async function getPlatformDisplayName(): Promise<string> {
   const architecture = arch();
@@ -34,7 +49,8 @@ async function getPlatformDisplayName(): Promise<string> {
   return `${process.platform} ${release()} (${architecture})`;
 }
 
-export const appController = createRPCController({
+export const appOperations = {
+  writeRendererLog: writeRendererLogEntry,
   openExternal: async (url: string) => {
     try {
       await appService.openExternal(url);
@@ -52,13 +68,13 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
-  showItemInFolder: async (path: string) => {
-    try {
-      await appService.showItemInFolder(path);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
+  showWorkspaceItemInFolder: async (args: { workspaceId: string; relativePath: string }) => {
+    const result = await appService.showWorkspaceItemInFolder(args);
+    if (result.success) return { success: true };
+    return {
+      success: false,
+      error: 'message' in result.error ? result.error.message : result.error.type,
+    };
   },
   readUserFile: async (path: string) => {
     try {
@@ -79,6 +95,34 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {
+    try {
+      const path = await persistDroppedBlobBytes(args);
+      return { success: true as const, path };
+    } catch (error) {
+      log.error('app:persistDroppedBlob failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+  persistClipboardImage: async () => {
+    try {
+      const path = await persistClipboardImagePath();
+      return { success: true as const, path };
+    } catch (error) {
+      log.error('app:persistClipboardImage failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
   showTerminalContextMenu: async (args: {
     requestId: string;
     selectionText?: string | null;
@@ -93,6 +137,7 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  setMenuKeybindings: setApplicationMenuKeybindings,
   quit: () => {
     try {
       appService.quit();
@@ -101,6 +146,11 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  resolveQuitConfirmation: (args: { requestId: string; confirmed: boolean }) => {
+    resolveQuitConfirmation(args.requestId, args.confirmed);
+  },
+  ackShutdownFlush,
+  shutdownReady: markShutdownReady,
   openIn: async (args: {
     app: OpenInAppId;
     path: string;
@@ -159,4 +209,4 @@ export const appController = createRPCController({
   getPlatform: () => process.platform,
   getPlatformDisplayName,
   getDiagnosticLogAttachment,
-});
+};

@@ -1,4 +1,4 @@
-import type { TelemetryEnvelope } from '@shared/telemetry';
+import type { TelemetryEnvelope } from '@core/primitives/telemetry/api/telemetry';
 
 type TelemetryScope = Pick<TelemetryEnvelope, 'project_id' | 'task_id' | 'conversation_id'>;
 

@@ -14,7 +14,12 @@ import { DropdownMenu } from '@react/primitives/dropdown-menu';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
-import { Button, type ButtonProps } from '../button';
+import {
+  Button,
+  resolveButtonControlVariant,
+  type ButtonProps,
+  type ButtonVariant,
+} from '../button';
 import * as styles from './split-button.css';
 
 export type SplitButtonOptionTone = 'neutral' | 'accept' | 'reject';
@@ -44,7 +49,7 @@ export interface SplitButtonProps {
   onAction: (id: string) => void;
   disabled?: boolean;
   size?: ButtonProps['size'];
-  variant?: ButtonProps['variant'];
+  variant?: ButtonVariant;
   tone?: ControlVariantProps['tone'];
   className?: string;
 }
@@ -64,6 +69,9 @@ export function SplitButton({
 }: SplitButtonProps) {
   const selectedOption =
     (selectedId ? options.find((o) => o.id === selectedId) : undefined) ?? options[0];
+  const controlVariant = resolveButtonControlVariant({ variant, tone, size });
+  const hasFilledSegment =
+    variant === 'primary' || variant === 'destructive' || variant === 'secondary';
 
   const handleMenuSelect = (option: SplitButtonOption) => {
     onSelectedChange?.(option.id);
@@ -93,9 +101,9 @@ export function SplitButton({
           disabled={disabled}
           aria-label="More options"
           className={cx(
-            controlVariants({ variant, size, tone, icon: true }),
+            controlVariants({ ...controlVariant, icon: true }),
             styles.splitButtonChevronFace,
-            variant === 'primary' && styles.chevronBorderLeft
+            hasFilledSegment && styles.chevronBorderLeft
           )}
         >
           <ChevronDownIcon />

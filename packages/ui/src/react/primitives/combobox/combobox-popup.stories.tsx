@@ -124,9 +124,7 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={
-        <span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>
-      }
+      header={<span className={cx(sx({ color: 'foreground' }))}>Context files</span>}
     />
   ),
 };

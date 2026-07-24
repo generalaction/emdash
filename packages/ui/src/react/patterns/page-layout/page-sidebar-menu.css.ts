@@ -16,12 +16,24 @@ export const wrapper = style({
   paddingBottom: '2.5rem',
 });
 
+export const header = style({
+  width: '13rem',
+  marginBottom: '0.75rem',
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
+
 export const nav = style({
   display: 'flex',
   width: '13rem',
   flexDirection: 'column',
   gap: '0.125rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
+
+export const emptyMessage = style({
+  padding: '0.5rem 0.75rem',
+  fontSize: tokenVars.textSm,
+  color: vars.foregroundPassive,
 });
 
 // ── Nav item button recipe ────────────────────────────────────────────────────
@@ -76,9 +88,6 @@ export type NavItemVariants = NonNullable<RecipeVariants<typeof navItem>>;
 // ── Icon + external-link icon ─────────────────────────────────────────────────
 
 export const navItemIcon = style({
-  flexShrink: 0,
-  width: '1rem',
-  height: '1rem',
   color: 'inherit',
 });
 
@@ -90,10 +99,41 @@ export const navItemLabel = style({
   whiteSpace: 'nowrap',
 });
 
+export const badge = style({
+  marginLeft: 'auto',
+  fontSize: tokenVars.textXs,
+  color: vars.foregroundPassive,
+  fontVariantNumeric: 'tabular-nums',
+});
+
 export const externalIcon = style({
-  flexShrink: 0,
-  width: '0.75rem',
-  height: '0.75rem',
   color: vars.foregroundMuted,
   marginLeft: 'auto',
+});
+
+// ── Divider ───────────────────────────────────────────────────────────────────
+
+export const divider = style({
+  width: '100%',
+  paddingTop: '0.5rem',
+  paddingBottom: '0.5rem',
+  selectors: {
+    '&::before': {
+      content: "''",
+      display: 'block',
+      width: '100%',
+      height: '1px',
+      backgroundColor: vars.border,
+    },
+  },
+});
+
+export const dividerLabel = style({
+  fontSize: tokenVars.textXs,
+  lineHeight: 1,
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+  color: vars.foregroundMuted,
+  marginBottom: '0.25rem',
+  paddingLeft: '0.75rem',
 });

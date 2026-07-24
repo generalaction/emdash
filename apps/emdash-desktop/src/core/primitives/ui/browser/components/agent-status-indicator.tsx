@@ -1,0 +1,73 @@
+import type { AgentStatus } from '@core/primitives/agents/api';
+import { cn } from '@core/primitives/ui/browser/cn';
+import { CLISpinner } from '@core/primitives/ui/browser/components/cliSpinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+
+export type AgentIndicatorStatus = AgentStatus | null;
+
+interface AgentStatusIndicatorProps {
+  status: AgentIndicatorStatus;
+  className?: string;
+  disableTooltip?: boolean;
+}
+
+const STATUS_LABELS = {
+  working: 'Agent is working',
+  'awaiting-input': 'Agent is awaiting input',
+  error: 'Agent error',
+  completed: 'Agent completed',
+};
+
+export function AgentStatusIndicator({
+  status,
+  className,
+  disableTooltip,
+}: AgentStatusIndicatorProps) {
+  if (!status || status === 'idle') return null;
+
+  const renderIndicator = () => {
+    switch (status) {
+      case 'working':
+        return <CLISpinner />;
+      case 'awaiting-input':
+        return (
+          <span
+            className={cn('rounded-full bg-foreground-info size-2', className)}
+            aria-label="Agent is awaiting input"
+            title="Agent is awaiting input"
+          />
+        );
+      case 'error':
+        return (
+          <span
+            className={cn('rounded-full bg-foreground-error size-2', className)}
+            aria-label="Agent error"
+            title="Agent error"
+          />
+        );
+      case 'completed':
+        return (
+          <span
+            className={cn('rounded-full bg-foreground-info size-2', className)}
+            aria-label="Agent completed"
+            title="Agent completed"
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const indicator = (
+    <span className="flex size-6 items-center justify-center">{renderIndicator()}</span>
+  );
+
+  if (disableTooltip) return indicator;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={indicator} />
+      <TooltipContent>{STATUS_LABELS[status]}</TooltipContent>
+    </Tooltip>
+  );
+}

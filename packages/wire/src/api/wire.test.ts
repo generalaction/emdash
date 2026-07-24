@@ -1,10 +1,11 @@
 import { err, ok, type Unsubscribe } from '@emdash/shared';
+import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { ReplicaState } from '../live/replica';
-import { createTestWire, deferred, waitFor } from '../testing';
+import { createTestWire } from '../testing';
 import { client } from './client';
 import { connect } from './connect';
 import { createController, encodeTopic } from './controller';
@@ -36,6 +37,15 @@ function setup() {
   return { pair: wire.pair, connection: wire.connection, model };
 }
 
+function structuredCloneTransport(transport: WireTransport): WireTransport {
+  return {
+    ...transport,
+    post(message) {
+      transport.post(structuredClone(message));
+    },
+  };
+}
+
 describe('wire serve/connect', () => {
   it('calls procedures and propagates errors', async () => {
     const { connection } = setup();
@@ -61,6 +71,45 @@ describe('wire serve/connect', () => {
         message: 'boom',
       },
     });
+  });
+
+  it('reports non-cloneable call inputs as SERIALIZATION errors with a value path', async () => {
+    const pair = memoryTransportPair();
+    const connection = connect(structuredCloneTransport(pair.left));
+    const labelNames = new Proxy(['bug'], {});
+
+    await expect(
+      connection.call('pullRequests.listPullRequests', {
+        filters: { labelNames },
+      })
+    ).rejects.toMatchObject({
+      code: 'SERIALIZATION',
+      message:
+        "Wire call 'pullRequests.listPullRequests' could not be serialized: " +
+        "'input.filters.labelNames' is an Array value that cannot be structured-cloned " +
+        '(it may be Proxy-backed)',
+    });
+  });
+
+  it('reports non-cloneable handler results as SERIALIZATION errors with a value path', async () => {
+    const pair = memoryTransportPair();
+    const output = { filters: { labelNames: new Proxy(['bug'], {}) } };
+    serve(structuredCloneTransport(pair.right), {
+      call: async () => output,
+      resolveLive: () => null,
+      acquireLive: () => null,
+    });
+    const connection = connect(pair.left);
+
+    await expect(connection.call('pullRequests.listPullRequests', undefined)).rejects.toMatchObject(
+      {
+        code: 'SERIALIZATION',
+        message:
+          "Wire response for call 'pullRequests.listPullRequests' could not be serialized: " +
+          "'value.filters.labelNames' is an Array value that cannot be structured-cloned " +
+          '(it may be Proxy-backed)',
+      }
+    );
   });
 
   it('preserves serialized causes on thrown wire errors', async () => {
@@ -114,6 +163,23 @@ describe('wire serve/connect', () => {
     await expect(connection.call('load', { id: 'missing' })).resolves.toEqual(
       err({ type: 'missing' })
     );
+    expect(fallibleContract.load.output.safeParse({ success: true }).success).toBe(false);
+  });
+
+  it('supports no-data fallible procedures across JSON transports', () => {
+    const fallibleContract = defineContract({
+      touch: fallible({
+        input: z.object({ id: z.string() }),
+        error: z.object({ type: z.literal('missing') }),
+      }),
+    });
+    const jsonRoundTrippedSuccess = JSON.parse(JSON.stringify(ok())) as unknown;
+
+    expect(jsonRoundTrippedSuccess).toEqual({ success: true });
+    expect(fallibleContract.touch.output.parse(jsonRoundTrippedSuccess)).toEqual(ok());
+    expect(fallibleContract.touch.output.parse(err({ type: 'missing' as const }))).toEqual(
+      err({ type: 'missing' })
+    );
   });
 
   it('snapshots and subscribes to live sources with refcounted detach', async () => {
@@ -157,6 +223,14 @@ describe('wire serve/connect', () => {
       resolveLive: (topic: string) => {
         resolveCount += 1;
         return available && topic === 'dynamic.topic' ? source : null;
+      },
+      acquireLive(topic: string) {
+        const resolved = this.resolveLive(topic);
+        if (!resolved) return null;
+        return {
+          ready: async () => resolved,
+          release: async () => {},
+        };
       },
     };
     serve(pair.right, controller);
@@ -389,7 +463,7 @@ describe('wire serve/connect', () => {
     });
     const controller = createController(slowContract, {
       slow: (_input, meta) =>
-        new Promise<string>((resolve, reject) => {
+        new Promise<string>((_resolve, reject) => {
           started = true;
           if (meta.signal?.aborted) {
             aborted = true;
@@ -400,7 +474,6 @@ describe('wire serve/connect', () => {
             aborted = true;
             reject(new Error('aborted'));
           });
-          setTimeout(() => resolve('late'), 10);
         }),
     });
     const serverEvents: unknown[] = [];
@@ -454,7 +527,7 @@ describe('wire serve/connect', () => {
     });
     const controller = createController(slowContract, {
       slow: (_input, meta) =>
-        new Promise<string>((resolve, reject) => {
+        new Promise<string>((_resolve, reject) => {
           started = true;
           if (meta.signal?.aborted) {
             aborted = true;
@@ -465,7 +538,6 @@ describe('wire serve/connect', () => {
             aborted = true;
             reject(new Error('aborted'));
           });
-          setTimeout(() => resolve('late'), 10);
         }),
     });
     serve(pair.right, controller);

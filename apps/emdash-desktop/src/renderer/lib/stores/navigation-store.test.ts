@@ -1,100 +1,258 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { projectSubject } from '@core/features/projects/contributions/subject';
+import { projectViewDef } from '@core/features/projects/contributions/views';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { taskViewDef } from '@core/features/tasks/contributions/views';
+import {
+  workbenchHistoryMemento,
+  workbenchNavigationMemento,
+  type WorkbenchHistoryState,
+  type WorkbenchNavigationState,
+} from '@core/features/workbench/contributions/mementos';
+import { homeViewDef } from '@core/features/workbench/contributions/views';
+import type { JsonObject } from '@core/primitives/json/api';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
+import type { Resolution } from '@core/primitives/navigation/api';
+import { NavigationHistoryStore } from './navigation-history-store';
 
-vi.mock('@renderer/lib/modal/modal-store', () => ({
-  modalStore: { closeModal: vi.fn() },
+const runtimeResolvers = vi.hoisted(() => new Map<string, (params: JsonObject) => Resolution>());
+const dismissModal = vi.hoisted(() => vi.fn());
+
+vi.mock('@core/primitives/views/react', () => ({
+  getViewRuntime: (viewId: string) => {
+    const resolve = runtimeResolvers.get(viewId);
+    return resolve ? { runtime: { resolve } } : undefined;
+  },
+}));
+
+vi.mock('@core/primitives/modals/react/modal-store', () => ({
+  modalStore: { dismiss: dismissModal },
 }));
 
 vi.mock('@renderer/utils/focus-tracker', () => ({
   focusTracker: { transition: vi.fn(() => null) },
 }));
 
-vi.mock('@renderer/utils/telemetryClient', () => ({
-  captureTelemetry: vi.fn(),
+vi.mock('@renderer/utils/logger', () => ({
+  log: { error: vi.fn() },
 }));
 
+const history = new NavigationHistoryStore();
 vi.mock('./app-state', () => ({
-  appState: {
-    history: { push: vi.fn() },
-  },
+  appState: { history },
 }));
 
 const { NavigationStore } = await import('./navigation-store');
 
-function buildStore() {
-  const store = new NavigationStore();
-  store.registerView('home');
-  store.registerView('project');
-  store.registerView('settings');
-  store.registerView('library');
-  store.registerView('skills');
-  store.registerView('mcp');
-  return store;
+function handle<T>(value: T, options: { hasStoredValue?: boolean } = {}): MementoHandle<T> {
+  let current = value;
+  return {
+    get value() {
+      return current;
+    },
+    ready: Promise.resolve(),
+    isPending: false,
+    hasStoredValue: options.hasStoredValue ?? true,
+    read: () => current,
+    update: (next) => {
+      current = typeof next === 'function' ? (next as (previous: T) => T)(current) : next;
+    },
+    reset: async () => {},
+    flush: async () => {},
+    autoPersist: () => (() => {}) as ReturnType<MementoHandle<T>['autoPersist']>,
+    dispose: async () => {},
+  };
 }
 
-describe('NavigationStore.restoreSnapshot', () => {
+function historyHandle(
+  state: WorkbenchHistoryState = workbenchHistoryMemento.default,
+  hasStoredValue = true
+) {
+  return handle(state, { hasStoredValue });
+}
+
+function legacyHandle(
+  state: WorkbenchNavigationState = workbenchNavigationMemento.default,
+  hasStoredValue = true
+) {
+  return handle(state, { hasStoredValue });
+}
+
+function buildStore(): InstanceType<typeof NavigationStore> {
+  history.replace([], -1);
+  runtimeResolvers.clear();
+  return new NavigationStore();
+}
+
+describe('NavigationStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('restores a snapshot whose view is registered', () => {
+  it('rehydrates valid refs and strips invalid persisted entries', () => {
     const store = buildStore();
-    store.restoreSnapshot({
+    store.attachMemento(
+      historyHandle({
+        version: '1',
+        entries: [
+          { viewId: 'ghost', params: {} },
+          { viewId: 'project', params: { projectId: 'p1' } },
+        ],
+        index: 1,
+      })
+    );
+
+    expect(store.currentRef).toMatchObject({
+      viewId: 'project',
+      params: { projectId: 'p1' },
+    });
+    expect(history.entries).toHaveLength(1);
+  });
+
+  it('seeds the new stack from the legacy navigation memento', () => {
+    const store = buildStore();
+    const legacy = legacyHandle({
+      version: '1',
       currentViewId: 'project',
       viewParams: { project: { projectId: 'p1' } },
     });
-    expect(store.currentViewId).toBe('project');
-    expect(store.viewParamsStore.project).toEqual({ projectId: 'p1' });
-    expect(store.lastNonSettingsView).toBe('project');
-    expect(store.lastNonLibraryView).toBe('project');
+    const reset = vi.spyOn(legacy, 'reset');
+    store.attachMemento(historyHandle(workbenchHistoryMemento.default, false), legacy);
+
+    expect(store.currentRef).toMatchObject({
+      viewId: 'project',
+      params: { projectId: 'p1' },
+    });
+    expect(history.current?.ref.viewId).toBe('project');
+    expect(reset).toHaveBeenCalledOnce();
   });
 
-  it('falls back to home when the persisted view is not in the registry', () => {
+  it('records resolved refs and follows redirects', () => {
     const store = buildStore();
-    store.restoreSnapshot({
-      currentViewId: 'phantom-view-from-old-build',
-      viewParams: { project: { projectId: 'p1' } },
-    });
+    runtimeResolvers.set('project', () => ({ kind: 'redirect', ref: homeViewDef() }));
+
+    store.navigate(projectViewDef({ projectId: 'gone' }));
+
     expect(store.currentViewId).toBe('home');
-    expect(store.lastNonSettingsView).toBe('home');
+    expect(history.current?.ref.viewId).toBe('home');
   });
 
-  it('strips viewParams entries whose key is not a registered view', () => {
+  it('annotates parameter refinements with the same history key', () => {
     const store = buildStore();
-    store.restoreSnapshot({
-      currentViewId: 'home',
-      viewParams: {
-        project: { projectId: 'p1' },
-        ghostView: { stale: true },
-      },
-    });
-    expect(store.viewParamsStore.project).toEqual({ projectId: 'p1' });
-    expect((store.viewParamsStore as Record<string, unknown>).ghostView).toBeUndefined();
+    store.navigate(settingsViewDef({ tab: 'general' }));
+    store.navigate(settingsViewDef({ tab: 'browser' }));
+
+    expect(history.entries).toHaveLength(1);
+    expect(history.current?.ref.params).toEqual({ tab: 'browser' });
   });
 
-  it('does not touch lastNonSettingsView when the persisted view is settings', () => {
+  it('closes the active modal for traversals but not parameter refinements', () => {
     const store = buildStore();
-    store.restoreSnapshot({ currentViewId: 'settings' });
-    expect(store.currentViewId).toBe('settings');
-    expect(store.lastNonSettingsView).toBe('home');
+    store.navigate(settingsViewDef({ tab: 'general' }));
+    expect(dismissModal).toHaveBeenCalledWith('navigation');
+    dismissModal.mockClear();
+
+    store.navigate(settingsViewDef({ tab: 'browser' }));
+
+    expect(dismissModal).not.toHaveBeenCalled();
   });
 
-  it('honors a guard redirect after a valid view is restored', () => {
+  it('uses full history refs when toggling out of settings', () => {
     const store = buildStore();
-    store.registerGuard('project', () => ({ ok: false, redirect: 'home' }));
-    store.restoreSnapshot({
-      currentViewId: 'project',
-      viewParams: { project: { projectId: 'gone' } },
-    });
+    const task = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    store.navigate(task);
+    store.toggleSettings();
+    store.toggleSettings();
+
+    expect(store.currentRef).toEqual(task);
+  });
+
+  it('invalidates matching subject refs and resolves the current view', () => {
+    const store = buildStore();
+    let exists = true;
+    runtimeResolvers.set('project', () =>
+      exists ? { kind: 'ok' } : { kind: 'redirect', ref: homeViewDef() }
+    );
+    store.navigate(projectViewDef({ projectId: 'p1' }));
+    exists = false;
+
+    store.invalidateSubject(projectSubject({ projectId: 'p1' }));
+
     expect(store.currentViewId).toBe('home');
+    expect(history.entries.every((entry) => entry.ref.viewId !== 'project')).toBe(true);
   });
 
-  it('tracks the last non-library view across library subviews', () => {
+  it('annotates the initial participant location and pushes later locations', () => {
     const store = buildStore();
-    store.navigate('project', { projectId: 'p1' });
-    store.navigate('library');
-    store.navigate('skills');
-    store.navigate('mcp');
-    expect(store.currentViewId).toBe('mcp');
-    expect(store.lastNonLibraryView).toBe('project');
+    const ref = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    store.navigate(ref);
+
+    store.reportLocation(ref, { tabId: 'tab-1' });
+    expect(history.entries).toHaveLength(1);
+    expect(history.current?.location).toEqual({ tabId: 'tab-1' });
+
+    store.reportLocation(ref, { tabId: 'tab-2' });
+    expect(history.entries).toHaveLength(2);
+    expect(history.current?.location).toEqual({ tabId: 'tab-2' });
+  });
+
+  it('preserves the participant location when navigating to the current ref', () => {
+    const store = buildStore();
+    const ref = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    store.navigate(ref);
+    store.reportLocation(ref, { tabId: 'tab-1' });
+
+    store.navigate(ref);
+
+    expect(history.entries).toHaveLength(1);
+    expect(history.current?.location).toEqual({ tabId: 'tab-1' });
+  });
+
+  it('restores participant locations during history traversal', () => {
+    const store = buildStore();
+    const ref = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    const restoreLocation = vi.fn(() => true);
+    store.navigate(ref);
+    store.attachParticipant(ref, {
+      captureLocation: () => undefined,
+      restoreLocation,
+    });
+    store.reportLocation(ref, { tabId: 'tab-1' });
+    store.reportLocation(ref, { tabId: 'tab-2' });
+
+    history.back((entry) => store.applyEntry(entry));
+
+    expect(restoreLocation).toHaveBeenCalledWith({ tabId: 'tab-1' });
+  });
+
+  it('clears a pending restoration after an explicit navigation', () => {
+    const store = buildStore();
+    const ref = taskViewDef({ projectId: 'p1', taskId: 't1' });
+    const restoreLocation = vi.fn(() => true);
+    store.applyEntry({
+      ref,
+      location: { tabId: 'tab-1' },
+      key: `${ref.key}:tab-1`,
+    });
+
+    store.navigate(homeViewDef());
+    store.navigate(ref);
+    store.attachParticipant(ref, {
+      captureLocation: () => undefined,
+      restoreLocation,
+    });
+
+    expect(restoreLocation).not.toHaveBeenCalled();
+  });
+
+  it('emits typed traversal and refinement events', () => {
+    const store = buildStore();
+    const listener = vi.fn();
+    store.onDidNavigate.subscribe(listener);
+
+    store.navigate(settingsViewDef({ tab: 'general' }));
+    store.navigate(settingsViewDef({ tab: 'browser' }));
+
+    expect(listener.mock.calls.map(([event]) => event.kind)).toEqual(['traversal', 'refinement']);
   });
 });

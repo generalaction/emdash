@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["eslint", "typescript", "react"],
-  "jsPlugins": ["./tooling/oxlint-plugin.js"],
+  "jsPlugins": ["./tooling/oxlint/index.js"],
   "env": {
     "browser": true,
     "node": true,
@@ -45,7 +45,9 @@
     "typescript/no-redundant-type-constituents": "off",
     "typescript/no-useless-default-assignment": "off",
     "typescript/restrict-template-expressions": "off",
-    "typescript/unbound-method": "off"
+    "typescript/unbound-method": "off",
+    "emdash/core-module-boundaries": "error",
+    "emdash/no-dynamic-imports": "error"
   },
   "overrides": [
     {
@@ -65,18 +67,55 @@
     },
     {
       "files": [
+        "src/entry/**/*.{ts,tsx}",
         "src/main/**/*.{ts,tsx}",
-        "src/renderer/**/*.{ts,tsx}",
-        "src/preload/**/*.{ts,tsx}"
+        "src/renderer/**/*.{ts,tsx}"
       ],
       "rules": {
         "emdash/no-tooling-imports": "error"
       }
     },
     {
-      "files": ["**/*.test.{ts,tsx}"],
+      "files": [
+        "src/main/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "electron",
+                "message": "Import Electron only from main/host, main/gateway, or main/bootstrap."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/main/host/**/*.{ts,tsx}",
+        "src/main/gateway/**/*.{ts,tsx}",
+        "src/main/bootstrap/**/*.{ts,tsx}",
+        "src/main/core/**/*.{ts,tsx}",
+        "src/main/db/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/host/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/gateway/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/bootstrap/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/core/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/db/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.{js,jsx,ts,tsx}"],
       "rules": {
         "typescript/no-explicit-any": "off",
+        "emdash/no-dynamic-imports": "off",
         "emdash/no-tooling-imports": "off"
       }
     }

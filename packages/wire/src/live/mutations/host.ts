@@ -1,4 +1,5 @@
 import { err, ok } from '@emdash/shared';
+import { stableStringify } from '@emdash/shared/util';
 import type {
   LiveModelKey,
   LiveModelMutationHandler,
@@ -17,7 +18,6 @@ import {
   type LiveModelInitialState,
   type LiveModelInstance,
 } from './group';
-import { stableStringify } from './registry';
 import { MutationResultCache, type MutationResultCacheOptions } from './result-cache';
 import type { LiveMutationResult } from './types';
 

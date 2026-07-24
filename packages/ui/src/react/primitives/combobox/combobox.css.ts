@@ -143,7 +143,7 @@ export const comboboxChip = style({
   paddingLeft: '0.375rem',
   paddingRight: '0.375rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   whiteSpace: 'nowrap',
   color: vars.foreground,
   selectors: {

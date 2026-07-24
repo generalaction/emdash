@@ -1,0 +1,146 @@
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { automationsViewDef } from '@core/features/automations/contributions/views';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { Automation } from '@core/primitives/automations/api';
+import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
+import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { formatAutomationError } from '../automation-run-format';
+import type { BuiltinAutomationTemplate } from '../automation-template';
+import { emptyStateAutomationTemplates } from '../builtin-catalog';
+import { useAutomations, useDeleteAutomation, useUpdateAutomation } from '../use-automations';
+import { AutomationDetailView } from './AutomationDetailView';
+import { AutomationsHeader } from './AutomationsHeader';
+import { AutomationsList } from './AutomationsList';
+import { AutomationTemplatesEmptyState } from './AutomationTemplatesEmptyState';
+import { CreateAutomationView } from './CreateAutomationView';
+
+export function AutomationsView() {
+  const automations = useAutomations();
+  const update = useUpdateAutomation();
+  const destroy = useDeleteAutomation();
+  const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [initialTemplate, setInitialTemplate] = useState<BuiltinAutomationTemplate | undefined>();
+  const [pendingDelete, setPendingDelete] = useState<Automation | null>(null);
+  const openConfirm = useOpenModal('confirmActionModal');
+  const { navigate } = useNavigate();
+  const { params, setParams } = useCurrentViewParams(automationsViewDef);
+
+  const automationData = automations.data;
+  const effectiveAutomations = useMemo(
+    () => (automationData ?? []).filter((a) => a.name.toLowerCase().includes(search.toLowerCase())),
+    [automationData, search]
+  );
+  const hasLoadedAutomations = automationData !== undefined;
+  const isEmpty = automationData !== undefined && automationData.length === 0;
+  const hasSearchResults = effectiveAutomations.length > 0;
+
+  const liveAutomation = params.automationId
+    ? (automations.data?.find((a) => a.id === params.automationId) ?? null)
+    : null;
+
+  function closeSheet() {
+    setParams({ automationId: undefined });
+    setCreating(false);
+    setInitialTemplate(undefined);
+  }
+
+  function openCreateSheet(template?: BuiltinAutomationTemplate) {
+    setInitialTemplate(template);
+    setCreating(true);
+  }
+
+  function handleToggleEnabled(automation: Automation, enabled: boolean) {
+    void update.mutateAsync({ id: automation.id, patch: { enabled } });
+  }
+
+  function handleDelete(automation: Automation) {
+    setPendingDelete(automation);
+    closeSheet();
+  }
+
+  function handleSheetOpenChangeComplete(open: boolean) {
+    if (open || !pendingDelete) return;
+
+    // The sheet is modal and makes sibling portals inert. Wait until it has fully closed before
+    // opening the global confirmation dialog so that the dialog remains interactive.
+    const automation = pendingDelete;
+    setPendingDelete(null);
+    void openConfirm({
+      title: 'Delete automation',
+      description: `"${automation.name}" and its run history will be permanently deleted.`,
+      confirmLabel: 'Delete',
+    }).then((outcome) => {
+      if (outcome.success) {
+        void destroy.mutateAsync(automation.id).catch((error) => {
+          setParams({ automationId: automation.id });
+          toast.error('Could not delete automation', {
+            description: formatAutomationError(error),
+          });
+        });
+      } else if (outcome.error.reason === 'explicit') {
+        setParams({ automationId: automation.id });
+      }
+    });
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+      <div className="h-6 shrink-0 [-webkit-app-region:drag]" />
+      <div className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-cols-1 gap-8">
+        <div className="relative min-h-0 w-full min-w-0 overflow-y-auto px-8">
+          <div className="w-full py-8">
+            <AutomationsHeader
+              search={search}
+              onSearchChange={setSearch}
+              createPending={false}
+              onNewAutomation={() => openCreateSheet()}
+            />
+            {isEmpty ? (
+              <AutomationTemplatesEmptyState
+                templates={emptyStateAutomationTemplates}
+                onSelectTemplate={openCreateSheet}
+              />
+            ) : hasSearchResults ? (
+              <AutomationsList
+                automations={effectiveAutomations}
+                onEdit={(automation) =>
+                  navigate(automationsViewDef({ automationId: automation.id }))
+                }
+                onToggleEnabled={handleToggleEnabled}
+              />
+            ) : hasLoadedAutomations ? (
+              <div className="py-8 text-sm text-foreground-muted">
+                No automations match your search.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <Sheet
+        open={liveAutomation !== null || creating}
+        onOpenChange={(open) => !open && closeSheet()}
+        onOpenChangeComplete={handleSheetOpenChangeComplete}
+      >
+        <SheetContent showCloseButton={false} className="[-webkit-app-region:no-drag]">
+          {creating && (
+            <CreateAutomationView
+              onClose={closeSheet}
+              onSaved={closeSheet}
+              initialTemplate={initialTemplate}
+            />
+          )}
+          {liveAutomation && (
+            <AutomationDetailView
+              automation={liveAutomation}
+              onClose={closeSheet}
+              onDelete={handleDelete}
+              onToggleEnabled={handleToggleEnabled}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}

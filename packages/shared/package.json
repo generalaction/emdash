@@ -21,6 +21,26 @@
       "types": "./dist/result.d.mts",
       "default": "./dist/result.mjs"
     },
+    "./scheduling": {
+      "types": "./dist/scheduling.d.mts",
+      "default": "./dist/scheduling.mjs"
+    },
+    "./concurrency": {
+      "types": "./dist/concurrency.d.mts",
+      "default": "./dist/concurrency.mjs"
+    },
+    "./requests": {
+      "types": "./dist/requests.d.mts",
+      "default": "./dist/requests.mjs"
+    },
+    "./util": {
+      "types": "./dist/util.d.mts",
+      "default": "./dist/util.mjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.mts",
+      "default": "./dist/testing.mjs"
+    },
     "./config": {
       "types": "./dist/config.d.mts",
       "default": "./dist/config.mjs"

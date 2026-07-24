@@ -8,24 +8,27 @@ Only macOS and Linux remotes are in scope for this design.
 ```mermaid
 flowchart LR
   subgraph desktop [Desktop Main Process]
-    source["ManagedSource per connectionId"]
+    source["ResourceCache per target"]
     reconnecting[reconnectingTransport]
+    local[Local Unix socket connector]
     sshManager[SshConnectionManager]
     proxy[SshClientProxy]
   end
-  subgraph remote [Remote Host]
+  subgraph host [Workspace Host]
     socket["Unix socket ~/.emdash/workspace-server/run/workspace.sock"]
     hub[createWireSessionHub]
     controller[workspaceWireContract controller]
-    acpRuntime["ACP runtime child process"]
+    runtimes["required core runtime subprocesses"]
   end
   source --> reconnecting
+  reconnecting --> local
+  local --> socket
   reconnecting --> sshManager
   sshManager --> proxy
   proxy -->|"openssh_forwardOutStreamLocal"| socket
   socket --> hub
   hub --> controller
-  controller -->|"acp domain"| acpRuntime
+  controller --> runtimes
 ```
 
 The workspace server daemon listens on a Unix domain socket. The socket lives in
@@ -36,48 +39,104 @@ port on the remote host.
 `serve --socket` is the daemon serving mode. `serve --stdio` serves the same
 wire controller over stdin/stdout and exists as a test and debugging harness.
 
-The daemon also forks an ACP runtime child in socket mode. Desktop clients reach
-that runtime through the same workspace wire client at `client.acp.*`; the daemon
-forwards `acpApiContract` calls and live-model subscriptions to the child. The
-runtime child asks the daemon to resolve provider CLI binaries on the remote host
-and then spawns those CLIs locally on that host.
+The daemon runs every core runtime in a required supervised subprocess in both socket and stdio
+modes. Clients reach ACP, agent config, automations, file search, files, Git, terminals, TUI agents,
+and workspace through the corresponding aggregate client domains. Live state, jobs, event streams,
+mutations, terminal logs, and file blob channels all use the same reconnectable workspace wire
+connection.
 
 ## Desktop Utility Shape
 
-The desktop should expose a managed source keyed by SSH `connectionId`. Each
-lease shares the same underlying workspace connection and keeps it warm for a
-short grace window across renderer reloads or transient feature detaches.
+The desktop should expose a resource cache keyed by the full workspace-server
+target. Local sockets are the first implementation; SSH becomes another stream
+source without changing handshake or reconnect behavior. Including the socket path
+in the key avoids conflating custom daemon sockets on the same host.
 
 ```ts
-const workspaces = createManagedSource({
-  key: (key: { connectionId: string }) => key.connectionId,
-  graceMs: 30_000,
-  async create({ connectionId }, scope) {
-    const transport = reconnectingTransport(async () => {
-      const proxy = await sshConnections.connect(connectionId);
-      await ensureWorkspaceDaemon(proxy);
-      const channel = await proxy.forwardOutStreamLocal(WORKSPACE_SOCKET_PATH);
-      return streamTransport(channel, channel);
-    });
+type WorkspaceServerTarget =
+  | { kind: 'local-socket'; socketPath: string }
+  | { kind: 'ssh'; sshConnectionId: string; socketPath: string };
+
+const workspaces = createResourceCache({
+  key: workspaceServerTargetKey,
+  idleTtlMs: 30_000,
+  async create(target: WorkspaceServerTarget, scope) {
+    let negotiated: WireInitializeResult | undefined;
+    const transport = reconnectingTransport(
+      () =>
+        openInitializedWorkspaceTransport(target, (value) => {
+          negotiated = value;
+        }),
+      {
+        shouldRetry: (error) => !(error instanceof WorkspaceProtocolError),
+      }
+    );
     scope.add(() => transport.close());
 
     const connection = connect(transport);
+    scope.add(() => connection.dispose());
     const workspace = client(workspaceWireContract, connection);
-    const initialized = await workspace.initialize({ protocolVersion: PROTOCOL_VERSION });
-    if (!initialized.success) {
-      throw new WorkspaceProtocolError(initialized.error);
-    }
-    return { client: workspace, connection };
+    await transport.ready();
+    return { client: workspace, connection, negotiated: () => negotiated };
   },
 });
+
+async function openInitializedWorkspaceTransport(
+  target: WorkspaceServerTarget,
+  onInitialized: (value: WireInitializeResult) => void
+): Promise<WireTransport> {
+  const stream = await openWorkspaceServerStream(target);
+  const candidate = ownedStreamTransport(stream);
+  const handshakeConnection = connect(candidate);
+  const handshakeClient = client(workspaceWireContract, handshakeConnection);
+
+  try {
+    const initialized = await handshakeClient.initialize({
+      protocolVersion: PROTOCOL_VERSION,
+    });
+    if (!initialized.success) throw new WorkspaceProtocolError(initialized.error);
+    onInitialized(initialized.data);
+    return candidate;
+  } catch (error) {
+    candidate.close?.();
+    throw error;
+  } finally {
+    handshakeConnection.dispose();
+  }
+}
 ```
+
+`openWorkspaceServerStream()` initially opens a manually-started local daemon's
+Unix socket. The later SSH implementation obtains the stable proxy from
+`SshConnectionManager`, ensures the daemon exists, and opens a streamlocal channel
+to the same socket path.
+
+`ownedStreamTransport()` wraps `streamTransport(stream, stream)` and destroys the
+underlying socket/channel from `close()`. `streamTransport()` itself only releases
+its parsing listeners because it does not own the streams passed to it.
 
 `ensureWorkspaceDaemon()` is a future desktop bootstrap step. It should call the
 server-side lifecycle CLI to probe the socket, start the daemon if absent, and
 leave version upgrades to the wire update flow. After the daemon exists, each
-`connectOnce` opens a streamlocal channel with
-`SshClientProxy.forwardOutStreamLocal(socketPath)` and adapts it with
-`streamTransport(channel, channel)`.
+`connectOnce` uses the current ssh2 client exposed by `SshClientProxy` to open an
+`openssh_forwardOutStreamLocal` channel and adapts it with
+`streamTransport(channel, channel)`. A convenience method may be added to the proxy
+when the SSH connector is implemented.
+
+## Handshake and Readiness Invariants
+
+Each `connectOnce` attempt owns one physical stream and performs the `initialize`
+handshake before returning it to `reconnectingTransport`. Therefore:
+
+1. `initialize` is the first workspace-server procedure on every candidate stream.
+2. A compatible response records the negotiated feature level and daemon identity.
+3. Only then can the stable transport flush queued messages and announce reconnect.
+4. `connect()` reattaches live topics after that reconnect notification.
+5. An incompatible response closes the candidate, rejects `ready()`, and stops retries.
+
+The temporary handshake `Connection` is disposed without closing a successful
+candidate. The stable outer `Connection` is the only connection that remains
+subscribed after readiness.
 
 ## Failure Semantics
 
@@ -85,17 +144,21 @@ leave version upgrades to the wire update flow. After the daemon exists, each
   disconnect, and `reconnectingTransport` retries `connectOnce`.
 - SSH reconnects: `SshConnectionManager.connect(connectionId)` reuses or waits
   for the managed SSH connection using the existing credential resolution.
-- Workspace daemon restarts: `connectOnce` reopens the Unix socket after the
-  daemon starts listening again.
+- Workspace daemon restarts: `connectOnce` reopens the Unix socket, initializes the
+  new daemon generation, and exposes its new `daemonId` only after negotiation.
 - Live attachments: `connect()` observes `onReconnect` from
-  `reconnectingTransport`, re-attaches topics, and replicas resync from fresh
-  snapshots.
+  `reconnectingTransport` after initialization, re-attaches topics, and replicas
+  resync from fresh snapshots.
 - Pending calls: in-flight calls reject with `DISCONNECTED`; callers decide
   whether procedure retries are safe. Live model mutations can use mutation IDs
   and retry options.
-- Protocol mismatch: `initialize` returns a typed `Result` error with
-  `action: 'upgrade-client' | 'upgrade-server'`. The future update flow should
-  route `upgrade-server` into workspace-server self-update.
+- Calls made while disconnected: `reconnectingTransport` queues non-blob messages
+  in a bounded drop-oldest buffer. Features should wait for `ready()` and use
+  cancellation/deadlines so an evicted request cannot wait indefinitely.
+- Protocol mismatch: `initialize` returns a typed `Result` error with `action:
+  'upgrade-client' | 'upgrade-server'`. `shouldRetry` classifies it as permanent;
+  the owner surfaces the error and invalidates the cache entry. The future update
+  flow should route `upgrade-server` into workspace-server self-update.
 
 ## Server Modes
 
@@ -126,7 +189,7 @@ the socket path so custom paths remain self-contained:
 ~/.emdash/workspace-server/run/workspace.sock.pid
 ~/.emdash/workspace-server/run/workspace.sock.lock
 ~/.emdash/workspace-server/run/workspace.sock.log
-~/.emdash/workspace-server/run/acp-attachments/
+~/.emdash/workspace-server/state/
 ```
 
 `start` probes the socket first, acquires the lock, spawns `serve --socket` as a
@@ -157,4 +220,4 @@ the production SSH transport.
 - `packages/wire/docs/api/serving.md`
 - `packages/wire/docs/api/transports.md`
 - `packages/wire/docs/runtime/lifecycle.md`
-- `packages/wire/docs/runtime/process-runtimes.md`
+- `packages/wire/docs/runtime/workers.md`

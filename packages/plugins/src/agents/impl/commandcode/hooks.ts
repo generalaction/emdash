@@ -1,7 +1,7 @@
 import {
   buildNestedJsonHookConfig,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
 export const COMMANDCODE_SETTINGS_PATH = '.commandcode/settings.json';
 

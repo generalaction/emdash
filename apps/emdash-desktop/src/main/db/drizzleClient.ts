@@ -1,14 +1,12 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { AppDb } from '@core/services/app-db/node/db';
+import * as schema from '@core/services/app-db/node/schema';
+import { getAppConfig } from '@main/bootstrap/core/config';
 import { resolveDatabasePath } from './path';
-import * as schema from './schema';
-
-type AppSchema = typeof schema;
-
-export type DrizzleDb = ReturnType<typeof drizzle<AppSchema>>;
 
 export interface DrizzleClient {
-  db: DrizzleDb;
+  db: AppDb;
   sqlite: Database.Database;
   close: () => void;
 }
@@ -29,7 +27,7 @@ function openDatabase(filePath: string, busyTimeoutMs: number): Database.Databas
 }
 
 export function createDrizzleClient(options: CreateDrizzleClientOptions = {}): DrizzleClient {
-  if (process.env.EMDASH_DISABLE_NATIVE_DB === '1') {
+  if (getAppConfig().disableNativeDb) {
     throw new Error('Native SQLite database is disabled via EMDASH_DISABLE_NATIVE_DB=1');
   }
 

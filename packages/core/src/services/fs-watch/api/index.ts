@@ -17,3 +17,5 @@ export type {
   WatchHandle,
   WatchOptions,
 } from './models';
+
+export { fsWatchWorker } from './worker';

@@ -19,6 +19,25 @@ const focusRing = {
   boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderPrimary} 30%, transparent)`,
 } as const;
 
+const plasticSurface = {
+  backgroundImage:
+    'linear-gradient(to bottom, color-mix(in srgb, white 8%, transparent), transparent 55%)',
+  boxShadow: [
+    'inset 0 1px 0 color-mix(in srgb, white 12%, transparent)',
+    'inset 0 -1px 0 color-mix(in srgb, black 10%, transparent)',
+  ].join(', '),
+} as const;
+
+const plasticActive = {
+  backgroundImage:
+    'linear-gradient(to bottom, color-mix(in srgb, white 4%, transparent), transparent 55%)',
+  boxShadow: 'inset 0 1px 1px color-mix(in srgb, black 6%, transparent)',
+} as const;
+
+const secondaryBackground = `color-mix(in srgb, ${vars.foreground} 6%, transparent)`;
+const secondaryBackgroundHover = `color-mix(in srgb, ${vars.foreground} 9%, transparent)`;
+const secondaryBackgroundSelected = `color-mix(in srgb, ${vars.foreground} 12%, transparent)`;
+
 // Pre-create base style so we can attach globalStyle child selectors
 const controlBase = style({
   display: 'inline-flex',
@@ -88,50 +107,53 @@ export const controlVariants = recipe({
         },
       },
       primary: {
+        ...plasticSurface,
         backgroundColor: vars.primaryButtonBackground,
         color: vars.primaryButtonForeground,
-        borderColor: vars.primaryButtonBorder,
         selectors: {
           '&:hover': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&:active': plasticActive,
           '&[aria-expanded="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
           '&[data-popup-open]': { backgroundColor: vars.primaryButtonBackgroundHover },
           '&[data-active="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
         },
       },
       secondary: {
-        backgroundColor: vars.surfaceBaseEmphasis,
+        ...plasticSurface,
+        backgroundColor: secondaryBackground,
         color: vars.foregroundMuted,
         selectors: {
           '&:hover': {
-            backgroundColor: vars.surfaceBaseEmphasisHover,
+            backgroundColor: secondaryBackgroundHover,
             color: vars.foregroundMuted,
           },
+          '&:active': plasticActive,
           '&[aria-expanded="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[aria-pressed="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[aria-selected="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-pressed]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-selected]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-popup-open]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
           '&[data-active="true"]': {
-            backgroundColor: vars.surfaceBaseEmphasisSelected,
+            backgroundColor: secondaryBackgroundSelected,
             color: vars.foregroundMuted,
           },
         },
@@ -272,11 +294,12 @@ export const controlVariants = recipe({
     {
       variants: { variant: 'primary', tone: 'destructive' },
       style: {
+        ...plasticSurface,
         backgroundColor: vars.backgroundDestructive,
-        borderColor: vars.borderDestructive,
         color: vars.foregroundDestructive,
         selectors: {
           '&:hover': { backgroundColor: vars.surfaceDestructiveHover },
+          '&:active': plasticActive,
           '&[data-active="true"]': { backgroundColor: vars.surfaceDestructiveSelected },
           '&[data-pressed]': { backgroundColor: vars.surfaceDestructiveSelected },
           '&:focus-visible': {

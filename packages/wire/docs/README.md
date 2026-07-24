@@ -1,16 +1,19 @@
 # @emdash/wire Docs
 
 `@emdash/wire` is the transport-agnostic runtime layer for typed API calls,
-live model subscriptions, live logs, event streams, jobs, mutations, and a small
-set of utilities that sit at the API boundary.
+live model subscriptions, live logs, event streams, jobs, mutations, workers, and
+the small utilities that sit at the API boundary.
 
-The package has four layers:
+Wire builds on Shared foundations for generic lifecycle, scheduling,
+concurrency, testing, and stable utility behavior:
 
 ```mermaid
 flowchart TB
-  subgraph runtime [Runtime utilities]
-    scope[Scope and ManagedSource]
-    processHost[ProcessHost supervision]
+  subgraph shared [Shared foundations used by Wire]
+    scope[Scope and ResourceCache]
+    registry[LifecycleRegistry]
+    scheduling[Clock and RetrySchedule]
+    mailbox[Mailbox]
   end
   subgraph api [API layer]
     contracts[defineContract endpoint kinds]
@@ -28,10 +31,16 @@ flowchart TB
   subgraph observability [Observability]
     instrumentation[Instrumentation and logging]
   end
-  runtime --> api --> live
+  subgraph workers [Wire workers]
+    component[WireComponent]
+    workerHost[WireWorkerHost]
+  end
+  shared --> api --> live
   observability --> api
   observability --> live
-  processHost --> api
+  component --> api
+  workerHost --> api
+  workerHost --> component
 ```
 
 The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
@@ -40,9 +49,13 @@ replicas. Low-level `*Client` followers track cursors and resync, while
 materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
 client handles directly or wrap them in replicas. The API layer turns those
 primitives into a contract with typed procedure calls and live topic client
-handles.
-The runtime layer owns lifecycle utilities and process supervision. Observability
-hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
+handles. `WireComponent` is the reusable contract implementation pattern: it
+declares explicit typed requirements, validates config at the creation boundary,
+and can be created in-process or hosted in a worker. Worker hosting is Wire-specific because it
+serves components across processes. Generic lifecycle, scheduling, concurrency, testing, and stable
+utility primitives live in `@emdash/shared` and are documented here where Wire
+uses them. Observability hooks are cross-cutting and can be attached to API,
+live, and worker surfaces.
 
 ## Pages
 
@@ -52,6 +65,9 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Serving and clients](./api/serving.md): `createController()`, `serve()`,
     `connect()`, cancellation, controller composition, session hubs, and
     server-side call helpers.
+  - [Composable middleware](./api/middleware.md): target-first `compose()`,
+    handler middleware, controller middleware, timeout, retry, and
+    deduplication.
   - [Typed clients](./api/clients.md): `ContractClient` handles,
     `forwardController()`, and selective forwarding through `createController()`.
   - [File endpoints](./api/files.md): `downloadFile()`, `uploadFile()`, blob
@@ -59,7 +75,7 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
-    reconnecting, process, and logging transports.
+    reconnecting, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-state.md): snapshots, updates,
     cursors, `LiveState`, replicas, and `BatchedLiveState`.
@@ -69,6 +85,8 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
     explicit gap callbacks after reattach.
   - [Live jobs](./live/live-job.md): progress, cancellation, terminal state,
     retention, and contract job handles.
+  - [Machine bindings](./live/machine-binding.md): projecting Shared machines into
+    Wire `LiveState` without creating a second observation protocol.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
   - [Replicas](./live/replicas.md): `LiveModelReplica`, `LiveLogReplica`,
@@ -76,14 +94,23 @@ hooks are cross-cutting and can be attached to API, live, and runtime surfaces.
   - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
     optimistic previews for live model contract mutations.
 - Runtime:
-  - [Lifecycle utilities](./runtime/lifecycle.md): `Scope`, scope loggers,
-    `describeScope()`, and `ManagedSource`.
-  - [ProcessHost](./runtime/process-host.md): supervised child/utility processes
-    and process-backed wire transports.
-  - [Process runtimes](./runtime/process-runtimes.md): subprocess-hosted
-    controllers with ready handshakes, graceful shutdown, and reconnect resync.
-  - [Workers](./runtime/workers.md): worker lifecycle helpers, lazy spawning,
-    ambient logging, and process-hosted contract examples.
+  - [Lifecycle utilities](./runtime/lifecycle.md): Shared `Scope`,
+    `LifecycleRegistry`, scope loggers, `describeScope()`, and resource
+    ownership.
+  - [Structured concurrency](./runtime/structured-concurrency.md): `Scope.run()`,
+    run cancellation, lifecycle invariants, and diagnostics.
+  - [Scheduling](./runtime/scheduling.md): Shared `Clock`, `TimerHandle`,
+    `ManualClock`, retry schedules, abortable sleeps, and timer ownership.
+  - [Resource caches](./runtime/resource-cache.md): Shared `ResourceCache`,
+    `SharedResource`, `AsyncCache`, identity rules, and lease behavior.
+  - [Mailbox and Broadcast](./runtime/mailbox-and-broadcast.md): Shared bounded
+    local async handoff, overflow policy, guarantees, and the deferred Broadcast
+    contract.
+  - [Components](./runtime/components.md): `defineWireComponent()`, explicit
+    requirements, in-process creation, worker deployment, and non-DI composition
+    rules.
+  - [Workers](./runtime/workers.md): `WireWorkerHost`, one-generation spawners,
+    `runWireComponentWorker()`, and process-hosted components.
 - [Observability](./observability.md): ambient logger context, instrumentation
   hooks, controller logging, transport debug logging, and scope loggers.
 
@@ -103,24 +130,40 @@ Use narrower subpath exports at app boundaries:
 
 - `@emdash/wire/live`: live primitives, live model hosts, and mutation settling.
 - `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
+- `@emdash/wire/component`: `defineWireComponent()`, requirement helpers, component
+  instance types, and explicit component composition types.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
   controller logging middleware.
-- `@emdash/wire/util`: dependency-free utilities: `Scope`, `ManagedSource`,
-  and `deduplicateRequests`.
+- `@emdash/wire/testing`: Wire test helpers such as `createTestWire()` and fake
+  worker process support.
+- `@emdash/wire/util`: Wire transport helpers for diagnosing structured-clone
+  failures.
 - `@emdash/wire/util/mobx`: MobX-backed replica stores
   (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
   and optimistic group utilities.
-- `@emdash/wire/util/process-runtime`: helpers for serving and consuming
-  process-hosted wire controllers.
-- `@emdash/wire/worker`: worker helpers for resolving runtime entries,
-  supervised spawning, and lazy process lifecycle.
-- `@emdash/wire/process`: process supervision types, `utilityProcessHost()`,
-  and `processTransport()`.
-- `@emdash/wire/process/node`: Node `childProcessHost()`.
+- `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`, worker signal types,
+  supervision types, process contracts, and worker log forwarding.
+- `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
+- `@emdash/wire/worker/electron`: Electron utility-process spawners.
+
+Use Shared subpaths directly for generic foundations:
+
+- `@emdash/shared/concurrency`: `Scope`, `Run`, `LifecycleRegistry`, `Mailbox`,
+  `ResourceCache`, `SharedResource`, `AsyncCache`, bounded buffers, and disposable
+  helpers.
+- `@emdash/shared/scheduling`: `Clock`, `systemClock`, `TimerHandle`,
+  `TimeoutError`, `runWithTimeout()`, `RetrySchedule`, retry schedule builders,
+  and `retry()`.
+- `@emdash/shared/requests`: request handler composition, timeout, retry,
+  in-flight deduplication, and request scheduling.
+- `@emdash/shared/testing`: `ManualClock`, `createDeferred()`, `waitFor()`, and
+  stub logger helpers.
+- `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.
 
 MobX-backed utilities intentionally live in their own export because they have a
-`mobx` peer dependency. Server-only code can import `@emdash/wire` or
-`@emdash/wire/util` without pulling in MobX.
+`mobx` peer dependency. Server-only code can import `@emdash/wire`,
+`@emdash/wire/api`, `@emdash/wire/live`, `@emdash/wire/worker`, and Shared
+foundation subpaths without pulling in MobX.
 
 ## Typical Flow
 

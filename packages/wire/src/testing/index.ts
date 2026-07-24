@@ -1,4 +1,2 @@
-export * from './deferred';
-export * from './stub-logger';
+export * from './fake-worker-process';
 export * from './test-wire';
-export * from './wait-for';

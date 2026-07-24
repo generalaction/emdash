@@ -28,7 +28,7 @@ export const menuContent = style({
   backgroundColor: vars.surface,
   padding: '0.25rem',
   color: vars.foreground,
-  boxShadow: `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1), 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
+  boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   outline: 'none',
   selectors: {
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
@@ -50,7 +50,7 @@ export const menuLabel = style({
   paddingTop: '0.375rem',
   paddingBottom: '0.375rem',
   fontSize: tokenVars.textXs,
-  fontWeight: 500,
+  fontWeight: 400,
   color: vars.foregroundMuted,
   selectors: {
     '&[data-inset]': { paddingLeft: '2rem' },

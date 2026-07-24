@@ -1,8 +1,8 @@
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
-import { projects, sshConnections, tasks, workspaces } from '@main/db/schema';
+import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
+import { projects, sshConnections, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { ensureImportedTaskWorkspaces } from './task-workspace-backfill';
 
 describe('ensureImportedTaskWorkspaces', () => {

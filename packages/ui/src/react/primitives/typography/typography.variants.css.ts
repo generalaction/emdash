@@ -4,7 +4,7 @@
  * from theme.base.css, replacing the text-role-* class indirection.
  */
 
-import { nsVar } from '@theme/core/contract/namespace';
+import { nsVar } from '@emdash/theme';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
@@ -19,12 +19,6 @@ export const textVariants = recipe({
         fontSize: nsVar('type-body-font-size'),
         fontWeight: nsVar('type-body-font-weight'),
         lineHeight: nsVar('type-body-line-height'),
-      },
-      bodyBold: {
-        fontFamily: nsVar('type-body-bold-font-family'),
-        fontSize: nsVar('type-body-bold-font-size'),
-        fontWeight: nsVar('type-body-bold-font-weight'),
-        lineHeight: nsVar('type-body-bold-line-height'),
       },
       bodyItalic: {
         fontFamily: nsVar('type-body-italic-font-family'),
@@ -56,6 +50,24 @@ export const textVariants = recipe({
         fontSize: nsVar('type-h3-font-size'),
         fontWeight: nsVar('type-h3-font-weight'),
         lineHeight: nsVar('type-h3-line-height'),
+      },
+      section: {
+        fontFamily: nsVar('type-section-font-family'),
+        fontSize: nsVar('type-section-font-size'),
+        fontWeight: nsVar('type-section-font-weight'),
+        lineHeight: nsVar('type-section-line-height'),
+      },
+      caption: {
+        fontFamily: nsVar('type-caption-font-family'),
+        fontSize: nsVar('type-caption-font-size'),
+        fontWeight: nsVar('type-caption-font-weight'),
+        lineHeight: nsVar('type-caption-line-height'),
+      },
+      description: {
+        fontFamily: nsVar('type-description-font-family'),
+        fontSize: nsVar('type-description-font-size'),
+        fontWeight: nsVar('type-description-font-weight'),
+        lineHeight: nsVar('type-description-line-height'),
       },
       inlineCode: {
         fontFamily: nsVar('type-inline-code-font-family'),

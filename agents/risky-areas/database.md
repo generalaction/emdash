@@ -2,7 +2,7 @@
 
 ## Main Files
 
-- `src/main/db/schema.ts`
+- `src/core/services/app-db/node/schema.ts`
 - `src/main/db/initialize.ts`
 - `drizzle/`
 
@@ -15,9 +15,14 @@
 
 ## Current Behavior
 
+- portable schema, row types, and Drizzle helpers live in `src/core/services/app-db/node/`
 - database path is resolved by main-process db path helpers
 - `EMDASH_DB_FILE` overrides the default location
-- database initialization happens in `src/main/db/initialize.ts`
+- the main bootstrap creates one native Drizzle client and passes its SQLite connection to
+  `src/main/db/initialize.ts`
+- Core Node services receive `AppDb` through constructor/factory injection
+- main free-function code uses the throwing `@main/db/instance` accessor at call time
+- shutdown closes and clears the initialized database after scoped services are disposed
 
 ## Development Workflow
 
@@ -78,7 +83,7 @@ installed under `tooling/node-deps/` (compiled for system Node). The app's
    ```
    Commit this snapshot. It is the starting state your migration test will run against.
 
-3. **Write the migration**: edit `src/main/db/schema.ts`, then generate the SQL:
+3. **Write the migration**: edit `src/core/services/app-db/node/schema.ts`, then generate the SQL:
    ```bash
    pnpm run db:generate
    ```
@@ -108,8 +113,8 @@ These columns use `versionedJsonColumn()` — a Drizzle `customType` that
 transparently handles version detection, upgrade chains, and serialization.
 
 ```ts
-import { versionedJsonColumn } from '@main/db/versioned-column';
-import { myConfig } from '@shared/my-config';
+import { versionedJsonColumn } from '@core/services/app-db/node/versioned-column';
+import { myConfig } from '@core/primitives/my-domain/api/my-config';
 
 export const myTable = sqliteTable('my_table', {
   col: versionedJsonColumn(myConfig)('col'),
@@ -123,7 +128,7 @@ needed at call sites.
 
 ### Schema definitions
 
-Versioned schema definitions live in `src/shared/`. See
+Versioned schema definitions live in the owning `src/core/primitives/<domain>/api/` slice. See
 `agents/conventions/versioned-schemas.md` for the full guide including the
 `defineVersionedSchema()` builder API, upgrade function patterns, and testing
 guidance.
@@ -132,16 +137,16 @@ guidance.
 
 | Column | Schema file |
 |--------|-------------|
-| `workspaces.config` | `src/shared/workspace-config.ts` |
-| `workspaces.data` | `src/shared/workspace-provider-data.ts` |
-| `conversations.config` | `src/shared/conversation-config.ts` |
-| `tasks.workspace_intent` | `src/shared/workspace-config.ts` |
-| `tasks.task_config` | `src/shared/task-config.ts` |
-| `tasks.linked_issue` | `src/shared/linked-issue.ts` |
-| `automations.trigger_config` | `src/shared/automations/config.ts` |
-| `automations.conversation_config` | `src/shared/automations/config.ts` |
-| `automations.task_config` | `src/shared/automations/config.ts` |
-| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` |
+| `workspaces.config` | `src/core/primitives/workspaces/api/workspace-config.ts` |
+| `workspaces.data` | `src/core/primitives/workspaces/api/workspace-provider-data.ts` |
+| `conversations.config` | `src/core/primitives/conversations/api/conversation-config.ts` |
+| `tasks.workspace_intent` | `src/core/primitives/workspaces/api/workspace-config.ts` |
+| `tasks.task_config` | `src/core/primitives/tasks/api/task-config.ts` |
+| `tasks.linked_issue` | `src/core/primitives/linked-issues/api/linked-issue.ts` |
+| `automations.trigger_config` | `src/core/primitives/automations/api/config.ts` |
+| `automations.conversation_config` | `src/core/primitives/automations/api/config.ts` |
+| `automations.task_config` | `src/core/primitives/automations/api/config.ts` |
+| `ssh_connections.metadata` | `src/core/primitives/ssh/api/ssh-connection-metadata.ts` |
 
 ### Snapshot columns and raw SQL
 

@@ -55,6 +55,8 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
 
   private pipelineToken = 0;
   private sourceToken = 0;
+  private pipelineController: AbortController | null = null;
+  private sourceController: AbortController | null = null;
   private readonly disposers: Array<() => void> = [];
 
   constructor(readonly spec: S) {
@@ -71,7 +73,28 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
     }
     if (spec.pagination) {
       (this as { pagination?: PaginationSlice<T> }).pagination = new PaginationSlice(
-        spec.pagination
+        spec.pagination,
+        {
+          onStart: (isInitialPage) => {
+            if (!isInitialPage) return;
+            runInAction(() => {
+              this.status = 'loading';
+              this.error = undefined;
+            });
+          },
+          onSuccess: () => {
+            runInAction(() => {
+              this.status = 'idle';
+              this.error = undefined;
+            });
+          },
+          onError: (error) => {
+            runInAction(() => {
+              this.status = 'error';
+              this.error = error;
+            });
+          },
+        }
       );
     }
     if (spec.selection) {
@@ -160,13 +183,33 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
 
   /** Flat ordered id list — source of truth for range selection across virtual rows. */
   get orderedIds(): string[] {
-    return this.visibleItems.map(this.spec.getItemId);
+    const displayedItems = this.sections
+      ? this.sections.flatMap((section) => section.items)
+      : this.visibleItems;
+    return displayedItems.map(this.spec.getItemId);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   getItemById(id: string): T | undefined {
     return this.visibleItems.find((item) => this.spec.getItemId(item) === id);
+  }
+
+  /**
+   * Re-fetches externally owned data without changing search, filter, or sort state.
+   */
+  async reload(): Promise<void> {
+    if (this.pagination) {
+      await this.pagination.reload();
+      return;
+    }
+    if (this.spec.source.kind === 'async') {
+      const loaded = await this.loadSource();
+      if (!loaded) return;
+    }
+    if (this.needsAsyncPipeline) {
+      await this.runAsyncPipeline();
+    }
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -176,12 +219,11 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
    * Do not call more than once.
    */
   initialize(): void {
-    if (this.spec.source.kind === 'async') {
-      void this.loadSource();
-    }
-
     if (this.needsAsyncPipeline) {
       this.startAsyncPipelineReaction();
+    }
+    if (this.spec.source.kind === 'async' && !this.pagination) {
+      void this.reload();
     }
 
     // When search/filter/sort changes, reset pagination and load page 1.
@@ -203,26 +245,33 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
     }
   }
 
-  private async loadSource(): Promise<void> {
-    if (this.spec.source.kind !== 'async') return;
+  private async loadSource(): Promise<boolean> {
+    if (this.spec.source.kind !== 'async') return false;
     const token = ++this.sourceToken;
+    this.sourceController?.abort();
+    const controller = new AbortController();
+    this.sourceController = controller;
     runInAction(() => {
       this.status = 'loading';
+      this.error = undefined;
     });
-    const controller = new AbortController();
     try {
       const items = await this.spec.source.load(controller.signal);
-      if (token !== this.sourceToken) return;
+      if (token !== this.sourceToken || controller.signal.aborted) return false;
       runInAction(() => {
         this._asyncSourceItems = items;
         this.status = 'idle';
       });
+      return true;
     } catch (e) {
-      if (token !== this.sourceToken) return;
+      if (token !== this.sourceToken || controller.signal.aborted || isAbortError(e)) return false;
       runInAction(() => {
         this.status = 'error';
         this.error = e;
       });
+      return false;
+    } finally {
+      if (this.sourceController === controller) this.sourceController = null;
     }
   }
 
@@ -236,41 +285,47 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
         // Track raw item count so the reaction re-fires when source data changes.
         rawItemCount: this.rawItems.length,
       }),
-      async () => {
-        const token = ++this.pipelineToken;
-        const controller = new AbortController();
-        runInAction(() => {
-          this.status = 'loading';
-        });
-        try {
-          const items = await runAsyncPipeline(
-            this.spec,
-            this.rawItems,
-            {
-              query: this.search?.activeQuery ?? '',
-              filterModel: this.filter?.model as FilterModel | undefined,
-              sortKey: this.sort?.key as string | undefined,
-              sortDir: (this.sort?.dir ?? 'asc') as 'asc' | 'desc',
-            },
-            controller.signal
-          );
-          if (token !== this.pipelineToken) return;
-          runInAction(() => {
-            this._asyncPipelineItems = items;
-            this.status = 'idle';
-          });
-        } catch (e) {
-          if (token !== this.pipelineToken) return;
-          if (e instanceof DOMException && e.name === 'AbortError') return;
-          runInAction(() => {
-            this.status = 'error';
-            this.error = e;
-          });
-        }
-      },
-      { fireImmediately: true }
+      () => void this.runAsyncPipeline(),
+      { fireImmediately: this.spec.source.kind !== 'async' }
     );
     this.disposers.push(dispose);
+  }
+
+  private async runAsyncPipeline(): Promise<void> {
+    const token = ++this.pipelineToken;
+    this.pipelineController?.abort();
+    const controller = new AbortController();
+    this.pipelineController = controller;
+    runInAction(() => {
+      this.status = 'loading';
+      this.error = undefined;
+    });
+    try {
+      const items = await runAsyncPipeline(
+        this.spec,
+        this.rawItems,
+        {
+          query: this.search?.activeQuery ?? '',
+          filterModel: this.filter?.model as FilterModel | undefined,
+          sortKey: this.sort?.key as string | undefined,
+          sortDir: (this.sort?.dir ?? 'asc') as 'asc' | 'desc',
+        },
+        controller.signal
+      );
+      if (token !== this.pipelineToken || controller.signal.aborted) return;
+      runInAction(() => {
+        this._asyncPipelineItems = items;
+        this.status = 'idle';
+      });
+    } catch (e) {
+      if (token !== this.pipelineToken || controller.signal.aborted || isAbortError(e)) return;
+      runInAction(() => {
+        this.status = 'error';
+        this.error = e;
+      });
+    } finally {
+      if (this.pipelineController === controller) this.pipelineController = null;
+    }
   }
 
   /** Stops all reactions and cancels in-flight requests. Called by `Root` on unmount. */
@@ -281,5 +336,13 @@ export class ListViewStore<T, S extends ListViewSpec<any>> {
     this.pagination?.dispose();
     this.pipelineToken++;
     this.sourceToken++;
+    this.pipelineController?.abort();
+    this.pipelineController = null;
+    this.sourceController?.abort();
+    this.sourceController = null;
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }

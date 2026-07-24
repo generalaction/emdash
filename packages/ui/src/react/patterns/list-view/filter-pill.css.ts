@@ -70,7 +70,7 @@ export const filterButton = style({
   transition: 'color 150ms',
   selectors: {
     '&:hover': { color: vars.foreground },
-    '&[data-active="true"]': { color: vars.foreground, fontWeight: 500 },
+    '&[data-active="true"]': { color: vars.foreground, fontWeight: 400 },
     '&:disabled': { pointerEvents: 'none', opacity: 0.4, cursor: 'not-allowed' },
   },
 });

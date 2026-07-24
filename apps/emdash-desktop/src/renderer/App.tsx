@@ -1,23 +1,26 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import { IntegrationsProvider } from '@core/features/integrations/api/browser/integrations-provider';
+import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
+import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
+import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
+import { FramelessTitlebarOverlay } from '@core/primitives/ui/browser/components/titlebar/window-controls';
+import { RightSidebarProvider } from '@core/primitives/ui/browser/right-sidebar';
+import { TooltipProvider } from '@core/primitives/ui/browser/tooltip';
 import { AppMenuEvents } from './app/app-menu-events';
+import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
-import { IntegrationsProvider } from './features/integrations/integrations-provider';
-import { Onboarding } from './features/onboarding/onboarding';
-import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalRenderer } from './lib/modal/modal-renderer';
+import { confirmOpenExternalLink } from './lib/open-external-link';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
-import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
 import { queryClient } from './lib/query-client';
-import { RightSidebarProvider } from './lib/ui/right-sidebar';
-import { TooltipProvider } from './lib/ui/tooltip';
 
 export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 
@@ -100,10 +103,13 @@ function AppContent() {
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                 <RightSidebarProvider>
-                  <ThemeProvider>
-                    <ModalRenderer />
-                    {renderContent()}
-                  </ThemeProvider>
+                  <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
+                    <ThemeProvider>
+                      <ModalRenderer />
+                      <AppShutdownLifecycle />
+                      {renderContent()}
+                    </ThemeProvider>
+                  </ExternalLinkProvider>
                 </RightSidebarProvider>
               </WorkspaceViewProvider>
             </IntegrationsProvider>

@@ -1,4 +1,5 @@
 import { resultSchema } from '@emdash/shared';
+import type { Middleware } from '@emdash/shared/requests';
 import { z } from 'zod';
 import { liveCursorEntrySchema } from '../live/protocol';
 import {
@@ -58,8 +59,16 @@ export function withValidation<Defs extends ContractDefinitions>(
       const parsedKey = keySchema.parse(rawKey);
       return controller.resolveLive(encodeTopic(refId, parsedKey));
     },
-    dispose() {
-      controller.dispose?.();
+    acquireLive(topic: string) {
+      const { refId, rawKey } = splitTopic(topic);
+      const keySchema = liveKeys.get(refId);
+      if (!keySchema) return controller.acquireLive(topic);
+
+      const parsedKey = keySchema.parse(rawKey);
+      return controller.acquireLive(encodeTopic(refId, parsedKey));
+    },
+    async dispose() {
+      await controller.dispose?.();
     },
   };
 
@@ -121,12 +130,20 @@ export function withValidation<Defs extends ContractDefinitions>(
     }
 
     for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
+      const outputSchema = liveModelMutationOutputSchema(mutationDef);
       procedures.set(`${fullPath}.${mutationName}`, {
         parseInput: (input) => parseLiveModelMutationInput(def, mutationDef, input),
-        parseOutput: (output) => parseLiveModelMutationOutput(mutationDef, output),
+        parseOutput: (output) => outputSchema.parse(output),
       });
     }
   }
+}
+
+export function validation<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  policy: ValidatePolicy
+): Middleware<Controller> {
+  return (controller) => withValidation(contract, controller, policy);
 }
 
 function parseDownloadFileOutput(def: DownloadFileEndpointDef, output: unknown): unknown {
@@ -161,11 +178,14 @@ function parseLiveModelMutationInput(
   };
 }
 
-function parseLiveModelMutationOutput(def: MutationDef, output: unknown): unknown {
+function liveModelMutationOutputSchema(def: MutationDef): z.ZodTypeAny {
+  // JSON transports drop keys with `undefined` values, so when the mutation data schema accepts
+  // `undefined` (e.g. z.void()), the `data` key must be allowed to be absent entirely.
+  const dataSchema = def.data.safeParse(undefined).success ? def.data.optional() : def.data;
   return resultSchema(
-    z.object({ data: def.data, cursors: z.array(liveCursorEntrySchema) }),
+    z.object({ data: dataSchema, cursors: z.array(liveCursorEntrySchema) }),
     def.error
-  ).parse(output);
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

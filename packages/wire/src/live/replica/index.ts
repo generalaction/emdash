@@ -21,6 +21,7 @@ export {
   type ReplicaJobState,
   type ReplicaJobOptions,
 } from './job';
+export { isLeasedLiveModelProvider, type LeasedLiveModelProvider } from './leased-provider';
 export {
   createLiveLogReplica,
   isLiveLogReplica,
@@ -32,7 +33,7 @@ export {
   type ReplicaLogOptions,
 } from './log';
 export { ReplicaState, type ReplicaStateOptions } from './state';
-export { managedLiveSource } from './source';
+export { resourceCachedLiveSource } from './source';
 export {
   isLiveModelProvider,
   type GroupMutationEnvelope,

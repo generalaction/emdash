@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MermaidDiagramPreview } from '@renderer/lib/ui/mermaid-diagram-preview';
+import { MermaidDiagramPreview } from '@core/primitives/ui/browser/mermaid-diagram-preview';
 
 describe('MermaidDiagramPreview', () => {
   let dom: JSDOM;
