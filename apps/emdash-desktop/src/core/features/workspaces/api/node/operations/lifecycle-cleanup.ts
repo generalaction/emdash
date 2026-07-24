@@ -1,12 +1,10 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { LifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
-import {
-  hostFileRefFromNativePath,
-  hostPathFromNative,
-} from '@core/primitives/desktop-runtime/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
@@ -16,7 +14,7 @@ import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job'
 export type LifecycleCleanupDependencies = {
   getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   projects: Pick<ProjectSessionManager, 'getProject'>;
-  unregisterFileSearchRoot(path: HostAbsolutePath): Promise<void> | void;
+  unregisterFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
 };
 
 export async function deactivateLifecycleWorkspace(
@@ -137,7 +135,11 @@ export async function purgeLifecycleWorkspaceRow(
   if (!operation.workspaceId) return;
   if (!(await lifecycleWorkspaceIsUnused(db, operation.workspaceId))) return;
   if (context.workspacePath) {
-    await dependencies.unregisterFileSearchRoot(hostPathFromNative(context.workspacePath));
+    const workspace = hostFileRefFromNativePath(
+      context.workspacePath,
+      operation.hostRef === 'local' ? undefined : operation.hostRef
+    );
+    await dependencies.unregisterFileSearchRoot(workspace.path, workspace.host);
   }
   await db
     .delete(workspaces)

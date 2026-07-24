@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import {
   runtimeResolveErrorAsError,
@@ -38,7 +38,7 @@ export type TaskLifecycleDependencies = {
   db: AppDb;
   getFilesRuntimeClient(): Promise<FilesRuntimeClient>;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  unregisterFileSearchRoot(path: HostAbsolutePath): Promise<void> | void;
+  unregisterFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
 };
 
 export async function pathExists(
@@ -261,7 +261,10 @@ export async function deleteWorkspaceIfUnused(
 
   try {
     if (wsRow?.path && isLocalWorkspace(wsRow)) {
-      await dependencies.unregisterFileSearchRoot(hostPathFromNative(path.resolve(wsRow.path)));
+      await dependencies.unregisterFileSearchRoot(
+        hostPathFromNative(path.resolve(wsRow.path)),
+        LOCAL_HOST_REF
+      );
     }
     await dependencies.db.delete(workspaces).where(eq(workspaces.id, workspaceId));
   } catch (e) {

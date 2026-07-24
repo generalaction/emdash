@@ -37,8 +37,8 @@ describe('file-search runtime client', () => {
   it('registers and unregisters structured workspace roots', async () => {
     const root = hostPathFromNative('/repo');
 
-    await runtime.registerRoot(root);
-    await runtime.unregisterRoot(root);
+    await runtime.registerRoot(root, LOCAL_HOST_REF);
+    await runtime.unregisterRoot(root, LOCAL_HOST_REF);
 
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
@@ -47,14 +47,18 @@ describe('file-search runtime client', () => {
     expect(mocks.client).toHaveBeenNthCalledWith(2, LOCAL_HOST_REF);
   });
 
-  it('routes registration through the workspace host client', async () => {
+  it('routes root registration and unregistration through the workspace host client', async () => {
     const root = hostPathFromNative('/repo');
     const remoteHost = hostRef('remote', 'machine-1');
 
     await runtime.registerRoot(root, remoteHost);
+    await runtime.unregisterRoot(root, remoteHost);
 
-    expect(mocks.client).toHaveBeenCalledWith(remoteHost);
+    expect(mocks.client).toHaveBeenCalledTimes(2);
+    expect(mocks.client).toHaveBeenNthCalledWith(1, remoteHost);
+    expect(mocks.client).toHaveBeenNthCalledWith(2, remoteHost);
     expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
   });
 
   it('searches only files and preserves absolute desktop file identities', async () => {

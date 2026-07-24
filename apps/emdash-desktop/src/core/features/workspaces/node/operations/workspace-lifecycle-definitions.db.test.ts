@@ -1,3 +1,4 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
 import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -78,9 +79,46 @@ describe('delete-workspace operation convergence', () => {
     });
     expect(await fixture.db.select().from(workspaces)).toHaveLength(0);
   });
+
+  it('unregisters a remote workspace root from its runtime host', async () => {
+    fixture = await openFixture('empty');
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'local',
+    });
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'byoi',
+      kind: 'byoi',
+      location: 'remote',
+      path: '/repo/workspace',
+      deletedAt: '2026-07-20T00:00:00.000Z',
+    });
+    const definition = createDeleteWorkspaceOperationDefinition(dependencies);
+
+    await expect(
+      definition.run({
+        operation: operation('ssh-1'),
+        db: fixture.db,
+        signal: new AbortController().signal,
+        clock: new ManualClock(),
+        reportProgress: vi.fn(),
+      })
+    ).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+
+    expect(mocks.unregisterFileSearchRoot).toHaveBeenCalledWith(
+      expect.anything(),
+      hostRef('remote', 'ssh-1')
+    );
+  });
 });
 
-function operation(): LifecycleOperationRow {
+function operation(hostRef = 'local'): LifecycleOperationRow {
   return {
     id: 'operation-1',
     kind: 'delete-workspace',
@@ -89,7 +127,7 @@ function operation(): LifecycleOperationRow {
     taskId: null,
     workspaceId: 'workspace-1',
     entityKey: 'workspace-1',
-    hostRef: 'local',
+    hostRef,
     payload: {
       version: '1',
       source: 'user',

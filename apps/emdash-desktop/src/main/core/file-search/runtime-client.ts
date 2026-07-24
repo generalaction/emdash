@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import {
   portableRelativePathBasename,
   type HostAbsolutePath,
@@ -17,9 +17,9 @@ type FileSearchRuntimeClient = HostRuntimesClient['fileSearch'];
 
 export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'client'>) {
   return {
-    registerRoot: (root: HostAbsolutePath, host: HostRef = LOCAL_HOST_REF) =>
+    registerRoot: (root: HostAbsolutePath, host: HostRef) =>
       registerFileSearchRoot(runtimes, root, host),
-    unregisterRoot: (root: HostAbsolutePath, host: HostRef = LOCAL_HOST_REF) =>
+    unregisterRoot: (root: HostAbsolutePath, host: HostRef) =>
       unregisterFileSearchRoot(runtimes, root, host),
   };
 }
@@ -27,7 +27,7 @@ export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'client'>)
 async function registerFileSearchRoot(
   runtimes: Pick<RuntimeBroker, 'client'>,
   root: HostAbsolutePath,
-  host: HostRef = LOCAL_HOST_REF
+  host: HostRef
 ): Promise<void> {
   try {
     const runtime = await runtimes.client(host);
@@ -55,7 +55,7 @@ async function registerFileSearchRoot(
 async function unregisterFileSearchRoot(
   runtimes: Pick<RuntimeBroker, 'client'>,
   root: HostAbsolutePath,
-  host: HostRef = LOCAL_HOST_REF
+  host: HostRef
 ): Promise<void> {
   try {
     const runtime = await runtimes.client(host);

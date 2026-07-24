@@ -1,3 +1,4 @@
+import { hostRef } from '@emdash/core/primitives/host/api';
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { ManualClock } from '@emdash/shared/testing';
@@ -8,6 +9,7 @@ import {
   lifecycleOperations,
   projects,
   tasks,
+  workspaces,
   type LifecycleOperationRow,
 } from '@core/services/app-db/node/schema';
 import {
@@ -20,6 +22,7 @@ import { createDeleteTaskOperationDefinition } from './delete-task-definition';
 const mocks = vi.hoisted(() => ({
   deleteBySubject: vi.fn(async () => ({ success: true, data: { deleted: 1 } })),
   capture: vi.fn(),
+  unregisterFileSearchRoot: vi.fn(),
 }));
 const dependencies = {
   getMementosRuntimeClient: async () => ({
@@ -41,7 +44,7 @@ const dependencies = {
     killTerminals: vi.fn(),
   },
   telemetry: { capture: mocks.capture },
-  unregisterFileSearchRoot: vi.fn(),
+  unregisterFileSearchRoot: mocks.unregisterFileSearchRoot,
 } as never;
 
 describe('delete-task operation convergence', () => {
@@ -143,9 +146,63 @@ describe('delete-task operation convergence', () => {
     const [intent] = await fixture.db.select().from(lifecycleOperations);
     expect(intent).toMatchObject({ status: 'succeeded', attempt: 1 });
   });
+
+  it('unregisters a remote task workspace root from its runtime host', async () => {
+    fixture = await openFixture('empty');
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'local',
+    });
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'byoi',
+      kind: 'byoi',
+      location: 'remote',
+      path: null,
+    });
+    await fixture.db.insert(tasks).values({
+      id: 'task-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      name: 'Task',
+      status: 'in_progress',
+      deletedAt: '2026-07-20T00:00:00.000Z',
+    });
+    const definition = createDeleteTaskOperationDefinition(dependencies);
+
+    await expect(
+      definition.run({
+        operation: operation({
+          workspaceId: 'workspace-1',
+          hostRef: 'ssh-1',
+          payload: {
+            version: '1',
+            source: 'user',
+            workspacePath: '/repo/workspace',
+            deleteWorktree: true,
+            deleteBranch: false,
+          },
+        }),
+        db: fixture.db,
+        signal: new AbortController().signal,
+        clock: new ManualClock(),
+        reportProgress: vi.fn(),
+      })
+    ).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+
+    expect(mocks.unregisterFileSearchRoot).toHaveBeenCalledWith(
+      expect.anything(),
+      hostRef('remote', 'ssh-1')
+    );
+  });
 });
 
-function operation(): LifecycleOperationRow {
+function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOperationRow {
   return {
     id: 'operation-1',
     kind: 'delete-task',
@@ -165,6 +222,7 @@ function operation(): LifecycleOperationRow {
     error: null,
     createdAt: 0,
     finishedAt: null,
+    ...overrides,
   };
 }
 

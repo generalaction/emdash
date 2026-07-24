@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
@@ -11,7 +12,7 @@ import {
 import type { LifecycleCleanupDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
   nonTerminalOperationStatuses,
   type OperationPayload,
@@ -70,7 +71,7 @@ export type DeleteTaskOperationDependencies = {
     ): Promise<void>;
   };
   telemetry: Pick<TelemetryService, 'capture'>;
-  unregisterFileSearchRoot(path: HostAbsolutePath): Promise<void> | void;
+  unregisterFileSearchRoot(path: HostAbsolutePath, host: HostRef): Promise<void> | void;
 };
 
 type LifecycleSessionTargets = {
@@ -353,7 +354,11 @@ async function purgeTaskRows(
     operation.payload.deleteWorktree !== false &&
     (await lifecycleWorkspaceIsUnused(db, operation.workspaceId));
   if (purgeWorkspace && context.workspacePath) {
-    await dependencies.unregisterFileSearchRoot(hostPathFromNative(context.workspacePath));
+    const workspace = hostFileRefFromNativePath(
+      context.workspacePath,
+      operation.hostRef === 'local' ? undefined : operation.hostRef
+    );
+    await dependencies.unregisterFileSearchRoot(workspace.path, workspace.host);
   }
   db.transaction((tx) => {
     tx.delete(tasks).where(eq(tasks.id, operation.taskId!)).run();

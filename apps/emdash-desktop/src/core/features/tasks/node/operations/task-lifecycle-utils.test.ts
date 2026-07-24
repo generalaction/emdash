@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -150,7 +151,8 @@ describe('task lifecycle workspace cleanup', () => {
 
     expect(mocks.deleteWhere).toHaveBeenCalledOnce();
     expect(mocks.unregisterFileSearchRoot).toHaveBeenCalledWith(
-      hostPathFromNative('/repo/worktree')
+      hostPathFromNative('/repo/worktree'),
+      LOCAL_HOST_REF
     );
   });
 
