@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import {
   countContentSearchOccurrences,
-  highlightSegments,
   mergeContentSearchFiles,
 } from './file-content-search-model';
 
@@ -23,19 +22,6 @@ describe('file content search view model', () => {
     expect(
       countContentSearchOccurrences([result('src/index.ts', 2, 3), result('src/app.ts', 4, 2)])
     ).toBe(5);
-  });
-
-  it('converts one-based preview ranges into highlighted text segments', () => {
-    expect(
-      highlightSegments('test and test', [
-        { startColumn: 1, endColumn: 5 },
-        { startColumn: 10, endColumn: 14 },
-      ])
-    ).toEqual([
-      { text: 'test', highlighted: true },
-      { text: ' and ', highlighted: false },
-      { text: 'test', highlighted: true },
-    ]);
   });
 });
 

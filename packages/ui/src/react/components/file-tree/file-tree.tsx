@@ -335,9 +335,7 @@ function FileTreeInner(
       {header}
       {rootMenuItems?.length ? (
         <ContextMenu.Root>
-          <ContextMenu.Trigger {...bodyProps}>
-            {bodyInnerContent}
-          </ContextMenu.Trigger>
+          <ContextMenu.Trigger {...bodyProps}>{bodyInnerContent}</ContextMenu.Trigger>
           <ContextMenu.Content>
             {rootMenuItems.map((item) => (
               <ContextMenu.Item
@@ -353,9 +351,7 @@ function FileTreeInner(
           </ContextMenu.Content>
         </ContextMenu.Root>
       ) : (
-        <div {...bodyProps}>
-          {bodyInnerContent}
-        </div>
+        <div {...bodyProps}>{bodyInnerContent}</div>
       )}
     </section>
   );
