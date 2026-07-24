@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { relativePath, runtimeRoot } from '@runtimes/files/node/testing/paths';
-import type { IWatchService } from '@services/fs-watch/api';
+import type { IWatchService, WatchOptions } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FilesAllocationGraph } from './allocation-graph';
 
@@ -71,6 +71,33 @@ describe('FilesAllocationGraph', () => {
     await retry.release();
     await graph.dispose();
     expect(attempt).toBe(2);
+  });
+
+  it('passes configured watcher ignore globs to root watchers', async () => {
+    const root = await makeRoot();
+    let watchOptions: WatchOptions | undefined;
+    const watcher: IWatchService = {
+      watch: (_root, _onEvents, options) => {
+        watchOptions = options;
+        return {
+          ready: async () => {},
+          release: async () => {},
+        };
+      },
+      dispose: async () => {},
+    };
+    const graph = new FilesAllocationGraph({
+      watcher,
+      watchIgnoreGlobs: ['**/node_modules/**'],
+      idleTtlMs: 10_000,
+    });
+
+    const tree = graph.acquireTree({ root: runtimeRoot(root), sessionId: 'watch-ignore-test' });
+    await tree.ready();
+    await tree.release();
+    await graph.dispose();
+
+    expect(watchOptions?.ignore).toEqual(['**/node_modules/**']);
   });
 });
 

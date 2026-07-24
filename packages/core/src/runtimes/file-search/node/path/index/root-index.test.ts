@@ -66,6 +66,38 @@ describe('RootIndex', () => {
     );
   });
 
+  it('applies the root exclusion policy during full scans', async () => {
+    const rootPath = await createRoot();
+    await mkdir(path.join(rootPath, 'src'));
+    await mkdir(path.join(rootPath, 'generated'));
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), 'app');
+    await writeFile(path.join(rootPath, 'generated', 'client.ts'), 'generated');
+    const store = createStore();
+    const root = store.upsertRoot({ rootKey: 'root-key', rootPath }).root;
+    const watcher = new FakeWatchService();
+    const scope = createScope({ label: 'root-index-exclusions-test' });
+    const index = new RootIndex({
+      root,
+      store,
+      watcher,
+      scanner: new NodePathScanner(),
+      exclusions: new DefaultFileSearchExclusions({
+        caseSensitive: true,
+        patterns: ['generated'],
+      }),
+      scope,
+      runScan: async (_signal, operation) => operation(),
+    });
+    cleanups.push(() => scope.dispose());
+
+    await index.reconcile();
+
+    expect(hits(store)).toEqual([
+      { path: 'src', kind: 'directory' },
+      { path: 'src/app.ts', kind: 'file' },
+    ]);
+  });
+
   it('does not scan or write update-only batches once the index is healthy', async () => {
     const rootPath = await createRoot();
     await writeFile(path.join(rootPath, 'changed.ts'), 'before');

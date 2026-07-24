@@ -1,4 +1,8 @@
-import { filesContract, MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
+import {
+  exclusionPatternsSchema,
+  filesContract,
+  MAX_FILE_UPLOAD_BYTES,
+} from '@emdash/core/runtimes/files/api';
 import {
   defineContract,
   downloadFile,
@@ -15,7 +19,10 @@ import {
 } from '@core/primitives/desktop-runtime/api/fallible-contract';
 
 const workspaceKeySchema = z.object({ workspaceId: z.string() });
-const treeKeySchema = workspaceKeySchema.extend({ sessionId: z.string() });
+const treeKeySchema = workspaceKeySchema.extend({
+  sessionId: z.string(),
+  exclusions: exclusionPatternsSchema,
+});
 const pathKeySchema = filesContract.fs.exists.input
   .omit({ root: true })
   .extend(workspaceKeySchema.shape);

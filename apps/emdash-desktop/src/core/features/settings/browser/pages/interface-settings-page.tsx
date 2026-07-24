@@ -1,4 +1,5 @@
 import { PageLayout } from '@emdash/ui/react/patterns';
+import FilesSettingsCard from '../components/FilesSettingsCard';
 import HiddenToolsSettingsCard from '../components/HiddenToolsSettingsCard';
 import InterfaceSettingsCard from '../components/InterfaceSettingsCard';
 import KeyboardSettingsCard from '../components/KeyboardSettingsCard';
@@ -16,6 +17,10 @@ export function InterfaceSettingsPage() {
       />
       <ThemeCard />
       <TerminalSettingsCard />
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-normal text-foreground">Files</h3>
+        <FilesSettingsCard />
+      </div>
       <SidebarMetadataSettingsCard />
       <InterfaceSettingsCard />
       <div className="flex flex-col gap-3">

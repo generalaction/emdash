@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import { normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
 import {
   portableRelativePathBasename,
   type HostAbsolutePath,
@@ -15,17 +16,41 @@ import { log } from '@main/lib/logger';
 
 type FileSearchRuntimeClient = HostRuntimesClient['fileSearch'];
 
-export function createFileSearchRuntime(runtimes: Pick<RuntimeBroker, 'client'>) {
+export type FileSearchRuntimeOptions = {
+  getSearchExclusions(): Promise<readonly string[]>;
+};
+
+type ActiveRoot = Readonly<{
+  root: HostAbsolutePath;
+  host: HostRef;
+}>;
+
+export function createFileSearchRuntime(
+  runtimes: Pick<RuntimeBroker, 'client'>,
+  options: FileSearchRuntimeOptions
+) {
+  const activeRoots = new Map<string, ActiveRoot>();
   return {
-    registerRoot: (root: HostAbsolutePath, host: HostRef) =>
-      registerFileSearchRoot(runtimes, root, host),
-    unregisterRoot: (root: HostAbsolutePath, host: HostRef) =>
-      unregisterFileSearchRoot(runtimes, root, host),
+    registerRoot: async (root: HostAbsolutePath, host: HostRef) => {
+      activeRoots.set(activeRootKey(root, host), { root, host });
+      await registerFileSearchRoot(runtimes, options, root, host);
+    },
+    unregisterRoot: async (root: HostAbsolutePath, host: HostRef) => {
+      activeRoots.delete(activeRootKey(root, host));
+      await unregisterFileSearchRoot(runtimes, root, host);
+    },
+    refreshExclusions: async () => {
+      for (const { root, host } of [...activeRoots.values()]) {
+        await unregisterFileSearchRoot(runtimes, root, host);
+        await registerFileSearchRoot(runtimes, options, root, host);
+      }
+    },
   };
 }
 
 async function registerFileSearchRoot(
   runtimes: Pick<RuntimeBroker, 'client'>,
+  options: FileSearchRuntimeOptions,
   root: HostAbsolutePath,
   host: HostRef
 ): Promise<void> {
@@ -35,7 +60,10 @@ async function registerFileSearchRoot(
       log.warn('Failed to resolve file-search runtime', { host, root, error: runtime.error });
       return;
     }
-    const result = await runtime.data.fileSearch.registerRoot({ root });
+    const result = await runtime.data.fileSearch.registerRoot({
+      root,
+      exclusions: normalizeExclusionPatterns(await options.getSearchExclusions()),
+    });
     if (!result.success) {
       log.warn('Failed to register file-search root', {
         host,
@@ -126,4 +154,8 @@ function normalizeLimit(limit: number | undefined): number | undefined {
 
 function isTransientSearchError(error: PathSearchError): boolean {
   return error.type === 'index-not-ready' || error.type === 'root-not-registered';
+}
+
+function activeRootKey(root: HostAbsolutePath, host: HostRef): string {
+  return JSON.stringify([host, root]);
 }

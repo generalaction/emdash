@@ -1,49 +1,5 @@
+import { DEFAULT_SEARCH_EXCLUDE, ExclusionPolicy } from '@primitives/lib/api';
 import type { PortableRelativePath } from '@primitives/path/api';
-
-const DEFAULT_FILE_SEARCH_EXCLUDED_SEGMENTS = [
-  '.git',
-  '.svn',
-  '.hg',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'out',
-  '.turbo',
-  'coverage',
-  '.nyc_output',
-  '.cache',
-  '.parcel-cache',
-  'tmp',
-  'temp',
-  '.DS_Store',
-  'Thumbs.db',
-  '.vscode-test',
-  '.idea',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  '.checkouts',
-  'checkouts',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.devin',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-  'worktrees',
-  '.worktrees',
-  '.emdash',
-  'node_modules',
-] as const;
 
 /** One semantic exclusion policy compiled for scanners, watchers, and ripgrep. */
 export interface FileSearchExclusions {
@@ -53,34 +9,23 @@ export interface FileSearchExclusions {
 }
 
 export class DefaultFileSearchExclusions implements FileSearchExclusions {
-  private readonly excluded: ReadonlySet<string>;
-  private readonly segments: readonly string[];
+  private readonly policy: ExclusionPolicy;
 
-  constructor(options: { caseSensitive?: boolean } = {}) {
-    const caseSensitive = options.caseSensitive ?? process.platform !== 'win32';
-    this.segments = DEFAULT_FILE_SEARCH_EXCLUDED_SEGMENTS;
-    this.normalize = caseSensitive
-      ? (segment) => segment
-      : (segment) => segment.toLocaleLowerCase('en-US');
-    this.excluded = new Set(this.segments.map(this.normalize));
+  constructor(options: { caseSensitive?: boolean; patterns?: readonly string[] } = {}) {
+    this.policy = new ExclusionPolicy(options.patterns ?? DEFAULT_SEARCH_EXCLUDE, {
+      caseSensitive: options.caseSensitive,
+    });
   }
 
   excludes(path: PortableRelativePath): boolean {
-    return path.split('/').some((segment) => this.excluded.has(this.normalize(segment)));
+    return this.policy.excludes(path);
   }
 
   ripgrepGlobs(): readonly string[] {
-    return this.segments.flatMap((segment) => [`!**/${segment}`, `!**/${segment}/**`]);
+    return this.policy.ripgrepGlobs();
   }
 
   watchIgnoreGlobs(): readonly string[] {
-    return this.segments.flatMap((segment) => [
-      segment,
-      `${segment}/**`,
-      `**/${segment}`,
-      `**/${segment}/**`,
-    ]);
+    return this.policy.watchIgnoreGlobs();
   }
-
-  private readonly normalize: (segment: string) => string;
 }

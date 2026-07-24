@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { DEFAULT_WATCHER_EXCLUDE, normalizeExclusionPatterns } from '@primitives/lib/api';
 import { parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
 import { FileContentRuntime } from '@runtimes/files/node/content/content-runtime';
@@ -11,6 +12,7 @@ import { createNativeWatchService } from '@services/fs-watch/node';
 
 export type FilesRuntimeOptions = {
   watcher?: IWatchService;
+  watchIgnoreGlobs?: readonly string[];
   idleTtlMs?: number;
   maxContentBytes?: number;
   onError?: (context: string, error: unknown) => void;
@@ -32,6 +34,9 @@ export class FilesRuntime {
     this.watcher = options.watcher ?? createNativeWatchService({ onError });
     this.allocations = new FilesAllocationGraph({
       watcher: this.watcher,
+      watchIgnoreGlobs: normalizeExclusionPatterns(
+        options.watchIgnoreGlobs ?? DEFAULT_WATCHER_EXCLUDE
+      ),
       idleTtlMs: options.idleTtlMs,
       maxContentBytes: options.maxContentBytes,
       onError,

@@ -1,6 +1,7 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
+import { DEFAULT_TREE_EXCLUDE, normalizeExclusionPatterns } from '@primitives/lib/api';
 import {
   comparisonKeyForAbsolutePath,
   createPathProfile,
@@ -22,6 +23,7 @@ export type TreeIdentity = {
   treeId: string;
   root: RootIdentity;
   sessionId: string;
+  exclusions: readonly string[];
 };
 
 export type ContentIdentity = {
@@ -74,10 +76,12 @@ export async function resolveRootIdentity(
 }
 
 export function treeIdentity(root: RootIdentity, key: TreeKey): TreeIdentity {
+  const exclusions = normalizeExclusionPatterns(key.exclusions ?? DEFAULT_TREE_EXCLUDE);
   return {
-    treeId: JSON.stringify([root.rootId, key.sessionId]),
+    treeId: JSON.stringify([root.rootId, key.sessionId, exclusions]),
     root,
     sessionId: key.sessionId,
+    exclusions,
   };
 }
 

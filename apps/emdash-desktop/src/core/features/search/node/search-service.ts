@@ -66,6 +66,7 @@ export type SearchServiceDeps = {
     query: string,
     limit?: number
   ): Promise<WorkspaceFileHit[]>;
+  getSearchExclusions(): Promise<readonly string[]>;
   tasks: Pick<TaskService, 'on'>;
 };
 
@@ -140,7 +141,11 @@ export class SearchService {
     );
     const { workspaceId: _, ...searchInput } = input;
     try {
-      const lease = await jobs.start({ ...searchInput, root: workspace.files.root });
+      const lease = await jobs.start({
+        ...searchInput,
+        root: workspace.files.root,
+        exclusions: [...(await this.deps.getSearchExclusions())],
+      });
       try {
         const job = await lease.ready();
         const unsubscribe = job.onProgress(context.progress);

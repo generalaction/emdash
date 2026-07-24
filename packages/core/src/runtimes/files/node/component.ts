@@ -9,6 +9,7 @@ import { z } from 'zod';
 export const filesComponentConfigSchema = z.object({
   idleTtlMs: z.number().nonnegative().optional(),
   maxContentBytes: z.number().nonnegative().optional(),
+  watchIgnore: z.array(z.string()).optional(),
 });
 
 export const filesComponent = defineWireComponent({
@@ -26,6 +27,7 @@ export const filesComponent = defineWireComponent({
     });
     const runtime = new FilesRuntime({
       watcher,
+      watchIgnoreGlobs: config.watchIgnore,
       idleTtlMs: config.idleTtlMs,
       maxContentBytes: config.maxContentBytes,
       onError: (context, error) => logger.warn(context, { error }),

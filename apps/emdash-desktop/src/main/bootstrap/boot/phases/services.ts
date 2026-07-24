@@ -93,6 +93,7 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
@@ -196,7 +197,16 @@ export async function bootServices(
   appScope.add(() => {
     infrastructure.ssh.manager.off('connection-event', handleSshConnectionEvent);
   });
-  const fileSearchRuntime = createFileSearchRuntime(runtimes);
+  const fileSearchRuntime = createFileSearchRuntime(runtimes, {
+    getSearchExclusions: async () => (await appSettingsService.get('files')).searchExclude,
+  });
+  const handleFileSearchSettingsChanged = (key: AppSettingsKey) => {
+    if (key === 'files') void fileSearchRuntime.refreshExclusions();
+  };
+  appSettingsService.on('app-settings:changed', handleFileSearchSettingsChanged);
+  appScope.add(() => {
+    appSettingsService.off('app-settings:changed', handleFileSearchSettingsChanged);
+  });
   const providerOverrideSettings = createProviderOverrideSettings(db);
   const workspacePlacement = new WorkspacePlacementResolver({
     broker: runtimes,
@@ -295,6 +305,7 @@ export async function bootServices(
     acquireWorkspaceRuntime: (workspaceId) =>
       acquireWorkspaceRuntime(runtimes, workspaceIdentity, workspaceId),
     searchFileSearchRoot,
+    getSearchExclusions: async () => (await appSettingsService.get('files')).searchExclude,
     tasks: taskService,
   });
   searchService.initialize();

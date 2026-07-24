@@ -14,6 +14,7 @@ export type RootChange =
 export type RootResourceOptions = {
   identity: RootIdentity;
   watcher: IWatchService;
+  watchIgnoreGlobs?: readonly string[];
 };
 
 export class RootResource {
@@ -50,6 +51,7 @@ export class RootResource {
       },
       {
         debounceMs: WATCH_DEBOUNCE_MS,
+        ignore: [...(options.watchIgnoreGlobs ?? [])],
         onResync: () => this.emit([{ kind: 'resync' }]),
       }
     );

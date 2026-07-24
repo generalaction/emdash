@@ -7,7 +7,7 @@ import {
   type ContentSearchResult,
 } from '@runtimes/file-search/api';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
-import type { FileSearchExclusions } from '../../exclusions';
+import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../../exclusions';
 import { containsNativePath } from '../../native-paths';
 import { errorMessage, nodeErrorCode } from '../../node-errors';
 import type {
@@ -62,7 +62,10 @@ export class RipgrepContentSearcher implements FileContentSearcher {
       cwd: input.rootPath,
       env: this.env,
     });
-    return runRipgrep(executable, input, context, this.exclusions, this.maxRecordBytes);
+    const exclusions = input.exclusions
+      ? new DefaultFileSearchExclusions({ patterns: input.exclusions })
+      : this.exclusions;
+    return runRipgrep(executable, input, context, exclusions, this.maxRecordBytes);
   }
 }
 

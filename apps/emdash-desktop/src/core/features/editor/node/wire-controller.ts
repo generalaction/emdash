@@ -101,6 +101,7 @@ function createTreeModelProvider(
             {
               root: hostPathFromNative(identity.path),
               sessionId: key.sessionId,
+              exclusions: key.exclusions,
             },
             name
           )
@@ -113,6 +114,7 @@ function createTreeModelProvider(
           key: {
             root: hostPathFromNative(identity.path),
             sessionId: envelope.key.sessionId,
+            exclusions: envelope.key.exclusions,
           },
         } as unknown as GroupMutationEnvelope<typeof filesContract.tree.model, typeof name>);
         return rebindMutationCursors(

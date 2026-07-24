@@ -3,6 +3,7 @@ import {
   browserPreviewSettingsContribution,
   browserSettingsContribution,
 } from '@core/features/browser/contributions/settings';
+import { filesSettingsContribution } from '@core/features/editor/contributions/settings';
 import {
   localProjectSettingsContribution,
   projectSettingsContribution,
@@ -24,6 +25,7 @@ export const appSettingsContributions = {
   localProject: localProjectSettingsContribution,
   project: projectSettingsContribution,
   tasks: taskSettingsContribution,
+  files: filesSettingsContribution,
   defaultAgent: defaultAgentSettingsContribution,
   keyboard: keyboardSettingsContribution,
   notifications: notificationSettingsContribution,

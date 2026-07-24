@@ -19,6 +19,7 @@ const DEFAULT_IDLE_TTL_MS = 30_000;
 
 export type FilesAllocationGraphOptions = {
   watcher: IWatchService;
+  watchIgnoreGlobs?: readonly string[];
   idleTtlMs?: number;
   maxContentBytes?: number;
   onError?: (context: string, error: unknown) => void;
@@ -38,7 +39,11 @@ export class FilesAllocationGraph {
       idleTtlMs,
       onError: (error, id) => onError(`files root ${id}`, error),
       create: async (identity, scope) => {
-        const resource = await RootResource.create({ identity, watcher: options.watcher });
+        const resource = await RootResource.create({
+          identity,
+          watcher: options.watcher,
+          watchIgnoreGlobs: options.watchIgnoreGlobs,
+        });
         scope.add(() => resource.dispose());
         return resource;
       },

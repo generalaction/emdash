@@ -6,6 +6,7 @@ import {
   type LiveSource,
   type ResourceMutationContext,
 } from '@emdash/wire';
+import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '@primitives/lib/api';
 import {
   parsePortableRelativePath,
   ROOT_RELATIVE_PATH,
@@ -50,6 +51,7 @@ export class TreeResource {
   readonly identity: TreeIdentity;
 
   private readonly state: LiveState<FileTreeModel>;
+  private readonly exclusions: ExclusionPolicy;
   private readonly reader: TreeDirectoryReader;
   private readonly unsubscribeRoot: () => void;
   private readonly onError: (context: string, error: unknown) => void;
@@ -60,7 +62,8 @@ export class TreeResource {
 
   constructor(private readonly options: TreeResourceOptions) {
     this.identity = options.identity;
-    this.reader = new TreeDirectoryReader(options.root.paths);
+    this.exclusions = new ExclusionPolicy(options.identity.exclusions ?? DEFAULT_TREE_EXCLUDE);
+    this.reader = new TreeDirectoryReader(options.root.paths, this.exclusions);
     this.onError = options.onError ?? (() => {});
     this.state = new LiveState(initialTree(options.identity.root.root));
     this.unsubscribeRoot = options.root.subscribe((changes) => this.onRootChanges(changes));
@@ -301,12 +304,21 @@ export class TreeResource {
   }
 
   private onRootChanges(changes: RootChange[]): void {
-    if (classifyTreeChanges(this.current(), changes).resync) {
+    const relevantChanges = this.filterExcludedChanges(changes);
+    if (relevantChanges.length === 0) return;
+    if (classifyTreeChanges(this.current(), relevantChanges).resync) {
       this.requestResync();
       return;
     }
-    void this.run(() => this.reconcileChanges(changes)).catch((error: unknown) => {
+    void this.run(() => this.reconcileChanges(relevantChanges)).catch((error: unknown) => {
       this.onError(`files tree watch ${this.identity.treeId}`, error);
+    });
+  }
+
+  private filterExcludedChanges(changes: RootChange[]): RootChange[] {
+    return changes.filter((change) => {
+      if (change.kind === 'resync') return true;
+      return !this.exclusions.excludes(change.path);
     });
   }
 

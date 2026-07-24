@@ -19,7 +19,7 @@ afterEach(async () => {
 
 describe('TreeResource', () => {
   it('eagerly expands one child layer when depth is 2', async () => {
-    const { rootPath, tree } = await createHarness();
+    const { rootPath, tree } = await createHarness({ exclusions: [] });
     await mkdir(path.join(rootPath, 'repo', '.git'), { recursive: true });
     await mkdir(path.join(rootPath, 'plain', 'src'), { recursive: true });
 
@@ -36,7 +36,7 @@ describe('TreeResource', () => {
   });
 
   it('keeps expand shallow when depth is omitted', async () => {
-    const { rootPath, tree } = await createHarness();
+    const { rootPath, tree } = await createHarness({ exclusions: [] });
     await mkdir(path.join(rootPath, 'repo', '.git'), { recursive: true });
 
     const diagnostic = tree as unknown as DiagnosticTreeResource;
@@ -46,6 +46,37 @@ describe('TreeResource', () => {
     const model = diagnostic.current();
     expect(model.entries.repo?.childrenLoaded).toBe(false);
     expect(model.entries.repo?.children).toEqual([]);
+  });
+
+  it('filters excluded entries from expanded directories', async () => {
+    const { rootPath, tree } = await createHarness({ exclusions: ['generated'] });
+    await mkdir(path.join(rootPath, 'src', 'generated'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    await writeFile(path.join(rootPath, 'src', 'generated', 'client.ts'), '');
+
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+
+    expect(diagnostic.current().entries['src/app.ts']).toBeDefined();
+    expect(diagnostic.current().entries['src/generated']).toBeUndefined();
+    expect(diagnostic.current().entries.src?.children).toEqual(['src/app.ts']);
+  });
+
+  it('ignores watcher events under excluded paths', async () => {
+    const { rootPath, tree, watcher } = await createHarness({ exclusions: ['generated'] });
+    await mkdir(path.join(rootPath, 'src', 'generated'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+    await writeFile(path.join(rootPath, 'src', 'generated', 'client.ts'), '');
+    watcher.emit([{ kind: 'create', path: path.join(rootPath, 'src', 'generated', 'client.ts') }]);
+    await diagnostic.lane;
+
+    expect(diagnostic.current().entries['src/generated']).toBeUndefined();
+    expect(diagnostic.current().entries.src?.children).toEqual(['src/app.ts']);
   });
 
   it('coalesces a resync burst to one active and one trailing rebuild', async () => {
@@ -271,15 +302,22 @@ type DiagnosticTreeResource = {
 
 class ManualWatcher implements IWatchService {
   private onResync: (() => void) | undefined;
+  private onEvents: ((events: WatchEvent[]) => void) | undefined;
 
-  watch(_root: string, _onEvents: (events: WatchEvent[]) => void, options: WatchOptions = {}) {
+  watch(_root: string, onEvents: (events: WatchEvent[]) => void, options: WatchOptions = {}) {
+    this.onEvents = onEvents;
     this.onResync = options.onResync;
     return {
       ready: async () => {},
       release: async () => {
+        this.onEvents = undefined;
         this.onResync = undefined;
       },
     };
+  }
+
+  emit(events: WatchEvent[]): void {
+    this.onEvents?.(events);
   }
 
   resync(): void {
@@ -287,6 +325,7 @@ class ManualWatcher implements IWatchService {
   }
 
   async dispose(): Promise<void> {
+    this.onEvents = undefined;
     this.onResync = undefined;
   }
 }
@@ -295,7 +334,7 @@ function portable(path: string): PortableRelativePath {
   return path as PortableRelativePath;
 }
 
-async function createHarness(): Promise<{
+async function createHarness(options: { exclusions?: string[] } = {}): Promise<{
   rootPath: string;
   tree: TreeResource;
   watcher: ManualWatcher;
@@ -313,6 +352,7 @@ async function createHarness(): Promise<{
   const identity = treeIdentity(resolved.data, {
     root: resolved.data.root,
     sessionId: 'tree-resource-test',
+    exclusions: options.exclusions,
   });
   const tree = new TreeResource({ identity, root });
   cleanups.push(() => tree.dispose());

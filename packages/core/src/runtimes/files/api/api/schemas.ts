@@ -3,7 +3,11 @@ import { z } from 'zod';
 
 export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
 export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });
-export const treeKeySchema = rootKeySchema.extend({ sessionId: z.string() });
+export const exclusionPatternsSchema = z.array(z.string()).optional();
+export const treeKeySchema = rootKeySchema.extend({
+  sessionId: z.string(),
+  exclusions: exclusionPatternsSchema,
+});
 export const contentKeySchema = pathKeySchema;
 
 export const fileStatSchema = z.object({
@@ -106,6 +110,7 @@ export const writeFileInputSchema = rootKeySchema.extend({
 
 export type RootKey = z.infer<typeof rootKeySchema>;
 export type PathKey = z.infer<typeof pathKeySchema>;
+export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
 export type TreeKey = z.infer<typeof treeKeySchema>;
 export type ContentKey = z.infer<typeof contentKeySchema>;
 export type FileStat = z.infer<typeof fileStatSchema>;

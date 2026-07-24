@@ -11,6 +11,7 @@ export const FILE_SEARCH_MAX_QUERY_LENGTH = 512;
 
 export const fileSearchRootInputSchema = z.object({
   root: hostAbsolutePathSchema,
+  exclusions: z.array(z.string()).optional(),
 });
 
 export const pathEntryKindSchema = z.enum(pathEntryKinds);

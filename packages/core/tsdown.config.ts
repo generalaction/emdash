@@ -79,6 +79,7 @@ export default defineConfig({
       '@parcel/watcher',
       'drizzle-kit',
       'glob',
+      'minimatch',
       'node-pty',
       'react',
       'semver',

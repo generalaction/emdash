@@ -80,6 +80,29 @@ describe('RipgrepContentSearcher', () => {
     }
   );
 
+  it.skipIf(!hasRipgrep)('applies per-search exclusions to ripgrep', async () => {
+    const rootPath = await createRoot();
+    await mkdir(path.join(rootPath, 'generated'));
+    await writeFile(path.join(rootPath, 'keep.ts'), 'VALUE\n');
+    await writeFile(path.join(rootPath, 'generated', 'client.ts'), 'VALUE\n');
+
+    const result = await createSearcher().search(
+      {
+        root: absolute(rootPath),
+        rootPath,
+        searchPath: rootPath,
+        query: 'value',
+        limit: 1_000,
+        exclusions: ['generated'],
+      },
+      { signal: new AbortController().signal, onProgress: () => {} }
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.files.map((file) => file.path)).toEqual(['keep.ts']);
+  });
+
   it.skipIf(!hasRipgrep)('treats ripgrep exit one as a successful empty search', async () => {
     const rootPath = await createRoot();
     await writeFile(path.join(rootPath, 'file.ts'), 'nothing here\n');

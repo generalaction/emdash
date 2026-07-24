@@ -96,6 +96,7 @@ export type DesktopWorkersHandle = {
 export type StartDesktopWorkersDeps = {
   readonly scope: Scope;
   getLocalProjectSettings(): Promise<{ writeAgentConfigToGitIgnore?: boolean }>;
+  getFilesSettings(): Promise<{ watcherExclude: string[] }>;
 };
 
 const GIT_RUNTIME_ENV = {
@@ -231,12 +232,13 @@ async function startDesktopWorkersWithHost(
   const resourceUsageReady = resourceUsageWorker.ready();
   const terminalsReady = terminalsWorker.ready();
   const filesReady = watcherReady.then(async (watcher) => {
+    const filesSettings = await deps.getFilesSettings();
     const worker = host.create(filesComponent, {
       name: 'files',
       executable: desktopWorkerPath('files'),
       env: process.env,
       dependencies: { watcher },
-      config: {},
+      config: { watchIgnore: filesSettings.watcherExclude },
     });
     return await worker.ready();
   });

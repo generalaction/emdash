@@ -73,17 +73,20 @@ export class FileSearchRuntime {
       this.roots = new FileSearchRootRegistry({
         catalog: this.store,
         resolver: new NodeFileSearchRootResolver(),
-        createRoot: (record, scope) =>
+        createRoot: (record, scope, rootExclusions) =>
           createRegisteredRoot({
             record,
             indexStore: this.store,
             watcher: options.watcher,
             scanner,
-            exclusions,
+            exclusions: rootExclusions,
             scope,
             scanLimiter,
             onError,
           }),
+        exclusionsForInput: (input) =>
+          new DefaultFileSearchExclusions({ patterns: input.exclusions }),
+        defaultExclusions: () => exclusions,
         scope: this.scope,
         onError,
       });

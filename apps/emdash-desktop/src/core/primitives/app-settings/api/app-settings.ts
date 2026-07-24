@@ -33,6 +33,12 @@ export type TaskSettings = {
   includeIssueContextByDefault: boolean;
 };
 
+export type FilesSettings = {
+  treeExclude: string[];
+  searchExclude: string[];
+  watcherExclude: string[];
+};
+
 export type TerminalSettings = {
   fontFamily?: string;
   fontSize?: number;

@@ -1,3 +1,4 @@
+import { DEFAULT_TREE_EXCLUDE, normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
@@ -52,6 +53,8 @@ export class FilesStore {
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
+  private bindVersion = 0;
+  private exclusions = normalizeExclusionPatterns(DEFAULT_TREE_EXCLUDE);
   private nextPendingUploadId = 1;
 
   private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
@@ -120,19 +123,21 @@ export class FilesStore {
 
   dispose(): void {
     this.started = false;
+    this.bindVersion += 1;
     this.pendingUploadNodes.clear();
     this.pendingPathSet.clear();
-    const optimistic = this.optimistic;
-    const replica = this.replica;
-    this.optimistic = null;
-    this.replica = null;
-    void (async () => {
-      try {
-        await optimistic?.dispose();
-      } finally {
-        await replica?.dispose();
-      }
-    })();
+    this.disposeRuntime();
+  }
+
+  setExclusions(patterns: readonly string[] | undefined): void {
+    const next = normalizeExclusionPatterns(patterns ?? DEFAULT_TREE_EXCLUDE);
+    if (sameStringList(this.exclusions, next)) return;
+    this.exclusions = next;
+    if (!this.started) return;
+    this.bindVersion += 1;
+    this.disposeRuntime();
+    this.startPromise = this.bindRuntime(this.bindVersion);
+    void this.startPromise;
   }
 
   reconcileVisibleScopes(expandedPaths: Set<string>): void {
@@ -351,7 +356,7 @@ export class FilesStore {
   }
 
   private ensureStarted(): Promise<void> {
-    this.startPromise ??= this.bindRuntime();
+    this.startPromise ??= this.bindRuntime(this.bindVersion);
     return this.startPromise;
   }
 
@@ -361,7 +366,7 @@ export class FilesStore {
     return this.optimistic;
   }
 
-  private async bindRuntime(): Promise<void> {
+  private async bindRuntime(version: number): Promise<void> {
     try {
       const client = await getEditorClient();
       const replica = createLiveModelReplica(editorContract.tree.model, client.tree.model);
@@ -370,11 +375,12 @@ export class FilesStore {
         {
           workspaceId: this.workspaceId,
           sessionId: this.workspaceId,
+          exclusions: this.exclusions,
         },
         replica
       );
       await optimistic.ready;
-      if (!this.started) {
+      if (!this.started || version !== this.bindVersion) {
         await optimistic.dispose();
         await replica.dispose();
         return;
@@ -388,6 +394,7 @@ export class FilesStore {
       if (expanded.result.success) await expanded.settled;
       else this.setError(expanded.result.error);
     } catch (error) {
+      if (version !== this.bindVersion) return;
       runInAction(() => {
         this.syncError = error instanceof Error ? error.message : String(error);
       });
@@ -440,6 +447,24 @@ export class FilesStore {
           : String(error);
     });
   }
+
+  private disposeRuntime(): void {
+    const optimistic = this.optimistic;
+    const replica = this.replica;
+    runInAction(() => {
+      this.optimistic = null;
+      this.replica = null;
+      this.syncError = null;
+      this.startPromise = null;
+    });
+    void (async () => {
+      try {
+        await optimistic?.dispose();
+      } finally {
+        await replica?.dispose();
+      }
+    })();
+  }
 }
 
 function treeMutationError(error: unknown): TreeMutationError {
@@ -448,6 +473,10 @@ function treeMutationError(error: unknown): TreeMutationError {
     return { type: 'unavailable', message: protocolUpgradeMessage('upgrade-server') };
   }
   return { type: 'unavailable', message };
+}
+
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function pushChild(

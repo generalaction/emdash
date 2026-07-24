@@ -11,6 +11,7 @@ import {
   toExpectedRootOrIndexError,
   toExpectedStoreError,
 } from '../error-mapping';
+import { DefaultFileSearchExclusions, type FileSearchExclusions } from '../exclusions';
 import { hostAbsolutePathFromNative } from '../native-paths';
 import type { RegisteredRoot, StoredFileSearchRoot } from './registered-root';
 import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-identity';
@@ -18,6 +19,7 @@ import type { NodeFileSearchRootResolver, ResolvedFileSearchRoot } from './root-
 type RootStartInput = Readonly<{
   root: HostAbsolutePath;
   rootKey: string;
+  exclusions: FileSearchExclusions;
 }>;
 
 type RootStopContext = Readonly<{ kind: 'unregister'; root: HostAbsolutePath }>;
@@ -39,7 +41,13 @@ export interface RootCatalogStore {
 type FileSearchRootRegistryOptions = {
   catalog: RootCatalogStore;
   resolver: NodeFileSearchRootResolver;
-  createRoot: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
+  createRoot: (
+    record: StoredFileSearchRoot,
+    scope: Scope,
+    exclusions: FileSearchExclusions
+  ) => RegisteredRoot;
+  exclusionsForInput?(input: FileSearchRootInput): FileSearchExclusions;
+  defaultExclusions?(): FileSearchExclusions;
   scope: Scope;
   onError?: (context: string, error: unknown) => void;
 };
@@ -72,7 +80,11 @@ export class FileSearchRootRegistry {
   ): Promise<Result<void, FileSearchRegisterRootError>> {
     const rootKey = this.options.resolver.comparisonKey(input.root);
     try {
-      const result = await this.lifecycle.start({ root: input.root, rootKey });
+      const result = await this.lifecycle.start({
+        root: input.root,
+        rootKey,
+        exclusions: this.exclusionsForInput(input),
+      });
       return result.success ? ok() : err(result.error);
     } catch (error) {
       await this.lifecycle.forceRemove(rootKey, error);
@@ -144,7 +156,7 @@ export class FileSearchRootRegistry {
     }
 
     try {
-      return ok(this.options.createRoot(upserted.root, scope));
+      return ok(this.options.createRoot(upserted.root, scope, input.exclusions));
     } catch (error) {
       const expected = toExpectedRootOrIndexError(
         input.root,
@@ -206,21 +218,35 @@ export class FileSearchRootRegistry {
     if (this.options.resolver.comparisonKey(root) !== stored.rootKey) {
       throw new Error(`Corrupt file-search root identity: ${stored.rootKey}`);
     }
-    void this.lifecycle.start({ root, rootKey: stored.rootKey }).then(
-      (result) => {
-        if (!result.success) this.report('file-search root restoration failed', result.error);
-      },
-      (error: unknown) => {
-        this.report('file-search root restoration crashed', error);
-        void this.lifecycle.forceRemove(stored.rootKey, error);
-      }
-    );
+    void this.lifecycle
+      .start({
+        root,
+        rootKey: stored.rootKey,
+        exclusions: this.defaultExclusions(),
+      })
+      .then(
+        (result) => {
+          if (!result.success) this.report('file-search root restoration failed', result.error);
+        },
+        (error: unknown) => {
+          this.report('file-search root restoration crashed', error);
+          void this.lifecycle.forceRemove(stored.rootKey, error);
+        }
+      );
   }
 
   private assertResolvedIdentity(input: RootStartInput, resolved: ResolvedFileSearchRoot): void {
     if (input.rootKey !== resolved.rootKey) {
       throw new Error('Resolved file-search root changed its canonical identity');
     }
+  }
+
+  private exclusionsForInput(input: FileSearchRootInput): FileSearchExclusions {
+    return this.options.exclusionsForInput?.(input) ?? this.defaultExclusions();
+  }
+
+  private defaultExclusions(): FileSearchExclusions {
+    return this.options.defaultExclusions?.() ?? new DefaultFileSearchExclusions();
   }
 
   private report(context: string, error: unknown): void {

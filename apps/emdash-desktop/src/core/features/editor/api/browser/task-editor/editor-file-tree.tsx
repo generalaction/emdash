@@ -41,6 +41,7 @@ import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon'
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { TreeMutationError } from '@core/features/editor/browser/task-editor/stores/files-store';
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
+import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
   useTaskComposition,
@@ -216,6 +217,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const tabLayout = useTabLayout();
   const editorView = taskView.editorView;
   const files = editorView.files;
+  const { value: filesSettings } = useAppSettingsKey('files');
   const openConfirmActionModal = useOpenModal('confirmActionModal');
   const [searchQuery, setSearchQuery] = useState('');
   const [renamePath, setRenamePath] = useState<string | null>(null);
@@ -261,6 +263,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
     searchInputRef.current?.focus();
     searchInputRef.current?.select();
   }, [focusRequest]);
+
+  React.useEffect(() => {
+    files?.setExclusions(filesSettings?.treeExclude);
+  }, [files, filesSettings?.treeExclude]);
 
   React.useEffect(() => {
     files?.reconcileVisibleScopes(expandedPaths);

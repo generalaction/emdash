@@ -1,6 +1,7 @@
 import { lstat, readdir, readlink, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
+import type { ExclusionMatcher } from '@primitives/lib/api';
 import {
   joinPortableRelativePath,
   portableRelativePathParent,
@@ -17,7 +18,10 @@ import { etagForStat } from '@runtimes/files/node/fs/metadata';
 import { containsPath, type RootPathPolicy } from '@runtimes/files/node/fs/path-policy';
 
 export class TreeDirectoryReader {
-  constructor(private readonly paths: RootPathPolicy) {}
+  constructor(
+    private readonly paths: RootPathPolicy,
+    private readonly exclusions?: ExclusionMatcher
+  ) {}
 
   async readChildren(directoryPath: PortableRelativePath): Promise<Result<FileEntry[], FsError>> {
     const resolved = await this.paths.resolveFollowed(directoryPath);
@@ -34,6 +38,7 @@ export class TreeDirectoryReader {
     for (const dirent of dirents) {
       const childPath = joinPortableRelativePath(directoryPath, dirent.name);
       if (!childPath.success) continue;
+      if (this.exclusions?.excludes(childPath.data)) continue;
       const classified = await this.readEntry(
         childPath.data,
         path.join(resolved.data.realPath, dirent.name)

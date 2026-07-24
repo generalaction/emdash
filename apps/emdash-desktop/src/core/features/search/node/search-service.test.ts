@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   fileSearch: vi.fn(),
   prepare: vi.fn(),
   workspaceGet: vi.fn(),
+  getSearchExclusions: vi.fn(),
   warn: vi.fn(),
 }));
 
@@ -38,6 +39,7 @@ describe('SearchService runtime file search', () => {
     sqlite: { prepare: mocks.prepare } as never,
     acquireWorkspaceRuntime: mocks.workspaceGet,
     searchFileSearchRoot: mocks.fileSearch,
+    getSearchExclusions: mocks.getSearchExclusions,
     tasks: { on: vi.fn() } as never,
   });
 
@@ -48,6 +50,7 @@ describe('SearchService runtime file search', () => {
       files: { root },
     });
     mocks.fileSearch.mockResolvedValue([{ path: '/repo/src/index.ts', filename: 'index.ts' }]);
+    mocks.getSearchExclusions.mockResolvedValue(['dist']);
   });
 
   it('merges runtime file hits after task and conversation search results', async () => {
@@ -147,7 +150,7 @@ describe('SearchService runtime file search', () => {
         searchContent: {
           run: async (input, context) => {
             didStartSearch = true;
-            expect(input).toEqual({ root, query: 'test', limit: 25 });
+            expect(input).toEqual({ root, query: 'test', limit: 25, exclusions: ['dist'] });
             await progressGate.promise;
             context.progress({ files });
             return ok({ files, complete: true });

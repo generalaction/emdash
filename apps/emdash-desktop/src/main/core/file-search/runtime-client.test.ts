@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   registerRoot: vi.fn(),
   searchPaths: vi.fn(),
   unregisterRoot: vi.fn(),
+  getSearchExclusions: vi.fn(),
   warn: vi.fn(),
 }));
 
@@ -17,10 +18,13 @@ vi.mock('@main/lib/logger', () => ({
 }));
 
 describe('file-search runtime client', () => {
-  const runtime = createFileSearchRuntime({ client: mocks.client } as never);
+  const runtime = createFileSearchRuntime({ client: mocks.client } as never, {
+    getSearchExclusions: mocks.getSearchExclusions,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getSearchExclusions.mockResolvedValue(['node_modules']);
     mocks.client.mockResolvedValue(
       ok({
         fileSearch: {
@@ -40,7 +44,7 @@ describe('file-search runtime client', () => {
     await runtime.registerRoot(root, LOCAL_HOST_REF);
     await runtime.unregisterRoot(root, LOCAL_HOST_REF);
 
-    expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.registerRoot).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
     expect(mocks.client).toHaveBeenCalledTimes(2);
     expect(mocks.client).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
@@ -57,8 +61,25 @@ describe('file-search runtime client', () => {
     expect(mocks.client).toHaveBeenCalledTimes(2);
     expect(mocks.client).toHaveBeenNthCalledWith(1, remoteHost);
     expect(mocks.client).toHaveBeenNthCalledWith(2, remoteHost);
-    expect(mocks.registerRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.registerRoot).toHaveBeenCalledWith({ root, exclusions: ['node_modules'] });
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
+  });
+
+  it('re-registers active roots when exclusions are refreshed', async () => {
+    const root = hostPathFromNative('/repo');
+    mocks.getSearchExclusions
+      .mockResolvedValueOnce(['node_modules'])
+      .mockResolvedValueOnce(['dist']);
+
+    await runtime.registerRoot(root, LOCAL_HOST_REF);
+    await runtime.refreshExclusions();
+
+    expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
+    expect(mocks.registerRoot).toHaveBeenNthCalledWith(1, {
+      root,
+      exclusions: ['node_modules'],
+    });
+    expect(mocks.registerRoot).toHaveBeenNthCalledWith(2, { root, exclusions: ['dist'] });
   });
 
   it('searches only files and preserves absolute desktop file identities', async () => {
