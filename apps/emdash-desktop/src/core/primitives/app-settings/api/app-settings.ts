@@ -1,6 +1,6 @@
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import type { BrowserProfile, BrowserProfileSelection } from '@core/primitives/browser/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
-import type { TerminalShellId } from '@core/primitives/terminals/api';
 
 export type LocalProjectSettings = {
   defaultProjectsDirectory: string;

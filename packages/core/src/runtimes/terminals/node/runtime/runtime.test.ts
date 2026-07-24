@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock } from '@emdash/shared/testing';
 import type { IExecutionContext } from '@primitives/exec/api';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
@@ -8,6 +9,13 @@ import {
   resourceKeyFromFileRef,
   type HostFileRef,
 } from '@primitives/path/api';
+import type {
+  ResolvedShellProfile,
+  ShellFallbackEvent,
+  TerminalShellAvailability,
+  TerminalShellId,
+  TerminalShellResolver,
+} from '@primitives/terminal-shell/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
 import { describe, expect, it, vi } from 'vitest';
 import { TerminalsRuntime } from './runtime';
@@ -63,6 +71,47 @@ class FakePtySpawner implements PtySpawner {
     const process = new FakePtyProcess(this.processes.length + 1);
     this.processes.push(process);
     return process;
+  }
+}
+
+function posixShellProfile(overrides: Partial<ResolvedShellProfile> = {}): ResolvedShellProfile {
+  return {
+    id: 'zsh',
+    resolvedShellId: 'zsh',
+    resolvedFromSystem: false,
+    executable: '/usr/bin/zsh',
+    available: true,
+    family: 'posix',
+    interactiveArgs: ['-il'],
+    commandArgs: ['-lc'],
+    ...overrides,
+  };
+}
+
+class FakeShellResolver implements TerminalShellResolver {
+  readonly resolveCalls: TerminalShellId[] = [];
+
+  constructor(
+    private readonly options: {
+      profile?: ResolvedShellProfile;
+      availability?: TerminalShellAvailability[];
+      fallback?: ShellFallbackEvent;
+      availabilityError?: Error;
+    } = {}
+  ) {}
+
+  async resolveWithSystemFallback(input: {
+    intent: TerminalShellId;
+    onFallback?: (event: ShellFallbackEvent) => void;
+  }): Promise<ResolvedShellProfile> {
+    this.resolveCalls.push(input.intent);
+    if (this.options.fallback) input.onFallback?.(this.options.fallback);
+    return this.options.profile ?? posixShellProfile();
+  }
+
+  async getAvailability(): Promise<TerminalShellAvailability[]> {
+    if (this.options.availabilityError) throw this.options.availabilityError;
+    return this.options.availability ?? [];
   }
 }
 
@@ -394,6 +443,102 @@ describe('TerminalsRuntime', () => {
     spawner.processes[0]!.exit({ exitCode: 0, signal: null });
     await completable;
     await background;
+    await scope.dispose();
+  });
+
+  it('resolves shell intent on the runtime host and spawns the resolved shell', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const shellResolver = new FakeShellResolver({
+      profile: posixShellProfile({ executable: '/opt/homebrew/bin/zsh' }),
+    });
+    const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
+    const workspace = testWorkspace();
+
+    await runtime.startTerminal({
+      key: { workspace, id: 'terminal-1' },
+      spec: { cwd: '/repo', env: {}, shellIntent: 'zsh' },
+    });
+
+    expect(shellResolver.resolveCalls).toEqual(['zsh']);
+    expect(spawner.specs[0]!.command).toBe('/opt/homebrew/bin/zsh');
+    expect(spawner.specs[0]!.args).toEqual(['-il']);
+    await scope.dispose();
+  });
+
+  it('does not consult the shell resolver when no intent is provided', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const shellResolver = new FakeShellResolver();
+    const runtime = new TerminalsRuntime({ spawner, scope, shellResolver });
+    const workspace = testWorkspace();
+
+    await runtime.startTerminal({
+      key: { workspace, id: 'terminal-1' },
+      spec: { cwd: '/repo', env: {} },
+    });
+
+    expect(shellResolver.resolveCalls).toEqual([]);
+    await scope.dispose();
+  });
+
+  it('logs a fallback when the requested shell is unavailable on the host', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const warn = vi.fn();
+    const shellResolver = new FakeShellResolver({
+      profile: posixShellProfile({ id: 'target-default', resolvedFromSystem: true }),
+      fallback: { shell: 'fish', message: 'fish is not available on this host' },
+    });
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      shellResolver,
+      logger: { ...noopLogger, warn },
+    });
+    const workspace = testWorkspace();
+
+    await runtime.startTerminal({
+      key: { workspace, id: 'terminal-1' },
+      spec: { cwd: '/repo', env: {}, shellIntent: 'fish' },
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      'terminals: falling back to system shell',
+      expect.objectContaining({ terminalId: 'terminal-1', shell: 'fish' })
+    );
+    await scope.dispose();
+  });
+
+  it('returns host shell availability from the injected resolver', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const availability: TerminalShellAvailability[] = [
+      { id: 'system', label: 'zsh', isSystemDefault: true, available: true },
+      { id: 'bash', label: 'bash', isSystemDefault: false, available: true },
+    ];
+    const runtime = new TerminalsRuntime({
+      spawner,
+      scope,
+      shellResolver: new FakeShellResolver({ availability }),
+    });
+
+    await expect(runtime.getShellAvailability()).resolves.toEqual({
+      success: true,
+      data: availability,
+    });
+    await scope.dispose();
+  });
+
+  it('fails shell availability when no resolver is configured', async () => {
+    const spawner = new FakePtySpawner();
+    const scope = createScope({ label: 'test-terminals' });
+    const runtime = new TerminalsRuntime({ spawner, scope });
+
+    await expect(runtime.getShellAvailability()).resolves.toMatchObject({
+      success: false,
+      error: { type: 'shell-availability-failed' },
+    });
     await scope.dispose();
   });
 });

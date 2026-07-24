@@ -1,3 +1,4 @@
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { ReplicaLog } from '@emdash/wire';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
@@ -14,7 +15,6 @@ import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import type { TerminalShellId } from '@core/primitives/terminals/api';
 import { type CreateTerminalParams, type Terminal } from '@core/primitives/terminals/api';
 import { log } from '@renderer/utils/logger';
 import { nextTerminalName } from '../../../browser/task-terminal/terminal-tabs';

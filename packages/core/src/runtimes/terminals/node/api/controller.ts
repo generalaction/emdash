@@ -6,6 +6,7 @@ import { terminalJobError } from '@runtimes/terminals/node/runtime/runtime';
 export function createTerminalsController(runtime: TerminalsRuntime) {
   return createController(terminalsContract, {
     startTerminal: (input) => runtime.startTerminal(input),
+    getShellAvailability: () => runtime.getShellAvailability(),
     runWorkflow: {
       run: (input, ctx) => runtime.runWorkflow(input, ctx),
       toError: terminalJobError,

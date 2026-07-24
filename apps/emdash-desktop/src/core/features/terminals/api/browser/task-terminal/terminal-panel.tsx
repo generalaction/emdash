@@ -1,3 +1,4 @@
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { ScrollText, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
@@ -11,18 +12,15 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import type { TerminalShellId } from '@core/primitives/terminals/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import {
-  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
-  useTerminalShellAvailability,
-} from '@renderer/lib/hooks/use-terminal-shell-availability';
+import { useTerminalShellAvailability } from '@renderer/lib/hooks/use-terminal-shell-availability';
 import {
   TerminalDrawerTabBar,
   type TerminalDrawerMode,
+  type TerminalShellMenuState,
 } from '../../../browser/task-terminal/terminal-drawer-tab-bar';
 import { resolveTerminalPanelActiveItem } from '../../../browser/task-terminal/terminal-panel-selection';
 import { TerminalPtyContent } from '../../../browser/task-terminal/terminal-pty-content';
@@ -42,8 +40,20 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     taskView.terminalDrawerActiveItem?.kind === 'script' ? 'scripts' : 'terminals'
   );
   const previousActiveItemRef = useRef(taskView.terminalDrawerActiveItem);
-  const { data: shellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
-    useTerminalShellAvailability(remoteConnectionId, { enabled: shouldLoadShellAvailability });
+  const shellAvailabilityQuery = useTerminalShellAvailability(remoteConnectionId, {
+    enabled: shouldLoadShellAvailability,
+  });
+  const shellMenuState: TerminalShellMenuState = shellAvailabilityQuery.data
+    ? { kind: 'ready', availability: shellAvailabilityQuery.data }
+    : shellAvailabilityQuery.isError
+      ? {
+          kind: 'error',
+          message:
+            shellAvailabilityQuery.error instanceof Error
+              ? shellAvailabilityQuery.error.message
+              : 'Failed to load',
+        }
+      : { kind: 'loading' };
 
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
@@ -123,6 +133,14 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const handleCreate = async (shell?: TerminalShellId) => {
     setMode('terminals');
     await taskView.openNewTerminal(shell);
+  };
+
+  const handleShellMenuOpen = () => {
+    if (!shouldLoadShellAvailability) {
+      setShouldLoadShellAvailability(true);
+      return;
+    }
+    if (!shellAvailabilityQuery.isFetching) void shellAvailabilityQuery.refetch();
   };
 
   const handleRunScript = (id: string) => {
@@ -215,8 +233,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onStopScript={handleStopScript}
           terminalTabView={terminalTabView}
           activeTerminalId={activeTerminalId}
-          shellAvailability={shellAvailability}
-          onShellMenuOpen={() => setShouldLoadShellAvailability(true)}
+          shellMenuState={shellMenuState}
+          onShellMenuOpen={handleShellMenuOpen}
+          onRetryShellAvailability={() => void shellAvailabilityQuery.refetch()}
           onSelectTerminal={(id) => {
             setMode('terminals');
             terminalTabView.setActiveTab(id);

@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import {
   bindMachineToLiveState,
@@ -21,6 +22,12 @@ import {
   type IoActivityTracker,
 } from '@primitives/io-activity/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+import type {
+  ResolvedShellProfile,
+  TerminalShellAvailability,
+  TerminalShellId,
+  TerminalShellResolver,
+} from '@primitives/terminal-shell/api';
 import {
   createWorkflow,
   type Workflow,
@@ -117,6 +124,8 @@ export type TerminalsRuntimeOptions = {
   clock?: Clock;
   portProbe?: TerminalPortProbe;
   lifecycle?: TerminalsRuntimeLifecycleOptions;
+  shellResolver?: TerminalShellResolver;
+  logger?: Logger;
 };
 
 export type TerminalsRuntimeLifecycleOptions = {
@@ -136,6 +145,8 @@ export class TerminalsRuntime {
   private readonly now: () => number;
   private readonly clock: Clock | undefined;
   private readonly portProbe: TerminalPortProbe | undefined;
+  private readonly shellResolver: TerminalShellResolver | undefined;
+  private readonly logger: Logger;
   private readonly terminalIdlePolicy: IdlePolicy;
   private readonly backgroundScriptIdlePolicy: IdlePolicy;
   private readonly completableScriptIdlePolicy: IdlePolicy;
@@ -164,6 +175,8 @@ export class TerminalsRuntime {
     this.clock = options.clock;
     this.now = options.now ?? options.clock?.now.bind(options.clock) ?? Date.now;
     this.portProbe = options.portProbe;
+    this.shellResolver = options.shellResolver;
+    this.logger = options.logger ?? noopLogger;
     this.terminalIdlePolicy = compileIdlePolicy(options.lifecycle?.terminal ?? { kind: 'always' });
     this.backgroundScriptIdlePolicy = compileIdlePolicy(
       options.lifecycle?.backgroundScript ?? { kind: 'always' }
@@ -202,6 +215,23 @@ export class TerminalsRuntime {
     } catch (error) {
       return err({
         type: 'terminal-start-failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async getShellAvailability(): Promise<Result<TerminalShellAvailability[], TerminalError>> {
+    if (!this.shellResolver) {
+      return err({
+        type: 'shell-availability-failed',
+        message: 'No shell resolver is configured for this terminals runtime',
+      });
+    }
+    try {
+      return ok(await this.shellResolver.getAvailability());
+    } catch (error) {
+      return err({
+        type: 'shell-availability-failed',
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -351,15 +381,16 @@ export class TerminalsRuntime {
     this.sessionKeys.set(sessionKey, key);
     this.sessionKinds.set(sessionKey, 'terminal');
 
+    const shellProfile = await this.resolveShellProfile(key, spec.shellIntent);
     const env = buildTerminalEnv({
-      shellProfile: spec.shellProfile,
+      shellProfile,
       overrides: spec.env,
     });
     const resolved = resolveLocalPtySpawn({
       intent: {
         kind: 'interactive-shell',
         cwd: spec.cwd,
-        shellProfile: spec.shellProfile,
+        shellProfile,
         shellSetup: spec.shellSetup,
         tmuxSessionName: spec.tmux ? makeTmuxSessionName(sessionKey) : undefined,
       },
@@ -394,6 +425,22 @@ export class TerminalsRuntime {
 
   private handleInteractiveExit(sessionKey: string): void {
     this.closePreviewSource(sessionKey);
+  }
+
+  private async resolveShellProfile(
+    key: TerminalKey,
+    intent: TerminalShellId | undefined
+  ): Promise<ResolvedShellProfile | undefined> {
+    if (!intent || !this.shellResolver) return undefined;
+    return await this.shellResolver.resolveWithSystemFallback({
+      intent,
+      onFallback: (event) =>
+        this.logger.warn('terminals: falling back to system shell', {
+          terminalId: key.id,
+          shell: event.shell,
+          message: event.message,
+        }),
+    });
   }
 
   private async killTmuxForSession(sessionKey: string): Promise<void> {

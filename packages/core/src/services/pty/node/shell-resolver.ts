@@ -8,19 +8,17 @@ import {
   terminalShellBasename,
   terminalShellFamily,
   type ExplicitTerminalShellId,
+  type ResolvedShellProfile,
   type RuntimeTerminalShellId,
   type TerminalShellAvailability,
   type TerminalShellId,
-} from '@core/primitives/terminals/api';
-import type { ResolvedShellProfile } from './types';
-
-export type ShellTarget = { kind: 'local'; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv };
+  type TerminalShellResolver,
+} from '@primitives/terminal-shell/api';
 
 export class ShellUnavailableError extends Error {
   constructor(
     readonly shell: TerminalShellId,
-    readonly target: ShellTarget['kind'],
-    message = `${shell} is not available on the ${target} target`
+    message = `${shell} is not available on this host`
   ) {
     super(message);
     this.name = 'ShellUnavailableError';
@@ -286,25 +284,19 @@ function buildProfile({
   };
 }
 
-function withAutomationPowerShellArgs(profile: ResolvedShellProfile): ResolvedShellProfile {
-  if (profile.family !== 'powershell') return profile;
-  return { ...profile, commandArgs: ['-NoLogo', '-Command'] };
-}
-
 export async function resolveTerminalShell({
   intent,
-  target,
+  platform = process.platform,
+  env = process.env,
   fileExists,
   readDirNames: readDirs,
 }: {
   intent: TerminalShellId;
-  target: ShellTarget;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
   fileExists?: FileExists;
   readDirNames?: ReadDirNames;
 }): Promise<ResolvedShellProfile> {
-  const platform = target.platform ?? process.platform;
-  const env = target.env ?? process.env;
-
   if (intent === 'system') {
     const executable = localDefaultShell(platform, env);
     const resolvedShellId = shellIdFromExecutable(executable, platform === 'win32' ? 'cmd' : 'sh');
@@ -318,7 +310,7 @@ export async function resolveTerminalShell({
   }
 
   const executable = resolveLocalExplicitShell(intent, platform, env, fileExists, readDirs);
-  if (!executable) throw new ShellUnavailableError(intent, 'local');
+  if (!executable) throw new ShellUnavailableError(intent);
   return buildProfile({
     id: intent,
     resolvedShellId: intent,
@@ -328,35 +320,6 @@ export async function resolveTerminalShell({
 }
 
 export async function resolveTerminalShellWithSystemFallback({
-  intent,
-  target,
-  fileExists,
-  readDirNames: readDirs,
-  onFallback,
-}: {
-  intent: TerminalShellId;
-  target: ShellTarget;
-  fileExists?: FileExists;
-  readDirNames?: ReadDirNames;
-  onFallback?: (error: ShellUnavailableError) => void;
-}): Promise<ResolvedShellProfile> {
-  try {
-    return await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs });
-  } catch (error) {
-    if (intent === 'system' || !(error instanceof ShellUnavailableError)) {
-      throw error;
-    }
-    onFallback?.(error);
-    return await resolveTerminalShell({
-      intent: 'system',
-      target,
-      fileExists,
-      readDirNames: readDirs,
-    });
-  }
-}
-
-export async function resolveLocalAutomationShellWithSystemFallback({
   intent,
   platform = process.platform,
   env = process.env,
@@ -371,54 +334,27 @@ export async function resolveLocalAutomationShellWithSystemFallback({
   readDirNames?: ReadDirNames;
   onFallback?: (error: ShellUnavailableError) => void;
 }): Promise<ResolvedShellProfile> {
-  const target: ShellTarget = { kind: 'local', platform, env };
-
-  if (platform !== 'win32') {
-    return await resolveTerminalShellWithSystemFallback({
+  try {
+    return await resolveTerminalShell({
       intent,
-      target,
+      platform,
+      env,
       fileExists,
       readDirNames: readDirs,
-      onFallback,
+    });
+  } catch (error) {
+    if (intent === 'system' || !(error instanceof ShellUnavailableError)) {
+      throw error;
+    }
+    onFallback?.(error);
+    return await resolveTerminalShell({
+      intent: 'system',
+      platform,
+      env,
+      fileExists,
+      readDirNames: readDirs,
     });
   }
-
-  if (intent !== 'system') {
-    try {
-      return withAutomationPowerShellArgs(
-        await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs })
-      );
-    } catch (error) {
-      if (!(error instanceof ShellUnavailableError)) throw error;
-      onFallback?.(error);
-    }
-  }
-
-  const fallbackCandidates = (['pwsh', 'powershell'] as const).filter(
-    (candidate) => candidate !== intent
-  );
-  for (const candidate of fallbackCandidates) {
-    try {
-      return withAutomationPowerShellArgs(
-        await resolveTerminalShell({
-          intent: candidate,
-          target,
-          fileExists,
-          readDirNames: readDirs,
-        })
-      );
-    } catch (error) {
-      if (!(error instanceof ShellUnavailableError)) throw error;
-      onFallback?.(error);
-    }
-  }
-
-  return await resolveTerminalShell({
-    intent: 'system',
-    target,
-    fileExists,
-    readDirNames: readDirs,
-  });
 }
 
 export async function getLocalTerminalShellAvailability({
@@ -473,4 +409,41 @@ function sortShellAvailability(entries: TerminalShellAvailability[]): TerminalSh
     if (a.available !== b.available) return a.available ? -1 : 1;
     return 0;
   });
+}
+
+/**
+ * Builds a host-local {@link TerminalShellResolver}. Defaults bind to this
+ * process's platform, environment, and filesystem, so the terminals runtime
+ * resolves shells on whichever host it runs on.
+ */
+export function createNodeTerminalShellResolver(
+  options: {
+    platform?: NodeJS.Platform;
+    env?: NodeJS.ProcessEnv;
+    fileExists?: FileExists;
+    readDirNames?: ReadDirNames;
+  } = {}
+): TerminalShellResolver {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  return {
+    resolveWithSystemFallback: ({ intent, onFallback }) =>
+      resolveTerminalShellWithSystemFallback({
+        intent,
+        platform,
+        env,
+        fileExists: options.fileExists,
+        readDirNames: options.readDirNames,
+        onFallback: onFallback
+          ? (error) => onFallback({ shell: error.shell, message: error.message })
+          : undefined,
+      }),
+    getAvailability: () =>
+      getLocalTerminalShellAvailability({
+        platform,
+        env,
+        fileExists: options.fileExists,
+        readDirNames: options.readDirNames,
+      }),
+  };
 }

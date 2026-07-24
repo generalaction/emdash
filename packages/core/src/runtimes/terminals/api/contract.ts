@@ -1,4 +1,5 @@
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
+import { terminalShellAvailabilityListSchema } from '@primitives/terminal-shell/api';
 import {
   scriptWorkflowsDefinitions,
   terminalErrorSchema,
@@ -23,6 +24,11 @@ export const terminalsContract = defineContract({
   startTerminal: fallible({
     input: startTerminalInputSchema,
     data: z.void(),
+    error: terminalErrorSchema,
+  }),
+  getShellAvailability: fallible({
+    input: z.void().optional(),
+    data: terminalShellAvailabilityListSchema,
     error: terminalErrorSchema,
   }),
   workflows: liveModel({

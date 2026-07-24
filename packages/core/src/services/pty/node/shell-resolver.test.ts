@@ -1,20 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   getLocalTerminalShellAvailability,
-  resolveLocalAutomationShellWithSystemFallback,
   resolveTerminalShell,
   ShellUnavailableError,
-} from './resolver';
+} from './shell-resolver';
 
 describe('terminal shell resolver', () => {
   it('keeps system intent while recording the concrete local shell', async () => {
     const profile = await resolveTerminalShell({
       intent: 'system',
-      target: {
-        kind: 'local',
-        platform: 'darwin',
-        env: { SHELL: '/bin/zsh' },
-      },
+      platform: 'darwin',
+      env: { SHELL: '/bin/zsh' },
     });
 
     expect(profile).toMatchObject({
@@ -28,11 +24,8 @@ describe('terminal shell resolver', () => {
   it('keeps login-shell args for fish local system shells', async () => {
     const profile = await resolveTerminalShell({
       intent: 'system',
-      target: {
-        kind: 'local',
-        platform: 'darwin',
-        env: { SHELL: '/opt/homebrew/bin/fish' },
-      },
+      platform: 'darwin',
+      env: { SHELL: '/opt/homebrew/bin/fish' },
     });
 
     expect(profile).toMatchObject({
@@ -49,11 +42,8 @@ describe('terminal shell resolver', () => {
   it('uses ComSpec as the Windows system shell', async () => {
     const profile = await resolveTerminalShell({
       intent: 'system',
-      target: {
-        kind: 'local',
-        platform: 'win32',
-        env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
-      },
+      platform: 'win32',
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
     });
 
     expect(profile).toMatchObject({
@@ -64,42 +54,13 @@ describe('terminal shell resolver', () => {
     });
   });
 
-  it('uses the latest installed pwsh for Windows automation shell fallback', async () => {
-    const profile = await resolveLocalAutomationShellWithSystemFallback({
-      intent: 'system',
-      platform: 'win32',
-      env: {
-        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
-        ProgramFiles: 'C:\\Program Files',
-        Path: 'C:\\Windows\\System32',
-        PATHEXT: '.EXE;.CMD',
-      },
-      readDirNames: (candidate) =>
-        candidate === 'C:\\Program Files\\PowerShell' ? ['7', '7.5.1', '6'] : [],
-      fileExists: (candidate) =>
-        candidate === 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' ||
-        candidate === 'C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe',
-    });
-
-    expect(profile).toMatchObject({
-      id: 'pwsh',
-      resolvedShellId: 'pwsh',
-      executable: 'C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe',
-      family: 'powershell',
-    });
-    expect(profile.commandArgs).toEqual(['-NoLogo', '-Command']);
-  });
-
   it('keeps regular PowerShell command profiles non-profile-loading by default', async () => {
     const profile = await resolveTerminalShell({
       intent: 'pwsh',
-      target: {
-        kind: 'local',
-        platform: 'win32',
-        env: {
-          Path: 'C:\\Program Files\\PowerShell\\7',
-          PATHEXT: '.EXE;.CMD',
-        },
+      platform: 'win32',
+      env: {
+        Path: 'C:\\Program Files\\PowerShell\\7',
+        PATHEXT: '.EXE;.CMD',
       },
       fileExists: (candidate) => candidate === 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
     });
@@ -110,14 +71,11 @@ describe('terminal shell resolver', () => {
   it('resolves Windows bash to Git Bash instead of the WSL bash launcher', async () => {
     const profile = await resolveTerminalShell({
       intent: 'bash',
-      target: {
-        kind: 'local',
-        platform: 'win32',
-        env: {
-          ProgramFiles: 'C:\\Program Files',
-          Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\bin',
-          PATHEXT: '.EXE;.CMD',
-        },
+      platform: 'win32',
+      env: {
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\bin',
+        PATHEXT: '.EXE;.CMD',
       },
       fileExists: (candidate) =>
         candidate.toLowerCase() === 'c:\\windows\\system32\\bash.exe' ||
@@ -135,14 +93,11 @@ describe('terminal shell resolver', () => {
   it('resolves explicit WSL on Windows without POSIX shell args', async () => {
     const profile = await resolveTerminalShell({
       intent: 'wsl',
-      target: {
-        kind: 'local',
-        platform: 'win32',
-        env: {
-          SystemRoot: 'C:\\Windows',
-          Path: 'C:\\Windows\\System32',
-          PATHEXT: '.EXE;.CMD',
-        },
+      platform: 'win32',
+      env: {
+        SystemRoot: 'C:\\Windows',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
       },
       fileExists: (candidate) => candidate.toLowerCase() === 'c:\\windows\\system32\\wsl.exe',
     });
@@ -161,87 +116,15 @@ describe('terminal shell resolver', () => {
     await expect(
       resolveTerminalShell({
         intent: 'wsl',
-        target: {
-          kind: 'local',
-          platform: 'win32',
-          env: {
-            SystemRoot: 'C:\\Windows',
-            Path: 'C:\\Tools',
-            PATHEXT: '.EXE;.CMD',
-          },
+        platform: 'win32',
+        env: {
+          SystemRoot: 'C:\\Windows',
+          Path: 'C:\\Tools',
+          PATHEXT: '.EXE;.CMD',
         },
         fileExists: (candidate) => candidate.toLowerCase() === 'c:\\tools\\wsl.exe',
       })
     ).rejects.toBeInstanceOf(ShellUnavailableError);
-  });
-
-  it('falls Windows automation shell back to Windows PowerShell before cmd', async () => {
-    const profile = await resolveLocalAutomationShellWithSystemFallback({
-      intent: 'system',
-      platform: 'win32',
-      env: {
-        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
-        Path: 'C:\\Windows\\System32',
-        PATHEXT: '.EXE;.CMD',
-      },
-      fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
-    });
-
-    expect(profile).toMatchObject({
-      id: 'powershell',
-      resolvedShellId: 'powershell',
-      executable: 'C:\\Windows\\System32\\powershell.exe',
-      family: 'powershell',
-    });
-  });
-
-  it('does not retry a failed explicit pwsh lookup before falling back', async () => {
-    const readDirNames = vi.fn((candidate: string) =>
-      candidate === 'C:\\Program Files\\PowerShell' ? ['7'] : []
-    );
-
-    const profile = await resolveLocalAutomationShellWithSystemFallback({
-      intent: 'pwsh',
-      platform: 'win32',
-      env: {
-        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
-        ProgramFiles: 'C:\\Program Files',
-        Path: 'C:\\Windows\\System32',
-        PATHEXT: '.EXE;.CMD',
-      },
-      readDirNames,
-      fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
-    });
-
-    expect(profile).toMatchObject({
-      id: 'powershell',
-      executable: 'C:\\Windows\\System32\\powershell.exe',
-    });
-    expect(readDirNames).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports each unavailable Windows automation fallback candidate', async () => {
-    const onFallback = vi.fn();
-
-    const profile = await resolveLocalAutomationShellWithSystemFallback({
-      intent: 'pwsh',
-      platform: 'win32',
-      env: {
-        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
-        ProgramFiles: 'C:\\Program Files',
-        Path: 'C:\\Windows\\System32',
-        PATHEXT: '.EXE;.CMD',
-      },
-      onFallback,
-      fileExists: () => false,
-    });
-
-    expect(profile).toMatchObject({
-      id: 'target-default',
-      resolvedShellId: 'cmd',
-    });
-    expect(onFallback).toHaveBeenCalledTimes(2);
-    expect(onFallback.mock.calls.map(([error]) => error.shell)).toEqual(['pwsh', 'powershell']);
   });
 
   it('reports Windows shells separately from POSIX shells', async () => {
@@ -359,7 +242,8 @@ describe('terminal shell resolver', () => {
     await expect(
       resolveTerminalShell({
         intent: 'zsh',
-        target: { kind: 'local', platform: 'linux', env: { PATH: '/usr/bin' } },
+        platform: 'linux',
+        env: { PATH: '/usr/bin' },
         fileExists: () => false,
       })
     ).rejects.toBeInstanceOf(ShellUnavailableError);

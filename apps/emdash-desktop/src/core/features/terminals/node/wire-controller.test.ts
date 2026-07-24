@@ -22,8 +22,6 @@ const controllerDeps = {
   telemetry: { capture: vi.fn() } as never,
   terminalShell: {
     getColorEnv: vi.fn(async () => ({})),
-    getLocalAvailability: vi.fn(async () => []),
-    resolveWithSystemFallback: vi.fn(),
   } as never,
 };
 
@@ -82,6 +80,46 @@ describe('createTerminalsWireController', () => {
         data: 'echo ready\r',
       })
     ).resolves.toEqual(err(resolveError));
+  });
+
+  it('resolves shell availability against the requested host runtime', async () => {
+    const availability = [
+      { id: 'system' as const, label: 'zsh', isSystemDefault: true, available: true },
+    ];
+    const getShellAvailability = vi.fn(async () => ok(availability));
+    const remoteHost = hostRef('remote', 'ssh-1');
+    const client = vi.fn(async () => ok({ terminals: { getShellAvailability } }));
+    const controller = createTerminalsWireController({
+      ...controllerDeps,
+      runtimes: { client } as unknown as TerminalsRuntimeBroker,
+      workspaceIdentity: { resolve: vi.fn() },
+    });
+
+    await expect(controller.call('getShellAvailability', { host: remoteHost })).resolves.toEqual(
+      ok(availability)
+    );
+    expect(client).toHaveBeenCalledWith(remoteHost);
+    expect(getShellAvailability).toHaveBeenCalledWith(undefined);
+  });
+
+  it('surfaces RuntimeResolveError when the availability host is unreachable', async () => {
+    const remoteHost = hostRef('remote', 'ssh-1');
+    const resolveError = {
+      type: 'host-unavailable' as const,
+      host: remoteHost,
+      message: 'Remote runtime sessions are not enabled',
+    };
+    const controller = createTerminalsWireController({
+      ...controllerDeps,
+      runtimes: {
+        client: async () => err(resolveError),
+      } as unknown as TerminalsRuntimeBroker,
+      workspaceIdentity: { resolve: vi.fn() },
+    });
+
+    await expect(controller.call('getShellAvailability', { host: remoteHost })).resolves.toEqual(
+      err(resolveError)
+    );
   });
 
   it('resolves the output source for the workspace host', async () => {

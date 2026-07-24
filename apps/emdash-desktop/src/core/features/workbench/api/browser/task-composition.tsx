@@ -1,3 +1,4 @@
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { EditorViewStore } from '@core/features/editor/api/browser/task-editor/stores/editor-view-store';
@@ -41,7 +42,6 @@ import {
   type SubjectSpace,
 } from '@core/primitives/mementos/browser';
 import { getMementoClient } from '@core/primitives/mementos/browser';
-import type { TerminalShellId } from '@core/primitives/terminals/api';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';

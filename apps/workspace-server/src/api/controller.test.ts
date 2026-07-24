@@ -4,12 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { parseAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import type { TerminalShellResolver } from '@emdash/core/primitives/terminal-shell/api';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { createFilesController, FilesRuntime } from '@emdash/core/runtimes/files/node';
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import { createGitController, GitRuntime } from '@emdash/core/runtimes/git/node';
+import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
+import { createTerminalsController, TerminalsRuntime } from '@emdash/core/runtimes/terminals/node';
 import type { IWatchService } from '@emdash/core/services/fs-watch/api';
+import type { PtySpawner } from '@emdash/core/services/pty/api';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { ok } from '@emdash/shared';
 import { client as createClient, connect, serve, streamTransport } from '@emdash/wire';
@@ -99,6 +103,53 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
 }
 
 describe('runtime domain forwarding', () => {
+  it('forwards shell availability through the real terminals runtime controller', async () => {
+    const availability = [
+      {
+        id: 'system' as const,
+        label: 'bash',
+        isSystemDefault: true,
+        available: true,
+      },
+      {
+        id: 'bash' as const,
+        label: 'Bash',
+        isSystemDefault: true,
+        available: true,
+      },
+    ];
+    const spawner: PtySpawner = {
+      spawn: () => {
+        throw new Error('PTY spawning is not expected in this test');
+      },
+    };
+    const shellResolver: TerminalShellResolver = {
+      resolveWithSystemFallback: async () => {
+        throw new Error('Shell resolution is not expected in this test');
+      },
+      getAvailability: async () => availability,
+    };
+    const terminalsRuntime = new TerminalsRuntime({ spawner, shellResolver });
+    const terminals = createTestWire(
+      terminalsContract,
+      createTerminalsController(terminalsRuntime)
+    );
+    const workspace = createTestWire(
+      workspaceWireContract,
+      createTestWorkspaceWireController({ terminals: terminals.client })
+    );
+
+    try {
+      await expect(workspace.client.terminals.getShellAvailability(undefined)).resolves.toEqual(
+        ok(availability)
+      );
+    } finally {
+      await workspace.dispose();
+      await terminals.dispose();
+      terminalsRuntime.dispose();
+    }
+  });
+
   it('forwards Git and Files procedures, live models, and binary streams', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-server-domains-'));
     const root = parseAbsolute(directory);

@@ -1,3 +1,4 @@
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -7,7 +8,6 @@ import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
-  type TerminalShellId,
 } from '@core/primitives/terminals/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import {

@@ -1,3 +1,8 @@
+import { hostRefSchema } from '@emdash/core/primitives/host/api';
+import {
+  terminalShellAvailabilityListSchema,
+  terminalShellIdSchema,
+} from '@emdash/core/primitives/terminal-shell/api';
 import { scriptWorkflowStateSchema } from '@emdash/core/runtimes/terminals/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import {
@@ -8,9 +13,6 @@ import {
 } from '@emdash/core/services/script-workflows/api';
 import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
-import { TERMINAL_SHELL_IDS } from '@core/primitives/terminals/api';
-
-const terminalShellIdSchema = z.enum(TERMINAL_SHELL_IDS);
 
 export const terminalRecordSchema = z.object({
   id: z.string(),
@@ -55,14 +57,6 @@ export const terminalHydrateResultSchema = z.object({
   }),
 });
 
-export const terminalShellAvailabilitySchema = z.object({
-  id: terminalShellIdSchema,
-  label: z.string(),
-  isSystemDefault: z.boolean(),
-  available: z.boolean(),
-  reason: z.string().optional(),
-});
-
 export const terminalCreateResultSchema = z.object({
   terminal: terminalRecordSchema,
   key: terminalHydrateResultSchema.shape.key,
@@ -78,6 +72,10 @@ export const terminalRuntimeResizeInputSchema = terminalRuntimeKeySchema.merge(t
 
 export const terminalWorkspaceInputSchema = z.object({
   workspaceId: z.string(),
+});
+
+export const terminalShellAvailabilityInputSchema = z.object({
+  host: hostRefSchema,
 });
 
 export const runTerminalScriptWorkflowInputSchema = z.object({
@@ -116,8 +114,8 @@ export const terminalsContract = defineContract({
     error: terminalSliceErrorSchema,
   }),
   getShellAvailability: fallible({
-    input: z.void().optional(),
-    data: z.array(terminalShellAvailabilitySchema),
+    input: terminalShellAvailabilityInputSchema,
+    data: terminalShellAvailabilityListSchema,
     error: terminalSliceErrorSchema,
   }),
   runScriptWorkflow: liveJob({

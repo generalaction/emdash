@@ -1,6 +1,6 @@
+import type { TerminalShellAvailability } from '@emdash/core/primitives/terminal-shell/api';
 import { Terminal } from 'lucide-react';
 import fishIcon from '@/assets/images/shells/fish.svg?raw';
-import type { TerminalShellAvailability } from '@core/primitives/terminals/api';
 import { Badge } from '@core/primitives/ui/browser/badge';
 import { cn } from '@core/primitives/ui/browser/cn';
 

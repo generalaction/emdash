@@ -1,5 +1,9 @@
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
+import type {
+  TerminalShellAvailability,
+  TerminalShellId,
+} from '@emdash/core/primitives/terminal-shell/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import {
@@ -39,13 +43,7 @@ import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
-import {
-  type RuntimeTerminalShellId,
-  type Terminal,
-  type TerminalShellAvailability,
-  type TerminalShellFamily,
-  type TerminalShellId,
-} from '@core/primitives/terminals/api';
+import type { Terminal } from '@core/primitives/terminals/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
@@ -61,24 +59,6 @@ export type CreateTerminalsWireControllerOptions = Readonly<{
   telemetry: TelemetryService;
   terminalShell: {
     getColorEnv(): Promise<Record<string, string>>;
-    getLocalAvailability(): Promise<TerminalShellAvailability[]>;
-    resolveWithSystemFallback(options: {
-      intent: TerminalShellId;
-      target: { kind: 'local' };
-      onFallback(error: { shell: TerminalShellId; message: string }): void;
-    }): Promise<{
-      id: RuntimeTerminalShellId | 'target-default';
-      resolvedShellId: RuntimeTerminalShellId;
-      resolvedFromSystem: boolean;
-      executable: string;
-      available: true;
-      family: TerminalShellFamily;
-      interactiveArgs: string[];
-      commandArgs: string[];
-      envCaptureArgs?: string[];
-      capturedEnv?: Record<string, string>;
-      remotePathLookup?: boolean;
-    }>;
   };
 }>;
 
@@ -103,7 +83,7 @@ export function createTerminalsWireController(
     delete: (input) => deleteTerminal(options, input),
     rename: (input) => renameTerminal(options, input),
     hydrate: (input) => hydrateTerminal(options, input),
-    getShellAvailability: () => getShellAvailability(options),
+    getShellAvailability: (input) => getShellAvailability(options, input),
     runScriptWorkflow: {
       run: (input, context) => runScriptWorkflow(options, input, context),
       toError: unknownToTerminalError,
@@ -271,12 +251,13 @@ async function hydrateTerminal(
   return startRuntimeTerminal(options, mapTerminalRowToTerminal(row), input.initialSize);
 }
 
-async function getShellAvailability(options: CreateTerminalsWireControllerOptions) {
-  try {
-    return ok(await options.terminalShell.getLocalAvailability());
-  } catch (error) {
-    return err(terminalError('shell-availability-failed', errorMessage(error)));
-  }
+async function getShellAvailability(
+  options: CreateTerminalsWireControllerOptions,
+  input: { host: HostRef }
+): Promise<Result<TerminalShellAvailability[], TerminalControllerError>> {
+  const runtime = await options.runtimes.client(input.host);
+  if (!runtime.success) return err(runtime.error);
+  return runtime.data.terminals.getShellAvailability(undefined);
 }
 
 async function startRuntimeTerminal(
@@ -287,27 +268,16 @@ async function startRuntimeTerminal(
   const context = await resolveTerminalContext(options, terminal);
   if (!context.success) return context;
 
-  const profile = await options.terminalShell.resolveWithSystemFallback({
-    intent: terminal.shellId,
-    target: { kind: 'local' },
-    onFallback: (error) =>
-      options.logger.warn('terminals: falling back to system shell', {
-        terminalId: terminal.id,
-        shell: error.shell,
-        message: error.message,
-      }),
-  });
   const colorEnv = await options.terminalShell.getColorEnv();
   const result = await withWorkspaceRuntime(options, context.data.identity.workspaceId, (client) =>
     client.terminals.startTerminal({
       key: context.data.key,
       spec: {
         cwd: context.data.identity.path,
-        shellProfile: profile,
+        shellIntent: terminal.shellId,
         shellSetup: context.data.shellSetup,
         tmux: context.data.tmuxEnabled,
         env: {
-          ...profile.capturedEnv,
           ...context.data.taskEnvVars,
           ...colorEnv,
         },

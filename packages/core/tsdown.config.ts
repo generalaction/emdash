@@ -14,6 +14,7 @@ export default defineConfig({
     'primitives-host-dependencies-api': 'src/primitives/host-dependencies/api/index.ts',
     'primitives-kv-api': 'src/primitives/kv/api/index.ts',
     'primitives-io-activity-api': 'src/primitives/io-activity/api/index.ts',
+    'primitives-terminal-shell-api': 'src/primitives/terminal-shell/api/index.ts',
     'primitives-kv-node': 'src/primitives/kv/node/index.ts',
     'primitives-agent-env-api': 'src/primitives/agent-env/api/index.ts',
     'primitives-plugin-fs-api': 'src/primitives/plugin-fs/api/index.ts',

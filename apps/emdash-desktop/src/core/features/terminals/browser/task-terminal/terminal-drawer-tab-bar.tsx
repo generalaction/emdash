@@ -1,6 +1,10 @@
 import { useDraggable } from '@dnd-kit/core';
+import type {
+  TerminalShellAvailability,
+  TerminalShellId,
+} from '@emdash/core/primitives/terminal-shell/api';
 import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components';
-import { ChevronDown, Pause, Play, Plus, Terminal, X } from 'lucide-react';
+import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
@@ -12,7 +16,6 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
-import type { TerminalShellAvailability, TerminalShellId } from '@core/primitives/terminals/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
@@ -28,6 +31,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/bro
 
 export type TerminalDrawerMode = 'terminals' | 'scripts';
 
+export type TerminalShellMenuState =
+  | Readonly<{ kind: 'loading' }>
+  | Readonly<{ kind: 'error'; message: string }>
+  | Readonly<{ kind: 'ready'; availability: TerminalShellAvailability[] }>;
+
 interface TerminalDrawerTabBarProps {
   mode: TerminalDrawerMode;
   onModeChange: (mode: TerminalDrawerMode) => void;
@@ -38,8 +46,9 @@ interface TerminalDrawerTabBarProps {
   onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
-  shellAvailability: TerminalShellAvailability[];
+  shellMenuState: TerminalShellMenuState;
   onShellMenuOpen: () => void;
+  onRetryShellAvailability: () => void;
   onSelectTerminal: (id: string) => void;
   onAddTerminal: (shell?: TerminalShellId) => void;
   onRemoveTerminal: (id: string) => void;
@@ -66,8 +75,9 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   onStopScript,
   terminalTabView,
   activeTerminalId,
-  shellAvailability,
+  shellMenuState,
   onShellMenuOpen,
+  onRetryShellAvailability,
   onSelectTerminal,
   onAddTerminal,
   onRemoveTerminal,
@@ -131,8 +141,9 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
               />
             ))}
             <NewTerminalButton
-              shellAvailability={shellAvailability}
+              shellMenuState={shellMenuState}
               onShellMenuOpen={onShellMenuOpen}
+              onRetryShellAvailability={onRetryShellAvailability}
               onAddTerminal={onAddTerminal}
             />
           </>
@@ -191,13 +202,15 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
   );
 });
 
-function NewTerminalButton({
-  shellAvailability,
+export function NewTerminalButton({
+  shellMenuState,
   onShellMenuOpen,
+  onRetryShellAvailability,
   onAddTerminal,
 }: {
-  shellAvailability: TerminalShellAvailability[];
+  shellMenuState: TerminalShellMenuState;
   onShellMenuOpen: () => void;
+  onRetryShellAvailability: () => void;
   onAddTerminal: (shell?: TerminalShellId) => void;
 }) {
   return (
@@ -234,16 +247,30 @@ function NewTerminalButton({
           <ChevronDown className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          {shellAvailability.map((entry) => (
-            <DropdownMenuItem
-              key={entry.id}
-              disabled={!entry.available}
-              title={entry.reason}
-              onClick={() => onAddTerminal(entry.id)}
-            >
-              <TerminalShellOptionLabel entry={entry} />
+          {shellMenuState.kind === 'loading' ? (
+            <DropdownMenuItem disabled>
+              <LoaderCircle className="animate-spin" />
+              Loading shells…
             </DropdownMenuItem>
-          ))}
+          ) : shellMenuState.kind === 'error' ? (
+            <DropdownMenuItem title={shellMenuState.message} onClick={onRetryShellAvailability}>
+              <RefreshCw />
+              Failed toload shells
+            </DropdownMenuItem>
+          ) : shellMenuState.availability.length === 0 ? (
+            <DropdownMenuItem disabled>No shells found</DropdownMenuItem>
+          ) : (
+            shellMenuState.availability.map((entry) => (
+              <DropdownMenuItem
+                key={entry.id}
+                disabled={!entry.available}
+                title={entry.reason}
+                onClick={() => onAddTerminal(entry.id)}
+              >
+                <TerminalShellOptionLabel entry={entry} />
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

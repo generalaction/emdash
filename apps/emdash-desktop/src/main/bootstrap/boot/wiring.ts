@@ -11,10 +11,6 @@ import {
 } from '@main/core/dependencies/dependency-managers';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
-import {
-  getLocalTerminalShellAvailability,
-  resolveTerminalShellWithSystemFallback,
-} from '@main/core/terminal-shell/resolver';
 import { withCompensation } from '@main/core/utils/compensation';
 import { legacyPortOperations } from '@main/db/legacy-port/controller';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
@@ -131,8 +127,6 @@ export function createDesktopWireOptions(
     taskSessions: services.taskSessions,
     terminalShell: {
       getColorEnv: getTerminalColorEnv,
-      getLocalAvailability: getLocalTerminalShellAvailability,
-      resolveWithSystemFallback: resolveTerminalShellWithSystemFallback,
     },
     updateOperations,
     workspaceIdentity: database.workspaceIdentity,

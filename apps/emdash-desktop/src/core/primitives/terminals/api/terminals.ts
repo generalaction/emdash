@@ -1,4 +1,4 @@
-import type { TerminalShellId } from './terminal-settings';
+import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 
 export type Terminal = {
   id: string;

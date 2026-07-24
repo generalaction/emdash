@@ -2,7 +2,7 @@ import { defineWireComponent } from '@emdash/wire/component';
 import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { terminalsContract } from '@runtimes/terminals/api';
 import { NodeExecutionContext } from '@services/exec/api';
-import { NodePtySpawner } from '@services/pty/node';
+import { createNodeTerminalShellResolver, NodePtySpawner } from '@services/pty/node';
 import { z } from 'zod';
 import { createTerminalsController } from './api/controller';
 import { TerminalsRuntime } from './runtime/runtime';
@@ -22,13 +22,15 @@ export const terminalsComponent = defineWireComponent({
   contract: terminalsContract,
   requirements: {},
   configSchema: terminalsComponentConfigSchema,
-  create: ({ config, instance, scope }) => {
+  create: ({ config, instance, logger, scope }) => {
     const exec = new NodeExecutionContext({ env: process.env });
     const runtime = new TerminalsRuntime({
       spawner: new NodePtySpawner(),
       exec,
       scope,
       lifecycle: config.lifecycle,
+      shellResolver: createNodeTerminalShellResolver(),
+      logger,
     });
     scope.add(() => runtime.dispose());
 

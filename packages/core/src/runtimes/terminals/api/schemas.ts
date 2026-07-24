@@ -1,4 +1,5 @@
 import { hostFileRefSchema } from '@primitives/path/api';
+import { terminalShellIdSchema } from '@primitives/terminal-shell/api';
 import {
   scriptWorkflowKindSchema,
   terminalErrorSchema,
@@ -29,27 +30,11 @@ export const terminalDevServerListSchema = z.record(z.string(), terminalDevServe
 
 export type TerminalDevServerList = z.infer<typeof terminalDevServerListSchema>;
 
-export const terminalShellProfileSchema = z.object({
-  id: z.string().min(1),
-  resolvedShellId: z.string().min(1),
-  resolvedFromSystem: z.boolean(),
-  executable: z.string().min(1),
-  available: z.literal(true).optional(),
-  family: z.enum(['posix', 'csh', 'windows-cmd', 'powershell', 'wsl']),
-  interactiveArgs: z.array(z.string()),
-  commandArgs: z.array(z.string()),
-  envCaptureArgs: z.array(z.string()).optional(),
-  capturedEnv: z.record(z.string(), z.string()).optional(),
-  remotePathLookup: z.boolean().optional(),
-});
-
-export type TerminalShellProfile = z.infer<typeof terminalShellProfileSchema>;
-
 export const startTerminalSpecSchema = z
   .object({
     cwd: z.string().min(1),
     env: z.record(z.string(), z.string()),
-    shellProfile: terminalShellProfileSchema.optional(),
+    shellIntent: terminalShellIdSchema.optional(),
     shellSetup: z.string().optional(),
     tmux: z.boolean().optional(),
   })
