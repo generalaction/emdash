@@ -13,6 +13,7 @@ import {
   type FileTreeHandle,
   type FileTreeHeaderContext,
   type FileTreeNode,
+  type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
 import {
@@ -796,6 +797,33 @@ export const EditorFileTree = observer(function EditorFileTree() {
       error={files?.error}
       compactChains
       renamePath={renamePath}
+      getRootContextMenuItems={() => {
+        const items: FileTreeRootMenuItem[] = [
+          {
+            id: 'new-file',
+            label: 'New File',
+            icon: <FilePlus size={14} />,
+            onSelect: () =>
+              treeRef.current?.startDraft('file', normalizeFileTreePath(workspace.path)),
+          },
+          {
+            id: 'new-folder',
+            label: 'New Folder',
+            icon: <FolderPlus size={14} />,
+            onSelect: () =>
+              treeRef.current?.startDraft('directory', normalizeFileTreePath(workspace.path)),
+          },
+        ];
+        if (clipboard && clipboard.paths.length > 0) {
+          items.push({
+            id: 'paste',
+            label: 'Paste',
+            icon: <ClipboardPaste size={14} />,
+            onSelect: () => void pasteClipboard(normalizeFileTreePath(workspace.path)),
+          });
+        }
+        return items;
+      }}
       renderHeader={() => null}
       onCollapseAll={collapseAll}
       onExpandAll={(paths) => editorView.expandPaths([...paths])}

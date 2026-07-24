@@ -1,12 +1,5 @@
 import { cx } from '@styles/utilities/cx';
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FileIcon,
-  FolderIcon,
-  Link2Icon,
-  Loader2Icon,
-} from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, FileIcon, Link2Icon, Loader2Icon } from 'lucide-react';
 import * as React from 'react';
 import { resolveFileIconClass } from '../../lib/file-icons';
 import {
@@ -45,13 +38,20 @@ const ROW_GAP = 2;
 const HOVER_EXPAND_MS = 500;
 const INTERNAL_DRAG_MIME = 'application/x-emdash-file-tree-path';
 
-export interface FileTreeContextMenuItem {
+export interface FileTreeMenuItemBase {
   id: string;
   label: React.ReactNode;
   icon?: React.ReactNode;
   variant?: 'default' | 'destructive';
   disabled?: boolean;
+}
+
+export interface FileTreeContextMenuItem extends FileTreeMenuItemBase {
   onSelect(node: FileTreeNode, selection: readonly FileTreeNode[]): void;
+}
+
+export interface FileTreeRootMenuItem extends FileTreeMenuItemBase {
+  onSelect(): void;
 }
 
 export interface FileTreeDndSpec {
@@ -117,6 +117,7 @@ export interface FileTreeProps {
     node: FileTreeNode,
     selection: readonly FileTreeNode[]
   ) => readonly FileTreeContextMenuItem[] | null;
+  getRootContextMenuItems?: () => readonly FileTreeRootMenuItem[] | null;
   renderIcon?: (node: FileTreeNode, state: FileTreeIconState) => React.ReactNode;
   renderHeader?: (context: FileTreeHeaderContext) => React.ReactNode;
   renderDecoration?: (node: FileTreeNode) => React.ReactNode;
@@ -124,7 +125,7 @@ export interface FileTreeProps {
 }
 
 export interface FileTreeHandle {
-  startDraft(kind: FileTreeDraftKind): void;
+  startDraft(kind: FileTreeDraftKind, overridePath?: string): void;
   collapseAll(): void;
   expandAll(): void;
   scrollToPath(path: string): void;
@@ -169,6 +170,7 @@ function FileTreeInner(
     onRequestExpand,
     onRowHover,
     getContextMenuItems,
+    getRootContextMenuItems,
     renderIcon,
     renderHeader,
     renderDecoration,
@@ -297,34 +299,64 @@ function FileTreeInner(
 
   const empty = rootNodes.length === 0 && !draft;
 
+  const bodyInnerContent = (
+    <>
+      {empty ? (
+        <FileTreeState>Empty folder</FileTreeState>
+      ) : (
+        <TreeView
+          ref={treeViewRef}
+          nodes={treeNodes}
+          expandedIds={effectiveExpandedPaths}
+          compactChains={compactChains}
+          estimateSize={ROW_HEIGHT}
+          gap={ROW_GAP}
+          overscan={8}
+          className={styles.treeViewport}
+          renderRow={(row) => renderTreeRow(row)}
+        />
+      )}
+      {dropTargetPath === normalizedRootPath ? <div className={styles.rootDropTarget} /> : null}
+    </>
+  );
+
+  const rootMenuItems = getRootContextMenuItems?.() ?? null;
+  const bodyProps: React.HTMLAttributes<HTMLDivElement> = {
+    className: styles.body,
+    onDragOver: (event) => handleDragOver(null, event),
+    onDragLeave: (event) => {
+      if (event.currentTarget === event.target) setDropTargetPath(null);
+    },
+    onDrop: (event) => handleDrop(null, event),
+  };
+
   return (
     <section className={cx(styles.root, className)} aria-label="File tree">
       {header}
-      <div
-        className={styles.body}
-        onDragOver={(event) => handleDragOver(null, event)}
-        onDragLeave={(event) => {
-          if (event.currentTarget === event.target) setDropTargetPath(null);
-        }}
-        onDrop={(event) => handleDrop(null, event)}
-      >
-        {empty ? (
-          <FileTreeState>Empty folder</FileTreeState>
-        ) : (
-          <TreeView
-            ref={treeViewRef}
-            nodes={treeNodes}
-            expandedIds={effectiveExpandedPaths}
-            compactChains={compactChains}
-            estimateSize={ROW_HEIGHT}
-            gap={ROW_GAP}
-            overscan={8}
-            className={styles.treeViewport}
-            renderRow={(row) => renderTreeRow(row)}
-          />
-        )}
-        {dropTargetPath === normalizedRootPath ? <div className={styles.rootDropTarget} /> : null}
-      </div>
+      {rootMenuItems?.length ? (
+        <ContextMenu.Root>
+          <ContextMenu.Trigger {...bodyProps}>
+            {bodyInnerContent}
+          </ContextMenu.Trigger>
+          <ContextMenu.Content>
+            {rootMenuItems.map((item) => (
+              <ContextMenu.Item
+                key={item.id}
+                disabled={item.disabled}
+                variant={item.variant}
+                onClick={item.onSelect}
+              >
+                {item.icon}
+                {item.label}
+              </ContextMenu.Item>
+            ))}
+          </ContextMenu.Content>
+        </ContextMenu.Root>
+      ) : (
+        <div {...bodyProps}>
+          {bodyInnerContent}
+        </div>
+      )}
     </section>
   );
 
@@ -400,13 +432,10 @@ function FileTreeInner(
             {isExpanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
           </span>
         ) : (
-          <span className={styles.spacer} aria-hidden />
-        )}
-        {icon ? (
-          <span className={styles.icon} aria-hidden>
+          <span className={styles.chevron} aria-hidden>
             {icon}
           </span>
-        ) : null}
+        )}
         <span className={styles.label}>
           <span
             className={cx(
@@ -449,9 +478,11 @@ function FileTreeInner(
     );
   }
 
-  function startDraft(kind: FileTreeDraftKind) {
-    setDraft({ kind, parentPath: targetPath });
-    if (targetPath) requestExpandPath(targetPath);
+  function startDraft(kind: FileTreeDraftKind, overridePath?: string) {
+    const resolvedPath =
+      overridePath !== undefined ? normalizeFileTreePath(overridePath) : targetPath;
+    setDraft({ kind, parentPath: resolvedPath });
+    if (resolvedPath) requestExpandPath(resolvedPath);
   }
 
   function collapseAll() {
@@ -699,9 +730,16 @@ function DraftRow({
 
   return (
     <div className={cx(styles.row, styles.draftRow)} style={rowIndentStyle(depth)}>
-      <span className={styles.spacer} aria-hidden />
-      <span className={styles.icon} aria-hidden>
-        {kind === 'directory' ? <FolderIcon size={14} /> : <FileIcon size={12} />}
+      {Array.from({ length: depth }, (_, level) => (
+        <span
+          key={level}
+          className={styles.indentGuide}
+          style={indentGuideStyle(level)}
+          aria-hidden
+        />
+      ))}
+      <span className={styles.chevron} aria-hidden>
+        {kind === 'directory' ? <ChevronRightIcon size={14} /> : <FileIcon size={12} />}
       </span>
       <input
         ref={inputRef}

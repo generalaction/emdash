@@ -43,6 +43,7 @@ export {
   type FileTreeIconState,
   type FileTreeOpenOptions,
   type FileTreeProps,
+  type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from './file-tree/file-tree';
 export {
