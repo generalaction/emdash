@@ -174,6 +174,20 @@ export const name = style({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   fontSize: '13px',
+  selectors: {
+    '&[data-tone="success"]': {
+      color: vars.foregroundSuccess,
+    },
+    '&[data-tone="warning"]': {
+      color: vars.foregroundWarning,
+    },
+    '&[data-tone="error"]': {
+      color: vars.foregroundError,
+    },
+    '&[data-tone="info"]': {
+      color: vars.foregroundDiffModified,
+    },
+  },
 });
 
 export const secondary = style({

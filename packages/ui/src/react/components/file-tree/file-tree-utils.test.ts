@@ -5,6 +5,8 @@ import {
   buildFlatFileRows,
   canMoveNode,
   creationTargetPath,
+  isExpandableFileTreeNode,
+  isOpenableFileTreeNode,
   normalizeFileTreePath,
   resolveDropTargetDir,
   sortFileNodes,
@@ -100,6 +102,35 @@ describe('file-tree utils', () => {
 
   it('normalizes platform-specific separators without using host path APIs', () => {
     expect(normalizeFileTreePath('src\\components//button.tsx/')).toBe('src/components/button.tsx');
+  });
+
+  it('treats symlinks according to their target kind', () => {
+    const directoryLink: FileTreeNode = {
+      ...components,
+      id: 'linked-components',
+      path: 'linked-components',
+      name: 'linked-components',
+      parentId: null,
+      parentPath: '',
+      depth: 0,
+      type: 'symlink',
+      symlink: true,
+      symlinkTargetKind: 'directory',
+    };
+    const fileLink: FileTreeNode = {
+      ...readme,
+      id: 'README-link.md',
+      path: 'README-link.md',
+      name: 'README-link.md',
+      type: 'symlink',
+      symlink: true,
+      symlinkTargetKind: 'file',
+    };
+
+    expect(isExpandableFileTreeNode(directoryLink)).toBe(true);
+    expect(isOpenableFileTreeNode(directoryLink)).toBe(false);
+    expect(isExpandableFileTreeNode(fileLink)).toBe(false);
+    expect(isOpenableFileTreeNode(fileLink)).toBe(true);
   });
 
   it('resolves drop targets for directories, files, and root space', () => {

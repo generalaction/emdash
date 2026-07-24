@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { deferred } from '@emdash/shared/testing';
@@ -96,6 +96,82 @@ describe('TreeResource', () => {
 
     expect(rebuilds).toBe(1);
   });
+
+  it('creates files through the tree mutation lane and settles the tagged update', async () => {
+    const { tree } = await createHarness();
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    const settled: string[] = [];
+
+    const result = await tree.createFile({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { path: portable('new.ts') },
+      mutationId: 'create-file-test',
+      settle: async (name) => {
+        settled.push(String(name));
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(settled).toEqual(['tree']);
+    expect(diagnostic.current().entries['new.ts']).toMatchObject({
+      path: 'new.ts',
+      kind: 'file',
+      parentPath: '',
+    });
+  });
+
+  it('deletes loaded subtrees through the tree mutation lane', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+
+    const result = await tree.delete({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { path: portable('src'), recursive: true },
+      mutationId: 'delete-test',
+      settle: async () => {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(diagnostic.current().entries.src).toBeUndefined();
+    expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
+    expect(diagnostic.current().entries[''].children).not.toContain('src');
+  });
+
+  it('moves entries across loaded parents and reconciles both sides', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await mkdir(path.join(rootPath, 'dest'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+    await diagnostic.expandPath(portable('dest'));
+
+    const result = await tree.move({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { from: portable('src/app.ts'), to: portable('dest/app.ts') },
+      mutationId: 'move-test',
+      settle: async () => {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
+    expect(diagnostic.current().entries['dest/app.ts']).toMatchObject({
+      path: 'dest/app.ts',
+      parentPath: 'dest',
+      kind: 'file',
+    });
+    expect(diagnostic.current().entries.src?.children).not.toContain('src/app.ts');
+    expect(diagnostic.current().entries.dest?.children).toContain('dest/app.ts');
+  });
 });
 
 type DiagnosticTreeResource = {
@@ -129,6 +205,10 @@ class ManualWatcher implements IWatchService {
   async dispose(): Promise<void> {
     this.onResync = undefined;
   }
+}
+
+function portable(path: string): PortableRelativePath {
+  return path as PortableRelativePath;
 }
 
 async function createHarness(): Promise<{

@@ -49,6 +49,8 @@ export interface FileTreeContextMenuItem {
 export interface FileTreeDndSpec {
   canDrag?: (node: FileTreeNode) => boolean;
   canDrop?: (source: FileTreeNode, targetDir: FileTreeNode | null) => boolean;
+  onDragStart?: (node: FileTreeNode, dataTransfer: DataTransfer) => void;
+  onDragEnd?: (node: FileTreeNode, dataTransfer: DataTransfer) => void;
   onMove(sourcePath: string, targetDirPath: string): void | Promise<void>;
   onDropExternal?: (dataTransfer: DataTransfer, targetDirPath: string) => void;
 }
@@ -56,10 +58,15 @@ export interface FileTreeDndSpec {
 export interface FileTreeRowState {
   muted?: boolean;
   strikethrough?: boolean;
+  tone?: 'success' | 'warning' | 'error' | 'info';
 }
 
 export interface FileTreeIconState {
   expanded: boolean;
+}
+
+export interface FileTreeOpenOptions {
+  preview: boolean;
 }
 
 export interface FileTreeProps {
@@ -76,13 +83,16 @@ export interface FileTreeProps {
   defaultExpanded?: 'all' | 'none';
   dnd?: FileTreeDndSpec;
   className?: string;
+  renamePath?: string | null;
   onCollapseAll?: () => void;
   onExpandAll?: (directoryPaths: ReadonlySet<string>) => void;
   onToggleExpand?: (node: FileTreeNode, expanded: boolean) => void;
   onSelect?: (node: FileTreeNode | null) => void;
-  onOpenFile?: (node: FileTreeNode) => void;
+  onOpenFile?: (node: FileTreeNode, options: FileTreeOpenOptions) => void;
   onCreateFile?: (parentPath: string, name: string) => void | Promise<void>;
   onCreateDirectory?: (parentPath: string, name: string) => void | Promise<void>;
+  onRenameSubmit?: (node: FileTreeNode, name: string) => void | Promise<void>;
+  onRenameCancel?: () => void;
   onRequestExpand?: (path: string) => void;
   onRowHover?: (node: FileTreeNode) => void;
   getContextMenuItems?: (node: FileTreeNode) => readonly FileTreeContextMenuItem[] | null;
@@ -115,6 +125,7 @@ export function FileTree({
   defaultExpanded = 'none',
   dnd,
   className,
+  renamePath,
   onCollapseAll,
   onExpandAll,
   onToggleExpand,
@@ -122,6 +133,8 @@ export function FileTree({
   onOpenFile,
   onCreateFile,
   onCreateDirectory,
+  onRenameSubmit,
+  onRenameCancel,
   onRequestExpand,
   onRowHover,
   getContextMenuItems,
@@ -171,6 +184,7 @@ export function FileTree({
     [openedPaths]
   );
   const normalizedSelectedPath = selectedPath ? normalizeFileTreePath(selectedPath) : null;
+  const normalizedRenamePath = renamePath ? normalizeFileTreePath(renamePath) : null;
   const selectedNode = normalizedSelectedPath ? nodesByPath.get(normalizedSelectedPath) : undefined;
   const targetPath = creationTargetPath(selectedNode, normalizedRootPath);
 
@@ -251,7 +265,7 @@ export function FileTree({
     if (row.node.data.kind === 'draft') {
       return (
         <DraftRow
-          draft={row.node.data.draft}
+          kind={row.node.data.draft.kind}
           depth={row.depth}
           onCommit={commitDraft}
           onCancel={() => setDraft(null)}
@@ -260,6 +274,19 @@ export function FileTree({
     }
 
     const node = row.node.data.node;
+    if (onRenameSubmit && normalizeFileTreePath(node.path) === normalizedRenamePath) {
+      return (
+        <DraftRow
+          kind={node.type === 'directory' ? 'directory' : 'file'}
+          depth={row.depth}
+          initialValue={node.name}
+          placeholder="New name"
+          onCommit={(name) => commitRename(node, name)}
+          onCancel={() => onRenameCancel?.()}
+        />
+      );
+    }
+
     const isExpanded = row.isExpanded;
     const isSelected = normalizeFileTreePath(node.path) === normalizedSelectedPath;
     const isOpened = normalizedOpenedPaths.has(normalizeFileTreePath(node.path));
@@ -277,12 +304,14 @@ export function FileTree({
         data-drop-target={dropTargetPath === normalizeFileTreePath(node.path) || undefined}
         data-pending={pendingMovePath === normalizeFileTreePath(node.path) || undefined}
         onClick={() => handleNodeClick(node, isExpanded)}
+        onDoubleClick={() => handleNodeDoubleClick(node)}
         onMouseEnter={() => onRowHover?.(node)}
         onDragStart={(event) => handleDragStart(node, event)}
         onDragOver={(event) => handleDragOver(node, event)}
         onDragLeave={() => setDropTargetPath(null)}
         onDrop={(event) => handleDrop(node, event)}
-        onDragEnd={() => {
+        onDragEnd={(event) => {
+          dnd?.onDragEnd?.(node, event.dataTransfer);
           clearHoverExpandTimer(hoverExpandTimerRef);
           setDragSourcePath(null);
           setDropTargetPath(null);
@@ -315,6 +344,7 @@ export function FileTree({
               state?.muted && styles.muted,
               state?.strikethrough && styles.strikethrough
             )}
+            data-tone={state?.tone}
           >
             {displayName(row)}
           </span>
@@ -370,7 +400,11 @@ export function FileTree({
       setExpanded(node, !isExpanded);
       return;
     }
-    if (isOpenableFileTreeNode(node)) onOpenFile?.(node);
+    if (isOpenableFileTreeNode(node)) onOpenFile?.(node, { preview: true });
+  }
+
+  function handleNodeDoubleClick(node: FileTreeNode) {
+    if (isOpenableFileTreeNode(node)) onOpenFile?.(node, { preview: false });
   }
 
   function setExpanded(node: FileTreeNode, expanded: boolean) {
@@ -418,6 +452,16 @@ export function FileTree({
     setDraft(null);
   }
 
+  async function commitRename(node: FileTreeNode, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === node.name) {
+      onRenameCancel?.();
+      return;
+    }
+    await onRenameSubmit?.(node, trimmed);
+    onRenameCancel?.();
+  }
+
   function handleDragStart(node: FileTreeNode, event: React.DragEvent<HTMLButtonElement>) {
     if (!dnd || !(dnd.canDrag?.(node) ?? true)) {
       event.preventDefault();
@@ -428,6 +472,7 @@ export function FileTree({
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData(INTERNAL_DRAG_MIME, path);
     event.dataTransfer.setData('text/plain', path);
+    dnd.onDragStart?.(node, event.dataTransfer);
   }
 
   function handleDragOver(targetNode: FileTreeNode | null, event: React.DragEvent<HTMLElement>) {
@@ -495,34 +540,39 @@ export function FileTree({
 }
 
 function DraftRow({
-  draft,
+  kind,
   depth,
+  initialValue = '',
+  placeholder,
   onCommit,
   onCancel,
 }: {
-  draft: DraftState;
+  kind: FileTreeDraftKind;
   depth: number;
+  initialValue?: string;
+  placeholder?: string;
   onCommit(name: string): void | Promise<void>;
   onCancel(): void;
 }) {
-  const [value, setValue] = React.useState('');
+  const [value, setValue] = React.useState(initialValue);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     inputRef.current?.focus();
+    inputRef.current?.select();
   }, []);
 
   return (
     <div className={cx(styles.row, styles.draftRow)} style={rowIndentStyle(depth)}>
       <span className={styles.spacer} aria-hidden />
       <span className={styles.icon} aria-hidden>
-        {draft.kind === 'directory' ? <FolderIcon size={14} /> : <FileIcon size={12} />}
+        {kind === 'directory' ? <FolderIcon size={14} /> : <FileIcon size={12} />}
       </span>
       <input
         ref={inputRef}
         className={styles.draftInput}
         value={value}
-        placeholder={draft.kind === 'directory' ? 'Folder name' : 'File name'}
+        placeholder={placeholder ?? (kind === 'directory' ? 'Folder name' : 'File name')}
         onChange={(event) => setValue(event.currentTarget.value)}
         onBlur={() => {
           if (!value.trim()) onCancel();

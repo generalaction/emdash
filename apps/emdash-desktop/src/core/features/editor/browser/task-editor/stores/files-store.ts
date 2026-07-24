@@ -1,6 +1,7 @@
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
-import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { err, ok, type Result } from '@emdash/shared';
+import { createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
+import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
@@ -23,30 +24,26 @@ import {
 import { editorContract, type EditorFileTreeModel } from '../../../api';
 
 type TreeModel = typeof editorContract.tree.model;
-type OptimisticNode = { node: RenderableFileNode; timer?: ReturnType<typeof setTimeout> };
-
-const OPTIMISTIC_NODE_TTL_MS = 15_000;
+type PendingUploadNode = { node: RenderableFileNode };
+type ViewData = {
+  nodes: Map<string, RenderableFileNode>;
+  rootNodes: RenderableFileNode[];
+  childrenById: Map<FileNodeId | null, RenderableFileNode[]>;
+  loadedPaths: Set<string>;
+  pathToId: Map<string, FileNodeId>;
+};
 
 export class FilesStore {
   private readonly root: HostAbsolutePath;
   private replica: LiveModelReplica<TreeModel> | null = null;
-  private model: ReplicaInstance<TreeModel> | null = null;
-  private releaseModel: (() => Promise<void>) | null = null;
+  private optimistic: OptimisticLiveModel<TreeModel> | null = null;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
-  private viewRevision = 0;
-  private nextOptimisticId = 1;
+  private nextPendingUploadId = 1;
 
-  private readonly optimisticNodes = observable.map<FileNodeId, OptimisticNode>();
+  private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
   private readonly pendingPathSet = observable.set<string>();
-  private readonly viewData = {
-    nodes: new Map<string, RenderableFileNode>(),
-    rootNodes: [] as RenderableFileNode[],
-    childrenById: new Map<FileNodeId | null, RenderableFileNode[]>(),
-    loadedPaths: new Set<string>(),
-    pathToId: new Map<string, FileNodeId>(),
-  };
 
   constructor(
     private readonly projectId: string,
@@ -54,10 +51,10 @@ export class FilesStore {
     private readonly workspacePath: string
   ) {
     this.root = hostPathFromNative(workspacePath);
-    makeObservable<FilesStore, 'model' | 'syncError' | 'viewRevision'>(this, {
-      model: observable.ref,
+    makeObservable<FilesStore, 'optimistic' | 'syncError' | 'viewData'>(this, {
+      optimistic: observable.ref,
       syncError: observable,
-      viewRevision: observable,
+      viewData: computed,
       pendingPaths: computed,
       isLoading: computed,
       error: computed,
@@ -65,22 +62,18 @@ export class FilesStore {
   }
 
   get nodes(): Map<string, RenderableFileNode> {
-    void this.viewRevision;
     return this.viewData.nodes;
   }
 
   get rootNodes(): RenderableFileNode[] {
-    void this.viewRevision;
     return this.viewData.rootNodes;
   }
 
   get childrenById(): Map<FileNodeId | null, RenderableFileNode[]> {
-    void this.viewRevision;
     return this.viewData.childrenById;
   }
 
   get loadedPaths(): Set<string> {
-    void this.viewRevision;
     return this.viewData.loadedPaths;
   }
 
@@ -89,7 +82,7 @@ export class FilesStore {
   }
 
   get isLoading(): boolean {
-    return this.model === null && this.syncError === null;
+    return this.optimistic === null && this.syncError === null;
   }
 
   get error(): string | undefined {
@@ -107,26 +100,21 @@ export class FilesStore {
   }
 
   async resync(): Promise<void> {
-    await this.ensureStarted();
-    await this.model?.states.tree.refresh();
+    const optimistic = await this.requireOptimistic();
+    await optimistic.refreshState('tree');
   }
 
   dispose(): void {
     this.started = false;
-    for (const optimistic of this.optimisticNodes.values()) {
-      if (optimistic.timer) clearTimeout(optimistic.timer);
-    }
-    this.optimisticNodes.clear();
+    this.pendingUploadNodes.clear();
     this.pendingPathSet.clear();
-    const release = this.releaseModel;
+    const optimistic = this.optimistic;
     const replica = this.replica;
-    this.releaseModel = null;
+    this.optimistic = null;
     this.replica = null;
-    this.model = null;
-    this.rebuildView();
     void (async () => {
       try {
-        await release?.();
+        await optimistic?.dispose();
       } finally {
         await replica?.dispose();
       }
@@ -158,14 +146,14 @@ export class FilesStore {
   }
 
   async registerDir(dirPath: string, force = false): Promise<void> {
-    const model = await this.requireModel();
+    const optimistic = await this.requireOptimistic();
     const absolute = this.resolveWorkspacePath(dirPath);
     if (this.pendingPathSet.has(absolute)) return;
     if (!force && this.loadedPaths.has(absolute)) return;
     runInAction(() => this.pendingPathSet.add(absolute));
     try {
-      if (force) await model.states.tree.refresh();
-      const invocation = await model.mutations.expand({ path: this.relative(absolute) });
+      if (force) await optimistic.refreshState('tree');
+      const invocation = await optimistic.mutations.expand({ path: this.relative(absolute) });
       if (invocation.result.success) await invocation.settled;
       else this.setError(invocation.result.error);
     } finally {
@@ -174,10 +162,10 @@ export class FilesStore {
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
-    const model = await this.requireModel();
+    const optimistic = await this.requireOptimistic();
     const absolute = this.resolveWorkspacePath(filePath);
     const relative = this.relative(absolute);
-    const invocation = await model.mutations.reveal({ path: relative });
+    const invocation = await optimistic.mutations.reveal({ path: relative });
     if (!invocation.result.success) {
       this.setError(invocation.result.error);
       return;
@@ -191,20 +179,65 @@ export class FilesStore {
     });
   }
 
+  createFile(path: string): Promise<Result<void, unknown>> {
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.createFile({ path: this.relative(this.resolveWorkspacePath(path)) })
+    );
+  }
+
+  createDirectory(path: string): Promise<Result<void, unknown>> {
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.createDirectory({ path: this.relative(this.resolveWorkspacePath(path)) })
+    );
+  }
+
+  deleteEntry(path: string, recursive = false): Promise<Result<void, unknown>> {
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.delete({
+        path: this.relative(this.resolveWorkspacePath(path)),
+        recursive,
+      })
+    );
+  }
+
+  rename(path: string, nextName: string): Promise<Result<void, unknown>> {
+    const absolute = this.resolveWorkspacePath(path);
+    const parent = parentPathFromPath(absolute) ?? this.rootPath;
+    const nextPath = normalizeFileTreePath(`${parent}/${nextName}`);
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.rename({
+        from: this.relative(absolute),
+        to: this.relative(nextPath),
+      })
+    );
+  }
+
+  move(sourcePath: string, targetDirPath: string): Promise<Result<void, unknown>> {
+    const source = this.resolveWorkspacePath(sourcePath);
+    const targetDir = this.resolveWorkspacePath(targetDirPath);
+    const target = normalizeFileTreePath(`${targetDir}/${basenameFromPath(source)}`);
+    return this.runTreeMutation((optimistic) =>
+      optimistic.mutations.move({
+        from: this.relative(source),
+        to: this.relative(target),
+      })
+    );
+  }
+
   addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
     const inserted: string[] = [];
     runInAction(() => {
       for (const candidate of nodes) {
         const absolute = this.resolveWorkspacePath(candidate.path);
-        if (this.viewData.nodes.has(absolute) || this.optimisticNodeForPath(absolute)) continue;
+        if (this.viewData.nodes.has(absolute) || this.pendingUploadNodeForPath(absolute)) continue;
         const parentPath = parentPathFromPath(absolute) ?? this.rootPath;
         if (!this.viewData.loadedPaths.has(parentPath)) continue;
         const parentId =
           parentPath === this.rootPath ? null : this.viewData.pathToId.get(parentPath);
         if (parentPath !== this.rootPath && parentId === undefined) continue;
         const name = basenameFromPath(absolute);
-        const id = `optimistic:${this.nextOptimisticId++}`;
-        this.optimisticNodes.set(id, {
+        const id = `pending-upload:${this.nextPendingUploadId++}`;
+        this.pendingUploadNodes.set(id, {
           node: {
             id,
             path: absolute,
@@ -221,84 +254,25 @@ export class FilesStore {
         });
         inserted.push(absolute);
       }
-      if (inserted.length > 0) this.rebuildView();
     });
     return inserted;
   }
 
-  confirmOptimisticNodes(paths: string[]): void {
-    runInAction(() => {
-      for (const path of paths) {
-        const id = this.optimisticNodeForPath(this.resolveWorkspacePath(path));
-        if (id) this.armOptimisticNodeExpiry(id);
-      }
-    });
+  confirmOptimisticNodes(_paths: string[]): void {
+    // Uploads are procedure-based, so the pending node remains until the watcher-backed tree
+    // contains the authoritative path. The computed view filters resolved pending uploads out.
   }
 
   removeNode(path: string): void {
-    const id = this.optimisticNodeForPath(this.resolveWorkspacePath(path));
-    if (!id) return;
-    runInAction(() => this.removeOptimisticNode(id));
-  }
-
-  private ensureStarted(): Promise<void> {
-    this.startPromise ??= this.bindRuntime();
-    return this.startPromise;
-  }
-
-  private async requireModel(): Promise<ReplicaInstance<TreeModel>> {
-    await this.ensureStarted();
-    if (!this.model) throw new Error(this.syncError ?? 'File tree is unavailable');
-    return this.model;
-  }
-
-  private async bindRuntime(): Promise<void> {
-    try {
-      const client = await getEditorClient();
-      const replica = createLiveModelReplica(editorContract.tree.model, client.tree.model, {
-        stores: { tree: createImmutableMobxStore },
-        onChange: {
-          tree: () => {
-            runInAction(() => {
-              this.syncError = null;
-              this.rebuildView();
-              this.pruneResolvedOptimistic();
-            });
-          },
-        },
-      });
-      const lease = replica.acquire({
-        workspaceId: this.workspaceId,
-        sessionId: this.workspaceId,
-      });
-      const model = await lease.ready();
-      if (!this.started) {
-        await lease.release();
-        await replica.dispose();
-        return;
-      }
-      runInAction(() => {
-        this.replica = replica;
-        this.releaseModel = () => lease.release();
-        this.model = model;
-        this.syncError = null;
-        this.rebuildView();
-      });
-      const expanded = await model.mutations.expand({ path: portablePath('') });
-      if (expanded.result.success) await expanded.settled;
-      else this.setError(expanded.result.error);
-    } catch (error) {
-      runInAction(() => {
-        this.syncError = error instanceof Error ? error.message : String(error);
-      });
-    }
+    const id = this.pendingUploadNodeForPath(this.resolveWorkspacePath(path));
+    if (id) runInAction(() => this.pendingUploadNodes.delete(id));
   }
 
   private get tree(): EditorFileTreeModel | null {
-    return this.model?.states.tree.current() ?? null;
+    return this.optimistic?.values.tree ?? null;
   }
 
-  private rebuildView(): void {
+  private get viewData(): ViewData {
     const nodes = new Map<string, RenderableFileNode>();
     const childrenById = new Map<FileNodeId | null, RenderableFileNode[]>();
     const loadedPaths = new Set<string>();
@@ -316,52 +290,96 @@ export class FilesStore {
         if (entry.childrenLoaded) loadedPaths.add(node.path);
       }
     }
-    for (const { node } of this.optimisticNodes.values()) {
+    for (const { node } of this.pendingUploadNodes.values()) {
       if (nodes.has(node.path)) continue;
+      const parentPath = parentPathFromPath(node.path) ?? this.rootPath;
+      if (!loadedPaths.has(parentPath)) continue;
       nodes.set(node.path, node);
+      pathToId.set(node.path, node.id);
       pushChild(childrenById, node);
     }
     for (const [parentId, children] of childrenById) {
       childrenById.set(parentId, sortFileNodes(children));
     }
-    this.viewData.nodes = nodes;
-    this.viewData.childrenById = childrenById;
-    this.viewData.loadedPaths = loadedPaths;
-    this.viewData.pathToId = pathToId;
-    this.viewData.rootNodes = childrenById.get(null) ?? [];
-    this.viewRevision += 1;
+    return {
+      nodes,
+      childrenById,
+      loadedPaths,
+      pathToId,
+      rootNodes: childrenById.get(null) ?? [],
+    };
   }
 
-  private pruneResolvedOptimistic(): void {
-    for (const [id, optimistic] of this.optimisticNodes) {
-      if (!this.viewData.pathToId.has(optimistic.node.path)) continue;
-      if (optimistic.timer) clearTimeout(optimistic.timer);
-      this.optimisticNodes.delete(id);
+  private ensureStarted(): Promise<void> {
+    this.startPromise ??= this.bindRuntime();
+    return this.startPromise;
+  }
+
+  private async requireOptimistic(): Promise<OptimisticLiveModel<TreeModel>> {
+    await this.ensureStarted();
+    if (!this.optimistic) throw new Error(this.syncError ?? 'File tree is unavailable');
+    return this.optimistic;
+  }
+
+  private async bindRuntime(): Promise<void> {
+    try {
+      const client = await getEditorClient();
+      const replica = createLiveModelReplica(editorContract.tree.model, client.tree.model);
+      const optimistic = new OptimisticLiveModel(
+        editorContract.tree.model,
+        {
+          workspaceId: this.workspaceId,
+          sessionId: this.workspaceId,
+        },
+        replica
+      );
+      await optimistic.ready;
+      if (!this.started) {
+        await optimistic.dispose();
+        await replica.dispose();
+        return;
+      }
+      runInAction(() => {
+        this.replica = replica;
+        this.optimistic = optimistic;
+        this.syncError = null;
+      });
+      const expanded = await optimistic.mutations.expand({ path: portablePath('') });
+      if (expanded.result.success) await expanded.settled;
+      else this.setError(expanded.result.error);
+    } catch (error) {
+      runInAction(() => {
+        this.syncError = error instanceof Error ? error.message : String(error);
+      });
     }
   }
 
-  private optimisticNodeForPath(path: string): FileNodeId | undefined {
-    for (const [id, optimistic] of this.optimisticNodes) {
-      if (optimistic.node.path === path) return id;
+  private async runTreeMutation(
+    run: (optimistic: OptimisticLiveModel<TreeModel>) => Promise<{
+      result: Result<unknown, unknown>;
+      settled: Promise<void>;
+    }>
+  ): Promise<Result<void, unknown>> {
+    try {
+      const optimistic = await this.requireOptimistic();
+      const invocation = await run(optimistic);
+      if (!invocation.result.success) {
+        this.setError(invocation.result.error);
+        return invocation.result;
+      }
+      await invocation.settled;
+      return ok<void>();
+    } catch (error) {
+      this.setError(error);
+      return err(error);
+    }
+  }
+
+  private pendingUploadNodeForPath(path: string): FileNodeId | undefined {
+    for (const [id, pending] of this.pendingUploadNodes) {
+      if (pending.node.path === path) return id;
     }
     return undefined;
-  }
-
-  private armOptimisticNodeExpiry(id: FileNodeId): void {
-    const optimistic = this.optimisticNodes.get(id);
-    if (!optimistic) return;
-    if (optimistic.timer) clearTimeout(optimistic.timer);
-    optimistic.timer = setTimeout(() => {
-      runInAction(() => this.removeOptimisticNode(id));
-    }, OPTIMISTIC_NODE_TTL_MS);
-  }
-
-  private removeOptimisticNode(id: FileNodeId): void {
-    const optimistic = this.optimisticNodes.get(id);
-    if (!optimistic) return;
-    if (optimistic.timer) clearTimeout(optimistic.timer);
-    this.optimisticNodes.delete(id);
-    this.rebuildView();
   }
 
   private resolveWorkspacePath(input: string): string {

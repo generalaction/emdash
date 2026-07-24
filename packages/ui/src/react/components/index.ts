@@ -40,6 +40,7 @@ export {
   type FileTreeContextMenuItem,
   type FileTreeDndSpec,
   type FileTreeIconState,
+  type FileTreeOpenOptions,
   type FileTreeProps,
   type FileTreeRowState,
 } from './file-tree/file-tree';
@@ -67,6 +68,7 @@ export {
   type FileTreeFlatRow,
   type FileTreeNode,
   type FileTreeNodeType,
+  type FileTreeSymlinkTargetKind,
 } from './file-tree/file-tree-utils';
 export {
   useDirectoryHistory,

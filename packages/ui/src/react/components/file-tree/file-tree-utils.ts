@@ -1,6 +1,7 @@
 import type { TreeNode } from '../../patterns/tree-view';
 
 export type FileTreeNodeType = 'file' | 'directory' | 'symlink';
+export type FileTreeSymlinkTargetKind = 'file' | 'directory' | 'other' | 'missing' | 'outside-root';
 
 export interface FileTreeNode {
   id: string;
@@ -11,6 +12,7 @@ export interface FileTreeNode {
   depth: number;
   type: FileTreeNodeType;
   symlink?: boolean;
+  symlinkTargetKind?: FileTreeSymlinkTargetKind;
   childrenLoaded?: boolean;
   isHidden?: boolean;
   extension?: string;
@@ -54,11 +56,15 @@ export function sortFileNodes(nodes: readonly FileTreeNode[]): FileTreeNode[] {
 }
 
 export function isExpandableFileTreeNode(node: FileTreeNode): boolean {
-  return node.type === 'directory';
+  return (
+    node.type === 'directory' || (node.type === 'symlink' && node.symlinkTargetKind === 'directory')
+  );
 }
 
 export function isOpenableFileTreeNode(node: FileTreeNode): boolean {
-  return node.type === 'file' || node.type === 'symlink';
+  return (
+    node.type === 'file' || (node.type === 'symlink' && node.symlinkTargetKind !== 'directory')
+  );
 }
 
 export function normalizeFileTreePath(path: string): string {

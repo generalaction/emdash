@@ -79,6 +79,11 @@ export class OptimisticLiveModel<Group extends LiveModelDef> {
     await this.lease.release();
   }
 
+  async refreshState<Name extends keyof LiveModelStates<Group>>(name: Name): Promise<void> {
+    const binding = await this.binding;
+    await binding.states[name].refresh();
+  }
+
   private async bindAuthoritativeState(binding: ReplicaInstance<Group>): Promise<void> {
     await binding.ready;
     for (const [name, state] of Object.entries(binding.states)) {

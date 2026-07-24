@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { cp, lstat, mkdir, open, rename, rm, rmdir, stat, unlink } from 'node:fs/promises';
+import { cp, lstat, open, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BlobSource, LiveJobContext, WireFile } from '@emdash/wire';
@@ -38,6 +38,13 @@ import { measureAbsolutePathUsage } from '@services/fs-usage/node';
 import { glob } from 'glob';
 import { enumerateFiles } from './enumerate';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
+import {
+  createDirectoryInRoot,
+  createFileInRoot,
+  deleteInRoot,
+  moveInRoot,
+  renameInRoot,
+} from './mutation-ops';
 import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
@@ -330,74 +337,37 @@ export class FileSystemRuntime {
 
   createFile(input: CreateFileInput): Promise<Result<void, FsError>> {
     return this.mutate(input.root, async (root) => {
-      const destination = await root.paths.resolveDestination(input.path);
-      if (!destination.success) return destination;
-      try {
-        const handle = await open(destination.data.absolutePath, 'wx');
-        try {
-          if (input.content !== undefined) await handle.writeFile(input.content, 'utf8');
-        } finally {
-          await handle.close();
-        }
-        this.allocations.notifyActiveRoot(root, [{ kind: 'create', path: destination.data.path }]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, destination.data.path));
-      }
+      const result = await createFileInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
     });
   }
 
   createDirectory(input: CreateDirectoryInput): Promise<Result<void, FsError>> {
     return this.mutate(input.root, async (root) => {
-      const destination = await root.paths.resolveDestination(input.path);
-      if (!destination.success) return destination;
-      try {
-        await mkdir(destination.data.absolutePath);
-        this.allocations.notifyActiveRoot(root, [{ kind: 'create', path: destination.data.path }]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, destination.data.path));
-      }
+      const result = await createDirectoryInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
     });
   }
 
   rename(input: RenameInput): Promise<Result<void, FsError>> {
-    if (path.posix.dirname(input.from) !== path.posix.dirname(input.to)) {
-      return Promise.resolve(
-        err({ type: 'invalid-path', path: input.to, message: 'Rename requires the same parent' })
-      );
-    }
-    return this.move(input);
+    return this.mutate(input.root, async (root) => {
+      const result = await renameInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
+    });
   }
 
   move(input: MoveInput): Promise<Result<void, FsError>> {
     return this.mutate(input.root, async (root) => {
-      const source = await root.paths.resolveExistingEntry(input.from);
-      if (!source.success) return source;
-      if (source.data.path === '') {
-        return err({
-          type: 'invalid-path',
-          path: '',
-          message: 'The workspace root cannot be moved',
-        });
-      }
-      const destination = await root.paths.resolveDestination(input.to);
-      if (!destination.success) return destination;
-      const available = await destinationAvailable(
-        destination.data.absolutePath,
-        destination.data.path
-      );
-      if (!available.success) return available;
-      try {
-        await rename(source.data.absolutePath, destination.data.absolutePath);
-        this.allocations.notifyActiveRoot(root, [
-          { kind: 'delete', path: source.data.path },
-          { kind: 'create', path: destination.data.path },
-        ]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, source.data.path));
-      }
+      const result = await moveInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
     });
   }
 
@@ -437,28 +407,10 @@ export class FileSystemRuntime {
 
   delete(input: DeleteInput): Promise<Result<void, FsError>> {
     return this.mutate(input.root, async (root) => {
-      const target = await root.paths.resolveExistingEntry(input.path);
-      if (!target.success) return target;
-      if (target.data.path === '') {
-        return err({
-          type: 'invalid-path',
-          path: '',
-          message: 'The workspace root cannot be deleted',
-        });
-      }
-      try {
-        const metadata = await lstat(target.data.absolutePath);
-        if (metadata.isDirectory()) {
-          if (input.recursive) await rm(target.data.absolutePath, { recursive: true });
-          else await rmdir(target.data.absolutePath);
-        } else {
-          await unlink(target.data.absolutePath);
-        }
-        this.allocations.notifyActiveRoot(root, [{ kind: 'delete', path: target.data.path }]);
-        return ok<void>();
-      } catch (error) {
-        return err(toFsError(error, target.data.path));
-      }
+      const result = await deleteInRoot(root, input);
+      if (!result.success) return result;
+      this.allocations.notifyActiveRoot(root, result.data);
+      return ok<void>();
     });
   }
 

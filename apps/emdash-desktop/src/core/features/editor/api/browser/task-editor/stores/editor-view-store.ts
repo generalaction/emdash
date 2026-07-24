@@ -2,7 +2,10 @@ import { action, computed, makeObservable, observable, runInAction } from 'mobx'
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
-import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import type {
+  FilePayload,
+  FileTabResource,
+} from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
@@ -127,6 +130,33 @@ export class EditorViewStore {
     }));
   }
 
+  async retargetOpenFiles(oldPath: string, newPath: string): Promise<void> {
+    const normalizedOld = normalizeTreePath(oldPath);
+    const normalizedNew = normalizeTreePath(newPath);
+    const retargets: Array<() => void> = [];
+
+    for (const { pane } of this.paneLayout.groups) {
+      for (const tab of pane.resolvedTabs) {
+        if (tab.kind !== 'file') continue;
+        const resource = tab.resource as FileTabResource;
+        if (resource.isExternal || !isPathAffected(resource.path, normalizedOld)) continue;
+        const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
+        await modelRegistry.transferBufferState(
+          buildMonacoModelPath(this.modelRootPath, resource.path),
+          buildMonacoModelPath(this.modelRootPath, rewritten)
+        );
+        retargets.push(() => {
+          pane.retargetEntry(tab.tabId, {
+            state: { path: rewritten, isExternal: false } satisfies FilePayload,
+          });
+        });
+      }
+    }
+
+    for (const retarget of retargets) retarget();
+    this.retargetExpandedPaths(normalizedOld, normalizedNew);
+  }
+
   async saveFile(filePath: string): Promise<void> {
     const uri = buildMonacoModelPath(this.modelRootPath, filePath);
     if (!modelRegistry.isDirty(uri)) return;
@@ -231,4 +261,36 @@ export class EditorViewStore {
   dispose(): void {
     this.disposeFiles();
   }
+
+  private retargetExpandedPaths(oldPath: string, newPath: string): void {
+    this.treeHandle.update((current) => ({
+      ...current,
+      expandedPaths: [
+        ...new Set(
+          current.expandedPaths.map((candidate) =>
+            isPathAffected(candidate, oldPath)
+              ? rewriteAffectedPath(candidate, oldPath, newPath)
+              : candidate
+          )
+        ),
+      ],
+    }));
+  }
+}
+
+function normalizeTreePath(path: string): string {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+/g, '/');
+  if (normalized.length > 1 && normalized.endsWith('/')) return normalized.slice(0, -1);
+  return normalized;
+}
+
+function isPathAffected(candidate: string, oldPath: string): boolean {
+  const normalized = normalizeTreePath(candidate);
+  return normalized === oldPath || normalized.startsWith(`${oldPath}/`);
+}
+
+function rewriteAffectedPath(candidate: string, oldPath: string, newPath: string): string {
+  const normalized = normalizeTreePath(candidate);
+  if (normalized === oldPath) return newPath;
+  return `${newPath}${normalized.slice(oldPath.length)}`;
 }

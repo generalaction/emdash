@@ -26,6 +26,11 @@ export class FileTreeRuntime {
         expand: (context) => context.resource.expand(context),
         collapse: (context) => context.resource.collapse(context),
         reveal: (context) => context.resource.reveal(context),
+        createFile: (context) => context.resource.createFile(context),
+        createDirectory: (context) => context.resource.createDirectory(context),
+        delete: (context) => context.resource.delete(context),
+        rename: (context) => context.resource.rename(context),
+        move: (context) => context.resource.move(context),
       },
       toMutationError: (_name, error) => expectedFsError(error),
     });

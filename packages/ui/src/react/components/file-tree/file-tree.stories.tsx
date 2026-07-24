@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
-import { FileTree, type FileTreeProps } from './file-tree';
+import { FileTree, type FileTreeProps, type FileTreeRowState } from './file-tree';
 import {
   canMoveNode,
   joinFileTreePath,
@@ -42,6 +42,9 @@ const baseNodes: FileTreeNode[] = [
   directory('packages'),
   directory('packages/ui'),
   file('packages/ui/package.json'),
+  symlink('linked-src', 'directory'),
+  file('linked-src/index.ts'),
+  symlink('docs-link.md', 'file'),
   file('README.md'),
   file('pnpm-lock.yaml'),
 ];
@@ -58,6 +61,14 @@ export const DragToMove: Story = {
   render: () => (
     <StoryFrame note="Drag files or folders onto directories. Invalid moves are rejected by the mock dnd spec.">
       <MockFileTree initialNodes={baseNodes} enableDnd />
+    </StoryFrame>
+  ),
+};
+
+export const RenameAndSymlinks: Story = {
+  render: () => (
+    <StoryFrame note="Use the context menu to rename rows. linked-src is an expandable directory symlink; docs-link.md is file-like.">
+      <MockFileTree initialNodes={baseNodes} />
     </StoryFrame>
   ),
 };
@@ -191,6 +202,7 @@ function MockFileTree({
   const [openedPaths, setOpenedPaths] = React.useState<ReadonlySet<string>>(
     () => initialOpenedPaths ?? new Set()
   );
+  const [renamePath, setRenamePath] = React.useState<string | null>(null);
   const [lastAction, setLastAction] = React.useState('Open, create, move, or use a context menu.');
 
   return (
@@ -209,6 +221,7 @@ function MockFileTree({
         expandedPaths={expandedPaths}
         selectedPath={selectedPath}
         openedPaths={openedPaths}
+        renamePath={renamePath}
         compactChains={compactChains}
         renderHeader={renderHeader}
         onToggleExpand={(node, expanded) => {
@@ -217,9 +230,9 @@ function MockFileTree({
         onCollapseAll={() => setExpandedPaths(new Set())}
         onExpandAll={(paths) => setExpandedPaths(new Set(paths))}
         onSelect={(node) => setSelectedPath(node?.path ?? null)}
-        onOpenFile={(node) => {
+        onOpenFile={(node, options) => {
           setOpenedPaths((current) => new Set(current).add(node.path));
-          setLastAction(`Opened ${node.path}`);
+          setLastAction(`${options.preview ? 'Previewed' : 'Opened'} ${node.path}`);
         }}
         onCreateFile={(parentPath, name) => {
           setNodes((current) => addNode(current, parentPath, name, 'file'));
@@ -230,12 +243,18 @@ function MockFileTree({
           setExpandedPaths((current) => new Set(current).add(joinFileTreePath(parentPath, name)));
           setLastAction(`Created folder ${joinFileTreePath(parentPath, name)}`);
         }}
+        onRenameSubmit={(node, name) => {
+          setNodes((current) => renameNode(current, node.path, name));
+          setRenamePath(null);
+          setLastAction(`Renamed ${node.path} to ${name}`);
+        }}
+        onRenameCancel={() => setRenamePath(null)}
         getContextMenuItems={(node) => [
           {
             id: 'rename',
             label: 'Rename',
             icon: <FilePenIcon size={14} />,
-            onSelect: () => setLastAction(`Rename ${node.path}`),
+            onSelect: () => setRenamePath(node.path),
           },
           {
             id: 'copy-path',
@@ -259,6 +278,8 @@ function MockFileTree({
                   setNodes((current) => moveNode(current, sourcePath, targetDirPath));
                   setLastAction(`Moved ${sourcePath} into ${targetDirPath || 'root'}`);
                 },
+                onDragStart: (node) => setLastAction(`Dragging ${node.path}`),
+                onDragEnd: (node) => setLastAction(`Dropped ${node.path}`),
               }
             : undefined
         }
@@ -410,14 +431,33 @@ function MockGitChanges({ mode: initialMode }: { mode: 'tree' | 'flat' }) {
             />
           );
         }}
-        getRowState={(node) =>
-          changeByPath.get(node.path)?.status === 'deleted'
-            ? { muted: true, strikethrough: true }
-            : undefined
-        }
+        getRowState={(node) => {
+          const status = changeByPath.get(node.path)?.status;
+          if (!status) return undefined;
+          return {
+            tone: gitStatusTone(status),
+            muted: status === 'deleted',
+            strikethrough: status === 'deleted',
+          };
+        }}
       />
     </div>
   );
+}
+
+function gitStatusTone(status: GitChange['status']): FileTreeRowState['tone'] {
+  switch (status) {
+    case 'added':
+      return 'success';
+    case 'modified':
+      return 'warning';
+    case 'deleted':
+      return 'error';
+    case 'renamed':
+      return 'info';
+    case 'conflicted':
+      return 'error';
+  }
 }
 
 function GitChangeDecoration({
@@ -523,6 +563,13 @@ function file(path: string): FileTreeNode {
   return node(path, 'file');
 }
 
+function symlink(
+  path: string,
+  symlinkTargetKind: NonNullable<FileTreeNode['symlinkTargetKind']>
+): FileTreeNode {
+  return { ...node(path, 'symlink'), symlink: true, symlinkTargetKind };
+}
+
 function node(path: string, type: FileTreeNode['type']): FileTreeNode {
   const normalized = normalizeFileTreePath(path);
   const slash = normalized.lastIndexOf('/');
@@ -579,6 +626,29 @@ function moveNode(
     const nextPath = `${nextSourcePath}${rest}`;
     const next = node(nextPath, current.type);
     return { ...current, ...next };
+  });
+}
+
+function renameNode(
+  nodes: readonly FileTreeNode[],
+  sourcePath: string,
+  nextName: string
+): FileTreeNode[] {
+  const source = nodes.find((current) => current.path === sourcePath);
+  if (!source) return [...nodes];
+  const targetPath = joinFileTreePath(source.parentPath ?? '', nextName);
+  const sourcePrefix = `${source.path}/`;
+  return nodes.map((current) => {
+    if (current.path !== source.path && !current.path.startsWith(sourcePrefix)) return current;
+    const rest = current.path === source.path ? '' : current.path.slice(source.path.length);
+    const nextPath = `${targetPath}${rest}`;
+    const next = node(nextPath, current.type);
+    return {
+      ...current,
+      ...next,
+      symlink: current.symlink,
+      symlinkTargetKind: current.symlinkTargetKind,
+    };
   });
 }
 
