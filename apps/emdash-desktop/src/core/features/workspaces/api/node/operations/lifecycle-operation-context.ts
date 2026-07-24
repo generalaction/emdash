@@ -1,6 +1,7 @@
 import type { LegacyWorkspaceAutomation } from '@emdash/core/runtimes/workspace/api';
 import { eq } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { WorkspaceBootstrapService } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -52,9 +53,9 @@ export async function resolveLifecycleOperationContext(
   const settings = options.resolveRuntimeConfig ? await provider?.settings.get() : undefined;
   const workspacePath = workspace?.path ?? operation.payload.workspacePath;
   const automation =
-    options.resolveRuntimeConfig && provider && workspacePath
+    options.resolveRuntimeConfig && provider && workspacePath && task
       ? await dependencies.workspaceBootstrap
-          .resolveLegacyAutomation(provider, workspacePath)
+          .resolveLegacyAutomation(provider, workspacePath, mapTaskRowToTask(task))
           .catch(() => undefined)
       : undefined;
 

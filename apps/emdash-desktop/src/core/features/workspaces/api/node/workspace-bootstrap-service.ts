@@ -17,7 +17,6 @@ import {
 } from '@emdash/core/runtimes/workspace/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { log } from '@emdash/shared/logger';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
@@ -42,8 +41,12 @@ import type {
   WorkspaceCloneProvisionResult,
 } from '@core/features/workspaces/api';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
-import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
+import {
+  tryAcquireWorkspaceRuntime,
+  type WorkspaceRuntimeAccess,
+} from '@core/features/workspaces/api/node/runtime-access';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
+import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
@@ -63,16 +66,9 @@ import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type { WorkspaceType } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
-import type {
-  TerminalsRuntimeClient,
-  WorkspaceRuntimeClient,
-} from '@core/services/runtime-broker/api/clients';
+import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import { provisionBYOITask } from '../../node/byoi/provision-byoi-task';
-import {
-  postActivationWorkflowNodes,
-  triggerTaskScriptWorkflow,
-} from '../../node/script-workflows';
 
 export type WorkspaceBootstrapResult = {
   path: string;
@@ -92,6 +88,18 @@ type RuntimeWorkspacePlan = {
   lifecycle?: WorkspaceLifecyclePlans;
 };
 
+type ActiveWorkspaceHandle = {
+  workspaceId: string;
+  task: Task;
+  project: ProjectProvider;
+  workDir: string;
+  runtimePlan: RuntimeWorkspacePlan;
+  access: WorkspaceRuntimeAccess;
+  automation?: ActivateWorkspaceInput['automation'];
+  workspaceBranchName?: string;
+  workspaceSourceBranch?: GitBranchRef;
+};
+
 export type CloneRepositoryProvisionInput = {
   url: string;
   destination: string;
@@ -107,7 +115,6 @@ export class WorkspaceBootstrapService {
     private readonly dependencies: {
       db: AppDb;
       createConversationProvider(options: TaskProviderOpts): ConversationProvider;
-      getTerminalsRuntimeClient(): Promise<TerminalsRuntimeClient>;
       getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
       lifecycleParticipants: readonly WorkspaceLifecycleParticipant[];
       placement: WorkspacePlacementResolver;
@@ -116,19 +123,6 @@ export class WorkspaceBootstrapService {
       workspaceIdentity: WorkspaceIdentityService;
     }
   ) {}
-
-  startPostActivationScripts(
-    task: Task,
-    project: ProjectProvider,
-    result: WorkspaceBootstrapResult
-  ): void {
-    startWorkspacePostActivationScripts(
-      this.dependencies.getTerminalsRuntimeClient,
-      task,
-      project,
-      result
-    );
-  }
 
   private get db(): AppDb {
     return this.dependencies.db;
@@ -456,7 +450,8 @@ export class WorkspaceBootstrapService {
 
   async resolveLegacyAutomation(
     project: ProjectProvider,
-    workDir: string
+    workDir: string,
+    task: Task
   ): Promise<ActivateWorkspaceInput['automation']> {
     const projectSettings = await project.settings.get();
     if (!projectSettings) return undefined;
@@ -468,10 +463,19 @@ export class WorkspaceBootstrapService {
       taskFiles,
       taskConfigPath,
     });
+    const defaultBranch = await project.settings.getDefaultBranch();
 
     return normalizeLegacyWorkspaceAutomation({
       scripts: taskSettings.scripts,
       shellSetup: taskSettings.shellSetup ?? projectSettings.shellSetup,
+      env: getTaskEnvVars({
+        taskId: task.id,
+        taskName: task.name,
+        taskPath: workDir,
+        projectPath: project.repoPath,
+        defaultBranch,
+        portSeed: workDir,
+      }),
       autoRunSetup: projectSettings.autoRunSetupScriptOnTaskCreation ?? true,
       autoRunRun: projectSettings.autoRunRunScriptOnTaskCreation ?? false,
     });
@@ -490,6 +494,28 @@ export class WorkspaceBootstrapService {
     workspaceBranchName?: string,
     workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
+    const handle = await this.ensureWorkspaceActive(
+      workspaceId,
+      task,
+      project,
+      workDir,
+      runtimePlan,
+      workspaceBranchName,
+      workspaceSourceBranch
+    );
+    if (!handle.success) return handle;
+    return this.buildTaskSession(handle.data);
+  }
+
+  private async ensureWorkspaceActive(
+    workspaceId: string,
+    task: Task,
+    project: ProjectProvider,
+    workDir: string,
+    runtimePlan: RuntimeWorkspacePlan,
+    workspaceBranchName?: string,
+    workspaceSourceBranch?: GitBranchRef
+  ): Promise<Result<ActiveWorkspaceHandle, ProvisionWorkspaceError>> {
     emitTaskProvisionProgress({
       taskId: task.id,
       projectId: project.projectId,
@@ -497,7 +523,7 @@ export class WorkspaceBootstrapService {
       message: 'Initialising workspace…',
     });
 
-    const automation = await this.resolveLegacyAutomation(project, workDir);
+    const automation = await this.resolveLegacyAutomation(project, workDir, task);
     const activation = await runWorkspaceActivateJob(task, project, {
       workspace: runtimePlan.workspace,
       consumerId: task.id,
@@ -510,6 +536,12 @@ export class WorkspaceBootstrapService {
         projectId: project.projectId,
         step: 'initialising-workspace',
         message: `Workspace runtime activation skipped: ${activation.error.message}`,
+      });
+      return err({
+        type: 'setup-failed',
+        stepKind: activation.error.stageId ?? 'workspace-activate',
+        stepErrorType: activation.error.type,
+        message: activation.error.message,
       });
     }
 
@@ -539,6 +571,34 @@ export class WorkspaceBootstrapService {
       });
     }
     await activateWorkspaceParticipants(this.dependencies.lifecycleParticipants, access.identity);
+
+    return ok({
+      workspaceId,
+      task,
+      project,
+      workDir,
+      runtimePlan,
+      access,
+      automation,
+      workspaceBranchName,
+      workspaceSourceBranch,
+    });
+  }
+
+  private async buildTaskSession(
+    handle: ActiveWorkspaceHandle
+  ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
+    const {
+      workspaceId,
+      task,
+      project,
+      workDir,
+      runtimePlan,
+      access,
+      automation,
+      workspaceBranchName,
+      workspaceSourceBranch,
+    } = handle;
 
     emitTaskProvisionProgress({
       taskId: task.id,
@@ -759,35 +819,6 @@ async function runWorkspaceActivateJob(
     await lease.release();
     await jobs.dispose();
   }
-}
-
-export function startWorkspacePostActivationScripts(
-  getTerminalsRuntimeClient: () => Promise<TerminalsRuntimeClient>,
-  task: Task,
-  project: ProjectProvider,
-  result: WorkspaceBootstrapResult
-): void {
-  const automation = result.postActivationAutomation;
-  if (!automation) return;
-  const nodes = postActivationWorkflowNodes(automation);
-  if (nodes.length === 0) return;
-
-  void triggerTaskScriptWorkflow(getTerminalsRuntimeClient, {
-    task,
-    project,
-    workspaceId: result.workspaceId,
-    workspace: result.runtimeWorkspace,
-    cwd: result.path,
-    kind: 'post-activation',
-    shellSetup: automation.shellSetup,
-    nodes,
-  }).catch((error: unknown) => {
-    log.warn('Workspace post-activation scripts failed', {
-      taskId: task.id,
-      workspaceId: result.workspaceId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
 }
 
 async function runWorkspaceDeactivateJob(

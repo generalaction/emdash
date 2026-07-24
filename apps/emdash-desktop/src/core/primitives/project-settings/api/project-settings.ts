@@ -29,6 +29,7 @@ const preservePatternsSchema = z
   .transform((patterns) => patterns.filter((pattern) => pattern !== PROJECT_CONFIG_FILE));
 
 export const shareableProjectScriptsSettingsSchema = z.object({
+  prepare: z.string().optional(),
   setup: z.string().optional(),
   run: z.string().optional(),
   teardown: z.string().optional(),
@@ -119,6 +120,7 @@ export type ProjectSettingsWriteTargetOption = ProjectSettingsWriteTarget & {
 export type ShareableProjectSettingsWriteField =
   | 'preservePatterns'
   | 'shellSetup'
+  | 'scripts.prepare'
   | 'scripts.setup'
   | 'scripts.run'
   | 'scripts.teardown';
@@ -126,6 +128,7 @@ export type ShareableProjectSettingsWriteField =
 export const SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS = [
   'preservePatterns',
   'shellSetup',
+  'scripts.prepare',
   'scripts.setup',
   'scripts.run',
   'scripts.teardown',
@@ -173,6 +176,7 @@ export function emptyProjectSettingsOverrideState(): ProjectSettingsOverrideStat
   return {
     preservePatterns: [],
     shellSetup: [],
+    'scripts.prepare': [],
     'scripts.setup': [],
     'scripts.run': [],
     'scripts.teardown': [],

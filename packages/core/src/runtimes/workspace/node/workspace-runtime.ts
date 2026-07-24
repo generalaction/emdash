@@ -51,6 +51,7 @@ import { measureAbsolutePathUsage } from '@services/fs-usage/node';
 import type { IWatchService } from '@services/fs-watch/api';
 import {
   scriptWorkflowsContract,
+  type RunScriptWorkflowInput,
   type ScriptWorkflowsContract,
 } from '@services/script-workflows/api';
 import type {
@@ -277,10 +278,29 @@ export class WorkspaceRuntime {
       if (!topology.success) return topology;
       stage.done('inspect');
 
+      const stateBeforePrepare = record.machine.current();
+      const shouldSkipPrepare =
+        stateBeforePrepare.prepared && stateBeforePrepare.consumers.length > 0;
+      if (!shouldSkipPrepare) {
+        const prepareResult = await this.runTerminalsPrepare(
+          input.workspace,
+          input.automation,
+          ctx,
+          stage
+        );
+        if (!prepareResult.success) return prepareResult;
+        record.machine.apply({ type: 'PrepareCompleted' });
+      } else {
+        stage.skip('script:prepare', 'Run prepare script');
+      }
+
+      const preparedDuringActivation = !stateBeforePrepare.prepared && !shouldSkipPrepare;
       record.machine.apply({
         type: 'ConsumerActivated',
         consumer: { id: input.consumerId, activatedAt: this.now() },
       });
+      if (preparedDuringActivation)
+        this.startPostActivationAutomation(input.workspace, input.automation);
       return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
     });
   }
@@ -568,7 +588,7 @@ export class WorkspaceRuntime {
           command: automation.teardown,
           shellSetup: automation.shellSetup,
           cwd: nativePathFromWorkspace(workspace),
-          env: stringEnv(process.env),
+          env: automationEnv(automation),
         },
       ],
     });
@@ -585,6 +605,106 @@ export class WorkspaceRuntime {
       return err(workspaceError);
     } finally {
       ctx.signal.removeEventListener('abort', cancel);
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private async runTerminalsPrepare(
+    workspace: HostFileRef,
+    automation: ActivateWorkspaceInput['automation'],
+    ctx: LiveJobContext<WorkspaceOperationProgress>,
+    stage: StageReporter
+  ): Promise<Result<void, WorkspaceError>> {
+    if (!automation?.prepare) {
+      stage.skip('script:prepare', 'Run prepare script');
+      return ok(undefined);
+    }
+    if (!this.terminals) {
+      return err({
+        type: 'terminal-runtime-unavailable',
+        message: 'Terminal runtime is unavailable for prepare script',
+        stageId: 'script:prepare',
+      });
+    }
+
+    const stageId = 'script:prepare';
+    stage.start(stageId, 'Run prepare script');
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
+    const lease = await jobs.start({
+      workspace,
+      kind: 'prepare',
+      nodes: [
+        {
+          id: 'prepare',
+          label: 'Prepare',
+          command: automation.prepare,
+          shellSetup: automation.shellSetup,
+          cwd: nativePathFromWorkspace(workspace),
+          env: automationEnv(automation),
+        },
+      ],
+    });
+    const job = await lease.ready();
+    const unsubscribe = job.onProgress((progress) => {
+      if (progress.message) stage.update(stageId, { message: progress.message });
+    });
+    const cancel = () => void job.cancel();
+    ctx.signal.addEventListener('abort', cancel, { once: true });
+    try {
+      await job.result;
+      stage.done(stageId);
+      return ok(undefined);
+    } catch (error) {
+      const workspaceError = terminalJobErrorToWorkspaceError(error);
+      stage.fail(stageId, workspaceError);
+      return err(workspaceError);
+    } finally {
+      ctx.signal.removeEventListener('abort', cancel);
+      unsubscribe();
+      await lease.release();
+      await jobs.dispose();
+    }
+  }
+
+  private startPostActivationAutomation(
+    workspace: HostFileRef,
+    automation: ActivateWorkspaceInput['automation']
+  ): void {
+    const nodes = postActivationWorkflowNodes(workspace, automation);
+    if (nodes.length === 0) return;
+    if (!this.terminals) {
+      this.onError(
+        'workspace post-activation automation',
+        new Error('Terminal runtime is unavailable for setup/run scripts')
+      );
+      return;
+    }
+
+    void this.runPostActivationAutomation(workspace, nodes).catch((error: unknown) => {
+      this.onError('workspace post-activation automation', error);
+    });
+  }
+
+  private async runPostActivationAutomation(
+    workspace: HostFileRef,
+    nodes: RunScriptWorkflowInput['nodes']
+  ): Promise<void> {
+    if (!this.terminals) return;
+    const jobs = createLiveJobReplica(
+      scriptWorkflowsContract.runWorkflow,
+      this.terminals.runWorkflow
+    );
+    const lease = await jobs.start({ workspace, kind: 'post-activation', nodes });
+    try {
+      const job = await lease.ready();
+      await job.result;
+    } catch (error) {
+      this.onError('workspace post-activation automation', terminalJobErrorToWorkspaceError(error));
+    } finally {
       await lease.release();
       await jobs.dispose();
     }
@@ -720,6 +840,43 @@ function terminalJobErrorToWorkspaceError(error: unknown): WorkspaceError {
     return { type: 'cancelled', message: 'Terminal script workflow was cancelled' };
   }
   return toWorkspaceError(error);
+}
+
+function postActivationWorkflowNodes(
+  workspace: HostFileRef,
+  automation: ActivateWorkspaceInput['automation']
+): RunScriptWorkflowInput['nodes'] {
+  if (!automation) return [];
+  const cwd = nativePathFromWorkspace(workspace);
+  const env = automationEnv(automation);
+  const nodes: RunScriptWorkflowInput['nodes'] = [];
+  if (automation.setup && automation.autoRunSetup) {
+    nodes.push({
+      id: 'setup',
+      label: 'Setup',
+      command: automation.setup,
+      shellSetup: automation.shellSetup,
+      cwd,
+      env,
+    });
+  }
+  if (automation.run && automation.autoRunRun) {
+    nodes.push({
+      id: 'run',
+      label: 'Run',
+      command: automation.run,
+      shellSetup: automation.shellSetup,
+      cwd,
+      env,
+      dependsOn: nodes.some((node) => node.id === 'setup') ? ['setup'] : undefined,
+      lifecycle: 'background',
+    });
+  }
+  return nodes;
+}
+
+function automationEnv(automation: ActivateWorkspaceInput['automation']): Record<string, string> {
+  return { ...stringEnv(process.env), ...(automation?.env ?? {}) };
 }
 
 type IgnoredArtifact = {

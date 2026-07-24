@@ -20,6 +20,7 @@
 `.emdash.json` stores optional shareable project settings. Supported runtime keys:
 
 - `preservePatterns`
+- `scripts.prepare`
 - `scripts.setup`
 - `scripts.run`
 - `scripts.teardown`
@@ -38,6 +39,10 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 
 - do not hardcode worktree paths; use service helpers
 - use lifecycle config for repo-specific bootstrap and teardown behavior
+- `scripts.prepare` is blocking and runs after the workspace exists but before task providers,
+  conversations, setup scripts, or run scripts start; keep it idempotent
+- `scripts.setup` and `scripts.run` are runtime-triggered after `scripts.prepare` succeeds; they do
+  not block task readiness
 - `shellSetup` runs inside each PTY before the interactive shell starts
 - tmux wrapping has an app level default but is also project-configurable in Project Settings and affects PTY lifecycle behavior.
 - `preservePatterns` never copies tracked files or `.emdash.json`

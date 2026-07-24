@@ -46,6 +46,9 @@ export type WorkspaceEvent =
       consumer: WorkspaceConsumer;
     }
   | {
+      type: 'PrepareCompleted';
+    }
+  | {
       type: 'ConsumerDeactivated';
       consumerId: string;
     }
@@ -68,6 +71,7 @@ export function initialWorkspaceState(
     topology,
     operation: { kind: 'idle' },
     consumers: [],
+    prepared: false,
     activity: { resources: [] },
   };
 }
@@ -123,6 +127,7 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
             return {
               state: {
                 ...state,
+                prepared: event.kind === 'teardown' ? false : state.prepared,
                 operation: {
                   kind: event.kind,
                   operationId: event.operationId,
@@ -154,11 +159,18 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
               },
             };
 
+          case 'PrepareCompleted':
+            return { state: { ...state, prepared: true } };
+
           case 'ConsumerDeactivated':
+            const consumers = state.consumers.filter(
+              (consumer) => consumer.id !== event.consumerId
+            );
             return {
               state: {
                 ...state,
-                consumers: state.consumers.filter((consumer) => consumer.id !== event.consumerId),
+                consumers,
+                prepared: consumers.length === 0 ? false : state.prepared,
               },
             };
 

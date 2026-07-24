@@ -649,6 +649,7 @@ describe('shareProjectSettingsToConfig', () => {
           value: 'nvm use',
         },
       ],
+      'scripts.prepare': [],
       'scripts.setup': [
         {
           label: 'Repo Name',

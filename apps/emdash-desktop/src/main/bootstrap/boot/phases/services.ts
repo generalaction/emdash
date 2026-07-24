@@ -256,7 +256,6 @@ export async function bootServices(
         },
         tuiConversationDependencies
       ),
-    getTerminalsRuntimeClient,
     getWorkspaceRuntimeClient,
     lifecycleParticipants,
     placement: workspacePlacement,

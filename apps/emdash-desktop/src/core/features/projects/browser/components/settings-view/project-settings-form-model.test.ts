@@ -21,6 +21,7 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     tmux: false,
     autoRunSetupScriptOnTaskCreation: true,
     autoRunRunScriptOnTaskCreation: false,
+    scriptPrepare: '',
     scriptSetup: '',
     scriptRun: '',
     scriptTeardown: '',
@@ -45,6 +46,7 @@ describe('project settings form model', () => {
         autoRunSetupScriptOnTaskCreation: false,
         autoRunRunScriptOnTaskCreation: true,
         scripts: {
+          prepare: 'python -m venv .venv',
           setup: 'pnpm install',
           run: 'pnpm dev',
           teardown: 'docker compose down',
@@ -69,6 +71,7 @@ describe('project settings form model', () => {
       tmux: true,
       autoRunSetupScriptOnTaskCreation: false,
       autoRunRunScriptOnTaskCreation: true,
+      scriptPrepare: 'python -m venv .venv',
       scriptSetup: 'pnpm install',
       scriptRun: 'pnpm dev',
       scriptTeardown: 'docker compose down',
@@ -126,6 +129,7 @@ describe('project settings form model', () => {
       autoRunSetupScriptOnTaskCreation: false,
       autoRunRunScriptOnTaskCreation: true,
       scripts: {
+        prepare: undefined,
         setup: undefined,
         run: 'pnpm dev',
         teardown: undefined,
@@ -205,6 +209,7 @@ describe('project settings form model', () => {
     const form = makeForm({
       preservePatterns: '.env',
       shellSetup: 'source .envrc',
+      scriptPrepare: 'python -m venv .venv',
       scriptSetup: 'pnpm install',
       scriptRun: 'pnpm dev',
       scriptTeardown: '',
@@ -213,6 +218,7 @@ describe('project settings form model', () => {
     expect(getAvailableWriteFields(form)).toEqual([
       'preservePatterns',
       'shellSetup',
+      'scripts.prepare',
       'scripts.setup',
       'scripts.run',
     ]);

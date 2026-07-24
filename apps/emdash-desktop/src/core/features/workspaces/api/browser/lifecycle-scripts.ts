@@ -22,7 +22,7 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { log } from '@renderer/utils/logger';
 
-export type ScriptType = 'setup' | 'run' | 'teardown';
+export type ScriptType = 'prepare' | 'setup' | 'run' | 'teardown';
 
 export type LifecycleScriptData = {
   id: string;
@@ -231,6 +231,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     const settings = result.data;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
+    if (settings.scripts?.prepare) {
+      entries.push({ type: 'prepare', command: settings.scripts.prepare, label: 'Prepare' });
+    }
     if (settings.scripts?.setup) {
       entries.push({ type: 'setup', command: settings.scripts.setup, label: 'Setup' });
     }

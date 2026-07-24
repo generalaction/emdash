@@ -84,7 +84,7 @@ export const runTerminalScriptWorkflowInputSchema = z.object({
   projectId: z.string(),
   taskId: z.string(),
   workspaceId: z.string(),
-  type: z.enum(['setup', 'run', 'teardown']),
+  type: z.enum(['prepare', 'setup', 'run', 'teardown']),
 });
 
 export const terminalSliceErrorSchema = z.union([runtimeResolveErrorSchema, terminalErrorSchema]);

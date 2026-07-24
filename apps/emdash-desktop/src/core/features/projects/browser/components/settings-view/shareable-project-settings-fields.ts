@@ -3,6 +3,7 @@ import type { ShareableProjectSettingsWriteField } from '@core/primitives/projec
 export type ShareableFieldFormKey =
   | 'preservePatterns'
   | 'shellSetup'
+  | 'scriptPrepare'
   | 'scriptSetup'
   | 'scriptRun'
   | 'scriptTeardown';
@@ -55,6 +56,19 @@ export const SHAREABLE_FIELD_DESCRIPTORS: ShareableFieldDescriptor[] = [
     placeholder: 'nvm use\nsource .envrc',
     description: 'Shell commands run before the agent starts in each worktree session',
     multiline: true,
+  },
+  {
+    id: 'scripts.prepare',
+    formKey: 'scriptPrepare',
+    modalLabel: 'Prepare script',
+    leafLabel: 'prepare',
+    defaultWrite: true,
+    normalizeText: trimText,
+    placeholder: 'python -m venv .venv\nmise install',
+    description:
+      'Blocking commands run after the workspace exists and before task sessions start. Use this for environment setup that agents depend on.',
+    multiline: true,
+    group: 'lifecycle',
   },
   {
     id: 'scripts.setup',

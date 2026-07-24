@@ -33,6 +33,7 @@ type ConversationRuntimeTarget = Readonly<{
   conversationId: string;
   projectId: string;
   taskId: string;
+  conversationType: 'pty' | 'acp';
   providerId: string | null;
   sessionId: string | null;
   modeId: string | null;
@@ -132,7 +133,7 @@ export function createConversationsWireController(
       startSession: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         if (!runtimeTarget.acpInput) {
-          throw new Error(`Conversation '${conversationId}' is not an ACP conversation`);
+          throw missingAcpInputError(runtimeTarget);
         }
         const input = runtimeTarget.acpInput;
         return withConversationRuntime(
@@ -151,7 +152,7 @@ export function createConversationsWireController(
         const runtimeTarget = await target(conversationId);
         const input = runtimeTarget.acpInput;
         if (!input) {
-          throw new Error(`Conversation '${conversationId}' is not an ACP conversation`);
+          throw missingAcpInputError(runtimeTarget);
         }
         if (!input.sessionId) {
           throw new Error(`Conversation '${conversationId}' has no ACP session to resume`);
@@ -352,6 +353,15 @@ function createDefaultRuntimeHooks(
   };
 }
 
+function missingAcpInputError(target: ConversationRuntimeTarget): Error {
+  if (target.conversationType === 'acp' && !target.workspacePath) {
+    return new Error(
+      `Workspace for conversation '${target.conversationId}' is not provisioned yet`
+    );
+  }
+  return new Error(`Conversation '${target.conversationId}' is not an ACP conversation`);
+}
+
 async function resolveConversationRuntimeTarget(
   conversationId: string,
   workspaceIdentity: WorkspaceIdentityResolver,
@@ -410,6 +420,7 @@ async function resolveConversationRuntimeTarget(
     conversationId,
     projectId: row.projectId,
     taskId: row.taskId,
+    conversationType: row.type === 'acp' ? 'acp' : 'pty',
     providerId: row.providerId,
     sessionId: row.sessionId,
     modeId: acpConfig?.modeId ?? null,

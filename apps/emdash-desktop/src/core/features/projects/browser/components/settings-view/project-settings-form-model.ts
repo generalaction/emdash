@@ -16,6 +16,7 @@ export type FormState = {
   tmux: boolean;
   autoRunSetupScriptOnTaskCreation: boolean;
   autoRunRunScriptOnTaskCreation: boolean;
+  scriptPrepare: string;
   scriptSetup: string;
   scriptRun: string;
   scriptTeardown: string;
@@ -66,6 +67,7 @@ export function settingsToForm(
     tmux: s.tmux ?? false,
     autoRunSetupScriptOnTaskCreation: s.autoRunSetupScriptOnTaskCreation ?? true,
     autoRunRunScriptOnTaskCreation: s.autoRunRunScriptOnTaskCreation ?? false,
+    scriptPrepare: normalizeScript(s.scripts?.prepare),
     scriptSetup: normalizeScript(s.scripts?.setup),
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
@@ -92,6 +94,7 @@ export function formToSettings(f: FormState): ProjectSettings {
     .map((p) => p.trim())
     .filter(Boolean);
   const scripts = {
+    prepare: blankToUndefined(f.scriptPrepare),
     setup: blankToUndefined(f.scriptSetup),
     run: blankToUndefined(f.scriptRun),
     teardown: blankToUndefined(f.scriptTeardown),

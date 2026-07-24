@@ -84,26 +84,6 @@ export async function triggerTaskScriptWorkflow(
   }
 }
 
-export function postActivationWorkflowNodes(
-  automation: ActivateWorkspaceInput['automation']
-): ScriptWorkflowNodeInput[] {
-  if (!automation) return [];
-  const nodes: ScriptWorkflowNodeInput[] = [];
-  if (automation.setup && automation.autoRunSetup) {
-    nodes.push({ id: 'setup', label: 'Setup', command: automation.setup });
-  }
-  if (automation.run && automation.autoRunRun) {
-    nodes.push({
-      id: 'run',
-      label: 'Run',
-      command: automation.run,
-      dependsOn: nodes.some((node) => node.id === 'setup') ? ['setup'] : undefined,
-      lifecycle: 'background',
-    });
-  }
-  return nodes;
-}
-
 export function teardownWorkflowNodes(
   automation: ActivateWorkspaceInput['automation']
 ): ScriptWorkflowNodeInput[] {

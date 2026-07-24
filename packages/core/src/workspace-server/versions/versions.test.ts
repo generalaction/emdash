@@ -87,7 +87,7 @@ describe('negotiateProtocol', () => {
         compatible: false,
         action: 'upgrade-client',
         clientProtocolVersion: '3.0.0',
-        serverProtocolVersion: '5.0.0',
+        serverProtocolVersion: PROTOCOL_VERSION,
       });
     });
   });

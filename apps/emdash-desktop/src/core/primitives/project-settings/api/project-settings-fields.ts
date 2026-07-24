@@ -78,6 +78,18 @@ export const SHAREABLE_FIELD_ACCESSORS = {
     },
     displayValue: (settings) => displayText(settings.shellSetup),
   },
+  'scripts.prepare': {
+    path: ['scripts', 'prepare'],
+    get: (settings) => settings.scripts?.prepare,
+    set: (settings, value) => {
+      ensureScripts(settings).prepare = value as string | undefined;
+    },
+    clear: (settings) => {
+      if (settings.scripts) delete settings.scripts.prepare;
+      compactScripts(settings);
+    },
+    displayValue: (settings) => displayText(settings.scripts?.prepare),
+  },
   'scripts.setup': {
     path: ['scripts', 'setup'],
     get: (settings) => settings.scripts?.setup,

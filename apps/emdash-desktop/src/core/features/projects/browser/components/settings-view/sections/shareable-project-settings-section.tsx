@@ -132,8 +132,9 @@ export function ShareableSettingsSection({
         <div className="flex flex-col gap-1">
           <FieldTitle>Lifecycle scripts</FieldTitle>
           <FieldDescription className="text-foreground-muted">
-            Shell commands run at each stage of the worktree lifecycle. One command per line. When
-            both are set to auto-run, the Run script waits for Setup to complete.
+            Shell commands run at each stage of the worktree lifecycle. Prepare blocks task startup;
+            Setup and Run start after the workspace is ready. When both are set to auto-run, Run
+            waits for Setup to complete.
             <span> See </span>
             <Button
               type="button"

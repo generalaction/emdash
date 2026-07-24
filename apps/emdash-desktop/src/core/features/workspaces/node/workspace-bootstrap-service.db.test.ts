@@ -91,7 +91,6 @@ describe('WorkspaceBootstrapService', () => {
     svc = new WorkspaceBootstrapService({
       db: fixture.db,
       createConversationProvider: vi.fn(),
-      getTerminalsRuntimeClient: vi.fn(async () => ({}) as never),
       getWorkspaceRuntimeClient: vi.fn(async () => ({ activate: {}, deactivate: {} }) as never),
       lifecycleParticipants: [],
       placement: { resolveWorktreePool: mocks.resolveWorktreePool } as never,

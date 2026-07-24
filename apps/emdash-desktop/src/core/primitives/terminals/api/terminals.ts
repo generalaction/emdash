@@ -21,6 +21,6 @@ export type CreateTerminalParams = {
 /** Prefix for the synthetic terminal ids of workspace lifecycle scripts. */
 export const LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX = 'script-lifecycle-';
 
-export function createLifecycleScriptTerminalId(type: 'setup' | 'run' | 'teardown') {
+export function createLifecycleScriptTerminalId(type: 'prepare' | 'setup' | 'run' | 'teardown') {
   return `${LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX}${type}`;
 }

@@ -108,8 +108,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
       .limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
-    const { projectId } = row;
-
     // Idempotency: task is already live — return current state.
     const existingTask = this.dependencies.sessions.getTask(taskId);
     if (existingTask) {
@@ -137,14 +135,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     };
 
     this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
-    const project = this.dependencies.projects.getProject(projectId);
-    if (project) {
-      this.dependencies.workspaceBootstrap.startPostActivationScripts(
-        mapTaskRowToTask(row),
-        project,
-        result.data
-      );
-    }
     return ok(provisionResult);
   }
 

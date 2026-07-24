@@ -1,6 +1,5 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
-import { DefaultConversationSeeder } from '@core/features/conversations/api/browser/default-conversation-seeder';
 import { EditorViewStore } from '@core/features/editor/api/browser/task-editor/stores/editor-view-store';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
@@ -24,6 +23,7 @@ import {
   type TaskChromeState,
   type TaskDiffPreferencesState,
   type TaskDiffSelectionState,
+  type TaskPaneLayoutState,
   type TaskTerminalSelectionState,
   type TerminalDrawerActiveItem,
 } from '@core/features/tasks/contributions/mementos';
@@ -85,8 +85,8 @@ export class TaskComposition {
   private _activated = false;
   private _isCreatingTerminal = false;
   private _paneHydrated = false;
+  private _initializing = false;
 
-  private readonly _seeder: DefaultConversationSeeder;
   private readonly _chromeHandle: MementoHandle<TaskChromeState>;
   private readonly _terminalSelectionHandle: MementoHandle<TaskTerminalSelectionState>;
   private readonly _diffPreferencesHandle: MementoHandle<TaskDiffPreferencesState>;
@@ -97,7 +97,7 @@ export class TaskComposition {
     readonly taskId: string,
     private readonly _taskStore: TaskStore,
     private readonly _terminals: TerminalManagerStore,
-    conversations: ConversationManagerStore,
+    private readonly _conversations: ConversationManagerStore,
     private readonly _gitRepository: GitRepositoryStore
   ) {
     this.focusedRegion = 'main';
@@ -118,6 +118,13 @@ export class TaskComposition {
     const workspaceId = ('workspaceId' in taskData && taskData.workspaceId) || taskId;
     const taskRef = taskViewDef({ projectId, taskId });
     const getWorkspacePath = () => this._workspace?.path;
+    const paneLayoutMemento = sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
+      deps: () =>
+        this._conversations.list.data
+          ? new Set(this._conversations.conversations.keys())
+          : undefined,
+      sanitize: sanitizePaneLayoutConversations,
+    });
     const taskCtx: TaskTabContext = {
       viewId: taskId,
       projectId,
@@ -128,7 +135,7 @@ export class TaskComposition {
       },
       modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
-      paneLayoutMemento: this.space.handle(taskPaneLayoutMemento),
+      paneLayoutMemento,
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       onActiveTabChange: (tabId) => {
@@ -138,7 +145,6 @@ export class TaskComposition {
     this._disposers.push(
       appState.navigation.attachParticipant(taskRef, new TaskNavigationParticipant(this.paneLayout))
     );
-    this._seeder = new DefaultConversationSeeder(conversations, this.paneLayout);
     this.terminalTabs = new TerminalTabViewStore(
       this._terminalSelectionHandle,
       () => this._terminals
@@ -222,10 +228,24 @@ export class TaskComposition {
     return this._workspace;
   }
 
-  hydrate(): void {
+  private async hydrateAndSeedPaneLayout(): Promise<void> {
     if (this._paneHydrated) return;
-    if (this.paneLayout.hydrate()) this._seeder.markConsumed(true);
+    await this._conversations.list.load();
+    this.paneLayout.hydrate();
     this._paneHydrated = true;
+
+    if (this.paneLayout.focusedPane.tabOrder.length !== 0) return;
+    runInAction(() => {
+      for (const [id, store] of this._conversations.conversations) {
+        if (!store.isInitialConversation) continue;
+        if (store.data.type === 'acp') {
+          this.paneLayout.open('acp-chat', { conversationId: id }, { preview: false });
+        } else {
+          this.paneLayout.open('conversation', { conversationId: id }, { preview: false });
+        }
+        return;
+      }
+    });
   }
 
   activate(): void {
@@ -267,18 +287,41 @@ export class TaskComposition {
   }
 
   private initialize(): void {
-    if (this.previewServers || !this._workspace || !this._acquiredWorkspaceId) return;
-    this.hydrate();
-
+    if (
+      this.previewServers ||
+      this._initializing ||
+      !this._workspace ||
+      !this._acquiredWorkspaceId
+    ) {
+      return;
+    }
     const workspace = this._workspace;
     const workspaceId = this._acquiredWorkspaceId;
-    const gitCheckout = workspace.get(gitCheckoutStoreToken);
+    this._initializing = true;
+    void this.initializeReadyWorkspace(workspace, workspaceId);
+  }
+
+  private async initializeReadyWorkspace(
+    workspace: WorkspaceStore,
+    workspaceId: string
+  ): Promise<void> {
     this.previewServers = new PreviewServerStore({
       projectId: this.projectId,
       workspaceId,
       connectionId: workspace.sshConnectionId,
     });
     this.previewServers.start();
+
+    try {
+      await this.hydrateAndSeedPaneLayout();
+    } catch (error) {
+      log.error('Failed to hydrate task pane layout:', error);
+    }
+    if (this._workspace !== workspace || this._acquiredWorkspaceId !== workspaceId) {
+      this._initializing = false;
+      return;
+    }
+    const gitCheckout = workspace.get(gitCheckoutStoreToken);
     this.prStore = new PrStore(
       this.projectId,
       workspaceId,
@@ -313,7 +356,6 @@ export class TaskComposition {
     });
 
     this.paneLayout.startPersistence();
-    this._seeder.seed();
     this._sessionDisposers.push(
       reaction(
         () => ({
@@ -361,6 +403,7 @@ export class TaskComposition {
         { fireImmediately: true }
       )
     );
+    this._initializing = false;
   }
 
   suspend(): void {
@@ -381,7 +424,6 @@ export class TaskComposition {
     this.suspend();
     this.releaseWorkspace();
     for (const dispose of this._disposers) dispose();
-    this._seeder.dispose();
     this.paneLayout.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
@@ -475,4 +517,37 @@ function sanitizeTerminalSelection(
       ? undefined
       : value.activeItem;
   return { ...value, tabOrder, activeTabId, activeItem };
+}
+
+function sanitizePaneLayoutConversations(
+  value: TaskPaneLayoutState,
+  conversationIds: ReadonlySet<string>
+): TaskPaneLayoutState {
+  const groups = value.groups.map((group) => {
+    const tabs = group.tabManager.tabs.filter(
+      (tab) =>
+        (tab.kind !== 'conversation' && tab.kind !== 'acp-chat') ||
+        conversationIds.has(tab.conversationId)
+    );
+    const activeTabId =
+      group.tabManager.activeTabId && tabs.some((tab) => tab.tabId === group.tabManager.activeTabId)
+        ? group.tabManager.activeTabId
+        : tabs[0]?.tabId;
+    return {
+      ...group,
+      tabManager: {
+        ...group.tabManager,
+        tabs,
+        activeTabId,
+      },
+    };
+  });
+  const activeGroupId = groups.some((group) => group.groupId === value.activeGroupId)
+    ? value.activeGroupId
+    : groups[0]?.groupId;
+  return {
+    ...value,
+    groups,
+    activeGroupId: activeGroupId ?? value.activeGroupId,
+  };
 }

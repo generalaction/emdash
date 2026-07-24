@@ -89,6 +89,7 @@ export const workspaceStateSchema = z.object({
   topology: workspaceTopologySchema,
   operation: workspaceOperationStateSchema,
   consumers: z.array(workspaceConsumerSchema),
+  prepared: z.boolean().default(false),
   activity: z.object({
     resources: z.array(workspaceActivityResourceSchema),
   }),
@@ -96,10 +97,12 @@ export const workspaceStateSchema = z.object({
 });
 
 export const legacyWorkspaceAutomationSchema = z.object({
+  prepare: z.string().optional(),
   setup: z.string().optional(),
   run: z.string().optional(),
   teardown: z.string().optional(),
   shellSetup: z.string().optional(),
+  env: z.record(z.string(), z.string()).optional(),
   autoRunSetup: z.boolean().default(true),
   autoRunRun: z.boolean().default(false),
 });

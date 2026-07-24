@@ -24,6 +24,7 @@ const target = {
   conversationId: 'conversation-1',
   projectId: 'project-1',
   taskId: 'task-1',
+  conversationType: 'acp',
   providerId: 'claude',
   sessionId: null,
   modeId: null,

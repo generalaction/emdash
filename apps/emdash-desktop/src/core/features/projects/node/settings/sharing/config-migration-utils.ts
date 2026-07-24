@@ -49,6 +49,7 @@ export function setScript(
   value: string
 ): void {
   settings.scripts ??= {};
+  if (field === 'scripts.prepare') settings.scripts.prepare = value;
   if (field === 'scripts.setup') settings.scripts.setup = value;
   if (field === 'scripts.run') settings.scripts.run = value;
   if (field === 'scripts.teardown') settings.scripts.teardown = value;

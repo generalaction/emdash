@@ -3,8 +3,9 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { Unsubscribe } from '@emdash/shared';
+import { err, ok, type Unsubscribe } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute, type HostFileRef } from '@primitives/path/api';
 import { step } from '@runtimes/workspace/api';
@@ -12,7 +13,12 @@ import type {
   WorkspaceActivityResource,
   WorkspaceOperationProgress,
 } from '@runtimes/workspace/api';
-import { describe, expect, it } from 'vitest';
+import {
+  scriptWorkflowsContract,
+  type RunScriptWorkflowInput,
+  type TerminalError,
+} from '@services/script-workflows/api';
+import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceActivityProvider } from './activity';
 import { WorkspaceRuntime } from './workspace-runtime';
 
@@ -63,15 +69,21 @@ describe('WorkspaceRuntime', () => {
     }
   });
 
-  it('does not run automation scripts during activation', async () => {
+  it('runs prepare before activation completes and starts setup/run after prepared', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    const calls: RunScriptWorkflowInput[] = [];
+    const wire = scriptWorkflowWire(calls);
     try {
       const workspace = hostFileRefFromNative(root);
-      const runtime = new WorkspaceRuntime();
+      const runtime = new WorkspaceRuntime({ terminals: wire.client });
       const automation = {
+        prepare: 'python -m venv .venv',
         setup: 'echo setup',
+        run: 'pnpm dev',
+        shellSetup: 'source .venv/bin/activate',
+        env: { EMDASH_TASK_ID: 'task-1' },
         autoRunSetup: true,
-        autoRunRun: false,
+        autoRunRun: true,
       };
 
       const activation = await runtime.activate(
@@ -79,9 +91,107 @@ describe('WorkspaceRuntime', () => {
         jobContext('activate-1')
       );
       expect(activation.success).toBe(true);
+      expect(calls[0]).toMatchObject({
+        kind: 'prepare',
+        nodes: [
+          {
+            id: 'prepare',
+            command: 'python -m venv .venv',
+            shellSetup: 'source .venv/bin/activate',
+            env: expect.objectContaining({ EMDASH_TASK_ID: 'task-1' }),
+          },
+        ],
+      });
+      await vi.waitFor(() => expect(calls).toHaveLength(2));
+      expect(calls[1]).toMatchObject({
+        kind: 'post-activation',
+        nodes: [
+          { id: 'setup', command: 'echo setup' },
+          { id: 'run', command: 'pnpm dev', dependsOn: ['setup'], lifecycle: 'background' },
+        ],
+      });
+      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
+      expect(state?.prepared).toBe(true);
 
       runtime.dispose();
     } finally {
+      await wire.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails activation when prepare fails', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    const calls: RunScriptWorkflowInput[] = [];
+    const wire = scriptWorkflowWire(calls, { failPrepare: true });
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const runtime = new WorkspaceRuntime({ terminals: wire.client });
+
+      const activation = await runtime.activate(
+        {
+          workspace,
+          consumerId: 'task-1',
+          automation: { prepare: 'exit 1', autoRunSetup: true, autoRunRun: false },
+        },
+        jobContext('activate-prepare-failed')
+      );
+
+      expect(activation.success).toBe(false);
+      expect(calls).toHaveLength(1);
+      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
+      expect(state?.prepared).toBe(false);
+      expect(state?.consumers).toEqual([]);
+
+      runtime.dispose();
+    } finally {
+      await wire.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('skips prepare and setup/run for additional consumers of a prepared workspace', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    const calls: RunScriptWorkflowInput[] = [];
+    const wire = scriptWorkflowWire(calls);
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const runtime = new WorkspaceRuntime({ terminals: wire.client });
+      const automation = {
+        prepare: 'echo prepare',
+        setup: 'echo setup',
+        autoRunSetup: true,
+        autoRunRun: false,
+      };
+
+      const first = await runtime.activate(
+        { workspace, consumerId: 'task-1', automation },
+        jobContext('activate-1')
+      );
+      expect(first.success).toBe(true);
+      await vi.waitFor(() => expect(calls).toHaveLength(2));
+
+      const second = await runtime.activate(
+        { workspace, consumerId: 'task-2', automation },
+        jobContext('activate-2')
+      );
+      expect(second.success).toBe(true);
+      expect(calls).toHaveLength(2);
+
+      await runtime.deactivate(
+        { workspace, consumerId: 'task-1', strategy: 'detach', automation },
+        jobContext('deactivate-1')
+      );
+      expect(runtime.host.get(workspace)?.states.state.snapshot().data.prepared).toBe(true);
+      await runtime.deactivate(
+        { workspace, consumerId: 'task-2', strategy: 'detach', automation },
+        jobContext('deactivate-2')
+      );
+      expect(runtime.host.get(workspace)?.states.state.snapshot().data.prepared).toBe(false);
+
+      runtime.dispose();
+    } finally {
+      await wire.dispose();
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -244,6 +354,33 @@ function hostFileRefFromNative(nativePath: string): HostFileRef {
   });
   if (!parsed.success) throw new Error(parsed.error.message);
   return hostFileRef(LOCAL_HOST_REF, parsed.data);
+}
+
+function scriptWorkflowWire(
+  calls: RunScriptWorkflowInput[],
+  options: { failPrepare?: boolean } = {}
+) {
+  return createTestWire(scriptWorkflowsContract, {
+    runWorkflow: {
+      run: async (input) => {
+        calls.push(input);
+        if (options.failPrepare && input.kind === 'prepare') {
+          return err<TerminalError>({
+            type: 'script-failed',
+            message: 'Prepare failed',
+            nodeId: 'prepare',
+          });
+        }
+        return ok({
+          workflowId: `${input.kind}-${calls.length}`,
+          kind: input.kind,
+          completedNodes: input.nodes.map((node) => node.id),
+        });
+      },
+    },
+    killScope: async () => ok(undefined),
+    detachScope: async () => ok(undefined),
+  });
 }
 
 async function initIgnoredArtifactRepo(root: string): Promise<void> {
