@@ -7,7 +7,7 @@ export async function computeRemotesState(exec: BoundExec): Promise<GitRemotesSt
   const remotes: GitRemote[] = [];
 
   for (const line of stdout.trim().split('\n').filter(Boolean)) {
-    const match = /^(\S+)\s+(\S+)\s+\((fetch|push)\)$/.exec(line);
+    const match = /^(\S+)\s+(\S+)\s+\((fetch|push)\)(?:\s+\[[^\]]+\])?$/.exec(line);
     if (!match || match[3] !== 'fetch') continue;
     const name = match[1]!;
     if (seen.has(name)) continue;
