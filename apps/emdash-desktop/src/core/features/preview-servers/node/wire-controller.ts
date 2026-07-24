@@ -6,6 +6,10 @@ import { previewServerEvents } from './event-host';
 export function createPreviewServersWireController(): Controller {
   return createController(previewServersContract, {
     listForWorkspace: async (input) => previewServerService.listForWorkspace(input),
+    forwardManual: async (input) => previewServerService.forwardManual(input),
+    restart: async ({ id }) => {
+      await previewServerService.restart(id);
+    },
     stop: async ({ id }) => {
       await previewServerService.stop(id);
     },

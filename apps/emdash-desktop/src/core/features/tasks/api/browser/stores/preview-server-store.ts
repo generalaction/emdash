@@ -1,7 +1,6 @@
 import { err } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
-import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 import type {
   ManualPreviewServerResult,
   PreviewServer,
@@ -64,19 +63,31 @@ export class PreviewServerStore implements Disposable {
       .filter((url): url is string => url !== null);
   }
 
-  async forwardManual(_input: ManualForwardInput): Promise<ManualPreviewServerResult> {
+  async forwardManual(input: ManualForwardInput): Promise<ManualPreviewServerResult> {
     if (!this.connectionId) {
       return err({
         type: 'not-ssh-workspace',
         message: 'Manual port forwarding requires a remote workspace',
       });
     }
-    return err(remoteRuntimeUnavailable(this.connectionId, 'port-forwarding'));
+    const client = await getDesktopWireClient();
+    const result = await client.previewServers.forwardManual({
+      projectId: this.projectId,
+      workspaceId: this.workspaceId,
+      connectionId: this.connectionId,
+      ...input,
+    });
+    if (result.success) {
+      const next = new Map(this.serversResource.data ?? []);
+      next.set(result.data.id, result.data);
+      this.serversResource.setValue(next);
+    }
+    return result;
   }
 
-  async restart(_id: string): Promise<void> {
-    // Forwarded preview records are retained for renderer reuse, but the data
-    // plane will be reimplemented when the workspace-server client is available.
+  async restart(id: string): Promise<void> {
+    const client = await getDesktopWireClient();
+    await client.previewServers.restart({ id });
   }
 
   async stop(id: string): Promise<void> {

@@ -177,6 +177,25 @@ export async function bootServices(
   const getTerminalsRuntimeClient = async () => clients.terminals;
   const getTuiAgentsRuntimeClient = async () => clients.tuiAgents;
   const getWorkspaceRuntimeClient = async () => clients.workspace;
+  previewServerService.attachSshRuntime({
+    getConnectionState: (connectionId) =>
+      infrastructure.ssh.manager.getConnectionState(connectionId),
+    getSshProxy: async (connectionId) => {
+      await infrastructure.ssh.ssh.ensureConnected(connectionId);
+      const proxy = infrastructure.ssh.manager.getProxy(connectionId);
+      if (!proxy) throw new Error(`SSH connection ${connectionId} is not available`);
+      return proxy;
+    },
+  });
+  const handleSshConnectionEvent = (
+    event: Parameters<typeof previewServerService.handleSshConnectionEvent>[0]
+  ) => {
+    previewServerService.handleSshConnectionEvent(event);
+  };
+  infrastructure.ssh.manager.on('connection-event', handleSshConnectionEvent);
+  appScope.add(() => {
+    infrastructure.ssh.manager.off('connection-event', handleSshConnectionEvent);
+  });
   const fileSearchRuntime = createFileSearchRuntime(runtimes);
   const providerOverrideSettings = createProviderOverrideSettings(db);
   const workspacePlacement = new WorkspacePlacementResolver({

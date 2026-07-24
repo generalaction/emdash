@@ -1,14 +1,68 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PreviewServerEvent } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
+import type { ConnectionState } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
+import { PortForwardService } from './port-forward-service';
+import type { PortForwardTunnel } from './port-forward-tunnel';
 import { PreviewServerService } from './preview-server-service';
 
-function createService() {
+function createService(
+  options: {
+    connectionState?: ConnectionState;
+    openTunnel?: (request: {
+      proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+      remotePort: number;
+      preferredLocalPort?: number;
+      onConnectionError?: (error: Error) => void;
+    }) => Promise<PortForwardTunnel>;
+    getSshProxy?: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
+  } = {}
+) {
   const events: PreviewServerEvent[] = [];
+  const closedTunnelIds: string[] = [];
+  let openedTunnels = 0;
+  let connectionState = options.connectionState ?? 'connected';
+  const portForwards = new PortForwardService({
+    openTunnel:
+      options.openTunnel ??
+      (async () => {
+        openedTunnels++;
+        return {
+          localPort: 6000 + openedTunnels,
+          close: async () => {},
+        };
+      }),
+    onTunnelClosed: (id) => closedTunnelIds.push(id),
+  });
   const service = new PreviewServerService({
+    portForwards,
     emit: (event) => events.push(event),
   });
-  return { service, events };
+  service.attachSshRuntime({
+    getConnectionState: () => connectionState,
+    getSshProxy: options.getSshProxy ?? (async () => fakeProxy()),
+  });
+  return {
+    service,
+    events,
+    closedTunnelIds,
+    get openedTunnels() {
+      return openedTunnels;
+    },
+    setConnectionState(next: ConnectionState) {
+      connectionState = next;
+    },
+  };
+}
+
+function fakeProxy() {
+  return {
+    isConnected: true,
+    get client() {
+      return {} as SshClientProxy['client'];
+    },
+  } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>;
 }
 
 function registerLocal(service: PreviewServerService, overrides: { port?: number } = {}) {
@@ -113,5 +167,163 @@ describe('PreviewServerService', () => {
       service.listForWorkspace({ projectId: 'project-2', workspaceId: 'workspace-2' })
     ).toEqual([]);
     expect(first.id).not.toBe(second.id);
+  });
+
+  it('creates manual forwarded previews with generated identity and root path', async () => {
+    const context = createService();
+
+    const firstResult = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'https:',
+      remotePort: 8443,
+      preferredLocalPort: 9443,
+    });
+    const secondResult = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'https:',
+      remotePort: 8443,
+      preferredLocalPort: 9444,
+    });
+
+    expect(firstResult.success).toBe(true);
+    expect(secondResult.success).toBe(true);
+    if (!firstResult.success || !secondResult.success) throw new Error('manual forward failed');
+
+    expect(firstResult.data.id).not.toBe(secondResult.data.id);
+    expect(firstResult.data.source).toEqual({ kind: 'manual' });
+    expect(firstResult.data.urlPath).toBe('/');
+    expect(firstResult.data.kind).toBe('forwarded');
+    expect(previewServerUrl(firstResult.data)).toBe('https://127.0.0.1:6001/');
+    expect(context.openedTunnels).toBe(2);
+  });
+
+  it('returns an error result and removes the row when manual tunnel opening fails', async () => {
+    const context = createService({
+      openTunnel: async () => {
+        throw new Error('bind failed');
+      },
+    });
+
+    const result = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 8080,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'open-failed',
+        message: 'Failed to open SSH port forward',
+      },
+    });
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([]);
+    expect(context.events.map((event) => event.type)).toEqual(['upsert', 'remove']);
+  });
+
+  it('restarts a forwarded preview using the current local port as the preferred port', async () => {
+    const preferredLocalPorts: Array<number | undefined> = [];
+    const context = createService({
+      openTunnel: async (request) => {
+        preferredLocalPorts.push(request.preferredLocalPort);
+        return {
+          localPort: preferredLocalPorts.length === 1 ? 6100 : 6200,
+          close: async () => {},
+        };
+      },
+    });
+    const result = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 5173,
+    });
+    if (!result.success) throw new Error('manual forward failed');
+
+    const restarted = await context.service.restart(result.data.id);
+
+    expect(preferredLocalPorts).toEqual([5173, 6100]);
+    expect(restarted?.status).toEqual({ kind: 'ready' });
+    expect(previewServerUrl(restarted!)).toBe('http://127.0.0.1:6200/');
+  });
+
+  it('translates SSH connection events into forwarded preview status updates', async () => {
+    const context = createService();
+    const result = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 5173,
+    });
+    if (!result.success) throw new Error('manual forward failed');
+
+    context.service.handleSshConnectionEvent({
+      type: 'reconnecting',
+      connectionId: 'connection-1',
+    });
+    context.service.handleSshConnectionEvent({ type: 'reconnected', connectionId: 'connection-1' });
+    context.service.handleSshConnectionEvent({
+      type: 'reconnect-failed',
+      connectionId: 'connection-1',
+    });
+
+    const statusEvents = context.events
+      .filter((event) => event.type === 'upsert' && event.server.id === result.data.id)
+      .map((event) => (event.type === 'upsert' ? event.server.status : null));
+
+    expect(statusEvents).toEqual([
+      { kind: 'starting' },
+      { kind: 'ready' },
+      { kind: 'reconnecting' },
+      { kind: 'ready' },
+      { kind: 'failed', message: 'SSH connection failed to reconnect' },
+    ]);
+  });
+
+  it('marks a forwarded preview failed when later browser traffic cannot reach the remote port', async () => {
+    let onConnectionError: ((error: Error) => void) | undefined;
+    const context = createService({
+      openTunnel: async (request) => {
+        onConnectionError = request.onConnectionError;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+    const result = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 5173,
+    });
+    if (!result.success) throw new Error('manual forward failed');
+
+    onConnectionError?.(new Error('(SSH) Channel open failure: Connection refused'));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const [failed] = context.service.listForWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(failed).toMatchObject({
+      id: result.data.id,
+      kind: 'forwarded',
+      status: {
+        kind: 'failed',
+        message: 'Remote preview port is no longer accepting connections',
+      },
+    });
+    expect(previewServerUrl(failed!)).toBeNull();
+    expect(context.closedTunnelIds).toEqual([`preview:${result.data.id}`]);
+    expect(context.events.at(-1)).toEqual({ type: 'upsert', server: failed });
   });
 });

@@ -5,16 +5,10 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
 
-export type DesktopRuntimeCapability =
-  | 'host-dependencies'
-  | 'port-forwarding'
-  | 'projects'
-  | 'workspaces';
+export type DesktopRuntimeCapability = 'host-dependencies' | 'projects' | 'workspaces';
 
 const CAPABILITY_UNAVAILABLE_MESSAGES: Record<DesktopRuntimeCapability, string> = {
   'host-dependencies': 'Remote host dependencies require the workspace server.',
-  'port-forwarding':
-    'Port forwarding requires the workspace server and is not available in this build.',
   projects: 'Remote projects require the workspace server and are not supported by this build',
   workspaces: 'Remote workspaces require the workspace server and are not supported by this build',
 };

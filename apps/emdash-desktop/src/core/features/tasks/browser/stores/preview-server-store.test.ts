@@ -10,6 +10,8 @@ function emitPreviewServerEvent(event: PreviewServerEvent): void {
 
 const wireMocks = vi.hoisted(() => ({
   listForWorkspace: vi.fn(),
+  forwardManual: vi.fn(),
+  restart: vi.fn(),
   stop: vi.fn(),
   subscribe: vi.fn(async (_key, observer: { onEvent: (event: PreviewServerEvent) => void }) => {
     handlers.push(observer.onEvent);
@@ -65,6 +67,8 @@ describe('PreviewServerStore', () => {
   beforeEach(() => {
     handlers.length = 0;
     wireMocks.listForWorkspace.mockReset();
+    wireMocks.forwardManual.mockReset();
+    wireMocks.restart.mockReset();
     wireMocks.stop.mockReset();
     wireMocks.subscribe.mockClear();
   });
@@ -143,7 +147,7 @@ describe('PreviewServerStore', () => {
     store.dispose();
   });
 
-  it('stubs manual forwarding until the workspace-server client is available', async () => {
+  it('guards manual forwarding to remote workspaces', async () => {
     const localStore = new PreviewServerStore({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
@@ -157,22 +161,50 @@ describe('PreviewServerStore', () => {
         message: 'Manual port forwarding requires a remote workspace',
       },
     });
+    expect(wireMocks.forwardManual).not.toHaveBeenCalled();
+  });
 
+  it('forwards a manual remote port through the wire client', async () => {
+    const server = forwardedServer({
+      id: 'manual-1',
+      source: { kind: 'manual' },
+      remotePort: 8080,
+      localPort: 9000,
+    });
     const remoteStore = new PreviewServerStore({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       connectionId: 'ssh-1',
     });
+    wireMocks.forwardManual.mockResolvedValueOnce({ success: true, data: server });
+
     await expect(
-      remoteStore.forwardManual({ protocol: 'http:', remotePort: 8080 })
-    ).resolves.toEqual({
-      success: false,
-      error: {
-        type: 'host-unavailable',
-        host: { type: 'remote', id: 'ssh-1' },
-        message:
-          'Port forwarding requires the workspace server and is not available in this build.',
-      },
+      remoteStore.forwardManual({
+        protocol: 'http:',
+        remotePort: 8080,
+        preferredLocalPort: 9000,
+      })
+    ).resolves.toEqual({ success: true, data: server });
+
+    expect(wireMocks.forwardManual).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'ssh-1',
+      protocol: 'http:',
+      remotePort: 8080,
+      preferredLocalPort: 9000,
     });
+    expect(remoteStore.servers).toEqual([server]);
+  });
+
+  it('restarts a forwarded preview server through the wire client', async () => {
+    const store = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+
+    await store.restart('forwarded-1');
+
+    expect(wireMocks.restart).toHaveBeenCalledWith({ id: 'forwarded-1' });
   });
 });

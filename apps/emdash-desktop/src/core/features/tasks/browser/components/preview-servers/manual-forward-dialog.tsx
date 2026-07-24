@@ -56,6 +56,8 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
           case 'not-ssh-workspace':
           case 'host-unavailable':
           case 'not-configured':
+          case 'open-failed':
+          case 'cancelled':
             setError(result.error.message);
             break;
         }
@@ -79,8 +81,7 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
         <DialogContentArea>
           <DialogDescription>
-            Create a preview tunnel from a remote dev server port. This will use the workspace
-            server when remote previews are re-enabled.
+            Create a preview tunnel from a remote dev server port.
           </DialogDescription>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr]">
             <Label htmlFor="preview-protocol" className="self-center">
