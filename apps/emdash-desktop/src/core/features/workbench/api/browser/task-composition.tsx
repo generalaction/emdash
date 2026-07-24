@@ -95,6 +95,7 @@ export class TaskComposition {
   constructor(
     readonly projectId: string,
     readonly taskId: string,
+    readonly workspaceId: string,
     private readonly _taskStore: TaskStore,
     private readonly _terminals: TerminalManagerStore,
     private readonly _conversations: ConversationManagerStore,
@@ -114,8 +115,6 @@ export class TaskComposition {
     this._diffPreferencesHandle = this.space.handle(taskDiffPreferencesMemento);
     this._diffSelectionHandle = this.space.handle(taskDiffSelectionMemento);
 
-    const taskData = _taskStore.data;
-    const workspaceId = ('workspaceId' in taskData && taskData.workspaceId) || taskId;
     const taskRef = taskViewDef({ projectId, taskId });
     const getWorkspacePath = () => this._workspace?.path;
     const paneLayoutMemento = sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
@@ -259,7 +258,7 @@ export class TaskComposition {
       workspacePath: path,
       workspaceSshConnectionId: sshConnectionId,
     } = this._taskStore;
-    if (this._taskStore.state !== 'provisioned' || !workspaceId || !path) {
+    if (this._taskStore.state !== 'provisioned' || workspaceId !== this.workspaceId || !path) {
       this.suspend();
       this.releaseWorkspace();
       return;

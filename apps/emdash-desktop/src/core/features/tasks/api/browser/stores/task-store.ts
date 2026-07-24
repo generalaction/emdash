@@ -92,7 +92,7 @@ export class TaskStore implements TaskState {
     workspaceId: string,
     sshConnectionId?: string
   ): void {
-    this.data = data;
+    this.data = { ...data, workspaceId };
     this.workspaceId = workspaceId;
     this.workspacePath = path;
     this.workspaceSshConnectionId = sshConnectionId;

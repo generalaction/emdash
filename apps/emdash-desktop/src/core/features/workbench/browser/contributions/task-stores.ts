@@ -3,7 +3,8 @@ import { gitRepositoryStoreToken } from '@core/features/source-control/contribut
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
 import { terminalManagerStoreToken } from '@core/features/terminals/contributions/browser/task-stores';
 import { TaskComposition } from '@core/features/workbench/api/browser/task-composition';
-import { taskCompositionStoreToken } from '@core/features/workbench/contributions/browser/task-store-tokens';
+import { TaskCompositionHandle } from '@core/features/workbench/api/browser/task-composition-handle';
+import { taskCompositionHandleStoreToken } from '@core/features/workbench/contributions/browser/task-store-tokens';
 import {
   contributeScopedStore,
   type ScopedStoreContribution,
@@ -12,18 +13,27 @@ import {
 export const workbenchTaskStoreContributions: readonly ScopedStoreContribution<TaskScopedStoreContext>[] =
   [
     contributeScopedStore({
-      token: taskCompositionStoreToken,
-      create: ({ projectId, taskId, task, projectStores }, stores) =>
-        new TaskComposition(
-          projectId,
-          taskId,
+      token: taskCompositionHandleStoreToken,
+      create: ({ projectId, taskId, task, projectStores }, stores) => {
+        const terminals = stores.get(terminalManagerStoreToken);
+        const conversations = stores.get(conversationManagerStoreToken);
+        const gitRepository = projectStores.get(gitRepositoryStoreToken);
+        return new TaskCompositionHandle(
           task,
-          stores.get(terminalManagerStoreToken),
-          stores.get(conversationManagerStoreToken),
-          projectStores.get(gitRepositoryStoreToken)
-        ),
-      ready: (composition) => composition.space.ready,
-      activate: (composition) => composition.activate(),
-      dispose: (composition) => composition.dispose(),
+          (workspaceId) =>
+            new TaskComposition(
+              projectId,
+              taskId,
+              workspaceId,
+              task,
+              terminals,
+              conversations,
+              gitRepository
+            )
+        );
+      },
+      ready: (handle) => handle.ready(),
+      activate: (handle) => handle.activate(),
+      dispose: (handle) => handle.dispose(),
     }),
   ];
