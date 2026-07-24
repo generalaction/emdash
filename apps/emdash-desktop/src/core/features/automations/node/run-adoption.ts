@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
+import { hostRefEquals } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -10,10 +11,11 @@ import { conversationEvents } from '@core/features/conversations/api/node/conver
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { AutomationAdoptionError } from '@core/primitives/automations/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
-import type { Project } from '@core/primitives/projects/api';
+import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
@@ -127,15 +129,21 @@ async function adoptRunOnce(
       message: 'The selected project no longer exists.',
     });
   }
-  if (project.type !== 'local') {
+  const workspaceHost = runtimeRun.data.workspace.host;
+  if (!hostRefEquals(workspaceHost, projectHostRef(project))) {
     return err({
       type: 'adoption-unavailable',
-      message: 'Remote automation runs cannot be opened as desktop tasks yet.',
+      message: 'The automation workspace belongs to a different runtime host.',
     });
   }
 
   const workspacePath = nativePathFromHost(runtimeRun.data.workspace.path);
-  const workspaceKey = computeWorkspaceKey('local', workspacePath);
+  const workspaceStorage = workspaceHostStorage(workspaceHost);
+  const workspaceKey = computeWorkspaceKey(
+    workspaceStorage.type,
+    workspacePath,
+    workspaceStorage.sshConnectionId ?? undefined
+  );
   return workspaceMutex.runExclusive(workspaceKey, async () => {
     const concurrentAdoption = await findAdoptedTask(dependencies.db, runId);
     if (concurrentAdoption) return ok(concurrentAdoption);
@@ -175,6 +183,9 @@ async function adoptRunOnce(
       if (workspaceRow) {
         tx.update(workspaces)
           .set({
+            type: workspaceStorage.type,
+            location: workspaceStorage.location,
+            sshConnectionId: workspaceStorage.sshConnectionId,
             path: workspacePath,
             config: storedWorkspaceConfig,
             branchName: runtimeRun.data.branchName,
@@ -188,12 +199,13 @@ async function adoptRunOnce(
           .values({
             id: workspaceId,
             key: workspaceKey,
-            type: 'local',
+            type: workspaceStorage.type,
             kind:
               runtimeRun.data.configSnapshot.workspace.kind === 'worktree'
                 ? 'worktree'
                 : 'project-root',
-            location: 'local',
+            location: workspaceStorage.location,
+            sshConnectionId: workspaceStorage.sshConnectionId,
             path: workspacePath,
             config: storedWorkspaceConfig,
             branchName: runtimeRun.data.branchName,

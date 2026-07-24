@@ -12,8 +12,6 @@ export type AutomationRuntimeDependencies = {
   getProjectById(projectId: string): Promise<Project | undefined>;
 };
 
-const ADOPTION_UNAVAILABLE_REASON = 'Run adoption is not yet supported for remote projects.';
-
 export async function resolveAutomationRuntimeClient(
   dependencies: AutomationRuntimeDependencies,
   projectId?: string | null
@@ -41,8 +39,15 @@ export async function getAutomationRuntimeAvailability(
   if (!project) {
     return { available: false, reason: 'The automation project no longer exists.' };
   }
-  if (project.type === 'ssh') {
-    return { available: false, reason: ADOPTION_UNAVAILABLE_REASON };
+  try {
+    const result = await dependencies.runtimes.client(projectHostRef(project));
+    return result.success
+      ? { available: true }
+      : { available: false, reason: runtimeResolveErrorAsError(result.error).message };
+  } catch (error) {
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
   }
-  return { available: true };
 }

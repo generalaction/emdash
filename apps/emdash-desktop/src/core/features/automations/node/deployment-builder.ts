@@ -1,9 +1,11 @@
+import { hostRefEquals } from '@emdash/core/primitives/host/api';
+import { hostFileRef } from '@emdash/core/primitives/path/api';
 import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { Automation, AutomationDefinitionError } from '@core/primitives/automations/api';
 import { getLocalTimeZone } from '@core/primitives/automations/api';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
   baseProjectSettingsSchema,
@@ -11,9 +13,9 @@ import {
   legacyBaseProjectSettingsSchema,
   shareableProjectSettingsSchema,
 } from '@core/primitives/project-settings/api';
-import type { Project } from '@core/primitives/projects/api';
+import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projectSettings, workspaces } from '@core/services/app-db/node/schema';
+import { projectSettings } from '@core/services/app-db/node/schema';
 
 type DeploymentProjectSettings = {
   baseRemote: string;
@@ -25,6 +27,7 @@ export async function buildAutomationDeployment(
   dependencies: {
     db: AppDb;
     getProjectById(projectId: string): Promise<Project | undefined>;
+    resolveWorkspace(workspaceId: string): Promise<WorkspaceIdentity | null>;
     resolveWorktreePool(project: Project): Promise<Result<string, { message: string }>>;
   },
   automation: Automation
@@ -63,12 +66,7 @@ async function buildAutomationDeploymentOnce(
       message: 'The selected project no longer exists.',
     });
   }
-  if (project.type === 'ssh') {
-    return err({
-      type: 'runtime-unavailable',
-      message: 'The remote automation runtime cannot be reached.',
-    });
-  }
+  const projectHost = projectHostRef(project);
 
   const conversation = automation.conversationConfig;
   const prompt = conversation.prompt.trim();
@@ -82,15 +80,15 @@ async function buildAutomationDeploymentOnce(
 
   const taskWorkspace = automation.taskConfig.workspaceConfig;
   const settings = await loadDeploymentProjectSettings(dependencies.db, project.id);
-  const pool = await dependencies.resolveWorktreePool(project);
-  if (!pool.success) return err(runtimeUnavailable(pool.error));
 
   let workspace: AutomationDeployment['workspace'];
   if (taskWorkspace.workspace.kind === 'new-worktree') {
+    const pool = await dependencies.resolveWorktreePool(project);
+    if (!pool.success) return err(runtimeUnavailable(pool.error));
     if (taskWorkspace.git.kind === 'create-branch') {
       workspace = {
         kind: 'worktree',
-        repository: hostFileRefFromNativePath(project.path),
+        repository: hostFileRef(projectHost, hostPathFromNative(project.path)),
         worktreePoolPath: hostPathFromNative(pool.data),
         baseRemote: settings.baseRemote,
         preservePatterns: settings.preservePatterns,
@@ -103,7 +101,7 @@ async function buildAutomationDeploymentOnce(
     } else if (taskWorkspace.git.kind === 'use-branch') {
       workspace = {
         kind: 'worktree',
-        repository: hostFileRefFromNativePath(project.path),
+        repository: hostFileRef(projectHost, hostPathFromNative(project.path)),
         worktreePoolPath: hostPathFromNative(pool.data),
         baseRemote: settings.baseRemote,
         preservePatterns: settings.preservePatterns,
@@ -117,27 +115,28 @@ async function buildAutomationDeploymentOnce(
     }
   } else if (taskWorkspace.workspace.kind === 'repository-instance') {
     const workspaceId = taskWorkspace.workspace.workspaceId;
-    const [workspaceRow] = await dependencies.db
-      .select({ location: workspaces.location, path: workspaces.path, type: workspaces.type })
-      .from(workspaces)
-      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
-      .limit(1);
-    const path =
-      workspaceRow?.path ?? (workspaceId === project.repositoryWorkspaceId ? project.path : null);
-    if (!path) {
+    const resolved =
+      (await dependencies.resolveWorkspace(workspaceId)) ??
+      (workspaceId === project.repositoryWorkspaceId
+        ? { workspaceId, host: projectHost, path: project.path, projectId: project.id }
+        : null);
+    if (!resolved) {
       return err({
         type: 'workspace-not-found',
         workspaceId,
         message: 'The selected workspace no longer exists.',
       });
     }
-    if (workspaceRow?.location === 'remote' || workspaceRow?.type === 'project-ssh') {
+    if (resolved.projectId !== project.id || !hostRefEquals(resolved.host, projectHost)) {
       return err({
-        type: 'runtime-unavailable',
-        message: 'The remote automation runtime cannot be reached.',
+        type: 'workspace-not-supported',
+        message: 'The selected workspace belongs to a different runtime host.',
       });
     }
-    workspace = { kind: 'directory', path: hostFileRefFromNativePath(path) };
+    workspace = {
+      kind: 'directory',
+      path: hostFileRef(resolved.host, hostPathFromNative(resolved.path)),
+    };
   } else {
     return err({
       type: 'workspace-not-supported',

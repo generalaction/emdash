@@ -291,6 +291,7 @@ export async function bootServices(
         {
           db,
           getProjectById: (projectId) => getProjectById(db, projectId),
+          resolveWorkspace: (workspaceId) => workspaceIdentity.resolve(workspaceId),
           resolveWorktreePool: (project) => workspacePlacement.resolveWorktreePool(project),
         },
         automation

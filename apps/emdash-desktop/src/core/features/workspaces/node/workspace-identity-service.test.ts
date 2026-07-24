@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   isRemoteWorkspaceRow,
   WorkspaceIdentityService,
+  workspaceHostStorage,
   type WorkspaceIdentityRow,
   type WorkspaceIdentitySource,
 } from '@core/features/workspaces/api/node/workspace-identity-service';
@@ -150,5 +151,18 @@ describe('WorkspaceIdentityService', () => {
     expect(isRemoteWorkspaceRow({ type: 'byoi', location: 'remote' })).toBe(true);
     expect(isRemoteWorkspaceRow({ type: 'project-ssh', location: 'local' })).toBe(true);
     expect(isRemoteWorkspaceRow({ type: 'local', location: 'local' })).toBe(false);
+  });
+
+  it('maps canonical host refs back to legacy workspace storage fields', () => {
+    expect(workspaceHostStorage(LOCAL_HOST_REF)).toEqual({
+      type: 'local',
+      location: 'local',
+      sshConnectionId: null,
+    });
+    expect(workspaceHostStorage(hostRef('remote', 'ssh-1'))).toEqual({
+      type: 'project-ssh',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+    });
   });
 });

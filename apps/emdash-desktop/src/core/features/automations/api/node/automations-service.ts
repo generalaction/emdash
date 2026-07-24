@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
-import { hostRefKey, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
@@ -230,24 +230,25 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
         },
       }
     );
-    await this.migrateDefinitions();
+    await this.migrateDefinitions(LOCAL_HOST_REF, client);
   }
 
-  private async migrateDefinitions(): Promise<void> {
+  private async migrateDefinitions(host: HostRef, client: HostRuntimesClient): Promise<void> {
     await this.removeOrphanedLocalDeployments();
     const definitions = await listAutomationDefinitions(this.dependencies.db);
     for (const automation of definitions) {
-      const availability = await getAutomationRuntimeAvailability(
-        this.dependencies.runtime,
-        automation.projectId
-      );
-      if (!availability.available) continue;
+      const target = await this.runtimeTargetKey(automation.projectId);
+      if (!target.success) {
+        this.logMigrationFailure(automation.id, target.error);
+        continue;
+      }
+      if (target.data !== hostRefKey(host)) continue;
       const normalized = normalizeDefinition(automation);
       const migrated =
         normalized === automation
           ? automation
           : { ...normalized, revision: automation.revision + 1, updatedAt: Date.now() };
-      const deployed = await this.deployToRuntime(migrated);
+      const deployed = await this.deployToTarget(migrated, client.automations);
       if (!deployed.success) {
         this.logMigrationFailure(automation.id, deployed.error);
         continue;
@@ -390,24 +391,12 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     });
   }
 
-  private async deployToRuntime(automation: Automation): Promise<DefinitionResult<void>> {
-    const valid = validateDefinition(automation);
-    if (!valid.success) return valid;
-    try {
-      const client = await resolveAutomationRuntimeClient(
-        this.dependencies.runtime,
-        automation.projectId
-      );
-      return await this.deployToTarget(automation, client.automations);
-    } catch (error) {
-      return err(runtimeUnavailable(error));
-    }
-  }
-
   private async deployToTarget(
     automation: Automation,
     client: AutomationRuntimeClient
   ): Promise<DefinitionResult<void>> {
+    const valid = validateDefinition(automation);
+    if (!valid.success) return valid;
     let deployment: Awaited<ReturnType<typeof buildAutomationDeployment>>;
     try {
       deployment = await this.dependencies.buildDeployment(automation);

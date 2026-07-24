@@ -1,12 +1,14 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { DEFAULT_PRESERVE_PATTERNS } from '@core/primitives/project-settings/api';
 import { buildAutomationDeployment } from './deployment-builder';
 
 const mocks = vi.hoisted(() => ({
   getProjectById: vi.fn(),
+  resolveWorkspace: vi.fn(),
   select: vi.fn(),
   rows: [] as unknown[][],
   resolveWorktreePool: vi.fn(),
@@ -15,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 const dependencies = {
   db: { select: mocks.select } as never,
   getProjectById: mocks.getProjectById,
+  resolveWorkspace: mocks.resolveWorkspace,
   resolveWorktreePool: mocks.resolveWorktreePool,
 };
 
@@ -74,6 +77,7 @@ beforeEach(() => {
     success: true,
     data: '/worktrees/repo-12345678',
   });
+  mocks.resolveWorkspace.mockResolvedValue(null);
 });
 
 describe('buildAutomationDeployment', () => {
@@ -118,7 +122,8 @@ describe('buildAutomationDeployment', () => {
     });
   });
 
-  it('rejects remote definitions before touching the local runtime state', async () => {
+  it('builds remote deployments with the project runtime host', async () => {
+    const remote = hostRef('remote', 'ssh-1');
     mocks.getProjectById.mockResolvedValue({
       id: 'project-1',
       type: 'ssh',
@@ -127,12 +132,69 @@ describe('buildAutomationDeployment', () => {
     });
 
     await expect(buildAutomationDeployment(dependencies, automationFixture())).resolves.toEqual({
-      success: false,
-      error: {
-        type: 'runtime-unavailable',
-        message: 'The remote automation runtime cannot be reached.',
+      success: true,
+      data: {
+        automationId: 'automation-1',
+        enabled: true,
+        name: 'Review changes',
+        revision: 1,
+        schedule: { expr: '0 9 * * 1', tz: 'America/Los_Angeles' },
+        agent: {
+          type: 'acp',
+          title: 'Review changes',
+          start: {
+            providerId: 'claude',
+            model: 'sonnet',
+            initialQueue: [{ text: 'Review the latest changes' }],
+          },
+        },
+        workspace: {
+          kind: 'worktree',
+          repository: hostFileRef(remote, hostPathFromNative('/repo')),
+          worktreePoolPath: hostPathFromNative('/worktrees/repo-12345678'),
+          baseRemote: 'origin',
+          preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+          git: {
+            kind: 'create-branch',
+            fromBranch: { type: 'local', branch: 'main' },
+            pushRemote: 'origin',
+          },
+        },
       },
     });
-    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
+  it('uses the resolved workspace host for repository-instance deployments', async () => {
+    const remote = hostRef('remote', 'ssh-1');
+    const automation = automationFixture();
+    automation.taskConfig!.workspaceConfig.workspace = {
+      kind: 'repository-instance',
+      workspaceId: 'workspace-1',
+    };
+    mocks.getProjectById.mockResolvedValue({
+      id: 'project-1',
+      type: 'ssh',
+      path: '/repo',
+      connectionId: 'ssh-1',
+    });
+    mocks.resolveWorkspace.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      host: remote,
+      path: '/repo/worktree',
+      projectId: 'project-1',
+    });
+
+    const result = await buildAutomationDeployment(dependencies, automation);
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        workspace: {
+          kind: 'directory',
+          path: hostFileRef(remote, hostPathFromNative('/repo/worktree')),
+        },
+      },
+    });
+    expect(mocks.resolveWorktreePool).not.toHaveBeenCalled();
   });
 });

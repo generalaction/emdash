@@ -3,6 +3,7 @@ import {
   hostRefEquals,
   hostRefKey,
   LOCAL_HOST_REF,
+  sshConnectionIdOf,
   type HostRef,
 } from '@emdash/core/primitives/host/api';
 
@@ -11,6 +12,12 @@ export type WorkspaceIdentity = Readonly<{
   host: HostRef;
   path: string;
   projectId: string;
+}>;
+
+export type WorkspaceHostStorage = Readonly<{
+  type: 'local' | 'project-ssh';
+  location: 'local' | 'remote';
+  sshConnectionId: string | null;
 }>;
 
 export type WorkspaceIdentityRow = Readonly<{
@@ -108,6 +115,13 @@ export function isRemoteWorkspaceRow(
   row: Pick<WorkspaceIdentityRow, 'location' | 'type'>
 ): boolean {
   return row.location === 'remote' || row.type === 'project-ssh';
+}
+
+export function workspaceHostStorage(host: HostRef): WorkspaceHostStorage {
+  const sshConnectionId = sshConnectionIdOf(host);
+  return sshConnectionId
+    ? { type: 'project-ssh', location: 'remote', sshConnectionId }
+    : { type: 'local', location: 'local', sshConnectionId: null };
 }
 
 function selectIdentity(

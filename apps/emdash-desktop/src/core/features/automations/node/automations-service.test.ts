@@ -258,6 +258,29 @@ describe('AutomationsService definition synchronization', () => {
 });
 
 describe('AutomationsService run projection', () => {
+  it('reconciles only definitions for the runtime host supplied at startup', async () => {
+    const service = createService();
+    const localAutomation = automationFixture({ id: 'local-automation' });
+    const remoteAutomation = automationFixture({
+      id: 'remote-automation',
+      projectId: 'remote-project',
+    });
+    mocks.listAutomations.mockResolvedValue([localAutomation, remoteAutomation]);
+    mocks.getProjectById.mockImplementation(async (projectId: string) =>
+      projectId === 'remote-project'
+        ? { id: projectId, type: 'ssh', connectionId: 'ssh-1' }
+        : { id: projectId, type: 'local' }
+    );
+
+    await service.initialize();
+
+    expect(mocks.resolveAutomationRuntimeClient).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveAutomationRuntimeClient).toHaveBeenCalledWith(expect.anything());
+    expect(mocks.buildAutomationDeployment).toHaveBeenCalledOnce();
+    expect(mocks.buildAutomationDeployment).toHaveBeenCalledWith(localAutomation);
+    expect(mocks.deploy).toHaveBeenCalledOnce();
+  });
+
   it('projects runtime events and logs projection failures without stopping telemetry hooks', async () => {
     const service = createService();
     const telemetryHook = vi.fn();

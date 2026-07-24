@@ -48,18 +48,43 @@ describe('automation runtime resolution', () => {
 
   it('marks local projects available', async () => {
     mocks.getProjectById.mockResolvedValue({ id: 'project-1', type: 'local' });
+    mocks.client.mockResolvedValue(ok({}));
 
     await expect(getAutomationRuntimeAvailability(dependencies, 'project-1')).resolves.toEqual({
       available: true,
     });
+    expect(mocks.client).toHaveBeenCalledWith(LOCAL_HOST_REF);
   });
 
-  it('marks SSH projects unavailable until a workspace-server transport is connected', async () => {
-    mocks.getProjectById.mockResolvedValue({ id: 'project-1', type: 'ssh' });
+  it('marks remote projects available when the runtime broker resolves their host', async () => {
+    const remote = hostRef('remote', 'ssh-1');
+    mocks.getProjectById.mockResolvedValue({
+      id: 'project-1',
+      type: 'ssh',
+      connectionId: 'ssh-1',
+    });
+    mocks.client.mockResolvedValue(ok({}));
+
+    await expect(getAutomationRuntimeAvailability(dependencies, 'project-1')).resolves.toEqual({
+      available: true,
+    });
+    expect(mocks.client).toHaveBeenCalledWith(remote);
+  });
+
+  it('uses the runtime broker error when a project host is unavailable', async () => {
+    const remote = hostRef('remote', 'ssh-1');
+    mocks.getProjectById.mockResolvedValue({
+      id: 'project-1',
+      type: 'ssh',
+      connectionId: 'ssh-1',
+    });
+    mocks.client.mockResolvedValue(
+      err({ type: 'host-unavailable', host: remote, message: 'Remote unavailable' })
+    );
 
     await expect(getAutomationRuntimeAvailability(dependencies, 'project-1')).resolves.toEqual({
       available: false,
-      reason: 'Run adoption is not yet supported for remote projects.',
+      reason: 'Remote unavailable',
     });
   });
 
