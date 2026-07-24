@@ -63,6 +63,10 @@ export const plugin = definePlugin(
           name: 'Claude Opus 4.8',
           modelFeatures: { intelligence: 5, speed: 2 },
         },
+        'claude-opus-5': {
+          name: 'Claude Opus 5',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
         'claude-sonnet-5': {
           name: 'Claude Sonnet 5',
           modelFeatures: { intelligence: 4, speed: 4 },
