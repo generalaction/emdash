@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   mergeSkillsInstalledState,
   type CatalogIndex,
@@ -16,14 +16,19 @@ import { useInstalledSkillsLiveModel } from '../live-model-hooks';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
-export function useSkills() {
+export function useSkills({
+  host = LOCAL_HOST_REF,
+  searchQuery = '',
+}: {
+  host?: HostRef;
+  searchQuery?: string;
+} = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const { data: installedLiveSkills, isLoading: isLoadingInstalled } =
-    useInstalledSkillsLiveModel();
+    useInstalledSkillsLiveModel(host);
 
   const { data: rawCatalog = null, isPending: isLoadingCatalog } = useQuery({
     queryKey: CATALOG_QUERY_KEY,
@@ -64,7 +69,7 @@ export function useSkills() {
       const payload = await catalogClient.resolveSkillInstall({ skillId });
       if (!payload.success) throw new Error(payload.error.message);
       const skillsClient = await getSkillsClient();
-      const result = await skillsClient.install({ host: LOCAL_HOST_REF, skill: payload.data });
+      const result = await skillsClient.install({ host, skill: payload.data });
       if (!result.success) throw new Error(result.error.message);
       return skillId;
     },
@@ -111,7 +116,7 @@ export function useSkills() {
         );
       const name = skill?.installId ?? skillId;
       const skillsClient = await getSkillsClient();
-      const result = await skillsClient.remove({ host: LOCAL_HOST_REF, name });
+      const result = await skillsClient.remove({ host, name });
       if (!result.success) throw new Error(result.error.message);
       return skillId;
     },
@@ -255,7 +260,6 @@ export function useSkills() {
     isLoading,
     isRefreshing: refreshMutation.isPending,
     searchQuery,
-    setSearchQuery,
     selectedSkill,
     isLoadingDetail,
     showDetailModal,
@@ -271,3 +275,5 @@ export function useSkills() {
     closeDetail,
   };
 }
+
+export type UseSkillsResult = ReturnType<typeof useSkills>;

@@ -5,8 +5,11 @@ import { SelectableCard } from '@emdash/ui/react/primitives';
 import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
+import { McpServersListForHost } from '@core/features/mcp/api/browser/components/McpServersList';
 import { CliAgentsList } from '@core/features/settings/api/browser/agents-page/CliAgentsList';
+import { SkillsListForHost } from '@core/features/skills/api/browser/components/SkillsList';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/ui/browser/cn';
@@ -52,6 +55,18 @@ function MachineDetailsCard({
       {children}
     </SelectableCard>
   );
+}
+
+function MachineMcpSection({ connectionId }: { connectionId: string }) {
+  const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
+
+  return <McpServersListForHost host={host} />;
+}
+
+function MachineSkillsSection({ connectionId }: { connectionId: string }) {
+  const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
+
+  return <SkillsListForHost host={host} />;
 }
 
 export const MachineDetailsPage = observer(function MachineDetailsPage({
@@ -319,6 +334,28 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           )}
         </SettingsCard>
       )}
+
+      {section === 'mcp' &&
+        (serverHealthy ? (
+          <MachineMcpSection connectionId={machine.id} />
+        ) : (
+          <SettingsCard>
+            <div className="p-4 text-sm text-foreground-muted">
+              MCP servers are available when the workspace server is healthy.
+            </div>
+          </SettingsCard>
+        ))}
+
+      {section === 'skills' &&
+        (serverHealthy ? (
+          <MachineSkillsSection connectionId={machine.id} />
+        ) : (
+          <SettingsCard>
+            <div className="p-4 text-sm text-foreground-muted">
+              Skills are available when the workspace server is healthy.
+            </div>
+          </SettingsCard>
+        ))}
     </div>
   );
 });

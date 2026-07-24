@@ -1,4 +1,4 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
@@ -12,16 +12,16 @@ import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
 
 const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;
 
-export function useMcps() {
+export function useMcps(host: HostRef = LOCAL_HOST_REF) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: installed, isLoading: isLoadingInstalled } = useInstalledMcpServersLiveModel();
-  const { data: agents } = useAgents();
+  const { data: installed, isLoading: isLoadingInstalled } = useInstalledMcpServersLiveModel(host);
+  const { data: agents } = useAgents(host);
   const {
     data: agentStatuses,
     isPending: isLoadingAgentStatuses,
     probeAll,
-  } = useAgentInstallationStatuses();
+  } = useAgentInstallationStatuses(host);
 
   // ── Queries ──────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export function useMcps() {
   const saveMutation = useMutation({
     mutationFn: async (payload: { server: McpServer; source: 'catalog' | 'custom' | null }) => {
       const client = await getMcpClient();
-      const result = await client.saveServer({ host: LOCAL_HOST_REF, server: payload.server });
+      const result = await client.saveServer({ host, server: payload.server });
       if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: (_, payload) => {
@@ -82,7 +82,7 @@ export function useMcps() {
   const removeMutation = useMutation({
     mutationFn: async (serverName: string) => {
       const client = await getMcpClient();
-      const result = await client.removeServer({ host: LOCAL_HOST_REF, name: serverName });
+      const result = await client.removeServer({ host, name: serverName });
       if (!result.success) throw new Error(agentConfigErrorMessage(result.error));
     },
     onSuccess: () => {
@@ -130,6 +130,8 @@ export function useMcps() {
     reload,
   };
 }
+
+export type UseMcpsResult = ReturnType<typeof useMcps>;
 
 function agentConfigErrorMessage(error: { type: string; message?: string; providerId?: string }) {
   return error.message ?? (error.providerId ? `Unknown provider: ${error.providerId}` : error.type);
