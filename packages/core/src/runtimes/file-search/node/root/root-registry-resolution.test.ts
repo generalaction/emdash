@@ -41,7 +41,7 @@ describe('FileSearchRootRegistry.resolveRegisteredRoot', () => {
     const root = absolute(rootPath);
     const failure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
     const failed = createRegistry({
-      createRoot: () => {
+      createRoot: (_record, _scope, _exclusions, _fingerprint) => {
         throw new RootWatchError('watcher attach failed', failure);
       },
     }).registry;
@@ -105,14 +105,27 @@ class MemoryCatalog implements RootCatalogStore {
 function createRegistry(
   options: {
     catalog?: MemoryCatalog;
-    createRoot?: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
+    createRoot?: (
+      record: StoredFileSearchRoot,
+      scope: Scope,
+      exclusions: unknown,
+      fingerprint: string
+    ) => RegisteredRoot;
   } = {}
 ): { registry: FileSearchRootRegistry; scope: Scope } {
   const scope = createScope({ label: 'root-registry-resolution-test' });
   const registry = new FileSearchRootRegistry({
     catalog: options.catalog ?? new MemoryCatalog(),
     resolver: new NodeFileSearchRootResolver(),
-    createRoot: options.createRoot ?? ((record, rootScope) => fakeRoot(record, rootScope)),
+    createRoot:
+      options.createRoot ??
+      ((record, rootScope, _exclusions, fingerprint) => fakeRoot(record, rootScope, fingerprint)),
+    compileExclusions: () => ({
+      excludes: () => false,
+      ripgrepGlobs: () => [],
+      watchIgnoreGlobs: () => [],
+    }),
+    defaultExclusionPatterns: [],
     scope,
   });
   cleanups.push(async () => {
@@ -122,8 +135,12 @@ function createRegistry(
   return { registry, scope };
 }
 
-function fakeRoot(record: StoredFileSearchRoot, scope: Scope): RegisteredRoot {
-  return { record, scope, index: {} as RegisteredRoot['index'] };
+function fakeRoot(
+  record: StoredFileSearchRoot,
+  scope: Scope,
+  exclusionsFingerprint = '[]'
+): RegisteredRoot {
+  return { record, scope, index: {} as RegisteredRoot['index'], exclusionsFingerprint };
 }
 
 function resolveRoot(registry: FileSearchRootRegistry, root: ReturnType<typeof absolute>) {

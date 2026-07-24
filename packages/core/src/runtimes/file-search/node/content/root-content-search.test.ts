@@ -96,6 +96,7 @@ function registeredRoot(rootPath: string): RegisteredRoot {
     record: { id: 1, rootKey: 'root-key', rootPath },
     index: {} as RegisteredRoot['index'],
     scope,
+    exclusionsFingerprint: '[]',
   };
 }
 

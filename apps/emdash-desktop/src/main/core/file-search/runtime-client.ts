@@ -1,6 +1,7 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import { normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
 import {
+  formatAbsolute,
   portableRelativePathBasename,
   type HostAbsolutePath,
 } from '@emdash/core/primitives/path/api';
@@ -40,8 +41,11 @@ export function createFileSearchRuntime(
       await unregisterFileSearchRoot(runtimes, root, host);
     },
     refreshExclusions: async () => {
+      // Re-register each active root with the current exclusion settings.
+      // The server will no-op when the fingerprint is unchanged (e.g. only
+      // treeExclude or watcherExclude changed) and rebuild the index only when
+      // searchExclude actually differs — no unregister/re-register churn needed.
       for (const { root, host } of [...activeRoots.values()]) {
-        await unregisterFileSearchRoot(runtimes, root, host);
         await registerFileSearchRoot(runtimes, options, root, host);
       }
     },
@@ -157,5 +161,5 @@ function isTransientSearchError(error: PathSearchError): boolean {
 }
 
 function activeRootKey(root: HostAbsolutePath, host: HostRef): string {
-  return JSON.stringify([host, root]);
+  return `${hostRefKey(host)}:${formatAbsolute(root)}`;
 }

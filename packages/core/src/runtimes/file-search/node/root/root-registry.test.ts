@@ -41,6 +41,38 @@ describe('FileSearchRootRegistry', () => {
     expect(registry.resolveRegisteredRoot(root)).toMatchObject({ success: true });
   });
 
+  it('re-registers and rebuilds the index when exclusions differ from the ready root', async () => {
+    const rootPath = await createRoot();
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ createRoot: createRegistered });
+    const root = absolute(rootPath);
+
+    // First registration — empty default patterns.
+    await registry.registerRoot({ root });
+    expect(createRegistered).toHaveBeenCalledTimes(1);
+
+    // Second registration with different exclusions — fingerprint mismatch triggers rebuild.
+    await registry.registerRoot({ root, exclusions: ['node_modules'] });
+    expect(createRegistered).toHaveBeenCalledTimes(2);
+
+    // Catalog row must be preserved (not re-created).
+    const resolved = registry.resolveRegisteredRoot(root);
+    expect(resolved).toMatchObject({ success: true });
+  });
+
+  it('does not rebuild the index when the same exclusion set is re-registered (order-insensitive)', async () => {
+    const rootPath = await createRoot();
+    const createRegistered = vi.fn(fakeRoot);
+    const { registry } = createRegistry({ createRoot: createRegistered });
+    const root = absolute(rootPath);
+
+    await registry.registerRoot({ root, exclusions: ['dist', 'build'] });
+    await registry.registerRoot({ root, exclusions: ['build', 'dist'] });
+
+    // Same canonical set — no stop+start should occur.
+    expect(createRegistered).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps durable registrations when registry shutdown stops maintenance', async () => {
     const rootPath = await createRoot();
     const { registry, store } = createRegistry();
@@ -83,7 +115,7 @@ describe('FileSearchRootRegistry', () => {
     const rootPath = await createRoot();
     const failure = Object.assign(new Error('root disappeared'), { code: 'ENOENT' });
     const { registry, store } = createRegistry({
-      createRoot: () => {
+      createRoot: (_record, _scope, _exclusions, _fingerprint) => {
         throw new RootWatchError('File-search watcher could not be created for the root', failure);
       },
     });
@@ -105,7 +137,7 @@ describe('FileSearchRootRegistry', () => {
     });
     const { registry } = createRegistry({
       store,
-      createRoot: () => {
+      createRoot: (_record, _scope, _exclusions, _fingerprint) => {
         throw new RootWatchError(
           'File-search watcher could not be created for the root',
           attachmentFailure
@@ -125,7 +157,12 @@ describe('FileSearchRootRegistry', () => {
 function createRegistry(
   options: {
     store?: SqliteFileSearchStore;
-    createRoot?: (record: StoredFileSearchRoot, scope: Scope) => RegisteredRoot;
+    createRoot?: (
+      record: StoredFileSearchRoot,
+      scope: Scope,
+      exclusions: unknown,
+      fingerprint: string
+    ) => RegisteredRoot;
   } = {}
 ): { registry: FileSearchRootRegistry; store: SqliteFileSearchStore; scope: Scope } {
   const store = options.store ?? createStore();
@@ -134,6 +171,8 @@ function createRegistry(
     catalog: store,
     resolver: new NodeFileSearchRootResolver(),
     createRoot: options.createRoot ?? fakeRoot,
+    compileExclusions: () => ({ excludes: () => false, ripgrepGlobs: () => [], watchIgnoreGlobs: () => [] }),
+    defaultExclusionPatterns: [],
     scope,
   });
   cleanups.push(async () => {
@@ -151,8 +190,13 @@ function createStore(): SqliteFileSearchStore {
   return store;
 }
 
-function fakeRoot(record: StoredFileSearchRoot, scope: Scope): RegisteredRoot {
-  return { record, scope, index: {} as RootIndex };
+function fakeRoot(
+  record: StoredFileSearchRoot,
+  scope: Scope,
+  _exclusions: unknown,
+  exclusionsFingerprint: string
+): RegisteredRoot {
+  return { record, scope, index: {} as RootIndex, exclusionsFingerprint };
 }
 
 async function createRoot(): Promise<string> {

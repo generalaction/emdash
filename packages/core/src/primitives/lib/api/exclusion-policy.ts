@@ -79,7 +79,11 @@ export class ExclusionPolicy implements ExclusionMatcher {
   private readonly normalize: (value: string) => string;
 
   constructor(patterns: readonly string[], options: ExclusionPolicyOptions = {}) {
-    const caseSensitive = options.caseSensitive ?? process.platform !== 'win32';
+    // Default to case-sensitive on all platforms except Windows; guard for renderer environments
+    // where `process` may not be available.
+    const caseSensitive =
+      options.caseSensitive ??
+      (typeof process === 'undefined' ? true : process.platform !== 'win32');
     this.normalize = caseSensitive ? (value) => value : (value) => value.toLocaleLowerCase('en-US');
 
     const segments: string[] = [];
@@ -137,6 +141,10 @@ export class ExclusionPolicy implements ExclusionMatcher {
   }
 }
 
+/**
+ * Normalize a list of exclusion patterns: trim, deduplicate, preserve user order.
+ * Use this for display / storage where the user's ordering should be kept.
+ */
 export function normalizeExclusionPatterns(patterns: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -149,7 +157,19 @@ export function normalizeExclusionPatterns(patterns: readonly string[]): string[
   return normalized;
 }
 
+/**
+ * Canonical form of a pattern list: normalize, deduplicate, then sort.
+ * Order-insensitive — use for identity keys and fingerprints where `['a','b']`
+ * and `['b','a']` must map to the same identity.
+ */
+export function canonicalExclusionPatterns(patterns: readonly string[]): string[] {
+  return normalizeExclusionPatterns(patterns).sort();
+}
+
 function normalizeExclusionPattern(pattern: string): string {
+  // Replace backslashes with forward slashes for Windows-path tolerance.
+  // This discards minimatch escape sequences (e.g. `\*`) but exclusion
+  // patterns in user settings are almost never escaped globs.
   let normalized = pattern.trim().replaceAll('\\', '/').replace(/\/+/g, '/');
   if (normalized.startsWith('./')) normalized = normalized.slice(2);
   while (normalized.length > 1 && normalized.endsWith('/')) {

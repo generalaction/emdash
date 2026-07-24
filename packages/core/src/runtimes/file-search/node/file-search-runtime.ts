@@ -1,5 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
+import { DEFAULT_SEARCH_EXCLUDE } from '@primitives/lib/api';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type {
   ContentSearchError,
@@ -57,7 +58,7 @@ export class FileSearchRuntime {
     this.store = new SqliteFileSearchStore(options.handle);
 
     try {
-      const exclusions = new DefaultFileSearchExclusions();
+      const defaultContentExclusions = new DefaultFileSearchExclusions();
       const scanner = new NodePathScanner();
       const scanLimiter = new ConcurrencyLimiter(
         options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
@@ -68,25 +69,25 @@ export class FileSearchRuntime {
       this.contentSearcher = new RipgrepContentSearcher({
         executable: options.ripgrepPath,
         env: options.env,
-        exclusions,
+        exclusions: defaultContentExclusions,
       });
       this.roots = new FileSearchRootRegistry({
         catalog: this.store,
         resolver: new NodeFileSearchRootResolver(),
-        createRoot: (record, scope, rootExclusions) =>
+        createRoot: (record, scope, rootExclusions, exclusionsFingerprint) =>
           createRegisteredRoot({
             record,
             indexStore: this.store,
             watcher: options.watcher,
             scanner,
             exclusions: rootExclusions,
+            exclusionsFingerprint,
             scope,
             scanLimiter,
             onError,
           }),
-        exclusionsForInput: (input) =>
-          new DefaultFileSearchExclusions({ patterns: input.exclusions }),
-        defaultExclusions: () => exclusions,
+        compileExclusions: (patterns) => new DefaultFileSearchExclusions({ patterns }),
+        defaultExclusionPatterns: DEFAULT_SEARCH_EXCLUDE,
         scope: this.scope,
         onError,
       });

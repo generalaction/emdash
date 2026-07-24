@@ -15,6 +15,8 @@ export type RegisteredRoot = Readonly<{
   record: StoredFileSearchRoot;
   index: RootIndex;
   scope: Scope;
+  /** Stable identity string for the exclusion set used to build this root's index. */
+  exclusionsFingerprint: string;
 }>;
 
 export type CreateRegisteredRootOptions = Readonly<{
@@ -23,6 +25,7 @@ export type CreateRegisteredRootOptions = Readonly<{
   watcher: IWatchService;
   scanner: PathScanner;
   exclusions: FileSearchExclusions;
+  exclusionsFingerprint: string;
   scope: Scope;
   scanLimiter: ConcurrencyLimiter;
   onError?: (context: string, error: unknown) => void;
@@ -45,5 +48,10 @@ export function createRegisteredRoot(options: CreateRegisteredRootOptions): Regi
       options.onError?.('file-search reconciliation failed', error);
     }
   });
-  return { record: options.record, index, scope: options.scope };
+  return {
+    record: options.record,
+    index,
+    scope: options.scope,
+    exclusionsFingerprint: options.exclusionsFingerprint,
+  };
 }

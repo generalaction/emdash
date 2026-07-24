@@ -1,6 +1,10 @@
 import type { PortableRelativePath } from '@primitives/path/api';
 import { describe, expect, it } from 'vitest';
-import { ExclusionPolicy, normalizeExclusionPatterns } from './exclusion-policy';
+import {
+  canonicalExclusionPatterns,
+  ExclusionPolicy,
+  normalizeExclusionPatterns,
+} from './exclusion-policy';
 
 const relative = (path: string) => path as PortableRelativePath;
 
@@ -52,5 +56,29 @@ describe('ExclusionPolicy', () => {
     expect(
       normalizeExclusionPatterns([' ./src//generated/ ', 'src/generated', '', 'dist\\out'])
     ).toEqual(['src/generated', 'dist/out']);
+  });
+});
+
+describe('canonicalExclusionPatterns', () => {
+  it('returns a sorted, deduped, normalized list', () => {
+    expect(canonicalExclusionPatterns(['dist', '.git', 'dist', 'build'])).toEqual([
+      '.git',
+      'build',
+      'dist',
+    ]);
+  });
+
+  it('treats different orderings as identical', () => {
+    const a = canonicalExclusionPatterns(['dist', 'build', 'node_modules']);
+    const b = canonicalExclusionPatterns(['node_modules', 'dist', 'build']);
+    expect(a).toEqual(b);
+  });
+
+  it('handles normalization before sorting', () => {
+    expect(canonicalExclusionPatterns([' dist/ ', './build', 'node_modules'])).toEqual([
+      'build',
+      'dist',
+      'node_modules',
+    ]);
   });
 });

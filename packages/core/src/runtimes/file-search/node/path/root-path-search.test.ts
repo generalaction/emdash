@@ -116,6 +116,7 @@ function createRoot(
     watcher: new NoopWatchService(),
     scanner: options.scanner ?? new EmptyScanner(),
     exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
+    exclusionsFingerprint: '[]',
     scope,
     scanLimiter: new ConcurrencyLimiter(1),
   });

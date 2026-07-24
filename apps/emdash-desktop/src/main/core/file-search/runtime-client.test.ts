@@ -65,7 +65,7 @@ describe('file-search runtime client', () => {
     expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
   });
 
-  it('re-registers active roots when exclusions are refreshed', async () => {
+  it('re-registers active roots when exclusions are refreshed, without an unregister step', async () => {
     const root = hostPathFromNative('/repo');
     mocks.getSearchExclusions
       .mockResolvedValueOnce(['node_modules'])
@@ -74,7 +74,9 @@ describe('file-search runtime client', () => {
     await runtime.registerRoot(root, LOCAL_HOST_REF);
     await runtime.refreshExclusions();
 
-    expect(mocks.unregisterRoot).toHaveBeenCalledWith({ root });
+    // refreshExclusions calls registerRoot only — the server handles fingerprint comparison.
+    expect(mocks.unregisterRoot).not.toHaveBeenCalled();
+    expect(mocks.registerRoot).toHaveBeenCalledTimes(2);
     expect(mocks.registerRoot).toHaveBeenNthCalledWith(1, {
       root,
       exclusions: ['node_modules'],

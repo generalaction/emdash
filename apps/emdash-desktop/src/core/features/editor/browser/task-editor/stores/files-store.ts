@@ -1,4 +1,7 @@
-import { DEFAULT_TREE_EXCLUDE, normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
+import {
+  canonicalExclusionPatterns,
+  DEFAULT_TREE_EXCLUDE,
+} from '@emdash/core/primitives/lib/api';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
@@ -6,6 +9,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
 import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
   buildFileTreeVisibleRows,
@@ -54,7 +58,8 @@ export class FilesStore {
   private started = false;
   private syncError: string | null = null;
   private bindVersion = 0;
-  private exclusions = normalizeExclusionPatterns(DEFAULT_TREE_EXCLUDE);
+  private exclusions = canonicalExclusionPatterns(DEFAULT_TREE_EXCLUDE);
+  private exclusionsLoaded = false;
   private nextPendingUploadId = 1;
 
   private readonly pendingUploadNodes = observable.map<FileNodeId, PendingUploadNode>();
@@ -130,14 +135,14 @@ export class FilesStore {
   }
 
   setExclusions(patterns: readonly string[] | undefined): void {
-    const next = normalizeExclusionPatterns(patterns ?? DEFAULT_TREE_EXCLUDE);
-    if (sameStringList(this.exclusions, next)) return;
+    const next = canonicalExclusionPatterns(patterns ?? DEFAULT_TREE_EXCLUDE);
+    this.exclusionsLoaded = true;
+    if (this.exclusions.join('\0') === next.join('\0')) return;
     this.exclusions = next;
     if (!this.started) return;
     this.bindVersion += 1;
     this.disposeRuntime();
     this.startPromise = this.bindRuntime(this.bindVersion);
-    void this.startPromise;
   }
 
   reconcileVisibleScopes(expandedPaths: Set<string>): void {
@@ -368,6 +373,25 @@ export class FilesStore {
 
   private async bindRuntime(version: number): Promise<void> {
     try {
+      // Before the first bind, fetch the settings snapshot so we start with the
+      // user's treeExclude rather than defaults. This eliminates the double-bind
+      // that would otherwise occur when EditorFileTree calls setExclusions shortly
+      // after construction.
+      if (!this.exclusionsLoaded) {
+        try {
+          const meta = await fetchAppSettingsMeta('files');
+          const patterns = meta?.value?.treeExclude;
+          if (patterns) {
+            const canonical = canonicalExclusionPatterns(patterns);
+            this.exclusionsLoaded = true;
+            this.exclusions = canonical;
+          }
+        } catch {
+          // Fall back to defaults on any error (e.g. settings not yet loaded).
+        }
+        if (!this.started || version !== this.bindVersion) return;
+      }
+
       const client = await getEditorClient();
       const replica = createLiveModelReplica(editorContract.tree.model, client.tree.model);
       const optimistic = new OptimisticLiveModel(
@@ -375,7 +399,7 @@ export class FilesStore {
         {
           workspaceId: this.workspaceId,
           sessionId: this.workspaceId,
-          exclusions: this.exclusions,
+          exclusions: this.exclusions, // already canonical
         },
         replica
       );
@@ -473,10 +497,6 @@ function treeMutationError(error: unknown): TreeMutationError {
     return { type: 'unavailable', message: protocolUpgradeMessage('upgrade-server') };
   }
   return { type: 'unavailable', message };
-}
-
-function sameStringList(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function pushChild(
