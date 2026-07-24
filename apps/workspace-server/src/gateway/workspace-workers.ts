@@ -190,7 +190,10 @@ export async function createWorkspaceServerRuntimeHost(
     executable: workspaceWorkerPath('file-search'),
     env,
     dependencies: { watcher },
-    config: { databasePath: paths.fileSearchDatabase },
+    config: {
+      databasePath: paths.fileSearchDatabase,
+      ...(env['EMDASH_WS_RIPGREP_PATH'] ? { ripgrepPath: env['EMDASH_WS_RIPGREP_PATH'] } : {}),
+    },
   });
   const gitPromise = workerHost.spawn(gitComponent, {
     name: 'git',

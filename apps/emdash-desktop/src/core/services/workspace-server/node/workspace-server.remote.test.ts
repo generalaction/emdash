@@ -2,8 +2,11 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
+import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
+import { createLiveJobReplica } from '@emdash/wire';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import { createRemoteMachineService } from '@core/services/remote-machine/node';
@@ -79,10 +82,66 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
-      await expect(resolved.data.files.getHomeDir(undefined)).resolves.toMatchObject({
+      const homeDirectory = await resolved.data.files.getHomeDir(undefined);
+      expect(homeDirectory).toMatchObject({
         root: { kind: 'posix' },
         segments: ['home', 'devuser'],
       });
+      const smokeDirectory = parsePortableRelativePath(`emdash-ripgrep-smoke-${Date.now()}`);
+      if (!smokeDirectory.success) {
+        throw new Error('Could not construct workspace-server ripgrep smoke-test directory');
+      }
+      const smokeFile = parsePortableRelativePath(`${smokeDirectory.data}/needle.txt`);
+      const smokeRoot = joinAbsolute(homeDirectory, smokeDirectory.data);
+      if (!smokeFile.success || !smokeRoot.success) {
+        throw new Error('Could not construct workspace-server ripgrep smoke-test paths');
+      }
+
+      let searchRootRegistered = false;
+      const contentJobs = createLiveJobReplica(
+        fileSearchContract.searchContent,
+        resolved.data.fileSearch.searchContent
+      );
+      try {
+        await expect(
+          resolved.data.files.mutations.createDirectory({
+            root: homeDirectory,
+            path: smokeDirectory.data,
+          })
+        ).resolves.toMatchObject({ success: true });
+        await expect(
+          resolved.data.files.mutations.createFile({
+            root: homeDirectory,
+            path: smokeFile.data,
+            content: 'bundled-ripgrep-smoke\n',
+          })
+        ).resolves.toMatchObject({ success: true });
+        await expect(
+          resolved.data.fileSearch.registerRoot({ root: smokeRoot.data })
+        ).resolves.toMatchObject({ success: true });
+        searchRootRegistered = true;
+
+        const lease = await contentJobs.start({
+          root: smokeRoot.data,
+          query: 'bundled-ripgrep-smoke',
+        });
+        const handle = await lease.ready();
+        await expect(handle.result).resolves.toMatchObject({
+          complete: true,
+          files: [{ path: 'needle.txt' }],
+        });
+        await lease.release();
+      } finally {
+        await contentJobs.dispose();
+        if (searchRootRegistered) {
+          await resolved.data.fileSearch.unregisterRoot({ root: smokeRoot.data });
+        }
+        await resolved.data.files.mutations.delete({
+          root: homeDirectory,
+          path: smokeDirectory.data,
+          recursive: true,
+        });
+      }
 
       const connection = await remoteMachine.client(connectionId);
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });

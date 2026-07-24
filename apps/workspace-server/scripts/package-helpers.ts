@@ -1,4 +1,5 @@
 export const artifactRootName = 'emdash-workspace-server';
+export const RIPGREP_VERSION = '15.2.0';
 
 const targetDefinitions = {
   'darwin-arm64': {
@@ -24,6 +25,24 @@ const targetDefinitions = {
 export type PackageTargetId = keyof typeof targetDefinitions;
 export type PackageTarget = (typeof targetDefinitions)[PackageTargetId];
 
+const ripgrepReleaseTargets: Record<
+  PackageTargetId,
+  Readonly<{ triple: string; sha256: string }>
+> = {
+  'darwin-arm64': {
+    triple: 'aarch64-apple-darwin',
+    sha256: '3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4',
+  },
+  'linux-arm64': {
+    triple: 'aarch64-unknown-linux-musl',
+    sha256: '800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915',
+  },
+  'linux-x64': {
+    triple: 'x86_64-unknown-linux-musl',
+    sha256: '33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c',
+  },
+};
+
 export type PackageCliOptions = {
   targets: PackageTarget[];
   verify: boolean;
@@ -37,6 +56,7 @@ export type WorkspaceServerArtifactManifest = {
   os: PackageTarget['os'];
   arch: PackageTarget['arch'];
   nodeVersion: string;
+  ripgrepVersion: string;
 };
 
 export type PackageAdapterAssetInfo = {
@@ -105,6 +125,24 @@ export function nodeDistributionUrl(nodeVersion: string, target: PackageTarget):
   )}`;
 }
 
+export function ripgrepDistributionName(target: PackageTarget): string {
+  return `ripgrep-${RIPGREP_VERSION}-${ripgrepReleaseTargets[target.id].triple}`;
+}
+
+export function ripgrepArchiveName(target: PackageTarget): string {
+  return `${ripgrepDistributionName(target)}.tar.gz`;
+}
+
+export function ripgrepDistributionUrl(target: PackageTarget): string {
+  return `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${ripgrepArchiveName(
+    target
+  )}`;
+}
+
+export function ripgrepArchiveChecksum(target: PackageTarget): string {
+  return ripgrepReleaseTargets[target.id].sha256;
+}
+
 export function artifactArchiveName(version: string, target: PackageTarget): string {
   return `${artifactRootName}-${version}-${target.os}-${target.arch}.tar.gz`;
 }
@@ -152,6 +190,7 @@ export function createArtifactManifest(options: {
     os: options.target.os,
     arch: options.target.arch,
     nodeVersion: options.nodeVersion,
+    ripgrepVersion: RIPGREP_VERSION,
   };
 }
 
@@ -184,6 +223,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
 
 export EMDASH_WS_APP_VERSION=${quoteShellArgument(version)}
+export EMDASH_WS_RIPGREP_PATH="$root_dir/bin/rg"
 exec "$root_dir/node" "$root_dir/dist/index.mjs" "$@"
 `;
 }

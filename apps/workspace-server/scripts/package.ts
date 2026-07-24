@@ -28,6 +28,11 @@ import {
   nodeDistributionUrl,
   parseAdapterAssetInfos,
   parsePackageArgs,
+  ripgrepArchiveChecksum,
+  ripgrepArchiveName,
+  ripgrepDistributionName,
+  ripgrepDistributionUrl,
+  RIPGREP_VERSION,
   type PackageTarget,
   type PackageAdapterAssetInfo,
 } from './package-helpers.ts';
@@ -139,11 +144,10 @@ async function packageTarget(options: {
 
   try {
     process.stdout.write(`Packaging ${target.id}...\n`);
-    const nodeDistributionDirectory = await extractNodeDistribution(
-      nodeVersion,
-      target,
-      temporaryDirectory
-    );
+    const [nodeDistributionDirectory, ripgrepDistributionDirectory] = await Promise.all([
+      extractNodeDistribution(nodeVersion, target, temporaryDirectory),
+      extractRipgrepDistribution(target, temporaryDirectory),
+    ]);
     const runtimeNodeModules =
       target.os === 'darwin'
         ? await installDarwinRuntimeDependencies(nodeDistributionDirectory, temporaryDirectory)
@@ -155,6 +159,7 @@ async function packageTarget(options: {
       nodeVersion,
       nodeDistributionDirectory,
       runtimeNodeModules,
+      ripgrepDistributionDirectory,
       bundleNames,
       adapterAssets,
       temporaryDirectory,
@@ -391,10 +396,7 @@ async function ensureNodeDistributionArchive(
   target: PackageTarget
 ): Promise<string> {
   const archiveName = nodeDistributionArchiveName(nodeVersion, target);
-  const cacheRoot =
-    process.env['EMDASH_WS_PACKAGE_CACHE_DIR'] ??
-    join(homedir(), '.cache', 'emdash', 'workspace-server');
-  const cacheDirectory = join(cacheRoot, `node-v${nodeVersion}`);
+  const cacheDirectory = join(packageCacheRoot(), `node-v${nodeVersion}`);
   const archivePath = join(cacheDirectory, archiveName);
   const checksumsUrl = `https://nodejs.org/dist/v${nodeVersion}/SHASUMS256.txt`;
   const checksums = await downloadText(checksumsUrl);
@@ -428,6 +430,61 @@ async function ensureNodeDistributionArchive(
   return archivePath;
 }
 
+async function extractRipgrepDistribution(
+  target: PackageTarget,
+  temporaryDirectory: string
+): Promise<string> {
+  const archivePath = await ensureRipgrepArchive(target);
+  const extractionDirectory = join(temporaryDirectory, 'ripgrep-distribution');
+  await mkdir(extractionDirectory, { recursive: true });
+  await runCommand('tar', ['-xzf', archivePath, '-C', extractionDirectory]);
+
+  const distributionDirectory = join(extractionDirectory, ripgrepDistributionName(target));
+  for (const requiredPath of ['rg', 'COPYING', 'LICENSE-MIT', 'UNLICENSE']) {
+    if (!(await pathExists(join(distributionDirectory, requiredPath)))) {
+      throw new Error(`ripgrep distribution did not contain ${requiredPath}: ${archivePath}`);
+    }
+  }
+  return distributionDirectory;
+}
+
+async function ensureRipgrepArchive(target: PackageTarget): Promise<string> {
+  const archiveName = ripgrepArchiveName(target);
+  const cacheDirectory = join(packageCacheRoot(), `ripgrep-v${RIPGREP_VERSION}`);
+  const archivePath = join(cacheDirectory, archiveName);
+  const expectedChecksum = ripgrepArchiveChecksum(target);
+
+  await mkdir(cacheDirectory, { recursive: true });
+  if ((await pathExists(archivePath)) && (await sha256File(archivePath)) === expectedChecksum) {
+    process.stdout.write(`Using cached ${archiveName}\n`);
+    return archivePath;
+  }
+
+  const temporaryArchivePath = `${archivePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    process.stdout.write(`Downloading ${ripgrepDistributionUrl(target)}\n`);
+    const response = await fetch(ripgrepDistributionUrl(target));
+    if (!response.ok) {
+      throw new Error(
+        `ripgrep download failed with HTTP ${response.status} ${response.statusText}`
+      );
+    }
+    await writeFile(temporaryArchivePath, Buffer.from(await response.arrayBuffer()));
+    const actualChecksum = await sha256File(temporaryArchivePath);
+    if (actualChecksum !== expectedChecksum) {
+      throw new Error(
+        `Checksum mismatch for ${archiveName}: expected ${expectedChecksum}, ` +
+          `received ${actualChecksum}`
+      );
+    }
+    await rename(temporaryArchivePath, archivePath);
+  } finally {
+    await rm(temporaryArchivePath, { force: true });
+  }
+
+  return archivePath;
+}
+
 async function downloadText(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -444,6 +501,13 @@ function findChecksum(checksums: string, archiveName: string): string {
     }
   }
   throw new Error(`SHASUMS256.txt did not contain ${archiveName}`);
+}
+
+function packageCacheRoot(): string {
+  return (
+    process.env['EMDASH_WS_PACKAGE_CACHE_DIR'] ??
+    join(homedir(), '.cache', 'emdash', 'workspace-server')
+  );
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -523,6 +587,7 @@ async function assembleArtifact(options: {
   nodeVersion: string;
   nodeDistributionDirectory: string;
   runtimeNodeModules: string;
+  ripgrepDistributionDirectory: string;
   bundleNames: string[];
   adapterAssets: readonly PackageAdapterAssetInfo[];
   temporaryDirectory: string;
@@ -534,6 +599,7 @@ async function assembleArtifact(options: {
     nodeVersion,
     nodeDistributionDirectory,
     runtimeNodeModules,
+    ripgrepDistributionDirectory,
     bundleNames,
     adapterAssets,
     temporaryDirectory,
@@ -541,13 +607,24 @@ async function assembleArtifact(options: {
   const artifactDirectory = join(temporaryDirectory, 'artifact', artifactRootName);
   const binDirectory = join(artifactDirectory, 'bin');
   const distDirectory = join(artifactDirectory, 'dist');
+  const ripgrepLicenseDirectory = join(artifactDirectory, 'licenses', 'ripgrep');
   const launcherPath = join(binDirectory, 'emdash-workspace-server');
   const nodePath = join(artifactDirectory, 'node');
+  const ripgrepPath = join(binDirectory, 'rg');
 
   await mkdir(binDirectory, { recursive: true });
   await mkdir(distDirectory, { recursive: true });
+  await mkdir(ripgrepLicenseDirectory, { recursive: true });
   await copyFile(join(nodeDistributionDirectory, 'bin/node'), nodePath);
   await chmod(nodePath, 0o755);
+  await copyFile(join(ripgrepDistributionDirectory, 'rg'), ripgrepPath);
+  await chmod(ripgrepPath, 0o755);
+  for (const licenseFile of ['COPYING', 'LICENSE-MIT', 'UNLICENSE']) {
+    await copyFile(
+      join(ripgrepDistributionDirectory, licenseFile),
+      join(ripgrepLicenseDirectory, licenseFile)
+    );
+  }
   await cp(runtimeNodeModules, join(artifactDirectory, 'node_modules'), { recursive: true });
 
   for (const bundleName of bundleNames) {
@@ -600,10 +677,21 @@ async function verifyArtifact(archivePath: string, target: PackageTarget): Promi
 async function verifyLocalArtifact(extractedArtifact: string): Promise<void> {
   const runtimeDirectory = await mkdtemp('/tmp/emdash-ws-smoke-');
   const launcherPath = join(extractedArtifact, 'bin/emdash-workspace-server');
+  const ripgrepPath = join(extractedArtifact, 'bin/rg');
   const socketPath = join(runtimeDirectory, 'run/workspace.sock');
+  const searchDirectory = join(runtimeDirectory, 'search');
   const lifecycleArgs = ['--socket-path', socketPath];
 
   try {
+    await mkdir(searchDirectory, { recursive: true });
+    await writeFile(join(searchDirectory, 'needle.txt'), 'bundled-ripgrep-smoke\n', 'utf8');
+    await runCommand(ripgrepPath, ['--version']);
+    await runCommand(ripgrepPath, [
+      '--fixed-strings',
+      '--quiet',
+      'bundled-ripgrep-smoke',
+      searchDirectory,
+    ]);
     await runCommand(launcherPath, ['start', ...lifecycleArgs]);
     await runCommand(launcherPath, ['status', ...lifecycleArgs]);
     await runCommand(launcherPath, ['stop', ...lifecycleArgs]);
@@ -625,10 +713,15 @@ async function verifyLinuxArtifact(
 
   const smokeScript = `set -eu
 server=/opt/emdash-workspace-server/bin/emdash-workspace-server
+rg=/opt/emdash-workspace-server/bin/rg
 socket=/tmp/emdash-smoke/run/workspace.sock
 mkdir -p /tmp/emdash-smoke/run
+mkdir -p /tmp/emdash-smoke/search
+printf '%s\\n' bundled-ripgrep-smoke > /tmp/emdash-smoke/search/needle.txt
 cleanup() { "$server" stop --socket-path "$socket" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
+"$rg" --version
+"$rg" --fixed-strings --quiet bundled-ripgrep-smoke /tmp/emdash-smoke/search
 "$server" start --socket-path "$socket"
 "$server" status --socket-path "$socket"
 "$server" stop --socket-path "$socket"

@@ -2,7 +2,8 @@
 
 The package-owned `workspace-remote` Compose service is a deliberately bare SSH host for exercising
 the complete desktop-to-workspace-server connection path. It includes SSH, Git, tmux, and basic
-process tools, but no Node.js, npm, build toolchain, or coding-agent CLI.
+process tools, but no Node.js, npm, ripgrep, build toolchain, or coding-agent CLI. Content search
+therefore verifies that the installed workspace-server artifact uses its bundled ripgrep binary.
 
 The daemon exposes no TCP port. Clients reach its Unix socket through SSH streamlocal forwarding,
 matching the production topology.

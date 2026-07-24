@@ -10,6 +10,10 @@ import {
   parseAdapterAssetInfos,
   parsePackageArgs,
   parsePackageTarget,
+  ripgrepArchiveChecksum,
+  ripgrepArchiveName,
+  ripgrepDistributionName,
+  ripgrepDistributionUrl,
 } from './package-helpers';
 
 describe('workspace-server package helpers', () => {
@@ -44,6 +48,20 @@ describe('workspace-server package helpers', () => {
     );
   });
 
+  it('builds pinned ripgrep release names, URLs, and checksums for each target', () => {
+    const linuxArm64 = parsePackageTarget('linux-arm64');
+    expect(ripgrepDistributionName(linuxArm64)).toBe('ripgrep-15.2.0-aarch64-unknown-linux-musl');
+    expect(ripgrepArchiveName(linuxArm64)).toBe('ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz');
+    expect(ripgrepDistributionUrl(linuxArm64)).toBe(
+      'https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/' +
+        'ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz'
+    );
+
+    for (const targetName of ['darwin-arm64', 'linux-arm64', 'linux-x64']) {
+      expect(ripgrepArchiveChecksum(parsePackageTarget(targetName))).toMatch(/^[a-f\d]{64}$/);
+    }
+  });
+
   it('builds artifact metadata and archive names', () => {
     const target = parsePackageTarget('darwin-arm64');
     expect(
@@ -61,6 +79,7 @@ describe('workspace-server package helpers', () => {
       os: 'darwin',
       arch: 'arm64',
       nodeVersion: '24.14.0',
+      ripgrepVersion: '15.2.0',
     });
     expect(artifactArchiveName('0.1.0', target)).toBe(
       'emdash-workspace-server-0.1.0-darwin-arm64.tar.gz'
@@ -87,6 +106,7 @@ describe('workspace-server package helpers', () => {
     const launcher = createLauncher("0.1.0-canary'1");
     expect(launcher).toContain('script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)');
     expect(launcher).toContain("export EMDASH_WS_APP_VERSION='0.1.0-canary'\\''1'");
+    expect(launcher).toContain('export EMDASH_WS_RIPGREP_PATH="$root_dir/bin/rg"');
     expect(launcher).toContain('exec "$root_dir/node" "$root_dir/dist/index.mjs" "$@"');
     expect(launcher.endsWith('\n')).toBe(true);
   });
