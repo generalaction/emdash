@@ -14,7 +14,11 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
   const newSession = `tmux -u new-session -d -s ${quotedName} ${quotedCmd}`;
   const enableMouse = `tmux set-option -t ${quotedName} mouse on 2>/dev/null || true`;
   const setHistoryLimit = `tmux set-option -t ${quotedName} history-limit ${TMUX_HISTORY_LIMIT} 2>/dev/null || true`;
-  const configure = `(${enableMouse}) && (${setHistoryLimit})`;
+  // Inline images (SIXEL, iTerm2 OSC 1337) reach the terminal wrapped in a tmux
+  // passthrough DCS. tmux drops those unless passthrough is allowed, which is why
+  // image output shows up as a blank gap inside a session but works without tmux.
+  const allowPassthrough = `tmux set-option -t ${quotedName} allow-passthrough on 2>/dev/null || true`;
+  const configure = `(${enableMouse}) && (${setHistoryLimit}) && (${allowPassthrough})`;
   const attach = `tmux -u attach-session -t ${quotedName}`;
   const script = `(${checkExists} || ${newSession}) && ${configure} && ${attach}`;
   return `/bin/sh -c ${JSON.stringify(script)}`;
