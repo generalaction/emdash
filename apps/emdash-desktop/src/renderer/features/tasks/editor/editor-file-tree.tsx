@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import {
@@ -38,9 +38,6 @@ import {
 } from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { FindOverlay } from '@renderer/lib/find/find-overlay';
-import { findTargetRegistry } from '@renderer/lib/find/find-target-registry';
-import type { FindSearchStatus } from '@renderer/lib/find/types';
-import { useFindTargetActivation } from '@renderer/lib/find/use-find-target-activation';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -53,11 +50,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
-import {
-  getNextFileTreeMatchIndex,
-  toFileTreeMatches,
-  type FileTreeSearchMatch,
-} from '../file-tree/file-tree-search';
+import { useFileTreeSearch } from '../file-tree/use-file-tree-search';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
@@ -541,14 +534,6 @@ const FileTreeRow = observer(function FileTreeRow({
   );
 });
 
-const EMPTY_SEARCH_STATUS: FindSearchStatus = {
-  found: false,
-  currentIndex: 0,
-  total: 0,
-};
-
-const FILE_TREE_FIND_TARGET_ID = 'editor-file-tree';
-
 export const EditorFileTree = observer(function EditorFileTree() {
   const workspace = useWorkspace();
   const { projectId } = useTaskViewContext();
@@ -576,133 +561,24 @@ export const EditorFileTree = observer(function EditorFileTree() {
     overscan: 10,
   });
 
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [matches, setMatches] = useState<FileTreeSearchMatch[]>([]);
-  const [currentMatchPath, setCurrentMatchPath] = useState<string | null>(null);
-  const [searchStatus, setSearchStatus] = useState<FindSearchStatus>(EMPTY_SEARCH_STATUS);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchRequestRef = useRef(0);
-
-  const closeSearch = useCallback(() => {
-    setIsSearchOpen(false);
-    setSearchQuery('');
-    setMatches([]);
-    setCurrentMatchPath(null);
-    setSearchStatus(EMPTY_SEARCH_STATUS);
-  }, []);
-
-  const revealMatch = useCallback(
-    async (path: string) => {
-      if (!files) return;
-      await files.revealFile(path, editorView.expandedPaths);
-      const updatedRows = buildFileTreeVisibleRows(
-        files.rootNodes,
-        editorView.expandedPaths,
-        files.childrenById,
-        files.loadedPaths
-      );
-      const rowIndex = updatedRows.findIndex((row) => row.node.path === path);
-      if (rowIndex !== -1) {
-        virtualizer.scrollToIndex(rowIndex, { align: 'center' });
-      }
-    },
-    [editorView.expandedPaths, files, virtualizer]
-  );
-
-  // Searches the workspace-wide FTS5 file index (same one backing Cmd+K and
-  // @mentions) rather than FilesStore.nodes, which only contains
-  // already-expanded/loaded directories — a client-side scan would otherwise
-  // silently miss any file whose parent folder hasn't been opened yet.
-  const runSearch = useCallback(
-    async (query: string) => {
-      const requestId = ++searchRequestRef.current;
-      if (!query) {
-        setMatches([]);
-        setCurrentMatchPath(null);
-        setSearchStatus(EMPTY_SEARCH_STATUS);
-        return;
-      }
-
-      const result = await rpc.search.searchWorkspaceFiles({ workspaceId, query, limit: 200 });
-      if (requestId !== searchRequestRef.current) return;
-
-      const nextMatches = toFileTreeMatches(result);
-
-      setMatches(nextMatches);
-      if (nextMatches.length === 0) {
-        setCurrentMatchPath(null);
-        setSearchStatus(EMPTY_SEARCH_STATUS);
-        return;
-      }
-
-      const match = nextMatches[0];
-      setCurrentMatchPath(match.path);
-      setSearchStatus({ found: true, currentIndex: 1, total: nextMatches.length });
-      void revealMatch(match.path);
-    },
-    [revealMatch, workspaceId]
-  );
-
-  const stepSearch = useCallback(
-    (direction: 'next' | 'prev') => {
-      if (matches.length === 0) return;
-      const currentIndex = currentMatchPath
-        ? matches.findIndex((m) => m.path === currentMatchPath)
-        : -1;
-      const nextIndex = getNextFileTreeMatchIndex(matches, currentIndex, direction);
-      const match = matches[nextIndex];
-
-      setCurrentMatchPath(match.path);
-      setSearchStatus({ found: true, currentIndex: nextIndex + 1, total: matches.length });
-      void revealMatch(match.path);
-    },
-    [currentMatchPath, matches, revealMatch]
-  );
-
-  const handleSearchQueryChange = useCallback(
-    (nextQuery: string) => {
-      setSearchQuery(nextQuery);
-      setCurrentMatchPath(null);
-      void runSearch(nextQuery);
-    },
-    [runSearch]
-  );
-
-  const handleFindActivate = useCallback(() => {
-    if (isSearchOpen) {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-      return;
-    }
-    setIsSearchOpen(true);
-  }, [isSearchOpen]);
-
-  useEffect(() => {
-    if (!isSearchOpen) return;
-    const id = requestAnimationFrame(() => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    });
-    return () => cancelAnimationFrame(id);
-  }, [isSearchOpen]);
-
-  useEffect(() => {
-    return findTargetRegistry.register({
-      id: FILE_TREE_FIND_TARGET_ID,
-      openFind: handleFindActivate,
-    });
-  }, [handleFindActivate]);
-
   const hasVisibleRows = visibleRows.length > 0;
 
-  // parentRef's div only exists once the tree has rows to render (see the
-  // loading/error/empty early returns below), so activation tracking is
-  // gated on hasVisibleRows to re-attach once the real container exists.
-  useFindTargetActivation({
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    currentMatchPath,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useFileTreeSearch({
+    files,
+    expandedPaths: editorView.expandedPaths,
+    virtualizer,
+    workspaceId,
     containerRef: parentRef,
-    targetId: FILE_TREE_FIND_TARGET_ID,
-    enabled: hasVisibleRows,
+    hasVisibleRows,
   });
 
   const handleRootDrop = (event: React.DragEvent) => {
