@@ -57,6 +57,32 @@ function getWindowsEssentialEnv(resolvedPath: string): Record<string, string> {
   };
 }
 
+export interface AgentHookEnv {
+  /**
+   * Loopback port that reaches the emdash hook server from wherever the agent
+   * runs: the hook server's own port for local spawns, the remote end of a
+   * reverse SSH tunnel for remote ones.
+   */
+  port: number;
+  ptyId: string;
+  token: string;
+}
+
+/**
+ * Env vars an agent CLI needs to POST lifecycle events back to the hook server.
+ * Shared by the local PTY env and the SSH remote command env so both spawn
+ * paths agree on the variable names.
+ */
+export function buildHookEnv(hook: AgentHookEnv | undefined): Record<string, string> {
+  if (!hook || hook.port <= 0) return {};
+  return {
+    EMDASH_HOOK_PORT: String(hook.port),
+    EMDASH_PTY_ID: hook.ptyId,
+    EMDASH_HOOK_NONCE: hook.token,
+    EMDASH_HOOK_TOKEN: hook.token,
+  };
+}
+
 export interface AgentEnvOptions {
   /**
    * Pass through AGENT_ENV_VARS from process.env.
@@ -82,11 +108,7 @@ export interface AgentEnvOptions {
    * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_NONCE so agent CLIs
    * can call back on lifecycle events.
    */
-  hook?: {
-    port: number;
-    ptyId: string;
-    token: string;
-  };
+  hook?: AgentHookEnv;
 
   /**
    * Per-provider variables configured in custom execution settings.
@@ -204,12 +226,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     Object.assign(env, providerVars);
   }
 
-  if (hook && hook.port > 0) {
-    env.EMDASH_HOOK_PORT = String(hook.port);
-    env.EMDASH_PTY_ID = hook.ptyId;
-    env.EMDASH_HOOK_NONCE = hook.token;
-    env.EMDASH_HOOK_TOKEN = hook.token;
-  }
+  Object.assign(env, buildHookEnv(hook));
 
   return env;
 }
