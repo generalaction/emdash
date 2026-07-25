@@ -29,6 +29,24 @@ export function formatConversationTitleForDisplay(
   return `${capitalizeProviderId(providerId)} (${index})`;
 }
 
+/**
+ * Whether a conversation's *displayed* title (not its raw stored title)
+ * matches a find/filter query — case-insensitive substring match. Filtering
+ * against the display title (not the raw one) matters for default-named
+ * conversations, e.g. a raw title of "claude (2)" displays as "Claude (2)"
+ * and should match a query of "Claude" even though the raw string wouldn't.
+ */
+export function matchesConversationSearch(
+  providerId: AgentProviderId,
+  title: string,
+  query: string
+): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return true;
+  const displayTitle = formatConversationTitleForDisplay(providerId, title);
+  return displayTitle.toLocaleLowerCase().includes(normalizedQuery);
+}
+
 export function nextDefaultConversationTitle(
   providerId: AgentProviderId,
   conversations: ConversationTitleInput[]
