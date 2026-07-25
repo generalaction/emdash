@@ -41,6 +41,8 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
+import { useDomTextSearch } from '@renderer/lib/find/use-dom-text-search';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -652,6 +654,19 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useDomTextSearch({
+    containerRef: rootRef,
+    enabled: Boolean(store),
+    targetId: `acp-chat-${store?.conversationId ?? 'none'}`,
+  });
   const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
   const [heroSlot, setHeroSlot] = useState<HTMLElement | null>(null);
   const [overlaySlot, setOverlaySlot] = useState<HTMLElement | null>(null);
@@ -809,6 +824,18 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   return (
     <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
+      <FindOverlay
+        isOpen={isSearchOpen}
+        fullWidth
+        searchQuery={searchQuery}
+        searchStatus={searchStatus}
+        searchInputRef={searchInputRef}
+        onQueryChange={handleSearchQueryChange}
+        onStep={stepSearch}
+        onClose={closeSearch}
+        placeholder="Find in conversation..."
+        ariaLabel="Find in conversation"
+      />
       <ChatTranscript
         context={store.chatContext}
         state={store.chatState}
