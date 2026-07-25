@@ -36,16 +36,35 @@ export function useDomTextSearch({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
   const [searchStatus, setSearchStatus] = useState<FindSearchStatus>(EMPTY_SEARCH_STATUS);
+  // The MutationObserver below watches for external content changes (the
+  // whole point of it), but our own mark insert/remove is also a DOM
+  // mutation. A plain synchronous boolean flag can't guard against that: the
+  // observer's callback runs as a microtask *after* the current synchronous
+  // block finishes, so a flag set-then-reset synchronously has already gone
+  // back to false by the time the callback checks it, and the observer
+  // "sees" its own edit as an external change — rebuilding, mutating the DOM
+  // again, and re-triggering itself indefinitely. Track and discard our own
+  // pending mutation records via takeRecords() instead, which reads
+  // everything queued so far (including our own edit) synchronously, before
+  // the observer's callback would otherwise fire on it.
+  const observerRef = useRef<MutationObserver | null>(null);
+
+  const withoutObserving = useCallback((mutate: () => void) => {
+    mutate();
+    observerRef.current?.takeRecords();
+  }, []);
 
   const clearMark = useCallback(() => {
     const mark = markRef.current;
     if (!mark?.parentNode) return;
-    const parent = mark.parentNode;
-    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
-    parent.removeChild(mark);
-    parent.normalize();
+    withoutObserving(() => {
+      const parent = mark.parentNode!;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+      parent.normalize();
+    });
     markRef.current = null;
-  }, []);
+  }, [withoutObserving]);
 
   const resetSearchState = useCallback(() => {
     setSearchQuery('');
@@ -72,12 +91,12 @@ export function useDomTextSearch({
       mark.setAttribute(MARK_ATTR, 'true');
       mark.className = 'text-inherit';
       mark.style.backgroundColor = 'var(--find-match-highlight-bg)';
-      range.surroundContents(mark);
+      withoutObserving(() => range.surroundContents(mark));
       markRef.current = mark;
 
       mark.scrollIntoView({ block: 'center' });
     },
-    [clearMark, containerRef]
+    [clearMark, containerRef, withoutObserving]
   );
 
   const runSearch = useCallback(
@@ -158,6 +177,32 @@ export function useDomTextSearch({
     },
     [runSearch, searchQuery]
   );
+
+  // The <mark> wrapping a match is a raw DOM node inserted directly into
+  // content the framework (React for markdown, the ACP transcript renderer)
+  // owns and re-renders independently — e.g. a markdown buffer edit or a
+  // streaming ACP response. If that content changes while a mark is
+  // present, the framework's reconciliation runs against a subtree the mark
+  // has already split, and the mark itself then points at stale/detached
+  // text. Watch the container for changes and rebuild the search from
+  // scratch against the fresh content rather than let a corrupted mark
+  // linger. withoutObserving() drains our own mutations via takeRecords()
+  // before they'd otherwise reach this callback.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isSearchOpen || !searchQuery) return;
+
+    const observer = new MutationObserver(() => {
+      runSearch(searchQuery, { direction: 'next', reset: true });
+    });
+    observerRef.current = observer;
+    observer.observe(container, { childList: true, characterData: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [containerRef, isSearchOpen, runSearch, searchQuery]);
 
   useEffect(() => {
     if (!isSearchOpen) return;
