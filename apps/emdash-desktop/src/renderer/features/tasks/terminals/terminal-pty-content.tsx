@@ -4,10 +4,10 @@ import {
   createPaneDimensionSink,
   PaneDimensionProvider,
 } from '@renderer/features/tabs/pane-dimension-provider';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
 import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
-import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { cssVar } from '@renderer/utils/cssVars';
 import { cn } from '@renderer/utils/utils';
@@ -58,6 +58,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
     terminal: activeSession?.pty?.terminal,
     containerRef: terminalContainerRef,
     enabled: Boolean(activeSession?.pty),
+    targetId: `terminal-pty-${activeSessionId ?? 'none'}`,
     onCloseFocus: () => terminalRef.current?.focus(),
   });
 
@@ -107,7 +108,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                  <TerminalSearchOverlay
+                  <FindOverlay
                     isOpen={isSearchOpen}
                     fullWidth
                     searchQuery={searchQuery}
@@ -116,6 +117,8 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                     onQueryChange={handleSearchQueryChange}
                     onStep={stepSearch}
                     onClose={closeSearch}
+                    placeholder="Find in terminal..."
+                    ariaLabel="Find in terminal"
                   />
                   <PtyPane
                     ref={terminalRef}

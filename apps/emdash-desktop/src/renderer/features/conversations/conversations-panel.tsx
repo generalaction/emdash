@@ -13,9 +13,9 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
 import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
-import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
@@ -69,6 +69,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     terminal: activeSession?.pty?.terminal,
     containerRef: terminalContainerRef,
     enabled: Boolean(activeSession?.pty),
+    targetId: `conversation-terminal-${activeSessionId ?? 'none'}`,
     onCloseFocus: () => terminalRef.current?.focus(),
   });
 
@@ -144,7 +145,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                  <TerminalSearchOverlay
+                  <FindOverlay
                     isOpen={isSearchOpen}
                     fullWidth
                     searchQuery={searchQuery}
@@ -153,6 +154,8 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     onQueryChange={handleSearchQueryChange}
                     onStep={stepSearch}
                     onClose={closeSearch}
+                    placeholder="Find in terminal..."
+                    ariaLabel="Find in terminal"
                   />
                   <PtyPane
                     ref={terminalRef}
