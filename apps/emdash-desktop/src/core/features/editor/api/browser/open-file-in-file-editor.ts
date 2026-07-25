@@ -30,7 +30,8 @@ function resolveEditorFilePath(workspacePath: string, filePath: string): string 
 export async function openFileInTaskEditor(
   projectId: string,
   taskId: string,
-  filePath: string
+  filePath: string,
+  options: { target?: 'active' | 'right' } = {}
 ): Promise<void> {
   const provisioned = asProvisioned(getTaskStore(projectId, taskId));
   if (!provisioned) return;
@@ -55,10 +56,9 @@ export async function openFileInTaskEditor(
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  getTaskComposition(projectId, taskId)?.activePane.open(
-    'file',
-    { path: resolvedPath },
-    { preview: false }
+  getTaskComposition(projectId, taskId)?.openWorkspaceFile(
+    resolvedPath,
+    options.target ?? 'active'
   );
 }
 
@@ -73,32 +73,7 @@ export async function openFileInAdjacentPane(
   taskId: string,
   filePath: string
 ): Promise<void> {
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-  if (!provisioned) return;
-  const workspace = workspaceRegistry.get(provisioned.workspaceId);
-  if (!workspace) return;
-
-  const resolvedPath = resolveEditorFilePath(workspace.path, filePath);
-  if (resolvedPath === null) {
-    void openExternalFilePath(projectId, taskId, filePath);
-    return;
-  }
-
-  const editor = await getEditorClient();
-  const exists = await editor.fs.exists(
-    editorFilePath(workspace.workspaceId, workspace.path, resolvedPath)
-  );
-  if (!exists.success || !exists.data) {
-    toast.error(`File not found in workspace: ${filePath}`);
-    return;
-  }
-
-  focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  getTaskComposition(projectId, taskId)?.paneLayout.open(
-    'file',
-    { path: resolvedPath },
-    { preview: false, target: 'right' }
-  );
+  return openFileInTaskEditor(projectId, taskId, filePath, { target: 'right' });
 }
 
 export async function openExternalFilePath(

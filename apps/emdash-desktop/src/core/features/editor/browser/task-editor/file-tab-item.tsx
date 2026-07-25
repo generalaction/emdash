@@ -85,9 +85,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
                 icon: FolderOpen,
                 group: 'file',
                 run: () => {
-                  taskView.setSidebarTab('files');
-                  taskView.setSidebarCollapsed(false);
-                  taskView.editorView.requestRevealFile(resource.path);
+                  taskView.revealWorkspaceFile(resource.path);
                 },
               },
             ]

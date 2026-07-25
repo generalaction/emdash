@@ -448,6 +448,18 @@ export class TaskComposition {
     this.activePane.setActiveTab(tabId);
   }
 
+  openWorkspaceFile(path: string, target: 'active' | 'right' = 'active'): void {
+    this.paneLayout.open('file', { path }, { preview: false, target });
+    this.setFocusedRegion('main');
+    this.revealWorkspaceFile(path);
+  }
+
+  revealWorkspaceFile(path: string): void {
+    this.setSidebarTab('files');
+    this.setSidebarCollapsed(false);
+    this.editorView.requestRevealFile(path);
+  }
+
   setSidebarTab(value: SidebarTab): void {
     this._chromeHandle.update((current) => ({ ...current, sidebarTab: value }));
   }

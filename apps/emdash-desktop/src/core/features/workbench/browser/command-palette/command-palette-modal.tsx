@@ -25,6 +25,7 @@ import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getCommandIcon } from './command-icons';
+import { openCommandPaletteFile } from './open-command-palette-file';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
@@ -287,14 +288,7 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
   };
 
   const handleOpenFile = (item: SearchItem) => {
-    if (!item.projectId || !item.taskId) return;
-    getTaskComposition(item.projectId, item.taskId)?.activePane.open(
-      'file',
-      { path: item.id },
-      { preview: false }
-    );
-    handleClose();
-    navigate(taskViewDef({ projectId: item.projectId, taskId: item.taskId }));
+    openCommandPaletteFile(item, handleClose, navigate);
   };
 
   const handleSelect = (item: SearchItem) => {
