@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
@@ -23,6 +24,7 @@ import {
   type BrowserWebviewAdapter,
   type BrowserWebviewElement,
 } from './browser-webview-types';
+import { useBrowserFind } from './use-browser-find';
 
 const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
 
@@ -38,6 +40,7 @@ export const BrowserPane = observer(function BrowserPane({
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
+  const webviewContainerRef = useRef<HTMLDivElement>(null);
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
   const [webviewMount, setWebviewMount] = useState<{
@@ -242,6 +245,22 @@ export const BrowserPane = observer(function BrowserPane({
     });
   }, [adapter, sessionBrowserId]);
 
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useBrowserFind({
+    adapter,
+    webview: webviewElement,
+    containerRef: webviewContainerRef,
+    enabled: adapter !== null,
+    targetId: `browser-${browserId}`,
+  });
+
   if (!session) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center bg-background text-sm text-foreground-muted">
@@ -266,30 +285,47 @@ export const BrowserPane = observer(function BrowserPane({
           focusUrlRef.current = focus;
         }}
       />
-      <div className="emlight min-h-0 flex-1 bg-background">
-        {loadError && loadErrorPresentation ? (
-          <BrowserLoadErrorView
-            url={loadErrorUrl}
-            presentation={loadErrorPresentation}
-            code={browserLoadErrorCode(loadError)}
-            canOpenExternal={canOpenLoadErrorExternal}
-            onReload={reload}
-            onOpenExternal={() => openBrowserUrlExternally(loadErrorUrl)}
-          />
-        ) : showStartPage ? (
-          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
-        ) : webviewProps && isRegistered ? (
-          <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
-            ref={attachWebview}
-            {...webviewProps}
-            className="h-full w-full bg-background"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-foreground-muted">
-            Preparing browser session
-          </div>
-        )}
+      <div className="relative min-h-0 flex-1">
+        {/* FindOverlay renders outside the emlight-forced div below so it
+            picks up the app's real theme colors instead of being forced
+            light along with the webview's native chrome. */}
+        <FindOverlay
+          isOpen={isSearchOpen}
+          fullWidth
+          searchQuery={searchQuery}
+          searchStatus={searchStatus}
+          searchInputRef={searchInputRef}
+          onQueryChange={handleSearchQueryChange}
+          onStep={stepSearch}
+          onClose={closeSearch}
+          placeholder="Find in page..."
+          ariaLabel="Find in page"
+        />
+        <div ref={webviewContainerRef} className="emlight relative h-full min-h-0 bg-background">
+          {loadError && loadErrorPresentation ? (
+            <BrowserLoadErrorView
+              url={loadErrorUrl}
+              presentation={loadErrorPresentation}
+              code={browserLoadErrorCode(loadError)}
+              canOpenExternal={canOpenLoadErrorExternal}
+              onReload={reload}
+              onOpenExternal={() => openBrowserUrlExternally(loadErrorUrl)}
+            />
+          ) : showStartPage ? (
+            <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
+          ) : webviewProps && isRegistered ? (
+            <webview
+              key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
+              ref={attachWebview}
+              {...webviewProps}
+              className="h-full w-full bg-background"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-foreground-muted">
+              Preparing browser session
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
