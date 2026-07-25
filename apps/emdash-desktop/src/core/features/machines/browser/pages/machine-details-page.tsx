@@ -20,6 +20,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { ResourceUtilizationRow } from '../components/machine-resources';
 import { deriveMachineStatusKind } from '../components/machine-status-kind';
+import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
 import { MachineWorkspacesList } from '../components/machine-workspaces-list';
 import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
@@ -287,6 +288,16 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           </div>
         </SeparatedList>
       </SettingsCard>
+
+      {serverHealthy ? (
+        <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
+      ) : (
+        <SettingsCard>
+          <div className="p-4 text-sm text-foreground-muted">
+            System dependency detection is available when the workspace server is healthy.
+          </div>
+        </SettingsCard>
+      )}
 
       <div className="grid grid-cols-4 gap-2">
         <MachineDetailsCard

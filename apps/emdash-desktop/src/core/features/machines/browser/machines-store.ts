@@ -19,7 +19,12 @@ import type {
 } from '@core/primitives/ssh/api';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import type { machinesContract } from '../api';
+import type {
+  InstallMachineSystemDependencyInput,
+  InstallMachineSystemDependencyResult,
+  MachineSystemDependencyStatus,
+  machinesContract,
+} from '../api';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
   Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
@@ -199,6 +204,16 @@ export class MachinesStore {
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> {
     return await (await this.getSshClient()).testConnection(config);
+  }
+
+  async getSystemDependencies(machineId: string): Promise<MachineSystemDependencyStatus[]> {
+    return await (await this.getMachinesClient()).getMachineSystemDependencies({ machineId });
+  }
+
+  async installSystemDependency(
+    input: InstallMachineSystemDependencyInput
+  ): Promise<InstallMachineSystemDependencyResult> {
+    return await (await this.getMachinesClient()).installMachineSystemDependency(input);
   }
 
   private get runtime(): SshConnectionsRuntime {

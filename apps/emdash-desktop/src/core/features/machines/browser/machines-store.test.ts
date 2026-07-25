@@ -296,6 +296,12 @@ function setup(
   const machinesWire = createTestWire(machinesContract, {
     getMachines: async () => options.saved ?? [],
     getMachineUsage: async () => ({}),
+    getMachineMetrics: async () => null as never,
+    getMachineSystemDependencies: async () => [],
+    installMachineSystemDependency: async ({ id }) => ({
+      success: false as const,
+      error: { type: 'unknown-dependency' as const, id },
+    }),
     saveMachine,
     deleteMachine,
     renameMachine,
