@@ -2,7 +2,7 @@ import { MachineStatus } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import { SelectableCard } from '@emdash/ui/react/primitives';
-import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Trash2Icon, User } from 'lucide-react';
+import { Brain, EllipsisIcon, Folder, PencilIcon, Server, Settings, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -26,7 +26,7 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
 
-type MachineDetailsSection = 'workspaces' | 'agents' | 'mcp' | 'skills';
+type MachineDetailsSection = 'system' | 'workspaces' | 'agents' | 'mcp' | 'skills';
 
 function MachineDetailsCard({
   children,
@@ -83,7 +83,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const [name, setName] = useState(machine?.name ?? '');
   const [isRenaming, setIsRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [section, setSection] = useState<MachineDetailsSection>('workspaces');
+  const [section, setSection] = useState<MachineDetailsSection>('system');
   const renameFieldRef = useRef<HTMLInputElement>(null);
   const workspaceServer = useRemoteMachineServerState({
     machineId: machine?.id,
@@ -260,46 +260,13 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         </DropdownMenu.Root>
       </div>
 
-      <SettingsCard>
-        <SeparatedList gap="1rem" direction="column">
-          <MachineConnectionRow
-            machine={machine}
-            state={state}
-            onEdit={editConnectionSettings}
-            onConnect={connectMachine}
-            onDisconnect={disconnectMachine}
-          />
-          <div
-            aria-disabled={!connected}
-            className={cn(!connected && 'pointer-events-none opacity-33')}
-          >
-            <WorkspaceRuntimeRow
-              connected={connected}
-              loading={workspaceServer.loading}
-              state={workspaceServer.state}
-              actions={workspaceServer}
-            />
-          </div>
-          <div
-            aria-disabled={!connected}
-            className={cn(!connected && 'pointer-events-none opacity-33')}
-          >
-            <ResourceUtilizationRow metrics={metrics} />
-          </div>
-        </SeparatedList>
-      </SettingsCard>
-
-      {serverHealthy ? (
-        <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
-      ) : (
-        <SettingsCard>
-          <div className="p-4 text-sm text-foreground-muted">
-            System dependency detection is available when the workspace server is healthy.
-          </div>
-        </SettingsCard>
-      )}
-
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
+        <MachineDetailsCard
+          icon={<Settings size={14} />}
+          title="System"
+          selected={section === 'system'}
+          onClick={() => setSection('system')}
+        />
         <MachineDetailsCard
           icon={<Folder size={14} />}
           title="Workspaces"
@@ -325,6 +292,49 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           onClick={() => setSection('skills')}
         />
       </div>
+
+      {section === 'system' && (
+        <>
+          <SettingsCard>
+            <SeparatedList gap="1rem" direction="column">
+              <MachineConnectionRow
+                machine={machine}
+                state={state}
+                onEdit={editConnectionSettings}
+                onConnect={connectMachine}
+                onDisconnect={disconnectMachine}
+              />
+              <div
+                aria-disabled={!connected}
+                className={cn(!connected && 'pointer-events-none opacity-33')}
+              >
+                <WorkspaceRuntimeRow
+                  connected={connected}
+                  loading={workspaceServer.loading}
+                  state={workspaceServer.state}
+                  actions={workspaceServer}
+                />
+              </div>
+              <div
+                aria-disabled={!connected}
+                className={cn(!connected && 'pointer-events-none opacity-33')}
+              >
+                <ResourceUtilizationRow metrics={metrics} />
+              </div>
+            </SeparatedList>
+          </SettingsCard>
+
+          {serverHealthy ? (
+            <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
+          ) : (
+            <SettingsCard>
+              <div className="p-4 text-sm text-foreground-muted">
+                System dependency detection is available when the workspace server is healthy.
+              </div>
+            </SettingsCard>
+          )}
+        </>
+      )}
 
       {section === 'workspaces' && (
         <MachineWorkspacesList
