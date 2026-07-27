@@ -7,7 +7,7 @@ export function useProjectName(generatedName: string) {
 
   return {
     name,
-    placeholder: generatedName || 'Project name...',
+    placeholder: generatedName || 'Project name',
     effectiveName: trimmedName || trimmedGeneratedName,
     handleNameChange: setName,
   };
