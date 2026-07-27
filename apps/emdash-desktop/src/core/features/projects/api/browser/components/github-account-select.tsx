@@ -37,6 +37,40 @@ export function GitHubAccountSelectLabel({ account }: { account: GitHubAccountSu
   );
 }
 
+export function GitHubAccountSelectTrigger({ account }: { account: GitHubAccountSummary }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+      {account.avatarUrl ? (
+        <img src={account.avatarUrl} alt={account.login} className="size-4 shrink-0 rounded-full" />
+      ) : (
+        <Github className="size-4 shrink-0 text-foreground-muted" />
+      )}
+      <span className="min-w-0 truncate">{account.login}</span>
+    </span>
+  );
+}
+
+export function GitHubAccountSelectListItem({ account }: { account: GitHubAccountSummary }) {
+  return (
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-0.5">
+      {account.avatarUrl ? (
+        <img
+          src={account.avatarUrl}
+          alt={account.login}
+          className="row-span-2 size-8 shrink-0 self-center rounded-full"
+        />
+      ) : (
+        <Github className="row-span-2 size-8 shrink-0 self-center text-foreground-muted" />
+      )}
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate font-medium">{account.login}</span>
+        <GitHubCredentialSourceBadge source={account.credentialSource} />
+      </div>
+      <span className="text-xs text-foreground-muted">{account.host}</span>
+    </div>
+  );
+}
+
 export function GitHubDefaultAccountBadge() {
   return (
     <Badge

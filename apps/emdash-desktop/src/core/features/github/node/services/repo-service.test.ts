@@ -38,7 +38,7 @@ function makeOctokit(
       users: {
         getAuthenticated:
           overrides.usersGetAuthenticated ??
-          vi.fn().mockResolvedValue({ data: { login: 'testuser' } }),
+          vi.fn().mockResolvedValue({ data: { login: 'testuser', avatar_url: 'https://avatars.githubusercontent.com/u/1' } }),
       },
       orgs: {
         listForAuthenticatedUser:
@@ -103,15 +103,17 @@ describe('GitHubRepositoryServiceImpl', () => {
   describe('getOwners', () => {
     it('returns user + orgs', async () => {
       const octokit = makeOctokit({
-        orgsListForAuthenticatedUser: vi.fn().mockResolvedValue({ data: [{ login: 'acme' }] }),
+        orgsListForAuthenticatedUser: vi.fn().mockResolvedValue({
+          data: [{ login: 'acme', avatar_url: 'https://avatars.githubusercontent.com/u/2' }],
+        }),
       });
       mockGetOctokit.mockResolvedValue(ok(octokit));
 
       const owners = await repoService.getOwners();
 
       expect(owners).toEqual([
-        { login: 'testuser', type: 'User' },
-        { login: 'acme', type: 'Organization' },
+        { login: 'testuser', type: 'User', avatarUrl: 'https://avatars.githubusercontent.com/u/1' },
+        { login: 'acme', type: 'Organization', avatarUrl: 'https://avatars.githubusercontent.com/u/2' },
       ]);
     });
 
@@ -123,7 +125,9 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       const owners = await repoService.getOwners();
 
-      expect(owners).toEqual([{ login: 'testuser', type: 'User' }]);
+      expect(owners).toEqual([
+        { login: 'testuser', type: 'User', avatarUrl: 'https://avatars.githubusercontent.com/u/1' },
+      ]);
     });
 
     it('uses the requested GitHub account for owner lookup', async () => {

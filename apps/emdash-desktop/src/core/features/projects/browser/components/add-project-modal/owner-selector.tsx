@@ -1,12 +1,16 @@
 import { Combobox, Select, TriggerButton } from '@emdash/ui/react/primitives';
 import { GithubIcon } from 'lucide-react';
 import { useState } from 'react';
-import { GitHubAccountSelectLabel } from '@core/features/projects/api/browser/components/github-account-select';
+import {
+  GitHubAccountSelectListItem,
+  GitHubAccountSelectTrigger,
+} from '@core/features/projects/api/browser/components/github-account-select';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 
 export interface OwnerOption {
   value: string;
   label: string;
+  avatarUrl: string;
 }
 
 export function OwnerSelector({
@@ -70,7 +74,18 @@ export function OwnerSelector({
         <Combobox.List>
           {owners.map((item) => (
             <Combobox.Item key={item.value} value={item}>
-              {item.label}
+              <span className="flex min-w-0 items-center gap-2">
+                {item.avatarUrl ? (
+                  <img
+                    src={item.avatarUrl}
+                    alt={item.label}
+                    className="size-4 shrink-0 rounded-full"
+                  />
+                ) : (
+                  <GithubIcon className="size-4 shrink-0 text-foreground-muted" />
+                )}
+                <span className="min-w-0 truncate">{item.label}</span>
+              </span>
             </Combobox.Item>
           ))}
           <Combobox.Empty>No owners found.</Combobox.Empty>
@@ -100,7 +115,7 @@ function GitHubAccountSelect({
       >
         <Select.Trigger appearance="input" size="sm" className="max-w-48 min-w-36">
           {selectedAccount ? (
-            <GitHubAccountSelectLabel account={selectedAccount} />
+            <GitHubAccountSelectTrigger account={selectedAccount} />
           ) : (
             <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <GithubIcon className="size-4 shrink-0 text-foreground-muted" />
@@ -108,10 +123,10 @@ function GitHubAccountSelect({
             </span>
           )}
         </Select.Trigger>
-        <Select.Content align="end" alignItemWithTrigger={false} sideOffset={6}>
+        <Select.Content align="end" alignItemWithTrigger={false} sideOffset={6} className="min-w-56">
           {accounts.map((account) => (
             <Select.Item key={account.accountId} value={account.accountId}>
-              <GitHubAccountSelectLabel account={account} />
+              <GitHubAccountSelectListItem account={account} />
             </Select.Item>
           ))}
         </Select.Content>

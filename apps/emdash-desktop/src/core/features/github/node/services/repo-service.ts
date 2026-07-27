@@ -3,6 +3,7 @@ import type {
   GitHubApiAuthContext,
   GitHubApiAuthService,
 } from '@core/features/github/api/node/services/github-api-auth-service';
+import type { GitHubOwner } from '@core/primitives/github/api';
 import { GitHubApiAuthErrorException, getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -25,10 +26,6 @@ export interface GitHubRepo {
   forksCount: number;
 }
 
-export interface GitHubOwner {
-  login: string;
-  type: 'User' | 'Organization';
-}
 
 export interface GitHubRepositoryService {
   listRepositories(authContext?: GitHubApiAuthContext): Promise<GitHubRepo[]>;
@@ -88,12 +85,12 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   async getOwners(authContext: GitHubApiAuthContext = {}): Promise<GitHubOwner[]> {
     const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
     const { data: user } = await octokit.rest.users.getAuthenticated();
-    const owners: GitHubOwner[] = [{ login: user.login, type: 'User' }];
+    const owners: GitHubOwner[] = [{ login: user.login, type: 'User', avatarUrl: user.avatar_url }];
 
     try {
       const { data: orgs } = await octokit.rest.orgs.listForAuthenticatedUser();
       for (const org of orgs) {
-        owners.push({ login: org.login, type: 'Organization' });
+        owners.push({ login: org.login, type: 'Organization', avatarUrl: org.avatar_url });
       }
     } catch {}
 

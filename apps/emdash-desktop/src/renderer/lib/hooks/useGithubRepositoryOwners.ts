@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import type { ComboboxSelectOption } from '@core/primitives/ui/browser/combobox-popover';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
+export type GitHubOwnerOption = ComboboxSelectOption & { avatarUrl: string };
+
 function toErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.length > 0) return error;
   if (error instanceof Error && error.message.length > 0) return error.message;
@@ -12,7 +14,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
 export function useGitHubRepositoryOwnerSelect(githubAccountId: string | null) {
   const [ownerOverride, setOwnerOverride] = useState<{
     githubAccountId: string;
-    owner: ComboboxSelectOption;
+    owner: GitHubOwnerOption;
   } | null>(null);
 
   const query = useQuery({
@@ -27,7 +29,11 @@ export function useGitHubRepositoryOwnerSelect(githubAccountId: string | null) {
   const owners = useMemo(
     () =>
       githubAccountId !== null && query.data?.success === true
-        ? (query.data.owners ?? []).map((owner) => ({ value: owner.login, label: owner.login }))
+        ? (query.data.owners ?? []).map((owner) => ({
+            value: owner.login,
+            label: owner.login,
+            avatarUrl: owner.avatarUrl,
+          }))
         : [],
     [githubAccountId, query.data]
   );
@@ -40,7 +46,7 @@ export function useGitHubRepositoryOwnerSelect(githubAccountId: string | null) {
         ? toErrorMessage(query.error, 'Failed to load repository owners')
         : null;
 
-  const handleOwnerChange = (nextOwner: ComboboxSelectOption) => {
+  const handleOwnerChange = (nextOwner: GitHubOwnerOption) => {
     if (githubAccountId === null) return;
     setOwnerOverride({ githubAccountId, owner: nextOwner });
   };

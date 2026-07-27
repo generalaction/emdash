@@ -46,7 +46,7 @@ export function LocationSelector({
             appearance="input"
             size="sm"
             tone="neutral"
-            className="max-w-34 min-w-24 justify-between"
+            className="max-w-34 min-w-1 justify-between"
             aria-label="Project location"
           >
             <span className="flex min-w-0 items-center gap-2">

@@ -60,6 +60,7 @@ export interface GitHubRepo {
 export interface GitHubOwner {
   login: string;
   type: 'User' | 'Organization';
+  avatarUrl: string;
 }
 
 export type GitHubEvent =
