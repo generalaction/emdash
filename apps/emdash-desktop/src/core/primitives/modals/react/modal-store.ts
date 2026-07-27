@@ -24,22 +24,29 @@ function createDeferred<T>(): Deferred<T> {
   return deferred;
 }
 
+export interface ModalStackEntry {
+  readonly key: number;
+  readonly id: string;
+  readonly args: Record<string, unknown>;
+  readonly closeGuardActive: boolean;
+  readonly closing: boolean;
+}
+
+interface ModalEntry extends ModalStackEntry {
+  pendingOpen: Deferred<Result<unknown, ModalDismissed>> | null;
+  closeSequence: number;
+}
+
 export class ModalStore {
-  activeModalId: string | null = null;
-  activeModalArgs: Record<string, unknown> | null = null;
-  closeGuardActive = false;
+  stack: ModalEntry[] = [];
   previousFocus: HTMLElement | null = null;
-  private pendingOpen: Deferred<Result<unknown, ModalDismissed>> | null = null;
-  private closeScheduled = false;
-  private closeSequence = 0;
+  private nextKey = 1;
 
   constructor() {
-    makeAutoObservable<this, 'pendingOpen' | 'closeScheduled' | 'closeSequence'>(this, {
-      activeModalArgs: observable.ref,
+    makeAutoObservable<this, 'nextKey'>(this, {
+      stack: observable.shallow,
       previousFocus: observable.ref,
-      pendingOpen: false,
-      closeScheduled: false,
-      closeSequence: false,
+      nextKey: false,
     });
   }
 
@@ -50,21 +57,55 @@ export class ModalStore {
   }
 
   complete(result: unknown): void {
-    if (!this.isOpen || this.closeScheduled) return;
-    this.pendingOpen?.resolve(ok(result));
-    this.pendingOpen = null;
-    this.scheduleClose();
+    const entry = this.topOpenEntry;
+    if (!entry) return;
+    this.completeEntry(entry.key, result);
+  }
+
+  completeEntry(key: number, result: unknown): void {
+    const entry = this.findEntry(key);
+    if (!entry || entry.closing) return;
+    entry.pendingOpen?.resolve(ok(result));
+    entry.pendingOpen = null;
+    this.scheduleEntryClose(entry);
   }
 
   dismiss(reason: ModalDismissReason = 'explicit'): void {
-    if (!this.isOpen || this.closeScheduled) return;
-    this.pendingOpen?.resolve(err<ModalDismissed>({ type: 'modal_dismissed', reason }));
-    this.pendingOpen = null;
-    this.scheduleClose();
+    const entry = this.topOpenEntry;
+    if (!entry) return;
+    this.dismissEntry(entry.key, reason);
+  }
+
+  dismissEntry(key: number, reason: ModalDismissReason = 'explicit'): void {
+    const entry = this.findEntry(key);
+    if (!entry || entry.closing) return;
+    entry.pendingOpen?.resolve(err<ModalDismissed>({ type: 'modal_dismissed', reason }));
+    entry.pendingOpen = null;
+    this.scheduleEntryClose(entry);
+  }
+
+  dismissAll(reason: ModalDismissReason = 'explicit'): void {
+    for (const entry of this.stack.slice().reverse()) {
+      if (!entry.closing) {
+        this.dismissEntry(entry.key, reason);
+      }
+    }
   }
 
   setCloseGuard(active: boolean): void {
-    this.closeGuardActive = active;
+    const entry = this.topOpenEntry;
+    if (!entry) return;
+    this.setEntryCloseGuard(entry.key, active);
+  }
+
+  setEntryCloseGuard(key: number, active: boolean): void {
+    const entry = this.findEntry(key);
+    if (!entry || entry.closing) return;
+    this.replaceEntry(entry, { closeGuardActive: active });
+  }
+
+  removeEntry(key: number): void {
+    this.stack = this.stack.filter((entry) => entry.key !== key);
   }
 
   consumePreviousFocus(): HTMLElement | null {
@@ -74,7 +115,31 @@ export class ModalStore {
   }
 
   get isOpen(): boolean {
-    return this.activeModalId !== null;
+    return this.topOpenEntry !== null;
+  }
+
+  get activeModalId(): string | null {
+    return this.topOpenEntry?.id ?? null;
+  }
+
+  get activeModalArgs(): Record<string, unknown> | null {
+    return this.topOpenEntry?.args ?? null;
+  }
+
+  get closeGuardActive(): boolean {
+    return this.topOpenEntry?.closeGuardActive ?? false;
+  }
+
+  get topEntry(): ModalEntry | null {
+    return this.stack[this.stack.length - 1] ?? null;
+  }
+
+  private get topOpenEntry(): ModalEntry | null {
+    for (let index = this.stack.length - 1; index >= 0; index -= 1) {
+      const entry = this.stack[index];
+      if (!entry.closing) return entry;
+    }
+    return null;
   }
 
   private activateModal(
@@ -82,37 +147,56 @@ export class ModalStore {
     args: Record<string, unknown>,
     pendingOpen: Deferred<Result<unknown, ModalDismissed>>
   ): void {
-    if (this.closeScheduled) {
-      this.closeScheduled = false;
-      this.closeSequence += 1;
-    } else if (this.isOpen) {
-      this.pendingOpen?.resolve(
-        err<ModalDismissed>({ type: 'modal_dismissed', reason: 'replaced' })
-      );
-    } else if (typeof document !== 'undefined') {
+    const topEntry = this.topEntry;
+    if (!topEntry && typeof document !== 'undefined') {
       this.previousFocus = document.activeElement as HTMLElement | null;
     }
 
-    this.closeGuardActive = false;
-    this.activeModalId = id;
-    this.activeModalArgs = args;
-    this.pendingOpen = pendingOpen;
+    const entry: ModalEntry = {
+      key: this.nextKey++,
+      id,
+      args,
+      pendingOpen,
+      closeGuardActive: false,
+      closing: false,
+      closeSequence: 0,
+    };
+
+    if (topEntry?.closing) {
+      this.replaceEntry(topEntry, entry);
+      return;
+    }
+
+    this.stack = [...this.stack, entry];
   }
 
-  private scheduleClose(): void {
-    this.closeGuardActive = false;
-    this.closeScheduled = true;
-    const closeSequence = ++this.closeSequence;
-    queueMicrotask(() => this.finalizeClose(closeSequence));
+  private scheduleEntryClose(entry: ModalEntry): void {
+    const closeSequence = entry.closeSequence + 1;
+    this.replaceEntry(entry, {
+      pendingOpen: null,
+      closeGuardActive: false,
+      closing: true,
+      closeSequence,
+    });
+    if (typeof document === 'undefined') {
+      queueMicrotask(() => this.finalizeEntryClose(entry.key, closeSequence));
+    }
   }
 
-  private finalizeClose(closeSequence: number): void {
-    if (!this.closeScheduled || this.closeSequence !== closeSequence) return;
+  private finalizeEntryClose(key: number, closeSequence: number): void {
+    const entry = this.findEntry(key);
+    if (!entry || !entry.closing || entry.closeSequence !== closeSequence) return;
+    this.removeEntry(key);
+  }
 
-    this.closeScheduled = false;
-    this.activeModalId = null;
-    this.activeModalArgs = null;
-    this.pendingOpen = null;
+  private findEntry(key: number): ModalEntry | undefined {
+    return this.stack.find((entry) => entry.key === key);
+  }
+
+  private replaceEntry(entry: ModalEntry, patch: Partial<ModalEntry>): void {
+    this.stack = this.stack.map((current) =>
+      current.key === entry.key ? { ...current, ...patch } : current
+    );
   }
 }
 

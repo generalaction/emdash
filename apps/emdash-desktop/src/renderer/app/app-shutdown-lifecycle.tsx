@@ -97,7 +97,7 @@ export function AppShutdownLifecycle() {
           } else if (event.type === 'quit-confirmation-cancelled') {
             if (activeRequestId.current !== event.requestId) return;
             activeRequestId.current = null;
-            modalStore.dismiss('passive');
+            modalStore.dismissAll('passive');
           } else if (event.type === 'shutdown-started') {
             void handleShutdownStarted();
           }

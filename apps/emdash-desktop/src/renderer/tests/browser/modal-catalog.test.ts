@@ -20,6 +20,7 @@ const expectedModalIds = [
   'createPrModal',
   'createSkillModal',
   'deleteTaskModal',
+  'directorySelectorModal',
   'feedbackModal',
   'githubConnectModal',
   'githubDeviceFlowModal',

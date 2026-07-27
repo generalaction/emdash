@@ -57,13 +57,13 @@ dismiss, or manage the close guard. The controller is supplied by `ModalRenderer
 `openModal` returns `Result<TResult, ModalDismissed>`, using the same expected-outcome pattern as
 the rest of the application. Completion produces `{ success: true, data: result }`; dismissal
 produces `{ success: false, error: { type: 'modal_dismissed', reason } }`. This guarantees that
-callers awaiting a modal settle even when another modal replaces it or navigation closes it.
-Dismissal reasons are `explicit`, `passive`, `replaced`, or `navigation`, so chained flows only
-reopen their parent after an intentional back/cancel action.
+callers awaiting a modal settle when a user cancels it, passively closes it, or navigation closes it.
+Dismissal reasons are `explicit`, `passive`, or `navigation`.
 
-Only one modal is active at a time. Opening another modal dismisses the current outcome. If a
-completed or dismissed modal opens its successor in the same turn, the store swaps the content
-without rendering a closed frame.
+Modals are stacked. Opening another modal keeps the current modal mounted underneath the new one,
+and only the top modal responds to outside presses or close commands. If a completed or dismissed
+modal opens its successor in the same turn, the store swaps the closing top entry without rendering
+a closed frame.
 
 ## Invariants
 

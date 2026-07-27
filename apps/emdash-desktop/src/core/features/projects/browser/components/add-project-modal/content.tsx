@@ -10,13 +10,9 @@ import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-gr
 import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
-import { LocalDirectorySelector } from './local-directory-selector';
+import { DirectoryField } from './local-directory-selector';
 import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
-import {
-  ProjectDirectoryPicker,
-  type ProjectDirectoryPickerClient,
-} from './project-directory-picker';
-import { RemoteDirectorySelector } from './remote-directory-selector';
+import { type ProjectDirectoryPickerClient } from './project-directory-picker';
 
 export function PickExistingPanel({
   strategy,
@@ -37,29 +33,15 @@ export function PickExistingPanel({
     <FieldGroup>
       <Field>
         <FieldLabel>Directory</FieldLabel>
-        {strategy === 'local' ? (
-          <LocalDirectorySelector
-            path={state.path}
-            onPathChange={state.handlePathChange}
-            title="Select a local project"
-            message="Select a project directory to open"
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            <ProjectDirectoryPicker
-              strategy={strategy}
-              connectionId={connectionId}
-              value={state.path}
-              getProjectsClient={getProjectsClient}
-              onSelect={state.handlePathChange}
-            />
-            <RemoteDirectorySelector
-              connectionId={connectionId}
-              value={state.path}
-              onChange={state.handlePathChange}
-            />
-          </div>
-        )}
+        <DirectoryField
+          strategy={strategy}
+          connectionId={connectionId}
+          path={state.path}
+          onPathChange={state.handlePathChange}
+          getProjectsClient={getProjectsClient}
+          title="Select a local project"
+          message="Select a project directory to open"
+        />
       </Field>
       {inspectionError && (
         <div className="border-destructive/40 overflow-hidden rounded-md border">
@@ -166,29 +148,15 @@ export function CreateNewPanel({
       <FieldGroup>
         <Field>
           <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
-          {strategy === 'local' ? (
-            <LocalDirectorySelector
-              path={state.path}
-              onPathChange={state.setPath}
-              title="Select a local project"
-              message="Select a project directory to open"
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              <ProjectDirectoryPicker
-                strategy={strategy}
-                connectionId={connectionId}
-                value={state.path}
-                getProjectsClient={getProjectsClient}
-                onSelect={state.setPath}
-              />
-              <RemoteDirectorySelector
-                connectionId={connectionId}
-                value={state.path}
-                onChange={state.setPath}
-              />
-            </div>
-          )}
+          <DirectoryField
+            strategy={strategy}
+            connectionId={connectionId}
+            path={state.path}
+            onPathChange={state.setPath}
+            getProjectsClient={getProjectsClient}
+            title="Select a local project"
+            message="Select a project directory to open"
+          />
         </Field>
       </FieldGroup>
     </div>
@@ -225,29 +193,15 @@ export function ClonePanel({
       <FieldGroup>
         <Field>
           <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
-          {strategy === 'local' ? (
-            <LocalDirectorySelector
-              path={state.path}
-              onPathChange={state.setPath}
-              title="Select a local project"
-              message="Select a project directory to open"
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              <ProjectDirectoryPicker
-                strategy={strategy}
-                connectionId={connectionId}
-                value={state.path}
-                getProjectsClient={getProjectsClient}
-                onSelect={state.setPath}
-              />
-              <RemoteDirectorySelector
-                connectionId={connectionId}
-                value={state.path}
-                onChange={state.setPath}
-              />
-            </div>
-          )}
+          <DirectoryField
+            strategy={strategy}
+            connectionId={connectionId}
+            path={state.path}
+            onPathChange={state.setPath}
+            getProjectsClient={getProjectsClient}
+            title="Select a local project"
+            message="Select a project directory to open"
+          />
         </Field>
       </FieldGroup>
     </div>

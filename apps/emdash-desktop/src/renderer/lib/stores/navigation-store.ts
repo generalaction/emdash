@@ -286,7 +286,7 @@ export class NavigationStore implements NavigationParticipantHost {
     this._currentRef = ref;
     this._lastRefByViewId.set(ref.viewId, ref);
     this.onDidNavigate.emit({ from, to: ref, kind });
-    if (kind !== 'refinement') modalStore.dismiss('navigation');
+    if (kind !== 'refinement') modalStore.dismissAll('navigation');
   }
 
   private entryFor(ref: ViewRef, location?: JsonValue): HistoryEntry {

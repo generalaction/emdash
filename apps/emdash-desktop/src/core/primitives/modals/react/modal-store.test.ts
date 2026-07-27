@@ -14,7 +14,7 @@ describe('ModalStore', () => {
     expect(store.isOpen).toBe(false);
   });
 
-  it('keeps the dialog open when a resolved modal is replaced in the same turn', async () => {
+  it('keeps the dialog open when a successor opens after a top entry closes in the same turn', async () => {
     const store = new ModalStore();
     const first = store.open('firstModal', {});
 
@@ -26,22 +26,40 @@ describe('ModalStore', () => {
 
     expect(store.isOpen).toBe(true);
     expect(store.activeModalId).toBe('secondModal');
+    expect(store.stack).toHaveLength(1);
 
     store.dismiss();
     await expect(second).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'explicit' }));
   });
 
-  it('dismisses the previous outcome when a modal is replaced while still active', async () => {
+  it('pushes new modals and dismisses the top entry first', async () => {
     const store = new ModalStore();
     const first = store.open('firstModal', {});
-
     const second = store.open('secondModal', {});
 
-    await expect(first).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'replaced' }));
+    expect(store.stack.map((entry) => entry.id)).toEqual(['firstModal', 'secondModal']);
     expect(store.activeModalId).toBe('secondModal');
 
     store.dismiss();
     await expect(second).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'explicit' }));
+    await Promise.resolve();
+    expect(store.activeModalId).toBe('firstModal');
+
+    store.complete('done');
+    await expect(first).resolves.toEqual(ok('done'));
+  });
+
+  it('dismisses every open modal when requested', async () => {
+    const store = new ModalStore();
+    const first = store.open('firstModal', {});
+    const second = store.open('secondModal', {});
+
+    store.dismissAll('navigation');
+
+    await expect(first).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'navigation' }));
+    await expect(second).resolves.toEqual(err({ type: 'modal_dismissed', reason: 'navigation' }));
+    await Promise.resolve();
+    expect(store.isOpen).toBe(false);
   });
 
   it('reports why an active modal was dismissed', async () => {

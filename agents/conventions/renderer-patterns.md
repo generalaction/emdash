@@ -4,7 +4,8 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Modal System
 
-Modals are renderer-only feature contributions. Only one modal can be active at a time.
+Modals are renderer-only feature contributions. They render as a stack, with only the top modal
+responding to outside presses and close commands.
 
 - `src/core/primitives/modals/react/` — modal definitions, catalog types, host context, and typed API
 - `src/core/features/*/contributions/browser.ts` — feature-owned `modalDefs`
@@ -37,7 +38,7 @@ if (outcome.success) {
 - Use `useCloseGuard` during critical operations that must block passive dismissal
 - `useModalController` exposes `hasActiveCloseGuard` when modal UI must reflect guard state
 - Use `outcome.error.reason` when a chained flow must distinguish explicit back/cancel actions from
-  passive, replacement, or navigation dismissal
+  passive or navigation dismissal
 
 ## View System
 

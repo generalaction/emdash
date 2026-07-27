@@ -34,36 +34,22 @@ export function ChangeProjectConnectionModal({
   const [isSaving, setIsSaving] = useState(false);
 
   const openSshConnModal = useOpenModal('addSshConnModal');
-  const openChangeConnectionModal = useOpenModal('changeProjectConnectionModal');
-
-  const reopenParent = (connectionId: string) => {
-    void openChangeConnectionModal({
-      projectId,
-      currentConnectionId: connectionId,
-    });
-  };
 
   const handleAddConnection = async () => {
-    const priorConnectionId = selectedConnectionId;
     const outcome = await openSshConnModal({});
     if (outcome.success) {
-      reopenParent(outcome.data.connectionId);
-    } else if (outcome.error.reason === 'explicit') {
-      reopenParent(priorConnectionId);
+      setSelectedConnectionId(outcome.data.connectionId);
     }
   };
 
   const handleEditConnection = async (id: string) => {
     const conn = appState.machines.connections.find((c) => c.id === id);
     if (!conn) return;
-    const priorConnectionId = selectedConnectionId;
     const outcome = await openSshConnModal({
       initialConfig: conn,
     });
     if (outcome.success) {
-      reopenParent(outcome.data.connectionId);
-    } else if (outcome.error.reason === 'explicit') {
-      reopenParent(priorConnectionId);
+      setSelectedConnectionId(outcome.data.connectionId);
     }
   };
 

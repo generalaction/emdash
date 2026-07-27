@@ -62,7 +62,7 @@ export type ModalResultArgs<TResult> = [TResult] extends [void]
   ? [result?: TResult]
   : [result: TResult];
 
-export type ModalDismissReason = 'explicit' | 'passive' | 'replaced' | 'navigation';
+export type ModalDismissReason = 'explicit' | 'passive' | 'navigation';
 
 export type ModalDismissed = {
   readonly type: 'modal_dismissed';
