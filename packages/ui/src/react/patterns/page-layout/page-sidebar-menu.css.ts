@@ -12,10 +12,11 @@ export const wrapper = style({
   alignSelf: 'start',
   boxSizing: 'border-box',
   display: 'flex',
+  minHeight: '100vh',
   maxHeight: '100vh',
   flexDirection: 'column',
   paddingTop: '2.5rem',
-  paddingBottom: '2.5rem',
+  paddingBottom: '0.75rem',
 });
 
 export const header = style({
@@ -33,6 +34,7 @@ export const nav = style({
   gap: '0.0625rem',
   minHeight: 0,
   overflowY: 'auto',
+  paddingBottom: '2.5rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 

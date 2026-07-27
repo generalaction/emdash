@@ -1,11 +1,10 @@
 import {
   PageLayout,
   type PageNavItem,
-  type PageNavDivider,
   type PageNavSection,
   type PageSidebarMenuItem,
 } from '@emdash/ui/react/patterns';
-import { Breadcrumbs, Kbd, SearchInput } from '@emdash/ui/react/primitives';
+import { Breadcrumbs, Icon, Kbd, SearchInput } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,14 +22,6 @@ import {
 } from '@core/primitives/keybindings/browser';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
-const DOCS_ITEM = {
-  id: 'docs',
-  label: 'Docs',
-  icon: 'external-link',
-  isExternal: true,
-} satisfies PageNavItem;
-
-const DIVIDER: PageNavDivider = { kind: 'divider' };
 const LOCAL_SECTION: PageNavSection = { kind: 'section', id: 'local', label: 'Local' };
 const REMOTE_SECTION: PageNavSection = { kind: 'section', id: 'remote', label: 'Remote' };
 const SETTINGS_SEARCH_HOTKEY = chord('Mod+F');
@@ -50,8 +41,6 @@ const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   navItemFor('skills'),
   REMOTE_SECTION,
   navItemFor('connections'),
-  DIVIDER,
-  DOCS_ITEM,
 ];
 
 function navItemFor(id: Exclude<SettingsPageTab, 'docs'>): PageNavItem {
@@ -173,12 +162,17 @@ export const SettingsPage = observer(function SettingsPage({
               />
             }
             emptyMessage={isSearching ? 'No settings found' : undefined}
+            footer={
+              <button
+                type="button"
+                className="flex h-8 w-full items-center gap-2 rounded-md px-3 text-sm font-normal text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
+                onClick={() => void rpc.app.openExternal('https://docs.emdash.sh')}
+              >
+                <Icon name="external-link" size="sm" />
+                <span>View Docs</span>
+              </button>
+            }
             onSelect={(item) => {
-              if (item.isExternal) {
-                void rpc.app.openExternal('https://docs.emdash.sh');
-                return;
-              }
-
               const page = settingsPageContributions.find(({ id }) => id === item.id);
               if (page) onTabChange(page.id);
             }}

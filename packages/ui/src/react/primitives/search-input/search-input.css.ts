@@ -21,11 +21,13 @@ export const icon = style({
 });
 globalStyle(`${icon} svg:not([class*='size-'])`, { width: '0.875rem', height: '0.875rem' });
 
-/** Optional shortcut/help content pinned to the trailing edge. */
+/** Optional shortcut/help content pinned to the trailing edge and vertically centered. */
 export const shortcut = style({
   pointerEvents: 'none',
   position: 'absolute',
   right: '0.5rem',
+  top: '50%',
+  transform: 'translateY(-50%)',
   display: 'inline-flex',
   alignItems: 'center',
   gap: tokenVars.space0_5,
@@ -36,8 +38,8 @@ export const shortcutWithClear = style({
   right: '1.875rem',
 });
 
-/** Hide the shortcut hint while the input is focused so it behaves as a placeholder adornment. */
-globalStyle(`${container}:has(input:focus) .${shortcut}`, {
+/** Hide the shortcut hint once the user has typed so it behaves as a placeholder adornment. */
+globalStyle(`${container}:has(input:not(:placeholder-shown)) .${shortcut}`, {
   display: 'none',
 });
 
