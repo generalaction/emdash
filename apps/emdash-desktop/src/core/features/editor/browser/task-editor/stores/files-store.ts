@@ -1,7 +1,4 @@
-import {
-  canonicalExclusionPatterns,
-  DEFAULT_TREE_EXCLUDE,
-} from '@emdash/core/primitives/lib/api';
+import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
@@ -9,7 +6,6 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
 import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
   buildFileTreeVisibleRows,
@@ -20,6 +16,7 @@ import {
   type FileNodeId,
   type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
+import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import {
   absoluteRuntimePath,
   hostPathFromNative,

@@ -171,7 +171,11 @@ function createRegistry(
     catalog: store,
     resolver: new NodeFileSearchRootResolver(),
     createRoot: options.createRoot ?? fakeRoot,
-    compileExclusions: () => ({ excludes: () => false, ripgrepGlobs: () => [], watchIgnoreGlobs: () => [] }),
+    compileExclusions: () => ({
+      excludes: () => false,
+      ripgrepGlobs: () => [],
+      watchIgnoreGlobs: () => [],
+    }),
     defaultExclusionPatterns: [],
     scope,
   });

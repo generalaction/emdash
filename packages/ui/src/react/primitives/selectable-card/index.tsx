@@ -8,10 +8,10 @@
  */
 
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
-import type { Sprinkles } from '@styles/utilities/sprinkles.css';
 import * as React from 'react';
 import { selectableCard } from './selectable-card.css';
+import { sx } from '@styles/utilities/sprinkles.css';
+import type { Sprinkles } from '@styles/utilities/sprinkles.css';
 
 export interface SelectableCardProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Horizontal alignment of the card content. */
