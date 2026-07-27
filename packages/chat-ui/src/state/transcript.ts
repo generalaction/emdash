@@ -85,7 +85,7 @@ function finalizeCompatItem(item: ChatItem): ChatItem {
     return { ...item, streaming: false } as ChatItem;
   }
   if ('status' in item && item.status === 'running') return { ...item, status: 'done' } as ChatItem;
-  if (item.kind === 'plan') return { ...item, streaming: false } as ChatItem;
+  if (item.kind === 'plan') return { ...item, active: false, streaming: false } as ChatItem;
   return item;
 }
 

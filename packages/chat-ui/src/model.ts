@@ -271,6 +271,8 @@ export type ChatPlan = {
   kind: 'plan';
   id: string;
   entries: ChatPlanEntry[];
+  /** Authoritative activity override. Set to false when the owning turn has settled. */
+  active?: boolean;
   /** True while tasks are still being appended (drives preview auto-scroll + shimmer). */
   streaming?: boolean;
 };
