@@ -33,8 +33,6 @@ const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   DIVIDER,
   ...settingsPageContributions.slice(6, 8).map(toNavItem),
   DIVIDER,
-  ...settingsPageContributions.slice(8, 9).map(toNavItem),
-  DIVIDER,
   DOCS_ITEM,
 ];
 
