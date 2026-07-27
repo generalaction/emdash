@@ -24,16 +24,18 @@ export class GitRepositoryService {
     const replica = new ReplicaState(this.client.repository.model.state(this.selector, 'remotes'), {
       schema: gitContract.repository.model.states.remotes.dataSchema,
     });
-    const binding = replica.ready.then(() => {
-      if (!active) return null;
-      return replica.onChange(cb);
-    }).catch((error) => {
-      log.warn('GitRepositoryService: failed to subscribe to remotes', {
-        repository: this.selector,
-        error: error instanceof Error ? error.message : String(error),
+    const binding = replica.ready
+      .then(() => {
+        if (!active) return null;
+        return replica.onChange(cb);
+      })
+      .catch((error) => {
+        log.warn('GitRepositoryService: failed to subscribe to remotes', {
+          repository: this.selector,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
       });
-      return null;
-    });
     return () => {
       active = false;
       void binding

@@ -69,11 +69,9 @@ export function LocationSelector({
         <DropdownMenu.Item className="items-start py-2" onClick={onSelectLocal}>
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="font-medium">Local</span>
-            <span className="text-xs text-foreground-muted">
-              Add a project from this computer.
-            </span>
+            <span className="text-xs text-foreground-muted">Add a project from this computer.</span>
           </div>
-          {strategy === 'local' && <CheckIcon className="ml-auto mt-0.5 size-4" />}
+          {strategy === 'local' && <CheckIcon className="mt-0.5 ml-auto size-4" />}
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
         <DropdownMenu.Sub>
@@ -137,9 +135,7 @@ function RemoteLocationSummary({
   return (
     <div className="flex min-w-0 flex-col gap-0.5 pr-2">
       <span className="font-medium">Remote</span>
-      <span className="text-xs text-foreground-muted">
-        Add a project from a remote machine.
-      </span>
+      <span className="text-xs text-foreground-muted">Add a project from a remote machine.</span>
       <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-muted">
         {machine ? (
           <>

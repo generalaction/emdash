@@ -18,6 +18,7 @@ import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-s
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
+import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
@@ -29,7 +30,6 @@ import {
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { toast } from '@core/primitives/ui/browser/use-toast';
-import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -64,9 +64,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const { connections } = appState.machines;
   const availableConnections = useMemo(
     () =>
-      connections.filter(
-        (connection): connection is MachineOption => connection.id !== undefined
-      ),
+      connections.filter((connection): connection is MachineOption => connection.id !== undefined),
     [connections]
   );
   const availableConnectionIds = useMemo(

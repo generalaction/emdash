@@ -1,6 +1,6 @@
-import { useId } from 'react';
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Input, Select } from '@emdash/ui/react/primitives';
+import { useId } from 'react';
 import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
@@ -134,11 +134,9 @@ export function CreateNewPanel({
         control={
           <Select.Root
             value={state.repositoryVisibility}
-            onValueChange={(value) =>
-              state.setRepositoryVisibility(value as 'public' | 'private')
-            }
+            onValueChange={(value) => state.setRepositoryVisibility(value as 'public' | 'private')}
           >
-            <Select.Trigger appearance="input" className="min-w-28 max-w-28">
+            <Select.Trigger appearance="input" className="max-w-28 min-w-28">
               {state.repositoryVisibility === 'private' ? 'Private' : 'Public'}
             </Select.Trigger>
             <Select.Content>

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ok } from '@emdash/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { createProject } from './create-project';
 import { initializeRepository } from './initialize-repository';

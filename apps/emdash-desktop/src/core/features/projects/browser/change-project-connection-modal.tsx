@@ -1,4 +1,8 @@
-import { ComboboxPopover, MachineStatus, type MachineStatusKind } from '@emdash/ui/react/components';
+import {
+  ComboboxPopover,
+  MachineStatus,
+  type MachineStatusKind,
+} from '@emdash/ui/react/components';
 import { Button as UiButton } from '@emdash/ui/react/primitives';
 import { PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -7,6 +11,7 @@ import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/b
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
+import type { SshConfig } from '@core/primitives/ssh/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
@@ -17,7 +22,6 @@ import {
 } from '@core/primitives/ui/browser/dialog';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
-import type { SshConfig } from '@core/primitives/ssh/api';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {

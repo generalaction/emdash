@@ -56,7 +56,7 @@ export function OwnerSelector({
       >
         <span className="min-w-0 truncate">{owner?.label ?? 'Choose owner'}</span>
       </Combobox.Trigger>
-      <Combobox.Content align="start" sideOffset={6} style={{ minWidth: '20rem'}}>
+      <Combobox.Content align="start" sideOffset={6} style={{ minWidth: '20rem' }}>
         <div className="flex items-center justify-between gap-3 px-2 py-1.5">
           <span className="text-xs text-foreground-muted">Choose</span>
           <GitHubAccountSelect

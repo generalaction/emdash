@@ -5,10 +5,12 @@ import * as React from 'react';
 import { Input } from '../input';
 import * as styles from './search-input.css';
 
-export interface SearchInputProps
-  extends Omit<React.ComponentProps<'input'>, 'size' | 'type'>, Pick<InputVariantProps, 'size'> {
+export interface SearchInputProps extends Omit<React.ComponentProps<'input'>, 'size' | 'type'> {
+  size?: InputVariantProps['size'];
   /** Called when the user clicks the × clear button. Renders the button when provided. */
   onClear?: () => void;
+  /** Optional trailing content, such as a keyboard shortcut hint. */
+  shortcut?: React.ReactNode;
 }
 
 /**
@@ -32,15 +34,23 @@ export interface SearchInputProps
  *   />
  */
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { className, size = 'base', onClear, value, style: consumerStyle, ...props },
+  { className, size = 'base', onClear, shortcut, value, style: consumerStyle, ...props },
   ref
 ) {
   const hasValue = value !== undefined && value !== '';
+  const hasShortcut = shortcut != null;
 
   // Left padding: icon (0.875rem) + left offset (0.625rem) + gap (0.25rem) = ~1.875rem → 2rem
   const paddingLeft = size === 'sm' ? '1.75rem' : '2rem';
-  // Right padding when clear button is present: button (1.25rem) + right margin (0.375rem) + gap
-  const paddingRight = onClear != null ? '1.875rem' : undefined;
+  // Right padding reserves stable space for optional trailing affordances.
+  const paddingRight =
+    onClear != null && hasShortcut
+      ? '4.75rem'
+      : hasShortcut
+        ? '3.5rem'
+        : onClear != null
+          ? '1.875rem'
+          : undefined;
 
   return (
     <div data-slot="search-input" className={styles.container} style={consumerStyle}>
@@ -57,6 +67,15 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
         style={{ paddingLeft, paddingRight }}
         {...props}
       />
+
+      {hasShortcut && (
+        <span
+          data-slot="search-input-shortcut"
+          className={cx(styles.shortcut, onClear != null && styles.shortcutWithClear)}
+        >
+          {shortcut}
+        </span>
+      )}
 
       {onClear != null && hasValue && (
         <button

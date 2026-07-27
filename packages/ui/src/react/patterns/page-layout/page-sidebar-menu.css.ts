@@ -6,8 +6,6 @@ import { tokenVars } from '@theme/tokens.css';
 
 type CSSExtra = { [key: string]: string };
 
-// ── Wrapper + nav ─────────────────────────────────────────────────────────────
-
 export const wrapper = style({
   position: 'sticky',
   top: 0,
@@ -51,8 +49,6 @@ export const emptyMessage = style({
   color: vars.foregroundPassive,
 });
 
-// ── Nav item button recipe ────────────────────────────────────────────────────
-
 export const navItem = recipe({
   base: {
     display: 'flex',
@@ -65,7 +61,7 @@ export const navItem = recipe({
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     height: '32px',
-    fontSize: tokenVars.textXs,
+    fontSize: tokenVars.textSm,
     fontWeight: 400,
     color: vars.foregroundMuted,
     cursor: 'pointer',
@@ -144,13 +140,13 @@ export const divider = style({
 
 export const sectionLabel = style({
   width: '100%',
-  paddingTop: '0.75rem',
+  paddingTop: '1.25rem',
   paddingRight: '0.75rem',
-  paddingBottom: '0.25rem',
+  paddingBottom: '0.75rem',
   paddingLeft: '0.75rem',
-  fontSize: tokenVars.textXs,
+  fontSize: tokenVars.textSm,
+  fontWeight: 400,
   lineHeight: 1,
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em',
-  color: vars.foregroundMuted,
+  letterSpacing: '-0.015em',
+  color: vars.foregroundPassive,
 });

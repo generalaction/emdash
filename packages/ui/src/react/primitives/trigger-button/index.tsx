@@ -65,7 +65,9 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
     return (
       <button ref={ref} type="button" data-slot="trigger-button" className={buttonClass} {...props}>
         {children}
-        {showChevron && <ChevronDownIcon size={14} strokeWidth={1} className={triggerButtonChevron} aria-hidden />}
+        {showChevron && (
+          <ChevronDownIcon size={14} strokeWidth={1} className={triggerButtonChevron} aria-hidden />
+        )}
       </button>
     );
   }

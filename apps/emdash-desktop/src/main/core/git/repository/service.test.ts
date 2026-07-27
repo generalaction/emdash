@@ -13,9 +13,9 @@ vi.mock('@emdash/wire', async (importOriginal) => ({
   ...(await importOriginal<typeof Wire>()),
   ReplicaState: vi.fn(function ReplicaState() {
     return {
-    dispose: mocks.dispose,
-    onChange: mocks.onChange,
-    ready: mocks.ready,
+      dispose: mocks.dispose,
+      onChange: mocks.onChange,
+      ready: mocks.ready,
     };
   }),
 }));

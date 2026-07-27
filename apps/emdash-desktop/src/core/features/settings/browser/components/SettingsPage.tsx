@@ -5,9 +5,9 @@ import {
   type PageNavSection,
   type PageSidebarMenuItem,
 } from '@emdash/ui/react/patterns';
-import { Breadcrumbs } from '@emdash/ui/react/primitives';
+import { Breadcrumbs, Kbd, SearchInput } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   matchedTabsForQuery,
   searchSettings,
@@ -15,7 +15,12 @@ import {
 import { SettingsSearchProvider } from '@core/features/settings/browser/search/settings-search-context';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import { settingsPageContributions } from '@core/manifests/browser/settings-page-contributions';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { chord, detectPlatformContext } from '@core/primitives/keybindings/api';
+import {
+  isTextInputFocusTarget,
+  keyboardLayoutService,
+  useChordKeydown,
+} from '@core/primitives/keybindings/browser';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const DOCS_ITEM = {
@@ -28,6 +33,7 @@ const DOCS_ITEM = {
 const DIVIDER: PageNavDivider = { kind: 'divider' };
 const LOCAL_SECTION: PageNavSection = { kind: 'section', id: 'local', label: 'Local' };
 const REMOTE_SECTION: PageNavSection = { kind: 'section', id: 'remote', label: 'Remote' };
+const SETTINGS_SEARCH_HOTKEY = chord('Mod+F');
 
 const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   navItemFor('general'),
@@ -72,6 +78,7 @@ export const SettingsPage = observer(function SettingsPage({
   closeDetail: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const query = searchQuery.trim();
   const isSearching = query.length > 0;
   const activePage = settingsPageContributions.find(({ id }) => id === activeTab);
@@ -122,6 +129,29 @@ export const SettingsPage = observer(function SettingsPage({
         }
       : null;
 
+  const focusSearchInput = useCallback(() => {
+    searchInputRef.current?.focus();
+  }, []);
+
+  useChordKeydown(
+    'Mod+F',
+    (event) => {
+      event.preventDefault();
+      focusSearchInput();
+    },
+    { enabled: true }
+  );
+
+  useChordKeydown(
+    '/',
+    (event) => {
+      if (isTextInputFocusTarget(event.target)) return;
+      event.preventDefault();
+      focusSearchInput();
+    },
+    { enabled: true }
+  );
+
   return (
     <SettingsSearchProvider query={searchQuery}>
       <PageLayout
@@ -132,13 +162,14 @@ export const SettingsPage = observer(function SettingsPage({
             draggable
             header={
               <SearchInput
+                ref={searchInputRef}
                 placeholder="Search settings"
                 aria-label="Search settings"
                 aria-keyshortcuts="Meta+F Control+F /"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                shortcutHotkey="Mod+F"
-                focusSlashHotkey
+                onClear={() => setSearchQuery('')}
+                shortcut={<SettingsSearchShortcut />}
               />
             }
             emptyMessage={isSearching ? 'No settings found' : undefined}
@@ -179,3 +210,22 @@ export const SettingsPage = observer(function SettingsPage({
     </SettingsSearchProvider>
   );
 });
+
+function SettingsSearchShortcut() {
+  const [, setLayoutVersion] = useState(0);
+
+  useEffect(
+    () => keyboardLayoutService.onDidChangeLayout(() => setLayoutVersion((version) => version + 1)),
+    []
+  );
+
+  const keys = keyboardLayoutService.displayLabel(SETTINGS_SEARCH_HOTKEY, detectPlatformContext());
+
+  return (
+    <span aria-hidden="true" className="inline-flex items-center gap-0.5">
+      {keys.map((key, index) => (
+        <Kbd key={`${key}-${index}`}>{key}</Kbd>
+      ))}
+    </span>
+  );
+}

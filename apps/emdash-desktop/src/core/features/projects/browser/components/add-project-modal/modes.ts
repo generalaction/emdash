@@ -41,10 +41,7 @@ export function useNewMode(defaultPath: string, githubAccountId: string | null) 
     setRepositoryName(newRepositoryName);
   };
 
-  const isValid =
-    repositoryName.trim().length > 0 &&
-    !!repositoryOwner &&
-    path.trim().length > 0;
+  const isValid = repositoryName.trim().length > 0 && !!repositoryOwner && path.trim().length > 0;
 
   return {
     repositoryName,

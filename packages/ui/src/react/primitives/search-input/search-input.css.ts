@@ -21,6 +21,26 @@ export const icon = style({
 });
 globalStyle(`${icon} svg:not([class*='size-'])`, { width: '0.875rem', height: '0.875rem' });
 
+/** Optional shortcut/help content pinned to the trailing edge. */
+export const shortcut = style({
+  pointerEvents: 'none',
+  position: 'absolute',
+  right: '0.5rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: tokenVars.space0_5,
+  color: vars.foregroundMuted,
+});
+
+export const shortcutWithClear = style({
+  right: '1.875rem',
+});
+
+/** Hide the shortcut hint while the input is focused so it behaves as a placeholder adornment. */
+globalStyle(`${container}:has(input:focus) .${shortcut}`, {
+  display: 'none',
+});
+
 /** Clear button pinned to the right. */
 export const clearButton = style({
   pointerEvents: 'auto',
