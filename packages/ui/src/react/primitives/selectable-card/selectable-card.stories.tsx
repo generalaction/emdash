@@ -15,14 +15,17 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" padding="4">
-      <SelectableCard padding="3" borderRadius="md">
+      <SelectableCard padding="3" borderRadius="lg">
         Normal
       </SelectableCard>
-      <SelectableCard padding="3" borderRadius="md" selected>
+      <SelectableCard padding="3" borderRadius="lg" selected>
         Selected
       </SelectableCard>
-      <SelectableCard padding="3" borderRadius="md" interactive={false}>
+      <SelectableCard padding="3" borderRadius="lg" interactive={false}>
         Non-interactive
+      </SelectableCard>
+      <SelectableCard padding="3" borderRadius="lg" selected interactive={false}>
+        Selected non-interactive
       </SelectableCard>
     </Box>
   ),
@@ -31,37 +34,28 @@ export const Default: Story = {
 export const OnSunkenCanvas: Story = {
   render: () => (
     <Box surface="sunken" display="flex" flexDirection="column" gap="3" padding="4">
-      <SelectableCard padding="3" borderRadius="md">
+      <SelectableCard padding="3" borderRadius="lg">
         On sunken canvas
       </SelectableCard>
-      <SelectableCard padding="3" borderRadius="md" selected>
+      <SelectableCard padding="3" borderRadius="lg" selected>
         Selected on sunken canvas
       </SelectableCard>
     </Box>
   ),
 };
 
-export const Status: Story = {
+export const Alignment: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3" padding="4">
-      <SelectableCard status="info" padding="3" borderRadius="md">
-        Info
+      <SelectableCard padding="3" borderRadius="lg" justifyContent="flex-start">
+        Aligned start
       </SelectableCard>
-      <SelectableCard status="info" padding="3" borderRadius="md" selected>
-        Info selected
+      <SelectableCard padding="3" borderRadius="lg" justifyContent="center">
+        Aligned center
       </SelectableCard>
-    </Box>
-  ),
-};
-
-export const Levels: Story = {
-  render: () => (
-    <Box display="flex" flexDirection="column" gap="3" padding="4">
-      {(['sunken', 'base', 'elevated'] as const).map((level) => (
-        <SelectableCard key={level} level={level} padding="3" borderRadius="md">
-          Level: {level}
-        </SelectableCard>
-      ))}
+      <SelectableCard padding="3" borderRadius="lg" justifyContent="flex-end">
+        Aligned end
+      </SelectableCard>
     </Box>
   ),
 };
