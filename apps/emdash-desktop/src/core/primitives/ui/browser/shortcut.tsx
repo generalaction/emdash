@@ -1,10 +1,10 @@
+import { Kbd } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import type { CommandDef } from '@core/primitives/commands/api';
 import { chord, detectPlatformContext, type Chord } from '@core/primitives/keybindings/api';
 import { keyboardLayoutService, keybindingService } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/ui/browser/cn';
-import { Kbd } from './kbd';
 
 type ShortcutVariant = 'text' | 'badge' | 'keycaps';
 
@@ -13,9 +13,9 @@ const KEYCAP_KBD_BASE_CLASS =
 
 const KEYCAP_KBD_CLASS = cn(
   KEYCAP_KBD_BASE_CLASS,
-  'border border-border/60 bg-background-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
-  // Primary action buttons (Create, Save, etc.).
-  'in-data-[variant=default]:border-primary-button-foreground/22 in-data-[variant=default]:bg-primary-button-foreground/16 in-data-[variant=default]:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]',
+  'border-border/60 bg-background-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
+  // Primary action buttons (Create, Save, etc.). Primary buttons opt in via data-variant="primary".
+  'in-data-[variant=primary]:border-primary-button-foreground/22 in-data-[variant=primary]:bg-primary-button-foreground/16 in-data-[variant=primary]:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]',
   'in-data-[slot=combobox-trigger]:border-border/50 in-data-[slot=combobox-trigger]:bg-background-secondary in-data-[slot=combobox-trigger]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
   'in-data-[slot=tooltip-content]:border-background/20 in-data-[slot=tooltip-content]:bg-background/15 in-data-[slot=tooltip-content]:text-background in-data-[slot=tooltip-content]:shadow-none',
   'in-data-[slot=dropdown-menu-item]:border-border/50 in-data-[slot=dropdown-menu-item]:bg-background-secondary in-data-[slot=dropdown-menu-item]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]'

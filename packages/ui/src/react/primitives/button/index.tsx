@@ -42,6 +42,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
     <ButtonPrimitive
       ref={ref}
       data-slot="button"
+      data-variant={controlVariant.variant}
       className={cx(controlVariants({ ...controlVariant, icon }), className)}
       {...props}
     />
