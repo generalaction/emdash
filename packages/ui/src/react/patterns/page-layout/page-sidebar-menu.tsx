@@ -22,7 +22,7 @@ export interface PageNavItem {
 
 export interface PageNavDivider {
   kind: 'divider';
-  /** Optional label shown above the divider in small, muted text. */
+  /** Optional text-only section label; unlabeled dividers render as separator lines. */
   label?: string;
 }
 
@@ -119,11 +119,11 @@ function isDivider(item: PageSidebarMenuItem): item is PageNavDivider {
 }
 
 function NavDivider({ label }: { label?: string }) {
-  return (
-    <div className={styles.divider} role="separator" aria-label={label}>
-      {label && <span className={styles.dividerLabel}>{label}</span>}
-    </div>
-  );
+  if (label) {
+    return <div className={styles.sectionLabel}>{label}</div>;
+  }
+
+  return <div className={styles.divider} role="separator" />;
 }
 
 export { PageSidebarMenu };

@@ -128,12 +128,15 @@ export const divider = style({
   },
 });
 
-export const dividerLabel = style({
+export const sectionLabel = style({
+  width: '100%',
+  paddingTop: '0.75rem',
+  paddingRight: '0.75rem',
+  paddingBottom: '0.25rem',
+  paddingLeft: '0.75rem',
   fontSize: tokenVars.textXs,
   lineHeight: 1,
   textTransform: 'uppercase',
   letterSpacing: '0.03em',
   color: vars.foregroundMuted,
-  marginBottom: '0.25rem',
-  paddingLeft: '0.75rem',
 });
