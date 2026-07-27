@@ -1,12 +1,8 @@
-import { ToggleGroup } from '@emdash/ui/react/primitives';
+import { SelectableCard } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
-import { Github } from 'lucide-react';
+import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, useState } from 'react';
-import {
-  GitHubAccountSelectItem,
-  GitHubAccountSelectLabel,
-} from '@core/features/projects/api/browser/components/github-account-select';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
 import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
@@ -21,7 +17,6 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
-import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
@@ -32,9 +27,7 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
-import { Select, SelectContent, SelectTrigger } from '@core/primitives/ui/browser/select';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
@@ -132,7 +125,6 @@ export const AddProjectModal = observer(function AddProjectModal({
   );
   const selectedGitHubAccountId = githubAccountSelect.selectedAccountId;
   const defaultGitHubAccountId = defaultGitHubAccountSelect.selectedAccountId;
-  const showGitHubAccountSelector = mode === 'new' && githubAccountSelect.accounts.length > 0;
 
   const pickState = usePickMode();
   const newState = useNewMode(defaultPath, mode === 'new' ? selectedGitHubAccountId : null);
@@ -318,31 +310,29 @@ export const AddProjectModal = observer(function AddProjectModal({
             }}
           />
         </div>
-        <ToggleGroup.Root
-          className="w-full"
-          value={[mode]}
-          onValueChange={([value]) => {
-            if (value) setMode(value as Mode);
-          }}
-        >
-          <ToggleGroup.Item value="pick" className="flex-1">
-            Pick Directory
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="new" className="flex-1">
-            New Repository
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="clone" className="flex-1">
-            Clone Repository
-          </ToggleGroup.Item>
-        </ToggleGroup.Root>
-        {showGitHubAccountSelector ? (
-          <GitHubAccountCreationSelector
-            accounts={githubAccountSelect.accounts}
-            value={selectedGitHubAccountId}
-            selectedAccount={githubAccountSelect.selectedAccount}
-            onChange={setGithubAccountOverride}
+        <div className="flex w-full gap-2">
+          <ModeCard
+            mode="pick"
+            selected={mode === 'pick'}
+            icon={<FolderOpenIcon className="size-3" />}
+            label="Pick Directory"
+            onSelect={setMode}
           />
-        ) : null}
+          <ModeCard
+            mode="new"
+            selected={mode === 'new'}
+            icon={<PlusIcon className="size-3" />}
+            label="New Repository"
+            onSelect={setMode}
+          />
+          <ModeCard
+            mode="clone"
+            selected={mode === 'clone'}
+            icon={<DownloadIcon className="size-2" />}
+            label="Clone Repository"
+            onSelect={setMode}
+          />
+        </div>
         {mode === 'pick' && (
           <PickExistingPanel
             strategy={strategy}
@@ -360,6 +350,9 @@ export const AddProjectModal = observer(function AddProjectModal({
             state={newState}
             getProjectsClient={getProjectsClient}
             showGithubAuthDisclaimer={showGithubAuthDisclaimer}
+            accounts={githubAccountSelect.accounts}
+            selectedAccount={githubAccountSelect.selectedAccount}
+            onAccountChange={setGithubAccountOverride}
             onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
           />
         )}
@@ -381,42 +374,31 @@ export const addProjectModal = defineModal<void>()({
   component: AddProjectModal,
 });
 
-function GitHubAccountCreationSelector({
-  accounts,
-  value,
-  selectedAccount,
-  onChange,
+function ModeCard({
+  mode,
+  selected,
+  icon,
+  label,
+  onSelect,
 }: {
-  accounts: GitHubAccountSummary[];
-  value: string | null;
-  selectedAccount: GitHubAccountSummary | null;
-  onChange: (accountId: string) => void;
+  mode: Mode;
+  selected: boolean;
+  icon: ReactNode;
+  label: string;
+  onSelect: (mode: Mode) => void;
 }) {
   return (
-    <Field>
-      <FieldLabel>GitHub account</FieldLabel>
-      <Select
-        value={value ?? undefined}
-        onValueChange={(nextValue) => {
-          if (nextValue) onChange(nextValue);
-        }}
-      >
-        <SelectTrigger className="w-full min-w-0">
-          {selectedAccount ? (
-            <GitHubAccountSelectLabel account={selectedAccount} />
-          ) : (
-            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-              <span className="min-w-0 truncate">No GitHub account</span>
-            </div>
-          )}
-        </SelectTrigger>
-        <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-          {accounts.map((account) => (
-            <GitHubAccountSelectItem key={account.accountId} account={account} />
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
+    <SelectableCard
+      padding="2"
+      borderRadius="md"
+      className="flex-1"
+      selected={selected}
+      onClick={() => onSelect(mode)}
+    >
+      <span className="flex w-full items-center justify-center gap-2">
+        {icon}
+        <span className="text-xs">{label}</span>
+      </span>
+    </SelectableCard>
   );
 }

@@ -1,17 +1,15 @@
-import { ChevronsUpDownIcon } from 'lucide-react';
 import { useId } from 'react';
 import { SettingsRow } from '@emdash/ui/react/patterns';
-import { Select } from '@emdash/ui/react/primitives';
+import { Input, Select } from '@emdash/ui/react/primitives';
 import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
-import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
-import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
+import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
 import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';
 import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
+import { OwnerSelector } from './owner-selector';
 import { type ProjectDirectoryPickerClient } from './project-directory-picker';
 
 export function PickExistingPanel({
@@ -80,6 +78,9 @@ export function CreateNewPanel({
   state,
   getProjectsClient,
   showGithubAuthDisclaimer,
+  accounts,
+  selectedAccount,
+  onAccountChange,
   onOpenAccountSettings,
 }: {
   strategy: Strategy;
@@ -87,6 +88,9 @@ export function CreateNewPanel({
   state: NewModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   showGithubAuthDisclaimer: boolean;
+  accounts: GitHubAccountSummary[];
+  selectedAccount: GitHubAccountSummary | null;
+  onAccountChange: (accountId: string) => void;
   onOpenAccountSettings: () => void;
 }) {
   const repositoryNameId = useId();
@@ -99,23 +103,15 @@ export function CreateNewPanel({
     <div className="flex flex-col gap-6">
       <FieldGroup>
         <div className="flex items-end gap-2">
-          <Field className="w-2/5 min-w-0">
+          <Field className="w-1/4 min-w-0">
             <FieldLabel>Owner</FieldLabel>
-            <ComboboxPopover
-              trigger={
-                <ComboboxTrigger
-                  render={
-                    <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-                      <ComboboxValue />
-                      <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
-                    </button>
-                  }
-                />
-              }
-              items={state.owners}
-              defaultValue={state.repositoryOwner}
-              value={state.repositoryOwner ?? null}
-              onValueChange={state.handleOwnerChange}
+            <OwnerSelector
+              owners={state.owners}
+              owner={state.repositoryOwner}
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onOwnerChange={state.handleOwnerChange}
+              onAccountChange={onAccountChange}
             />
           </Field>
           <span className="pb-2 text-sm text-foreground-muted">/</span>
@@ -142,7 +138,7 @@ export function CreateNewPanel({
               state.setRepositoryVisibility(value as 'public' | 'private')
             }
           >
-            <Select.Trigger appearance="input" className="min-w-28">
+            <Select.Trigger appearance="input" className="min-w-28 max-w-28">
               {state.repositoryVisibility === 'private' ? 'Private' : 'Public'}
             </Select.Trigger>
             <Select.Content>
