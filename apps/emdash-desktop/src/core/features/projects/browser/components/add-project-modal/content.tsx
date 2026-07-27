@@ -1,12 +1,12 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { useId } from 'react';
+import { SettingsRow } from '@emdash/ui/react/patterns';
+import { Select } from '@emdash/ui/react/primitives';
 import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
 import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
 import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
-import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
 import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
@@ -98,52 +98,60 @@ export function CreateNewPanel({
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor={repositoryNameId}>Repository Name</FieldLabel>
-          <Input
-            id={repositoryNameId}
-            autoFocus
-            placeholder="Enter a repository name"
-            value={state.repositoryName}
-            onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Owner</FieldLabel>
-          <ComboboxPopover
-            trigger={
-              <ComboboxTrigger
-                render={
-                  <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-                    <ComboboxValue />
-                    <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
-                  </button>
-                }
-              />
-            }
-            items={state.owners}
-            defaultValue={state.repositoryOwner}
-            value={state.repositoryOwner ?? null}
-            onValueChange={state.handleOwnerChange}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Privacy</FieldLabel>
-          <RadioGroup
-            value={state.repositoryVisibility}
-            onValueChange={(value) => state.setRepositoryVisibility(value as 'public' | 'private')}
-          >
-            <Label className="flex cursor-pointer items-center gap-3 font-normal">
-              <RadioGroupItem value="private" />
-              Private
-            </Label>
-            <Label className="flex cursor-pointer items-center gap-3 font-normal">
-              <RadioGroupItem value="public" />
-              Public
-            </Label>
-          </RadioGroup>
-        </Field>
+        <div className="flex items-end gap-2">
+          <Field className="w-2/5 min-w-0">
+            <FieldLabel>Owner</FieldLabel>
+            <ComboboxPopover
+              trigger={
+                <ComboboxTrigger
+                  render={
+                    <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+                      <ComboboxValue />
+                      <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
+                    </button>
+                  }
+                />
+              }
+              items={state.owners}
+              defaultValue={state.repositoryOwner}
+              value={state.repositoryOwner ?? null}
+              onValueChange={state.handleOwnerChange}
+            />
+          </Field>
+          <span className="pb-2 text-sm text-foreground-muted">/</span>
+          <Field className="min-w-0 flex-1">
+            <FieldLabel htmlFor={repositoryNameId}>Repository name</FieldLabel>
+            <Input
+              id={repositoryNameId}
+              autoFocus
+              placeholder="Enter a repository name"
+              value={state.repositoryName}
+              onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
+            />
+          </Field>
+        </div>
       </FieldGroup>
+      <Separator className="w-full" />
+      <SettingsRow
+        label="Choose visibility"
+        description="Choose who can see and commit to this repository"
+        control={
+          <Select.Root
+            value={state.repositoryVisibility}
+            onValueChange={(value) =>
+              state.setRepositoryVisibility(value as 'public' | 'private')
+            }
+          >
+            <Select.Trigger appearance="input" className="min-w-28">
+              {state.repositoryVisibility === 'private' ? 'Private' : 'Public'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="private">Private</Select.Item>
+              <Select.Item value="public">Public</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        }
+      />
       <Separator className="w-full" />
       <FieldGroup>
         <Field>
